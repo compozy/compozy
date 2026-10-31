@@ -284,6 +284,22 @@ compozy session reparent sess_child --top-level            # undo
 Agents use `compozy__session_reparent` with `parent_session_id` or `top_level: true`. A refused
 request returns HTTP 409 with a `session_reparent_*` error code naming the rule.
 
+## Take over a spawned session
+
+A session another agent spawned is a governed worker: it has a time limit, stops when its parent
+stops, and keeps the narrowed permissions its parent gave it. Its row menu offers fewer actions
+than your own sessions. When you want to keep working in it yourself, stop it if it is running, then
+choose **Take over session** in its row menu. It becomes a normal top-level session with
+**Rename**, **Continue with another agent**, **Fork**, folders, and the rest of the menu; its time
+limit, parent auto-stop, and permission narrowing end. Subagent sessions stay with their parent.
+
+```bash
+compozy session reparent sess_worker --top-level   # take over a stopped spawned worker
+```
+
+A spawned worker stopped because its parent stopped can also be resumed directly: send it a
+prompt, and it keeps running even though the parent is gone.
+
 ## Copy a session's ID or title
 
 Open a row's **…** menu or right-click it and choose **Copy session ID** (the `sess-…` ID that

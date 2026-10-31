@@ -2302,7 +2302,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "8917b9a8af33e54269cc788a5a8e066aaaae4918ab46b82fd3efbb6e34337b1e",
+    "input_schema_digest": "5194396ebbb4fcc4f890ef36d6b0b0318b679e17d7d9f34660f52b83a382abe8",
     "output_schema_digest": "ce7823e0d0114205827b7d718f9b11216b15c84541d93cbd316615423c801943"
   },
   {

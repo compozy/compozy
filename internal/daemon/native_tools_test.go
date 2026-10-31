@@ -9397,6 +9397,39 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 			}
 		})
+		t.Run("Should keep taking over a spawned session an operator act", func(t *testing.T) {
+			originalStatus, originalDetach := manager.StatusFn, manager.DetachSessionFn
+			t.Cleanup(func() { manager.StatusFn, manager.DetachSessionFn = originalStatus, originalDetach })
+			manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				target := *info
+				target.ID = id
+				target.Type = session.SessionTypeSpawned
+				return &target, nil
+			}
+			detached := 0
+			manager.DetachSessionFn = func(_ context.Context, _ string, id string) (*session.Info, error) {
+				detached++
+				target := *info
+				target.ID = id
+				return &target, nil
+			}
+			request := toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionReparent,
+				Input:  json.RawMessage(`{"session_id":"sess-1","top_level":true}`),
+			}
+			_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1"}, request)
+			got, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || string(got.Code) != "session_reparent_"+string(session.ReparentRefusalOperatorRequired) ||
+				detached != 0 {
+				t.Fatalf("agent take-over error = %v detach calls = %d, want operator_required refusal", err, detached)
+			}
+			if _, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionReparent,
+				Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","top_level":true}`),
+			}); err != nil || detached != 1 {
+				t.Fatalf("operator take-over error = %v detach calls = %d, want one take-over", err, detached)
+			}
+		})
 		t.Run("Should fence both reparent targets to the effective profile", func(t *testing.T) {
 			original := manager.StatusFn
 			t.Cleanup(func() { manager.StatusFn = original })

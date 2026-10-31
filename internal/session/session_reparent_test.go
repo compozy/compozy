@@ -1,10 +1,15 @@
 package session
 
 import (
+	"context"
 	"errors"
+	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -17,10 +22,65 @@ type reparentHarness struct {
 
 func newReparentHarness(t *testing.T) *reparentHarness {
 	t.Helper()
-	h := newHarness(t)
+	return newReparentHarnessFrom(t, newHarness(t))
+}
+
+// newSpawnReparentHarness supports governed spawns, whose tool narrowing needs hosted MCP.
+func newSpawnReparentHarness(t *testing.T) *reparentHarness {
+	t.Helper()
+	return newReparentHarnessFrom(t, newHostedMCPHarness(t))
+}
+
+// failingTakeOverCatalog refuses to register a user-typed row while armed, the
+// projection a take-over writes before its lineage transaction.
+type failingTakeOverCatalog struct {
+	*globaldb.GlobalDB
+	armed atomic.Bool
+}
+
+func (c *failingTakeOverCatalog) RegisterSession(ctx context.Context, info store.SessionInfo) error {
+	if c.armed.Load() && info.SessionType == string(SessionTypeUser) {
+		return errors.New("catalog unavailable")
+	}
+	return c.GlobalDB.RegisterSession(ctx, info)
+}
+
+func (c *failingTakeOverCatalog) RegisterSessionWithCreationIdentity(
+	ctx context.Context,
+	info store.SessionInfo,
+	identity store.SessionCreationIdentity,
+) (store.SessionCreationRegistration, error) {
+	if c.armed.Load() && info.SessionType == string(SessionTypeUser) {
+		return store.SessionCreationRegistration{}, errors.New("catalog unavailable")
+	}
+	return c.GlobalDB.RegisterSessionWithCreationIdentity(ctx, info, identity)
+}
+
+// failingLineageCatalog cancels the request and refuses the lineage transaction,
+// the step after a take-over has already projected its catalog row.
+type failingLineageCatalog struct {
+	*globaldb.GlobalDB
+	cancel context.CancelFunc
+}
+
+func (c *failingLineageCatalog) UpdateSessionLineages(
+	context.Context, string, []store.SessionLineageUpdate,
+) error {
+	c.cancel()
+	return errors.New("lineage transaction unavailable")
+}
+
+func newReparentHarnessFrom(t *testing.T, h *harness, catalog ...store.SessionCatalog) *reparentHarness {
+	t.Helper()
 	db := openManagerInputQueueStore(t)
 	registerManagerInputQueueWorkspace(t, db, h)
-	h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db))
+	var sessionCatalog store.SessionCatalog = db
+	if len(catalog) > 0 {
+		sessionCatalog = catalog[0]
+	}
+	h.manager = newManagerWithHarness(
+		t, h, WithSessionCatalog(sessionCatalog), WithHostedMCPLauncher(h.manager.hostedMCP),
+	)
 	cleanupTestManager(t, h.manager)
 	return &reparentHarness{harness: h, db: db}
 }
@@ -45,6 +105,21 @@ func (h *reparentHarness) createStopped(t *testing.T, parentID string) *Session 
 		t.Fatalf("Stop(%q) error = %v", created.ID, err)
 	}
 	return created
+}
+
+func (h *reparentHarness) spawnParent(t *testing.T) *Session {
+	t.Helper()
+	parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Name: "orchestrator", Workspace: h.workspaceID, Type: SessionTypeUser,
+		Lineage: &store.SessionLineage{
+			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(spawn parent) error = %v", err)
+	}
+	return parent
 }
 
 func (h *reparentHarness) catalogLineage(t *testing.T, sessionID string) store.SessionLineage {
@@ -165,6 +240,191 @@ func TestManagerAdoptSession(t *testing.T) {
 		assertReparentLineage(t, h, child, wantLineage{
 			parent: source.ID, root: source.ID, depth: 1, kind: store.LineageKindProvenance,
 		})
+	})
+
+	t.Run("Should take over a stopped spawned worker as a resumable root user session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID:  parent.ID,
+			AgentName:        "coder",
+			Name:             "worker",
+			TTL:              time.Hour,
+			AutoStopOnParent: true,
+			NotifyCreator:    true,
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		for _, id := range []string{worker.ID, parent.ID} {
+			if err := h.manager.Stop(ctx, id); err != nil {
+				t.Fatalf("Stop(%q) error = %v", id, err)
+			}
+		}
+		// Releases before the canceled-start fix recorded a reaper-canceled resume
+		// as a process failure, which marks the runtime dead.
+		metaPath := worker.MetaPath()
+		meta := readMeta(t, metaPath)
+		meta.Failure = &store.SessionFailure{
+			Kind:    store.FailureProcess,
+			Summary: `session: startup canceled for "` + worker.ID + `": spawn_reaper:parent_stopped`,
+		}
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+			t.Fatal(err)
+		}
+
+		info, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID)
+		if err != nil {
+			t.Fatalf("DetachSession(spawned worker) error = %v", err)
+		}
+		if info.Type != SessionTypeUser {
+			t.Fatalf("DetachSession() type = %q, want user", info.Type)
+		}
+		assertReparentLineage(t, h, worker, wantLineage{root: worker.ID, kind: store.LineageKindRoot})
+		meta = readMeta(t, metaPath)
+		if meta.SessionType != string(SessionTypeUser) || meta.Failure == nil ||
+			meta.Failure.Kind != store.FailureCanceled {
+			t.Fatalf(
+				"taken-over meta type=%q failure=%#v, want user with a canceled stop",
+				meta.SessionType, meta.Failure,
+			)
+		}
+		lineage := store.NormalizeSessionLineage(worker.ID, meta.Lineage)
+		if lineage.SpawnRole != "" || lineage.TTLExpiresAt != nil || lineage.AutoStopOnParent ||
+			lineage.NotifyCreator || lineage.SpawnBudget != (store.SessionSpawnBudget{}) ||
+			len(lineage.PermissionPolicy.Tools) != 0 {
+			t.Fatalf("taken-over lineage kept spawn governance: %#v", lineage)
+		}
+		rows, err := h.db.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, ID: worker.ID,
+		})
+		if err != nil || len(rows) != 1 || rows[0].SessionType != string(SessionTypeUser) ||
+			rows[0].Lineage == nil || rows[0].Lineage.TTLExpiresAt != nil || rows[0].Lineage.SpawnRole != "" {
+			t.Fatalf("catalog row after take-over = %#v, %v", rows, err)
+		}
+
+		resumed, err := h.manager.Resume(ctx, worker.ID)
+		if err != nil {
+			t.Fatalf("Resume(taken-over worker) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h.harness, resumed.ID) })
+		if got := resumed.Info().Type; got != SessionTypeUser {
+			t.Fatalf("resumed type = %q, want user", got)
+		}
+	})
+
+	t.Run("Should leave a worker unchanged when the take-over projection fails", func(t *testing.T) {
+		t.Parallel()
+
+		hostedHarness := newHostedMCPHarness(t)
+		catalog := &failingTakeOverCatalog{}
+		h := newReparentHarnessFrom(t, hostedHarness, catalog)
+		catalog.GlobalDB = h.db
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		for _, id := range []string{worker.ID, parent.ID} {
+			if err := h.manager.Stop(ctx, id); err != nil {
+				t.Fatalf("Stop(%q) error = %v", id, err)
+			}
+		}
+
+		catalog.armed.Store(true)
+		if _, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID); err == nil ||
+			!strings.Contains(err.Error(), "catalog unavailable") {
+			t.Fatalf("DetachSession() error = %v, want the injected projection failure", err)
+		}
+		meta := readMeta(t, worker.MetaPath())
+		if meta.SessionType != string(SessionTypeSpawned) || meta.Lineage == nil ||
+			meta.Lineage.ParentSessionID != parent.ID || !meta.Lineage.AutoStopOnParent {
+			t.Fatalf(
+				"meta after failed take-over = type %q lineage %#v, want unchanged",
+				meta.SessionType, meta.Lineage,
+			)
+		}
+		if got := h.catalogLineage(t, worker.ID); got.ParentSessionID != parent.ID {
+			t.Fatalf("catalog lineage after failed take-over = %#v, want unchanged", got)
+		}
+
+		catalog.armed.Store(false)
+		info, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID)
+		if err != nil || info.Type != SessionTypeUser {
+			t.Fatalf("retry DetachSession() = %#v, %v; want the take-over", info, err)
+		}
+	})
+
+	t.Run("Should restore the catalog row when a canceled take-over fails its lineage update", func(t *testing.T) {
+		t.Parallel()
+
+		hostedHarness := newHostedMCPHarness(t)
+		catalog := &failingLineageCatalog{}
+		h := newReparentHarnessFrom(t, hostedHarness, catalog)
+		catalog.GlobalDB = h.db
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		for _, id := range []string{worker.ID, parent.ID} {
+			if err := h.manager.Stop(ctx, id); err != nil {
+				t.Fatalf("Stop(%q) error = %v", id, err)
+			}
+		}
+
+		requestCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		catalog.cancel = cancel
+		if _, err := h.manager.DetachSession(requestCtx, h.workspaceID, worker.ID); err == nil ||
+			!strings.Contains(err.Error(), "lineage transaction unavailable") {
+			t.Fatalf("DetachSession() error = %v, want the lineage failure", err)
+		}
+		if meta := readMeta(t, worker.MetaPath()); meta.SessionType != string(SessionTypeSpawned) {
+			t.Fatalf("meta type after failed take-over = %q, want spawned", meta.SessionType)
+		}
+		rows, err := h.db.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, ID: worker.ID,
+		})
+		if err != nil || len(rows) != 1 || rows[0].SessionType != string(SessionTypeSpawned) ||
+			rows[0].Lineage == nil || rows[0].Lineage.ParentSessionID != parent.ID {
+			t.Fatalf("catalog row after failed take-over = %#v, %v; want the spawned worker restored", rows, err)
+		}
+	})
+
+	t.Run("Should refuse taking over a running spawned worker without changing it", func(t *testing.T) {
+		t.Parallel()
+
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		t.Cleanup(func() { reportSessionStop(t, h.harness, parent.ID) })
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h.harness, worker.ID) })
+
+		_, err = h.manager.DetachSession(ctx, h.workspaceID, worker.ID)
+		refusal, ok := errors.AsType[*ReparentError](err)
+		if !ok || refusal.Reason != ReparentRefusalSourceRunning {
+			t.Fatalf("DetachSession(running worker) error = %v, want %q", err, ReparentRefusalSourceRunning)
+		}
+		if got := worker.Info(); got.Type != SessionTypeSpawned || got.Lineage.ParentSessionID != parent.ID {
+			t.Fatalf("running worker changed after refusal: %#v", got)
+		}
 	})
 
 	t.Run("Should refuse a subtree crossing workspaces without changing any lineage", func(t *testing.T) {
@@ -369,13 +629,70 @@ func TestValidateReparentNodes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should admit only stopped, exited spawned workers for take-over", func(t *testing.T) {
+		t.Parallel()
+		spawned := func(role string, state State) reparentNode {
+			return reparentNode{
+				id: "sess-a", sessionType: SessionTypeSpawned,
+				lineage: store.SessionLineage{ParentSessionID: "sess-p", SpawnRole: role, Kind: store.LineageKindSpawn},
+				meta:    store.SessionMeta{ID: "sess-a", State: string(state)},
+			}
+		}
+		for _, test := range []struct {
+			name string
+			node reparentNode
+			want ReparentRefusal
+		}{
+			{name: "subagent", node: spawned(store.SubagentSpawnRole, StateStopped), want: ReparentRefusalSourceNotUser},
+			{name: "daemon auto-title role", node: spawned(SpawnRoleAutoTitle, StateStopped), want: ReparentRefusalSourceNotUser},
+			// After a daemon restart a stopping worker is absent from the manager.
+			{name: "stopping worker without a run", node: spawned("worker", StateStopping), want: ReparentRefusalSourceRunning},
+			{name: "stopped worker with an unverifiable process", node: func() reparentNode {
+				node := spawned("worker", StateStopped)
+				// A recorded PID without its start time cannot prove the process exited.
+				node.meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: 4242}
+				return node
+			}(), want: ReparentRefusalSourceRunning},
+			{name: "stopped worker whose process still runs", node: func() reparentNode {
+				node := spawned("worker", StateStopped)
+				started, err := procutil.StartedAt(os.Getpid())
+				if err != nil {
+					t.Fatal(err)
+				}
+				node.meta.Liveness = &store.SessionLivenessMeta{
+					SubprocessPID: os.Getpid(), SubprocessStartedAt: &started,
+				}
+				return node
+			}(), want: ReparentRefusalSourceRunning},
+			{name: "stopped worker", node: spawned("worker", StateStopped)},
+			{name: "stopped custom role", node: spawned("reviewer", StateStopped)},
+		} {
+			t.Run("Should classify "+test.name, func(t *testing.T) {
+				t.Parallel()
+				takeOver, err := validateDetachSource(&test.node)
+				if !takeOver {
+					t.Fatalf("validateDetachSource(%s) takeOver = false, want a take-over request", test.name)
+				}
+				if test.want == "" {
+					if err != nil {
+						t.Fatalf("validateDetachSource(%s) error = %v, want admitted", test.name, err)
+					}
+					return
+				}
+				if refusal, ok := errors.AsType[*ReparentError](err); !ok || refusal.Reason != test.want {
+					t.Fatalf("validateDetachSource(%s) error = %v, want %q", test.name, err, test.want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should refuse detaching continued, forked, and spawned sessions", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []store.LineageKind{
 			store.LineageKindContinue, store.LineageKindFork, store.LineageKindRecovery, store.LineageKindSpawn,
 		} {
 			node := user(store.SessionLineage{ParentSessionID: "sess-p", Kind: kind})
-			if err := validateDetachSource(&node); !errors.Is(err, ErrSessionReparentRefused) {
+			if _, err := validateDetachSource(&node); !errors.Is(err, ErrSessionReparentRefused) {
 				t.Fatalf("validateDetachSource(%s) error = %v, want refusal", kind, err)
 			}
 		}

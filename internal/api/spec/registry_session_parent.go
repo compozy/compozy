@@ -41,7 +41,7 @@ func clearSessionParentOperationSpec() OperationSpec {
 		Path:        specSessionParentPath,
 		AppAccess:   AppAccessAllowed,
 		OperationID: "clearSessionParent",
-		Summary:     "Make an adopted child session top-level again",
+		Summary:     "Make an adopted child session top-level, or take over a stopped spawned worker",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileSelector(

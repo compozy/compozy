@@ -28,6 +28,14 @@ type reparentNode struct {
 type reparentChange struct {
 	node    *reparentNode
 	lineage store.SessionLineage
+	// sessionType replaces the stored type when set; only a take-over sets it.
+	sessionType Type
+}
+
+// reparentTarget is the source session's new lineage and, for a take-over, its new type.
+type reparentTarget struct {
+	lineage     store.SessionLineage
+	sessionType Type
 }
 
 // loadReparentNode resolves one session inside workspaceID. The caller holds
@@ -115,7 +123,7 @@ func (m *Manager) collectReparentSubtree(ctx context.Context, root *reparentNode
 func (m *Manager) applyReparent(
 	ctx context.Context,
 	source *reparentNode,
-	lineage store.SessionLineage,
+	target reparentTarget,
 ) (*Info, error) {
 	lineageStore, err := m.sessionLineageStore()
 	if err != nil {
@@ -125,7 +133,7 @@ func (m *Manager) applyReparent(
 	if err != nil {
 		return nil, err
 	}
-	changes, err := planReparentChanges(source, lineage, descendants)
+	changes, err := planReparentChanges(source, target, descendants)
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +164,26 @@ func (m *Manager) applyReparent(
 			UpdatedAt: now,
 		})
 	}
+	if target.sessionType != "" {
+		// The hierarchy update leaves type and governance columns alone, so a
+		// take-over projects the source's full row first. A refused projection
+		// changes no row, and the metadata rolls back with it.
+		if err := m.persistSessionCatalogFromMeta(ctx, &source.meta); err != nil {
+			return nil, rollback(fmt.Errorf("session: project take-over of %q: %w", source.id, err))
+		}
+	}
 	if err := lineageStore.UpdateSessionLineages(ctx, source.workspaceID, updates); err != nil {
-		return nil, rollback(fmt.Errorf("session: persist reparent lineage: %w", err))
+		cause := rollback(fmt.Errorf("session: persist reparent lineage: %w", err))
+		if target.sessionType != "" {
+			// The request may be canceled already; the restore must still land so the
+			// catalog does not keep a taken-over row for a worker meta.json restored.
+			cleanupCtx, cancel := m.lifecycleCleanupContext()
+			defer cancel()
+			if restoreErr := m.persistSessionCatalogFromMeta(cleanupCtx, &source.meta); restoreErr != nil {
+				cause = errors.Join(cause, fmt.Errorf("session: restore catalog row of %q: %w", source.id, restoreErr))
+			}
+		}
+		return nil, cause
 	}
 
 	var result *Info
@@ -173,12 +199,13 @@ func (m *Manager) applyReparent(
 
 func planReparentChanges(
 	source *reparentNode,
-	lineage store.SessionLineage,
+	target reparentTarget,
 	descendants []reparentNode,
 ) ([]reparentChange, error) {
+	lineage := target.lineage
 	delta := lineage.SpawnDepth - source.lineage.SpawnDepth
 	changes := make([]reparentChange, 0, len(descendants)+1)
-	changes = append(changes, reparentChange{node: source, lineage: lineage})
+	changes = append(changes, reparentChange{node: source, lineage: lineage, sessionType: target.sessionType})
 	for i := range descendants {
 		next := descendants[i].lineage
 		next.RootSessionID = lineage.RootSessionID
@@ -217,6 +244,9 @@ func lockReparentActiveSessions(changes []reparentChange) func() {
 func (m *Manager) writeReparentLineage(change *reparentChange, now time.Time) (func() error, error) {
 	node := change.node
 	if active := node.active; active != nil {
+		if change.sessionType != "" {
+			return nil, fmt.Errorf("session: change type of running session %q: %w", node.id, ErrValidation)
+		}
 		active.mu.Lock()
 		defer active.mu.Unlock()
 		previousMeta := active.metaLocked()
@@ -242,6 +272,11 @@ func (m *Manager) writeReparentLineage(change *reparentChange, now time.Time) (f
 	previousMeta := node.meta
 	node.meta.Lineage = store.CloneSessionLineage(&change.lineage)
 	node.meta.UpdatedAt = now
+	if change.sessionType != "" {
+		node.meta.SessionType = string(change.sessionType)
+		node.sessionType = change.sessionType
+		node.meta.Failure = recoverStopCanceledStartFailure(node.meta.Failure)
+	}
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, node.id))
 	if err := store.WriteSessionMeta(metaPath, &node.meta); err != nil {
 		node.meta = previousMeta
@@ -249,8 +284,24 @@ func (m *Manager) writeReparentLineage(change *reparentChange, now time.Time) (f
 	}
 	return func() error {
 		node.meta = previousMeta
+		node.sessionType = normalizeSessionType(Type(previousMeta.SessionType))
 		return store.WriteSessionMeta(metaPath, &previousMeta)
 	}, nil
+}
+
+// recoverStopCanceledStartFailure reclassifies a legacy process failure as the
+// canceled stop it was. Releases through v0.4.7 recorded a stop that interrupted
+// a launch (for example the spawn reaper canceling a resumed child) as a process
+// failure, which marks the runtime dead and refuses every resume. Take-over is the
+// recovery path for those sessions. Remove in v0.6.0.
+func recoverStopCanceledStartFailure(failure *store.SessionFailure) *store.SessionFailure {
+	if failure == nil || failure.Kind != store.FailureProcess ||
+		!strings.HasPrefix(strings.TrimSpace(failure.Summary), errStartupCanceledByStop.Error()+" for ") {
+		return failure
+	}
+	recovered := *failure
+	recovered.Kind = store.FailureCanceled
+	return &recovered
 }
 
 func reparentNodeInfo(node *reparentNode) *Info {

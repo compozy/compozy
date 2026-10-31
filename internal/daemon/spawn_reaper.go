@@ -260,8 +260,7 @@ func (r *spawnReaper) reapSpawnedCandidate(
 		return spawnReapCandidate{child: info, reason: spawnReapReasonOrphaned}, true
 	}
 	if lineage.AutoStopOnParent && !spawnReaperLiveState(parent.State) {
-		if lineage.SpawnRole == store.SubagentSpawnRole &&
-			(parent.StopReason == store.StopShutdown || parent.StopReason == store.StopAgentCrashed) {
+		if subagentSurvivesParentStop(lineage, parent) {
 			return spawnReapCandidate{}, false
 		}
 		return spawnReapCandidate{
@@ -285,6 +284,26 @@ func (r *spawnReaper) reap(
 	reason := strings.TrimSpace(candidate.reason)
 	if reason == "" {
 		reason = spawnReapReasonOrphaned
+	}
+	freshness, err := r.candidateFreshness(ctx, child, reason)
+	if err != nil {
+		return err
+	}
+	switch freshness {
+	case spawnCandidateEnded:
+		// The child stopped on its own since the snapshot: it needs no stop, but its
+		// task-run leases still go back now rather than at lease expiry.
+		released, releaseErr := r.releaseChildLeases(ctx, child, reason)
+		if report != nil {
+			report.ReleasedLeases += released
+		}
+		if releaseErr != nil {
+			return fmt.Errorf("daemon: release child leases for %q: %w", child.ID, releaseErr)
+		}
+		return nil
+	case spawnCandidateChanged:
+		return nil
+	case spawnCandidateCurrent:
 	}
 
 	r.dispatchReasonHook(ctx, candidate)

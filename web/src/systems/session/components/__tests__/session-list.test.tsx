@@ -2127,6 +2127,48 @@ describe("SessionList folders and manual order", () => {
     expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "c-prov" }));
   });
 
+  it("Should offer Take over only on a stopped spawned worker", async () => {
+    const user = userEvent.setup();
+    const onMakeTopLevel = vi.fn();
+    const parent = { ...layoutRows[0]!, lineage: undefined };
+    const spawned = (id: string, overrides: Partial<SessionPayload>) =>
+      ({
+        ...layoutRows[2]!,
+        id,
+        name: id,
+        type: "spawned",
+        state: "stopped",
+        lineage: {
+          ...layoutRows[0]!.lineage!,
+          parent_session_id: parent.id,
+          root_session_id: parent.id,
+          spawn_depth: 1,
+          spawn_role: "worker",
+          kind: "spawn",
+        },
+        ...overrides,
+      }) as SessionPayload;
+    const stoppedWorker = spawned("w-stopped", {});
+    const runningWorker = spawned("w-running", { state: "active" });
+    const subagent = spawned("w-subagent", {
+      lineage: { ...stoppedWorker.lineage!, spawn_role: "subagent" },
+    });
+    renderList({
+      sessions: [parent, stoppedWorker, runningWorker, subagent],
+      actions: { onMakeTopLevel },
+    });
+
+    for (const id of ["w-running", "w-subagent"]) {
+      await user.click(screen.getByTestId(`session-row-actions-${id}`));
+      expect(screen.queryByTestId(`session-row-take-over-${id}`)).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+    }
+    await user.click(screen.getByTestId("session-row-actions-w-stopped"));
+    expect(screen.queryByTestId("session-row-rename-w-stopped")).not.toBeInTheDocument();
+    await user.click(await screen.findByTestId("session-row-take-over-w-stopped"));
+    expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "w-stopped" }));
+  });
+
   // Invariant: a selection moves into a folder or the root through the bar's
   // Move to folder menu or by dragging a selected row, as one layout write of
   // its thread roots in on-screen order; success ends the selection, a refusal

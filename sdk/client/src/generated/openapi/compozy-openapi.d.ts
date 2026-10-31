@@ -5892,7 +5892,7 @@ export interface paths {
     /** Adopt a parentless user session as a child of another session */
     put: operations["setSessionParent"];
     post?: never;
-    /** Make an adopted child session top-level again */
+    /** Make an adopted child session top-level, or take over a stopped spawned worker */
     delete: operations["clearSessionParent"];
     options?: never;
     head?: never;

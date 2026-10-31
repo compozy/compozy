@@ -817,6 +817,67 @@ func TestManagerSpawnStoppedParentRules(t *testing.T) {
 			t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnValidation)
 		}
 	})
+
+	for _, tc := range []struct {
+		name         string
+		stopParent   bool
+		wantAutoStop bool
+	}{
+		{name: "Should release the parent stop binding when a child resumes after its parent stopped",
+			stopParent: true, wantAutoStop: false},
+		{name: "Should keep the parent stop binding when a child resumes under a live parent",
+			stopParent: false, wantAutoStop: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHostedMCPHarness(t)
+			ctx := testutil.Context(t)
+			parent := createSpawnParent(t, h, store.SessionPermissionPolicy{
+				Tools: []string{testToolRead},
+			}, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+			cleanupSessionStop(t, h, parent.ID)
+			child, err := h.manager.Spawn(ctx, SpawnOpts{
+				ParentSessionID:  parent.ID,
+				AgentName:        "coder",
+				TTL:              time.Hour,
+				AutoStopOnParent: true,
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+			})
+			if err != nil {
+				t.Fatalf("Spawn() error = %v", err)
+			}
+			if err := h.manager.Stop(ctx, child.ID); err != nil {
+				t.Fatalf("Stop(child) error = %v", err)
+			}
+			if tc.stopParent {
+				if err := h.manager.Stop(ctx, parent.ID); err != nil {
+					t.Fatalf("Stop(parent) error = %v", err)
+				}
+			}
+
+			resumed, err := h.manager.Resume(ctx, child.ID)
+			if err != nil {
+				t.Fatalf("Resume(child) error = %v", err)
+			}
+			cleanupSessionStop(t, h, resumed.ID)
+			for source, lineage := range map[string]*store.SessionLineage{
+				"runtime": resumed.Info().Lineage,
+				"meta":    readMeta(t, resumed.MetaPath()).Lineage,
+			} {
+				if lineage == nil || lineage.AutoStopOnParent != tc.wantAutoStop {
+					t.Fatalf("%s lineage = %#v, want auto_stop_on_parent=%t", source, lineage, tc.wantAutoStop)
+				}
+				if lineage.ParentSessionID != parent.ID || lineage.TTLExpiresAt == nil ||
+					!slices.Equal(lineage.PermissionPolicy.Tools, []string{testToolRead}) {
+					t.Fatalf("%s lineage lost parent, ttl, or narrowing: %#v", source, lineage)
+				}
+			}
+			if got := resumed.Info().Type; got != SessionTypeSpawned {
+				t.Fatalf("resumed child type = %q, want spawned", got)
+			}
+		})
+	}
 }
 
 func TestManagerSpawnHooksCarryLineageAndCannotWidenPermissions(t *testing.T) {

@@ -61,5 +61,17 @@ func (m *Manager) settleCanceledSessionStart(ctx context.Context, accepted *acce
 		return errors.Join(err, m.recordSessionStopVerificationFailure(settleCtx, session, result.StopOutcome))
 	}
 	result.StopOutcome = session.retainVerifiedStopOutcome(result.StopOutcome)
-	return errors.Join(err, m.finalizeStopped(settleCtx, session, context.Cause(accepted.run.ctx)))
+	return errors.Join(err, m.finalizeStopped(settleCtx, session, canceledStartWaitErr(accepted.run.ctx)))
+}
+
+// canceledStartWaitErr reports the launch error a canceled start settles with. A
+// cancellation the stop request caused is the requested stop, classified by its
+// cause like any other stop; recording it as a process failure would mark the
+// runtime dead and refuse every later resume.
+func canceledStartWaitErr(runCtx context.Context) error {
+	cause := context.Cause(runCtx)
+	if errors.Is(cause, errStartupCanceledByStop) {
+		return nil
+	}
+	return cause
 }
