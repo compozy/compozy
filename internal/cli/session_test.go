@@ -1128,9 +1128,17 @@ func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 			) (SessionRecord, error) {
 				requests = append(requests, req)
 				return SessionRecord{
-					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
-					Later: &contract.SessionLaterPayload{ParkedAt: fixedTestNow, Reason: req.Reason, ReturnAt: req.ReturnAt},
-					CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       session.StateStopped,
+					Later: &contract.SessionLaterPayload{
+						ParkedAt: fixedTestNow,
+						Reason:   req.Reason,
+						ReturnAt: req.ReturnAt,
+					},
+					CreatedAt: fixedTestNow,
+					UpdatedAt: fixedTestNow,
 				}, nil
 			},
 			resumeSessionFromLaterFn: func(_ context.Context, id string, children bool) (SessionRecord, error) {
@@ -1156,7 +1164,17 @@ func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 			requests[0].ReturnAt == nil || !requests[0].ReturnAt.Equal(want) {
 			t.Fatalf("session later = %#v requests=%#v, want reason and return time", parked.Later, requests)
 		}
-		if _, _, err := executeRootCommand(t, deps, "session", "later", "sess-1", "--return-at", "72h", "-o", "json"); err != nil {
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"later",
+			"sess-1",
+			"--return-at",
+			"72h",
+			"-o",
+			"json",
+		); err != nil {
 			t.Fatalf("executeRootCommand(session later --return-at 72h) error = %v", err)
 		}
 		if got := requests[1].ReturnAt; got == nil || !got.Equal(fixedTestNow.Add(72*time.Hour)) {

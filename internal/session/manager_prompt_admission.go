@@ -107,7 +107,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime = target.runtime
-	parked, err := m.agentMessageToLater(ctx, target, preparation.request)
+	parked, err := m.agentMessageToLater(ctx, &target, &preparation.request)
 	if err != nil {
 		return SendPromptResult{}, err
 	}

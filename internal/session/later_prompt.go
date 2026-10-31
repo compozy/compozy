@@ -11,8 +11,8 @@ import (
 // session, which queues the message instead of resuming the target.
 func (m *Manager) agentMessageToLater(
 	ctx context.Context,
-	target promptAdmissionTarget,
-	req promptRequest,
+	target *promptAdmissionTarget,
+	req *promptRequest,
 ) (bool, error) {
 	if target.session != nil || req.meta.Origin == nil {
 		return false, nil

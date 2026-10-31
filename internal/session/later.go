@@ -258,8 +258,11 @@ func (m *Manager) ResumeFromLater(
 		if _, err := laterStore.UnparkSession(ctx, workspaceID, member.ID); err != nil {
 			return nil, err
 		}
-		if member.ID != sessionID {
-			m.publishLaterCatalogUpsert(ctx, member.ID)
+		if member.ID == sessionID {
+			continue
+		}
+		if _, err := m.publishLaterCatalogUpsert(ctx, member.ID); err != nil {
+			m.logger.Warn("session: publish later child return", "session_id", member.ID, "error", err)
 		}
 	}
 	return m.publishLaterCatalogUpsert(ctx, sessionID)

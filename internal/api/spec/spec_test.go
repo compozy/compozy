@@ -4873,12 +4873,16 @@ func addSessionLaterSchemas(value any) int {
 		}
 		timestamp := map[string]any{"type": "string", "format": "date-time"}
 		properties["later"] = map[string]any{"oneOf": []any{
-			map[string]any{"type": "object", "required": []any{"parked_at", "pending_messages"}, "properties": map[string]any{
-				"parked_at":        timestamp,
-				"reason":           map[string]any{"type": "string"},
-				"return_at":        map[string]any{"type": "string", "format": "date-time", "nullable": true},
-				"pending_messages": map[string]any{"type": "integer"},
-			}},
+			map[string]any{
+				"type":     "object",
+				"required": []any{"parked_at", "pending_messages"},
+				"properties": map[string]any{
+					"parked_at":        timestamp,
+					"reason":           map[string]any{"type": "string"},
+					"return_at":        map[string]any{"type": "string", "format": "date-time", "nullable": true},
+					"pending_messages": map[string]any{"type": "integer"},
+				},
+			},
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		properties["returned_from_later_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}

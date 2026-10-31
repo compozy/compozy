@@ -48,7 +48,7 @@ func (r *sessionLaterProcessReleaser) TerminateSessionProcesses(ctx context.Cont
 	}
 	var failures error
 	for _, result := range results {
-		if result.Outcome != "terminated" && result.Outcome != "already_exited" {
+		if !sessionProcessTerminationSettled(result.Outcome) {
 			failures = errors.Join(failures, fmt.Errorf("process %d termination is %s", result.PID, result.Outcome))
 		}
 	}

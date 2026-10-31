@@ -565,7 +565,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		later, returnedAt, err := globalDB.SessionLaterState(ctx, workspaceID, parked.ID)
 		if err != nil || later != nil || returnedAt == nil || !returnedAt.Equal(returnAt) {
-			t.Fatalf("SessionLaterState(returned) = %#v, %v, %v, want unparked with return mark", later, returnedAt, err)
+			t.Fatalf(
+				"SessionLaterState(returned) = %#v, %v, %v, want unparked with return mark",
+				later,
+				returnedAt,
+				err,
+			)
 		}
 		cleared, err := globalDB.ClearLaterReturn(ctx, parked.ID)
 		if err != nil || !cleared {

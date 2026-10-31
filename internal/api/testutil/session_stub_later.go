@@ -6,6 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
+//nolint:gocritic // Value receivers keep the stub usable as a value, like its archive peers.
 func (s StubSessionManager) MoveToLater(
 	ctx context.Context,
 	workspaceID string,
@@ -18,6 +19,7 @@ func (s StubSessionManager) MoveToLater(
 	return nil, session.ErrSessionNotFound
 }
 
+//nolint:gocritic // Value receivers keep the stub usable as a value, like its archive peers.
 func (s StubSessionManager) ResumeFromLater(
 	ctx context.Context,
 	workspaceID string,

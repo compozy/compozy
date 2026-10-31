@@ -164,11 +164,21 @@ func (c *daemonClient) MoveSessionToLater(
 }
 
 // ResumeSessionFromLater returns a parked session to the normal flow.
-func (c *daemonClient) ResumeSessionFromLater(ctx context.Context, id string, withChildren bool) (SessionRecord, error) {
-	return c.postSessionLater(ctx, id, "/resume-later", contract.ResumeSessionFromLaterRequest{WithChildren: withChildren})
+func (c *daemonClient) ResumeSessionFromLater(
+	ctx context.Context,
+	id string,
+	withChildren bool,
+) (SessionRecord, error) {
+	request := contract.ResumeSessionFromLaterRequest{WithChildren: withChildren}
+	return c.postSessionLater(ctx, id, "/resume-later", request)
 }
 
-func (c *daemonClient) postSessionLater(ctx context.Context, id string, suffix string, body any) (SessionRecord, error) {
+func (c *daemonClient) postSessionLater(
+	ctx context.Context,
+	id string,
+	suffix string,
+	body any,
+) (SessionRecord, error) {
 	var response contract.SessionResponse
 	path, err := c.sessionScopedPath(ctx, id, suffix)
 	if err != nil {

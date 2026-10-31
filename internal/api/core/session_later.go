@@ -17,7 +17,12 @@ const laterOperationTimeout = 3 * time.Minute
 
 // SessionLaterManager parks sessions in Later and returns them to the normal flow.
 type SessionLaterManager interface {
-	MoveToLater(ctx context.Context, workspaceID string, sessionID string, req session.LaterRequest) (*session.Info, error)
+	MoveToLater(
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		req session.LaterRequest,
+	) (*session.Info, error)
 	ResumeFromLater(ctx context.Context, workspaceID string, sessionID string, withChildren bool) (*session.Info, error)
 }
 
@@ -28,9 +33,12 @@ func (h *BaseHandlers) MoveSessionToLater(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	h.changeSessionLater(c, func(ctx context.Context, manager SessionLaterManager, ws, id string) (*session.Info, error) {
-		return manager.MoveToLater(ctx, ws, id, session.LaterRequest{Reason: req.Reason, ReturnAt: req.ReturnAt})
-	})
+	h.changeSessionLater(
+		c,
+		func(ctx context.Context, manager SessionLaterManager, ws, id string) (*session.Info, error) {
+			return manager.MoveToLater(ctx, ws, id, session.LaterRequest{Reason: req.Reason, ReturnAt: req.ReturnAt})
+		},
+	)
 }
 
 // ResumeSessionFromLater returns a parked session to the normal flow without
@@ -41,9 +49,12 @@ func (h *BaseHandlers) ResumeSessionFromLater(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	h.changeSessionLater(c, func(ctx context.Context, manager SessionLaterManager, ws, id string) (*session.Info, error) {
-		return manager.ResumeFromLater(ctx, ws, id, req.WithChildren)
-	})
+	h.changeSessionLater(
+		c,
+		func(ctx context.Context, manager SessionLaterManager, ws, id string) (*session.Info, error) {
+			return manager.ResumeFromLater(ctx, ws, id, req.WithChildren)
+		},
+	)
 }
 
 func (h *BaseHandlers) changeSessionLater(
