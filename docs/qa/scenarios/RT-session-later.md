@@ -6,13 +6,13 @@ persona: Théo
 journey: J-archive-session-without-deleting
 expected: Move to Later stops the session, its child sessions, monitors, pending wakes, processes, and terminals, then parks the tree without deleting history; parked sessions leave the default list, board, and counts and appear in Later with reason, return date, parked time, and pending messages; a return date fires once, survives daemon restart, and lands the session in Needs you with a notification; an operator prompt resumes it; an agent message queues with disposition later and does not resume it.
 entry_points: Web session list Later view and Kanban Later bar; CLI session later/resume-later/list --later; HTTP+UDS later routes; native tools session_later/session_resume_later/session_prompt
-qa_status: pending
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-31-issue-1076-session-later.md
 overlaps: RT-session-archive-catalog; ET-web-sessions-board-paging-archive
 ---
 
@@ -38,7 +38,7 @@ not children and are not parked with it.
    the session stays parked and stopped, and its Later card shows one pending message.
 2. `compozy__session_status` resume attempts by agents and wakes do not start it.
 3. Send a prompt from the web composer or `compozy session prompt`. Expect the session leaves
-   Later, resumes, and the queued agent message is delivered after the operator prompt.
+   Later, resumes, and the queued agent message is delivered in the resumed session.
 
 ## Return date
 
