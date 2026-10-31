@@ -4295,6 +4295,35 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if len(snapshots.ids) != 0 {
 			t.Fatalf("parent title lookup projected PRs: %v", snapshots.ids)
 		}
+		// A parent whose only child is waiting still carries its rollup.
+		solo, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Solo", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		soloChild, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Name:      "Solo child",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: solo.ID,
+				RootSessionID:   solo.ID,
+				SpawnDepth:      1,
+				SpawnRole:       "worker",
+				TTLExpiresAt:    new(time.Now().Add(time.Hour)),
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		soloChild.mu.Lock()
+		soloChild.supervisionState = &SupervisionState{WorkSignals: []WorkSignal{{Kind: WorkSignalScheduledWait}}}
+		soloChild.mu.Unlock()
+		soloDetail := solo.Info()
+		if err := h.manager.PopulateSessionRelations(ctx, soloDetail); err != nil || soloDetail.Children == nil ||
+			soloDetail.Children.Waiting != 1 || soloDetail.Children.Total() != 1 {
+			t.Fatalf("waiting-only children = %#v, %v", soloDetail.Children, err)
+		}
 		h.manager.ConfigurePullRequests(nil, nil)
 		query.Columns = []string{"in_review"}
 		page, err = h.manager.ListPage(ctx, query)
