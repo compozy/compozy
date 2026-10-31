@@ -23,19 +23,22 @@ function specTitle(directory: string, id: string) {
 
 /**
  * Specs a prototype or flow can name: the `.compozy/tasks/<id>/` directories of the repository.
- * That directory is local workflow state Git ignores, so it is absent in CI and fresh worktrees;
- * `null` then tells the gallery to skip spec validation instead of failing every prototype.
+ * That directory is local workflow state Git ignores, so it is absent or empty in CI and fresh
+ * worktrees; `null` then tells the gallery to skip spec validation instead of failing every
+ * prototype.
  */
 function compozySpecs(webRoot: string) {
   const tasks = resolve(webRoot, "..", ".compozy", "tasks");
   if (!existsSync(tasks)) return null;
-  return Object.fromEntries(
+  const specs = Object.fromEntries(
     readdirSync(tasks, { withFileTypes: true })
       .filter(entry => entry.isDirectory() && specIdPattern.test(entry.name))
       .map(entry => entry.name)
       .sort((a, b) => a.localeCompare(b))
       .map(id => [id, specTitle(join(tasks, id), id)])
   );
+  // An empty directory (a worktree that copied no active specs) is as unavailable as a missing one.
+  return Object.keys(specs).length > 0 ? specs : null;
 }
 
 /** Prototype gallery of the web app: `bun run proto dev` (contract: docs/design/prototyping.md). */
