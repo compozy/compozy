@@ -402,6 +402,10 @@ export {
   SessionRenameDialog,
   type SessionRenameDialogProps,
 } from "./components/session-rename-dialog";
+export {
+  SessionLaterDialog,
+  type SessionLaterDialogProps,
+} from "./components/session-later-dialog";
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
 export { preloadSessionEntry } from "./lib/session-entry-preload";

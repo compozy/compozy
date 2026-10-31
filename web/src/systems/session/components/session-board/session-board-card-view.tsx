@@ -14,6 +14,7 @@ import {
 import type { ComponentProps, MouseEvent } from "react";
 
 import {
+  formatAbsoluteTime,
   formatRelativeTime,
   Pill,
   StateGlyph,
@@ -41,6 +42,8 @@ import {
 } from "../../lib/session-board-card";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "../../lib/session-display-title";
+import { sessionLaterDetails, sessionLaterSpoken } from "../../lib/session-later";
+import { SessionLaterDetails } from "../session-later-details";
 import { SessionListProviderMark } from "../session-list/session-list-provider-mark";
 import {
   SESSION_BOARD_CARD_FOOTER_ROW,
@@ -116,6 +119,7 @@ function sessionBoardCardLabel({
     rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
     rollup?.needsYou ? "A child needs you" : null,
     draft ? "Unsent draft" : null,
+    sessionLaterSpoken(sessionLaterDetails(session), formatAbsoluteTime),
     formatRelativeTime(session.updated_at),
   ]
     .filter(Boolean)
@@ -194,6 +198,7 @@ export function SessionBoardCardView({
           {title}
         </span>
       </span>
+      <SessionLaterDetails session={session} />
       <SessionBoardCardFooter
         draft={draft}
         lineage={lineage}

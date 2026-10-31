@@ -22,6 +22,11 @@ const SessionDeleteDialog = lazy(() =>
     default: module.SessionDeleteDialog,
   }))
 );
+const SessionLaterDialog = lazy(() =>
+  import("@/systems/session/components/session-later-dialog").then(module => ({
+    default: module.SessionLaterDialog,
+  }))
+);
 const SessionRenameDialog = lazy(() =>
   import("@/systems/session/components/session-rename-dialog").then(module => ({
     default: module.SessionRenameDialog,
@@ -96,6 +101,11 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
       {sidebar.rowProcessDialog.open ? (
         <Suspense fallback={null}>
           <SessionProcessChoiceDialog {...sidebar.rowProcessDialog} />
+        </Suspense>
+      ) : null}
+      {sidebar.rowLaterDialog.open ? (
+        <Suspense fallback={null}>
+          <SessionLaterDialog {...sidebar.rowLaterDialog} />
         </Suspense>
       ) : null}
       {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (

@@ -66,6 +66,7 @@ const (
 	DispositionSteering     Disposition = "steering"
 	DispositionQueued       Disposition = "queued"
 	DispositionInterrupting Disposition = "interrupting"
+	DispositionLater        Disposition = "later"
 )
 
 type Effect struct {

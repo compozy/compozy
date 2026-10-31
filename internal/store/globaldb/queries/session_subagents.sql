@@ -162,7 +162,11 @@ WITH RECURSIVE family(id,state) AS (
 SELECT id,state FROM family ORDER BY id;
 
 -- name: SetSubagentFamilyArchived :exec
-UPDATE sessions SET archived_at = sqlc.narg(archived_at),updated_at = sqlc.arg(now)
+UPDATE sessions SET archived_at = sqlc.narg(archived_at),updated_at = sqlc.arg(now),
+ parked_at = CASE WHEN sqlc.narg(archived_at) IS NULL THEN parked_at END,
+ park_reason = CASE WHEN sqlc.narg(archived_at) IS NULL THEN park_reason ELSE '' END,
+ park_until = CASE WHEN sqlc.narg(archived_at) IS NULL THEN park_until END,
+ later_returned_at = CASE WHEN sqlc.narg(archived_at) IS NULL THEN later_returned_at END
 WHERE workspace_id = sqlc.arg(workspace_id) AND id IN (SELECT value FROM json_each(sqlc.arg(ids)))
  AND ((sqlc.narg(archived_at) IS NULL AND archived_at IS NOT NULL) OR (sqlc.narg(archived_at) IS NOT NULL AND archived_at IS NULL));
 

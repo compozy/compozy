@@ -181,6 +181,10 @@ CREATE TABLE sessions (
 				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
 				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
 		ended_early_turn_id TEXT NOT NULL DEFAULT '',
+		parked_at TEXT,
+		park_reason TEXT NOT NULL DEFAULT '',
+		park_until TEXT,
+		later_returned_at TEXT,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
@@ -300,6 +304,7 @@ CREATE INDEX idx_sessions_global_catalog_attention
  OR pending_permission_count > 0 OR pending_clarify_count > 0
  OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure')
  OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation')
+ OR (state = 'stopped' AND later_returned_at IS NOT NULL)
  OR (state = 'active' AND ended_early_turn_id <> '' AND trim(COALESCE(stall_state, '')) <> 'stalled'
  AND trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) = '') THEN 0
  WHEN state = 'active' AND trim(COALESCE(stall_state, '')) <> 'stalled'
@@ -331,6 +336,7 @@ CREATE INDEX idx_sessions_global_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -344,6 +350,7 @@ CREATE INDEX idx_sessions_profile_global_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -357,6 +364,7 @@ CREATE INDEX idx_sessions_workspace_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -370,6 +378,7 @@ CREATE INDEX idx_sessions_profile_workspace_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -429,6 +438,23 @@ CREATE TRIGGER trg_sessions_archive_update_guard
 			BEGIN
 				SELECT RAISE(ABORT, 'session is archived');
 			END;
+
+CREATE TRIGGER trg_sessions_later_insert_guard
+			BEFORE INSERT ON sessions
+			WHEN NEW.parked_at IS NOT NULL AND (NEW.state != 'stopped' OR NEW.archived_at IS NOT NULL)
+			BEGIN
+				SELECT RAISE(ABORT, 'session is in later');
+			END;
+
+CREATE TRIGGER trg_sessions_later_update_guard
+			BEFORE UPDATE OF state, archived_at, parked_at ON sessions
+			WHEN NEW.parked_at IS NOT NULL AND (NEW.state != 'stopped' OR NEW.archived_at IS NOT NULL)
+			BEGIN
+				SELECT RAISE(ABORT, 'session is in later');
+			END;
+
+CREATE INDEX idx_sessions_later_due ON sessions(park_until)
+ WHERE parked_at IS NOT NULL AND park_until IS NOT NULL;
 
 CREATE INDEX idx_token_stats_session ON token_stats(session_id);
 

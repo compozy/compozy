@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Archive, type LucideIcon } from "lucide-react";
+import { Archive, Bookmark, type LucideIcon } from "lucide-react";
 
 import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 
-import { SESSION_ARCHIVED_COPY } from "../../lib/session-toolbar-copy";
+import { SESSION_ARCHIVED_COPY, SESSION_LATER_COPY } from "../../lib/session-toolbar-copy";
 
 interface ToolbarToggleCopy {
   controlName: string;
@@ -21,6 +21,8 @@ interface ToolbarToggleProps {
   onChange: (on: boolean) => void;
   slot: string;
   testId: string;
+  /** A quiet population count beside the icon; nothing renders at zero or while unknown. */
+  count?: number;
 }
 
 /**
@@ -29,7 +31,17 @@ interface ToolbarToggleProps {
  * Busy is `aria-disabled` rather than `disabled` so the control keeps focus and
  * its tooltip while a write is in flight.
  */
-function ToolbarToggle({ copy, icon, on, busy, onChange, slot, testId }: ToolbarToggleProps) {
+function ToolbarToggle({
+  copy,
+  icon,
+  on,
+  busy,
+  onChange,
+  slot,
+  testId,
+  count,
+}: ToolbarToggleProps) {
+  const shownCount = count !== undefined && count > 0 ? (count > 99 ? "99+" : String(count)) : null;
   const [prevOn, setPrevOn] = useState(on);
   const [announcement, setAnnouncement] = useState("");
   if (on !== prevOn) {
@@ -49,9 +61,10 @@ function ToolbarToggle({ copy, icon, on, busy, onChange, slot, testId }: Toolbar
           render={
             <Toggle
               aria-disabled={busy || undefined}
-              aria-label={copy.controlName}
+              aria-label={shownCount ? `${copy.controlName}, ${shownCount}` : copy.controlName}
               className={cn(
                 "size-7 min-w-7 p-0 text-muted hover:bg-surface-2 hover:text-fg",
+                shownCount && "w-auto gap-1 px-1.5",
                 // Pressed is a quiet surface-2 plate with fg ink — never a ring, never accent.
                 "aria-pressed:bg-surface-2 aria-pressed:text-fg",
                 "data-[state=on]:bg-surface-2 data-[state=on]:text-fg",
@@ -64,6 +77,11 @@ function ToolbarToggle({ copy, icon, on, busy, onChange, slot, testId }: Toolbar
               pressed={on}
             >
               <Icon as={icon} size="lg" />
+              {shownCount ? (
+                <span className="text-micro tabular-nums" data-testid={`${testId}-count`}>
+                  {shownCount}
+                </span>
+              ) : null}
             </Toggle>
           }
         />
@@ -98,6 +116,35 @@ export function SessionArchivedToggle({
       busy={false}
       onChange={onArchivedChange}
       slot="session-archived-toggle"
+      testId={testId}
+    />
+  );
+}
+
+export interface SessionLaterToggleProps {
+  later: boolean;
+  onLaterChange: (later: boolean) => void;
+  /** Sessions parked in Later across the list's scope; `undefined` until the count loads. */
+  count?: number;
+  testId: string;
+}
+
+/** Session-list contents: the active catalog, or the sessions parked in Later. */
+export function SessionLaterToggle({
+  later,
+  onLaterChange,
+  count,
+  testId,
+}: SessionLaterToggleProps) {
+  return (
+    <ToolbarToggle
+      copy={SESSION_LATER_COPY}
+      count={count}
+      icon={Bookmark}
+      on={later}
+      busy={false}
+      onChange={onLaterChange}
+      slot="session-later-toggle"
       testId={testId}
     />
   );

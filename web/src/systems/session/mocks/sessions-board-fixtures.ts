@@ -169,3 +169,48 @@ export const SESSIONS_BOARD_ARCHIVED: SessionPayload[] = [
     pull_request: pr(871, { state: "merged" }),
   }),
 ];
+
+const ahead = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+
+/** Sessions parked in Later: a reason with a reminder, one with waiting agent messages, a bare one. */
+export const SESSIONS_BOARD_LATER: SessionPayload[] = [
+  boardSession("l1", "done", {
+    name: "Migrate billing webhooks to v2",
+    state: "stopped",
+    branch: "feat/billing-webhooks-v2",
+    later: {
+      parked_at: ago(180),
+      reason: "Waiting on Stripe to enable the v2 endpoint",
+      return_at: ahead(3 * 24 * 60),
+      pending_messages: 0,
+    },
+    minutes: 180,
+  }),
+  boardSession("l2", "done", {
+    name: "Design review notes for onboarding",
+    state: "stopped",
+    provider: "codex",
+    later: {
+      parked_at: ago(2 * 24 * 60),
+      reason: "After the design crit on Thursday",
+      return_at: null,
+      pending_messages: 2,
+    },
+    minutes: 2 * 24 * 60,
+  }),
+  boardSession("l3", "done", {
+    name: "Spike: local embeddings cache",
+    state: "stopped",
+    later: { parked_at: ago(6 * 24 * 60), return_at: null, pending_messages: 0 },
+    minutes: 6 * 24 * 60,
+  }),
+];
+
+/** A session the daemon brought back from Later on its reminder date: it sits in Needs you. */
+export const SESSIONS_BOARD_BACK_FROM_LATER: SessionPayload = boardSession("s30", "needs_you", {
+  name: "Renew the Apple developer certificate",
+  state: "stopped",
+  badge: "needs-attention",
+  returned_from_later_at: ago(12),
+  minutes: 12,
+});

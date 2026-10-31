@@ -80,6 +80,15 @@ export const Interrupting: Story = {
   },
 };
 
+/** An agent message for a session parked in Later waits until the session is back. */
+export const QueuedForLater: Story = {
+  args: {
+    feedback: disposition(
+      outcome({ disposition: "later", entryId: "inp_7a1", steerDelivery: null })
+    ),
+  },
+};
+
 /** The turn ended as the send landed: it became the next message. */
 export const TurnEnded: Story = {
   args: { feedback: disposition(outcome({ disposition: "direct", steerDelivery: null })) },

@@ -26,6 +26,8 @@ type sessionClientAPI interface {
 	RefreshSessionSoul(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
 	ArchiveSession(context.Context, string, bool, contract.SessionProcessPolicy) (SessionRecord, error)
+	MoveSessionToLater(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	ResumeSessionFromLater(context.Context, string, bool) (SessionRecord, error)
 	UnarchiveSession(context.Context, string) (SessionRecord, error)
 	RenameSession(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	SetSessionParent(context.Context, string, SetSessionParentRequest) (SessionRecord, error)

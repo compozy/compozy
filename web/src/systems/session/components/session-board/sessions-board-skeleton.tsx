@@ -5,8 +5,8 @@ import { Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
 import { SESSION_BOARD_COLUMNS, type SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import {
-  SESSIONS_BOARD_ARCHIVE_BAR,
-  SESSIONS_BOARD_ARCHIVE_FRAME,
+  SESSIONS_BOARD_SHELF_BAR,
+  SESSIONS_BOARD_SHELF_FRAME,
   SESSIONS_BOARD_COLUMN_BODY,
   SESSIONS_BOARD_COLUMN_COUNT,
   SESSIONS_BOARD_COLUMN_FRAME,
@@ -274,8 +274,8 @@ export function SessionsBoardSkeleton({ layout = "columns" }: SessionsBoardSkele
           <ColumnsRowSkeleton className="animate-skeleton-reveal" layout="fill" />
         )}
       </div>
-      <div aria-hidden="true" className={SESSIONS_BOARD_ARCHIVE_FRAME}>
-        <div className={SESSIONS_BOARD_ARCHIVE_BAR}>
+      <div aria-hidden="true" className={SESSIONS_BOARD_SHELF_FRAME}>
+        <div className={SESSIONS_BOARD_SHELF_BAR}>
           <span className="size-3.5 shrink-0" />
           <Archive aria-hidden="true" className="size-3.5 text-subtle" />
           <span>Archive</span>

@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// StuckTaskRunPayload is a daemon API value.
+type StuckTaskRunPayload struct {
+	TaskID     string `json:"task_id"`
+	RunID      string `json:"run_id"`
+	Status     string `json:"status"`
+	OriginKind string `json:"origin_kind"`
+	SessionID  string `json:"session_id,omitempty"`
+	AgeMillis  int64  `json:"age_ms"`
+}
+
+// SubagentCancelPayload is a daemon API value.
+type SubagentCancelPayload struct {
+	SubagentID string `json:"subagent_id"`
+	Status     string `json:"status"`
+}
+
+// SubagentCancelRequest is a daemon API value.
+type SubagentCancelRequest struct {
+	Reason string `json:"reason"`
+}
+
+// SubagentChildActivity is a daemon API value.
+type SubagentChildActivity string
+
 // SubagentListPayload is a daemon API value.
 type SubagentListPayload struct {
 	Subagents  []SubagentPayload `json:"subagents"`
@@ -421,28 +445,4 @@ type TaskDashboardStatusBreakdownPayload struct {
 	Status       TaskStatus `json:"status"`
 	Count        int        `json:"count"`
 	SharePercent int        `json:"share_percent"`
-}
-
-// TaskDashboardTotalsPayload is a daemon API value.
-type TaskDashboardTotalsPayload struct {
-	TasksTotal             int `json:"tasks_total"`
-	RunsTotal              int `json:"runs_total"`
-	DraftTasks             int `json:"draft_tasks"`
-	PendingTasks           int `json:"pending_tasks"`
-	ReadyTasks             int `json:"ready_tasks"`
-	InProgressTasks        int `json:"in_progress_tasks"`
-	BlockedTasks           int `json:"blocked_tasks"`
-	CompletedTasks         int `json:"completed_tasks"`
-	FailedTasks            int `json:"failed_tasks"`
-	CanceledTasks          int `json:"canceled_tasks"`
-	AwaitingApprovalTasks  int `json:"awaiting_approval_tasks"`
-	DependencyBlockedTasks int `json:"dependency_blocked_tasks"`
-	QueuedRuns             int `json:"queued_runs"`
-	ClaimedRuns            int `json:"claimed_runs"`
-	StartingRuns           int `json:"starting_runs"`
-	RunningRuns            int `json:"running_runs"`
-	CompletedRuns          int `json:"completed_runs"`
-	FailedRuns             int `json:"failed_runs"`
-	CanceledRuns           int `json:"canceled_runs"`
-	ActiveRuns             int `json:"active_runs"`
 }

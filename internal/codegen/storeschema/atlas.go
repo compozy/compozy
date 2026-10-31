@@ -179,6 +179,7 @@ func planAtlasStream(
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
+	changes = splitSQLiteIndexModifications(changes)
 	plan := &migrate.Plan{Name: atlasSchemaName}
 	if len(changes) > 0 {
 		plan, err = dev.PlanChanges(ctx, atlasSchemaName, changes, func(options *migrate.PlanOptions) {

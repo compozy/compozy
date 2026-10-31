@@ -63,6 +63,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if errors.Is(err, session.ErrSessionArchiveRequiresStopped) {
 		payload.Code = "session_archive_requires_stopped"
 	}
+	if code := sessionLaterErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if errors.Is(err, session.ErrBoardFilterInvalid) {
 		payload.Code = "session_list_query_invalid"
 	}

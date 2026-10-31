@@ -146,6 +146,9 @@ type Manager struct {
 	branchSnapshots            BranchSnapshotReader
 	branchSnapshotSaver        BranchSnapshotSaver
 	replyWatches               ReplyWatchService
+	laterMu                    sync.Mutex
+	laterOpMu                  sync.Mutex
+	laterProcesses             LaterProcessReleaser
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings
 	supervisionMu              sync.Mutex

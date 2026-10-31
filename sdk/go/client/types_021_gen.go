@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerConfigPayload is a daemon API value.
+type SettingsWindowManagerConfigPayload struct {
+	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
+	SmallViewportPolicy SettingsWindowSmallViewportPolicy   `json:"small_viewport_policy"`
+	FocusPolicy         SettingsWindowFocusPolicy           `json:"focus_policy"`
+	FocusWrap           bool                                `json:"focus_wrap"`
+	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
+	RaiseOnFocus        bool                                `json:"raise_on_focus"`
+	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
+	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
+	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
+	HistoryLimit        int                                 `json:"history_limit"`
+	NavStackLimit       int                                 `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
+	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
+	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
+	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`
+	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
+	Shortcuts           map[string][]string                 `json:"shortcuts"`
+	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
+}
+
 // SettingsWindowManagerDefaultPayload is a daemon API value.
 type SettingsWindowManagerDefaultPayload struct {
 	CommandID    string   `json:"command"`
@@ -421,27 +443,3 @@ type StrategySpec = json.RawMessage
 // StrategyThreshold is a daemon API value.
 // StrategyThreshold preserves its custom JSON wire representation.
 type StrategyThreshold = json.RawMessage
-
-// StuckTaskRunPayload is a daemon API value.
-type StuckTaskRunPayload struct {
-	TaskID     string `json:"task_id"`
-	RunID      string `json:"run_id"`
-	Status     string `json:"status"`
-	OriginKind string `json:"origin_kind"`
-	SessionID  string `json:"session_id,omitempty"`
-	AgeMillis  int64  `json:"age_ms"`
-}
-
-// SubagentCancelPayload is a daemon API value.
-type SubagentCancelPayload struct {
-	SubagentID string `json:"subagent_id"`
-	Status     string `json:"status"`
-}
-
-// SubagentCancelRequest is a daemon API value.
-type SubagentCancelRequest struct {
-	Reason string `json:"reason"`
-}
-
-// SubagentChildActivity is a daemon API value.
-type SubagentChildActivity string

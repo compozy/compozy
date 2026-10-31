@@ -89,6 +89,13 @@ const (
 	// ErrorCodeSessionArchiveStopFailed reports a stop-first archive whose stop
 	// failed, leaving the session unarchived.
 	ErrorCodeSessionArchiveStopFailed ErrorCode = "session_archive_stop_failed"
+	// ErrorCodeSessionInLater reports a session parked in Later.
+	ErrorCodeSessionInLater ErrorCode = "session_in_later"
+	// ErrorCodeSubagentLaterFollowsParent reports a subagent parked on its own.
+	ErrorCodeSubagentLaterFollowsParent ErrorCode = "subagent_later_follows_parent"
+	// ErrorCodeSessionLaterStopFailed reports a Move to Later whose stop failed,
+	// leaving the session out of Later.
+	ErrorCodeSessionLaterStopFailed ErrorCode = "session_later_stop_failed"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

@@ -163,7 +163,7 @@ func (b sessionProcessSource) RecordTermination(
 		return err
 	}
 	outcome := "success"
-	if result.Outcome != "terminated" && result.Outcome != "already_exited" {
+	if !sessionProcessTerminationSettled(result.Outcome) {
 		outcome = "failure"
 	}
 	auditProfile := p.Owner.ProfileID
@@ -241,4 +241,10 @@ func (b sessionProcessSource) OrphanOwner(
 		}
 	}
 	return sessionprocess.Owner{}, false, nil
+}
+
+// sessionProcessTerminationSettled reports a termination outcome that leaves
+// the process gone, either by this request or before it.
+func sessionProcessTerminationSettled(outcome string) bool {
+	return outcome == "terminated" || outcome == "already_exited"
 }

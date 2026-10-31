@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// SettingsProvidersResponse is a daemon API value.
+type SettingsProvidersResponse struct {
+	Collection      SettingsCollectionName        `json:"collection"`
+	Scope           SettingsUserScopeKind         `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
+	Providers       []SettingsProviderItemPayload `json:"providers"`
+}
+
 // SettingsRedactPayload is a daemon API value.
 type SettingsRedactPayload struct {
 	Enabled bool `json:"enabled"`
@@ -419,26 +427,4 @@ type SettingsWindowManagerCommandPayload struct {
 	Title   string `json:"title"`
 	Section string `json:"section"`
 	Source  string `json:"source"`
-}
-
-// SettingsWindowManagerConfigPayload is a daemon API value.
-type SettingsWindowManagerConfigPayload struct {
-	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
-	SmallViewportPolicy SettingsWindowSmallViewportPolicy   `json:"small_viewport_policy"`
-	FocusPolicy         SettingsWindowFocusPolicy           `json:"focus_policy"`
-	FocusWrap           bool                                `json:"focus_wrap"`
-	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
-	RaiseOnFocus        bool                                `json:"raise_on_focus"`
-	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
-	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
-	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
-	HistoryLimit        int                                 `json:"history_limit"`
-	NavStackLimit       int                                 `json:"nav_stack_limit"`
-	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
-	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
-	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
-	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`
-	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
-	Shortcuts           map[string][]string                 `json:"shortcuts"`
-	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
 }

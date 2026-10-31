@@ -984,6 +984,9 @@ import type {
   MoveSessionData,
   MoveSessionErrors,
   MoveSessionResponses,
+  MoveSessionToLaterData,
+  MoveSessionToLaterErrors,
+  MoveSessionToLaterResponses,
   MoveWorkspaceData,
   MoveWorkspaceErrors,
   MoveWorkspaceResponses,
@@ -1236,6 +1239,9 @@ import type {
   ResumeSchedulerData,
   ResumeSchedulerErrors,
   ResumeSchedulerResponses,
+  ResumeSessionFromLaterData,
+  ResumeSessionFromLaterErrors,
+  ResumeSessionFromLaterResponses,
   ResumeTaskData,
   ResumeTaskErrors,
   ResumeTaskResponses,
@@ -7738,6 +7744,28 @@ export class sessions extends HeyApiClient {
   }
 
   /**
+   * Stop a session and its children and park them in Later, with an optional reason and return time
+   */
+  public moveSessionToLater<ThrowOnError extends boolean = true>(
+    options: Options<MoveSessionToLaterData, ThrowOnError>
+  ): RequestResult<MoveSessionToLaterResponses, MoveSessionToLaterErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      MoveSessionToLaterResponses,
+      MoveSessionToLaterErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/later",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * List a session's monitors
    */
   public listSessionMonitors<ThrowOnError extends boolean = true>(
@@ -8071,6 +8099,33 @@ export class sessions extends HeyApiClient {
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
       ...options,
+    });
+  }
+
+  /**
+   * Return a parked session, and optionally its parked children, to the normal flow
+   */
+  public resumeSessionFromLater<ThrowOnError extends boolean = true>(
+    options: Options<ResumeSessionFromLaterData, ThrowOnError>
+  ): RequestResult<
+    ResumeSessionFromLaterResponses,
+    ResumeSessionFromLaterErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ResumeSessionFromLaterResponses,
+      ResumeSessionFromLaterErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

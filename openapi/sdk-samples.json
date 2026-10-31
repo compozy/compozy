@@ -2276,6 +2276,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "moveSessionToLater": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.moveSessionToLater({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MoveSessionToLater(ctx, client.MoveSessionToLaterParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.MoveSessionToLaterRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "moveWorkspace": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.moveWorkspace({ body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MoveWorkspace(ctx, client.MoveWorkspaceParams{}, client.MoveWorkspaceRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2863,6 +2870,13 @@
             "kind": "json",
             "resource": "tasks",
             "app_access": "denied"
+        },
+        "resumeSessionFromLater": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.resumeSessionFromLater({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ResumeSessionFromLater(ctx, client.ResumeSessionFromLaterParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.ResumeSessionFromLaterRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
         },
         "resumeTask": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.resumeTask({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",

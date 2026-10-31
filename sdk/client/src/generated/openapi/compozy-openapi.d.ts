@@ -5813,6 +5813,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/later": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stop a session and its children and park them in Later, with an optional reason and return time */
+    post: operations["moveSessionToLater"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -6048,6 +6065,23 @@ export interface paths {
     put?: never;
     /** Inspect and repair an interrupted session transcript */
     post: operations["repairSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Return a parked session, and optionally its parked children, to the normal flow */
+    post: operations["resumeSessionFromLater"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11715,6 +11749,11 @@ export interface components {
     MoveSessionRequest: {
       folder_id?: string;
     };
+    MoveSessionToLaterRequest: {
+      reason?: string;
+      /** Format: date-time */
+      return_at?: string | null;
+    };
     MoveWorkspaceRequest: {
       folder_id?: string;
       workspace_id: string;
@@ -12842,6 +12881,9 @@ export interface components {
       /** Format: date-time */
       updated_at: string;
     };
+    ResumeSessionFromLaterRequest: {
+      with_children?: boolean;
+    };
     ResumeTaskRequest: {
       metadata?: unknown;
     };
@@ -13341,7 +13383,7 @@ export interface components {
       canceled_queued_entries?: number;
       delivery: string;
       /** @enum {string} */
-      disposition?: "direct" | "steering" | "queued" | "interrupting";
+      disposition?: "direct" | "steering" | "queued" | "interrupting" | "later";
       entry_id?: string;
       /** Format: date-time */
       estimated_send_at?: string | null;
@@ -13983,6 +14025,14 @@ export interface components {
     SessionInteractionsResponse: {
       interactions: components["schemas"]["PendingInteractionPayload"][];
     };
+    SessionLaterPayload: {
+      /** Format: date-time */
+      parked_at: string;
+      pending_messages: number;
+      reason?: string;
+      /** Format: date-time */
+      return_at?: string | null;
+    };
     SessionLineagePayload: {
       auto_stop_on_parent: boolean;
       /** @enum {string} */
@@ -14073,6 +14123,7 @@ export interface components {
       folder_id?: string;
       health?: components["schemas"]["SessionHealthPayload"] | null;
       id: string;
+      later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
@@ -14089,6 +14140,8 @@ export interface components {
       pull_request_lookup: components["schemas"]["SessionPullRequestLookupPayload"] | null;
       queue?: components["schemas"]["SessionQueueSummaryPayload"] | null;
       reply_watches?: components["schemas"]["ReplyWatchPayload"][];
+      /** Format: date-time */
+      returned_from_later_at?: string | null;
       runtime: components["schemas"]["SessionRuntimePayload"];
       scope: string;
       /** @enum {string} */
@@ -18176,8 +18229,11 @@ export interface components {
         | "recording_unavailable"
         | "session_archive_stop_failed"
         | "session_busy"
+        | "session_in_later"
+        | "session_later_stop_failed"
         | "session_worktree_conflict"
         | "slow_consumer"
+        | "subagent_later_follows_parent"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -18381,8 +18437,11 @@ export interface components {
         | "recording_unavailable"
         | "session_archive_stop_failed"
         | "session_busy"
+        | "session_in_later"
+        | "session_later_stop_failed"
         | "session_worktree_conflict"
         | "slow_consumer"
+        | "subagent_later_follows_parent"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -32651,6 +32710,8 @@ export interface operations {
         badge?: string;
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
+        /** @description Visibility of sessions parked in Later; excluded by default */
+        later?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
         sort?:
           | "recent"
@@ -32942,6 +33003,8 @@ export interface operations {
         type?: "user" | "system" | "coordinator" | "spawned";
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
+        /** @description Visibility of sessions parked in Later; excluded by default */
+        later?: "exclude" | "only" | "include";
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
@@ -47097,6 +47160,8 @@ export interface operations {
         badge?: string;
         /** @description Archived session visibility */
         archive?: "exclude" | "only" | "include";
+        /** @description Visibility of sessions parked in Later; excluded by default */
+        later?: "exclude" | "only" | "include";
         /** @description Stable session ordering */
         sort?:
           | "recent"
@@ -48879,6 +48944,84 @@ export interface operations {
       };
     };
   };
+  moveSessionToLater: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["MoveSessionToLaterRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Invalid Move to Later request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Subagents move with their parent, or the session tree could not be stopped */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listSessionMonitors: {
     parameters: {
       query?: {
@@ -50008,6 +50151,84 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  resumeSessionFromLater: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ResumeSessionFromLaterRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Invalid Back from Later request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description The session could not leave Later */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };

@@ -107,6 +107,10 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return SendPromptResult{}, err
 	}
 	preparation.request.runtime = target.runtime
+	parked, err := m.agentMessageToLater(ctx, &target, &preparation.request)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		target.workspaceID,
 		preparation.request,
@@ -116,6 +120,11 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	if parked {
+		// The fingerprint keeps the requested mode so a retry matches across a
+		// park or a return; only delivery becomes a queued input.
+		admissionReq.Mode = string(BusyInputModeQueue)
+	}
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
@@ -123,6 +132,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		if err != nil {
 			return SendPromptResult{}, err
 		}
+		replayed.TargetInLater = parked && replayed.Status == store.SessionPromptResultStatusQueued
 		return *replayed, nil
 	}
 	if !found {
@@ -138,6 +148,9 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	}
 	if err := m.validateRuntimeModelAtAdmission(ctx, target.session, *target.runtime, &target.meta); err != nil {
 		return SendPromptResult{}, err
+	}
+	if parked {
+		return m.enqueueAdmittedLaterPrompt(ctx, preparation.request.target, admissionReq)
 	}
 	session := target.session
 	if session == nil {

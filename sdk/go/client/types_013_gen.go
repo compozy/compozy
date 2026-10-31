@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// ProviderUsageAmount is a daemon API value.
+type ProviderUsageAmount struct {
+	Value string `json:"value"`
+	Unit  string `json:"unit"`
+}
+
 // ProviderUsageBalance is a daemon API value.
 type ProviderUsageBalance struct {
 	ID        string              `json:"id"`
@@ -436,13 +442,4 @@ type ResourceSourceKind string
 // ResourcesResponse is a daemon API value.
 type ResourcesResponse struct {
 	Records []ResourceRecordPayload `json:"records"`
-}
-
-// RespondLoopRequest is a daemon API value.
-type RespondLoopRequest struct {
-	Generation int             `json:"generation"`
-	ItemIndex  int             `json:"item_index,omitzero"`
-	Decision   string          `json:"decision,omitempty"`
-	Payload    json.RawMessage `json:"payload"`
-	Note       string          `json:"note,omitempty"`
 }

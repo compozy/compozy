@@ -70,7 +70,9 @@ func (m *Manager) parsePromptRequestWithMessagePolicy(
 	}, nil
 }
 
-func (m *Manager) lookupOrResumePromptSession(ctx context.Context, target string) (*Session, error) {
+// lookupOrResumePromptSession resumes a stopped target. Only operator prompts
+// take a session out of Later; other resumes are refused while it is parked.
+func (m *Manager) lookupOrResumePromptSession(ctx context.Context, target string, operator bool) (*Session, error) {
 	session, err := m.lookup(target)
 	if err == nil {
 		state := session.Info().State
@@ -89,7 +91,7 @@ func (m *Manager) lookupOrResumePromptSession(ctx context.Context, target string
 				return nil, waitErr
 			}
 			if waited {
-				return m.lookupOrResumePromptSession(ctx, target)
+				return m.lookupOrResumePromptSession(ctx, target, operator)
 			}
 		}
 		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, state)
@@ -107,7 +109,11 @@ func (m *Manager) lookupOrResumePromptSession(ctx context.Context, target string
 	if State(meta.State) != StateStopped {
 		return nil, fmt.Errorf("%w: %s (%s)", ErrSessionNotActive, target, meta.State)
 	}
-	resumed, err := m.Resume(ctx, target)
+	resume := m.Resume
+	if operator {
+		resume = m.ResumeForOperator
+	}
+	resumed, err := resume(ctx, target)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +134,7 @@ func (m *Manager) lookupPromptRequestSession(
 		return nil, fmt.Errorf("%w: restart recovery in progress", ErrPromptInProgress)
 	}
 	if req.resumeStopped {
-		return m.lookupOrResumePromptSession(ctx, req.target)
+		return m.lookupOrResumePromptSession(ctx, req.target, req.operatorAuthored())
 	}
 	return m.lookupPromptSession(ctx, req.target)
 }
@@ -217,4 +223,10 @@ func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Sess
 	default:
 		return nil, metaErr
 	}
+}
+
+// operatorAuthored reports whether the operator typed this prompt, as opposed
+// to an agent message, a daemon wake, or a synthetic continuation.
+func (req promptRequest) operatorAuthored() bool {
+	return req.humanIngress && req.meta.Origin == nil && req.turnSource != TurnSourceSynthetic
 }

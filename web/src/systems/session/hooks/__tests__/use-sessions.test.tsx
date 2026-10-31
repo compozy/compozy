@@ -994,7 +994,8 @@ describe("sessions board order and swimlanes", () => {
       sort: "manual",
       groupBy: "none",
     });
-    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(6));
+    // Five columns, the Later bar and the Archive bar.
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(7));
     const sorts = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query?.sort);
     expect(new Set(sorts)).toEqual(new Set(["last_activity"]));
     client.clear();
@@ -1021,9 +1022,17 @@ describe("sessions board order and swimlanes", () => {
       .find(query => query?.all_workspaces);
     expect(membership).toMatchObject({ children: "exclude" });
     expect(membership).not.toHaveProperty("subagents");
-    // Only the Archive bar reads a page here: each lane reads its own columns when it renders.
+    // Only the Later and Archive bars read a page here: each lane reads its own columns when
+    // it renders. Each bar reads exactly its own population, ungrouped.
     const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
-    expect(reads.every(query => query?.archive === "only")).toBe(true);
+    expect(reads).toHaveLength(2);
+    expect(reads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ archive: "only", all_workspaces: true }),
+        expect.objectContaining({ later: "only", all_workspaces: true }),
+      ])
+    );
+    expect(reads.every(query => !(query?.archive && query?.later))).toBe(true);
     client.clear();
   });
 
@@ -1034,7 +1043,7 @@ describe("sessions board order and swimlanes", () => {
       sort: "created",
       groupBy: "project",
     });
-    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(6));
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(7));
     expect(result.current.groupBy).toBe("none");
     expect(result.current.lanes).toBeNull();
     expect(result.current.columns).toHaveLength(5);

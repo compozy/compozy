@@ -10,6 +10,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  lifecyclePendingSessionId,
   readCurrentSessions,
   runSessionBatch,
   type SessionBatchResult,
@@ -27,8 +28,16 @@ import {
 } from "./use-session-actions";
 import { useCurrentDeleteSessions } from "./use-current-delete-sessions";
 import { useSessionReparent } from "./use-session-reparent";
+import { useSessionLaterActions, type SessionLaterConfirmation } from "./use-session-later-actions";
 
-export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
+export type SessionLifecycleAction =
+  | "rename"
+  | "stop"
+  | "archive"
+  | "unarchive"
+  | "delete"
+  | "later"
+  | "back-from-later";
 
 export interface SessionLifecycleActionHandlers {
   pendingAction: SessionLifecycleAction | null;
@@ -41,6 +50,11 @@ export interface SessionLifecycleActionHandlers {
   onStopMany?: (sessions: readonly SessionPayload[]) => void;
   onArchiveMany?: (sessions: readonly SessionPayload[]) => void;
   onUnarchiveMany?: (sessions: readonly SessionPayload[]) => void;
+  /** Opens Move to Later; absent where the host renders no Later dialog. */
+  onMoveToLater?: (session: SessionPayload) => void;
+  onMoveToLaterMany?: (sessions: readonly SessionPayload[]) => void;
+  onBackFromLater?: (session: SessionPayload) => void;
+  onBackFromLaterMany?: (sessions: readonly SessionPayload[]) => void;
   onDeleteMany?: (
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void
@@ -94,6 +108,7 @@ export interface UseSessionLifecycleActionsResult {
   deleteDialog: SessionDeleteConfirmation;
   processDialog: SessionProcessChoiceConfirmation;
   renameDialog: SessionRenameConfirmation;
+  laterDialog: SessionLaterConfirmation;
 }
 
 /**
@@ -125,10 +140,12 @@ export function useSessionLifecycleActions(
   options: Parameters<typeof useDeleteSession>[0] & {
     /** Each session this host archived, single or batched, once the daemon confirmed it. */
     onArchiveSuccess?: (session: SessionPayload) => void;
+    /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
+    onLaterSuccess?: (session: SessionPayload) => void;
   } = {}
 ): UseSessionLifecycleActionsResult {
   const queryClient = useQueryClient();
-  const { onArchiveSuccess, ...deleteOptions } = options;
+  const { onArchiveSuccess, onLaterSuccess, ...deleteOptions } = options;
   const stop = useStopSession();
   const archive = useArchiveSession();
   const unarchive = useUnarchiveSession();
@@ -168,11 +185,19 @@ export function useSessionLifecycleActions(
       ["delete", remove],
     ] as const
   ).find(([, mutation]) => mutation.isPending);
-  const pendingAction = batchAction ?? pendingMutation?.[0] ?? null;
-  const pendingSessionId =
-    batchAction !== null
-      ? (batchResults.find(result => result.status === "running")?.id ?? null)
-      : (pendingMutation?.[1].variables?.id ?? null);
+  const ownPending = batchAction ?? pendingMutation?.[0] ?? null;
+  const later = useSessionLaterActions({
+    busy: ownPending !== null,
+    onMovedToLater: onLaterSuccess,
+  });
+  const pendingAction = ownPending ?? later.pendingAction;
+  const pendingSessionId = lifecyclePendingSessionId({
+    batching: batchAction !== null,
+    batchResults,
+    ownPending: ownPending !== null,
+    mutationSessionId: pendingMutation?.[1].variables?.id,
+    laterSessionId: later.pendingSessionId,
+  });
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
   const runBatch = async (
@@ -218,7 +243,10 @@ export function useSessionLifecycleActions(
     });
   };
 
-  const actOnMany = (action: BatchVerb, sessions: readonly SessionPayload[]) => {
+  const actOnMany = (
+    action: Exclude<BatchVerb, "later" | "back-from-later">,
+    sessions: readonly SessionPayload[]
+  ) => {
     const eligible: SessionPayload[] = [];
     const skipped = new Map<string, number>();
     for (const session of sessions) {
@@ -402,6 +430,7 @@ export function useSessionLifecycleActions(
       onStopMany: sessions => actOnMany("stop", sessions),
       onArchiveMany: sessions => actOnMany("archive", sessions),
       onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
+      ...later.handlers,
       onAdopt: reparent.adopt,
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {
@@ -454,6 +483,7 @@ export function useSessionLifecycleActions(
         choice?.run(processes);
       },
     },
+    laterDialog: later.laterDialog,
     renameDialog: {
       open: renameTarget !== null,
       session: renameTarget,

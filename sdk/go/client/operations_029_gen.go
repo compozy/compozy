@@ -11,6 +11,188 @@ import (
 	"strings"
 )
 
+// StreamGlobalSessionParams carries the path, query, and header parameters.
+type StreamGlobalSessionParams struct {
+	SessionID     string  `url:"session_id"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Frames        *string `url:"frames"`
+	Epoch         *int64  `url:"epoch"`
+	Generation    *int64  `url:"generation"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamGlobalSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamGlobalSessionFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamGlobalSessionFrame)(nil)
+
+var _ json.Marshaler = StreamGlobalSessionFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamGlobalSessionFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamGlobalSessionFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
+func (f StreamGlobalSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
+	var out SubagentsSnapshotEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
+func (f StreamGlobalSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
+	var out SubagentUpdatedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
+func (f StreamGlobalSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
+	var out SessionUsageChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
+func (f StreamGlobalSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
+	var out SessionConsumerDegradedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionEventPayload decodes this payload as SessionEventPayload.
+func (f StreamGlobalSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
+	var out SessionEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
+func (f StreamGlobalSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
+	var out TranscriptSnapshotPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
+func (f StreamGlobalSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
+	var out TranscriptDeltaPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
+func (f StreamGlobalSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
+	var out GoalSnapshotChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
+func (f StreamGlobalSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
+	var out SessionCommandsChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsErrorPayload decodes this payload as ErrorPayload.
+func (f StreamGlobalSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
+	var out ErrorPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamGlobalSession Stream raw session events or fenced transcript changes for a Global session
+func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSessionParams) (*Stream[StreamGlobalSessionFrame], error) {
+	path := "/api/sessions/{session_id}/stream"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Frames != nil {
+		query.Set("frames", *params.Frames)
+	}
+	if params.Epoch != nil {
+		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
+	}
+	if params.Generation != nil {
+		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
+}
+
+// StreamLogsParams carries the path, query, and header parameters.
+type StreamLogsParams struct {
+	WorkspaceID      *string `url:"workspace_id"`
+	SessionID        *string `url:"session_id"`
+	AgentName        *string `url:"agent_name"`
+	Type             *string `url:"type"`
+	Run              *string `url:"run"`
+	Actor            *string `url:"actor"`
+	ActorKind        *string `url:"actor_kind"`
+	ActorID          *string `url:"actor_id"`
+	Provider         *string `url:"provider"`
+	Outcome          *string `url:"outcome"`
+	Component        *string `url:"component"`
+	ErrorOnly        *bool   `url:"error_only"`
+	AfterSeq         *int    `url:"after_seq"`
+	Since            *string `url:"since"`
+	Limit            *int    `url:"limit"`
+	Replay           *bool   `url:"replay"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
+	AllProfiles      *bool   `url:"all_profiles"`
+}
+
 // StreamLogs Stream runtime logs
 func (c *Client) StreamLogs(ctx context.Context, params StreamLogsParams) (*Stream[LogEventPayload], error) {
 	path := "/api/logs/stream"
@@ -264,170 +446,4 @@ func (f StreamSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
-func (f StreamSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
-	var out TranscriptDeltaPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
-func (f StreamSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
-	var out GoalSnapshotChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
-func (f StreamSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
-	var out SessionCommandsChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsErrorPayload decodes this payload as ErrorPayload.
-func (f StreamSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
-	var out ErrorPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamSession Stream raw session events or fenced transcript changes
-func (c *Client) StreamSession(ctx context.Context, params StreamSessionParams) (*Stream[StreamSessionFrame], error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Frames != nil {
-		query.Set("frames", *params.Frames)
-	}
-	if params.Epoch != nil {
-		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
-	}
-	if params.Generation != nil {
-		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamSessionFrame](ctx, c, "GET", path, headers, nil, "streamSession")
-}
-
-// StreamSessionCatalogParams carries the path, query, and header parameters.
-type StreamSessionCatalogParams struct {
-	WorkspaceID      *string `url:"workspace_id"`
-	AllWorkspaces    *bool   `url:"all_workspaces"`
-	LastEventID      *string `url:"Last-Event-ID"`
-	LastEventIDQuery *string `url:"last_event_id"`
-	Profile          *string `url:"profile"`
-	AllProfiles      *bool   `url:"all_profiles"`
-}
-
-// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamSessionCatalogFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
-
-var _ json.Marshaler = StreamSessionCatalogFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSessionCatalogEventPayload decodes this payload as SessionCatalogEventPayload.
-func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatalogEventPayload, error) {
-	var out SessionCatalogEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
-func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
-	var out SessionAttentionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
-func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
-	var out OperatorNotificationEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamSessionCatalog Stream session catalog changes across workspaces
-func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
-	path := "/api/sessions/catalog-stream"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if params.LastEventIDQuery != nil {
-		query.Set("last_event_id", *params.LastEventIDQuery)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamSessionCatalogFrame](ctx, c, "GET", path, headers, nil, "streamSessionCatalog")
-}
-
-// StreamSettingsObservabilityLogTail Stream daemon log output for the observability settings screen
-func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
-	path := "/api/settings/observability/log-tail"
-	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
-}
-
-// StreamTaskParams carries the path, query, and header parameters.
-type StreamTaskParams struct {
-	ID            string  `url:"id"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

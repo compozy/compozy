@@ -145,6 +145,8 @@ type stubClient struct {
 	stopSessionFn                func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
 	archiveSessionFn             func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
+	moveSessionToLaterFn         func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	resumeSessionFromLaterFn     func(context.Context, string, bool) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn           func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn         func(context.Context, string) (SessionRecord, error)
@@ -1334,6 +1336,24 @@ func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRe
 		return s.unarchiveSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
+}
+
+func (s *stubClient) MoveSessionToLater(
+	ctx context.Context,
+	id string,
+	req contract.MoveSessionToLaterRequest,
+) (SessionRecord, error) {
+	if s.moveSessionToLaterFn != nil {
+		return s.moveSessionToLaterFn(ctx, id, req)
+	}
+	return SessionRecord{}, errors.New("unexpected MoveSessionToLater call")
+}
+
+func (s *stubClient) ResumeSessionFromLater(ctx context.Context, id string, withChildren bool) (SessionRecord, error) {
+	if s.resumeSessionFromLaterFn != nil {
+		return s.resumeSessionFromLaterFn(ctx, id, withChildren)
+	}
+	return SessionRecord{}, errors.New("unexpected ResumeSessionFromLater call")
 }
 
 func (s *stubClient) RenameSession(

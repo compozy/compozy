@@ -168,7 +168,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const attention = useOsAttention(
     model.runtimeWorkspace,
     model.sessionCatalogStreamStatus,
-    options.sessionListView.archived,
+    options.sessionListView.shelf === "archive",
     false
   );
   const jumpToSession = useAttentionJump();

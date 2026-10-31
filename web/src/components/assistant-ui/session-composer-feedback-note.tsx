@@ -1,4 +1,12 @@
-import { ArrowUp, CornerDownRight, ListPlus, Scissors, TriangleAlert, WifiOff } from "lucide-react";
+import {
+  ArrowUp,
+  Clock,
+  CornerDownRight,
+  ListPlus,
+  Scissors,
+  TriangleAlert,
+  WifiOff,
+} from "lucide-react";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
@@ -19,7 +27,8 @@ interface FeedbackNoteView {
 }
 
 function dispositionView(outcome: SessionSendOutcome): FeedbackNoteView {
-  if (outcome.replayed) {
+  // A replayed Later send still names the parked session, not a generic replay.
+  if (outcome.replayed && outcome.disposition !== "later") {
     return replayedView(outcome);
   }
   switch (outcome.disposition) {
@@ -64,6 +73,14 @@ function dispositionView(outcome: SessionSendOutcome): FeedbackNoteView {
         lead: "Interrupting",
         rest: " — stopping the turn, then running your message",
         suffix: null,
+        tone: "neutral",
+      };
+    case "later":
+      return {
+        Glyph: Clock,
+        lead: "Queued",
+        rest: " — this session is in Later",
+        suffix: outcome.entryId,
         tone: "neutral",
       };
     case "direct":

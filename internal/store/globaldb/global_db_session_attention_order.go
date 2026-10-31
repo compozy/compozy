@@ -17,6 +17,7 @@ const sessionCatalogAttentionRankExpression = `(CASE
 		OR (state = 'stopped'
 			AND trim(COALESCE(failure_kind, '')) <> ''
 			AND trim(COALESCE(failure_kind, '')) <> '` + string(store.FailureCanceled) + `')
+		OR (state = 'stopped' AND later_returned_at IS NOT NULL)
 		OR (state = 'active'
 			AND ended_early_turn_id <> ''
 			AND trim(COALESCE(stall_state, '')) <> '` + store.SessionStallStateDetected + `'
@@ -52,6 +53,7 @@ const sessionCatalogBadgeExpression = `(CASE
  OR trim(COALESCE(failure_kind, '')) IN ('` + string(store.FailurePermission) + `', '` +
 	string(store.FailureProviderAuth) + `') THEN 'waiting-for-auth'
  WHEN pending_clarify_count > 0 THEN 'waiting-for-input'
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 'needs-attention'
  WHEN state = 'stopped' THEN 'stopped'
  WHEN trim(COALESCE(stall_state, '')) = '` + store.SessionStallStateDetected + `' THEN 'hung'
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(

@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// ViewChrome is a daemon API value.
+type ViewChrome struct {
+	IsLoading   bool        `json:"is_loading,omitempty"`
+	SearchText  *string     `json:"search_text,omitempty"`
+	EventCount  int64       `json:"event_count,omitempty"`
+	Placeholder string      `json:"search_placeholder,omitempty"`
+	ThrottleMs  int         `json:"throttle_ms,omitempty"`
+	Filtering   *bool       `json:"filtering,omitempty"`
+	Complete    bool        `json:"complete,omitempty"`
+	ActiveChip  string      `json:"active_chip,omitempty"`
+	Columns     int         `json:"columns,omitempty"`
+	Pagination  *Pagination `json:"pagination,omitempty"`
+	OnSearch    string      `json:"on_search,omitempty"`
+	OnChip      string      `json:"on_chip,omitempty"`
+	OnSelection string      `json:"on_selection,omitempty"`
+	OnLoadMore  string      `json:"on_load_more,omitempty"`
+}
+
+// ViewFrame is a daemon API value.
+type ViewFrame struct {
+	ViewSession string       `json:"view_session"`
+	Revision    string       `json:"revision"`
+	InReplyTo   int64        `json:"in_reply_to,omitempty"`
+	Generation  uint64       `json:"generation"`
+	Payload     *ViewPayload `json:"payload,omitempty"`
+	Patch       *ViewPatch   `json:"patch,omitempty"`
+	Effects     []Effect     `json:"effects,omitempty"`
+	Handlers    []string     `json:"handlers"`
+}
+
 // ViewKind is a daemon API value.
 type ViewKind string
 
@@ -415,29 +445,3 @@ type WorkspaceFolderResponse struct {
 
 // WorkspaceID is a daemon API value.
 type WorkspaceID string
-
-// WorkspaceLayoutResponse is a daemon API value.
-type WorkspaceLayoutResponse struct {
-	Folders    []WorkspaceFolderPayload    `json:"folders"`
-	Placements []WorkspacePlacementPayload `json:"placements"`
-}
-
-// WorkspacePayload is a daemon API value.
-type WorkspacePayload struct {
-	RootMissing  bool       `json:"root_missing,omitzero"`
-	ArchivedAt   *time.Time `json:"archived_at,omitzero"`
-	ID           string     `json:"id"`
-	RootDir      string     `json:"root_dir"`
-	AddDirs      []string   `json:"add_dirs"`
-	Name         string     `json:"name"`
-	DefaultAgent string     `json:"default_agent,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-}
-
-// WorkspacePlacementPayload is a daemon API value.
-type WorkspacePlacementPayload struct {
-	WorkspaceID string `json:"workspace_id"`
-	FolderID    string `json:"folder_id,omitempty"`
-	Position    int    `json:"position"`
-}

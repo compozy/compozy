@@ -29,6 +29,11 @@ const SessionDeleteDialog = lazy(() =>
     default: module.SessionDeleteDialog,
   }))
 );
+const SessionLaterDialog = lazy(() =>
+  import("@/systems/session/components/session-later-dialog").then(module => ({
+    default: module.SessionLaterDialog,
+  }))
+);
 const SessionRenameDialog = lazy(() =>
   import("@/systems/session/components/session-rename-dialog").then(module => ({
     default: module.SessionRenameDialog,
@@ -113,7 +118,7 @@ export function SessionBoardWindow({
     ),
   };
 
-  const { deleteDialog, processDialog, renameDialog } = lifecycle;
+  const { deleteDialog, processDialog, renameDialog, laterDialog } = lifecycle;
   return (
     <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
       {() => (
@@ -168,6 +173,11 @@ export function SessionBoardWindow({
           {processDialog.open ? (
             <Suspense fallback={null}>
               <SessionProcessChoiceDialog {...processDialog} />
+            </Suspense>
+          ) : null}
+          {laterDialog.open ? (
+            <Suspense fallback={null}>
+              <SessionLaterDialog {...laterDialog} />
             </Suspense>
           ) : null}
           {renameDialog.open && renameDialog.session ? (

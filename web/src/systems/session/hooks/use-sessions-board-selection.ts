@@ -32,8 +32,8 @@ function ownerPair(session: SessionPayload): SessionListPair | null {
 
 /**
  * The board's one bulk selection: the session list's selection, verbs, counts,
- * shortcuts and folder moves, fed by the cards each column and the open Archive
- * bar publish, in on-screen order (lane, then column, then the Archive bar).
+ * shortcuts and folder moves, fed by the cards each column and the open Later and
+ * Archive bars publish, in on-screen order (lane, then column, then the bars).
  *
  * A selected card missing from every read is held until a re-read confirms it
  * gone (`useSessionsBoardAbsence`), so a card changing column keeps its place.
@@ -58,7 +58,7 @@ export function useSessionsBoardSelection({
   const { absence, holdMissing } = useSessionsBoardAbsence(settled);
   const bulk = useSessionListBulkSelection({
     selectionKey,
-    archived: false,
+    shelf: "active",
     sessions: published.sessions,
     visibleOrder: published.visibleOrder,
     sessionActions,
@@ -171,12 +171,19 @@ export function useSessionsBoardGroupSelection(ids: readonly string[]) {
   };
 }
 
+/** The board's bottom bars, in on-screen order after every column. */
+export type SessionsBoardShelfId = "later" | "archive";
+
+const SHELF_RANK: Record<SessionsBoardShelfId, number> = { later: 9998, archive: 9999 };
+
 /**
- * The Archive bar's disclosure and its place in the board selection. Archived
- * cards join the selection only while the bar shows them; closing the bar drops
- * them at once, as archiving a session drops its row from the List's selection.
+ * A bottom bar's disclosure (Later, Archive) and its place in the board
+ * selection. Its cards join the selection only while the bar shows them;
+ * closing the bar drops them at once, as archiving a session drops its row from
+ * the List's selection.
  */
-export function useSessionsBoardArchiveSelection(
+export function useSessionsBoardShelfSelection(
+  shelf: SessionsBoardShelfId,
   sessions: readonly SessionPayload[],
   fetching: boolean,
   failed: boolean
@@ -184,8 +191,8 @@ export function useSessionsBoardArchiveSelection(
   const [open, setOpen] = useState(false);
   const store = use(SessionsBoardSelectionStoreContext);
   const shown = open ? sessions : [];
-  usePublishSessionListGroupRows(use(SessionsBoardRowsStoreContext) ?? undefined, "archive", {
-    rank: sessionListGroupRank([9999]),
+  usePublishSessionListGroupRows(use(SessionsBoardRowsStoreContext) ?? undefined, shelf, {
+    rank: sessionListGroupRank([SHELF_RANK[shelf]]),
     sessions: shown,
     visibleOrder: shown.map(session => session.id),
     // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).

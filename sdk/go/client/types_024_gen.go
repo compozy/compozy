@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// TaskRunResultPageResponse is a daemon API value.
+type TaskRunResultPageResponse struct {
+	RunID      string `json:"run_id"`
+	ResultRef  string `json:"result_ref,omitempty"`
+	Offset     int64  `json:"offset"`
+	Bytes      int64  `json:"bytes"`
+	TotalBytes int64  `json:"total_bytes"`
+	DataBase64 string `json:"data_base64"`
+	NextOffset *int64 `json:"next_offset,omitempty"`
+	EOF        bool   `json:"eof"`
+}
+
 // TaskRunReviewPayload is a daemon API value.
 type TaskRunReviewPayload struct {
 	ReviewID          string           `json:"review_id"`
@@ -432,17 +444,3 @@ type TerminalInputRequestsResponse struct {
 
 // TerminalInputResolutionOutcome is a daemon API value.
 type TerminalInputResolutionOutcome string
-
-// TerminalJournalResponse is a daemon API value.
-type TerminalJournalResponse struct {
-	Entries []TerminalCommandRowPayload `json:"entries"`
-	Next    *string                     `json:"next"`
-}
-
-// TerminalListResponse is a daemon API value.
-type TerminalListResponse struct {
-	Terminals []TerminalInfoPayload `json:"terminals"`
-}
-
-// TerminalMode is a daemon API value.
-type TerminalMode string

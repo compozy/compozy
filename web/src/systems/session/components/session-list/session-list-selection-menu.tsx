@@ -1,4 +1,4 @@
-import { Archive, Hash, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Archive, Bookmark, Hash, RotateCcw, Square, Trash2, Undo2 } from "lucide-react";
 
 import {
   ContextMenuGroup,
@@ -92,6 +92,26 @@ export function SessionSelectionMenuItems({
         <Square className="size-3" />
         Stop<Shortcut>{verbs.stoppable} active</Shortcut>
       </Item>
+      {verbs.onMoveToLater ? (
+        <Item
+          disabled={disabled || verbs.laterable === 0}
+          onClick={verbs.onMoveToLater}
+          data-testid={`${testId}-later`}
+        >
+          <Bookmark className="size-3" />
+          Move to Later…<Shortcut>{sessionCountLabel(verbs.laterable)}</Shortcut>
+        </Item>
+      ) : null}
+      {verbs.onBackFromLater && verbs.backFromLaterable > 0 ? (
+        <Item
+          disabled={disabled}
+          onClick={verbs.onBackFromLater}
+          data-testid={`${testId}-back-from-later`}
+        >
+          <Undo2 className="size-3" />
+          Back from Later<Shortcut>{verbs.backFromLaterable} in Later</Shortcut>
+        </Item>
+      ) : null}
       <Item
         disabled={disabled || verbs.archivable === 0 || !verbs.onArchive}
         onClick={verbs.onArchive}

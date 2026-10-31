@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// TerminalJournalResponse is a daemon API value.
+type TerminalJournalResponse struct {
+	Entries []TerminalCommandRowPayload `json:"entries"`
+	Next    *string                     `json:"next"`
+}
+
+// TerminalListResponse is a daemon API value.
+type TerminalListResponse struct {
+	Terminals []TerminalInfoPayload `json:"terminals"`
+}
+
+// TerminalMode is a daemon API value.
+type TerminalMode string
+
 // TerminalOutputShape is a daemon API value.
 type TerminalOutputShape struct {
 	MaxBytes int    `json:"max_bytes,omitzero"`
@@ -428,20 +442,4 @@ type ToolPayload struct {
 	Descriptor   ToolDescriptorPayload     `json:"descriptor"`
 	Availability ToolAvailabilityPayload   `json:"availability"`
 	Decision     ToolPolicyDecisionPayload `json:"decision"`
-}
-
-// ToolPolicyDecisionPayload is a daemon API value.
-type ToolPolicyDecisionPayload struct {
-	VisibleToOperator    bool         `json:"visible_to_operator"`
-	VisibleToSession     bool         `json:"visible_to_session"`
-	Callable             bool         `json:"callable"`
-	ApprovalRequired     bool         `json:"approval_required"`
-	SystemPermissionMode string       `json:"system_permission_mode,omitempty"`
-	SessionPolicyResult  string       `json:"session_policy_result,omitempty"`
-	AgentPolicyResult    string       `json:"agent_policy_result,omitempty"`
-	RegistryPolicyResult string       `json:"registry_policy_result,omitempty"`
-	SourcePolicyResult   string       `json:"source_policy_result,omitempty"`
-	AvailabilityResult   string       `json:"availability_result,omitempty"`
-	HookResult           string       `json:"hook_result,omitempty"`
-	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
 }

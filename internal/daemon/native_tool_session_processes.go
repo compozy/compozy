@@ -173,7 +173,7 @@ func (n *daemonNativeTools) finishSessionProcessPolicy(
 		return err
 	}
 	for _, r := range results {
-		if r.Outcome != "terminated" && r.Outcome != "already_exited" {
+		if !sessionProcessTerminationSettled(r.Outcome) {
 			return fmt.Errorf("process %d termination is %s", r.PID, r.Outcome)
 		}
 	}

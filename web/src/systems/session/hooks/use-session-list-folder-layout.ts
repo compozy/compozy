@@ -26,7 +26,7 @@ export type SessionFolderDialogState<
 /** What one folder-capable query contributes: its layout (if one pair), order, and page. */
 export type SessionListFolderSource = Pick<
   SessionListViewModel,
-  "layout" | "sort" | "archived" | "worktreeId" | "catalog"
+  "layout" | "sort" | "shelf" | "worktreeId" | "catalog"
 >;
 
 /**
@@ -44,7 +44,10 @@ export function useSessionListFolderLayout(
   const { collapsedFolderIds, toggleFolder } = useSessionSidebarState();
   const collapsedFolders = new Set(collapsedFolderIds);
   const sections: SessionListSections | null = layout
-    ? buildSessionListSections(threads, layout.folders, { filtering, archived: view.archived })
+    ? buildSessionListSections(threads, layout.folders, {
+        filtering,
+        shelved: view.shelf !== "active",
+      })
     : null;
   // A reorder pins the listed rows ahead of every container member the request
   // omits. Rows hidden by a filter, a worktree scope, or a page boundary would be

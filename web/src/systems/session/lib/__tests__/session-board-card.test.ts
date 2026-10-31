@@ -1,6 +1,7 @@
 // Suite: session-board-card
 // Invariant: a board card shows at most one status — the needs-you reason in
-// Needs you, else the most actionable PR signal — and "Ready to merge" only
+// Needs you ("Back from Later" for a session its return date brought back), else
+// the most actionable PR signal — and "Ready to merge" only
 // when the daemon reports it on current facts; the meta row names the PR, the
 // branch, or (All projects without a PR) the workspace; the child rollup counts
 // the daemon's per-column children and flags a child that needs you; the
@@ -55,6 +56,33 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
 }
 
 describe("sessionBoardCardStatus (UT-068)", () => {
+  it("Should read Back from Later in Needs you for a session its return date brought back", () => {
+    expect(
+      sessionBoardCardStatus(
+        session({
+          badge: "needs-attention",
+          board_column: "needs_you",
+          returned_from_later_at: "2026-10-30T09:00:00Z",
+        })
+      )
+    ).toEqual({ label: "Back from Later", tone: "accent" });
+  });
+
+  it("Should let a live badge outrank Back from Later", () => {
+    const returned = {
+      board_column: "needs_you" as const,
+      returned_from_later_at: "2026-10-30T09:00:00Z",
+    };
+    expect(sessionBoardCardStatus(session({ ...returned, badge: "failed" }))).toEqual({
+      label: "Failed",
+      tone: "danger",
+    });
+    expect(sessionBoardCardStatus(session({ ...returned, badge: "waiting-for-auth" }))).toEqual({
+      label: "Auth",
+      tone: "accent",
+    });
+  });
+
   it("Should name the needs-you reason before any PR signal", () => {
     const failing = pr({ checks: { ...pr().checks, state: "failing", failed: 2 } });
     expect(

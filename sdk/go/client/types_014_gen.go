@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// RespondLoopRequest is a daemon API value.
+type RespondLoopRequest struct {
+	Generation int             `json:"generation"`
+	ItemIndex  int             `json:"item_index,omitzero"`
+	Decision   string          `json:"decision,omitempty"`
+	Payload    json.RawMessage `json:"payload"`
+	Note       string          `json:"note,omitempty"`
+}
+
 // RespondLoopRequestResponse is a daemon API value.
 type RespondLoopRequestResponse struct {
 	OK         bool                  `json:"ok"`
@@ -59,6 +68,11 @@ type ResultContract struct {
 
 // ResultTrust is a daemon API value.
 type ResultTrust string
+
+// ResumeSessionFromLaterRequest is a daemon API value.
+type ResumeSessionFromLaterRequest struct {
+	WithChildren bool `json:"with_children,omitempty"`
+}
 
 // ResumeTaskRequest is a daemon API value.
 type ResumeTaskRequest struct {
@@ -429,10 +443,4 @@ type RunWorktreeExitActionRequest struct {
 	Body          string             `json:"body,omitempty"`
 	Draft         bool               `json:"draft,omitzero"`
 	Base          string             `json:"base,omitempty"`
-}
-
-// RunsResponse is a daemon API value.
-type RunsResponse struct {
-	Page *CursorPagePayload `json:"page,omitempty"`
-	Runs []RunPayload       `json:"runs"`
 }

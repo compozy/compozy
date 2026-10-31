@@ -118,11 +118,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
-	columns, err := session.ParseBoardColumns(c.QueryArray("board_column"))
-	if err != nil {
-		return session.ListQuery{}, false, err
-	}
-	hideChildren, err := session.ParseChildrenFilter(c.Query("children"))
+	columns, hideChildren, err := parseSessionListBoardFilters(c)
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
@@ -147,11 +143,24 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		AttentionOnly:   attentionOnly,
 		Badges:          badges,
 		Archive:         store.SessionArchiveFilter(strings.TrimSpace(c.Query("archive"))),
+		Later:           store.SessionLaterFilter(strings.TrimSpace(c.Query("later"))),
 		Sort:            strings.TrimSpace(c.Query("sort")),
 		Cursor:          strings.TrimSpace(c.Query("cursor")),
 		Limit:           limit,
 	}
 	return query, includeHealth, nil
+}
+
+func parseSessionListBoardFilters(c *gin.Context) ([]string, bool, error) {
+	columns, err := session.ParseBoardColumns(c.QueryArray("board_column"))
+	if err != nil {
+		return nil, false, err
+	}
+	hideChildren, err := session.ParseChildrenFilter(c.Query("children"))
+	if err != nil {
+		return nil, false, err
+	}
+	return columns, hideChildren, nil
 }
 
 // parseSessionListWorkspaceIDs resolves the All projects narrowing, mapping the legacy global alias.

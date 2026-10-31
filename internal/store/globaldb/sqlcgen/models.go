@@ -1457,6 +1457,10 @@ type Session struct {
 	OriginMessageID          sql.NullString `json:"origin_message_id"`
 	OriginAgentName          string         `json:"origin_agent_name"`
 	EndedEarlyTurnID         string         `json:"ended_early_turn_id"`
+	ParkedAt                 sql.NullString `json:"parked_at"`
+	ParkReason               string         `json:"park_reason"`
+	ParkUntil                sql.NullString `json:"park_until"`
+	LaterReturnedAt          sql.NullString `json:"later_returned_at"`
 }
 
 type SessionCreationProfile struct {

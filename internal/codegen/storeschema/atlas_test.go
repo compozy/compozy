@@ -238,6 +238,69 @@ CREATE TRIGGER trg_records_owner_guard
 		}
 	})
 
+	t.Run("Should drop and recreate a changed expression index without rebuilding its table", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		migrationsDir := filepath.Join(root, "migrations")
+		if err := os.MkdirAll(migrationsDir, 0o700); err != nil {
+			t.Fatalf("create migrations directory: %v", err)
+		}
+		writeSchemaTestFile(t, migrationsDir, "00001_schema.sql", `-- +goose Up
+CREATE TABLE records (id TEXT PRIMARY KEY, state TEXT NOT NULL, marked_at TEXT);
+CREATE INDEX idx_records_band
+    ON records((CASE
+    WHEN state = 'stopped' THEN 1
+    ELSE 0 END), id);
+`)
+		dir, err := sqltool.NewGooseDir(migrationsDir)
+		if err != nil {
+			t.Fatalf("open migration directory: %v", err)
+		}
+		if err := writeAtlasSum(dir, "test"); err != nil {
+			t.Fatalf("write migration checksum: %v", err)
+		}
+		desiredPath := filepath.Join(root, "schema.sql")
+		writeSchemaTestFile(
+			t,
+			root,
+			"schema.sql",
+			`CREATE TABLE records (id TEXT PRIMARY KEY, state TEXT NOT NULL, marked_at TEXT);
+CREATE INDEX idx_records_band
+    ON records((CASE
+    WHEN state = 'stopped' AND marked_at IS NOT NULL THEN 2
+    WHEN state = 'stopped' THEN 1
+    ELSE 0 END), id);
+`,
+		)
+		plan, _, closeDev, err := planAtlasStream(testutil.Context(t), stream{
+			name:          "test",
+			schemaSource:  schemaSource{path: desiredPath},
+			migrationsDir: migrationsDir,
+		}, dir)
+		if err != nil {
+			t.Fatalf("planAtlasStream() error = %v", err)
+		}
+		defer func() {
+			if err := closeDev(); err != nil {
+				t.Errorf("close Atlas database: %v", err)
+			}
+		}()
+		var statements strings.Builder
+		for _, change := range plan.migration.Changes {
+			statements.WriteString(change.Cmd)
+			statements.WriteByte('\n')
+		}
+		migrationSQL := statements.String()
+		if strings.Contains(migrationSQL, "new_records") || strings.Contains(migrationSQL, "DROP TABLE") {
+			t.Fatalf("planned migration rebuilt the table to change an index:\n%s", migrationSQL)
+		}
+		if !strings.Contains(migrationSQL, "DROP INDEX") ||
+			!strings.Contains(migrationSQL, "marked_at IS NOT NULL THEN 2") {
+			t.Fatalf("planned migration did not drop and recreate the changed index:\n%s", migrationSQL)
+		}
+	})
+
 	t.Run("Should recreate triggers that reference a rebuilt table", func(t *testing.T) {
 		t.Parallel()
 

@@ -35,6 +35,8 @@ type sessionListFlags struct {
 	summary         bool
 	archived        bool
 	includeArchived bool
+	later           bool
+	includeLater    bool
 	includeHealth   bool
 	limit           int
 	sortKey         string
@@ -83,6 +85,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&flags.summary, "summary", false, "Show exact attention counts across workspaces")
 	cmd.Flags().BoolVar(&flags.archived, "archived", false, "Show only archived sessions")
 	cmd.Flags().BoolVar(&flags.includeArchived, "include-archived", false, "Include archived sessions")
+	cmd.Flags().BoolVar(&flags.later, "later", false, "Show only sessions parked in Later")
+	cmd.Flags().BoolVar(&flags.includeLater, "include-later", false, "Include sessions parked in Later")
 	cmd.Flags().
 		BoolVar(&flags.includeHealth, "include-health", false, "Include metadata-only health for returned sessions")
 	cmd.Flags().IntVar(&flags.limit, "limit", 0, "Sessions per page (1-100)")
@@ -161,6 +165,7 @@ func buildSessionListQuery(flags sessionListFlags, badges []session.Badge, works
 		Attention:     flags.attention,
 		Badges:        badges,
 		Archive:       sessionListArchive(flags),
+		Later:         sessionListLater(flags),
 		IncludeHealth: flags.includeHealth,
 		Limit:         flags.limit,
 		Sort:          sessionListSort(flags, badges),
@@ -173,7 +178,8 @@ func sessionListState(flags sessionListFlags, badges []session.Badge) string {
 	if state == "" && !flags.includeAll && !flags.resumable && !flags.attention && len(badges) == 0 &&
 		len(flags.columns) == 0 &&
 		!flags.archived &&
-		!flags.includeArchived {
+		!flags.includeArchived &&
+		!flags.later && !flags.includeLater {
 		return string(session.StateActive)
 	}
 	return state
@@ -187,6 +193,16 @@ func sessionListArchive(flags sessionListFlags) string {
 		return string(session.ArchiveInclude)
 	}
 	return string(session.ArchiveExclude)
+}
+
+func sessionListLater(flags sessionListFlags) string {
+	if flags.later {
+		return string(session.LaterOnly)
+	}
+	if flags.includeLater {
+		return string(session.LaterInclude)
+	}
+	return ""
 }
 
 func sessionListSort(flags sessionListFlags, badges []session.Badge) string {
@@ -216,6 +232,9 @@ func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]ses
 	}
 	if flags.archived && flags.includeArchived {
 		return nil, errors.New("cli: --archived and --include-archived are mutually exclusive")
+	}
+	if flags.later && flags.includeLater {
+		return nil, errors.New("cli: --later and --include-later are mutually exclusive")
 	}
 	if flags.allWorkspaces && cmd.Flags().Changed(workspaceSkillSource) {
 		return nil, errors.New("cli: --all-workspaces and --workspace are mutually exclusive")
@@ -425,5 +444,6 @@ func sessionPRReview(item *SessionRecord) string {
 
 func sessionListHasVisibilityFilters(flags sessionListFlags) bool {
 	return flags.subagents != "" && flags.subagents != sessionSubagentsInclude ||
-		len(flags.columns) > 0 || flags.hideChildren || flags.includeAll || flags.archived || flags.includeArchived
+		len(flags.columns) > 0 || flags.hideChildren || flags.includeAll || flags.archived || flags.includeArchived ||
+		flags.later || flags.includeLater
 }

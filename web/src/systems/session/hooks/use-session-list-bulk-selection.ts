@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
 import { isEditableTarget } from "../lib/editable-target";
 import { sessionListShortcut, type SessionListShortcut } from "../lib/session-list-threads";
+import type { SessionListShelf } from "../lib/session-list-shelf";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import {
@@ -15,7 +16,7 @@ import { sessionSelectionCounts, useSessionSelection } from "./use-session-selec
 interface SessionListBulkSelectionInput {
   /** The list's identity: a new breadth, lens, or grouping is a new selection. */
   selectionKey: string;
-  archived: boolean;
+  shelf: SessionListShelf;
   /** Every listed session; a grouped list joins what each expanded group reads. */
   sessions: readonly SessionPayload[];
   /** The ids of the rows on screen, in order; ranges and select-all follow it. */
@@ -38,11 +39,17 @@ export interface SessionSelectionVerbs {
   /** Archivable sessions that archiving stops first. */
   archivableLive: number;
   unarchivable: number;
+  /** Top-level sessions not yet in Later. */
+  laterable: number;
+  /** Top-level sessions in Later. */
+  backFromLaterable: number;
   disabled: boolean;
   onDelete?: () => void;
   onStop?: () => void;
   onArchive?: () => void;
   onUnarchive?: () => void;
+  onMoveToLater?: () => void;
+  onBackFromLater?: () => void;
   onCopyIds: () => void;
   /** Move to folder; absent while the list has no folders to move into. */
   folders?: SessionBulkFolderMenu;
@@ -64,14 +71,14 @@ function bindToSelection(handler: ManyHandler, selected: readonly SessionPayload
  */
 export function useSessionListBulkSelection({
   selectionKey,
-  archived,
+  shelf,
   sessions,
   visibleOrder,
   sessionActions,
   folders,
   holdMissing,
 }: SessionListBulkSelectionInput) {
-  const selection = useSessionSelection(selectionKey, archived, sessions, holdMissing);
+  const selection = useSessionSelection(selectionKey, shelf, sessions, holdMissing);
   // Ranges read the order on screen when the operator clicks. Holding it outside
   // the row contract keeps a fold, which reorders nothing a row shows, from
   // handing every row a new selection object.
@@ -127,11 +134,15 @@ export function useSessionListBulkSelection({
     archivable: counts.archivable,
     archivableLive: counts.archivableLive,
     unarchivable: counts.unarchivable,
+    laterable: counts.laterable,
+    backFromLaterable: counts.backFromLaterable,
     disabled: actionPending,
     onDelete: deleteSelected,
     onStop: bindToSelection(sessionActions.onStopMany, selectedSessions),
     onArchive: bindToSelection(sessionActions.onArchiveMany, selectedSessions),
     onUnarchive: bindToSelection(sessionActions.onUnarchiveMany, selectedSessions),
+    onMoveToLater: bindToSelection(sessionActions.onMoveToLaterMany, selectedSessions),
+    onBackFromLater: bindToSelection(sessionActions.onBackFromLaterMany, selectedSessions),
     onCopyIds: () =>
       void copySessionText(selectedSessions.map(session => session.id).join("\n"), "Session IDs"),
     folders: folderMove?.menu,

@@ -78,6 +78,12 @@ type MoveSessionRequest struct {
 	FolderID string `json:"folder_id,omitempty"`
 }
 
+// MoveSessionToLaterRequest is a daemon API value.
+type MoveSessionToLaterRequest struct {
+	Reason   string     `json:"reason,omitempty"`
+	ReturnAt *time.Time `json:"return_at,omitempty"`
+}
+
 // MoveWorkspaceRequest is a daemon API value.
 type MoveWorkspaceRequest struct {
 	WorkspaceID string `json:"workspace_id"`
@@ -441,10 +447,4 @@ type OverviewTodayPayload struct {
 	RunsCompleted int `json:"runs_completed"`
 	RunsFailed    int `json:"runs_failed"`
 	TasksClosed   int `json:"tasks_closed"`
-}
-
-// OverviewUsageDayPayload is a daemon API value.
-type OverviewUsageDayPayload struct {
-	Date   string `json:"date"`
-	Tokens int64  `json:"tokens"`
 }

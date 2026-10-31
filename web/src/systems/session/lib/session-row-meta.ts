@@ -1,6 +1,9 @@
 // The session row metadata and accessible description.
 
+import { formatAbsoluteTime } from "@compozy/ui";
+
 import type { sessionBadgeSignal } from "./session-badge";
+import { sessionLaterDetails, sessionLaterSpoken } from "./session-later";
 import { maskedAttentionNote } from "./session-pending-interactions";
 import { sessionAttentionReason, type SessionAttentionReason } from "./session-attention-reason";
 import type { SessionPayload } from "../types";
@@ -40,7 +43,12 @@ export function rowMeta({
   const notes: string[] = [];
   if (orphanedSubagent) notes.push(SUBAGENT_OF_DELETED_SESSION);
   if (session.archived_at !== null) notes.push("Archived");
-  const spoken = [runtime?.label, [session.agent_name, ...attention, ...notes].join(" · ")]
+  const later = sessionLaterSpoken(sessionLaterDetails(session), formatAbsoluteTime);
+  const spoken = [
+    runtime?.label,
+    [session.agent_name, ...attention, ...notes].join(" · "),
+    later ? `· ${later}` : null,
+  ]
     .filter(Boolean)
     .join(" ");
   return {

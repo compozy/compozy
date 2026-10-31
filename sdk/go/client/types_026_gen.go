@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// ToolPolicyDecisionPayload is a daemon API value.
+type ToolPolicyDecisionPayload struct {
+	VisibleToOperator    bool         `json:"visible_to_operator"`
+	VisibleToSession     bool         `json:"visible_to_session"`
+	Callable             bool         `json:"callable"`
+	ApprovalRequired     bool         `json:"approval_required"`
+	SystemPermissionMode string       `json:"system_permission_mode,omitempty"`
+	SessionPolicyResult  string       `json:"session_policy_result,omitempty"`
+	AgentPolicyResult    string       `json:"agent_policy_result,omitempty"`
+	RegistryPolicyResult string       `json:"registry_policy_result,omitempty"`
+	SourcePolicyResult   string       `json:"source_policy_result,omitempty"`
+	AvailabilityResult   string       `json:"availability_result,omitempty"`
+	HookResult           string       `json:"hook_result,omitempty"`
+	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
+}
+
 // ToolResponse is a daemon API value.
 type ToolResponse struct {
 	Tool ToolPayload `json:"tool"`
@@ -416,34 +432,4 @@ type VerdictPolicy string
 type ViewBadge struct {
 	Label string `json:"label"`
 	Tone  string `json:"tone"`
-}
-
-// ViewChrome is a daemon API value.
-type ViewChrome struct {
-	IsLoading   bool        `json:"is_loading,omitempty"`
-	SearchText  *string     `json:"search_text,omitempty"`
-	EventCount  int64       `json:"event_count,omitempty"`
-	Placeholder string      `json:"search_placeholder,omitempty"`
-	ThrottleMs  int         `json:"throttle_ms,omitempty"`
-	Filtering   *bool       `json:"filtering,omitempty"`
-	Complete    bool        `json:"complete,omitempty"`
-	ActiveChip  string      `json:"active_chip,omitempty"`
-	Columns     int         `json:"columns,omitempty"`
-	Pagination  *Pagination `json:"pagination,omitempty"`
-	OnSearch    string      `json:"on_search,omitempty"`
-	OnChip      string      `json:"on_chip,omitempty"`
-	OnSelection string      `json:"on_selection,omitempty"`
-	OnLoadMore  string      `json:"on_load_more,omitempty"`
-}
-
-// ViewFrame is a daemon API value.
-type ViewFrame struct {
-	ViewSession string       `json:"view_session"`
-	Revision    string       `json:"revision"`
-	InReplyTo   int64        `json:"in_reply_to,omitempty"`
-	Generation  uint64       `json:"generation"`
-	Payload     *ViewPayload `json:"payload,omitempty"`
-	Patch       *ViewPatch   `json:"patch,omitempty"`
-	Effects     []Effect     `json:"effects,omitempty"`
-	Handlers    []string     `json:"handlers"`
 }

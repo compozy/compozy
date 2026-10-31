@@ -34,6 +34,10 @@ const (
 	ToolIDSessionArchive ToolID = "compozy__session_archive"
 	// ToolIDSessionUnarchive restores one archived runtime session.
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
+	// ToolIDSessionLater stops a session tree and parks it in Later.
+	ToolIDSessionLater ToolID = "compozy__session_later"
+	// ToolIDSessionResumeLater returns a parked session to the normal flow.
+	ToolIDSessionResumeLater ToolID = "compozy__session_resume_later"
 	// ToolIDSessionRename changes one user session's durable display name.
 	ToolIDSessionRename ToolID = "compozy__session_rename"
 	// ToolIDSessionReparent nests a top-level user session under another session, or detaches it.

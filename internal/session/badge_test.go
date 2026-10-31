@@ -113,6 +113,16 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 			want:  BadgeStopped,
 		},
 		{
+			name:  "Should request attention for a stopped session back from Later",
+			input: BadgeInputs{State: StateStopped, ReturnedFromLater: true},
+			want:  BadgeNeedsAttention,
+		},
+		{
+			name:  "Should prefer a terminal failure over a return from Later",
+			input: BadgeInputs{State: StateStopped, ReturnedFromLater: true, Failure: failure},
+			want:  BadgeFailed,
+		},
+		{
 			name:  "Should derive idle for an active settled session",
 			input: BadgeInputs{State: StateActive},
 			want:  BadgeIdle,

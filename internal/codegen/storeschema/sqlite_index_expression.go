@@ -204,3 +204,26 @@ func splitSQLiteIndexParts(statement string, open int) ([]string, error) {
 	}
 	return nil, fmt.Errorf("index part list is not closed")
 }
+
+// splitSQLiteIndexModifications plans a changed index as drop plus create. SQLite
+// cannot alter an index, and Atlas rebuilds the whole table for a ModifyIndex,
+// which copies every row to change an index definition.
+func splitSQLiteIndexModifications(changes []schema.Change) []schema.Change {
+	for _, change := range changes {
+		modify, ok := change.(*schema.ModifyTable)
+		if !ok {
+			continue
+		}
+		split := make([]schema.Change, 0, len(modify.Changes))
+		for _, tableChange := range modify.Changes {
+			index, ok := tableChange.(*schema.ModifyIndex)
+			if !ok {
+				split = append(split, tableChange)
+				continue
+			}
+			split = append(split, &schema.DropIndex{I: index.From}, &schema.AddIndex{I: index.To})
+		}
+		modify.Changes = split
+	}
+	return changes
+}

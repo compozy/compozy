@@ -46,6 +46,7 @@ import {
 import {
   SessionDeleteDialog,
   SessionProcessChoiceDialog,
+  SessionLaterDialog,
   SessionRenameDialog,
   type SessionPayload,
 } from "@/systems/session";
@@ -217,6 +218,7 @@ function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
     sessionDeleteDialog: deleteDialog,
     sessionProcessDialog: processDialog,
     sessionRenameDialog: renameDialog,
+    sessionLaterDialog: laterDialog,
   } = page;
   return (
     <>
@@ -233,6 +235,7 @@ function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
         />
       ) : null}
       {processDialog.open ? <SessionProcessChoiceDialog {...processDialog} /> : null}
+      {laterDialog.open ? <SessionLaterDialog {...laterDialog} /> : null}
       {renameDialog.session ? (
         <SessionRenameDialog
           open={renameDialog.open}

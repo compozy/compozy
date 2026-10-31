@@ -36,6 +36,14 @@ var sessionCatalogHierarchyChildExpression = fmt.Sprintf(
 	store.LineageKindFork,
 )
 
+// Agent messages wait in the input queue while a session is parked; only parked
+// rows pay for the count.
+const sessionLaterPendingMessagesExpression = `(CASE WHEN parked_at IS NULL THEN 0 ELSE (
+ SELECT COUNT(1) FROM session_input_queue AS later_input
+ WHERE later_input.session_id = sessions.id AND later_input.status = 'queued'
+ AND later_input.origin_class = 'agent'
+ AND later_input.session_generation = sessions.input_generation) END)`
+
 const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model,
 	reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
@@ -53,6 +61,7 @@ const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_i
 	pending_permission_count, pending_clarify_count, attention_revision,
 	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at, ended_early_turn_id,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
+	parked_at, park_reason, park_until, later_returned_at, ` + sessionLaterPendingMessagesExpression + `,
 	created_at, updated_at, ` + sessionCatalogVerdictOnlyExpression + `
 FROM sessions`
 
@@ -241,6 +250,7 @@ func sessionCatalogPageFilters(
 		args = append(args, now)
 	}
 	where, args = appendSessionArchiveFilter(where, args, query.Archive)
+	where = appendSessionLaterFilter(where, query.Later)
 	where, args, err = appendSessionCatalogExclusion(where, args, "id", query.ExcludeIDs)
 	if err != nil {
 		return nil, nil, err
@@ -278,6 +288,17 @@ func appendSessionArchiveFilter(
 		where = append(where, "archived_at IS NOT NULL")
 	}
 	return where, args
+}
+
+func appendSessionLaterFilter(where []string, filter store.SessionLaterFilter) []string {
+	switch filter {
+	case store.SessionLaterExclude:
+		return append(where, "parked_at IS NULL")
+	case store.SessionLaterOnly:
+		return append(where, "parked_at IS NOT NULL")
+	default:
+		return where
+	}
 }
 
 func appendSessionCatalogExclusion(

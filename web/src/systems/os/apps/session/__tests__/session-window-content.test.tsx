@@ -83,6 +83,7 @@ vi.mock("../use-session-window-controller", () => ({
       rowDeleteDialog: { open: false },
       rowProcessDialog: { open: false },
       rowRenameDialog: { open: false },
+      rowLaterDialog: { open: false },
       sessionActions: {},
       sessions: [],
       toggle: vi.fn(),

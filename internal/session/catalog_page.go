@@ -31,6 +31,10 @@ const (
 	ArchiveOnly    = store.SessionArchiveOnly
 	ArchiveInclude = store.SessionArchiveInclude
 
+	LaterExclude = store.SessionLaterExclude
+	LaterOnly    = store.SessionLaterOnly
+	LaterInclude = store.SessionLaterInclude
+
 	sessionListCursorVersion = 2
 	sessionListCursorKind    = "sessions"
 )
@@ -63,6 +67,7 @@ type ListQuery struct {
 	AttentionOnly   bool
 	Badges          []Badge
 	Archive         store.SessionArchiveFilter
+	Later           store.SessionLaterFilter
 	Sort            string
 	Cursor          string
 	Limit           int
@@ -101,7 +106,9 @@ type sessionListFingerprint struct {
 	AttentionOnly   bool                       `json:"attention"`
 	Badges          []Badge                    `json:"badges"`
 	Archive         store.SessionArchiveFilter `json:"archive"`
-	Sort            string                     `json:"sort"`
+	// Later stays empty for the default exclusion so pre-Later cursors remain valid.
+	Later store.SessionLaterFilter `json:"later,omitempty"`
+	Sort  string                   `json:"sort"`
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -244,6 +251,7 @@ func sessionCatalogPageQuery(
 		Badges:            badgeStrings(normalized.Badges),
 		Resumable:         normalized.Resumable,
 		Archive:           normalized.Archive,
+		Later:             normalized.Later,
 		Sort:              normalized.Sort,
 		Limit:             normalized.Limit + 1,
 		After:             after,
@@ -306,6 +314,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		AttentionOnly:   query.AttentionOnly,
 		Badges:          append([]Badge(nil), query.Badges...),
 		Archive:         query.Archive,
+		Later:           laterFingerprint(query.Later),
 		Sort:            query.Sort,
 	})
 	if err != nil {

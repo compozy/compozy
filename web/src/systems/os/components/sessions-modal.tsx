@@ -21,6 +21,7 @@ import {
   type SessionListViewModel,
   SessionDeleteDialog,
   SessionProcessChoiceDialog,
+  SessionLaterDialog,
   SessionRenameDialog,
   type useSessionLifecycleActions,
   type SessionCreateOpenOptions,
@@ -70,6 +71,7 @@ export function OsSessionsDialogHost({
               lifecycle.deleteDialog.open ||
               lifecycle.processDialog.open ||
               lifecycle.renameDialog.open ||
+              lifecycle.laterDialog.open ||
               deriveOpen
             }
             sessions={view.catalog?.sessions ?? []}
@@ -95,6 +97,7 @@ export function OsSessionsDialogHost({
       {lifecycle.processDialog.open ? (
         <SessionProcessChoiceDialog {...lifecycle.processDialog} />
       ) : null}
+      {lifecycle.laterDialog.open ? <SessionLaterDialog {...lifecycle.laterDialog} /> : null}
       {lifecycle.renameDialog.session ? (
         <SessionRenameDialog
           open={lifecycle.renameDialog.open}

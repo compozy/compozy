@@ -1116,6 +1116,85 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 	})
 }
 
+func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
+	t.Run("Should forward reason and return time and bring the session back", func(t *testing.T) {
+		t.Parallel()
+
+		var requests []contract.MoveSessionToLaterRequest
+		var withChildren []bool
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			moveSessionToLaterFn: func(
+				_ context.Context, id string, req contract.MoveSessionToLaterRequest,
+			) (SessionRecord, error) {
+				requests = append(requests, req)
+				return SessionRecord{
+					ID:          id,
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       session.StateStopped,
+					Later: &contract.SessionLaterPayload{
+						ParkedAt: fixedTestNow,
+						Reason:   req.Reason,
+						ReturnAt: req.ReturnAt,
+					},
+					CreatedAt: fixedTestNow,
+					UpdatedAt: fixedTestNow,
+				}, nil
+			},
+			resumeSessionFromLaterFn: func(_ context.Context, id string, children bool) (SessionRecord, error) {
+				withChildren = append(withChildren, children)
+				return SessionRecord{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+					CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				}, nil
+			},
+		})
+
+		output, _, err := executeRootCommand(t, deps, "session", "later", "sess-1",
+			"--reason", "after billing", "--return-at", "2026-11-03T09:00:00Z", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session later) error = %v", err)
+		}
+		var parked SessionRecord
+		if err := json.Unmarshal([]byte(output), &parked); err != nil {
+			t.Fatalf("json.Unmarshal(session later) error = %v", err)
+		}
+		want := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
+		if parked.Later == nil || len(requests) != 1 || requests[0].Reason != "after billing" ||
+			requests[0].ReturnAt == nil || !requests[0].ReturnAt.Equal(want) {
+			t.Fatalf("session later = %#v requests=%#v, want reason and return time", parked.Later, requests)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"later",
+			"sess-1",
+			"--return-at",
+			"72h",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session later --return-at 72h) error = %v", err)
+		}
+		if got := requests[1].ReturnAt; got == nil || !got.Equal(fixedTestNow.Add(72*time.Hour)) {
+			t.Fatalf("duration return time = %v, want now+72h", got)
+		}
+		_, _, err = executeRootCommand(t, deps, "session", "later", "sess-1", "--return-at", "soon")
+		if err == nil || !strings.Contains(err.Error(), "invalid --return-at") {
+			t.Fatalf("executeRootCommand(session later --return-at soon) error = %v, want invalid --return-at", err)
+		}
+		if _, _, err := executeRootCommand(
+			t, deps, "session", "resume-later", "sess-1", "--with-children", "-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session resume-later) error = %v", err)
+		}
+		if !slices.Equal(withChildren, []bool{true}) {
+			t.Fatalf("resume-later with_children = %v, want [true]", withChildren)
+		}
+	})
+}
+
 func TestSessionRenameCommandReturnsUpdatedSession(t *testing.T) {
 	t.Parallel()
 

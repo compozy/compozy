@@ -953,6 +953,62 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("Should move a session to Later and bring it back with its request fields", func(t *testing.T) {
+		previous := fixture.Handlers.Sessions
+		later := &laterHandlerSessionManager{StubSessionManager: manager, now: now}
+		fixture.Handlers.Sessions = later
+		defer func() { fixture.Handlers.Sessions = previous }()
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/later",
+			[]byte(`{"reason":"after billing","return_at":"2026-11-03T09:00:00Z"}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("later status = %d body=%s, want %d", resp.Code, resp.Body.String(), http.StatusOK)
+		}
+		var parked contract.SessionResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &parked); err != nil {
+			t.Fatalf("json.Unmarshal(later response) error = %v", err)
+		}
+		if parked.Session.Later == nil || parked.Session.Later.Reason != "after billing" ||
+			parked.Session.Later.ReturnAt == nil ||
+			!parked.Session.Later.ReturnAt.Equal(time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)) {
+			t.Fatalf("later response = %#v, want reason and return time", parked.Session.Later)
+		}
+		invalid := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/later",
+			[]byte(`{"reason":"invalid"}`),
+		)
+		if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), "session_later_invalid") {
+			t.Fatalf("later(invalid) = %d %s, want 400 session_later_invalid", invalid.Code, invalid.Body.String())
+		}
+		refused := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/later",
+			[]byte(`{"reason":"subagent"}`),
+		)
+		if refused.Code != http.StatusConflict ||
+			!strings.Contains(refused.Body.String(), "subagent_later_follows_parent") {
+			t.Fatalf(
+				"later(subagent) = %d %s, want 409 subagent_later_follows_parent",
+				refused.Code,
+				refused.Body.String(),
+			)
+		}
+		for _, body := range [][]byte{nil, []byte(`{"with_children":true}`)} {
+			back := performRequest(
+				t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/resume-later", body,
+			)
+			if back.Code != http.StatusOK || strings.Contains(back.Body.String(), `"later"`) {
+				t.Fatalf("resume-later(%s) = %d %s, want 200 without Later", body, back.Code, back.Body.String())
+			}
+		}
+		if got := later.withChildren; len(got) != 2 || got[0] || !got[1] {
+			t.Fatalf("resume-later with_children = %v, want [false true]", got)
+		}
+	})
+
 	t.Run("Should attach sessions", func(t *testing.T) {
 		attachResp := performRequest(
 			t,
@@ -6114,4 +6170,40 @@ func (s sessionProfileServiceStub) ListIdentities(ctx context.Context) ([]profil
 		profiles = append(profiles, item.Profile)
 	}
 	return profiles, nil
+}
+
+// laterHandlerSessionManager adds the Later operations to the shared session stub.
+type laterHandlerSessionManager struct {
+	testutil.StubSessionManager
+	now          time.Time
+	withChildren []bool
+}
+
+func (s *laterHandlerSessionManager) MoveToLater(
+	_ context.Context, workspaceID string, id string, req session.LaterRequest,
+) (*session.Info, error) {
+	if workspaceID != "ws-workspace" || id != "sess-a" {
+		return nil, fmt.Errorf("MoveToLater target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+	}
+	if req.Reason == "invalid" {
+		return nil, fmt.Errorf("%w: reason must be one line", session.ErrSessionLaterInvalid)
+	}
+	if req.Reason == "subagent" {
+		return nil, session.ErrSubagentLaterFollowsParent
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	info.Later = &store.SessionLater{ParkedAt: s.now, Reason: req.Reason, ReturnAt: req.ReturnAt}
+	return info, nil
+}
+
+func (s *laterHandlerSessionManager) ResumeFromLater(
+	_ context.Context, _ string, id string, withChildren bool,
+) (*session.Info, error) {
+	s.withChildren = append(s.withChildren, withChildren)
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	return info, nil
 }

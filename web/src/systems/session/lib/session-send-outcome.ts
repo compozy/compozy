@@ -1,7 +1,8 @@
 import type { SessionSteerDelivery } from "./session-busy-input";
 import type { SessionPromptSendResult } from "../types";
 
-export type SessionSendDisposition = "direct" | "steering" | "queued" | "interrupting";
+/** `later`: an agent message queued for a session parked in Later; it runs once the session is back. */
+export type SessionSendDisposition = "direct" | "steering" | "queued" | "interrupting" | "later";
 
 /**
  * Flattened `SendOutcome` envelope of a busy send — what the composer answers

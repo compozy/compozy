@@ -5,6 +5,8 @@ import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { isSubagentSession } from "../lib/session-hierarchy";
+import { sessionIsInLater } from "../lib/session-later";
+import type { SessionListShelf } from "../lib/session-list-shelf";
 import type { SessionPayload } from "../types";
 import type { SessionSelectionVerbs } from "./use-session-list-bulk-selection";
 
@@ -90,6 +92,14 @@ export function sessionSelectionCounts(
     unarchivable: sessions.filter(
       session => session.archived_at !== null && !isSubagentSession(session)
     ).length,
+    // Subagent sessions move to and come back from Later with their parent.
+    laterable: sessions.filter(
+      session =>
+        session.archived_at === null && !sessionIsInLater(session) && !isSubagentSession(session)
+    ).length,
+    backFromLaterable: sessions.filter(
+      session => sessionIsInLater(session) && !isSubagentSession(session)
+    ).length,
     hiddenByFilter: sessions.filter(session => !visible.has(session.id)).length,
   };
 }
@@ -103,11 +113,12 @@ export type SessionSelectionStore = ReturnType<typeof sessionSelectionLogic.crea
  */
 export function useSessionSelection(
   scope: string,
-  archived: boolean,
+  /** The list's shelf (active, archive, Later): each is its own selection. */
+  shelf: SessionListShelf,
   sessions?: readonly SessionPayload[],
   holdMissing?: (missingIds: readonly string[]) => boolean
 ) {
-  const { store } = useStoreBinding(JSON.stringify([scope, archived]), () =>
+  const { store } = useStoreBinding(JSON.stringify([scope, shelf]), () =>
     sessionSelectionLogic.createStore()
   );
   const context = useSelector(store, snapshot => snapshot.context);

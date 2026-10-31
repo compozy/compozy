@@ -83,6 +83,7 @@ type SessionCatalogPageQuery struct {
 	Badges              []string
 	Resumable           bool
 	Archive             SessionArchiveFilter
+	Later               SessionLaterFilter
 	Sort                string
 	Limit               int
 	After               *SessionCatalogPosition
@@ -115,6 +116,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 		return fmt.Errorf("store: session catalog page limit must be positive")
 	}
 	if err := q.Archive.Validate(); err != nil {
+		return err
+	}
+	if err := q.Later.Validate(); err != nil {
 		return err
 	}
 	if !q.LineageKind.Valid() {

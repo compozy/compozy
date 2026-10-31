@@ -1844,6 +1844,70 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should park through session_later and deny parking the caller's own tree", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// Any hierarchy child is parked with its parent; continue and fork only name a source.
+		lineages := map[string]*store.SessionLineage{
+			"sess-child":     {ParentSessionID: "sess-parent", Kind: store.LineageKindProvenance},
+			"sess-continued": {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+			"sess-forked":    {ParentSessionID: "sess-parent", Kind: store.LineageKindFork},
+		}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil {
+				info.Lineage = lineages[id]
+			}
+			return info, err
+		}
+		later := &nativeLaterSessionManager{StubSessionManager: manager}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: later, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		child := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-child", AgentName: "coder"}
+		_, err := registry.Call(t.Context(), child, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionLater,
+			Input:  json.RawMessage(`{"session_id":"sess-parent"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		for _, caller := range []string{"sess-continued", "sess-forked"} {
+			derived := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: caller, AgentName: "coder"}
+			if _, err := registry.Call(t.Context(), derived, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionLater,
+				Input: json.RawMessage(
+					`{"session_id":"sess-parent","reason":"after billing","return_at":"2026-11-03T09:00:00Z"}`,
+				),
+			}); err != nil {
+				t.Fatalf("session_later of the source from %s = %v, want allowed", caller, err)
+			}
+		}
+		later.err = fmt.Errorf(
+			"%w: sess-parent: %w",
+			session.ErrSessionLaterStopFailed,
+			session.ErrStopVerificationFailed,
+		)
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-other"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionLater,
+				Input:  json.RawMessage(`{"session_id":"sess-parent"}`),
+			},
+		)
+		if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+			toolErr.Code != toolspkg.ErrorCodeSessionLaterStopFailed {
+			t.Fatalf("session_later stop failure = %#v, want session_later_stop_failed", err)
+		}
+		later.err = nil
+		want := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
+		if len(later.parked) != 2 || later.parked[0].Reason != "after billing" || later.parked[0].ReturnAt == nil ||
+			!later.parked[0].ReturnAt.Equal(want) {
+			t.Fatalf("MoveToLater requests = %#v, want two parks with reason and return time", later.parked)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
@@ -15800,4 +15864,27 @@ func (s *nativeProcessPolicyService) Terminate(
 	}
 	s.alive = false
 	return []sessionprocess.Result{{Outcome: "terminated"}}, nil
+}
+
+// nativeLaterSessionManager records Move to Later requests on top of the shared session stub.
+type nativeLaterSessionManager struct {
+	apitest.StubSessionManager
+	parked []session.LaterRequest
+	err    error
+}
+
+func (m *nativeLaterSessionManager) MoveToLater(
+	_ context.Context, _ string, id string, req session.LaterRequest,
+) (*session.Info, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.parked = append(m.parked, req)
+	return &session.Info{ID: id, State: session.StateStopped}, nil
+}
+
+func (m *nativeLaterSessionManager) ResumeFromLater(
+	_ context.Context, _ string, id string, _ bool,
+) (*session.Info, error) {
+	return &session.Info{ID: id, State: session.StateStopped}, nil
 }

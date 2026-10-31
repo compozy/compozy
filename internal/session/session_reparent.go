@@ -107,6 +107,9 @@ func (m *Manager) AdoptSession(
 	if err := m.requireReparentUnarchived(ctx, &sourceNode, &parentNode); err != nil {
 		return nil, err
 	}
+	if err := m.requireAdoptParentNotInLater(ctx, &parentNode); err != nil {
+		return nil, err
+	}
 	if err := m.requireNotAncestor(ctx, source, &parentNode); err != nil {
 		return nil, err
 	}

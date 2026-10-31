@@ -14,6 +14,7 @@ import type { SessionListTarget, SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { emptyForScope } from "@/systems/profiles";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
+import { sessionListShelfNoun } from "../../lib/session-list-shelf";
 
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import { useSessionListSelection } from "../../hooks/use-session-list-selection";
@@ -56,8 +57,7 @@ export interface SessionListProps {
  */
 function emptySessionListMessage(filtering: boolean, view: SessionListViewModel): string {
   if (filtering) return `${emptyForScope("matching sessions", view.scopeLabel)}.`;
-  if (view.archived) return `${emptyForScope("archived sessions", view.scopeLabel)}.`;
-  return `${emptyForScope("sessions", view.scopeLabel)}.`;
+  return `${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`;
 }
 
 /**
@@ -116,7 +116,7 @@ export function SessionList({
   // A grouped list's groups each read their own page and publish their rows to it.
   const { bulk, groupSelection } = useSessionListSelection({
     selectionKey: view.selectionKey,
-    archived: view.archived,
+    shelf: view.shelf,
     grouped,
     sessions: listed,
     visibleThreads: folders.visibleThreads,
@@ -374,11 +374,12 @@ function SessionListControls({
   ) : (
     <>
       <SessionListToolbar
-        archived={view.archived}
+        shelf={view.shelf}
+        laterCount={view.laterCount}
         sort={view.sort}
         groupBy={view.groupBy}
         groupByOptions={view.groupByOptions}
-        onArchivedChange={view.setArchived}
+        onShelfChange={view.setShelf}
         onSortChange={view.setSort}
         onGroupByChange={view.setGroupBy}
         onNewSession={onNewSession}

@@ -68,7 +68,7 @@ export const ProvenanceThreads: Story = {
     view: sessionListViewFixture({
       sort: "last_activity",
       setSort: fn(),
-      setArchived: fn(),
+      setShelf: fn(),
       ownerOf: () => ({ id: "default", name: "default", archived: false }),
     }),
     open: true,

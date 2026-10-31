@@ -18,6 +18,9 @@ export const SESSION_ROW_END_SLOT_FRAME =
 export const SESSION_ROW_META_FRAME =
   "col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2";
 
+/** Line 3 of a session parked in Later: its reason, return date and waiting messages. */
+export const SESSION_ROW_LATER_FRAME = "col-span-2 col-start-2 row-start-3";
+
 /** The who-line itself: provider mark, agent and notes, clipped rather than wrapped. */
 export const SESSION_ROW_WHO_FRAME =
   "flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle";

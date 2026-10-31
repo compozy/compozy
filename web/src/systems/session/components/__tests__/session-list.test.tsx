@@ -56,6 +56,7 @@ import { sessionKeys } from "../../lib/query-keys";
 import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
 import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
+import { formatLaterReturn } from "../../lib/session-later";
 import { SessionSidebar } from "../session-sidebar";
 
 // Dynamic JavaScript acquisition is an I/O boundary; these tests exercise the real query cache.
@@ -92,7 +93,7 @@ const sessions = [
 const view: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
   setSort: vi.fn(),
-  setArchived: vi.fn(),
+  setShelf: vi.fn(),
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
 });
 function catalogProvider(name: string, displayName: string): ProviderSummary {
@@ -162,6 +163,10 @@ function renderList(
     onStopMany: vi.fn(),
     onArchiveMany: vi.fn(),
     onUnarchiveMany: vi.fn(),
+    onMoveToLater: vi.fn(),
+    onMoveToLaterMany: vi.fn(),
+    onBackFromLater: vi.fn(),
+    onBackFromLaterMany: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -1239,9 +1244,127 @@ describe("SessionList subagents", () => {
     await user.click(screen.getByTestId("session-row-actions-viewed-sub"));
     expect(await screen.findByTestId("session-row-delete-viewed-sub")).toBeInTheDocument();
     expect(screen.queryByTestId("session-row-archive-viewed-sub")).not.toBeInTheDocument();
+    // A subagent session follows its parent into and out of Later, too.
+    expect(screen.queryByTestId("session-row-later-viewed-sub")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("session-row-actions-parent"));
     expect(await screen.findByTestId("session-row-archive-parent")).toBeInTheDocument();
+    expect(screen.getByTestId("session-row-later-parent")).toBeInTheDocument();
+  });
+});
+
+// Invariant (#1076): Later mirrors the archive — one toolbar toggle beside Archive, mutually
+// exclusive with it, counting the scope's parked sessions; a parked row shows why it waits,
+// when it comes back and its waiting messages, and offers Back from Later instead of Move to
+// Later. Owner: SessionList through its sidebar host (same suite as the archive verbs).
+describe("SessionList Later", () => {
+  const parked: SessionPayload = {
+    ...primarySessionFixture,
+    id: "parked",
+    name: "Parked work",
+    archived_at: null,
+    state: "stopped",
+    later: {
+      parked_at: "2026-10-30T09:00:00Z",
+      reason: "Waiting on the vendor",
+      return_at: "2026-11-04T09:00:00Z",
+      pending_messages: 2,
+    },
+  };
+
+  it("Should switch the list between Active, Later and the archive from the toolbar", async () => {
+    const user = userEvent.setup();
+    const setShelf = vi.fn();
+    const { update } = renderList({ view: { ...view, laterCount: 3, setShelf } });
+
+    const later = screen.getByTestId("session-sidebar-later");
+    expect(later).toHaveAccessibleName("Later, 3");
+    expect(screen.getByTestId("session-sidebar-later-count")).toHaveTextContent("3");
+    expect(later).toHaveAttribute("aria-pressed", "false");
+    await user.click(later);
+    expect(setShelf).toHaveBeenLastCalledWith("later");
+
+    update(sessions, { ...view, shelf: "later", laterCount: 3, setShelf });
+    expect(screen.getByTestId("session-sidebar-later")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("session-sidebar-archived")).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByTestId("session-sidebar-archived"));
+    expect(setShelf).toHaveBeenLastCalledWith("archive");
+
+    // From the archive, Later switches straight to Later rather than back to Active.
+    update(sessions, { ...view, shelf: "archive", laterCount: 3, setShelf });
+    await user.click(screen.getByTestId("session-sidebar-later"));
+    expect(setShelf).toHaveBeenLastCalledWith("later");
+
+    update(sessions, { ...view, shelf: "later", laterCount: 3, setShelf });
+    await user.click(screen.getByTestId("session-sidebar-later"));
+    expect(setShelf).toHaveBeenLastCalledWith("active");
+  });
+
+  it("Should show no count while nothing is in Later", () => {
+    renderList({ view: { ...view, laterCount: 0 } });
+    expect(screen.getByTestId("session-sidebar-later")).toHaveAccessibleName("Later");
+    expect(screen.queryByTestId("session-sidebar-later-count")).not.toBeInTheDocument();
+  });
+
+  it("Should show a parked row's reason, return date and waiting messages", () => {
+    renderList({ sessions: [parked], view: { ...view, shelf: "later" } });
+
+    expect(screen.getByTestId("session-later-reason-parked")).toHaveTextContent(
+      "Waiting on the vendor"
+    );
+    expect(screen.getByTestId("session-later-return-parked")).toHaveTextContent(
+      `Back ${formatLaterReturn("2026-11-04T09:00:00Z")}`
+    );
+    expect(screen.getByTestId("session-later-parked-parked")).toHaveTextContent(/Parked/);
+    const pending = screen.getByTestId("session-later-pending-parked");
+    expect(pending).toHaveTextContent("2");
+    expect(pending).toHaveAttribute("title", "2 messages waiting");
+    expect(screen.getByTestId("session-sidebar-session-parked")).toHaveTextContent(
+      "In Later, Waiting on the vendor"
+    );
+  });
+
+  it("Should name the Later view when it is empty", () => {
+    renderList({ sessions: [], view: { ...view, shelf: "later", scopeLabel: "marketing" } });
+    expect(screen.getByText("No sessions in Later in marketing yet.")).toBeInTheDocument();
+  });
+
+  it("Should move a selection to Later and bring its parked sessions back", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList({ sessions: [sessions[1]!, parked] });
+    const stopped = screen.getByTestId("session-sidebar-session-stopped");
+    fireEvent.click(stopped, { metaKey: true });
+    fireEvent.click(screen.getByTestId("session-sidebar-session-parked"), { metaKey: true });
+    fireEvent.contextMenu(stopped);
+
+    expect(await screen.findByTestId("session-sidebar-selection-menu-later")).toHaveTextContent(
+      "Move to Later…1 session"
+    );
+    expect(screen.getByTestId("session-sidebar-selection-menu-back-from-later")).toHaveTextContent(
+      "Back from Later1 in Later"
+    );
+    await user.click(screen.getByTestId("session-sidebar-selection-menu-later"));
+    expect(actions.onMoveToLaterMany).toHaveBeenCalledWith([sessions[1], parked]);
+
+    fireEvent.contextMenu(stopped);
+    await user.click(await screen.findByTestId("session-sidebar-selection-menu-back-from-later"));
+    expect(actions.onBackFromLaterMany).toHaveBeenCalledWith([sessions[1], parked]);
+  });
+
+  it("Should offer Move to Later on an active row and Back from Later on a parked one", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList({ sessions: [sessions[1]!, parked] });
+
+    await user.click(screen.getByTestId("session-row-actions-stopped"));
+    const later = await screen.findByTestId("session-row-later-stopped");
+    expect(later).toHaveTextContent("Move to Later…");
+    await user.click(later);
+    expect(actions.onMoveToLater).toHaveBeenCalledExactlyOnceWith(sessions[1]);
+
+    await user.click(screen.getByTestId("session-row-actions-parked"));
+    expect(screen.queryByTestId("session-row-later-parked")).not.toBeInTheDocument();
+    await user.click(await screen.findByTestId("session-row-back-from-later-parked"));
+    expect(actions.onBackFromLater).toHaveBeenCalledExactlyOnceWith(parked);
   });
 });
 

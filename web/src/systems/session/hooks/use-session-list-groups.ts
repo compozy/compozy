@@ -5,6 +5,7 @@ import { breadthQuery, sessionCatalogBreadthParams, type DataScope } from "@/sys
 
 import { sessionFacetsOptions } from "../lib/session-catalog-options";
 import type { SessionListFilters } from "../types";
+import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-list-shelf";
 import {
   profileSessionGroups,
   projectSessionGroups,
@@ -21,7 +22,8 @@ export interface SessionListGroupsInput {
   scope: DataScope | null;
   lens: ProfileScopeParams;
   workspaces: ReadonlyArray<{ id: string; name: string }>;
-  archived: boolean;
+  /** Active, the archive, or Later: groups list only that population. */
+  shelf: SessionListShelf;
   search?: string;
   /** The list's worktree restriction: groups and counts cover only its sessions. */
   worktreeId?: string;
@@ -52,7 +54,7 @@ export function useSessionListGroups({
   scope,
   lens,
   workspaces,
-  archived,
+  shelf,
   search,
   worktreeId,
   enabled,
@@ -61,7 +63,7 @@ export function useSessionListGroups({
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
     ...sessionFacetsOptions(
-      sessionListFacetFilters({ scope, lens, archived, search, worktreeId, population })
+      sessionListFacetFilters({ scope, lens, shelf, search, worktreeId, population })
     ),
     enabled: grouped,
   });
@@ -90,19 +92,19 @@ export function useSessionListGroups({
 export function sessionListFacetFilters({
   scope,
   lens,
-  archived,
+  shelf,
   search,
   worktreeId,
   population,
 }: Pick<
   SessionListGroupsInput,
-  "scope" | "lens" | "archived" | "search" | "worktreeId" | "population"
+  "scope" | "lens" | "shelf" | "search" | "worktreeId" | "population"
 >): SessionListFilters {
   return {
     ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
     ...(population ?? { subagents: sessionListSubagentsParam(search) }),
     ...(worktreeId ? { worktree: worktreeId } : {}),
-    ...(archived ? { archive: "only" as const } : {}),
+    ...sessionListShelfFilters(shelf),
     ...lens,
   };
 }
@@ -149,24 +151,46 @@ export function useSessionListTotals({
   lens,
   search,
   worktreeId,
-  archived,
+  shelf,
   enabled: listEnabled,
 }: {
   scope: DataScope | null;
   lens: ProfileScopeParams;
   search: string;
   worktreeId?: string;
-  /** The archive counts nothing live, so it shows no totals. */
-  archived: boolean;
+  /** The archive and Later count nothing live, so they show no totals. */
+  shelf: SessionListShelf;
   enabled: boolean;
 }): SessionListTotals | undefined {
-  const enabled = listEnabled && !archived;
+  const enabled = listEnabled && shelf === "active";
   const facets = useQuery({
     ...sessionFacetsOptions(
-      sessionListFacetFilters({ scope, lens, archived: false, search, worktreeId })
+      sessionListFacetFilters({ scope, lens, shelf: "active", search, worktreeId })
     ),
     enabled: enabled && scope !== null,
   }).data?.facets;
   if (!enabled || !facets) return undefined;
   return { needsYou: facets.needs_you, working: facets.working, idle: facets.idle };
+}
+
+/**
+ * How many sessions the list's scope holds in Later — the toolbar toggle's
+ * count. An exact facets total over the same population the Later view lists,
+ * never a loaded page; `undefined` until it loads.
+ */
+export function useSessionListLaterCount({
+  scope,
+  lens,
+  worktreeId,
+  enabled,
+}: {
+  scope: DataScope | null;
+  lens: ProfileScopeParams;
+  worktreeId?: string;
+  enabled: boolean;
+}): number | undefined {
+  return useQuery({
+    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "later", worktreeId })),
+    enabled: enabled && scope !== null,
+  }).data?.facets.all;
 }

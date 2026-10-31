@@ -141,6 +141,9 @@ func sessionNotificationQueryItems(
 				title = info.ID
 			}
 			reason := string(badge)
+			if info.LaterReturnedAt != nil {
+				reason = session.LaterReturnReason
+			}
 			for _, interaction := range info.PendingInteractions {
 				if interaction.Status == "pending" && interaction.Title != "" {
 					reason = interaction.Title

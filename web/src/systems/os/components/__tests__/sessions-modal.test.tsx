@@ -82,7 +82,7 @@ function listView(overrides: Partial<SessionListViewModel> = {}): SessionListVie
   return sessionListViewFixture({
     sort: "last_activity",
     setSort: vi.fn(),
-    setArchived: vi.fn(),
+    setShelf: vi.fn(),
     ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
     ...overrides,
   });
@@ -375,7 +375,7 @@ describe("OsSessionsModal", () => {
     renderModal(
       createShell(),
       true,
-      listView({ archived: true, scopeLabel: "marketing" }),
+      listView({ shelf: "archive", scopeLabel: "marketing" }),
       vi.fn(),
       []
     );
@@ -427,7 +427,7 @@ describe("OsSessionsModal", () => {
     expect(archivedToggle).toHaveAccessibleName("Archived");
     expect(archivedToggle).toHaveAttribute("aria-pressed", "false");
     await user.click(archivedToggle);
-    expect(active.setArchived).toHaveBeenCalledWith(true);
+    expect(active.setShelf).toHaveBeenCalledWith("archive");
 
     first.unmount();
     const archivedSession = session({
@@ -444,7 +444,7 @@ describe("OsSessionsModal", () => {
           onOpenChange={() => {}}
           sessions={[archivedSession]}
           disconnected={false}
-          view={listView({ archived: true })}
+          view={listView({ shelf: "archive" })}
           onNewSession={vi.fn()}
           sessionActions={SESSION_ACTIONS}
         />
@@ -490,7 +490,7 @@ describe("OsSessionsModal", () => {
               onOpenChange={() => {}}
               sessions={rows}
               disconnected={false}
-              view={listView({ archived: true })}
+              view={listView({ shelf: "archive" })}
               onNewSession={vi.fn()}
               sessionActions={SESSION_ACTIONS}
             />

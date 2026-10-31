@@ -1,3 +1,4 @@
+import { moveSessionToLater, resumeSessionFromLater } from "../session-later-api";
 import { fetchSessionSubagents, cancelSubagent } from "../subagent-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -575,6 +576,55 @@ describe("session archive", () => {
     await expectFetchRequest({
       method: "POST",
       path: "/api/workspaces/ws_alpha/sessions/sess-001/unarchive?profile=design",
+    });
+  });
+});
+
+describe("session Later", () => {
+  it("parks a session with its reason and return date through its workspace endpoint", async () => {
+    const parked = {
+      ...mockSession,
+      state: "stopped",
+      later: { parked_at: "2026-08-04T12:00:00Z", reason: "Vendor", pending_messages: 0 },
+    };
+    mockJsonResponse({ session: parked });
+
+    await expect(
+      moveSessionToLater(WORKSPACE_ID, mockSession.id, "design", {
+        reason: "Vendor",
+        return_at: "2026-08-10T09:00:00Z",
+      })
+    ).resolves.toEqual(parked);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/later?profile=design",
+      body: { reason: "Vendor", return_at: "2026-08-10T09:00:00Z" },
+    });
+  });
+
+  it("carries the daemon's refusal code when a subagent cannot move on its own", async () => {
+    mockJsonResponse(
+      { code: "subagent_later_follows_parent", error: "subagents move with their parent" },
+      { status: 409 }
+    );
+    const error = await moveSessionToLater(WORKSPACE_ID, "sess-001", "design", {}).catch(
+      (reason: unknown) => reason
+    );
+    expect(error).toBeInstanceOf(SessionApiError);
+    expect(error).toMatchObject({ code: "subagent_later_follows_parent", status: 409 });
+  });
+
+  it("brings a parked session back through its workspace endpoint", async () => {
+    const back = { ...mockSession, later: null };
+    mockJsonResponse({ session: back });
+
+    await expect(resumeSessionFromLater(WORKSPACE_ID, mockSession.id, "design")).resolves.toEqual(
+      back
+    );
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/resume-later?profile=design",
+      body: {},
     });
   });
 });

@@ -3500,6 +3500,23 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #1076: optional Later state on session payloads; existing fields and required sets stay unchanged.
+	if addSessionLaterSchemas(baseline) == 0 {
+		t.Fatal("approved Later addition: no historical session schemas found")
+	}
+	if addPromptDispositionValue(baseline, "later") == 0 {
+		t.Fatal("approved Later disposition: no historical prompt dispositions found")
+	}
+	addSessionCatalogLaterParameter(t, baseline)
+	for _, code := range []tools.ErrorCode{
+		tools.ErrorCodeSessionInLater,
+		tools.ErrorCodeSubagentLaterFollowsParent,
+		tools.ErrorCodeSessionLaterStopFailed,
+	} {
+		if addToolErrorCode(baseline, string(code)) == 0 {
+			t.Fatal("approved Later tool errors: no historical tool error enums found")
+		}
+	}
 	// #1015: optional Goal control/telemetry state and an additive Stop command.
 	if addGoalControlSchemas(baseline) == 0 {
 		t.Fatal("approved Goal control additions: no historical Goal schemas found")
@@ -4797,6 +4814,88 @@ func addWorktreeCreateErrorSchemas(value any) int {
 			properties["create_error"] = map[string]any{"type": "string"}
 			count++
 		}
+	}
+	return count
+}
+
+// addSessionCatalogLaterParameter inserts the optional Later visibility filter
+// right after the archive filter of each session catalog read.
+func addSessionCatalogLaterParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	later := map[string]any{
+		"description": "Visibility of sessions parked in Later; excluded by default",
+		"in":          "query", "name": "later",
+		"schema": map[string]any{"enum": []any{"exclude", "only", "include"}, "type": "string"},
+	}
+	for _, path := range []string{"/api/sessions", "/api/sessions/facets", "/api/workspaces/{workspace_id}/sessions"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == "archive"
+		})
+		if at < 0 {
+			t.Fatalf("approved Later filter: %s has no archive parameter", path)
+		}
+		operation["parameters"] = slices.Concat(parameters[:at+1], []any{later}, parameters[at+1:])
+	}
+}
+
+func addPromptDispositionValue(value any, disposition string) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addPromptDispositionValue(child, disposition)
+		}
+	case map[string]any:
+		for key, child := range node {
+			schema, ok := child.(map[string]any)
+			if key != "disposition" || !ok {
+				count += addPromptDispositionValue(child, disposition)
+				continue
+			}
+			if values, ok := schema["enum"].([]any); ok && slices.Contains(values, any("interrupting")) {
+				schema["enum"] = append(values, disposition)
+				count++
+			}
+		}
+	}
+	return count
+}
+
+func addSessionLaterSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionLaterSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionLaterSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		timestamp := map[string]any{"type": "string", "format": "date-time"}
+		properties["later"] = map[string]any{"oneOf": []any{
+			map[string]any{
+				"type":     "object",
+				"required": []any{"parked_at", "pending_messages"},
+				"properties": map[string]any{
+					"parked_at":        timestamp,
+					"reason":           map[string]any{"type": "string"},
+					"return_at":        map[string]any{"type": "string", "format": "date-time", "nullable": true},
+					"pending_messages": map[string]any{"type": "integer"},
+				},
+			},
+			map[string]any{"enum": []any{nil}, "nullable": true},
+		}}
+		properties["returned_from_later_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
 	}
 	return count
 }

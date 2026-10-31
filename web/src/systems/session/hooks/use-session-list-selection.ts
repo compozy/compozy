@@ -3,6 +3,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 import type { SessionListGroupSelection } from "../contexts/session-list-group-selection-context-value";
 import { sessionListGroupedRows, sessionListGroupRowsLogic } from "../lib/session-list-group-rows";
 import { threadVisibleOrder, type SessionThreadModel } from "../lib/session-list-threads";
+import type { SessionListShelf } from "../lib/session-list-shelf";
 import type { SessionPayload } from "../types";
 import type { SessionListLayout } from "./use-session-folders";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
@@ -16,7 +17,7 @@ import { useSessionListBulkSelection } from "./use-session-list-bulk-selection";
  */
 export function useSessionListSelection(input: {
   selectionKey: string;
-  archived: boolean;
+  shelf: SessionListShelf;
   grouped: boolean;
   /** The flat list's sessions, visible threads, and folder layout. */
   sessions: readonly SessionPayload[];
@@ -29,7 +30,7 @@ export function useSessionListSelection(input: {
   const grouped = sessionListGroupedRows(useSelector(rows, snapshot => snapshot.context.groups));
   const bulk = useSessionListBulkSelection({
     selectionKey: input.selectionKey,
-    archived: input.archived,
+    shelf: input.shelf,
     sessions: input.grouped ? grouped.sessions : input.sessions,
     visibleOrder: input.grouped
       ? grouped.visibleOrder

@@ -3723,7 +3723,7 @@ export interface SessionPreStopPayload {
   updated_at: ISODateTime;
 }
 
-export type Disposition = "direct" | "steering" | "queued" | "interrupting";
+export type Disposition = "direct" | "steering" | "queued" | "interrupting" | "later";
 
 export interface SessionPromptResult {
   disposition?: Disposition;

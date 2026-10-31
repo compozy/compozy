@@ -40,6 +40,7 @@ export interface SessionWindowSidebarModel {
   rowDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
   rowProcessDialog: ReturnType<typeof useSessionListLifecycleActions>["processDialog"];
   rowRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
+  rowLaterDialog: ReturnType<typeof useSessionListLifecycleActions>["laterDialog"];
 }
 
 /**
@@ -115,5 +116,6 @@ export function useSessionWindowSidebar({
     rowDeleteDialog: lifecycle.deleteDialog,
     rowProcessDialog: lifecycle.processDialog,
     rowRenameDialog: lifecycle.renameDialog,
+    rowLaterDialog: lifecycle.laterDialog,
   };
 }

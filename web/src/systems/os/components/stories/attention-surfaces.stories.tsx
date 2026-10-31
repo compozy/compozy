@@ -80,7 +80,7 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
 const SESSION_LIST_VIEW: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
   setSort: fn(),
-  setArchived: fn(),
+  setShelf: fn(),
   ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
 });
 

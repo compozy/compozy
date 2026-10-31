@@ -52,6 +52,9 @@ authoritative. The error envelope is unchanged; messages can include a bounded, 
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `subagent_archive_follows_parent`              | A child cannot be archived independently. Archive through its parent.                                                                      |
 | `session_archive_requires_stopped`             | Stop the session before archiving. A detached runtime is not a stopped session.                                                            |
+| `session_in_later`                             | The session is parked in Later. Bring it back with `compozy__session_resume_later`, or let the operator prompt it.                         |
+| `subagent_later_follows_parent`                | A subagent moves to Later with its parent. Park the parent instead.                                                                        |
+| `session_later_stop_failed`                    | Later could not stop the session tree or its processes; nothing was parked. Inspect the session and retry.                                 |
 | `worktree_name_taken`                          | Inspect the existing worktree or choose another name.                                                                                      |
 | `worktree_session_active`                      | Inspect and release the session binding before removing the worktree.                                                                      |
 | `tool_backend_failed` with `backend_unhealthy` | A backend operation failed. Inspect the sanitized cause before retrying; for example, workspace pruning may be blocked by active sessions. |
@@ -121,7 +124,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
@@ -441,7 +444,16 @@ stopped session; a live session is refused unless the input sets `stop: true`, w
 through the normal stop path (canceling any active turn and cascading to subagents) and then
 archives it. A failed stop leaves the session unarchived with code `session_archive_stop_failed`.
 The CLI fallback is `compozy session archive <id> [--stop]`. Unarchive before prompting or
-resuming a session. Archive and conversation clear preserve attachments;
+resuming a session. `compozy__session_later` moves a session to Later: it stops the session and
+its hierarchy children (forks and continues are not children), cancels their monitors and pending
+wakes, terminates their processes and terminals, and parks them with an optional one-line `reason`
+and optional `return_at` that brings the session back into Needs you with a notification. Parking
+the caller or one of its ancestors is refused as a self-target. `compozy__session_list` excludes
+parked sessions unless `later` is `only` or `include`. A `compozy__session_prompt` to a parked
+session queues the message with disposition `later` and does not resume it; only the operator
+resumes it. `compozy__session_resume_later` brings it back without starting it (`with_children`
+also brings back parked children). CLI fallbacks: `compozy session later <id>` and
+`compozy session resume-later <id>`. Archive and conversation clear preserve attachments;
 conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
 remove their scoped attachment trees.
 `compozy__session_rename` changes the durable display name of a user session without changing its

@@ -1,6 +1,7 @@
 import {
   Archive,
   ArrowRightLeft,
+  Bookmark,
   Copy,
   CornerLeftUp,
   CornerDownRight,
@@ -11,17 +12,25 @@ import {
   RotateCcw,
   Square,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { use } from "react";
 
 import { SessionClearContext } from "../contexts/session-clear-context-value";
-import { SessionDeriveContext } from "../contexts/session-derive-context-value";
-import { SessionForkContext } from "../contexts/session-fork-context-value";
+import {
+  SessionDeriveContext,
+  type SessionContinueRequest,
+} from "../contexts/session-derive-context-value";
+import {
+  SessionForkContext,
+  type SessionForkRequest,
+} from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
+import { sessionIsInLater } from "../lib/session-later";
 import { sessionAdoptRefusal, sessionCanMakeTopLevel } from "../lib/session-reparent";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
@@ -39,6 +48,8 @@ export interface SessionRowMenuItem {
     | "nest"
     | "stop"
     | "unarchive"
+    | "later"
+    | "back-from-later"
     | "archive"
     | "clear"
     | "delete";
@@ -78,6 +89,85 @@ function sessionArchiveMenuItem(
   };
 }
 
+/**
+ * Move to Later or Back from Later. A subagent session follows its parent, and
+ * an archived session has left the flow already: neither gets a verb. Hosts
+ * without a Later dialog leave the handlers out, and the verbs with them.
+ */
+function sessionLaterMenuItem(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem | null {
+  if (isSubagentSession(session) || session.archived_at !== null) return null;
+  const { onMoveToLater, onBackFromLater } = actions;
+  if (sessionIsInLater(session)) {
+    return onBackFromLater
+      ? {
+          id: "back-from-later",
+          label: "Back from Later",
+          icon: Undo2,
+          onSelect: () => onBackFromLater(session),
+        }
+      : null;
+  }
+  return onMoveToLater
+    ? {
+        id: "later",
+        label: "Move to Later…",
+        icon: Bookmark,
+        onSelect: () => onMoveToLater(session),
+      }
+    : null;
+}
+
+/** Continue and Fork, offered on live user sessions whose host can derive them. */
+function sessionDeriveMenuItems(
+  session: SessionPayload,
+  requestContinue: SessionContinueRequest | null,
+  requestFork: SessionForkRequest | null
+): SessionRowMenuItem[] {
+  if (!isUserControllableSession(session) || session.archived_at !== null) return [];
+  const items: SessionRowMenuItem[] = [];
+  if (requestContinue) {
+    items.push({
+      id: "continue",
+      label: "Continue with another agent…",
+      icon: ArrowRightLeft,
+      onSelect: () => requestContinue(session),
+    });
+  }
+  if (requestFork) {
+    items.push({
+      id: "fork",
+      label: "Fork session…",
+      icon: GitFork,
+      onSelect: () => requestFork(session),
+    });
+  }
+  return items;
+}
+
+/** Stop, Later, and Archive verbs gated on the session's lifecycle state. */
+function sessionStateMenuItems(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem[] {
+  const items: SessionRowMenuItem[] = [];
+  if (session.archived_at === null && isStopEligible(session)) {
+    items.push({
+      id: "stop",
+      label: "Stop session",
+      icon: Square,
+      onSelect: () => actions.onStop(session),
+    });
+  }
+  const laterItem = sessionLaterMenuItem(session, actions);
+  if (laterItem) items.push(laterItem);
+  const archiveItem = sessionArchiveMenuItem(session, actions);
+  if (archiveItem) items.push(archiveItem);
+  return items;
+}
+
 /** State-gated lifecycle verbs for one session row, in menu order. */
 export function useSessionRowMenuItems(
   session: SessionPayload,
@@ -86,7 +176,6 @@ export function useSessionRowMenuItems(
   const requestContinue = use(SessionDeriveContext);
   const requestFork = use(SessionForkContext);
   const clear = use(SessionClearContext);
-  const isArchived = session.archived_at !== null;
   const userSession = isUserControllableSession(session);
   const items: SessionRowMenuItem[] = [];
   if (userSession) {
@@ -111,22 +200,7 @@ export function useSessionRowMenuItems(
       onSelect: () => void copySessionText(getSessionDisplayTitle(session), "Title"),
     }
   );
-  if (userSession && !isArchived && requestContinue) {
-    items.push({
-      id: "continue",
-      label: "Continue with another agent…",
-      icon: ArrowRightLeft,
-      onSelect: () => requestContinue(session),
-    });
-  }
-  if (userSession && !isArchived && requestFork) {
-    items.push({
-      id: "fork",
-      label: "Fork session…",
-      icon: GitFork,
-      onSelect: () => requestFork(session),
-    });
-  }
+  items.push(...sessionDeriveMenuItems(session, requestContinue, requestFork));
   items.push(...sessionNestMenuItems(session, actions));
   const { onMakeTopLevel } = actions;
   if (onMakeTopLevel && sessionCanMakeTopLevel(session)) {
@@ -137,16 +211,7 @@ export function useSessionRowMenuItems(
       onSelect: () => onMakeTopLevel(session),
     });
   }
-  if (!isArchived && isStopEligible(session)) {
-    items.push({
-      id: "stop",
-      label: "Stop session",
-      icon: Square,
-      onSelect: () => actions.onStop(session),
-    });
-  }
-  const archiveItem = sessionArchiveMenuItem(session, actions);
-  if (archiveItem) items.push(archiveItem);
+  items.push(...sessionStateMenuItems(session, actions));
   if (userSession && clear?.sessionId === session.id) {
     items.push({
       id: "clear",

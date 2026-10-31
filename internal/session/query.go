@@ -149,7 +149,7 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
 		return nil, err
 	}
-	if err := m.populateArchiveMetadata(ctx, info); err != nil {
+	if err := m.populateCatalogMetadata(ctx, info); err != nil {
 		return nil, err
 	}
 	return info, nil
