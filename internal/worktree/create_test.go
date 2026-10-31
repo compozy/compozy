@@ -3,6 +3,7 @@ package worktree
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -215,6 +216,20 @@ func requireFailedCreation(t *testing.T, fixture *createTestFixture, id, wantCau
 	}
 	if got := fixture.events.count(EventCreationFailed); got != 1 {
 		t.Fatalf("creation failed events = %d, want one", got)
+	}
+	var payload creationFailedPayload
+	fixture.events.mu.Lock()
+	for _, event := range fixture.events.events {
+		if event.Name == EventCreationFailed {
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Errorf("decode creation failed payload: %v", err)
+			}
+		}
+	}
+	fixture.events.mu.Unlock()
+	if payload.WorktreeID != id || payload.PendingPhase != stored.PendingPhase ||
+		payload.PendingPhase == PhaseNone || payload.Error != stored.CreateError {
+		t.Fatalf("creation failed payload = %#v, want phase and cause of %#v", payload, stored)
 	}
 	return stored
 }
