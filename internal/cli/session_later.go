@@ -44,7 +44,7 @@ func newSessionLaterCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&record, deps.now))
 		},
 	}
-	command.Flags().StringVar(&reason, "reason", "", "One-line note shown on the Later card")
+	command.Flags().StringVar(&reason, "reason", "", "Markdown note shown on the Later card (up to 1000 characters)")
 	command.Flags().StringVar(
 		&returnAt,
 		"return-at",

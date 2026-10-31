@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Bookmark } from "lucide-react";
 
 import {
   Button,
+  DateTimePicker,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -13,13 +14,14 @@ import {
   FieldDescription,
   FieldError,
   FieldLabel,
-  Input,
+  MarkdownEditor,
   Spinner,
 } from "@compozy/ui";
 
 import type { SessionLaterConfirmation } from "../hooks/use-session-later-actions";
 import type { MoveSessionToLaterRequest } from "../adapters/session-later-api";
-import { laterInputValue, laterReasonError, laterReturnAtFromInput } from "../lib/session-later";
+import { markdownLineToPlainText } from "../lib/markdown-plain-text";
+import { laterReasonError, laterReturnAtFromDate, laterReturnPresets } from "../lib/session-later";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 
 export type SessionLaterDialogProps = SessionLaterConfirmation;
@@ -31,7 +33,9 @@ function laterDialogTitle(count: number): string {
 /** Parking stops the tree, so the dialog says so before the operator confirms. */
 function laterDialogDescription(count: number, title: string | null): string {
   if (count === 1) {
-    const subject = title ? `“${title}”` : "This session";
+    // Titles can carry Markdown from the agent; the quote reads it as plain text.
+    const plain = title ? markdownLineToPlainText(title) : "";
+    const subject = plain ? `“${plain}”` : "This session";
     return `${subject} stops, with everything it runs, and stays out of your lists until you bring it back.`;
   }
   return "These sessions stop, with everything they run, and stay out of your lists until you bring them back.";
@@ -52,62 +56,77 @@ function SessionLaterForm({
   onConfirm: (request: MoveSessionToLaterRequest) => void;
 }) {
   const [reason, setReason] = useState("");
-  const [returnInput, setReturnInput] = useState("");
+  const [returnDate, setReturnDate] = useState<Date | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [min] = useState(() => laterInputValue(new Date()));
+  // The earliest pick and the suggestions are fixed when the dialog opens.
+  const [{ min, presets }] = useState(() => ({ min: new Date(), presets: laterReturnPresets() }));
+  const formRef = useRef<HTMLFormElement>(null);
   const reasonError = laterReasonError(reason);
-  const returnAt = laterReturnAtFromInput(returnInput);
-  // The return date is checked on submit: a half-typed date is not an error yet.
+  const returnAt = laterReturnAtFromDate(returnDate);
+  // The return date is checked on submit: a picked time can pass while the dialog is open.
   const returnError = submitted ? returnAt.error : null;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitted(true);
-    if (isMoving || reasonError || returnAt.error) return;
+    // Read the clock now, not at the last render: the picked time may have passed.
+    const checked = laterReturnAtFromDate(returnDate);
+    if (isMoving || reasonError || checked.error) return;
     const trimmed = reason.trim();
     onConfirm({
       ...(trimmed ? { reason: trimmed } : {}),
-      ...(returnAt.returnAt ? { return_at: returnAt.returnAt } : {}),
+      ...(checked.returnAt ? { return_at: checked.returnAt } : {}),
     });
   };
 
   return (
-    <form className="flex flex-col gap-4" noValidate onSubmit={submit}>
+    <form className="flex flex-col gap-4" noValidate onSubmit={submit} ref={formRef}>
       <DialogHeader>
         <DialogTitle>{laterDialogTitle(count)}</DialogTitle>
         <DialogDescription>{laterDialogDescription(count, title)}</DialogDescription>
       </DialogHeader>
       <Field data-invalid={Boolean(reasonError)}>
-        <FieldLabel htmlFor="session-later-reason">Reason</FieldLabel>
-        <Input
+        <FieldLabel id="session-later-reason-label">Reason</FieldLabel>
+        <MarkdownEditor
+          aria-describedby={reasonError ? "session-later-reason-error" : undefined}
           aria-invalid={Boolean(reasonError)}
+          aria-labelledby="session-later-reason-label"
           autoFocus
           data-testid="session-later-reason"
           disabled={isMoving}
           id="session-later-reason"
-          onChange={event => setReason(event.target.value)}
-          placeholder="Optional"
+          onSubmit={() => formRef.current?.requestSubmit()}
+          onValueChange={setReason}
+          placeholder="Optional. Why it waits, what to pick up next."
           value={reason}
         />
-        {reasonError ? <FieldError>{reasonError}</FieldError> : null}
+        {reasonError ? (
+          <FieldError id="session-later-reason-error">{reasonError}</FieldError>
+        ) : null}
       </Field>
       <Field data-invalid={Boolean(returnError)}>
-        <FieldLabel htmlFor="session-later-return">Remind me on</FieldLabel>
-        <Input
+        <FieldLabel id="session-later-return-label">Remind me on</FieldLabel>
+        <DateTimePicker
+          aria-describedby="session-later-return-hint"
           aria-invalid={Boolean(returnError)}
-          className="w-auto"
+          aria-labelledby="session-later-return-label"
           data-testid="session-later-return"
           disabled={isMoving}
           id="session-later-return"
           min={min}
-          onChange={event => setReturnInput(event.target.value)}
-          type="datetime-local"
-          value={returnInput}
+          onValueChange={setReturnDate}
+          placeholder="Pick a date"
+          presets={presets}
+          value={returnDate}
         />
         {returnError ? (
-          <FieldError data-testid="session-later-return-error">{returnError}</FieldError>
+          <FieldError data-testid="session-later-return-error" id="session-later-return-hint">
+            {returnError}
+          </FieldError>
         ) : (
-          <FieldDescription>Optional. On this date it comes back to Needs you.</FieldDescription>
+          <FieldDescription id="session-later-return-hint">
+            Optional. On this date it comes back to Needs you.
+          </FieldDescription>
         )}
       </Field>
       <DialogFooter className="gap-2">
@@ -143,7 +162,7 @@ function SessionLaterForm({
 }
 
 /**
- * Move to Later for one session or a selection: an optional one-line reason and
+ * Move to Later for one session or a selection: an optional Markdown reason and
  * an optional return date. Parking stops the session tree first, so the dialog
  * stays open with a pending confirm until the daemon answers.
  */
@@ -164,7 +183,7 @@ export function SessionLaterDialog({
       }}
     >
       <DialogContent
-        className="max-w-md"
+        className="max-w-lg"
         data-testid="session-later-dialog"
         showCloseButton={!isMoving}
       >

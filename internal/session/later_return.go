@@ -72,7 +72,7 @@ func laterReturnNotificationBody(returned store.SessionLaterReturn) string {
 		name = "A session"
 	}
 	body := name + " is back in Needs you."
-	if reason := strings.TrimSpace(returned.Reason); reason != "" {
+	if reason := LaterReasonPlainText(returned.Reason); reason != "" {
 		body = name + " is back: " + reason
 	}
 	if utf8.RuneCountInString(body) <= NotificationBodyMaxChars {

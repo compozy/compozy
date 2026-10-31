@@ -1,10 +1,28 @@
 import type { SessionPayload } from "../types";
+import { markdownLineToPlainText } from "./markdown-plain-text";
 
-/** The daemon's one-line reason limit (`session_later_invalid` past it). */
-export const SESSION_LATER_REASON_MAX = 200;
+/** The daemon's reason limit in Markdown source characters (`session_later_invalid` past it). */
+export const SESSION_LATER_REASON_MAX = 1000;
+
+const BACKSLASH_ESCAPE = /\\([\\`*_{}[\]()#+\-.!~|>])/g;
+
+/**
+ * The lines of a Markdown Later reason as plain text: block markers and inline
+ * delimiters drop, link text stays, empty lines go. A plain reason written
+ * before reasons were Markdown reads unchanged.
+ */
+export function laterReasonLines(reason: string): string[] {
+  return reason
+    .split(/\r?\n/)
+    .map(line => markdownLineToPlainText(line).replace(BACKSLASH_ESCAPE, "$1").trim())
+    .filter(line => line !== "");
+}
 
 export interface SessionLaterDetails {
+  /** The reason read as one plain line ("a · b" for several lines). */
   reason: string | null;
+  /** The reason as plain lines, for a hover title. */
+  reasonLines: string[];
   /** When the daemon brings the session back to Needs you; `null` without a reminder. */
   returnAt: string | null;
   parkedAt: string;
@@ -18,8 +36,10 @@ export function sessionLaterDetails(
 ): SessionLaterDetails | null {
   const later = session.later;
   if (!later) return null;
+  const reasonLines = laterReasonLines(later.reason ?? "");
   return {
-    reason: later.reason?.trim() || null,
+    reason: reasonLines.length > 0 ? reasonLines.join(" · ") : null,
+    reasonLines,
     returnAt: later.return_at ?? null,
     parkedAt: later.parked_at,
     pendingMessages: Math.max(0, later.pending_messages),
@@ -52,7 +72,7 @@ export function sessionLaterSpoken(
     .join(", ");
 }
 
-/** Why the Reason field cannot be sent, or `null`. */
+/** Why the Reason field cannot be sent, or `null`; counts the Markdown source. */
 export function laterReasonError(reason: string): string | null {
   return Array.from(reason.trim()).length > SESSION_LATER_REASON_MAX
     ? `Use ${SESSION_LATER_REASON_MAX} characters or fewer.`
@@ -60,51 +80,49 @@ export function laterReasonError(reason: string): string | null {
 }
 
 /**
- * Reads a `datetime-local` value as the operator's own wall-clock time and
- * returns the RFC 3339 instant the daemon stores. Automation's
- * `localInputToDate` reads the same input as UTC because automations carry a
- * separate time zone; Later's `return_at` is one absolute instant, so it is
- * parsed in the browser's zone instead.
+ * The RFC 3339 instant the daemon stores for a picked return date, or why it
+ * cannot be sent. The picker works in the operator's own zone; the instant is
+ * absolute, so it travels as UTC.
  */
-export function laterReturnAtFromInput(
-  value: string,
+export function laterReturnAtFromDate(
+  value: Date | null,
   now: number = Date.now()
 ): { returnAt: string | null; error: string | null } {
-  const trimmed = value.trim();
-  if (trimmed === "") return { returnAt: null, error: null };
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(trimmed);
-  if (!match) return { returnAt: null, error: "Enter a date and time." };
-  const [year, month, day, hour, minute] = match.slice(1, 6).map(Number) as [
-    number,
-    number,
-    number,
-    number,
-    number,
-  ];
-  const date = new Date(year, month - 1, day, hour, minute);
-  // `Date` silently rolls a wall-clock time that does not exist (a DST gap, Feb
-  // 30) to another one; reading the fields back rejects it instead of shifting it.
-  const exists =
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day &&
-    date.getHours() === hour &&
-    date.getMinutes() === minute;
-  if (!Number.isFinite(date.getTime()) || !exists) {
-    return { returnAt: null, error: "Enter a date and time." };
-  }
-  if (date.getTime() <= now) return { returnAt: null, error: "Choose a time in the future." };
-  return { returnAt: date.toISOString().replace(/\.\d{3}Z$/, "Z"), error: null };
+  if (value === null) return { returnAt: null, error: null };
+  if (!Number.isFinite(value.getTime())) return { returnAt: null, error: "Enter a date and time." };
+  if (value.getTime() <= now) return { returnAt: null, error: "Choose a time in the future." };
+  return { returnAt: value.toISOString().replace(/\.\d{3}Z$/, "Z"), error: null };
 }
 
-const pad2 = (value: number) => String(value).padStart(2, "0");
+function atNine(base: Date, daysAhead: number): Date {
+  const date = new Date(base);
+  date.setDate(date.getDate() + daysAhead);
+  date.setHours(9, 0, 0, 0);
+  return date;
+}
 
-/** The `datetime-local` value of an instant in the operator's own zone (the input's `min`). */
-export function laterInputValue(date: Date): string {
-  return (
-    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}` +
-    `T${pad2(date.getHours())}:${pad2(date.getMinutes())}`
-  );
+/** One-click return dates beside the calendar, resolved when picked. */
+export function laterReturnPresets(): { label: string; value: () => Date }[] {
+  return [
+    {
+      label: "In 3 hours",
+      value: () => {
+        const date = new Date(Date.now() + 3 * 60 * 60_000);
+        // Land on the next half hour so the time list shows it selected.
+        date.setMinutes(Math.ceil(date.getMinutes() / 30) * 30, 0, 0);
+        return date;
+      },
+    },
+    { label: "Tomorrow", value: () => atNine(new Date(), 1) },
+    {
+      label: "Next Monday",
+      value: () => {
+        const now = new Date();
+        return atNine(now, (8 - now.getDay()) % 7 || 7);
+      },
+    },
+    { label: "In 2 weeks", value: () => atNine(new Date(), 14) },
+  ];
 }
 
 const RETURN_FORMATTER = new Intl.DateTimeFormat(undefined, {

@@ -115,4 +115,16 @@ if (typeof window !== "undefined") {
       return new DOMRect();
     };
   }
+  // ProseMirror (the `@compozy/ui` Markdown editor) also measures selections
+  // and hit-tests pointer downs; jsdom answers with empty boxes and no element.
+  const emptyRects = () => Object.assign([], { item: () => null }) as unknown as DOMRectList;
+  if (typeof Range !== "undefined" && typeof Range.prototype.getClientRects !== "function") {
+    Range.prototype.getClientRects = emptyRects;
+  }
+  if (typeof Element !== "undefined" && typeof Element.prototype.getClientRects !== "function") {
+    Element.prototype.getClientRects = emptyRects;
+  }
+  if (typeof document !== "undefined" && typeof document.elementFromPoint !== "function") {
+    document.elementFromPoint = () => null;
+  }
 }

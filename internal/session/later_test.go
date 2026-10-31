@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -141,16 +142,66 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
 	})
 
-	t.Run("Should reject a multi-line reason", func(t *testing.T) {
+	t.Run("Should keep a multi-line Markdown reason and reject one past the limit", func(t *testing.T) {
 		t.Parallel()
 		h, _ := newMentionHarness(t)
 		sess := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
-		_, err := h.manager.MoveToLater(t.Context(), h.workspaceID, sess.ID, LaterRequest{Reason: "one\ntwo"})
+		_, err := h.manager.MoveToLater(t.Context(), h.workspaceID, sess.ID, LaterRequest{
+			Reason: strings.Repeat("a", MaxLaterReasonLength+1),
+		})
 		if !errors.Is(err, ErrSessionLaterInvalid) {
-			t.Fatalf("MoveToLater(multi-line) error = %v, want ErrSessionLaterInvalid", err)
+			t.Fatalf("MoveToLater(too long) error = %v, want ErrSessionLaterInvalid", err)
+		}
+		parked, err := h.manager.MoveToLater(t.Context(), h.workspaceID, sess.ID, LaterRequest{
+			Reason: " Waiting on **review**\r\n\r\n- rerun the gate\r\n- ping the owner ",
+		})
+		if err != nil {
+			t.Fatalf("MoveToLater(multi-line) error = %v", err)
+		}
+		want := "Waiting on **review**\n\n- rerun the gate\n- ping the owner"
+		if parked.Later == nil || parked.Later.Reason != want {
+			t.Fatalf("MoveToLater(multi-line) later = %#v, want reason %q", parked.Later, want)
 		}
 	})
+}
+
+// Invariant: surfaces that cannot render Markdown (the back-from-Later
+// notification) read a Later reason as one plain line, and plain reasons stay
+// unchanged. Owner: session lifecycle (Later).
+func TestLaterReasonPlainText(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		reason string
+		want   string
+	}{
+		{
+			name:   "Should keep a plain reason",
+			reason: "revisit after the billing spec",
+			want:   "revisit after the billing spec",
+		},
+		{
+			name:   "Should drop inline Markdown delimiters and keep link text",
+			reason: "Waiting on **review** of *the* `gate` in ~~old~~ [the spec](https://compozy.com) 3 \\* 4",
+			want:   "Waiting on review of the gate in old the spec 3 * 4",
+		},
+		{
+			name:   "Should join list items and paragraphs into one line",
+			reason: "Blocked:\n\n- rerun the gate\n2. ping the owner",
+			want:   "Blocked: · rerun the gate · ping the owner",
+		},
+		{name: "Should keep snake_case words", reason: "fix later_return_at", want: "fix later_return_at"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := LaterReasonPlainText(tc.reason); got != tc.want {
+				t.Fatalf("LaterReasonPlainText(%q) = %q, want %q", tc.reason, got, tc.want)
+			}
+		})
+	}
 }
 
 func assertLaterCatalog(t *testing.T, h *harness, filter store.SessionLaterFilter, want []string) {

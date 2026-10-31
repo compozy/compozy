@@ -1324,6 +1324,22 @@ describe("SessionList Later", () => {
     );
   });
 
+  // #1086: reasons are Markdown; the one-line row reads them as plain text.
+  it("Should read a Markdown reason as one plain line", () => {
+    const markdown = {
+      ...parked,
+      later: { ...parked.later!, reason: "Waiting on **the vendor**\n\n- rerun `make gate`" },
+    };
+    renderList({ sessions: [markdown], view: { ...view, shelf: "later" } });
+
+    const reason = screen.getByTestId("session-later-reason-parked");
+    expect(reason).toHaveTextContent("Waiting on the vendor · rerun make gate");
+    expect(reason).toHaveAttribute("title", "Waiting on the vendor\nrerun make gate");
+    expect(screen.getByTestId("session-sidebar-session-parked")).toHaveTextContent(
+      "In Later, Waiting on the vendor · rerun make gate"
+    );
+  });
+
   it("Should name the Later view when it is empty", () => {
     renderList({ sessions: [], view: { ...view, shelf: "later", scopeLabel: "marketing" } });
     expect(screen.getByText("No sessions in Later in marketing yet.")).toBeInTheDocument();

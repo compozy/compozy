@@ -54,7 +54,11 @@ const sessionLaterInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string"},
-		"reason":{"type":"string","maxLength":200,"description":"Optional one-line note shown on the Later card."},
+		"reason":{
+			"type":"string",
+			"maxLength":1000,
+			"description":"Optional Markdown note shown on the Later card (bold, italic, inline code, lists, links)."
+		},
 		"return_at":{
 			"type":"string",
 			"format":"date-time",
