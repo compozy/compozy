@@ -37,7 +37,11 @@ import { agentsListOptions } from "@/systems/agent";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
-import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
+import {
+  profileSessionGroups,
+  projectSessionGroup,
+  projectSessionGroups,
+} from "../../lib/session-list-groups";
 import { buildProjectGroupTree, projectGroupTreeGroups } from "../../lib/workspace-folders";
 import { workspaceFolderFixture } from "../../mocks/workspace-layout-handlers";
 import {
@@ -2409,9 +2413,12 @@ describe("SessionList breadth and Group by", () => {
     });
 
   const failing = new Set<string>();
+  /** Session folders the daemon lists, by the workspace id in the request path. */
+  const listedFolders = new Map<string, unknown[]>();
   let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
   beforeEach(() => {
     failing.clear();
+    listedFolders.clear();
     fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
       const url = new URL((input as Request).url);
       const json = (body: unknown, status = 200) =>
@@ -2424,7 +2431,8 @@ describe("SessionList breadth and Group by", () => {
           const body = (await (input as Request).json()) as { name: string };
           return json({ folder: { ...FOLDER, name: body.name } }, 201);
         }
-        return json({ folders: [] });
+        const workspaceId = url.pathname.split("/").at(-2) ?? "";
+        return json({ folders: listedFolders.get(workspaceId) ?? [] });
       }
       if (url.pathname === "/api/profiles") return json(PROFILES);
       if (url.pathname === "/api/workspaces") {
@@ -2498,6 +2506,99 @@ describe("SessionList breadth and Group by", () => {
     expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-group-by-project"));
     expect(setGroupBy).toHaveBeenCalledWith("project");
+  });
+
+  // #1085: "Show empty projects" belongs to project grouping and reports the operator's choice.
+  it.each([
+    { checked: false, next: true },
+    { checked: true, next: false },
+  ])(
+    "Should offer Show empty projects only while grouped by project (checked: $checked)",
+    async ({ checked, next }) => {
+      // The first menu's close leaves its pointer lock for a frame; the reopen does not wait on it.
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      const setShowEmptyProjects = vi.fn();
+      const list = renderList({
+        sessions: [],
+        view: grouped({ showEmptyProjects: checked, setShowEmptyProjects }),
+      });
+      await user.click(screen.getByRole("button", { name: "Group by: Project" }));
+      const toggle = await screen.findByRole("menuitemcheckbox", { name: "Show empty projects" });
+      expect(toggle).toHaveAttribute("aria-checked", String(checked));
+      await user.click(toggle);
+      expect(setShowEmptyProjects).toHaveBeenCalledWith(next);
+      await user.keyboard("{Escape}");
+
+      list.update(
+        [],
+        grouped({ groupBy: "none", storedGroupBy: "none", groups: [], setShowEmptyProjects })
+      );
+      await user.click(screen.getByRole("button", { name: "Group by: None" }));
+      expect(await screen.findByRole("menuitemradio", { name: "Project" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitemcheckbox", { name: "Show empty projects" })).toBeNull();
+    }
+  );
+
+  // #1085: an empty project skips its page but keeps its session folders, so a folder made
+  // from its + shows at once.
+  it("Should keep an empty project's session folders while skipping its page", async () => {
+    listedFolders.set("ws-gamma", [
+      {
+        ...FOLDER,
+        id: "fold-ideas",
+        name: "Ideas",
+        workspace_id: "ws-gamma",
+        profile_id: "default",
+      },
+    ]);
+    const empty = projectSessionGroup(
+      "ws-gamma",
+      { all: 0, working: 0, needs_you: 0 },
+      { workspaces: [{ id: "ws-gamma", name: "Gamma" }], lens: { profile: "default" } }
+    );
+    renderList({ sessions: [], view: grouped({ groups: [empty], showEmptyProjects: true }) });
+
+    expect(await screen.findByText("Ideas")).toBeVisible();
+    expect(catalogReads().map(url => url.searchParams.get("workspace_id"))).not.toContain(
+      "ws-gamma"
+    );
+  });
+
+  // #1085: a project whose sessions all left the view drops its cached rows: its page read
+  // stops refreshing at a zero count, so those rows could be archived or deleted.
+  it("Should drop a project's cached rows once its count reaches zero", async () => {
+    const alpha = (total: number) =>
+      projectSessionGroup(
+        "ws-alpha",
+        { all: total, working: 0, needs_you: 0 },
+        { workspaces: WORKSPACES, lens: { profile: "default" } }
+      );
+    const list = renderList({ sessions: [], view: grouped({ groups: [alpha(1)] }) });
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+
+    list.update([], grouped({ groups: [alpha(0)], showEmptyProjects: true }));
+    expect(await screen.findByText("No sessions in Alpha yet.")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-session-a1")).not.toBeInTheDocument();
+  });
+
+  it("Should name the project, never the profile, in an empty project group", async () => {
+    const empty = projectSessionGroup(
+      "ws-gamma",
+      { all: 0, working: 0, needs_you: 0 },
+      { workspaces: [{ id: "ws-gamma", name: "Gamma" }], lens: { profile: "default" } }
+    );
+    renderList({ sessions: [], view: grouped({ groups: [empty], showEmptyProjects: true }) });
+
+    const note = await screen.findByText("No sessions in Gamma yet.");
+    expect(note).toBeVisible();
+    // A quiet one-line note inside the group, not the list's full empty-state block.
+    expect(note.closest("[data-slot='empty']")).toBeNull();
+    // An empty project reads no page of its own.
+    expect(catalogReads().map(url => url.searchParams.get("workspace_id"))).not.toContain(
+      "ws-gamma"
+    );
+    expect(screen.getByTestId("session-sidebar-group-project:ws-gamma")).toHaveTextContent("0");
+    expect(screen.queryByText(/in default/)).not.toBeInTheDocument();
   });
 
   it("W-09: Should group by project from facets, each open group reading its own rows", async () => {
@@ -2746,7 +2847,10 @@ describe("SessionList breadth and Group by", () => {
   // Invariant (#1044): under All projects by project, one profile's project folders sit
   // above the root, hold projects only, and a folder never lands on or in a project.
   const PROJECT_FOLDER = workspaceFolderFixture("wf-1", "Clients");
-  function projectFoldered(placements: WorkspacePlacementPayload[] = []) {
+  function projectFoldered(
+    placements: WorkspacePlacementPayload[] = [],
+    options: { hideEmptyFolders?: boolean } = {}
+  ) {
     const layout = {
       folders: [PROJECT_FOLDER],
       placements,
@@ -2758,7 +2862,7 @@ describe("SessionList breadth and Group by", () => {
       moveWorkspace: vi.fn(),
       reorderWorkspaces: vi.fn(),
     };
-    const tree = buildProjectGroupTree(projectGroups(), layout);
+    const tree = buildProjectGroupTree(projectGroups(), layout, options);
     return {
       layout,
       view: grouped({
@@ -2880,6 +2984,27 @@ describe("SessionList breadth and Group by", () => {
       await screen.findByTestId("session-sidebar-group-project:ws-beta-arrange-move-out")
     );
     expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-beta", null);
+  });
+
+  // #1085: a folder hidden because its projects are empty still takes a project from the menu.
+  it("Should offer a hidden empty folder as a move target", async () => {
+    const user = userEvent.setup();
+    const { layout, view: foldered } = projectFoldered(
+      [{ workspace_id: "ws-gamma", folder_id: "wf-1", position: 0 }],
+      { hideEmptyFolders: true }
+    );
+    renderList({ sessions: [], view: foldered });
+    expect(screen.queryByTestId("session-sidebar-project-folder-wf-1")).not.toBeInTheDocument();
+    fireEvent.contextMenu(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-header")
+    );
+    await user.hover(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-arrange-move-to")
+    );
+    fireEvent.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-arrange-move-to-wf-1")
+    );
+    expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-alpha", "wf-1");
   });
 
   // Invariant (#1044): the footer states the scope's exact facet totals, only the

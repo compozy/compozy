@@ -4,11 +4,13 @@ import type * as React from "react";
 import {
   Button,
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Icon,
   cn,
@@ -45,6 +47,8 @@ interface OrderMenuProps<T extends string> {
   /** Marks the trigger as set: a non-default choice reads at a glance. */
   active?: boolean;
   className?: string;
+  /** Options of the chosen value, below the choices. */
+  children?: React.ReactNode;
 }
 
 /** One icon-only radio menu: the trigger names its menu, the items its choices. */
@@ -58,6 +62,7 @@ function OrderMenu<T extends string>({
   testId,
   active = false,
   className,
+  children,
 }: OrderMenuProps<T>) {
   return (
     <DropdownMenu>
@@ -92,6 +97,7 @@ function OrderMenu<T extends string>({
             ))}
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
+        {children}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -127,12 +133,24 @@ export interface SessionGroupByMenuProps {
   onValueChange: (groupBy: SessionListGroupBy) => void;
   /** Groupings available now; with only `none` there is nothing to offer and no control renders. */
   options: readonly SessionListGroupBy[];
+  /**
+   * Project grouping's "Show empty projects" (#1085). Offered only while grouped
+   * by project, and only where a handler is given.
+   */
+  showEmptyProjects?: boolean;
+  onShowEmptyProjectsChange?: (show: boolean) => void;
   testId: string;
   className?: string;
 }
 
 /** Splits sessions by project or profile: list groups, or board swimlanes. */
-export function SessionGroupByMenu({ options, value, ...props }: SessionGroupByMenuProps) {
+export function SessionGroupByMenu({
+  options,
+  value,
+  showEmptyProjects = false,
+  onShowEmptyProjectsChange,
+  ...props
+}: SessionGroupByMenuProps) {
   if (options.length < 2) return null;
   return (
     <OrderMenu
@@ -143,6 +161,20 @@ export function SessionGroupByMenu({ options, value, ...props }: SessionGroupByM
       labels={GROUP_BY_LABELS}
       options={options}
       value={value}
-    />
+    >
+      {value === "project" && onShowEmptyProjectsChange ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            checked={showEmptyProjects}
+            className="whitespace-nowrap"
+            data-testid={`${props.testId}-show-empty-projects`}
+            onCheckedChange={checked => onShowEmptyProjectsChange(checked === true)}
+          >
+            Show empty projects
+          </DropdownMenuCheckboxItem>
+        </>
+      ) : null}
+    </OrderMenu>
   );
 }

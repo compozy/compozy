@@ -5,11 +5,11 @@ import { TriangleAlert } from "lucide-react";
 
 import { Button, Icon } from "@compozy/ui";
 
-import { emptyForScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import { useSessionCatalog } from "../../hooks/use-session-catalog";
+import { useSessionListGroupCatalog } from "../../hooks/use-session-list-group-catalog";
 import { useSessionFolders } from "../../hooks/use-session-folders";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
@@ -18,9 +18,11 @@ import { useSessionListGroups } from "../../hooks/use-session-list-groups";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank, sessionListPairKey } from "../../lib/session-list-group-rows";
-import { sessionListGroupFilters, type SessionListGroupSpec } from "../../lib/session-list-groups";
+import {
+  sessionListGroupEmptyMessage,
+  type SessionListGroupSpec,
+} from "../../lib/session-list-groups";
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
-import { sessionListShelfNoun } from "../../lib/session-list-shelf";
 import type { SessionListTarget } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListSections } from "./session-list-sections";
@@ -95,6 +97,15 @@ export function SessionListGroupBody(
     renderSubgroup: SessionListSubgroupRenderer;
   }
 ) {
+  // An empty group spanning pairs reads nothing: Show empty projects can list every
+  // registered project, and each open one would otherwise read its own facets (#1085).
+  if (props.group.total === 0 && !props.group.pair) {
+    return (
+      <div className="pl-2.5">
+        <GroupNote>{sessionListGroupEmptyMessage(props.group, props.view.shelf)}</GroupNote>
+      </div>
+    );
+  }
   return props.group.pair ? (
     <SessionListPairGroupBody {...props} />
   ) : (
@@ -150,8 +161,7 @@ function SessionListGroupSplit({
     );
   }
   if (subgroups.length === 0) {
-    const empty = emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel);
-    return <GroupNote>{`${empty}.`}</GroupNote>;
+    return <GroupNote>{sessionListGroupEmptyMessage(group, view.shelf)}</GroupNote>;
   }
   return (
     <div
@@ -171,10 +181,7 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  const catalog = useSessionCatalog(group.scope, sessionListGroupFilters(view, group), true, {
-    facets: false,
-    lens: group.lens,
-  });
+  const catalog = useSessionListGroupCatalog(group, view);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
@@ -209,7 +216,7 @@ function SessionListPairGroupBody({
   const drag = groupSelection?.drag;
   // A dragged selection moves inside one pair's layout; other groups never take its drop.
   const selectionDrag = selectionDragForPair(drag, pair);
-  const empty = emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel);
+  const empty = sessionListGroupEmptyMessage(group, view.shelf);
   // The grouped dimension is the header: a profile group repeats no owner tag.
   // A split subgroup's own header and its parent's name both axes already.
   const ownerOf = !nested && group.kind === "project" && view.aggregate ? view.ownerOf : undefined;
@@ -225,13 +232,14 @@ function SessionListPairGroupBody({
     );
   }
   if (catalog.loading) return <SessionGroupRowsSkeleton />;
+  const sections = sectionsWithContent(layout.sections);
   return (
     <div className="flex flex-col gap-0.5 pl-2.5">
-      {layout.layout && layout.sections ? (
+      {layout.layout && sections ? (
         <>
           <SessionListSections
             ownerOf={ownerOf}
-            sections={layout.sections}
+            sections={sections}
             layout={layout.layout}
             dnd={layout.dnd}
             selectionDrag={selectionDrag}
@@ -249,7 +257,7 @@ function SessionListPairGroupBody({
             selection={groupSelection?.selection}
             sessionActions={props.sessionActions}
             testIdPrefix={props.testIdPrefix}
-            emptyMessage={`${empty}.`}
+            emptyMessage={empty}
           />
           <SessionFolderDialogs
             state={layout.dialog}
@@ -263,7 +271,7 @@ function SessionListPairGroupBody({
         <GroupThreads
           {...props}
           threads={threads}
-          emptyMessage={`${empty}.`}
+          emptyMessage={empty}
           ownerOf={ownerOf}
           onSelectSession={select}
         />
@@ -302,6 +310,15 @@ function GroupThreads({
 }
 
 /** A failed refresh over loaded rows, and the group's own previous/next paging. */
+/** Folder sections worth rendering; a group with none keeps the quiet one-line note (#1085). */
+function sectionsWithContent<T extends { folders: readonly unknown[]; root: readonly unknown[] }>(
+  sections: T | null | undefined
+): T | undefined {
+  return sections && (sections.folders.length > 0 || sections.root.length > 0)
+    ? sections
+    : undefined;
+}
+
 function GroupPager({ catalog }: { catalog: GroupCatalog }) {
   return (
     <>

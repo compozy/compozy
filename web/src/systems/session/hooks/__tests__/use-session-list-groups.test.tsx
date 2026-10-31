@@ -292,8 +292,16 @@ describe("useSessionListGroups", () => {
 describe("useSessionListView", () => {
   const shell = { sort: "created", group_by: "none" };
   let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+  let registered: Array<[string, string]> = [];
+  let layout: { folders: unknown[]; placements: unknown[] } = { folders: [], placements: [] };
+  let workspaceOrders: unknown[] = [];
+  let layoutReads = 0;
 
   beforeEach(() => {
+    registered = [["ws-alpha", "Alpha"]];
+    layout = { folders: [], placements: [] };
+    workspaceOrders = [];
+    layoutReads = 0;
     vi.clearAllMocks();
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
       sessions: [],
@@ -311,17 +319,32 @@ describe("useSessionListView", () => {
       }
       if (path === "/api/workspaces") {
         return json({
-          workspaces: [
-            {
-              id: "ws-alpha",
-              name: "Alpha",
-              root_dir: "/workspace/alpha",
-              add_dirs: [],
-              created_at: "2026-10-01T00:00:00Z",
-              updated_at: "2026-10-01T00:00:00Z",
-            },
-          ],
+          workspaces: registered.map(([id, name]) => ({
+            id,
+            name,
+            root_dir: `/workspace/${id}`,
+            add_dirs: [],
+            created_at: "2026-10-01T00:00:00Z",
+            updated_at: "2026-10-01T00:00:00Z",
+          })),
         });
+      }
+      if (path === "/api/workspace-folders") {
+        layoutReads += 1;
+        return json(layout);
+      }
+      if (path === "/api/workspace-order/workspaces" && request.method === "PUT") {
+        const body = (await request.json()) as { workspace_ids: string[] };
+        workspaceOrders.push(body);
+        // The daemon pins the listed order at the head of the root.
+        layout = {
+          ...layout,
+          placements: body.workspace_ids.map((workspace_id, position) => ({
+            workspace_id,
+            position,
+          })),
+        };
+        return json(layout);
       }
       return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
     });
@@ -409,6 +432,56 @@ describe("useSessionListView", () => {
     );
     expect(settingsWrites()).toEqual([]);
   });
+  // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden
+  // ones back into their slots instead of letting the daemon move them after the listed ones.
+  it("Should keep a hidden empty project in its slot when the shown projects reorder", async () => {
+    shell.group_by = "project";
+    registered = [
+      ["ws-alpha", "Alpha"],
+      ["ws-beta", "Beta"],
+      ["ws-gamma", "Gamma"],
+    ];
+    layout = {
+      folders: [],
+      placements: [
+        { workspace_id: "ws-gamma", position: 0 },
+        { workspace_id: "ws-alpha", position: 1 },
+        { workspace_id: "ws-beta", position: 2 },
+      ],
+    };
+    vi.mocked(fetchSessionFacets).mockResolvedValue(
+      facetsResponse([
+        ["ws-alpha", counts(1)],
+        ["ws-beta", counts(2)],
+      ])
+    );
+    act(() => enableAllProjects());
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+
+    await waitFor(() => expect(result.current.projectFolders).toBeDefined());
+    await waitFor(() =>
+      expect(result.current.groups.map(group => group.key)).toEqual([
+        "project:ws-alpha",
+        "project:ws-beta",
+      ])
+    );
+    const readsBeforeReorder = layoutReads;
+    act(() =>
+      result.current.projectFolders!.layout.reorderWorkspaces(null, ["ws-beta", "ws-alpha"])
+    );
+    await waitFor(() => expect(workspaceOrders).toHaveLength(1));
+    expect(workspaceOrders[0]).toEqual({ workspace_ids: ["ws-gamma", "ws-beta", "ws-alpha"] });
+    // The write rereads the daemon's layout, and the list shows that order with the hidden
+    // project still out.
+    await waitFor(() => expect(layoutReads).toBeGreaterThan(readsBeforeReorder));
+    await waitFor(() =>
+      expect(result.current.groups.map(group => group.key)).toEqual([
+        "project:ws-beta",
+        "project:ws-alpha",
+      ])
+    );
+  });
+
   // Issue #903: selecting a session retargets the window, which remounts its content and the
   // list view with it (`SessionPromptRuntimeProvider key={sessionId}`); the collapse is the
   // window's rail state, so the remounted list keeps it while another window keeps its own.

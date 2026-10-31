@@ -62,6 +62,8 @@ export function SessionListProjectFolders({
   const collapsed = new Set(collapsedFolderIds);
   const ranks = new Map(projectGroupTreeGroups(tree).map((group, index) => [group.key, index]));
   const draggingFoldered = dnd.dragging?.kind === "project" && dnd.dragging.folderId !== null;
+  // Every folder takes a project, including one hidden because its projects are empty (#1085).
+  const moveTargets = [...layout.folders].sort((left, right) => left.position - right.position);
 
   const arrangeFor = (
     group: SessionListGroupSpec,
@@ -80,7 +82,7 @@ export function SessionListProjectFolders({
       dragging: dnd.dragging?.kind === "project" && dnd.dragging.workspaceId === workspaceId,
       menuItems: (
         <ProjectFolderMenuItems
-          folders={tree.folders.map(node => node.folder)}
+          folders={moveTargets}
           folderId={folderId}
           onMove={target => layout.moveWorkspace(workspaceId, target)}
           onMoveUp={shift(-1)}

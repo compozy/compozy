@@ -286,6 +286,7 @@ Project folders group projects in All projects (grouped by project) for one prof
 - Project folder: header menu "Rename folder…" · "Move folder up" · "Move folder down" · "Delete folder…" (no New session). An empty folder reads "Drag a project here."; dragging a foldered project with no loose projects shows "Drop here to take it out of the folder." Delete confirm: "Projects in this folder move back to the list. No projects or sessions are deleted."
 - Project header menu, before the project's own actions: "Move to folder" (submenu of folder names) · "Move out of folder" · "Move project up" · "Move project down".
 - New folder unavailable under All profiles: "Project folders belong to one profile. Choose a profile to add one."
+- Group by → Project adds the checkable "Show empty projects" (off by default, remembered per window). Off, a project with no sessions in the current view — and a project folder holding only such projects — stays out of the list; on, every registered project shows with its count. An empty group names itself, never the profile: "No sessions in {project} yet." (on the Later or Archive views, "No sessions in Later in {project} yet." / "No archived sessions in {project} yet.").
 - Totals footer (aria "Session totals"): "{n} needs you · {n} working · {n} idle", each beside its state glyph; only non-zero states show, and nothing renders when all are zero. It never filters.
 
 ### Session Later Terms

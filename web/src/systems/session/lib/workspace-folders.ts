@@ -5,6 +5,7 @@ import {
 } from "@/systems/workspace";
 
 import type { WorkspaceFolderPayload, WorkspacePlacementPayload } from "../types";
+import { shiftId } from "./session-folders";
 import { projectSessionGroup, type SessionListGroupSpec } from "./session-list-groups";
 
 /** One project folder and the project groups it holds, in its manual order. */
@@ -33,29 +34,40 @@ export function projectGroupWorkspaceId(group: Pick<SessionListGroupSpec, "scope
 const EMPTY_GROUP_FACETS = { all: 0, working: 0, needs_you: 0 };
 
 /**
- * Adds a group for every placed project the facets left out because it has no
- * sessions in scope, so a folder still shows (and can move) every project the
- * operator put in it. Only registered projects and User qualify.
+ * The project groups a view shows (#1085). By default only projects with
+ * sessions in the current view (shelf, search, worktree) show. When the
+ * operator shows empty projects, every registered project joins at zero — and
+ * User too once placed in the profile's folders — ranked in switcher order with
+ * User last, so a folder still holds every project the operator put in it.
  */
-export function withPlacedProjectGroups(
+export function projectGroupsForView(
   groups: readonly SessionListGroupSpec[],
-  placements: readonly WorkspacePlacementPayload[],
   input: {
+    showEmpty: boolean;
     workspaces: ReadonlyArray<{ id: string; name: string }>;
     lens: SessionListGroupSpec["lens"];
+    placements?: readonly WorkspacePlacementPayload[];
   }
 ): SessionListGroupSpec[] {
+  if (!input.showEmpty) return groups.filter(group => group.total > 0);
   const shown = new Set(groups.flatMap(group => projectGroupWorkspaceId(group) ?? []));
-  const registered = new Set(input.workspaces.map(workspace => workspace.id));
-  const placed = placements.flatMap(row => {
-    if (shown.has(row.workspace_id)) return [];
-    if (row.workspace_id === USER_SCOPE_SELECTOR)
-      return [projectSessionGroup("", EMPTY_GROUP_FACETS, input)];
-    return registered.has(row.workspace_id)
-      ? [projectSessionGroup(row.workspace_id, EMPTY_GROUP_FACETS, input)]
-      : [];
-  });
-  return [...groups, ...placed];
+  const added = input.workspaces.flatMap(workspace =>
+    shown.has(workspace.id) ? [] : [projectSessionGroup(workspace.id, EMPTY_GROUP_FACETS, input)]
+  );
+  const userPlaced = (input.placements ?? []).some(row => row.workspace_id === USER_SCOPE_SELECTOR);
+  if (userPlaced && !shown.has(USER_SCOPE_SELECTOR)) {
+    added.push(projectSessionGroup("", EMPTY_GROUP_FACETS, input));
+  }
+  const order = new Map(input.workspaces.map((workspace, index) => [workspace.id, index]));
+  const rank = (group: SessionListGroupSpec) => {
+    const id = projectGroupWorkspaceId(group);
+    if (id === USER_SCOPE_SELECTOR) return Number.MAX_SAFE_INTEGER;
+    return (id === null ? undefined : order.get(id)) ?? order.size;
+  };
+  return [...groups, ...added]
+    .map((group, index) => ({ group, index }))
+    .sort((left, right) => rank(left.group) - rank(right.group) || left.index - right.index)
+    .map(entry => entry.group);
 }
 
 /** Arranges served project groups (switcher order, User last) by the profile's folders. */
@@ -64,7 +76,8 @@ export function buildProjectGroupTree(
   layout: {
     folders: readonly WorkspaceFolderPayload[];
     placements: readonly WorkspacePlacementPayload[];
-  }
+  },
+  options: { hideEmptyFolders?: boolean } = {}
 ): ProjectGroupTree {
   const placements = new Map(layout.placements.map(row => [row.workspace_id, row]));
   const folderIds = new Set(layout.folders.map(folder => folder.id));
@@ -93,11 +106,87 @@ export function buildProjectGroupTree(
       inFolder.set(placement.folder_id, members);
     } else placedRoot.push(group);
   }
+  // A folder whose projects all have no sessions in view hides with them (#1085);
+  // a folder holding no project at all stays, so a new folder can take a drop.
+  const holdsProjects = new Set(
+    layout.placements.flatMap(row => (row.folder_id ? [row.folder_id] : []))
+  );
   return {
     folders: [...layout.folders]
       .sort((left, right) => left.position - right.position)
-      .map(folder => ({ folder, groups: byPosition(inFolder.get(folder.id) ?? []) })),
+      .flatMap(folder => {
+        const members = byPosition(inFolder.get(folder.id) ?? []);
+        const hidden =
+          options.hideEmptyFolders && members.length === 0 && holdsProjects.has(folder.id);
+        return hidden ? [] : [{ folder, groups: members }];
+      }),
     root: [...byPosition(placedRoot), ...unplaced],
+  };
+}
+
+/**
+ * A full order from a reorder of what is on screen: hidden ids keep their
+ * slots and the shown ones fill the rest in their new order. A shown id the
+ * full order lacks (one just moved in) takes a slot at the end.
+ */
+export function mergeShownOrder(
+  allIds: readonly string[],
+  shownOrder: readonly string[]
+): string[] {
+  const shown = new Set(shownOrder);
+  const known = new Set(allIds);
+  const slots = [...allIds, ...shownOrder.filter(id => !known.has(id))];
+  let next = 0;
+  return slots.map(id => (shown.has(id) ? (shownOrder[next++] ?? id) : id));
+}
+
+/** The order verbs a project folder layout exposes. */
+interface ProjectOrderVerbs {
+  folders: readonly WorkspaceFolderPayload[];
+  placements: readonly WorkspacePlacementPayload[];
+  moveFolder: (folderId: string, delta: -1 | 1) => void;
+  reorderFolders: (folderIds: readonly string[]) => void;
+  reorderWorkspaces: (folderId: string | null, workspaceIds: readonly string[]) => void;
+}
+
+/**
+ * Order verbs that act on what is on screen while empty projects hide
+ * (#1085): a folder or project reorder writes the hidden members back into
+ * their slots, so hiding never moves them. The daemon takes only a complete
+ * folder order, and would move unlisted projects after the listed ones.
+ */
+export function withShownOrder<L extends ProjectOrderVerbs>(
+  layout: L,
+  tree: ProjectGroupTree,
+  registered: ReadonlySet<string>
+): L {
+  const allFolderIds = [...layout.folders]
+    .sort((left, right) => left.position - right.position)
+    .map(folder => folder.id);
+  const reorderFolders = (shownOrder: readonly string[]) =>
+    layout.reorderFolders(mergeShownOrder(allFolderIds, shownOrder));
+  const containerIds = (folderId: string | null) =>
+    layout.placements
+      .filter(
+        row =>
+          (row.folder_id || null) === folderId &&
+          (registered.has(row.workspace_id) || row.workspace_id === USER_SCOPE_SELECTOR)
+      )
+      .sort((left, right) => left.position - right.position)
+      .map(row => row.workspace_id);
+  return {
+    ...layout,
+    reorderFolders,
+    moveFolder: (folderId, delta) => {
+      const next = shiftId(
+        tree.folders.map(node => node.folder.id),
+        folderId,
+        delta
+      );
+      if (next) reorderFolders(next);
+    },
+    reorderWorkspaces: (folderId, shownOrder) =>
+      layout.reorderWorkspaces(folderId, mergeShownOrder(containerIds(folderId), shownOrder)),
   };
 }
 

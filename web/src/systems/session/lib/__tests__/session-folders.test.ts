@@ -7,8 +7,10 @@
 // its thread roots, in on-screen order, writing only what would change.
 // Project folders (#1044) arrange project groups the same way: folders first in
 // their order, then placed root projects, then never-placed ones as served.
+// Projects with no sessions in view — and folders holding only those — show only
+// while the operator shows empty projects (#1085).
 // Owning layer: unit (systems/session/lib)
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionFolderPayload, SessionPayload } from "../../types";
@@ -30,8 +32,9 @@ import { buildSessionListThreads } from "../session-list-threads";
 import { projectSessionGroups } from "../session-list-groups";
 import {
   buildProjectGroupTree,
-  withPlacedProjectGroups,
   projectGroupContainerIds,
+  projectGroupsForView,
+  withShownOrder,
 } from "../workspace-folders";
 import {
   applyWorkspaceFolderRemoval,
@@ -412,27 +415,78 @@ describe("project folders", () => {
     expect(projectGroupContainerIds(tree, null)).toEqual(["@user", "ws-b"]);
   });
 
-  it("Should keep a placed project with no sessions in scope so its folder can still move it", () => {
-    const served = groups.filter(group => group.key !== "project:ws-c");
-    const kept = withPlacedProjectGroups(served, layout.placements, {
-      workspaces: [
-        { id: "ws-a", name: "A" },
-        { id: "ws-b", name: "B" },
-        { id: "ws-c", name: "C" },
-      ],
-      lens: { profile: "default" },
-    });
-    const tree = buildProjectGroupTree(kept, layout);
-    expect(tree.folders[0]!.groups.map(group => [group.key, group.total])).toEqual([
-      ["project:ws-a", 1],
+  it("Should hide projects with no sessions in view, and their folder, unless empty projects show", () => {
+    const workspaces = [
+      { id: "ws-a", name: "A" },
+      { id: "ws-b", name: "B" },
+      { id: "ws-c", name: "C" },
+      { id: "ws-d", name: "D" },
+    ];
+    // Only B has sessions in this view; A and C are filed in f1, D was never placed.
+    const served = groups.filter(group => group.key === "project:ws-b");
+    const input = { workspaces, lens: { profile: "default" }, placements: layout.placements };
+
+    const hidden = projectGroupsForView(served, { ...input, showEmpty: false });
+    const calm = buildProjectGroupTree(hidden, layout, { hideEmptyFolders: true });
+    // f1 holds only empty projects and hides with them; f2 holds none and stays for a drop.
+    expect(calm.folders.map(node => [node.folder.id, node.groups.length])).toEqual([["f2", 0]]);
+    expect(calm.root.map(group => group.key)).toEqual(["project:ws-b"]);
+
+    const shown = projectGroupsForView(served, { ...input, showEmpty: true });
+    const full = buildProjectGroupTree(shown, layout);
+    expect(full.folders[0]!.groups.map(group => [group.key, group.total])).toEqual([
+      ["project:ws-a", 0],
       ["project:ws-c", 0],
     ]);
-    // An unregistered placement stays out.
-    const unknown = withPlacedProjectGroups(served, [{ workspace_id: "ws-gone", position: 0 }], {
-      workspaces: [],
-      lens: { profile: "default" },
-    });
-    expect(unknown).toHaveLength(served.length);
+    // Placed User leads the root; never-placed D follows in switcher order.
+    expect(full.root.map(group => [group.key, group.total])).toEqual([
+      ["user", 0],
+      ["project:ws-b", 1],
+      ["project:ws-d", 0],
+    ]);
+    // Without a placed User or with nothing registered, nothing extra joins.
+    expect(
+      projectGroupsForView(served, { workspaces: [], lens: input.lens, showEmpty: true })
+    ).toEqual(served);
+  });
+
+  it("Should keep hidden folders and projects in their slots when what shows is reordered", () => {
+    const verbs = {
+      folders: [folder("f1", 0), folder("f2", 1), folder("f3", 2)],
+      placements: [
+        { workspace_id: "ws-x", position: 0 },
+        { workspace_id: "ws-a", position: 1 },
+        { workspace_id: "ws-b", position: 2 },
+        // An unregistered placement is never written back.
+        { workspace_id: "ws-gone", position: 3 },
+        { workspace_id: "ws-c", folder_id: "f2", position: 0 },
+      ],
+      moveFolder: vi.fn(),
+      reorderFolders: vi.fn(),
+      reorderWorkspaces: vi.fn(),
+    };
+    // f1 hides (its projects are empty); f2 and f3 show.
+    const tree = {
+      folders: [
+        { folder: verbs.folders[1]!, groups: [] },
+        { folder: verbs.folders[2]!, groups: [] },
+      ],
+      root: [],
+    };
+    const shown = withShownOrder(verbs, tree, new Set(["ws-x", "ws-a", "ws-b", "ws-c", "ws-new"]));
+
+    shown.reorderFolders(["f3", "f2"]);
+    expect(verbs.reorderFolders).toHaveBeenLastCalledWith(["f1", "f3", "f2"]);
+    shown.moveFolder("f3", -1);
+    expect(verbs.reorderFolders).toHaveBeenLastCalledWith(["f1", "f3", "f2"]);
+    expect(verbs.moveFolder).not.toHaveBeenCalled();
+
+    // Hidden ws-x keeps the root's first slot when the shown A and B swap.
+    shown.reorderWorkspaces(null, ["ws-b", "ws-a"]);
+    expect(verbs.reorderWorkspaces).toHaveBeenLastCalledWith(null, ["ws-x", "ws-b", "ws-a"]);
+    // A project just moved into a folder takes a slot after its members.
+    shown.reorderWorkspaces("f2", ["ws-new", "ws-c"]);
+    expect(verbs.reorderWorkspaces).toHaveBeenLastCalledWith("f2", ["ws-new", "ws-c"]);
   });
 
   it("Should move, order, and unfile projects optimistically without touching others", () => {

@@ -382,6 +382,8 @@ function SessionListControls({
         onShelfChange={view.setShelf}
         onSortChange={view.setSort}
         onGroupByChange={view.setGroupBy}
+        showEmptyProjects={view.showEmptyProjects}
+        onShowEmptyProjectsChange={view.setShowEmptyProjects}
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}

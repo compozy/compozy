@@ -12,6 +12,9 @@ import {
   isRecord,
   normalizedCollapsedFlags,
   normalizedScopeState,
+  toggledFlag,
+  toggledGroup,
+  withoutFalseFlag,
   type SessionSidebarScopeState,
   type SessionWindowViewMode,
 } from "../lib/session-sidebar-scope";
@@ -130,31 +133,6 @@ function withScopeState(
   };
 }
 
-function toggledFlag(flags: Record<string, boolean>, id: string): Record<string, boolean> {
-  return { ...flags, [id]: !(flags[id] ?? false) };
-}
-
-/** Subagent lists start closed, so only an open one is stored. */
-function withoutFalseFlag(
-  flags: Record<string, boolean>,
-  id: string,
-  value: boolean
-): Record<string, boolean> {
-  if (value) return { ...flags, [id]: true };
-  if (!Object.hasOwn(flags, id)) return flags;
-  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
-}
-
-/**
- * Group ids carry their whole lens, so every scope, profile, and grouping the
- * operator ever toggled would pile up if an expand kept a `false` flag. Groups
- * start expanded, so an expand just drops the entry: only folds are stored.
- */
-function toggledGroup(flags: Record<string, boolean>, id: string): Record<string, boolean> {
-  if (!flags[id]) return { ...flags, [id]: true };
-  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
-}
-
 /**
  * Live scopes are claimed for the snapshot's partition; a closed scope is
  * dropped only when that same partition claimed it. `undefined` = no change.
@@ -238,6 +216,11 @@ export const sessionSidebarLogic = createStoreLogic({
       withScopeState(context, event.scopeId, state => ({ ...state, sort: event.sort })),
     groupByChanged: (context, event: { scopeId: string; groupBy: SessionListGroupBy }) =>
       withScopeState(context, event.scopeId, state => ({ ...state, groupBy: event.groupBy })),
+    showEmptyProjectsChanged: (context, event: { scopeId: string; show: boolean }) =>
+      withScopeState(context, event.scopeId, state => ({
+        ...state,
+        showEmptyProjects: event.show,
+      })),
     widthChanged: (context, event: { scopeId: string; width: number }) => {
       const width = normalizeSessionSidebarWidth(event.width);
       if (width === null) {
@@ -446,6 +429,9 @@ export interface UseSessionSidebarStateResult {
   toggleFolder: (folderId: string) => void;
   collapsedGroupIds: string[];
   toggleGroup: (groupId: string) => void;
+  /** Project grouping lists projects with no sessions too (#1085); new windows inherit it. */
+  showEmptyProjects: boolean;
+  setShowEmptyProjects: (show: boolean) => void;
   /** Rail width in pixels: the operator's choice in this window, else the default. */
   width: number;
   setWidth: (width: number) => void;
@@ -488,6 +474,9 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     collapsedGroupIds: flaggedIds(state.collapsedGroups),
     toggleGroup: (groupId: string) =>
       sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
+    showEmptyProjects: state.showEmptyProjects,
+    setShowEmptyProjects: (show: boolean) =>
+      sessionSidebarStore.trigger.showEmptyProjectsChanged({ scopeId, show }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
     setWidth: (nextWidth: number) =>
       sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),
