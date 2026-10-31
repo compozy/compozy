@@ -457,6 +457,69 @@ describe("SessionMessageCard", () => {
   });
 });
 
+describe("long party titles (#1097)", () => {
+  const LONG = "Preparar BnUI para migração do AdvOS (tema AdvOS + base-ui 1.8 + ícones)";
+  const long = (party: SessionMessageParty) => ({ ...party, title: LONG });
+
+  it("Should keep the full title as the link's name and tooltip on every card while it ellipsizes", () => {
+    render(
+      <>
+        <SessionSentCard
+          target={long(target)}
+          callState="sent"
+          mode="steer"
+          firstLine="Converse em português brasileiro."
+          error={null}
+          reply="waiting"
+          timestampMs={AT}
+          onOpenTarget={vi.fn()}
+        />
+        <SessionMessageCard
+          sender={{ ...long(sender), workspaceName: "compozy-site" }}
+          delivery={null}
+          replyRequested={false}
+          timestampMs={AT}
+          onOpenSender={vi.fn()}
+        >
+          Hi
+        </SessionMessageCard>
+        <SessionReplyCard
+          target={long(target)}
+          outcome="completed"
+          text="Done."
+          truncated={false}
+          timestampMs={AT}
+          onOpenTarget={vi.fn()}
+        />
+      </>,
+      { wrapper }
+    );
+    const links = screen.getAllByRole("button", { name: LONG });
+    expect(links).toHaveLength(3);
+    for (const link of links) expect(link).toHaveAttribute("title", LONG);
+    expect(screen.getByTestId("session-message-party-workspace")).toHaveAttribute(
+      "title",
+      "compozy-site"
+    );
+  });
+
+  it("Should keep the full title as the tooltip when the title is not a link", () => {
+    render(
+      <SessionMessageCard
+        sender={long(sender)}
+        delivery={null}
+        replyRequested={false}
+        timestampMs={AT}
+      >
+        Hi
+      </SessionMessageCard>,
+      { wrapper }
+    );
+    expect(screen.getByText(LONG)).toHaveAttribute("title", LONG);
+    expect(screen.queryByRole("button", { name: LONG })).not.toBeInTheDocument();
+  });
+});
+
 describe("useSessionLabel", () => {
   beforeEach(() => {
     stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Billing refactor · PR split") });

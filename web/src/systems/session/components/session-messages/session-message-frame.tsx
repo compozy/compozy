@@ -38,48 +38,63 @@ export function SessionMessagePartyLabel({
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     onOpen?.(party, { newWindow: event.metaKey || event.ctrlKey });
   };
+  // A grid, not a flex row: the verb keeps its width, the folder track yields
+  // only once the title track has shrunk to zero, so a long title ellipsizes
+  // instead of pushing the chips, reply state and time under each other (#1097).
   return (
-    <>
-      <span
-        className="inline-flex min-w-0 items-baseline gap-1 text-transcript-meta whitespace-nowrap text-subtle"
-        data-slot="session-message-party"
-      >
-        <span className="shrink-0">{verb}</span>
-        {party.pending ? (
-          <Skeleton
-            aria-hidden="true"
-            className="inline-block h-3 w-20 self-center rounded-xs"
-            data-testid="session-message-party-pending"
-          />
-        ) : party.title === null ? (
-          <span className="font-medium text-muted" data-testid="session-message-party-deleted">
-            {DELETED_SESSION_LABEL}
-          </span>
-        ) : onOpen ? (
-          <Button
-            type="button"
-            variant="link"
-            size="xs"
-            onClick={handleOpen}
-            className="h-auto min-w-0 truncate px-0 text-transcript-meta font-medium text-fg-strong"
-            data-testid="session-message-party-link"
-          >
-            {party.title}
-          </Button>
-        ) : (
-          <span className="min-w-0 truncate font-medium text-fg-strong">{party.title}</span>
-        )}
-      </span>
+    <span
+      className={cn(
+        "inline-grid items-baseline gap-1 text-transcript-meta whitespace-nowrap text-subtle",
+        party.workspaceName
+          ? "grid-cols-[auto_minmax(0,1fr)_minmax(0,auto)]"
+          : "grid-cols-[auto_minmax(0,1fr)]"
+      )}
+      data-slot="session-message-party"
+    >
+      <span>{verb}</span>
+      {party.pending ? (
+        <Skeleton
+          aria-hidden="true"
+          className="inline-block h-3 w-20 self-center rounded-xs"
+          data-testid="session-message-party-pending"
+        />
+      ) : party.title === null ? (
+        <span
+          className="min-w-0 truncate font-medium text-muted"
+          data-testid="session-message-party-deleted"
+        >
+          {DELETED_SESSION_LABEL}
+        </span>
+      ) : onOpen ? (
+        <Button
+          type="button"
+          variant="link"
+          size="xs"
+          onClick={handleOpen}
+          title={party.title}
+          // The Button is a flex box, where `truncate` on the box itself never
+          // ellipsizes: the inner text clips and the button fills the track.
+          className="h-auto min-w-0 justify-start px-0 text-transcript-meta font-medium text-fg-strong"
+          data-testid="session-message-party-link"
+        >
+          <span className="truncate">{party.title}</span>
+        </Button>
+      ) : (
+        <span className="min-w-0 truncate font-medium text-fg-strong" title={party.title}>
+          {party.title}
+        </span>
+      )}
       {party.workspaceName ? (
         <span
-          className="inline-flex shrink-0 items-center gap-0.5 text-transcript-caption whitespace-nowrap text-subtle"
+          className="ml-0.5 inline-flex min-w-0 items-center gap-0.5 self-center overflow-hidden text-transcript-caption text-subtle"
           data-testid="session-message-party-workspace"
+          title={party.workspaceName}
         >
-          <Folder aria-hidden="true" className="size-2.75 text-faint" />
-          {party.workspaceName}
+          <Folder aria-hidden="true" className="size-2.75 shrink-0 text-faint" />
+          <span className="truncate">{party.workspaceName}</span>
         </span>
       ) : null}
-    </>
+    </span>
   );
 }
 
