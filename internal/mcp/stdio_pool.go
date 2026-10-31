@@ -267,6 +267,7 @@ func (p *StdioSessionPool) knownProtocol(spec mcpStdioSpec) (string, bool) {
 	if slot.current == nil && p.cfg.now().Before(slot.retryAt) {
 		return "", false
 	}
+	slot.lastSeen = p.cfg.now()
 	return slot.protocol, true
 }
 

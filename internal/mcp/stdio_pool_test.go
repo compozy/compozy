@@ -240,6 +240,19 @@ func TestStdioSessionPool(t *testing.T) {
 		fixture.waitForHomes(t, 1)
 	})
 
+	t.Run("Should relaunch the child when a resolved secret value rotates", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, nil)
+		requireMCPDescriptor(t, fixture.executor, fixture.server.Name, "mcp__pooled__echo")
+		executor := fixture.executorWithSecret(t, fixture.server, stdioPoolSecretValue+"-rotated")
+		requireMCPDescriptor(t, executor, fixture.server.Name, "mcp__pooled__echo")
+		if got := fixture.launches(); got != 2 {
+			t.Fatalf("stdio launches = %d, want a relaunch for the rotated secret", got)
+		}
+		fixture.waitForHomes(t, 1)
+	})
+
 	t.Run("Should close idle children and remove their homes", func(t *testing.T) {
 		t.Parallel()
 
@@ -433,7 +446,22 @@ func newStdioPoolFixture(t *testing.T, cfg StdioPoolConfig, env map[string]strin
 func (f *stdioPoolFixture) executorFor(t *testing.T, server compozyconfig.MCPServer) *CallExecutor {
 	t.Helper()
 
-	return newTestMCPExecutor(t, server, WithStdioSessionPool(f.pool), WithSecretLookup(stdioPoolSecretLookup))
+	return f.executorWithSecret(t, server, stdioPoolSecretValue)
+}
+
+func (f *stdioPoolFixture) executorWithSecret(
+	t *testing.T,
+	server compozyconfig.MCPServer,
+	secret string,
+) *CallExecutor {
+	t.Helper()
+
+	return newTestMCPExecutor(t, server, WithStdioSessionPool(f.pool), WithSecretLookup(func(key string) string {
+		if key == stdioPoolSecretSource {
+			return secret
+		}
+		return ""
+	}))
 }
 
 func stdioPoolSecretLookup(key string) string {

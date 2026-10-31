@@ -73,7 +73,9 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	})
 	if err != nil {
 		status = runtimeStatusFromMCPProbeError(err)
-		status.Diagnostic = withMCPStderrTail(status.Diagnostic, s.mcpStdioPool.StderrTail(target))
+		if server.EffectiveTransport() == compozyconfig.MCPServerTransportStdio {
+			status.Diagnostic = withMCPStderrTail(status.Diagnostic, s.mcpStdioPool.StderrTail(target))
+		}
 		return s.recordMCPProbeFailure(
 			ctx,
 			key,
