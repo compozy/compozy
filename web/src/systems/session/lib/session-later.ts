@@ -31,7 +31,7 @@ function inlinePlainText(tokens: readonly Token[] | undefined): string {
     .join("");
 }
 
-/** Block tokens as plain lines: one per paragraph, list item, or code line. */
+/** Block tokens as plain lines: one per paragraph, list item, code line, or table row. */
 function blockPlainLines(tokens: readonly Token[]): string[] {
   return tokens.flatMap(token => {
     switch (token.type) {
@@ -45,6 +45,12 @@ function blockPlainLines(tokens: readonly Token[]): string[] {
       case "code":
       case "html":
         return String(token.text).split("\n");
+      case "table": {
+        const table = token as Tokens.Table;
+        return [table.header, ...table.rows].map(row =>
+          row.map(cell => inlinePlainText(cell.tokens)).join(" · ")
+        );
+      }
       default:
         return "tokens" in token && token.tokens
           ? inlinePlainText(token.tokens).split("\n")

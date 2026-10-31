@@ -213,6 +213,11 @@ func TestLaterReasonPlainText(t *testing.T) {
 		{name: "Should strip nested block markers", reason: "> - rerun gate", want: "rerun gate"},
 		{name: "Should keep a double-backtick code span literal", reason: "run ``**go**`` now", want: "run **go** now"},
 		{
+			name:   "Should read table rows as their cells",
+			reason: "| step | owner |\n| --- | --- |\n| gate | **me** |",
+			want:   "step · owner · gate · me",
+		},
+		{
 			name:   "Should read fenced code lines without their fences",
 			reason: "Blocked:\n\n```\nrun gate\n```",
 			want:   "Blocked: · run gate",

@@ -6,6 +6,7 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	extensionast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -14,9 +15,9 @@ import (
 // read as one line (a notification body).
 const laterReasonLineSeparator = " · "
 
-// laterReasonMarkdown parses reasons as CommonMark plus GFM strikethrough, the
-// dialect the web editor writes.
-var laterReasonMarkdown = goldmark.New(goldmark.WithExtensions(extension.Strikethrough))
+// laterReasonMarkdown parses reasons as CommonMark plus GFM strikethrough and
+// tables, matching the web reader.
+var laterReasonMarkdown = goldmark.New(goldmark.WithExtensions(extension.Strikethrough, extension.Table))
 
 // LaterReasonPlainText reads a Markdown Later reason as one plain line for
 // surfaces that cannot render Markdown: the reason is parsed as CommonMark,
@@ -60,9 +61,14 @@ func (r *laterReasonReader) writeLines(node ast.Node) {
 
 func (r *laterReasonReader) visit(node ast.Node, entering bool) (ast.WalkStatus, error) {
 	switch typed := node.(type) {
-	case *ast.Paragraph, *ast.TextBlock, *ast.Heading:
+	case *ast.Paragraph, *ast.TextBlock, *ast.Heading, *extensionast.TableHeader, *extensionast.TableRow:
 		if !entering {
 			r.flush()
+		}
+	case *extensionast.TableCell:
+		// A table row reads as its cells joined with the line separator.
+		if entering && typed.PreviousSibling() != nil {
+			r.current.WriteString(laterReasonLineSeparator)
 		}
 	case *ast.Text:
 		if entering {
