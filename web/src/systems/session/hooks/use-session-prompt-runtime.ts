@@ -1,4 +1,4 @@
-import { use, useEffect, useRef } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import {
 } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeSelection, SessionRuntimePayload } from "../types";
+import { runtimeApplyNotice, type RuntimeApplyNotice } from "../lib/runtime-apply-notice";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
 import {
   normalizeRuntimeSpeed,
@@ -105,6 +106,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeSelection = useSetSessionRuntime(input.workspaceId);
   const runtimeSelectionController = useRef<AbortController | null>(null);
   const queuedSelection = useRef<{ value: RuntimeSelectorValue; speed: RuntimeSpeed } | null>(null);
+  const [applyNotice, setApplyNotice] = useState<RuntimeApplyNotice | null>(null);
   const workspace = useWorkspace(input.workspaceId, { enabled: input.canPrompt });
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
@@ -178,6 +180,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       return;
     }
 
+    setApplyNotice(null);
     const controller = new AbortController();
     runtimeSelectionController.current = controller;
     runtimeSelection.mutate(
@@ -192,6 +195,10 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       {
         onSuccess: session => {
           if (controller.signal.aborted) return;
+          const liveApply = providers.find(
+            provider => provider.id === session.runtime.selected?.provider
+          )?.runtime_live_apply;
+          setApplyNotice(queuedSelection.current ? null : runtimeApplyNotice(session, liveApply));
           store.trigger.runtimePersisted({
             revision: session.runtime.selection_revision,
             runtime: session.runtime.selected ?? undefined,
@@ -231,6 +238,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   };
 
   return {
+    applyNotice,
     availabilityError,
     canSelectRuntime,
     catalog: {

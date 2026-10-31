@@ -143,83 +143,89 @@ type Session struct {
 	// runtimeRelease marks a runtime the supervisor released while the session was idle.
 	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
-	stopFinalizationErr        error
-	stopVerifiedOutcome        StopOutcome // Protected by mu.
-	stopStatePending           bool        // Protected by mu.
-	stopTerminalEvent          *acp.AgentEvent
-	stopTerminalRecorded       bool
-	stopTurnID                 string // Protected by mu.
-	stopProcessExitRecorded    bool
-	postStopOnce               sync.Once
-	followUpMode               func() string
-	steerDelivery              store.SteerDeliveryMode
-	mu                         sync.RWMutex
-	persistMu                  sync.Mutex
+	stopFinalizationErr     error
+	stopVerifiedOutcome     StopOutcome // Protected by mu.
+	stopStatePending        bool        // Protected by mu.
+	stopTerminalEvent       *acp.AgentEvent
+	stopTerminalRecorded    bool
+	stopTurnID              string // Protected by mu.
+	stopProcessExitRecorded bool
+	postStopOnce            sync.Once
+	followUpMode            func() string
+	steerDelivery           store.SteerDeliveryMode
+	mu                      sync.RWMutex
+	persistMu               sync.Mutex
+	// runtimeApplyMu serializes live runtime reconfiguration with prompt runtime admission.
+	// Order: runtimeApplyMu before persistMu and mu.
+	runtimeApplyMu             sync.Mutex
 	goalStopMu                 sync.Mutex // Orders Goal pause persistence before interrupted setup recovery.
 	conversationRewindReserved bool
 
-	ID                        string
-	ProfileID                 string
-	Name                      string
-	AgentName                 string
-	Provider                  string
-	Model                     string
-	ReasoningEffort           string
-	Speed                     speedpkg.Speed
-	ACPOptions                []acp.SessionConfigOptionSelection
-	SpeedResolution           *speedpkg.Resolution
-	RuntimeStatus             RuntimeStatus
-	RuntimeTransition         RuntimeTransitionStrategy
-	RuntimeFailure            string
-	RuntimeGeneration         int64
-	RuntimeRecovery           *store.SessionRuntimeRecovery
-	SelectedRuntime           *RuntimeSelection
-	RuntimeSelectionRevision  int64
-	EffectiveWorkspaceAccess  string
-	EffectivePermissions      string
-	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
-	providerHomePolicy        compozyconfig.ProviderHomePolicy
-	WorkspaceID               string
-	Workspace                 string
-	WorktreeID                string
-	CWD                       string
-	Type                      Type
-	Lineage                   *store.SessionLineage
-	State                     State
-	stopCause                 StopCause
-	stopEscalated             bool
-	stopVerificationFailed    bool
-	stopReason                store.StopReason
-	stopDetail                string
-	failure                   *store.SessionFailure
-	ACPSessionID              string
-	ACPCaps                   acp.Caps
-	ACPCapsKnown              bool
-	AdvertisedCommands        []store.SessionAdvertisedCommand
-	Liveness                  *store.SessionLivenessMeta
-	SoulSnapshotID            string
-	SoulDigest                string
-	ParentSoulDigest          string
-	AttachedTo                string
-	AttachExpiresAt           *time.Time
-	TranscriptEpoch           int64
-	PendingPermissionCount    int
-	PendingClarifyCount       int
-	AttentionRevision         int64
-	LastSettledRevision       int64
-	LastSeenRevision          int64
-	LastSeenAt                *time.Time
-	AttentionChangedAt        *time.Time
-	EndedEarlyTurnID          string
-	PendingInteractions       []store.PendingInteraction
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
-	creationProfile           *store.SessionCreationProfile
-	creationOptions           *store.SessionCreationOptions
-	creationIdentity          *store.SessionCreationIdentity
-	providerRoute             compozyconfig.ResolvedAgent
-	acceptedRoute             *store.SessionAcceptedRoute
-	restartBoundary           *store.SessionRestartCheckpoint
+	ID                string
+	ProfileID         string
+	Name              string
+	AgentName         string
+	Provider          string
+	Model             string
+	ReasoningEffort   string
+	Speed             speedpkg.Speed
+	ACPOptions        []acp.SessionConfigOptionSelection
+	SpeedResolution   *speedpkg.Resolution
+	RuntimeStatus     RuntimeStatus
+	RuntimeTransition RuntimeTransitionStrategy
+	RuntimeFailure    string
+	// runtimeFailureFromLiveApply marks RuntimeFailure as a refused live selection apply,
+	// which a newer saved selection supersedes. Protected by mu.
+	runtimeFailureFromLiveApply bool
+	RuntimeGeneration           int64
+	RuntimeRecovery             *store.SessionRuntimeRecovery
+	SelectedRuntime             *RuntimeSelection
+	RuntimeSelectionRevision    int64
+	EffectiveWorkspaceAccess    string
+	EffectivePermissions        string
+	effectiveProviderAuthMode   compozyconfig.ProviderAuthMode
+	providerHomePolicy          compozyconfig.ProviderHomePolicy
+	WorkspaceID                 string
+	Workspace                   string
+	WorktreeID                  string
+	CWD                         string
+	Type                        Type
+	Lineage                     *store.SessionLineage
+	State                       State
+	stopCause                   StopCause
+	stopEscalated               bool
+	stopVerificationFailed      bool
+	stopReason                  store.StopReason
+	stopDetail                  string
+	failure                     *store.SessionFailure
+	ACPSessionID                string
+	ACPCaps                     acp.Caps
+	ACPCapsKnown                bool
+	AdvertisedCommands          []store.SessionAdvertisedCommand
+	Liveness                    *store.SessionLivenessMeta
+	SoulSnapshotID              string
+	SoulDigest                  string
+	ParentSoulDigest            string
+	AttachedTo                  string
+	AttachExpiresAt             *time.Time
+	TranscriptEpoch             int64
+	PendingPermissionCount      int
+	PendingClarifyCount         int
+	AttentionRevision           int64
+	LastSettledRevision         int64
+	LastSeenRevision            int64
+	LastSeenAt                  *time.Time
+	AttentionChangedAt          *time.Time
+	EndedEarlyTurnID            string
+	PendingInteractions         []store.PendingInteraction
+	CreatedAt                   time.Time
+	UpdatedAt                   time.Time
+	creationProfile             *store.SessionCreationProfile
+	creationOptions             *store.SessionCreationOptions
+	creationIdentity            *store.SessionCreationIdentity
+	providerRoute               compozyconfig.ResolvedAgent
+	acceptedRoute               *store.SessionAcceptedRoute
+	restartBoundary             *store.SessionRestartCheckpoint
 	// derivation and importedContext exist only on continued or forked children.
 	derivation          *store.SessionDerivation
 	importedContext     *store.SessionImportedContext

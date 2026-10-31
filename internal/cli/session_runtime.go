@@ -30,7 +30,10 @@ func newSessionRuntimeSetCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <id>",
 		Short: "Select the default runtime for future prompts",
-		Args:  exactOneNonBlankArg(),
+		Long: "Select the default runtime for future prompts. An active session whose provider accepts " +
+			"session config applies same-provider model, reasoning, and speed changes to its live process " +
+			"immediately, including during a turn; provider changes wait for the next prompt.",
+		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider := strings.TrimSpace(flags.provider)
 			if provider == "" {

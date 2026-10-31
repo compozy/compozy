@@ -15,12 +15,14 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
@@ -1700,6 +1702,295 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("failed rename changed identity: memory=%q meta=%q", memoryName, metaName)
 		}
 	})
+}
+
+func TestRuntimeSelectionAppliesLive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply a same-provider effort change to the idle process immediately", func(t *testing.T) {
+		t.Parallel()
+		h, driver, active := newLiveRuntimeHarness(t, nil)
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		configs := driver.configSnapshots()
+		if len(configs) != 1 || configs[0].ReasoningEffort != "medium" {
+			t.Fatalf("ConfigureRuntime() configs = %#v, want one live medium apply", configs)
+		}
+		if updated.ReasoningEffort != "medium" || updated.RuntimeStatus != RuntimeStatusReady ||
+			updated.RuntimeTransition != RuntimeTransitionLiveConfiguration || updated.RuntimeFailure != "" {
+			t.Fatalf("SetRuntimeSelection() info = %#v, want effective medium via live configuration", updated)
+		}
+		if meta := readMeta(t, active.MetaPath()); meta.ReasoningEffort != "medium" {
+			t.Fatalf("durable effective effort = %q, want medium", meta.ReasoningEffort)
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, active.ID, transcript.MarkerRuntimeChanged)
+		if len(markers) != 1 || markers[0].Evidence["reasoning_effort"] != "medium" ||
+			markers[0].Evidence["previous_reasoning_effort"] != "xhigh" || markers[0].Evidence["during_turn"] != false ||
+			markers[0].Evidence["live_apply"] != string(acp.RuntimeLiveApplyNextStep) {
+			t.Fatalf("runtime changed markers = %#v, want one idle xhigh->medium marker", markers)
+		}
+
+		events, err := h.manager.Prompt(t.Context(), active.ID, "next prompt keeps the live runtime")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		starts := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if got := len(driver.configSnapshots()); got != 1 || starts != 1 {
+			t.Fatalf("prompt after live apply configs=%d starts=%d, want no reapply or replacement", got, starts)
+		}
+	})
+
+	t.Run("Should apply mid-turn without a status flip, replacement, or turn cancellation", func(t *testing.T) {
+		t.Parallel()
+		h, driver, active := newLiveRuntimeHarness(t, nil)
+		process := active.processHandle()
+		events, turnID, release := startBlockedLivePrompt(t, h, active)
+
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(mid-turn) error = %v", err)
+		}
+		if got := driver.configSnapshots(); len(got) != 1 || got[0].ReasoningEffort != "medium" {
+			t.Fatalf("mid-turn configs = %#v, want immediate medium apply", got)
+		}
+		if updated.ReasoningEffort != "medium" || updated.RuntimeStatus != RuntimeStatusReady ||
+			active.processHandle() != process || !active.IsPrompting() {
+			t.Fatalf("mid-turn info = %#v, want ready effective medium on the same running process", updated)
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, active.ID, transcript.MarkerRuntimeChanged)
+		if len(markers) != 1 || markers[0].Evidence["during_turn"] != true {
+			t.Fatalf("mid-turn markers = %#v, want one during-turn marker", markers)
+		}
+		if marker := liveRuntimeMarkerEvent(t, h, active); marker.TurnID != turnID {
+			t.Fatalf("mid-turn marker turn = %q, want running turn %q", marker.TurnID, turnID)
+		}
+
+		release()
+		if last := collectEvents(t, events); len(last) == 0 || last[len(last)-1].Type != acp.EventTypeDone {
+			t.Fatalf("turn events = %#v, want the running turn to finish", last)
+		}
+	})
+
+	t.Run("Should keep the turn and the stored selection when the provider refuses mid-turn", func(t *testing.T) {
+		t.Parallel()
+		refusal := &acp.NegotiationError{Code: acp.NegotiationCodeReasoningEffortUnsupported, Requested: "max"}
+		refuseMax := func(config acp.RuntimeConfig) error {
+			if config.ReasoningEffort == "max" {
+				return refusal
+			}
+			return nil
+		}
+		h, driver, active := newLiveRuntimeHarness(t, refuseMax)
+		process := active.processHandle()
+		events, _, release := startBlockedLivePrompt(t, h, active)
+
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "max"), 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(refused) error = %v, want persisted selection", err)
+		}
+		if updated.SelectedRuntime == nil || updated.SelectedRuntime.ReasoningEffort != "max" ||
+			updated.ReasoningEffort != "xhigh" || !strings.Contains(updated.RuntimeFailure, `"max"`) ||
+			updated.RuntimeStatus != RuntimeStatusReady || active.processHandle() != process || !active.IsPrompting() {
+			t.Fatalf("refused info = %#v, want stored max, effective xhigh, failure, same running process", updated)
+		}
+		if got := driver.configSnapshots(); len(got) != 2 || got[1].ReasoningEffort != "xhigh" {
+			t.Fatalf("refused configs = %#v, want apply then rollback", got)
+		}
+		release()
+		if last := collectEvents(t, events); len(last) == 0 || last[len(last)-1].Type != acp.EventTypeDone {
+			t.Fatalf("refused turn events = %#v, want completed turn", last)
+		}
+
+		next, err := h.manager.Prompt(t.Context(), active.ID, "retry the stored selection")
+		if err == nil {
+			collectEvents(t, next)
+		}
+		if got := driver.configSnapshots(); len(got) < 3 || got[2].ReasoningEffort != "max" {
+			t.Fatalf("next prompt configs = %#v, want the stored selection retried", got)
+		}
+	})
+
+	t.Run("Should clear a refused live apply failure when a newer selection supersedes it", func(t *testing.T) {
+		t.Parallel()
+		refuseMax := func(config acp.RuntimeConfig) error {
+			if config.ReasoningEffort == "max" {
+				return &acp.NegotiationError{Code: acp.NegotiationCodeReasoningEffortUnsupported, Requested: "max"}
+			}
+			return nil
+		}
+		h, _, active := newLiveRuntimeHarness(t, refuseMax)
+		refused, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "max"), 0)
+		if err != nil || refused.RuntimeFailure == "" {
+			t.Fatalf("SetRuntimeSelection(max) = %#v, %v; want recorded refusal", refused, err)
+		}
+		deferred, err := h.manager.SetRuntimeSelection(
+			t.Context(), active.ID, RuntimeSelection{Provider: "codex", Model: "gpt-5"}, 1,
+		)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(provider change) error = %v", err)
+		}
+		if deferred.RuntimeFailure != "" || deferred.ReasoningEffort != "xhigh" {
+			t.Fatalf("superseding selection info = %#v, want stale refusal cleared and effective unchanged", deferred)
+		}
+	})
+
+	t.Run("Should defer a provider change to the next prompt", func(t *testing.T) {
+		t.Parallel()
+		h, driver, active := newLiveRuntimeHarness(t, nil)
+		before := active.Info()
+		updated, err := h.manager.SetRuntimeSelection(
+			t.Context(), active.ID, RuntimeSelection{Provider: "codex", Model: "gpt-5"}, 0,
+		)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(provider change) error = %v", err)
+		}
+		h.driver.mu.Lock()
+		starts := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if len(driver.configSnapshots()) != 0 || starts != 1 || updated.Provider != before.Provider ||
+			updated.ReasoningEffort != before.ReasoningEffort {
+			t.Fatalf("provider change info = %#v starts=%d, want no live apply", updated, starts)
+		}
+	})
+
+	t.Run("Should serialize a live apply ahead of prompt runtime admission", func(t *testing.T) {
+		t.Parallel()
+		entered, unblock := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		blockMedium := func(config acp.RuntimeConfig) error {
+			if config.ReasoningEffort == "medium" {
+				once.Do(func() { close(entered) })
+				<-unblock
+			}
+			return nil
+		}
+		h, driver, active := newLiveRuntimeHarness(t, blockMedium)
+		applied := make(chan error, 1)
+		go func() {
+			_, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+			applied <- err
+		}()
+		<-entered
+		prompted := make(chan error, 1)
+		go func() {
+			events, err := h.manager.Prompt(t.Context(), active.ID, "admitted after the live apply")
+			if err == nil {
+				collectEvents(t, events)
+			}
+			prompted <- err
+		}()
+		select {
+		case err := <-prompted:
+			t.Fatalf("Prompt() finished during the live apply: %v", err)
+		case <-time.After(100 * time.Millisecond):
+		}
+		close(unblock)
+		if err := <-applied; err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		if err := <-prompted; err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		if got := driver.configSnapshots(); len(got) != 1 || active.Info().ReasoningEffort != "medium" {
+			t.Fatalf("configs = %#v effort = %q, want one apply and no admission reapply", got,
+				active.Info().ReasoningEffort)
+		}
+	})
+}
+
+// newLiveRuntimeHarness binds a Claude session at xhigh whose provider reports applied efforts.
+func newLiveRuntimeHarness(
+	t *testing.T,
+	hook func(acp.RuntimeConfig) error,
+) (*harness, *runtimeConfigRecordingDriver, *Session) {
+	t.Helper()
+	h := newHarness(t)
+	driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+	h.manager.driver = driver
+	active := createSession(t, h)
+	t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+	snapshot := active.runtimeBindingSnapshot()
+	selection := snapshot.selection
+	selection.ReasoningEffort = "xhigh"
+	efforts := []acp.SessionConfigOptionValue{{Value: "medium"}, {Value: "xhigh"}, {Value: "max"}}
+	snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
+		ID: "effort", Category: "thought_level", Kind: acp.SessionConfigOptionKindSelect,
+		CurrentValueID: "xhigh", Values: efforts,
+	}}})
+	active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+	driver.configHook = func(process *AgentProcess, config acp.RuntimeConfig) error {
+		if hook != nil {
+			if err := hook(config); err != nil {
+				return err
+			}
+		}
+		caps := process.CapsSnapshot()
+		caps.ConfigOptions[0].CurrentValueID = config.ReasoningEffort
+		process.setCaps(caps)
+		return nil
+	}
+	return h, driver, active
+}
+
+func liveEffortSelection(active *Session, effort string) RuntimeSelection {
+	selection := active.runtimeBindingSnapshot().selection
+	selection.ReasoningEffort = effort
+	return selection
+}
+
+func startBlockedLivePrompt(
+	t *testing.T,
+	h *harness,
+	active *Session,
+) (<-chan acp.AgentEvent, string, func()) {
+	t.Helper()
+	started, release := make(chan string, 1), make(chan struct{})
+	h.driver.mu.Lock()
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		started <- req.TurnID
+		events := make(chan acp.AgentEvent)
+		go func() {
+			defer close(events)
+			<-release
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: active.Info().ACPSessionID, TurnID: req.TurnID}
+		}()
+		return events, nil
+	}
+	h.driver.mu.Unlock()
+	events, err := h.manager.Prompt(t.Context(), active.ID, "long turn")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	var turnID string
+	select {
+	case turnID = <-started:
+	case <-time.After(time.Second):
+		t.Fatal("driver prompt did not start")
+	}
+	var once sync.Once
+	releaseOnce := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(releaseOnce)
+	return events, turnID, releaseOnce
+}
+
+func liveRuntimeMarkerEvent(t *testing.T, h *harness, active *Session) store.SessionEvent {
+	t.Helper()
+	events, err := h.manager.Events(t.Context(), active.ID, store.EventQuery{Type: eventspkg.TranscriptMarkerCreated})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range events {
+		if strings.Contains(event.Content, transcript.MarkerRuntimeChanged) {
+			return event
+		}
+	}
+	t.Fatal("runtime changed marker event not recorded")
+	return store.SessionEvent{}
 }
 
 type runtimeConfigRecordingDriver struct {

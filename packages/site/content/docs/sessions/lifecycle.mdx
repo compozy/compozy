@@ -258,9 +258,9 @@ Automatic replay can repeat a tool or external side effect whose completion was 
 the disconnect. CompozyOS supplies retained results to the replacement runtime, but cannot prove an
 external mutation did not complete. Inspect the external system before manually repeating the work.
 
-### Selecting the next runtime
+### Selecting the session runtime
 
-Persist next-prompt runtime intent without starting or reconfiguring ACP:
+Persist the session's runtime selection. It never starts a stopped session:
 
 ```bash
 compozy session runtime set sess-1234 \
@@ -278,6 +278,30 @@ the current process. `last_known` preserves the recorded provider, model, reason
 after idle release, detachment or stop. It is absent before any runtime identity has been recorded
 and does not imply a live process. Session-list rows prefer `effective`, then `last_known`, then the
 selected runtime or the owning agent’s configured defaults.
+
+When the session is active and its provider accepts session config (`runtime_strategy:
+"session_config"`), a change that keeps the provider (model, reasoning effort, speed, or ACP
+options) is sent to the live process immediately with ACP `session/set_config_option`, including
+while a turn is running. The running turn is never replaced or canceled and `runtime.status` stays
+`ready`; `runtime.effective` and `runtime.transition: "live_configuration"` report the applied
+values, and a durable `transcript_marker.runtime_changed` event records the previous and new values,
+whether a turn was running, and the provider's live-apply semantics. Events recorded after the
+marker carry the new effective runtime.
+
+Workspace provider options report when an applied change reaches the agent as
+`runtime_live_apply`:
+
+| Value       | Meaning                                                                                       |
+| ----------- | --------------------------------------------------------------------------------------------- |
+| `next_step` | A running turn uses the change from the agent's next model step (Claude Agent Bridge).        |
+| `next_turn` | The agent stores the change and honors it from its next turn, which is the next message.     |
+| _absent_    | The provider applies runtime controls at launch (`launch_arg`, `provider_managed`).           |
+
+A provider change, a launch-argument provider, or a session that is binding, recovering, or released
+keeps the selection for the next prompt, which binds or replaces the process before dispatch. If the
+provider refuses a live change, CompozyOS rolls the process back, records the reason in
+`runtime.failure`, keeps the stored selection, and leaves the turn running; the next prompt retries
+the selection.
 
 Runtime fields resolve from provider/project and agent defaults, then durable
 `selected`, then the prompt snapshot. Each higher layer replaces only the fields or option IDs it sets.

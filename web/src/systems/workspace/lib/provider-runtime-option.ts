@@ -12,5 +12,6 @@ export function workspaceProviderToOption(provider: SessionProviderOption): Runt
     ...(harness ? { harness } : {}),
     runtime_provider: runtimeProvider || provider.name,
     runtime_strategy: provider.runtime_strategy,
+    ...(provider.runtime_live_apply ? { runtime_live_apply: provider.runtime_live_apply } : {}),
   };
 }

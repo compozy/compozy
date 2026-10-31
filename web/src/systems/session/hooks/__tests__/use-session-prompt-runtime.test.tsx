@@ -287,6 +287,76 @@ describe("useSessionPromptRuntime", () => {
     expect(pendingSignal.aborted).toBe(true);
   });
 
+  it("Should report when a saved change reaches the running agent from the provider capability", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const workspace: WorkspaceDetailPayload = {
+      ...workspaceDetailFixture,
+      agents: [],
+      providers: [
+        { name: "claude", runtime_provider: "claude", runtime_live_apply: "next_step" },
+        { name: "codex", runtime_provider: "codex", runtime_live_apply: "next_turn" },
+      ],
+    };
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), workspace);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), []);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [provider("claude", "authenticated"), provider("codex", "authenticated")],
+    } satisfies ProviderListResponse);
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [model("claude", "claude-opus-5-5"), model("codex", "gpt-6-astra")],
+    } satisfies AllModelsListResponse);
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: "general",
+        canPrompt: true,
+        effectiveRuntime: {
+          provider: "claude",
+          model: "claude-opus-5-5",
+          reasoning_effort: "xhigh",
+        },
+        selectedRuntime: undefined,
+        selectionRevision: 0,
+        sessionId: primarySessionFixture.id,
+        workspaceId,
+      })
+    );
+    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+    await waitFor(() => expect(result.current.canSelectRuntime).toBe(true));
+
+    const persist = (
+      selection: { provider: string; model: string; reasoning_effort: "medium" },
+      badge: SessionPayload["badge"]
+    ) => {
+      act(() => result.current.onRuntimeChange(selection));
+      const callbacks = runtimeSelectionMutation.mutate.mock.lastCall![1];
+      act(() => {
+        callbacks.onSuccess({
+          badge,
+          runtime: {
+            selection_revision: runtimeSelectionMutation.mutate.mock.calls.length,
+            selected: selection,
+            effective: selection,
+          },
+        });
+        callbacks.onSettled();
+      });
+    };
+
+    persist(
+      { provider: "claude", model: "claude-opus-5-5", reasoning_effort: "medium" },
+      "running"
+    );
+    expect(result.current.applyNotice).toEqual({
+      text: "Applies at the agent's next step.",
+      tone: "neutral",
+    });
+    persist({ provider: "codex", model: "gpt-6-astra", reasoning_effort: "medium" }, "running");
+    expect(result.current.applyNotice?.text).toBe("Applies from the next message.");
+    persist({ provider: "claude", model: "claude-opus-5-5", reasoning_effort: "medium" }, "idle");
+    expect(result.current.applyNotice).toBeNull();
+  });
+
   it("Should inherit the agent speed before the first runtime bind", async () => {
     const workspaceId = workspaceDetailFixture.workspace.id;
     const workspace: WorkspaceDetailPayload = {

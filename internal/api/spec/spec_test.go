@@ -3525,6 +3525,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addGoalControlSchemas(baseline) == 0 {
 		t.Fatal("approved Goal control additions: no historical Goal schemas found")
 	}
+	// #1107: optional live runtime apply semantics on session provider options.
+	if addSessionProviderLiveApplySchemas(baseline) == 0 {
+		t.Fatal("approved runtime_live_apply addition: no historical session provider option schemas found")
+	}
 	// #1078: optional worktree creation failure cause; existing fields stay unchanged.
 	if addWorktreeCreateErrorSchemas(baseline) == 0 {
 		t.Fatal("approved worktree create_error addition: no historical worktree schemas found")
@@ -4802,6 +4806,30 @@ func addSessionWorktreeBindingSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		count++
+	}
+	return count
+}
+
+func addSessionProviderLiveApplySchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionProviderLiveApplySchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionProviderLiveApplySchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["runtime_strategy"] != nil && properties["runtime_provider"] != nil &&
+			properties["home_policy"] != nil {
+			properties["runtime_live_apply"] = map[string]any{
+				"enum": []any{"next_step", "next_turn"},
+				"type": "string",
+			}
+			count++
+		}
 	}
 	return count
 }

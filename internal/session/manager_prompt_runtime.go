@@ -30,6 +30,9 @@ func (m *Manager) ensurePromptRuntime(
 	requested *RuntimeSelection,
 	reservedProcess *AgentProcess,
 ) (*AgentProcess, error) {
+	// A live selection apply and prompt admission never reconfigure the same process at once.
+	session.runtimeApplyMu.Lock()
+	defer session.runtimeApplyMu.Unlock()
 	selection, err := normalizePromptRuntimeSelection(session, requested)
 	if err != nil {
 		return nil, err

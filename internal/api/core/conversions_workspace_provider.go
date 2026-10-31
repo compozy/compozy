@@ -100,14 +100,15 @@ func sessionProviderOptionPayloadFromConfig(
 	}
 	runtimeProvider := strings.TrimSpace(resolved.RuntimeProviderName(providerName))
 	return contract.SessionProviderOptionPayload{
-		Name:            providerName,
-		DisplayName:     strings.TrimSpace(resolved.DisplayName),
-		Harness:         string(resolved.EffectiveHarness()),
-		RuntimeProvider: runtimeProvider,
-		RuntimeStrategy: providerRuntimeStrategy(providerName, runtimeProvider),
-		AuthMode:        string(resolved.EffectiveAuthMode()),
-		EnvPolicy:       string(resolved.EffectiveEnvPolicy()),
-		HomePolicy:      string(resolved.EffectiveHomePolicy()),
+		Name:             providerName,
+		DisplayName:      strings.TrimSpace(resolved.DisplayName),
+		Harness:          string(resolved.EffectiveHarness()),
+		RuntimeProvider:  runtimeProvider,
+		RuntimeStrategy:  providerRuntimeStrategy(providerName, runtimeProvider),
+		RuntimeLiveApply: providerRuntimeLiveApply(providerName, runtimeProvider),
+		AuthMode:         string(resolved.EffectiveAuthMode()),
+		EnvPolicy:        string(resolved.EffectiveEnvPolicy()),
+		HomePolicy:       string(resolved.EffectiveHomePolicy()),
 	}, true
 }
 

@@ -15,7 +15,8 @@ var (
 	ErrRuntimeSelectionConflict = errors.New("session: runtime selection revision conflict")
 )
 
-// SetRuntimeSelection durably selects the default runtime for future prompts.
+// SetRuntimeSelection durably selects the default runtime for future prompts and applies it
+// to a live session_config runtime immediately, including during a turn.
 func (m *Manager) SetRuntimeSelection(
 	ctx context.Context,
 	id string,
@@ -60,7 +61,7 @@ func (m *Manager) updateRuntimeSelection(
 				return nil, err
 			}
 		}
-		return m.updateActiveRuntimeSelection(ctx, active, selection, expectedRevision)
+		return m.applyActiveRuntimeSelection(ctx, active, selection, expectedRevision)
 	}
 	return m.updateStoppedRuntimeSelection(ctx, target, selection, expectedRevision)
 }
@@ -86,12 +87,33 @@ func (m *Manager) updateActiveRuntimeSelection(
 	}
 	active.SelectedRuntime = cloneRuntimeSelection(selection)
 	active.RuntimeSelectionRevision++
+	// A refused live apply described the superseded selection, not this one.
+	if active.runtimeFailureFromLiveApply {
+		active.RuntimeFailure = ""
+		active.runtimeFailureFromLiveApply = false
+	}
 	active.UpdatedAt = m.now()
 	active.mu.Unlock()
 
 	if err := m.persistSessionLifecycleStateLocked(ctx, active, false); err != nil {
 		return nil, err
 	}
+	return active.Info(), nil
+}
+
+// applyActiveRuntimeSelection persists the selection, then applies it to the live process
+// when the provider accepts session config changes; otherwise the next prompt applies it.
+func (m *Manager) applyActiveRuntimeSelection(
+	ctx context.Context,
+	active *Session,
+	selection *RuntimeSelection,
+	expectedRevision int64,
+) (*Info, error) {
+	info, err := m.updateActiveRuntimeSelection(ctx, active, selection, expectedRevision)
+	if err != nil || selection == nil {
+		return info, err
+	}
+	m.applyRuntimeSelectionLive(active)
 	return active.Info(), nil
 }
 

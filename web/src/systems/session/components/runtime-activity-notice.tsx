@@ -111,7 +111,7 @@ function markerTone(marker: TranscriptMarkerPayload | null) {
     const supervised = marker?.evidence?.stop_reason === "timeout" && failureKind === "";
     return supervised ? ("warning" as const) : ("danger" as const);
   }
-  if (kind.includes("recovered")) {
+  if (kind.includes("recovered") || kind.includes("runtime_changed")) {
     return "info" as const;
   }
   return "warning" as const;

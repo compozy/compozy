@@ -90,6 +90,7 @@ func (s *Session) beginRuntimeTransition(
 	s.RuntimeStatus = status
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
 	s.RuntimeRecovery = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
@@ -146,6 +147,7 @@ func (s *Session) completeRuntimeTransitionLocked(
 	s.RuntimeStatus = RuntimeStatusReady
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
 	s.RuntimeRecovery = nil
 	if proc != nil && proc != previous {
 		s.RuntimeGeneration++
@@ -235,6 +237,7 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.RuntimeStatus = snapshot.status
 	s.RuntimeTransition = snapshot.transition
 	s.RuntimeFailure = strings.TrimSpace(failure)
+	s.runtimeFailureFromLiveApply = false
 	s.RuntimeGeneration = snapshot.generation
 	s.RuntimeRecovery = store.CloneSessionRuntimeRecovery(snapshot.recovery)
 	s.ACPSessionID = snapshot.acpSessionID
@@ -297,4 +300,57 @@ func (s *Session) isCurrentProcess(proc *AgentProcess) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.process == proc
+}
+
+// commitLiveRuntimeSelection records a configured selection on the still-bound process.
+// It leaves runtime status, generation, and liveness untouched so a live turn's
+// supervision and health are not disturbed.
+func (s *Session) commitLiveRuntimeSelection(proc *AgentProcess, selection RuntimeSelection, now time.Time) bool {
+	if s == nil || proc == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.process != proc {
+		return false
+	}
+	s.Provider = strings.TrimSpace(selection.Provider)
+	s.Model = strings.TrimSpace(selection.Model)
+	s.ReasoningEffort = strings.TrimSpace(selection.ReasoningEffort)
+	s.Speed = selection.Speed
+	s.ACPOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
+	s.RuntimeTransition = RuntimeTransitionLiveConfiguration
+	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
+	s.refreshLiveProcessCapsLocked(proc, s.Model == "", now)
+	return true
+}
+
+// recordLiveRuntimeFailure surfaces a refused live apply without unbinding the process.
+func (s *Session) recordLiveRuntimeFailure(proc *AgentProcess, failure string, now time.Time) bool {
+	if s == nil || proc == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.process != proc {
+		return false
+	}
+	s.RuntimeFailure = strings.TrimSpace(failure)
+	s.runtimeFailureFromLiveApply = true
+	s.refreshLiveProcessCapsLocked(proc, false, now)
+	return true
+}
+
+func (s *Session) refreshLiveProcessCapsLocked(proc *AgentProcess, adoptCurrentModel bool, now time.Time) {
+	caps := proc.CapsSnapshot()
+	s.ACPCaps = cloneCaps(caps)
+	s.ACPCapsKnown = true
+	s.SpeedResolution = s.speedResolutionForCapsLocked(caps)
+	if currentModel := currentACPModel(caps.ConfigOptions); adoptCurrentModel && currentModel != "" {
+		s.Model = currentModel
+	}
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
 }

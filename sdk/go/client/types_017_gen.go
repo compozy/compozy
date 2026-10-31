@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SessionInspectResponse is a daemon API value.
+type SessionInspectResponse struct {
+	SessionID    string                             `json:"session_id"`
+	Health       SessionHealthPayload               `json:"health"`
+	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	PolicyDigest string                             `json:"policy_digest,omitempty"`
+	ConfigDigest string                             `json:"config_digest,omitempty"`
+	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// SessionInteractionsResponse is a daemon API value.
+type SessionInteractionsResponse struct {
+	Interactions []PendingInteractionPayload `json:"interactions"`
+}
+
 // SessionLaterPayload is a daemon API value.
 type SessionLaterPayload struct {
 	ParkedAt        time.Time  `json:"parked_at"`
@@ -243,14 +259,15 @@ type SessionPromptCancelResponse struct {
 
 // SessionProviderOptionPayload is a daemon API value.
 type SessionProviderOptionPayload struct {
-	Name            string                  `json:"name"`
-	DisplayName     string                  `json:"display_name,omitempty"`
-	Harness         string                  `json:"harness,omitempty"`
-	RuntimeProvider string                  `json:"runtime_provider,omitempty"`
-	RuntimeStrategy ProviderRuntimeStrategy `json:"runtime_strategy,omitempty"`
-	AuthMode        string                  `json:"auth_mode,omitempty"`
-	EnvPolicy       string                  `json:"env_policy,omitempty"`
-	HomePolicy      string                  `json:"home_policy,omitempty"`
+	Name             string                   `json:"name"`
+	DisplayName      string                   `json:"display_name,omitempty"`
+	Harness          string                   `json:"harness,omitempty"`
+	RuntimeProvider  string                   `json:"runtime_provider,omitempty"`
+	RuntimeStrategy  ProviderRuntimeStrategy  `json:"runtime_strategy,omitempty"`
+	RuntimeLiveApply ProviderRuntimeLiveApply `json:"runtime_live_apply,omitempty"`
+	AuthMode         string                   `json:"auth_mode,omitempty"`
+	EnvPolicy        string                   `json:"env_policy,omitempty"`
+	HomePolicy       string                   `json:"home_policy,omitempty"`
 }
 
 // SessionPullRequestChecksPayload is a daemon API value.
