@@ -38,7 +38,7 @@ export function useSessionLabel({
     enabled: workspaceId === "" && sessionId !== "",
     retry: false,
   });
-  const resolvedWorkspaceId = workspaceId || owner.data?.workspace_id || "";
+  const resolvedWorkspaceId = workspaceId || (owner.data ? owner.data.workspace_id || "@user" : "");
   const detail = useQuery({
     ...sessionDetailOptions(resolvedWorkspaceId, sessionId),
     enabled: resolvedWorkspaceId !== "" && sessionId !== "",
@@ -46,7 +46,10 @@ export function useSessionLabel({
     retry: false,
   });
   const crossWorkspace = resolvedWorkspaceId !== "" && resolvedWorkspaceId !== currentWorkspaceId;
-  const workspace = useWorkspace(resolvedWorkspaceId, { enabled: crossWorkspace });
+  const userDestination = resolvedWorkspaceId === "@user";
+  const workspace = useWorkspace(resolvedWorkspaceId, {
+    enabled: crossWorkspace && !userDestination,
+  });
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
     { data: detail.data, error: labelRead.error, isError: labelRead.isError },
@@ -60,7 +63,11 @@ export function useSessionLabel({
     ...(pending ? { pending } : {}),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
-    workspaceName: crossWorkspace ? (workspace.data?.workspace.name ?? null) : null,
+    workspaceName: crossWorkspace
+      ? userDestination
+        ? "User"
+        : (workspace.data?.workspace.name ?? null)
+      : null,
   };
 }
 

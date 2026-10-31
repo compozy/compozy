@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type nativeSessionReplyReader interface {
@@ -48,7 +49,14 @@ func (n *daemonNativeTools) nativeSessionPromptWorkspace(ctx context.Context, sc
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
 	if target != nil {
-		input.Workspace = target.WorkspaceID
+		input.Workspace = nativeReplyWorkspace(target)
 	}
 	return n.nativeResolvedWorkspace(ctx, id, input.Workspace, scope)
+}
+
+func nativeReplyWorkspace(info *session.Info) string {
+	if info.WorkspaceID == "" {
+		return workspaceaccess.UserSelector
+	}
+	return info.WorkspaceID
 }

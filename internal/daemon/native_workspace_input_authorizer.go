@@ -82,7 +82,7 @@ func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
 		if err != nil {
 			return err
 		}
-		if target != nil && target.WorkspaceID == targetWorkspaceID {
+		if target != nil && nativeReplyWorkspace(target) == targetWorkspaceID {
 			return nil
 		}
 	}

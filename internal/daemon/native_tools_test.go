@@ -15900,13 +15900,16 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, workspace, reply, profile string
+		user                            bool
 		allowed                         bool
 	}{
-		{"Should allow a verified reply with implicit workspace", "", "received", store.DefaultProfileID, true},
-		{"Should allow a verified reply with explicit workspace", "ws-target", "received", store.DefaultProfileID, true},
-		{"Should deny an unsolicited send", "ws-target", "", store.DefaultProfileID, false},
-		{"Should deny a forged reply", "ws-target", "forged", store.DefaultProfileID, false},
-		{"Should deny a foreign profile", "ws-target", "received", "other-profile", false},
+		{"Should allow a verified reply with implicit workspace", "", "received", store.DefaultProfileID, false, true},
+		{"Should allow a verified reply with explicit workspace", "ws-target", "received", store.DefaultProfileID, false, true},
+		{"Should deny an unsolicited send", "ws-target", "", store.DefaultProfileID, false, false},
+		{"Should deny a forged reply", "ws-target", "forged", store.DefaultProfileID, false, false},
+		{"Should deny a foreign profile", "ws-target", "received", "other-profile", false, false},
+		{"Should reply to User with implicit workspace", "", "received", store.DefaultProfileID, true, true},
+		{"Should reply to User with explicit workspace", "@user", "received", store.DefaultProfileID, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -15916,6 +15919,9 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 				ws, profile := "ws-origin", store.DefaultProfileID
 				if id == "target" {
 					ws, profile = "ws-target", tc.profile
+					if tc.user {
+						ws = ""
+					}
 				}
 				return &session.Info{ID: id, WorkspaceID: ws, ProfileID: profile, State: session.StateActive}, nil
 			}
@@ -15925,7 +15931,7 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 			}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 				Sessions:   replyAccessNativeSessionManager{originNativeSessionManager{SessionManager: base}},
-				Workspaces: nativeTestWorkspaceService(t),
+				Workspaces: nativeUserWorkspaceService{nativeTestWorkspaceService(t)},
 			}, nativeApproveAllPolicyInputs())
 			payload := map[string]any{"workspace": tc.workspace, "session_id": "target", "message": "pong", "message_id": "reply", "idempotency_key": "reply"}
 			if tc.reply != "" {
