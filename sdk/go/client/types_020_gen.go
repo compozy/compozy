@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// SettingsRedactPayload is a daemon API value.
+type SettingsRedactPayload struct {
+	Enabled bool `json:"enabled"`
+}
+
 // SettingsRoleConfigPayload is a daemon API value.
 type SettingsRoleConfigPayload struct {
 	Enabled         bool                          `json:"enabled"`
@@ -436,12 +441,4 @@ type SettingsWindowManagerConfigPayload struct {
 	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
 	Shortcuts           map[string][]string                 `json:"shortcuts"`
 	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
-}
-
-// SettingsWindowManagerDefaultPayload is a daemon API value.
-type SettingsWindowManagerDefaultPayload struct {
-	CommandID    string   `json:"command"`
-	Binding      []string `json:"binding"`
-	Dormant      bool     `json:"dormant"`
-	ConflictWith string   `json:"conflict_with,omitempty"`
 }

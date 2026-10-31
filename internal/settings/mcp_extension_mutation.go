@@ -15,7 +15,8 @@ func (s *service) extensionMCPMutationTarget(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
 ) (mcpauth.Target, bool, error) {
-	target, _, err := s.resolveMCPAuthTarget(ctx, req)
+	resolved, err := s.resolveMCPAuthDefinition(ctx, req)
+	target := resolved.target
 	if errors.Is(err, ErrNotFound) && (req.Owner == "" || req.Owner == "manual") {
 		return mcpauth.Target{}, false, nil
 	}

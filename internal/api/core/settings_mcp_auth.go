@@ -37,6 +37,7 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 		Refreshable:  value.Refreshable,
 		TokenPresent: value.TokenPresent,
 		Diagnostic:   strings.TrimSpace(value.Diagnostic),
+		Inherited:    value.Inherited,
 	}
 	if value.Scope == mcpauth.ScopeProfile {
 		payload.Profile = payload.WorkspaceID

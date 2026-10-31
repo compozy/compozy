@@ -222,6 +222,28 @@ compozy mcp auth login linear --scope workspace --workspace <workspace-id>
 compozy mcp auth status linear --scope workspace --workspace <workspace-id> -o json
 ```
 
+### Credential Resolution Order
+
+An OAuth credential belongs to the scope that declares the effective server definition. CompozyOS
+resolves that owner in one order, narrowest first: workspace profile, workspace, profile, user. The
+runtime, `compozy mcp auth status`, the settings auth routes, `compozy__mcp_status`, and
+`compozy__mcp_auth_status` all use this order.
+
+A workspace that only inherits a server from `~/.compozy/config.toml` uses the user credential.
+Querying it at the narrower scope returns that effective user record with `inherited: true`; the
+human CLI output shows the scope as `user (inherited)`, and native `repair_paths` point at the user
+login. Login, exchange, and logout at a scope without its own definition fail with a validation
+error that names the declaring scope instead of changing another scope's credential:
+
+```bash
+# newrelic is declared only in ~/.compozy/config.toml.
+compozy mcp auth status newrelic --scope workspace --workspace <workspace-id>  # user (inherited)
+compozy mcp auth login newrelic                                                # authorize at user scope
+```
+
+To give one workspace its own credential, declare the server in that workspace's
+`.compozy/config.toml` or `.compozy/mcp.json`, then log in with `--scope workspace`.
+
 The equivalent daemon routes are:
 
 - `POST /api/settings/mcp-servers/{name}/auth/begin`

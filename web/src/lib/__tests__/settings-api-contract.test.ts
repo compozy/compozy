@@ -128,6 +128,7 @@ describe("settings openapi contract", () => {
           client_id?: string;
           diagnostic?: string;
           expires_at?: string | null;
+          inherited?: boolean;
           issuer?: string;
           profile?: string;
           refreshable: boolean;

@@ -9,7 +9,9 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -152,6 +154,144 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 			}
 		})
 	}
+
+	// Invariant: a workspace session inheriting a user-declared server reports the effective user
+	// credential labeled inherited and repairs the user scope that satisfies the runtime (#1072).
+	// Owner: native tool adapter; canonical suite: TestDaemonNativeMCPAuthStatusTool.
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDMCPStatus, toolspkg.ToolIDMCPAuthStatus} {
+		t.Run("Should label the inherited user credential for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			provider := &nativeMCPAuthStatusProvider{status: toolspkg.MCPAuthStatus{
+				ServerName: "newrelic", Owner: "manual", Scope: "user", Status: "authenticated",
+				TokenPresent: true, Refreshable: true,
+			}}
+			settingsService := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
+				Name: "newrelic", Owner: "manual",
+				RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{State: settingspkg.MCPServerRuntimeStateReady},
+			}}}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions: nativeTestSessionManager("ws-inherit"),
+				MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return provider },
+				Settings: func() core.SettingsService { return settingsService },
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-inherit"},
+				toolspkg.CallRequest{ToolID: toolID, Input: json.RawMessage(`{"server_name":"newrelic"}`)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Auth        *toolspkg.MCPAuthStatus `json:"auth"`
+				Status      *toolspkg.MCPAuthStatus `json:"status"`
+				State       string                  `json:"state"`
+				RepairPaths mcpAuthRepairPaths      `json:"repair_paths"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			status := payload.Status
+			if toolID == toolspkg.ToolIDMCPStatus {
+				status = payload.Auth
+				if payload.State != nativeMCPStateHealthy {
+					t.Fatalf("state = %q, want healthy", payload.State)
+				}
+			}
+			if status == nil || status.Scope != "user" || status.Status != "authenticated" || !status.Inherited {
+				t.Fatalf("auth status = %#v, want inherited authenticated user record", status)
+			}
+			if payload.RepairPaths.LoginCLI != `compozy mcp auth login "newrelic" --owner "manual"` {
+				t.Fatalf("login repair = %q, want the user scope", payload.RepairPaths.LoginCLI)
+			}
+		})
+	}
+
+	// Invariant: a named-profile session inherits a user credential, and the label depends on the
+	// session profile reaching both native status tools. Owner: native tool adapter.
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDMCPStatus, toolspkg.ToolIDMCPAuthStatus} {
+		t.Run("Should label a user credential inherited by a named profile for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			const profileID = "profile-marketing"
+			provider := &nativeMCPAuthStatusProvider{status: toolspkg.MCPAuthStatus{
+				ServerName: "newrelic", Owner: "manual", Scope: "user", Status: "authenticated", TokenPresent: true,
+			}}
+			settingsService := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
+				Name: "newrelic", Owner: "manual",
+				RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{State: settingspkg.MCPServerRuntimeStateReady},
+			}}}
+			tools := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return provider },
+				Settings: func() core.SettingsService { return settingsService },
+				Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{
+					ID: profileID, Name: "marketing", State: profilepkg.StateActive,
+				}}},
+			}}
+			call := tools.mcpAuthStatus
+			if toolID == toolspkg.ToolIDMCPStatus {
+				call = tools.mcpStatus
+			}
+			result, err := call(t.Context(), toolspkg.Scope{ProfileID: profileID}, toolspkg.CallRequest{
+				ToolID: toolID, Input: json.RawMessage(`{"server_name":"newrelic"}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Auth   *toolspkg.MCPAuthStatus `json:"auth"`
+				Status *toolspkg.MCPAuthStatus `json:"status"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			status := payload.Status
+			if toolID == toolspkg.ToolIDMCPStatus {
+				status = payload.Auth
+			}
+			if status == nil || !status.Inherited || provider.source.ProfileID != profileID {
+				t.Fatalf(
+					"status = %#v source = %#v, want inherited user credential for the profile",
+					status,
+					provider.source,
+				)
+			}
+		})
+	}
+
+	t.Run("Should label credentials owned by a broader scope than the session context", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name, scope, profileID, workspaceID string
+			want                                bool
+		}{
+			{name: "Should not label a user credential in a user session", scope: "user"},
+			{name: "Should label a user credential in a workspace session", scope: "user",
+				workspaceID: "ws-team", want: true},
+			{name: "Should label a user credential in a named profile session", scope: "user",
+				profileID: "prof-marketing", want: true},
+			{name: "Should not label a user credential in the default profile session", scope: "user",
+				profileID: store.DefaultProfileID},
+			{name: "Should not label a profile credential in its profile session", scope: "profile",
+				profileID: "prof-marketing"},
+			{name: "Should label a profile credential in a profile workspace session", scope: "profile",
+				profileID: "prof-marketing", workspaceID: "ws-team", want: true},
+			{name: "Should not label a workspace credential in its workspace session", scope: "workspace",
+				workspaceID: "ws-team"},
+			{name: "Should label a workspace credential in a named profile session", scope: "workspace",
+				profileID: "prof-marketing", workspaceID: "ws-team", want: true},
+			{name: "Should not label a workspace profile credential in its session", scope: "workspace_profile",
+				profileID: "prof-marketing", workspaceID: "ws-team"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				got := mcpAuthStatusInherited(toolspkg.MCPAuthStatus{Scope: tc.scope}, tc.profileID, tc.workspaceID)
+				if got != tc.want {
+					t.Fatalf("mcpAuthStatusInherited(%+v) = %v, want %v", tc, got, tc.want)
+				}
+			})
+		}
+	})
 
 	t.Run("Should expose workspace-scoped dead runtime state and reason", func(t *testing.T) {
 		t.Parallel()

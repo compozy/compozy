@@ -115,7 +115,7 @@ func (s *service) collectionItemExistsBeforeMutation(
 		if err != nil {
 			return false, err
 		}
-		_, _, err = s.resolveMCPAuthTarget(ctx, MCPAuthTargetRequest{
+		_, err = s.resolveMCPAuthDefinition(ctx, MCPAuthTargetRequest{
 			Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName,
 			Name: trimmedName, Owner: req.Owner,
 		})

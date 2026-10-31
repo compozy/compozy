@@ -973,6 +973,34 @@ func TestMCPAuthStatusBundlesRenderScopeAndTokenPresence(t *testing.T) {
 			t.Fatalf("toon status = %q", toon)
 		}
 	})
+
+	t.Run("Should label a record inherited from the declaring scope", func(t *testing.T) {
+		t.Parallel()
+
+		status := mcpAuthStatus("newrelic", "user", "", true, new(fixedTestNow))
+		status.Inherited = true
+		human, err := mcpAuthStatusBundle(status).human()
+		if err != nil {
+			t.Fatalf("mcpAuthStatusBundle.human() error = %v", err)
+		}
+		if !strings.Contains(human, "user (inherited)") {
+			t.Fatalf("human status = %q, want inherited scope label", human)
+		}
+		list, err := mcpAuthStatusListBundle([]SettingsMCPAuthStatusRecord{status}).human()
+		if err != nil {
+			t.Fatalf("mcpAuthStatusListBundle.human() error = %v", err)
+		}
+		if !strings.Contains(list, "user (inherited)") {
+			t.Fatalf("human list = %q, want inherited scope label", list)
+		}
+		toon, err := mcpAuthStatusListBundle([]SettingsMCPAuthStatusRecord{status}).toon()
+		if err != nil {
+			t.Fatalf("mcpAuthStatusListBundle.toon() error = %v", err)
+		}
+		if !strings.Contains(toon, "inherited") || !strings.Contains(toon, "true") {
+			t.Fatalf("toon list = %q, want inherited field", toon)
+		}
+	})
 }
 
 func mcpAuthStatus(

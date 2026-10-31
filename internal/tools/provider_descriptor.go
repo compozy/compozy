@@ -117,4 +117,7 @@ type MCPAuthStatus struct {
 	Refreshable  bool       `json:"refreshable"`
 	TokenPresent bool       `json:"token_present"`
 	Diagnostic   string     `json:"diagnostic,omitempty"`
+	// Inherited reports that the caller's workspace or profile has no own definition and this
+	// status belongs to the broader scope that declares the server and owns its credential.
+	Inherited bool `json:"inherited,omitempty"`
 }

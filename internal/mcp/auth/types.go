@@ -212,6 +212,9 @@ type Status struct {
 	Refreshable  bool        `json:"refreshable"`
 	TokenPresent bool        `json:"token_present"`
 	Diagnostic   string      `json:"diagnostic,omitempty"`
+	// Inherited reports that the requested scope has no own definition and this status belongs
+	// to the broader scope that declares the effective definition.
+	Inherited bool `json:"inherited,omitempty"`
 }
 
 // TokenStore persists OAuth token material behind a narrow boundary.

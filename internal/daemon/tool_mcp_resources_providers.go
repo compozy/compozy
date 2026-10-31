@@ -18,6 +18,7 @@ import (
 
 func daemonConfigMCPDeclarationProvider(
 	cfg *compozyconfig.Config,
+	homePaths compozyconfig.HomePaths,
 	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	logger *slog.Logger,
@@ -50,7 +51,18 @@ func daemonConfigMCPDeclarationProvider(
 				Kind: resources.ResourceScopeKindWorkspace,
 				ID:   strings.TrimSpace(resolved.ID),
 			}
+			// The resolved config merges user and profile layers; publish only servers the
+			// workspace declares so inherited servers keep their declaring scope as OAuth owner.
+			declared, err := compozyconfig.WorkspaceDeclaredMCPServerNames(homePaths, resolved.RootDir)
+			if err != nil {
+				return toolMCPDesiredResources{}, fmt.Errorf(
+					"daemon: load workspace %q MCP declarations: %w", scope.ID, err,
+				)
+			}
 			for _, server := range resolved.Config.MCPServers {
+				if _, ok := declared[strings.TrimSpace(server.Name)]; !ok {
+					continue
+				}
 				desired.mcpServers = append(desired.mcpServers, mcpServerPublicationInput{
 					sourceKey: "config/workspace/" + scope.ID + "/" + strings.TrimSpace(server.Name),
 					scope:     scope,

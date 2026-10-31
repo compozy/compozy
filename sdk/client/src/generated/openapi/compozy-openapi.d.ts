@@ -15065,6 +15065,7 @@ export interface components {
       diagnostic?: string;
       /** Format: date-time */
       expires_at?: string | null;
+      inherited?: boolean;
       issuer?: string;
       owner: string;
       profile?: string;

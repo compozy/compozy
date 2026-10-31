@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerDefaultPayload is a daemon API value.
+type SettingsWindowManagerDefaultPayload struct {
+	CommandID    string   `json:"command"`
+	Binding      []string `json:"binding"`
+	Dormant      bool     `json:"dormant"`
+	ConflictWith string   `json:"conflict_with,omitempty"`
+}
+
 // SettingsWindowManagerDiagnosticPayload is a daemon API value.
 type SettingsWindowManagerDiagnosticPayload struct {
 	CommandID string `json:"command_id"`
@@ -437,9 +445,3 @@ type SubagentCancelRequest struct {
 
 // SubagentChildActivity is a daemon API value.
 type SubagentChildActivity string
-
-// SubagentListPayload is a daemon API value.
-type SubagentListPayload struct {
-	Subagents  []SubagentPayload `json:"subagents"`
-	NextCursor *string           `json:"next_cursor"`
-}

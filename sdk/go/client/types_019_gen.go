@@ -98,6 +98,7 @@ type SettingsMCPAuthStatusPayload struct {
 	Refreshable  bool       `json:"refreshable"`
 	TokenPresent bool       `json:"token_present"`
 	Diagnostic   string     `json:"diagnostic,omitempty"`
+	Inherited    bool       `json:"inherited,omitempty"`
 }
 
 // SettingsMCPExtensionOverridePayload is a daemon API value.
@@ -442,9 +443,4 @@ type SettingsProvidersResponse struct {
 	Scope           SettingsUserScopeKind         `json:"scope"`
 	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
 	Providers       []SettingsProviderItemPayload `json:"providers"`
-}
-
-// SettingsRedactPayload is a daemon API value.
-type SettingsRedactPayload struct {
-	Enabled bool `json:"enabled"`
 }

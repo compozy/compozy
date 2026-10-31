@@ -28158,6 +28158,9 @@
             "nullable": true,
             "type": "string"
           },
+          "inherited": {
+            "type": "boolean"
+          },
           "issuer": {
             "type": "string"
           },

@@ -7762,6 +7762,7 @@ export type SettingsMCPAuthStatusPayload = {
   client_id?: string;
   diagnostic?: string;
   expires_at?: string | null;
+  inherited?: boolean;
   issuer?: string;
   owner: string;
   profile?: string;
