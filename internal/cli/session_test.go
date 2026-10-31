@@ -1311,7 +1311,7 @@ func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
 		}
 		_, _, err := executeRootCommand(t, deps, "session", "list", "--column", "blocked")
 		if err == nil || cliExitCodeForError(err) != 2 ||
-			err.Error() != `invalid --column "blocked" (allowed: needs_you, working, in_review, done)` {
+			err.Error() != `invalid --column "blocked" (allowed: needs_you, working, waiting, in_review, done)` {
 			t.Fatalf("invalid column = %v", err)
 		}
 	})
