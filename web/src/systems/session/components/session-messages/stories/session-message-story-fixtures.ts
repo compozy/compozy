@@ -51,3 +51,14 @@ export const LONG_MESSAGE = [
 
 export const ANSWER =
   "Per job. `retry_budget` in `billing.toml` caps total attempts across all of a job's requests; `retry.go:41` decrements one shared counter per job id. Per-request limits don't exist today.";
+
+/** #1097: a title longer than any card's middle column. */
+export const longTitleTarget: SessionMessageParty = {
+  ...billingReviewer,
+  title: "Preparar BnUI para migração do AdvOS (tema AdvOS + base-ui 1.8 + ícones)",
+};
+
+export const longTitleCrossWorkspace: SessionMessageParty = {
+  ...crossWorkspaceSender,
+  title: "Preparar BnUI para migração do AdvOS (tema AdvOS + base-ui 1.8 + ícones)",
+};

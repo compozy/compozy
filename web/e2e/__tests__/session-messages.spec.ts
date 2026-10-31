@@ -214,6 +214,66 @@ test("E2E-003: the sender sees Sent to, Waiting for reply, then the Reply from c
   await expect(sender.window.getByText("The reviewer answered: per job.")).toBeVisible();
 });
 
+interface HeaderGeometry {
+  title: string | null;
+  ellipsized: boolean;
+  titleRight: number;
+  trailingLeft: number;
+  trailingRight: number;
+  cardRight: number;
+}
+
+/** Where a card's linked title ends relative to the header items after it and the card edge. */
+async function headerGeometry(card: Locator): Promise<HeaderGeometry> {
+  return card.evaluate(element => {
+    const link = element.querySelector<HTMLElement>('[data-testid="session-message-party-link"]');
+    const text = link?.querySelector<HTMLElement>("span") ?? link;
+    if (!link || !text) throw new Error("card has no linked party title");
+    const trailing = [
+      ...element.querySelectorAll<HTMLElement>(
+        '[data-testid="session-message-chip"], [data-testid="session-sent-reply-state"], [data-testid="session-reply-outcome"], [data-testid="session-message-time"]'
+      ),
+    ].map(item => item.getBoundingClientRect());
+    if (trailing.length === 0) throw new Error("card has no trailing header items");
+    return {
+      title: link.getAttribute("title"),
+      ellipsized: text.scrollWidth > text.clientWidth,
+      titleRight: link.getBoundingClientRect().right,
+      trailingLeft: Math.min(...trailing.map(rect => rect.left)),
+      trailingRight: Math.max(...trailing.map(rect => rect.right)),
+      cardRight: element.getBoundingClientRect().right,
+    };
+  });
+}
+
+test("E2E-004: a long session title ellipsizes on the Sent to and Reply from cards without covering the reply state or time (#1097)", async ({
+  appPage,
+  runtime,
+}) => {
+  const longTitle = "Preparar BnUI para migração do AdvOS (tema AdvOS + base-ui 1.8 + ícones)";
+  const scene = await prepare(appPage, runtime);
+  const receiverId = await createSession(scene, receiverAgent, longTitle);
+  const senderId = await createSender(scene, receiverId);
+  const sender = await openSession(scene, senderAgent, senderId);
+  await sendFromComposer(scene, sender, "ask the reviewer and wait");
+
+  const sent = sender.window.getByTestId("session-sent-card");
+  const reply = sender.window.getByRole("article", { name: `Reply from ${longTitle}, completed` });
+  await expect(reply).toBeVisible({ timeout: 30_000 });
+  await expect(sent).toHaveAccessibleName(`Sent to ${longTitle}, replied`);
+
+  // Invariant: the title shrinks first and clips with an ellipsis inside its column; the
+  // header items after it stay whole, to its right, and inside the card.
+  for (const card of [sent, reply]) {
+    await expect(card.getByRole("button", { name: longTitle })).toBeVisible();
+    const geometry = await headerGeometry(card);
+    expect(geometry.title).toBe(longTitle);
+    expect(geometry.ellipsized).toBe(true);
+    expect(geometry.titleRight).toBeLessThanOrEqual(geometry.trailingLeft);
+    expect(geometry.trailingRight).toBeLessThanOrEqual(geometry.cardRight);
+  }
+});
+
 // Composer mentions (`.compozy/tasks/composer-mentions/_tests.md` E2E-001…E2E-003, titled
 // CM-E2E-001…CM-E2E-003 so they stay distinct from the agent-collaboration journeys above): the
 // `@` picker reads the real `searchSessionFiles` route and session catalog, the daemon resolves
