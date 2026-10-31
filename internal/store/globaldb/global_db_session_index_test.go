@@ -2630,6 +2630,129 @@ func TestSessionCatalogBoard(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep forked and continued sessions top-level when hiding children", func(t *testing.T) {
+		t.Parallel()
+		ctx, db := t.Context(), openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "lineage", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+		lineage := map[string][2]string{
+			"provenance": {string(store.LineageKindProvenance), ""},
+			"spawn":      {string(store.LineageKindSpawn), ""},
+			"subagent":   {string(store.LineageKindSpawn), store.SubagentSpawnRole},
+			"recovery":   {string(store.LineageKindRecovery), ""},
+			"fork":       {string(store.LineageKindFork), ""},
+			"continue":   {string(store.LineageKindContinue), ""},
+		}
+		for _, id := range []string{"parent", "provenance", "spawn", "subagent", "recovery", "fork", "continue"} {
+			if err := db.RegisterSession(
+				ctx,
+				sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if relation, ok := lineage[id]; ok {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`UPDATE sessions SET parent_session_id='parent', root_session_id='parent', spawn_depth=1,
+ lineage_kind=?, spawn_role=?, origin_agent_name=CASE WHEN ? IN ('fork','continue') THEN 'coder' ELSE '' END
+ WHERE id=?`,
+					relation[0],
+					relation[1],
+					relation[0],
+					id,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+		for _, tc := range []struct {
+			name         string
+			hideChildren bool
+			want         []string
+		}{
+			{
+				name: "Should list every child when children are included",
+				want: []string{"continue", "fork", "parent", "provenance", "recovery", "spawn", "subagent"},
+			},
+			{
+				name:         "Should keep forks and continuations when children are hidden",
+				hideChildren: true,
+				want:         []string{"continue", "fork", "parent"},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				pageQuery := store.SessionCatalogPageQuery{
+					ReadScope:    scope,
+					WorkspaceID:  workspace,
+					HideChildren: tc.hideChildren,
+					Sort:         sessionCatalogSortRecent,
+					Limit:        10,
+				}
+				page, err := db.PageSessions(ctx, pageQuery)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := make([]string, 0, len(page.Sessions))
+				for _, info := range page.Sessions {
+					got = append(got, info.ID)
+				}
+				slices.Sort(got)
+				if page.Total != len(tc.want) || !slices.Equal(got, tc.want) {
+					t.Fatalf("page total %d ids %v, want %v", page.Total, got, tc.want)
+				}
+				// Walk one row per page: every page counts the filtered total and the
+				// keyset walk visits each filtered session exactly once.
+				pageQuery.Limit = 1
+				walked := make([]string, 0, len(tc.want))
+				for range len(tc.want) + 1 {
+					bounded, err := db.PageSessions(ctx, pageQuery)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if bounded.Total != len(tc.want) {
+						t.Fatalf("bounded page total = %d, want %d", bounded.Total, len(tc.want))
+					}
+					if len(bounded.Sessions) == 0 {
+						break
+					}
+					anchor := bounded.Sessions[0]
+					walked = append(walked, anchor.ID)
+					pageQuery.After = &store.SessionCatalogPosition{
+						PrimaryAt:   anchor.UpdatedAt,
+						SecondaryAt: anchor.CreatedAt,
+						CreatedAt:   anchor.CreatedAt,
+						ID:          anchor.ID,
+					}
+				}
+				slices.Sort(walked)
+				if !slices.Equal(walked, tc.want) {
+					t.Fatalf("keyset walk = %v, want %v", walked, tc.want)
+				}
+				pageQuery.After = nil
+				facets, err := db.SessionCatalogFacets(ctx, pageQuery)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if facets.Facets.All != len(tc.want) || facets.Facets.Board.Done != len(tc.want) {
+					t.Fatalf("facets = %#v", facets.Facets)
+				}
+			})
+		}
+		relations, err := db.SessionCatalogRelations(ctx, store.SessionCatalogRelationsQuery{
+			ReadScope:  scope,
+			SessionIDs: []string{"parent"},
+			ParentIDs:  []string{"parent"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if counts := relations.Children["parent"]; counts.Done != 4 ||
+			counts.NeedsYou+counts.Working+counts.InReview != 0 {
+			t.Fatalf("parent rollup = %#v, want only provenance, spawn, subagent and recovery children", counts)
+		}
+	})
+
 	t.Run("Should agree with Go for every badge and PR state", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)

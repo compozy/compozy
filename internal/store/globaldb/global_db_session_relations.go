@@ -9,6 +9,7 @@ import (
 )
 
 // SessionCatalogRelations reads direct-child aggregates and parent titles in one scoped query.
+// Continued and forked sessions name their source as provenance, so they never count as its children.
 func (g *SessionRepo) SessionCatalogRelations(
 	ctx context.Context,
 	query store.SessionCatalogRelationsQuery,
@@ -82,7 +83,11 @@ func sessionCatalogRelationsSQL(query store.SessionCatalogRelationsQuery, now st
 	if err != nil {
 		return "", nil, err
 	}
-	where = append(where, "parent_session_id IN (SELECT value FROM json_each(?))")
+	where = append(
+		where,
+		sessionCatalogHierarchyChildExpression,
+		"parent_session_id IN (SELECT value FROM json_each(?))",
+	)
 	args = append(sourceArgs, args...)
 	args = append(args, string(children))
 	statement := store.AppendWhere(

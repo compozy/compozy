@@ -1,6 +1,8 @@
 import {
+  ArrowRightLeft,
   CornerDownRight,
   GitBranch,
+  GitFork,
   GitMerge,
   GitPullRequest,
   GitPullRequestClosed,
@@ -25,11 +27,13 @@ import { cn } from "@/lib/utils";
 
 import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
 import {
+  sessionBoardCardLineage,
   sessionBoardCardMeta,
   sessionBoardCardRollup,
   sessionBoardCardStatus,
   sessionBoardCardUnread,
   sessionBoardCardWaiting,
+  type SessionBoardCardLineage,
   type SessionBoardCardMeta,
   type SessionBoardCardRollup,
   type SessionBoardCardStatus,
@@ -52,6 +56,13 @@ const SHAPE_ICON: Record<SessionBoardPrShape | "branch", LucideIcon> = {
   merged: GitMerge,
   closed: GitPullRequestClosed,
   branch: GitBranch,
+};
+
+/** A child nests under its parent; a fork or continuation names its source with the origin pill's glyph. */
+const LINEAGE_ICON: Record<SessionBoardCardLineage["kind"], LucideIcon> = {
+  child: CornerDownRight,
+  fork: GitFork,
+  continue: ArrowRightLeft,
 };
 
 type CardIntentHandlers = Pick<
@@ -82,6 +93,7 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
 /** The card's accessible name: the title, then every fact its rows show, in reading order. */
 function sessionBoardCardLabel({
   session,
+  lineage,
   title,
   status,
   waiting,
@@ -89,18 +101,18 @@ function sessionBoardCardLabel({
   draft,
 }: {
   session: SessionBoardPayload;
+  lineage: SessionBoardCardLineage | null;
   title: string;
   status: SessionBoardCardStatus | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
   rollup: SessionBoardCardRollup | null;
   draft: boolean;
 }): string {
-  const parentTitle = session.parent_title?.trim();
   return [
     title,
     status?.label,
     waiting?.word,
-    parentTitle ? `Child of ${parentTitle}` : null,
+    lineage ? `${lineage.verb} ${lineage.title}` : null,
     rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
     rollup?.needsYou ? "A child needs you" : null,
     draft ? "Unsent draft" : null,
@@ -135,7 +147,8 @@ export function SessionBoardCardView({
   const meta = sessionBoardCardMeta(session, workspaceName);
   const waiting = sessionBoardCardWaiting(session);
   const rollup = sessionBoardCardRollup(session);
-  const label = sessionBoardCardLabel({ session, title, status, waiting, rollup, draft });
+  const lineage = sessionBoardCardLineage(session);
+  const label = sessionBoardCardLabel({ session, lineage, title, status, waiting, rollup, draft });
   return (
     <button
       aria-current={current ? "true" : undefined}
@@ -183,6 +196,7 @@ export function SessionBoardCardView({
       </span>
       <SessionBoardCardFooter
         draft={draft}
+        lineage={lineage}
         rollup={rollup}
         runtime={runtime}
         selection={selection}
@@ -243,8 +257,31 @@ function SessionBoardCardMetaRow({
   );
 }
 
+/** `↳ Parent` for a child; `⑂ Source` for a fork, which is top-level and only names its origin. */
+function SessionBoardCardLineageMark({
+  lineage,
+  sessionId,
+}: {
+  lineage: SessionBoardCardLineage;
+  sessionId: string;
+}) {
+  const Icon = LINEAGE_ICON[lineage.kind];
+  return (
+    <span
+      className="flex min-w-0 flex-auto items-center gap-1 overflow-hidden"
+      data-lineage={lineage.kind}
+      data-testid={`session-board-card-parent-${sessionId}`}
+      title={`${lineage.verb} ${lineage.title}`}
+    >
+      <Icon aria-hidden="true" className="size-3 shrink-0" />
+      <span className="min-w-0 truncate">{lineage.title}</span>
+    </span>
+  );
+}
+
 function SessionBoardCardFooter({
   session,
+  lineage,
   runtime,
   rollup,
   waiting,
@@ -252,13 +289,13 @@ function SessionBoardCardFooter({
   draft,
 }: {
   session: SessionBoardPayload;
+  lineage: SessionBoardCardLineage | null;
   draft: boolean;
   runtime: SessionRuntimeLabel;
   rollup: SessionBoardCardRollup | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
   selection: SessionBoardCardViewProps["selection"];
 }) {
-  const parentTitle = session.parent_title?.trim();
   const mark = <SessionListProviderMark runtime={runtime} sessionId={session.id} />;
   return (
     <span className={SESSION_BOARD_CARD_FOOTER_ROW}>
@@ -281,15 +318,7 @@ function SessionBoardCardFooter({
         <span className="min-w-0 truncate font-medium text-muted">{session.agent_name}</span>
       </span>
       {rollup ? <SessionBoardCardRollupMark rollup={rollup} sessionId={session.id} /> : null}
-      {parentTitle ? (
-        <span
-          className="flex min-w-0 flex-auto items-center gap-1 overflow-hidden"
-          data-testid={`session-board-card-parent-${session.id}`}
-        >
-          <CornerDownRight aria-hidden="true" className="size-3 shrink-0" />
-          <span className="min-w-0 truncate">{parentTitle}</span>
-        </span>
-      ) : null}
+      {lineage ? <SessionBoardCardLineageMark lineage={lineage} sessionId={session.id} /> : null}
       {waiting ? (
         <span
           className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-muted"

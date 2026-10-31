@@ -48,12 +48,13 @@ func (m *Manager) populateCatalogRelations(
 			continue
 		}
 		relations.ParentTitles[info.ID] = sessionCatalogDisplayTitle(info)
-		if info.ArchivedAt != nil || info.Lineage == nil || info.Lineage.ParentSessionID == "" {
+		parentID := store.HierarchyParentSessionID(info.Lineage)
+		if info.ArchivedAt != nil || parentID == "" {
 			continue
 		}
-		counts := relations.Children[info.Lineage.ParentSessionID]
+		counts := relations.Children[parentID]
 		counts.Add(string(info.BoardColumn), 1)
-		relations.Children[info.Lineage.ParentSessionID] = counts
+		relations.Children[parentID] = counts
 	}
 	for _, info := range page {
 		counts := relations.Children[info.ID]

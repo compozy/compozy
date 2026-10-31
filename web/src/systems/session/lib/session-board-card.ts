@@ -10,6 +10,7 @@ import { pullRequestPill, pullRequestShape, type PullRequestShape } from "./pull
 import type { SessionBoardColumnId, SessionBoardPayload } from "./session-board-contract";
 import { ENDED_EARLY_ATTENTION } from "./session-attention-reason";
 import { sessionBadgeSignal } from "./session-badge";
+import { type SessionOriginKind, sessionOriginView } from "./session-origin";
 import { pendingPermissionCount } from "./session-pending-interactions";
 
 export interface SessionBoardCardStatus {
@@ -33,6 +34,17 @@ export interface SessionBoardCardRollup {
   needsYou: boolean;
   /** Per-column counts for the tooltip, in board order. */
   breakdown: { label: string; count: number }[];
+}
+
+/**
+ * The card's lineage line. A child names its parent; a fork or continuation is a
+ * top-level session, so it names its source as provenance instead.
+ */
+export interface SessionBoardCardLineage {
+  kind: "child" | SessionOriginKind;
+  /** `Child of` / `Forked from` / `Continued from`, ahead of the title in the card's name. */
+  verb: string;
+  title: string;
 }
 
 export interface SessionBoardCardWaiting {
@@ -101,6 +113,19 @@ export function sessionBoardCardRollup(
       { label: "Done", count: children.done },
     ],
   };
+}
+
+export function sessionBoardCardLineage(
+  session: SessionBoardPayload
+): SessionBoardCardLineage | null {
+  const title = session.parent_title?.trim() ?? "";
+  // An unreadable source has no title, but the origin still names it, as the
+  // transcript divider does (its agent for a continuation, else its id).
+  const origin = sessionOriginView(session, title ? { title } : null);
+  if (origin !== null) {
+    return { kind: origin.kind, verb: origin.verb, title: origin.dividerSubject };
+  }
+  return title ? { kind: "child", verb: "Child of", title } : null;
 }
 
 /** A parked card would read as running; its footer names why it waits. */

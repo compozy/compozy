@@ -3,13 +3,15 @@
 // Needs you, else the most actionable PR signal — and "Ready to merge" only
 // when the daemon reports it on current facts; the meta row names the PR, the
 // branch, or (All projects without a PR) the workspace; the child rollup counts
-// the daemon's per-column children and flags a child that needs you.
+// the daemon's per-column children and flags a child that needs you; the
+// lineage line names a child's parent but a fork's or continuation's source.
 // Owning layer: unit (systems/session/lib). Rendering lives in sessions-board.test.tsx.
 import { describe, expect, it } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionPayload } from "../../types";
 import {
+  sessionBoardCardLineage,
   sessionBoardCardMeta,
   sessionBoardCardRollup,
   sessionBoardCardStatus,
@@ -198,5 +200,43 @@ describe("sessionBoardCardWaiting", () => {
       word: "Monitoring",
     });
     expect(sessionBoardCardWaiting(session({ badge: "running" }))).toBeNull();
+  });
+});
+
+describe("sessionBoardCardLineage", () => {
+  const lineage = primarySessionFixture.lineage!;
+
+  it("Should name a child's parent and a fork's or continuation's source", () => {
+    expect(sessionBoardCardLineage(session({ parent_title: " Coordinator " }))).toEqual({
+      kind: "child",
+      verb: "Child of",
+      title: "Coordinator",
+    });
+    expect(
+      sessionBoardCardLineage(
+        session({ parent_title: "Coordinator", lineage: { ...lineage, kind: "fork" } })
+      )
+    ).toEqual({ kind: "fork", verb: "Forked from", title: "Coordinator" });
+    expect(
+      sessionBoardCardLineage(
+        session({ parent_title: "Coordinator", lineage: { ...lineage, kind: "continue" } })
+      )
+    ).toEqual({ kind: "continue", verb: "Continued from", title: "Coordinator" });
+    expect(sessionBoardCardLineage(session({ parent_title: "  " }))).toBeNull();
+  });
+
+  it("Should still name a fork's or continuation's source when its title is unreadable", () => {
+    const source = { ...lineage, parent_session_id: "sess-source" };
+    expect(
+      sessionBoardCardLineage(session({ parent_title: "", lineage: { ...source, kind: "fork" } }))
+    ).toEqual({ kind: "fork", verb: "Forked from", title: "sess-source" });
+    expect(
+      sessionBoardCardLineage(
+        session({
+          parent_title: "",
+          lineage: { ...source, kind: "continue", origin_agent_name: "codex" },
+        })
+      )
+    ).toEqual({ kind: "continue", verb: "Continued from", title: "codex" });
   });
 });
