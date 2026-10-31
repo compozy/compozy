@@ -820,53 +820,64 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		})
 	}
 
-	t.Run("Should leave a checkout that appears while recovery waits for the lock", func(t *testing.T) {
-		t.Parallel()
-		fixture := newRemovalTestFixture(t)
-		appearing := fixture.item
-		appearing.ID, appearing.Name = "wt-appearing", "appearing-recovery"
-		appearing.Path = filepath.Join(t.TempDir(), "appearing")
-		appearing.State, appearing.PendingPhase = StatePending, PhaseCopy
-		if err := fixture.store.Insert(t.Context(), appearing); err != nil {
-			t.Fatalf("seed interrupted copy: %v", err)
-		}
-		release, err := fixture.service.locks.Acquire(t.Context(), fixture.commonDir)
-		if err != nil {
-			t.Fatalf("hold repository lock: %v", err)
-		}
-		recovered := make(chan error, 1)
-		go func() { recovered <- fixture.service.RecoverCreations(t.Context()) }()
-		// Recovery resolves the common dir right before it waits for the lock.
-		deadline := time.Now().Add(5 * time.Second)
-		for !slices.Contains(invocationCommands(fixture.runner.invocations()),
-			"rev-parse --path-format=absolute --git-common-dir") {
-			if time.Now().After(deadline) {
+	for _, testCase := range []struct {
+		name   string
+		appear func(path string) error
+	}{
+		{name: "directory", appear: func(path string) error { return os.MkdirAll(path, 0o700) }},
+		// A dangling symlink is visible to Lstat but not to Stat.
+		{name: "dangling symlink", appear: func(path string) error {
+			return os.Symlink(filepath.Join(filepath.Dir(path), "missing-target"), path)
+		}},
+	} {
+		t.Run("Should leave a "+testCase.name+" that appears while recovery waits for the lock", func(t *testing.T) {
+			t.Parallel()
+			fixture := newRemovalTestFixture(t)
+			appearing := fixture.item
+			appearing.ID, appearing.Name = "wt-appearing", "appearing-recovery"
+			appearing.Path = filepath.Join(t.TempDir(), "appearing")
+			appearing.State, appearing.PendingPhase = StatePending, PhaseCopy
+			if err := fixture.store.Insert(t.Context(), appearing); err != nil {
+				t.Fatalf("seed interrupted copy: %v", err)
+			}
+			release, err := fixture.service.locks.Acquire(t.Context(), fixture.commonDir)
+			if err != nil {
+				t.Fatalf("hold repository lock: %v", err)
+			}
+			recovered := make(chan error, 1)
+			go func() { recovered <- fixture.service.RecoverCreations(t.Context()) }()
+			// Recovery resolves the common dir right before it waits for the lock.
+			deadline := time.Now().Add(5 * time.Second)
+			for !slices.Contains(invocationCommands(fixture.runner.invocations()),
+				"rev-parse --path-format=absolute --git-common-dir") {
+				if time.Now().After(deadline) {
+					release()
+					t.Fatal("recovery never reached the repository lock")
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			if err := testCase.appear(appearing.Path); err != nil {
 				release()
-				t.Fatal("recovery never reached the repository lock")
+				t.Fatalf("create appearing checkout: %v", err)
 			}
-			time.Sleep(5 * time.Millisecond)
-		}
-		if err := os.MkdirAll(appearing.Path, 0o700); err != nil {
 			release()
-			t.Fatalf("create appearing checkout: %v", err)
-		}
-		release()
-		if err := <-recovered; err != nil {
-			t.Fatalf("RecoverCreations() error = %v", err)
-		}
-		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, appearing.ID)
-		if err != nil || stored.State != StatePending {
-			t.Fatalf("appearing recovery = %#v, %v, want pending for the next boot", stored, err)
-		}
-		if _, err := os.Stat(appearing.Path); err != nil {
-			t.Fatalf("Stat(appearing checkout) error = %v, want preserved", err)
-		}
-		for _, command := range invocationCommands(fixture.runner.invocations()) {
-			if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
-				t.Fatalf("recovery ran %q against a checkout that appeared meanwhile", command)
+			if err := <-recovered; err != nil {
+				t.Fatalf("RecoverCreations() error = %v", err)
 			}
-		}
-	})
+			stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, appearing.ID)
+			if err != nil || stored.State != StatePending {
+				t.Fatalf("appearing recovery = %#v, %v, want pending for the next boot", stored, err)
+			}
+			if _, err := os.Lstat(appearing.Path); err != nil {
+				t.Fatalf("Lstat(appearing checkout) error = %v, want preserved", err)
+			}
+			for _, command := range invocationCommands(fixture.runner.invocations()) {
+				if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
+					t.Fatalf("recovery ran %q against a checkout that appeared meanwhile", command)
+				}
+			}
+		})
+	}
 
 	t.Run("Should keep an interrupted copy phase pending while Git is unavailable", func(t *testing.T) {
 		t.Parallel()
