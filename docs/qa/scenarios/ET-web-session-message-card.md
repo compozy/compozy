@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pass
 fix_commits: branch fix/issue-742-session-message-cards
 evidence:
-last_report: docs/qa/reports/2026-10-17-issue-760-session-messaging.md
+last_report: docs/qa/reports/2026-10-31-issue-1102-cross-workspace-reply.md
 overlaps: RT-session-message-origin; RT-session-message-reply; ET-web-session-transcript-calm-grammar; ET-web-subagent-card
 ---
 
@@ -85,3 +85,5 @@ QA impact 2026-10-31 (#1097): a long title on an openable party link overflowed 
 Reply from header and rendered under the reply state and time. Step 2 now covers a long title at a
 narrow width. Automated owners: E2E-004 in `web/e2e/__tests__/session-messages.spec.ts` (layout), the `long party titles (#1097)` cases in `session-messages.test.tsx` (name and tooltip),
 and the `LongTitles` story (360px and the 560px card maximum).
+
+QA verification 2026-10-31 (#1102): the targeted isolated project ping/pong, five authorization denials, and live From/Sent/error labels after reload passed. See [scoped report](../reports/2026-10-31-issue-1102-cross-workspace-reply.md) for evidence and coverage limits.
