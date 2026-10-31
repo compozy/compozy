@@ -205,9 +205,17 @@ func TestLaterReasonPlainText(t *testing.T) {
 		},
 		{name: "Should restore escaped characters literally", reason: `\*important\*`, want: "*important*"},
 		{
-			name:   "Should drop a link destination with balanced parentheses",
-			reason: "see [spec](https://example.com/a_(v2))",
-			want:   "see spec",
+			name:   "Should drop link destinations with nested parentheses",
+			reason: "see [spec](https://example.com/a_(v2)) and [docs](https://example.com/a_(b(c)))",
+			want:   "see spec and docs",
+		},
+		{name: "Should strip underscore emphasis", reason: "Waiting on _review_", want: "Waiting on review"},
+		{name: "Should strip nested block markers", reason: "> - rerun gate", want: "rerun gate"},
+		{name: "Should keep a double-backtick code span literal", reason: "run ``**go**`` now", want: "run **go** now"},
+		{
+			name:   "Should read fenced code lines without their fences",
+			reason: "Blocked:\n\n```\nrun gate\n```",
+			want:   "Blocked: · run gate",
 		},
 	}
 	for _, tc := range cases {

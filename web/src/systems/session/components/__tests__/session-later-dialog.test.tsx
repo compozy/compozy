@@ -4,7 +4,7 @@
 // Owning layer: the dialog component (one suite per dialog).
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import { SESSION_LATER_REASON_MAX } from "../../lib/session-later";
@@ -37,7 +37,15 @@ async function pickPreset(user: ReturnType<typeof userEvent.setup>, label: strin
   await user.click(await screen.findByRole("button", { name: label }));
 }
 
+// Presets resolve against the clock when picked; a frozen date keeps the expected
+// "Tomorrow" equal to the picked one even across midnight.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2027, 2, 10, 14, 0));
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -96,7 +104,7 @@ describe("SessionLaterDialog", () => {
     const user = userEvent.setup();
     const { onConfirm } = renderDialog();
     await pickPreset(user, "Tomorrow");
-    vi.spyOn(Date, "now").mockReturnValue(tomorrowAtNine().getTime() + 60_000);
+    vi.setSystemTime(tomorrowAtNine().getTime() + 60_000);
     await user.click(screen.getByTestId("session-later-confirm"));
     expect(screen.getByTestId("session-later-return-error")).toHaveTextContent(
       "Choose a time in the future."

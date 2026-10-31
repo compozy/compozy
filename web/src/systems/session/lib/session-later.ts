@@ -1,42 +1,68 @@
 import type { SessionPayload } from "../types";
-import { markdownLineToPlainText } from "./markdown-plain-text";
+import { Lexer, type Token, type Tokens } from "marked";
 
 /** The daemon's reason limit in Markdown source characters (`session_later_invalid` past it). */
 export const SESSION_LATER_REASON_MAX = 1000;
 
-const BACKSLASH_ESCAPE = /\\([\\`*_{}[\]()#+\-.!~|>])/g;
-const CODE_SPAN = /`([^`]*)`/g;
-// A link destination may hold one balanced pair of parentheses (`a_(v2)`).
-const BALANCED_LINK = /!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g;
-const LITERAL_SLOT = /\uE000(\d+)\uE001/g;
+// Reasons parse as GFM, the dialect the editor writes (`@tiptap/markdown` uses
+// the same parser).
+const REASON_LEXER_OPTIONS = { gfm: true } as const;
 
-/**
- * One reason line as plain text. Code spans and escaped characters are parked
- * behind private-use placeholders while the Markdown marks are stripped, so
- * their characters stay literal.
- */
-function laterReasonLineToPlainText(line: string): string {
-  const literals: string[] = [];
-  const park = (literal: string) => `\uE000${literals.push(literal) - 1}\uE001`;
-  const parked = line
-    .replace(CODE_SPAN, (_match, code: string) => park(code))
-    .replace(BACKSLASH_ESCAPE, (_match, char: string) => park(char))
-    .replace(BALANCED_LINK, "$1");
-  return markdownLineToPlainText(parked)
-    .replace(LITERAL_SLOT, (slot, index: string) => literals[Number(index)] ?? slot)
-    .trim();
+/** The literal text of inline tokens: markup drops, link labels and code stay. */
+function inlinePlainText(tokens: readonly Token[] | undefined): string {
+  return (tokens ?? [])
+    .map(token => {
+      switch (token.type) {
+        case "codespan":
+        case "escape":
+          return token.text;
+        case "br":
+          return "\n";
+        case "html":
+          return token.raw;
+        default:
+          return "tokens" in token && token.tokens
+            ? inlinePlainText(token.tokens)
+            : "text" in token
+              ? String(token.text)
+              : token.raw;
+      }
+    })
+    .join("");
+}
+
+/** Block tokens as plain lines: one per paragraph, list item, or code line. */
+function blockPlainLines(tokens: readonly Token[]): string[] {
+  return tokens.flatMap(token => {
+    switch (token.type) {
+      case "space":
+      case "hr":
+        return [];
+      case "list":
+        return (token as Tokens.List).items.flatMap(item => blockPlainLines(item.tokens));
+      case "blockquote":
+        return blockPlainLines((token as Tokens.Blockquote).tokens);
+      case "code":
+      case "html":
+        return String(token.text).split("\n");
+      default:
+        return "tokens" in token && token.tokens
+          ? inlinePlainText(token.tokens).split("\n")
+          : [token.raw];
+    }
+  });
 }
 
 /**
- * The lines of a Markdown Later reason as plain text: block markers and inline
- * delimiters drop, link text stays, code spans and escapes stay literal, empty
- * lines go. The stored reason is never rewritten.
+ * The lines of a Markdown Later reason as plain text, read through a GFM
+ * parser: markup drops; link labels, code spans, escaped characters, and code
+ * lines stay literal; empty lines go. The stored reason is never rewritten.
  */
 export function laterReasonLines(reason: string): string[] {
-  return reason
-    .split(/\r?\n/)
-    .map(laterReasonLineToPlainText)
-    .filter(line => line !== "");
+  return blockPlainLines(Lexer.lex(reason, REASON_LEXER_OPTIONS)).flatMap(line => {
+    const collapsed = line.replace(/\s+/g, " ").trim();
+    return collapsed === "" ? [] : [collapsed];
+  });
 }
 
 export interface SessionLaterDetails {

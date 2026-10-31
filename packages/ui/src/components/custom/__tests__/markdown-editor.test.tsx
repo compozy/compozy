@@ -65,6 +65,10 @@ describe("MarkdownEditor", () => {
     await user.type(address, "ftp://example.com");
     expect(address).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    // A scheme with no host is refused the same way.
+    await user.clear(address);
+    await user.type(address, "https://");
+    expect(address).toHaveAttribute("aria-invalid", "true");
     await user.keyboard("{Enter}");
     expect(onValueChange).not.toHaveBeenCalled();
     expect(box.querySelector("a")).toHaveAttribute("href", "https://compozy.com");

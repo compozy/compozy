@@ -67,12 +67,21 @@ const NO_ACTIVE: Record<MarkName, boolean> = {
   link: false,
 };
 
-/** A typed address as a link target: bare hosts get `https://`; scripts are refused. */
+/** A typed address as a link target: bare hosts get `https://`; other schemes and empty targets are refused. */
 function normalizeHref(raw: string): string | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
   const href = /^[a-z][a-z\d+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return /^(https?|mailto):/i.test(href) ? href : null;
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  // A target needs somewhere to go: a host for web links, a recipient for mail.
+  if (url.protocol === "http:" || url.protocol === "https:") return url.hostname ? href : null;
+  if (url.protocol === "mailto:") return url.pathname ? href : null;
+  return null;
 }
 
 function LinkControl({ editor, active }: { editor: Editor | null; active: boolean }) {

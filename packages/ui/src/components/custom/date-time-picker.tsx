@@ -4,7 +4,11 @@ import { startOfDay } from "date-fns";
 import { CalendarClock, X } from "lucide-react";
 import * as React from "react";
 
-import { dateTimePickerPresetValue, dateTimePickerSlots } from "../../lib/date-time-picker";
+import {
+  dateTimePickerPresetValue,
+  dateTimePickerSlotLabels,
+  dateTimePickerSlots,
+} from "../../lib/date-time-picker";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { Calendar } from "../calendar";
@@ -51,7 +55,6 @@ const VALUE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   hour: "2-digit",
   minute: "2-digit",
 });
-const TIME_FORMATTER = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
 /**
  * Date and time in one popover: optional presets, a month calendar, and a
@@ -83,6 +86,18 @@ export function DateTimePicker({
   const { open, month, setMonth, selectedSlotRef, openChange, pickDay, pickTime, pickPreset } =
     useDateTimePicker({ value, onValueChange, min, minuteStep, defaultTime, disabled });
   const slots = value ? dateTimePickerSlots(value, minuteStep, value) : [];
+  const formatters = React.useMemo(
+    () => ({
+      time: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }),
+      zoned: new Intl.DateTimeFormat(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }),
+    }),
+    []
+  );
+  const slotLabels = dateTimePickerSlotLabels(slots, formatters);
 
   return (
     <div
@@ -152,7 +167,7 @@ export function DateTimePicker({
                 <ScrollArea className="h-full" viewportClassName="p-2">
                   {value ? (
                     <div aria-label={timeLabel} className="flex flex-col gap-0.5" role="group">
-                      {slots.map(slot => {
+                      {slots.map((slot, index) => {
                         const selected = value !== null && slot.getTime() === value.getTime();
                         const closed = min !== undefined && slot.getTime() < min.getTime();
                         return (
@@ -168,7 +183,7 @@ export function DateTimePicker({
                             type="button"
                             variant="quiet"
                           >
-                            {TIME_FORMATTER.format(slot)}
+                            {slotLabels[index]}
                           </Button>
                         );
                       })}

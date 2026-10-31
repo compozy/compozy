@@ -1,73 +1,108 @@
 package session
 
 import (
-	"regexp"
-	"strconv"
 	"strings"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // laterReasonLineSeparator joins the lines of a multi-line reason when it is
 // read as one line (a notification body).
 const laterReasonLineSeparator = " · "
 
-// Literal runs (code spans, backslash escapes) are parked behind private-use
-// placeholders while the formatting passes run, then restored verbatim.
-const (
-	laterReasonSlotOpen  = ""
-	laterReasonSlotClose = ""
-)
-
-var (
-	laterReasonBlockMarker = regexp.MustCompile(`^(?:#{1,6}\s+|>\s?|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)`)
-	laterReasonCode        = regexp.MustCompile("`([^`]*)`")
-	laterReasonEscape      = regexp.MustCompile("\\\\([\\\\`*_{}\\[\\]()#+\\-.!~|>])")
-	laterReasonLink        = regexp.MustCompile(`!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)`)
-	laterReasonStrong      = regexp.MustCompile(`\*\*(\S(?:.*?\S)?)\*\*`)
-	laterReasonStrongAlt   = regexp.MustCompile(`__(\S(?:.*?\S)?)__`)
-	laterReasonStrike      = regexp.MustCompile(`~~(\S(?:.*?\S)?)~~`)
-	laterReasonEmphasis    = regexp.MustCompile(`\*(\S(?:[^*]*?\S)?)\*`)
-	laterReasonSlot        = regexp.MustCompile(laterReasonSlotOpen + `(\d+)` + laterReasonSlotClose)
-)
+// laterReasonMarkdown parses reasons as CommonMark plus GFM strikethrough, the
+// dialect the web editor writes.
+var laterReasonMarkdown = goldmark.New(goldmark.WithExtensions(extension.Strikethrough))
 
 // LaterReasonPlainText reads a Markdown Later reason as one plain line for
-// surfaces that cannot render Markdown: block markers and inline delimiters
-// drop, link text stays, code spans and escaped characters stay literal, and
-// lines join with a middle dot. The stored reason is never rewritten.
+// surfaces that cannot render Markdown: the reason is parsed as CommonMark,
+// its text (link labels, code spans, escaped characters, code block lines)
+// stays literal, its markup drops, and each paragraph, list item, or code line
+// becomes one part joined with a middle dot. The stored reason is never
+// rewritten.
 func LaterReasonPlainText(reason string) string {
-	lines := strings.Split(strings.ReplaceAll(reason, "\r\n", "\n"), "\n")
-	parts := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if text := laterReasonLinePlainText(line); text != "" {
-			parts = append(parts, text)
-		}
+	source := []byte(strings.ReplaceAll(reason, "\r\n", "\n"))
+	reader := laterReasonReader{source: source}
+	document := laterReasonMarkdown.Parser().Parse(text.NewReader(source))
+	if err := ast.Walk(document, reader.visit); err != nil {
+		return strings.Join(strings.Fields(reason), " ")
 	}
-	return strings.Join(parts, laterReasonLineSeparator)
+	reader.flush()
+	return strings.Join(reader.lines, laterReasonLineSeparator)
 }
 
-func laterReasonLinePlainText(line string) string {
-	var literals []string
-	park := func(literal string) string {
-		literals = append(literals, literal)
-		return laterReasonSlotOpen + strconv.Itoa(len(literals)-1) + laterReasonSlotClose
+type laterReasonReader struct {
+	source  []byte
+	current strings.Builder
+	lines   []string
+}
+
+func (r *laterReasonReader) flush() {
+	if line := strings.Join(strings.Fields(r.current.String()), " "); line != "" {
+		r.lines = append(r.lines, line)
 	}
-	text := laterReasonBlockMarker.ReplaceAllString(strings.TrimSpace(line), "")
-	text = laterReasonCode.ReplaceAllStringFunc(text, func(span string) string {
-		return park(laterReasonCode.FindStringSubmatch(span)[1])
-	})
-	text = laterReasonEscape.ReplaceAllStringFunc(text, func(escaped string) string {
-		return park(escaped[1:])
-	})
-	text = laterReasonLink.ReplaceAllString(text, "$1")
-	text = laterReasonStrong.ReplaceAllString(text, "$1")
-	text = laterReasonStrongAlt.ReplaceAllString(text, "$1")
-	text = laterReasonStrike.ReplaceAllString(text, "$1")
-	text = laterReasonEmphasis.ReplaceAllString(text, "$1")
-	text = laterReasonSlot.ReplaceAllStringFunc(text, func(slot string) string {
-		index, err := strconv.Atoi(laterReasonSlot.FindStringSubmatch(slot)[1])
-		if err != nil || index >= len(literals) {
-			return slot
+	r.current.Reset()
+}
+
+func (r *laterReasonReader) writeLines(node ast.Node) {
+	r.flush()
+	segments := node.Lines()
+	for index := range segments.Len() {
+		segment := segments.At(index)
+		r.current.Write(segment.Value(r.source))
+		r.flush()
+	}
+}
+
+func (r *laterReasonReader) visit(node ast.Node, entering bool) (ast.WalkStatus, error) {
+	switch typed := node.(type) {
+	case *ast.Paragraph, *ast.TextBlock, *ast.Heading:
+		if !entering {
+			r.flush()
 		}
-		return literals[index]
-	})
-	return strings.TrimSpace(text)
+	case *ast.Text:
+		if entering {
+			// Prose keeps escaped characters without their backslash, as rendered.
+			r.current.Write(util.UnescapePunctuations(typed.Segment.Value(r.source)))
+			if typed.SoftLineBreak() || typed.HardLineBreak() {
+				r.flush()
+			}
+		}
+	case *ast.String:
+		if entering {
+			r.current.Write(typed.Value)
+		}
+	case *ast.CodeSpan:
+		if entering {
+			for child := typed.FirstChild(); child != nil; child = child.NextSibling() {
+				if segment, ok := child.(*ast.Text); ok {
+					r.current.Write(segment.Segment.Value(r.source))
+				}
+			}
+		}
+		return ast.WalkSkipChildren, nil
+	case *ast.AutoLink:
+		if entering {
+			r.current.Write(typed.Label(r.source))
+		}
+		return ast.WalkSkipChildren, nil
+	case *ast.RawHTML:
+		if entering {
+			for index := range typed.Segments.Len() {
+				segment := typed.Segments.At(index)
+				r.current.Write(segment.Value(r.source))
+			}
+		}
+		return ast.WalkSkipChildren, nil
+	case *ast.FencedCodeBlock, *ast.CodeBlock, *ast.HTMLBlock:
+		if entering {
+			r.writeLines(node)
+		}
+		return ast.WalkSkipChildren, nil
+	}
+	return ast.WalkContinue, nil
 }

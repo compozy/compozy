@@ -1331,22 +1331,21 @@ describe("SessionList Later", () => {
       later: {
         ...parked.later!,
         reason:
-          "Waiting on **the vendor**\n\n- rerun `make **gate**`\n- see [spec](https://x.dev/a_(v2)) \\*now\\*",
+          "Waiting on **the vendor**\n\n- rerun `make **gate**`\n- see [spec](https://x.dev/a_(v2)) \\*now\\*" +
+          "\n\n> - check _docs_ at [d](https://x.dev/a_(b(c))) ``**go**``\n\n```\nrun fix_this\n```",
       },
     };
     renderList({ sessions: [markdown], view: { ...view, shelf: "later" } });
 
     const reason = screen.getByTestId("session-later-reason-parked");
-    // Code spans and escapes stay literal; a link keeps its text.
-    expect(reason).toHaveTextContent(
-      "Waiting on the vendor · rerun make **gate** · see spec *now*"
-    );
-    expect(reason).toHaveAttribute(
-      "title",
-      "Waiting on the vendor\nrerun make **gate**\nsee spec *now*"
-    );
+    // Parsed as GFM: code spans, escapes, and code lines stay literal; links keep
+    // their label; nested block markers and underscore emphasis drop.
+    const plain =
+      "Waiting on the vendor · rerun make **gate** · see spec *now* · check docs at d **go** · run fix_this";
+    expect(reason).toHaveTextContent(plain);
+    expect(reason).toHaveAttribute("title", plain.split(" · ").join("\n"));
     expect(screen.getByTestId("session-sidebar-session-parked")).toHaveTextContent(
-      "In Later, Waiting on the vendor · rerun make **gate** · see spec *now*"
+      `In Later, ${plain}`
     );
   });
 

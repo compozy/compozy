@@ -27,9 +27,10 @@ export function useDateTimePicker({
   defaultTime,
   disabled = false,
 }: UseDateTimePickerOptions) {
-  const [requestedOpen, setOpen] = React.useState(false);
-  // A disabled picker shows no popover, so nothing in it can change the value.
-  const open = requestedOpen && !disabled;
+  const [open, setOpen] = React.useState(false);
+  // A disabled picker drops its popover (adjusting state during render), so
+  // nothing in it can change the value and re-enabling does not reopen it.
+  if (disabled && open) setOpen(false);
   const [month, setMonth] = React.useState<Date>(() => value ?? min ?? new Date());
   const selectedSlotRef = React.useRef<HTMLButtonElement | null>(null);
 
