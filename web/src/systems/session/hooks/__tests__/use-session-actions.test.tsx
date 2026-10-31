@@ -19,6 +19,7 @@ import {
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
+  useStopSession,
   useUnarchiveSession,
 } from "../use-session-actions";
 import { useSendSessionPrompt } from "../use-session-prompt-actions";
@@ -557,6 +558,78 @@ describe("session actions", () => {
   // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID, and
   // a settled deletion stays attributed to the operator so its window retires quietly (#952).
   // Owner: session mutation cache; canonical suite: session actions.
+  it.each([null, undefined, ""])(
+    "deletes a User-owned session (%s) without touching project caches",
+    async workspaceId => {
+      const target = { ...createdSession, workspace_id: workspaceId } as SessionPayload;
+      vi.mocked(deleteSession).mockResolvedValue(undefined);
+      const client = new QueryClient();
+      const userKey = sessionKeys.detail("@user", target.id);
+      const projectKey = sessionKeys.detail(WORKSPACE_ID, target.id);
+      const projectListKey = sessionKeys.workspaceLists(WORKSPACE_ID);
+      client.setQueryData(projectListKey, { sessions: [createdSession] });
+      client.setQueryData(userKey, target);
+      client.setQueryData(projectKey, createdSession);
+      const { result } = renderHook(() => useDeleteSession(), { wrapper: createWrapper(client) });
+      await act(async () => {
+        await result.current.mutateAsync(target);
+      });
+      expect(deleteSession).toHaveBeenCalledWith("@user", target.id, target.profile_name);
+      expect(client.getQueryData(userKey)).toBeUndefined();
+      expect(client.getQueryData(projectKey)).toEqual(createdSession);
+      expect(client.getQueryState(projectKey)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(projectListKey)?.isInvalidated).toBe(false);
+    }
+  );
+
+  it.each([null, undefined, ""])(
+    "updates User lifecycle actions (%s) and refreshes their owner",
+    async workspaceId => {
+      const target = { ...createdSession, workspace_id: workspaceId } as SessionPayload;
+      vi.mocked(renameSession).mockResolvedValue(target);
+      vi.mocked(stopSession).mockResolvedValue({
+        session_id: target.id,
+        status: "stopped",
+        state: "stopped",
+        verified: true,
+        escalated: false,
+      });
+      vi.mocked(archiveSession).mockResolvedValue(target);
+      vi.mocked(unarchiveSession).mockResolvedValue(target);
+      const client = new QueryClient();
+      const userKey = sessionKeys.workspaceLists("@user");
+      const aggregateKey = sessionKeys.workspaceLists("");
+      const otherKey = sessionKeys.workspaceLists(WORKSPACE_ID);
+      const { result } = renderHook(
+        () => ({
+          rename: useRenameSession(),
+          stop: useStopSession(),
+          archive: useArchiveSession(),
+          restore: useUnarchiveSession(),
+        }),
+        { wrapper: createWrapper(client) }
+      );
+      for (const action of ["rename", "stop", "archive", "restore"] as const) {
+        client.setQueryData(userKey, { sessions: [target] });
+        client.setQueryData(aggregateKey, { sessions: [target] });
+        client.setQueryData(otherKey, { sessions: [createdSession] });
+        await act(async () => {
+          await result.current[action].mutateAsync({ ...target, name: "Updated" });
+        });
+        expect(client.getQueryState(userKey)?.isInvalidated).toBe(true);
+        expect(client.getQueryState(aggregateKey)?.isInvalidated).toBe(true);
+        expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
+      }
+      for (const adapter of [renameSession, stopSession, archiveSession, unarchiveSession]) {
+        expect(vi.mocked(adapter).mock.calls[0]?.slice(0, 3)).toEqual([
+          "@user",
+          target.id,
+          target.profile_name,
+        ]);
+      }
+    }
+  );
+
   it("tracks deletion until the host finishes retiring its windows", async () => {
     let retire!: () => void;
     const onDeleteSuccess = () =>
