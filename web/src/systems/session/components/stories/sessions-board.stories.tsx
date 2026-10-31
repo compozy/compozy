@@ -312,6 +312,7 @@ const laneHandlers = [
       },
       by_workspace: [],
       by_profile: [],
+      later: 0,
     });
   }),
   compozyApiMock.get("/api/sessions", ({ request }) => {

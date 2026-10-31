@@ -22744,12 +22744,16 @@
           },
           "facets": {
             "$ref": "#/components/schemas/SessionCatalogFacetsPayload"
+          },
+          "later": {
+            "type": "integer"
           }
         },
         "required": [
           "by_profile",
           "by_workspace",
-          "facets"
+          "facets",
+          "later"
         ],
         "type": "object"
       },

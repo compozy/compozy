@@ -31,6 +31,9 @@ type SessionCatalogFacetResult struct {
 	Facets            SessionCatalogFacets
 	ByWorkspace       []WorkspaceSessionCatalogFacets
 	ByProfile         []ProfileSessionCatalogFacets
+	// Later counts the scope's sessions parked in Later, whatever the read's
+	// Later filter, so one facets read serves both the list and its Later toggle.
+	Later int
 }
 
 // TerminalApprovalCount retains the exact workspace/profile intersection for shell badges.

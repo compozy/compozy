@@ -13552,6 +13552,7 @@ export interface components {
       by_profile: components["schemas"]["SessionProfileFacetsPayload"][];
       by_workspace: components["schemas"]["SessionWorkspaceFacetsPayload"][];
       facets: components["schemas"]["SessionCatalogFacetsPayload"];
+      later: number;
     };
     SessionCatalogPagePayload: {
       has_more: boolean;

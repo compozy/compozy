@@ -521,6 +521,7 @@ describe("SessionsBoard swimlanes", () => {
       },
       by_workspace: [],
       by_profile: [],
+      later: 0,
     });
     renderBoard({
       ...board(),

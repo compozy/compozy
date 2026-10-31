@@ -88,7 +88,27 @@ func (g *SessionRepo) SessionCatalogFacets(
 	if err := g.addTerminalApprovalFacets(ctx, query, &result); err != nil {
 		return result, err
 	}
+	if result.Later, err = g.sessionCatalogLaterCount(ctx, query); err != nil {
+		return result, err
+	}
 	return result, nil
+}
+
+// sessionCatalogLaterCount counts the scope's parked sessions with every other
+// filter of the read, so the Later toggle needs no second facets request.
+func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.SessionCatalogPageQuery) (int, error) {
+	query.Later = store.SessionLaterOnly
+	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
+	if err != nil {
+		return 0, err
+	}
+	// dynamic-sql: catalog scope and exclusion slices share the owning page filters.
+	statement := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
+	var count int
+	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("store: count session catalog later: %w", err)
+	}
+	return count, nil
 }
 
 func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, count int) {

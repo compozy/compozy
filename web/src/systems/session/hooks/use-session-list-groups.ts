@@ -175,8 +175,9 @@ export function useSessionListTotals({
 
 /**
  * How many sessions the list's scope holds in Later — the toolbar toggle's
- * count. An exact facets total over the same population the Later view lists,
- * never a loaded page; `undefined` until it loads.
+ * count. The daemon reports it on the active facets read the footer totals
+ * already make, so the toggle adds no request per catalog wake; `undefined`
+ * until it loads.
  */
 export function useSessionListLaterCount({
   scope,
@@ -190,7 +191,7 @@ export function useSessionListLaterCount({
   enabled: boolean;
 }): number | undefined {
   return useQuery({
-    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "later", worktreeId })),
+    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "active", worktreeId })),
     enabled: enabled && scope !== null,
-  }).data?.facets.all;
+  }).data?.later;
 }

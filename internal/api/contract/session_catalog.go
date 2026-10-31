@@ -70,4 +70,7 @@ type SessionCatalogFacetsResponse struct {
 	ByProfile   []SessionProfileFacetsPayload   `json:"by_profile"`
 	Facets      SessionCatalogFacetsPayload     `json:"facets"`
 	ByWorkspace []SessionWorkspaceFacetsPayload `json:"by_workspace"`
+	// Later counts the scope's sessions parked in Later regardless of the
+	// request's `later` filter.
+	Later int `json:"later"`
 }

@@ -61,6 +61,7 @@ function facetsResponse(
     facets: counts(0),
     by_workspace: byWorkspace.map(([workspace_id, facets]) => ({ workspace_id, facets })),
     by_profile: byProfile.map(([profile_id, facets]) => ({ profile_id, facets })),
+    later: 0,
   };
 }
 
@@ -337,6 +338,21 @@ describe("useSessionListView", () => {
     return fetcher.mock.calls.filter(([input]) => (input as Request).method !== "GET");
   }
 
+  // Invariant: the Later toggle's count rides the active facets read the footer totals make,
+  // so the list costs one facets request per catalog wake, never a second `later=only` read.
+  it("Should count Later from the active facets read without a Later facets request", async () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      ...facetsResponse([["ws-alpha", counts(1)]]),
+      later: 4,
+    });
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+
+    await waitFor(() => expect(result.current.laterCount).toBe(4));
+    const facetReads = vi.mocked(fetchSessionFacets).mock.calls.map(([query]) => query);
+    expect(facetReads.length).toBeGreaterThan(0);
+    expect(facetReads.every(query => query?.later === undefined)).toBe(true);
+  });
+
   it("W-11: Should render a stored project grouping flat inside one project without rewriting it", async () => {
     shell.group_by = "project";
     const { result } = renderHook(() => useSessionListView(), { wrapper });
@@ -526,6 +542,7 @@ describe("useWorkspaceWorkingSessions", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: facets(3),
       by_profile: [],
+      later: 0,
       by_workspace: [
         { workspace_id: "ws-alpha", facets: facets(2) },
         { workspace_id: "ws-beta", facets: facets(0) },

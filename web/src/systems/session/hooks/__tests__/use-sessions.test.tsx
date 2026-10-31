@@ -698,6 +698,7 @@ describe("bounded session catalog", () => {
       },
       by_workspace: [],
       by_profile: [],
+      later: 0,
     });
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
       sessions: [],
@@ -765,6 +766,7 @@ describe("bounded session catalog", () => {
       },
       by_workspace: [],
       by_profile: [],
+      later: 0,
     });
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
       sessions: [makeSession({ id: query?.cursor ? "sess-old" : "sess-new" })],
@@ -862,6 +864,7 @@ describe("sessions board read failures", () => {
     },
     by_workspace: [],
     by_profile: [],
+    later: 0,
   };
 
   beforeEach(() => {
@@ -977,6 +980,7 @@ describe("sessions board order and swimlanes", () => {
         { workspace_id: "ws_empty", facets: facet(0) },
       ],
       by_profile: [],
+      later: 0,
     });
   });
 

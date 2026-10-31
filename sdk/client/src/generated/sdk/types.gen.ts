@@ -6251,6 +6251,7 @@ export type SessionCatalogFacetsResponse = {
   by_profile: Array<SessionProfileFacetsPayload>;
   by_workspace: Array<SessionWorkspaceFacetsPayload>;
   facets: SessionCatalogFacetsPayload;
+  later: number;
 };
 
 export type SessionCatalogPagePayload = {

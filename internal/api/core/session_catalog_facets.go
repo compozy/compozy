@@ -46,6 +46,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		Facets:      sessionFacetPayload(facets.Facets),
 		ByProfile:   make([]contract.SessionProfileFacetsPayload, 0, len(facets.ByProfile)),
 		ByWorkspace: make([]contract.SessionWorkspaceFacetsPayload, 0, len(facets.ByWorkspace)),
+		Later:       facets.Later,
 	}
 	for _, workspace := range facets.ByWorkspace {
 		response.ByWorkspace = append(

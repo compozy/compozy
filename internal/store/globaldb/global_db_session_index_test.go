@@ -549,6 +549,19 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			if testCase.later == store.SessionLaterOnly && page.Sessions[0].LaterState().PendingMessages != 1 {
 				t.Fatalf("PageSessions(only) pending = %d, want 1", page.Sessions[0].LaterState().PendingMessages)
 			}
+			// Every facets read reports the scope's parked count, so the Later toggle
+			// needs no second facets request beside the active one.
+			facets, facetsErr := globalDB.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceID,
+				Later:       testCase.later,
+				Sort:        sessionCatalogSortRecent,
+				Limit:       10,
+			})
+			if facetsErr != nil || facets.Later != 1 || facets.Facets.All != len(testCase.want) {
+				t.Fatalf("SessionCatalogFacets(%s) later=%d all=%d, %v; want later=1 all=%d",
+					testCase.name, facets.Later, facets.Facets.All, facetsErr, len(testCase.want))
+			}
 		}
 
 		// A clear advances the input generation; rows from the old generation are never delivered.
