@@ -217,6 +217,12 @@ func TestLaterReasonPlainText(t *testing.T) {
 			reason: "| step | owner |\n| --- | --- |\n| gate | **me** |\n| ship | ops |",
 			want:   "step · owner · gate · me · ship · ops",
 		},
+		{name: "Should break words at a line-break tag", reason: "first<br>second", want: "first · second"},
+		{
+			name:   "Should decode character references outside code and escapes",
+			reason: "AT&amp;T `a&amp;b` \\&amp; &#169;",
+			want:   "AT&T a&amp;b &amp; ©",
+		},
 		{
 			name:   "Should drop raw HTML and keep the text between inline tags",
 			reason: "<b>urgent</b> first\n\n<div>\nhidden\n</div>\n\nthen ship",

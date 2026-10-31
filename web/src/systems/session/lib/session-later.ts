@@ -8,7 +8,24 @@ export const SESSION_LATER_REASON_MAX = 1000;
 // the same parser).
 const REASON_LEXER_OPTIONS = { gfm: true } as const;
 
-/** The literal text of inline tokens: markup drops, link labels and code stay. */
+const LINE_BREAK_TAG = /^<br\s*\/?>$/i;
+
+/**
+ * Decodes HTML character references (`&amp;`, `&#169;`) with the browser's
+ * own table. A detached `<textarea>` parses its content as RCDATA, so tags are
+ * never interpreted, only references.
+ */
+function decodeCharacterReferences(text: string): string {
+  if (!text.includes("&") || typeof document === "undefined") return text;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
+/**
+ * The literal text of inline tokens: markup drops, link labels stay, prose
+ * character references decode, and code spans and escapes stay as written.
+ */
 function inlinePlainText(tokens: readonly Token[] | undefined): string {
   return (tokens ?? [])
     .map(token => {
@@ -19,8 +36,13 @@ function inlinePlainText(tokens: readonly Token[] | undefined): string {
         case "br":
           return "\n";
         case "html":
-          // Inline tags are markup; the text between them is read as usual.
-          return "";
+          // Inline tags are markup; the text between them is read as usual. A
+          // line-break tag still separates words.
+          return LINE_BREAK_TAG.test(token.raw.trim()) ? "\n" : "";
+        case "text":
+          return "tokens" in token && token.tokens
+            ? inlinePlainText(token.tokens)
+            : decodeCharacterReferences(token.text);
         default:
           return "tokens" in token && token.tokens
             ? inlinePlainText(token.tokens)

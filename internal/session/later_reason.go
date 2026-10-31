@@ -1,6 +1,7 @@
 package session
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -14,6 +15,9 @@ import (
 // laterReasonLineSeparator joins the lines of a multi-line reason when it is
 // read as one line (a notification body).
 const laterReasonLineSeparator = " · "
+
+// laterReasonLineBreakTag matches an inline `<br>`, `<br/>`, or `<br />`.
+var laterReasonLineBreakTag = regexp.MustCompile(`(?i)^<br\s*/?>$`)
 
 // laterReasonMarkdown parses reasons as CommonMark plus GFM strikethrough and
 // tables, matching the web reader.
@@ -92,8 +96,7 @@ func (r *laterReasonReader) visitInline(node ast.Node, entering bool) ast.WalkSt
 	switch typed := node.(type) {
 	case *ast.Text:
 		if entering {
-			// Prose keeps escaped characters without their backslash, as rendered.
-			r.current.Write(util.UnescapePunctuations(typed.Segment.Value(r.source)))
+			r.current.Write(laterReasonProse(typed.Segment.Value(r.source)))
 			if typed.SoftLineBreak() || typed.HardLineBreak() {
 				r.flush()
 			}
@@ -117,8 +120,33 @@ func (r *laterReasonReader) visitInline(node ast.Node, entering bool) ast.WalkSt
 		}
 		return ast.WalkSkipChildren
 	case *ast.RawHTML:
-		// Inline tags are markup; the text between them is read as usual.
+		// Inline tags are markup; the text between them is read as usual. A
+		// line-break tag still separates words, so it ends the part.
+		if entering && laterReasonLineBreakTag.Match(typed.Segments.Value(r.source)) {
+			r.flush()
+		}
 		return ast.WalkSkipChildren
 	}
 	return ast.WalkContinue
+}
+
+// laterReasonProse reads a prose text segment as rendered: a backslash escape
+// becomes its literal character, and character references elsewhere (`&amp;`,
+// `&#38;`) decode. An escaped `\&amp;` therefore stays `&amp;`.
+func laterReasonProse(value []byte) []byte {
+	resolve := func(chunk []byte) []byte {
+		return util.ResolveEntityNames(util.ResolveNumericReferences(chunk))
+	}
+	out := make([]byte, 0, len(value))
+	start := 0
+	for index := 0; index < len(value); index++ {
+		if value[index] != '\\' || index+1 >= len(value) || !util.IsPunct(value[index+1]) {
+			continue
+		}
+		out = append(out, resolve(value[start:index])...)
+		out = append(out, value[index+1])
+		index++
+		start = index + 1
+	}
+	return append(out, resolve(value[start:])...)
 }
