@@ -12,7 +12,13 @@ function isFirstTabbable(target: HTMLElement): boolean {
     if (element.tabIndex < 0 || element.matches(":disabled") || element.closest("[inert]")) {
       continue;
     }
-    if (typeof element.checkVisibility === "function" && !element.checkVisibility()) continue;
+    // `visibility: hidden` controls are skipped by sequential focus, so they cannot be first.
+    if (
+      typeof element.checkVisibility === "function" &&
+      !element.checkVisibility({ checkVisibilityCSS: true })
+    ) {
+      continue;
+    }
     return element === target;
   }
   return false;

@@ -99,6 +99,21 @@ describe("RootComponent", () => {
       expect(document.body).toHaveFocus();
     });
 
+    it("keeps focus the first control receives after the activation window expires", async () => {
+      vi.useFakeTimers();
+      try {
+        const [first] = renderWithControls();
+
+        reactivateWindow();
+        act(() => vi.advanceTimersByTime(100));
+        await act(async () => first.focus());
+
+        expect(first).toHaveFocus();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("keeps focus a key press moves after the window activates", async () => {
       const [first] = renderWithControls();
 
