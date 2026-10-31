@@ -97,9 +97,9 @@ export function SessionListGroupBody(
     renderSubgroup: SessionListSubgroupRenderer;
   }
 ) {
-  // A project with no sessions in view reads nothing: Show empty projects can list
-  // every registered project, and each open group would otherwise fetch its own page (#1085).
-  if (props.group.total === 0) {
+  // An empty group spanning pairs reads nothing: Show empty projects can list every
+  // registered project, and each open one would otherwise read its own facets (#1085).
+  if (props.group.total === 0 && !props.group.pair) {
     return (
       <div className="pl-2.5">
         <GroupNote>{sessionListGroupEmptyMessage(props.group, props.view.shelf)}</GroupNote>
@@ -181,10 +181,17 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  const catalog = useSessionCatalog(group.scope, sessionListGroupFilters(view, group), true, {
-    facets: false,
-    lens: group.lens,
-  });
+  // A pair with no sessions in view skips its page but keeps its folders, so a folder
+  // created from its + shows at once (#1085).
+  const catalog = useSessionCatalog(
+    group.scope,
+    sessionListGroupFilters(view, group),
+    group.total > 0,
+    {
+      facets: false,
+      lens: group.lens,
+    }
+  );
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",

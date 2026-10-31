@@ -2413,9 +2413,12 @@ describe("SessionList breadth and Group by", () => {
     });
 
   const failing = new Set<string>();
+  /** Session folders the daemon lists, by the workspace id in the request path. */
+  const listedFolders = new Map<string, unknown[]>();
   let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
   beforeEach(() => {
     failing.clear();
+    listedFolders.clear();
     fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
       const url = new URL((input as Request).url);
       const json = (body: unknown, status = 200) =>
@@ -2428,7 +2431,8 @@ describe("SessionList breadth and Group by", () => {
           const body = (await (input as Request).json()) as { name: string };
           return json({ folder: { ...FOLDER, name: body.name } }, 201);
         }
-        return json({ folders: [] });
+        const workspaceId = url.pathname.split("/").at(-2) ?? "";
+        return json({ folders: listedFolders.get(workspaceId) ?? [] });
       }
       if (url.pathname === "/api/profiles") return json(PROFILES);
       if (url.pathname === "/api/workspaces") {
@@ -2534,6 +2538,31 @@ describe("SessionList breadth and Group by", () => {
       expect(screen.queryByRole("menuitemcheckbox", { name: "Show empty projects" })).toBeNull();
     }
   );
+
+  // #1085: an empty project skips its page but keeps its session folders, so a folder made
+  // from its + shows at once.
+  it("Should keep an empty project's session folders while skipping its page", async () => {
+    listedFolders.set("ws-gamma", [
+      {
+        ...FOLDER,
+        id: "fold-ideas",
+        name: "Ideas",
+        workspace_id: "ws-gamma",
+        profile_id: "default",
+      },
+    ]);
+    const empty = projectSessionGroup(
+      "ws-gamma",
+      { all: 0, working: 0, needs_you: 0 },
+      { workspaces: [{ id: "ws-gamma", name: "Gamma" }], lens: { profile: "default" } }
+    );
+    renderList({ sessions: [], view: grouped({ groups: [empty], showEmptyProjects: true }) });
+
+    expect(await screen.findByText("Ideas")).toBeVisible();
+    expect(catalogReads().map(url => url.searchParams.get("workspace_id"))).not.toContain(
+      "ws-gamma"
+    );
+  });
 
   it("Should name the project, never the profile, in an empty project group", async () => {
     const empty = projectSessionGroup(
