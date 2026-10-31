@@ -15,6 +15,8 @@ export interface SessionWindowResolution {
   /** The session's own workspace id (`""` for User), or the focused one before it resolves. */
   workspaceId: string | null;
   isLoading: boolean;
+  /** A read is in flight, so `session` may predate what the daemon holds now. */
+  isFetching: boolean;
   error: Error | null;
   /** The scoped read answered "not in this profile" — not yet "nowhere". */
   scopedMiss: boolean;
@@ -62,6 +64,7 @@ export function useSessionWindowResolution({
     session: query.data,
     workspaceId: sessionWorkspaceId ?? focusedWorkspaceId,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     error: query.error,
     scopedMiss,
     foreign,

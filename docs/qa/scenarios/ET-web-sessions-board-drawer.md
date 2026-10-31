@@ -33,9 +33,10 @@ parent with a running child, open a session window and switch it to Kanban (1600
 6. Prompt a session that finishes while open: its card moves Working → Done, the drawer stays open
    and the highlight follows.
 7. Open the child session: its head starts with the parent's title; select it to open the parent.
-8. Archive the open session from the drawer's …: the drawer closes, focus is on the next card in its
-   column. Delete another open session: same landing; Escape in the delete confirmation only closes
-   the confirmation.
+8. Archive the open session from the drawer's …: the drawer closes, the window keeps the board but no
+   longer holds the session (route `/sessions`, #1110), and focus is on the next card in its column.
+   Delete another open session: same landing; Escape in the delete confirmation only closes the
+   confirmation. Move to Later closes the drawer the same way and keeps the window on the session.
 9. Resize the window below 960 px: the drawer covers the board; Escape returns to the board.
 10. Switch the scope to All projects and open a card from another project; with All profiles, open a
     session of another profile: it shows the owner banner read-only, as in List.

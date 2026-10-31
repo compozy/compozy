@@ -12,6 +12,7 @@ const session = {
   id: "sess-1",
   agent_name: "qa-agent",
   workspace_id: "ws-1",
+  archived_at: null as string | null,
 };
 const desktop = {
   activeDesktopId: "desktop-1",
@@ -42,8 +43,9 @@ const queryState: {
   data: typeof session | undefined;
   error: Error | null;
   isLoading: boolean;
+  isFetching: boolean;
   isError: boolean;
-} = { data: session, error: null, isLoading: false, isError: false };
+} = { data: session, error: null, isLoading: false, isFetching: false, isError: false };
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: Record<string, unknown>) => {
@@ -158,6 +160,7 @@ describe("SessionWindow", () => {
     scopedDetailSpy.mockClear();
     ownerViewSpy.mockClear();
     foreignState.current = { status: "disabled" };
+    queryState.isFetching = false;
     profileScope.aggregate = false;
     deletionPending = false;
     deletedByOperator = false;
@@ -357,6 +360,59 @@ describe("SessionWindow", () => {
     expect(userRetireSession).not.toHaveBeenCalled();
     expect(sessionWindowEmptySpy).toHaveBeenCalled();
     deletionPending = false;
+    rerender(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
+  });
+
+  // #1110: the list's archive retires this client's windows; a window also follows an archive
+  // from anywhere else, which reaches it as a detail reread.
+  it("Should retire the window when its open session is archived, without reporting it missing", async () => {
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+    expect(userRetireSession).not.toHaveBeenCalled();
+
+    queryState.data = { ...session, archived_at: "2026-10-31T12:00:00Z" };
+    rerender(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("Should keep a session opened already archived", async () => {
+    queryState.data = { ...session, archived_at: "2026-10-31T12:00:00Z" };
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+    rerender(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ session: queryState.data })
+    );
+    expect(userRetireSession).not.toHaveBeenCalled();
+  });
+
+  it("Should keep an archived session whose stale cache said unarchived when it opened", async () => {
+    queryState.isFetching = true;
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+
+    queryState.data = { ...session, archived_at: "2026-10-31T12:00:00Z" };
+    queryState.isFetching = false;
+    rerender(<SessionWindow windowId="session:sess-1" />);
+
+    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ session: queryState.data })
+    );
+    expect(userRetireSession).not.toHaveBeenCalled();
+  });
+
+  it("Should retire a session unarchived in the window and archived again", async () => {
+    queryState.data = { ...session, archived_at: "2026-10-31T12:00:00Z" };
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+
+    queryState.data = session;
+    rerender(<SessionWindow windowId="session:sess-1" />);
+    expect(userRetireSession).not.toHaveBeenCalled();
+
+    queryState.data = { ...session, archived_at: "2026-10-31T12:05:00Z" };
     rerender(<SessionWindow windowId="session:sess-1" />);
     await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
   });

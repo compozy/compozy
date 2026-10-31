@@ -139,7 +139,7 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
 export function useSessionLifecycleActions(
   options: Parameters<typeof useDeleteSession>[0] & {
     /** Each session this host archived, single or batched, once the daemon confirmed it. */
-    onArchiveSuccess?: (session: SessionPayload) => void;
+    onArchiveSuccess?: (session: SessionPayload) => void | Promise<void>;
     /** Each session this host moved to Later, single or batched, once the daemon confirmed it. */
     onLaterSuccess?: (session: SessionPayload) => void;
   } = {}
@@ -223,7 +223,7 @@ export function useSessionLifecycleActions(
         else if (action === "archive") {
           const session = sessions.find(candidate => candidate.id === id)!;
           await archive.mutateAsync(archiveTarget(session, processes));
-          onArchiveSuccess?.(session);
+          await onArchiveSuccess?.(session);
         } else if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
@@ -414,7 +414,7 @@ export function useSessionLifecycleActions(
         void askAboutProcesses("archive", [session], processes =>
           archive.mutate(archiveTarget(session, processes), {
             onError: error => reportActionError("archive", error),
-            onSuccess: () => onArchiveSuccess?.(session),
+            onSuccess: () => void onArchiveSuccess?.(session),
           })
         ),
       onUnarchive: session =>

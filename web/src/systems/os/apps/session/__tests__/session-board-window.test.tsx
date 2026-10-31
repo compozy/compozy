@@ -49,7 +49,7 @@ const harness = vi.hoisted(() => ({
   userRetarget: vi.fn(),
   setView: vi.fn(),
   lifecycleOptions: {} as {
-    onRemoved?: (session: { id: string }, action: "archive" | "delete") => void;
+    onRemoved?: (session: { id: string }, action: "archive" | "later" | "delete") => void;
   },
   onArchive: vi.fn(),
   onArchiveMany: vi.fn(),
@@ -378,9 +378,10 @@ describe("SessionBoardWindow drawer", () => {
       expect(harness.onArchive).toHaveBeenCalledWith(expect.objectContaining({ id: "w2" }))
     );
 
+    harness.userRetarget.mockClear();
     act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "archive"));
-    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, closedRoute("w2"));
-    applyLastRetarget();
+    expect(harness.userRetarget).not.toHaveBeenCalled();
+    setRoute(null, false);
     rerenderBoard();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
@@ -402,8 +403,22 @@ describe("SessionBoardWindow drawer", () => {
     await screen.findByRole("dialog", { name: "Session w2" });
     await userEvent.click(screen.getByRole("button", { name: "Collapse Done" }));
 
+    harness.userRetarget.mockClear();
     act(() => harness.lifecycleOptions.onRemoved?.({ id: "d1" }, "archive"));
-    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, closedRoute("d1"));
+    expect(harness.userRetarget).not.toHaveBeenCalled();
+    setRoute(null, false);
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
+  });
+
+  it("Should close the drawer itself when its session moves to Later", async () => {
+    setRoute("w2", true);
+    const { rerenderBoard } = renderBoard();
+    await screen.findByRole("dialog", { name: "Session w2" });
+
+    act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "later"));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, closedRoute("w2"));
     applyLastRetarget();
     rerenderBoard();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -470,9 +485,10 @@ describe("SessionBoardWindow drawer", () => {
       expect.objectContaining({ id: "w3" }),
     ]);
 
+    harness.userRetarget.mockClear();
     act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "archive"));
-    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, closedRoute("w2"));
-    applyLastRetarget();
+    expect(harness.userRetarget).not.toHaveBeenCalled();
+    setRoute(null, false);
     rerenderBoard();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // w3 leaves with it, so focus lands on the card above.
@@ -530,7 +546,7 @@ describe("SessionBoardWindow drawer", () => {
 
     // w3 was skipped (or failed) and stays on the board: it is still the best landing.
     act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "archive"));
-    applyLastRetarget();
+    setRoute(null, false);
     rerenderBoard();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
