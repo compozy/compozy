@@ -1,5 +1,51 @@
 # Compozy Change Impact
 
+## `@compozy/ui` → BnUI convergence — `theme-compozy`, contract tokens, single points
+
+**Owning spec:** `.compozy/tasks/ui-bnui-convergence/_spec.md` (2026-10-31). Impact Analysis and
+the delete targets are in Part II, and the decisions are ADR-001 through ADR-006. Implementation
+slices link to this entry and update only the lines they change.
+
+- **Native tools.** No change. No `compozy__*` tool, catalog or digest is involved.
+- **CLI/HTTP/UDS.** No change.
+- **Extensibility and hooks.**
+  - Command palette icon tokens and extension manifest `icon` fields remain Lucide slugs
+    (`internal/cmdpalette`, `internal/extension/manifest_profiles.go`).
+  - The web registry `cmd-palette-icons.ts` only changes its import path.
+  - No hook, skill or MCP surface changes.
+- **Config.** No `config.toml` key changes. The Appearance fonts (`--user-font-*`) keep leading
+  the theme stacks (ADR-006, UT-010, `theme-runtime.test.ts`).
+- **Persisted user state.** Unchanged. Profile icons stay `lucide-static` slugs, validated against
+  `internal/profile/lucide_icons.gen.txt` and rendered from the `lucide-static` sprite.
+- **Workspace isolation.** Not applicable. This is build-time styling and module structure.
+- **Web / Docs / official skill.**
+  - `@compozy/ui` token vocabulary changes, and the change is internal-code hard cut:
+    - `accent*` (orange) → `brand*`, tone and variant keys included;
+    - `danger*` → `destructive*`, tone and variant keys included;
+    - the gray `muted` ink → `muted-foreground` in every form;
+    - bare `rounded` → the named utility of equal radius;
+    - `accent`/`muted`/`secondary` take the contract meanings.
+  - Contract values come from `packages/ui/src/bnui-theme.css`, a copy of BnUI `theme-compozy`.
+  - Icons and toasts are imported only from `@compozy/ui`, and lint enforces it.
+  - `packages/ui/CLAUDE.md`, `DESIGN.md` (via `make codegen`), the design-system lint plugin and
+    the hand-mirrored copies follow the renames. The copies are `packages/launch-video`, the
+    showcase and the mermaid theme.
+  - `desktop/scripts/build-main.ts` resolves the boot values from the new sources and throws on
+    unresolved `var()`.
+  - `packages/site` keeps its appearance through a site override block (business rule 9).
+  - Intentional visible changes (accepted ADRs):
+    - the radius scale (ADR-003);
+    - status emphasis inks (ADR-004): light `destructive`, `success`, `warning` and `info`, and
+      dark `info`.
+  - Affected QA scenarios: `ET-web-light-theme-readability`, `ET-web-theme-toggle-persists`,
+    `ET-web-theme-system-follows-os`, `ET-web-appearance-fonts-sync` and
+    `APP-theme-native-no-flash`.
+  - The official `skills/compozy/` skill is not affected.
+- **Cross-repo.**
+  - BnUI (`reui-blocks`) gains `styles/themes/compozy.css`, the `@bnui/theme-compozy` registry
+    item, parity/contrast/screen evidence, a §7 guide section and `icon-map.json` additions.
+  - BnUI CI owns those checks.
+
 ## Release 0.4.6 catalog request repair — 2026-10-30
 
 Owner: `fix/release-046-validation`, release PR #1042. The shell reuses the
