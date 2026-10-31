@@ -36,10 +36,11 @@ test.use({
   },
 });
 
-type BoardColumn = "needs_you" | "working" | "in_review" | "done";
+type BoardColumn = "needs_you" | "working" | "waiting" | "in_review" | "done";
 const COLUMN_LABELS: Record<BoardColumn, string> = {
   needs_you: "Needs you",
   working: "Working",
+  waiting: "Waiting",
   in_review: "In review",
   done: "Done",
 };

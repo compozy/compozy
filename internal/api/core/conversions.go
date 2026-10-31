@@ -89,9 +89,10 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	if info.Children != nil {
 		counts := info.Children
 		payload.Children = &contract.SessionChildrenPayload{
-			Total:    counts.NeedsYou + counts.Working + counts.InReview + counts.Done,
+			Total:    counts.Total(),
 			NeedsYou: counts.NeedsYou,
 			Working:  counts.Working,
+			Waiting:  counts.Waiting,
 			InReview: counts.InReview,
 			Done:     counts.Done,
 		}

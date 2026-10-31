@@ -51,7 +51,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			"waiting",
 		},
 		reflect.TypeFor[contract.SubagentChildActivity](): store.SubagentChildActivityValues(),
-		reflect.TypeFor[session.BoardColumn]():            {"needs_you", "working", "in_review", "done"},
+		reflect.TypeFor[session.BoardColumn]():            {"needs_you", "working", "waiting", "in_review", "done"},
 		reflect.TypeFor[session.WaitingOn]():              {"sessions", "monitor"},
 		reflect.TypeFor[session.PullRequestState]():       {"open", "closed", "merged"},
 		reflect.TypeFor[session.ChecksState](): {

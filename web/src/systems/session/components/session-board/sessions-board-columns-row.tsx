@@ -4,7 +4,7 @@ import { Button } from "@compozy/ui";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView } from "../../hooks/use-sessions-board";
-import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
 import { sessionListGroupRank } from "../../lib/session-list-group-rows";
 import { SessionsBoardColumn } from "./sessions-board-column";
 import { SESSIONS_BOARD_COLUMNS_ROW } from "./sessions-board-frame";
@@ -15,9 +15,9 @@ export interface SessionsBoardColumnsRowProps {
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   onOpen: (session: SessionBoardPayload) => void;
   actions?: SessionLifecycleActionHandlers;
-  /** Done folds in every row at once, so the lanes' columns stay aligned. */
-  doneCollapsed: boolean;
-  onDoneToggle: () => void;
+  /** A column folds in every row at once, so the lanes' columns stay aligned. */
+  collapsedColumns: Readonly<Record<string, boolean>>;
+  onColumnCollapsedChange: (columnId: SessionBoardColumnId, collapsed: boolean) => void;
   layout: "fill" | "lane";
   regionPrefix?: string;
   testIdPrefix?: string;
@@ -25,11 +25,11 @@ export interface SessionsBoardColumnsRowProps {
   selectionRow?: { key: string; rank: number };
 }
 
-/** The four derived columns side by side: the whole ungrouped board, or one lane. */
+/** The derived columns side by side: the whole ungrouped board, or one lane. */
 export function SessionsBoardColumnsRow({
   columns,
-  doneCollapsed,
-  onDoneToggle,
+  collapsedColumns,
+  onColumnCollapsedChange,
   layout,
   selectionRow,
   ...props
@@ -39,9 +39,11 @@ export function SessionsBoardColumnsRow({
       {columns.map((column, index) => (
         <SessionsBoardColumn
           {...props}
-          collapsible={
-            column.id === "done" ? { collapsed: doneCollapsed, onToggle: onDoneToggle } : undefined
-          }
+          collapsible={{
+            collapsed: collapsedColumns[column.id] === true,
+            onToggle: () =>
+              onColumnCollapsedChange(column.id, collapsedColumns[column.id] !== true),
+          }}
           column={column}
           key={column.id}
           layout={layout}

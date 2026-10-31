@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
@@ -16,7 +16,7 @@ import {
 } from "./sessions-board-frame";
 import { SessionsBoardLanesSkeleton } from "./sessions-board-skeleton";
 
-/** What every columns row of the board shares: one Done fold, the card verbs and the opener. */
+/** What every columns row of the board shares: the column folds, the card verbs and the opener. */
 export type SessionsBoardRow = Omit<SessionsBoardColumnsRowProps, "columns" | "layout">;
 
 export interface SessionsBoardViewProps {
@@ -25,6 +25,9 @@ export interface SessionsBoardViewProps {
   onOpen: (session: SessionBoardPayload) => void;
   /** The session list's lifecycle verbs; every card then offers them. */
   actions?: SessionLifecycleActionHandlers;
+  /** Folded columns by id: one fold covers the column in every swimlane. */
+  collapsedColumns: SessionsBoardRow["collapsedColumns"];
+  onColumnCollapsedChange: SessionsBoardRow["onColumnCollapsedChange"];
   /** One swimlane per Group-by group; each lane reads its own columns. */
   renderLane?: (
     lane: NonNullable<SessionsBoardModel["lanes"]>[number],
@@ -33,7 +36,7 @@ export interface SessionsBoardViewProps {
 }
 
 /**
- * The Sessions board's presentation (`_uiux.md` S4): four derived columns in a horizontally
+ * The Sessions board's presentation (`_uiux.md` S4): the derived columns in a horizontally
  * scrolling row on the canvas, plus the Archive bar, or one swimlane per group through
  * `renderLane`. Cards come from `SessionBoardCardSlot`, so this view reads no query itself.
  */
@@ -42,15 +45,15 @@ export function SessionsBoardView({
   currentSessionId = null,
   onOpen,
   actions,
+  collapsedColumns,
+  onColumnCollapsedChange,
   renderLane,
 }: SessionsBoardViewProps) {
-  // Done starts expanded (Open Question 1); the fold is local to this view.
-  const [doneCollapsed, setDoneCollapsed] = useState(false);
   const row: SessionsBoardRow = {
     actions,
     currentSessionId,
-    doneCollapsed,
-    onDoneToggle: () => setDoneCollapsed(value => !value),
+    collapsedColumns,
+    onColumnCollapsedChange,
     onOpen,
     workspaceNameOf: board.workspaceNameOf,
   };

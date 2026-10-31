@@ -12,7 +12,7 @@ const PROJECT_FACET = (all: number, working = 0, needsYou = 0) => ({
   idle: all - working - needsYou,
   finished: 0,
   terminal_approvals: 0,
-  board: { needs_you: needsYou, working, in_review: 0, done: 0 },
+  board: { needs_you: needsYou, working, waiting: 0, in_review: 0, done: 0 },
 });
 export const PROJECT_GROUPS = projectSessionGroups(
   {

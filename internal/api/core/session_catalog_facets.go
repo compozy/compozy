@@ -73,6 +73,7 @@ func sessionFacetPayload(facets store.SessionCatalogFacets) contract.SessionCata
 		Board: contract.SessionBoardCountsPayload{
 			NeedsYou: facets.Board.NeedsYou,
 			Working:  facets.Board.Working,
+			Waiting:  facets.Board.Waiting,
 			InReview: facets.Board.InReview,
 			Done:     facets.Board.Done,
 		},

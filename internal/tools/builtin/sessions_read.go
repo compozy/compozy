@@ -57,7 +57,7 @@ const sessionStatusOutputSchema = `{
 				"branch":{"type":"string"},
  "pull_request":{"type":["object","null"]},
  "pull_request_lookup":{"type":["object","null"]},
- "board_column":{"type":"string","enum":["needs_you","working","in_review","done"]},
+ "board_column":{"type":"string","enum":["needs_you","working","waiting","in_review","done"]},
  "parent_title":{"type":"string"},
  "waiting_on":{"type":"string","enum":["sessions","monitor"]},
  "children":{"type":"object"},

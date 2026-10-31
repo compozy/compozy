@@ -1,8 +1,9 @@
 // Suite: sessions-board
-// Invariant: the board renders the daemon's four columns as labelled regions
+// Invariant: the board renders the daemon's five columns as labelled regions
 // whose names carry their facet counts; a card names its parent ("↳") or its
 // child rollup, flags a child that needs you, and opens its session on click;
-// Done folds behind a disclosure button; only an initial read failure replaces
+// any column folds into a rail (mark, vertical name, count) that expands it
+// again, one fold per column across every swimlane (#1075); only an initial read failure replaces
 // a column, while a failed next page or background re-read keeps the loaded
 // cards with a local retry; the Archive bar is absent only after a read
 // confirms zero archived sessions — a pending or failed read keeps the bar with
@@ -11,7 +12,7 @@
 // in lib/__tests__/session-board-card.test.ts; queries and toggle in E2E-005..007.
 // #952: with the session list's lifecycle verbs, every card offers them on
 // right-click and behind a `…` button that never opens the session; a grouped
-// board renders one swimlane per group, each reading the four columns through
+// board renders one swimlane per group, each reading the five columns through
 // the group's own scope.
 // #958: a board or column that has not answered yet holds its place with
 // card-shaped placeholders under one busy status region — never a "Loading…"
@@ -23,13 +24,13 @@
 // clears; the selection bar replaces the head's actions with the list's verbs and
 // counts; a selected card's context menu acts on the selection, and a context click
 // outside it retargets; selected cards survive a column move and drop out once gone;
-// folded Done keeps them as hidden; the Archive bar's cards join only while it is open;
+// a folded column keeps them as hidden; the Archive bar's cards join only while it is open;
 // a toggle re-renders only the cards it changes.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceBadgeIdentity, workspacesListOptions } from "@/systems/workspace";
 
@@ -37,7 +38,7 @@ import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/sess
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView, SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
-import { primarySessionFixture } from "../../testing";
+import { primarySessionFixture, resetSessionBoardColumnFolds } from "../../testing";
 import type { SessionPayload } from "../../types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
@@ -60,6 +61,7 @@ vi.mock("../../adapters/session-catalog-api", () => ({
 const LABELS: Record<SessionBoardColumnId, string> = {
   needs_you: "Needs you",
   working: "Working",
+  waiting: "Waiting",
   in_review: "In review",
   done: "Done",
 };
@@ -145,6 +147,8 @@ function lifecycleActions(): SessionLifecycleActionHandlers {
   };
 }
 
+afterEach(() => resetSessionBoardColumnFolds());
+
 describe("SessionsBoard", () => {
   it("Should name each column region with its facet count", () => {
     renderBoard(board({ working: { count: 9 }, done: { count: 1 } }));
@@ -158,7 +162,7 @@ describe("SessionsBoard", () => {
   it("UT-070: Should show the parent link on a child and a highlighted rollup on its parent", () => {
     const parent = card("parent", {
       name: "Coordinator",
-      children: { total: 3, needs_you: 1, working: 2, in_review: 0, done: 0 },
+      children: { total: 3, needs_you: 1, working: 2, waiting: 0, in_review: 0, done: 0 },
     });
     const child = card("child", {
       board_column: "needs_you",
@@ -203,7 +207,7 @@ describe("SessionsBoard", () => {
         working: {
           sessions: [
             card("one", {
-              children: { total: 1, needs_you: 0, working: 1, in_review: 0, done: 0 },
+              children: { total: 1, needs_you: 0, working: 1, waiting: 0, in_review: 0, done: 0 },
             }),
             card("none", { parent_title: "  ", children: null }),
           ],
@@ -277,19 +281,46 @@ describe("SessionsBoard", () => {
     expect(within(failure).getByRole("button", { name: "Retry" })).toBeDisabled();
   });
 
-  it("Should fold Done behind a disclosure button", async () => {
+  it("Should fold any column into a rail that names it and counts its sessions", async () => {
     const user = userEvent.setup();
-    renderBoard(board({ done: { sessions: [card("d", { board_column: "done" })], count: 1 } }));
-    const disclosure = screen.getByRole("button", { name: "Collapse Done" });
-    expect(disclosure).toHaveAttribute("aria-expanded", "true");
-    await user.click(disclosure);
-    expect(screen.getByRole("button", { name: "Expand Done" })).toHaveAttribute(
-      "aria-expanded",
-      "false"
+    renderBoard(
+      board({
+        waiting: {
+          sessions: [card("wt", { board_column: "waiting", badge: "waiting" })],
+          count: 1,
+        },
+        done: { sessions: [card("d", { board_column: "done" })], count: 1 },
+      })
     );
-    expect(screen.getByTestId("sessions-board-column-done")).toHaveAttribute(
+    for (const label of Object.values(LABELS)) {
+      expect(screen.getByRole("button", { name: `Collapse ${label}` })).toHaveAttribute(
+        "aria-expanded",
+        "true"
+      );
+    }
+    await user.click(screen.getByRole("button", { name: "Collapse Waiting" }));
+    const rail = screen.getByRole("button", { name: "Expand Waiting" });
+    expect(rail).toHaveAttribute("aria-expanded", "false");
+    expect(rail).toHaveTextContent("Waiting1");
+    expect(screen.getByTestId("sessions-board-column-waiting")).toHaveAttribute(
       "data-collapsed",
       "true"
+    );
+    // Done keeps its own state: one fold never folds a neighbour.
+    expect(screen.getByTestId("sessions-board-column-done")).not.toHaveAttribute("data-collapsed");
+
+    rail.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "Collapse Waiting" })).toHaveFocus();
+    expect(screen.getByTestId("sessions-board-column-waiting")).not.toHaveAttribute(
+      "data-collapsed"
+    );
+  });
+
+  it("Should show the Waiting column's empty state", () => {
+    renderBoard(board());
+    expect(screen.getByTestId("sessions-board-column-empty-waiting")).toHaveTextContent(
+      "Nothing waiting on a wake"
     );
   });
 
@@ -427,7 +458,7 @@ describe("SessionsBoard swimlanes", () => {
     filters: { workspace_id: workspaceId, sort: "created" as const },
   });
 
-  it("Should render one lane per group, each reading the four columns in its own scope", async () => {
+  it("Should render one lane per group, each reading the five columns in its own scope", async () => {
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
       sessions:
         query?.workspace_id === "ws-alpha" && query.board_column?.includes("working")
@@ -443,7 +474,7 @@ describe("SessionsBoard swimlanes", () => {
         working: 1,
         finished: 0,
         idle: 0,
-        board: { needs_you: 0, working: 1, in_review: 0, done: 0 },
+        board: { needs_you: 0, working: 1, waiting: 0, in_review: 0, done: 0 },
       },
       by_workspace: [],
       by_profile: [],
@@ -464,8 +495,14 @@ describe("SessionsBoard swimlanes", () => {
       within(alpha).getByRole("region", { name: "Alpha, Working, 1 session" })
     ).toBeInTheDocument();
     const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
-    expect(reads.filter(query => query?.workspace_id === "ws-beta")).toHaveLength(4);
+    expect(reads.filter(query => query?.workspace_id === "ws-beta")).toHaveLength(5);
     expect(reads.every(query => query?.sort === "created")).toBe(true);
+
+    // One fold per column: folding Working in Alpha folds it in Beta too, so lanes stay aligned.
+    await userEvent.click(within(alpha).getByRole("button", { name: "Collapse Working" }));
+    const beta = screen.getByRole("region", { name: "Beta" });
+    expect(within(beta).getByRole("button", { name: "Expand Working" })).toBeInTheDocument();
+    expect(within(alpha).getByRole("button", { name: "Expand Working" })).toHaveFocus();
   });
 
   // #1029: a project lane header is a project surface: right-click and Shift+F10 open the
@@ -542,8 +579,10 @@ describe("SessionsBoard loading", () => {
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading sessions");
     expect(region.querySelectorAll('[data-slot="sessions-board-lane-skeleton"]')).toHaveLength(2);
-    expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(8);
-    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(8);
+    expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(
+      10
+    );
+    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(10);
     // A pending read is not an answer: no sentence, and no claim that there is nothing.
     expect(screen.queryByText("Loading sessions…")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sessions-board-lanes-empty")).not.toBeInTheDocument();
@@ -595,13 +634,13 @@ describe("SessionsBoard loading", () => {
     const region = screen.getByRole("status");
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading sessions");
-    // The four columns keep their real names, so only the cards are placeholders; the Archive
+    // The five columns keep their real names, so only the cards are placeholders; the Archive
     // bar holds its place under them.
     for (const name of [...Object.values(LABELS), "Archive"]) {
       expect(region).toHaveTextContent(name);
     }
-    expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(4);
-    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(4);
+    expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(5);
+    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(5);
     expect(region.querySelector("button, a, input, [tabindex]")).toBeNull();
 
     rerender(<SessionsBoardSkeleton layout="lanes" />);

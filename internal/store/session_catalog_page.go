@@ -95,7 +95,7 @@ type SessionCatalogPageQuery struct {
 func (q SessionCatalogPageQuery) Validate() error {
 	for _, column := range q.Columns {
 		switch column {
-		case SessionBoardNeedsYou, SessionBoardWorking, SessionBoardInReview, SessionBoardDone:
+		case SessionBoardNeedsYou, SessionBoardWorking, SessionBoardWaiting, SessionBoardInReview, SessionBoardDone:
 		default:
 			return fmt.Errorf("store: unsupported board column %q", column)
 		}

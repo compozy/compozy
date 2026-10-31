@@ -47,6 +47,11 @@ export interface SessionSidebarScopeState {
   /** The board's "Hide child sessions" filter, remembered per window. */
   hideChildren: boolean;
   /**
+   * Board columns start expanded; a fold is remembered per column id and applies to every
+   * swimlane of this window's board (#1075). Window-only, like the board's filter.
+   */
+  collapsedBoardColumns: Record<string, boolean>;
+  /**
    * Session order and grouping, shared by this window's List and Kanban. `null`
    * until the operator picks one here: the window then follows the daemon's
    * `shell.sessions` value, which only seeds windows and never couples them.
@@ -65,6 +70,7 @@ export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   drawerWidth: null,
   view: "list",
   hideChildren: false,
+  collapsedBoardColumns: {},
   sort: null,
   groupBy: null,
 };
@@ -98,6 +104,7 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     drawerWidth: normalizeSessionBoardDrawerWidth(value.drawerWidth),
     view: value.view === "kanban" ? "kanban" : "list",
     hideChildren: value.hideChildren === true,
+    collapsedBoardColumns: normalizedCollapsedFlags(value.collapsedBoardColumns),
     sort: oneOf(SESSION_LIST_SORTS, value.sort),
     groupBy: oneOf(SESSION_LIST_GROUP_BYS, value.groupBy),
   };

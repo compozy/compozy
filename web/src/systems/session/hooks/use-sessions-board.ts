@@ -131,6 +131,7 @@ export function useSessionsBoardColumns(
   });
   const needsYou = useSessionsBoardPage(column("needs_you"), active);
   const working = useSessionsBoardPage(column("working"), active);
+  const waiting = useSessionsBoardPage(column("waiting"), active);
   const inReview = useSessionsBoardPage(column("in_review"), active);
   const done = useSessionsBoardPage(column("done"), active);
   const facets = useQuery({
@@ -139,7 +140,7 @@ export function useSessionsBoardColumns(
     enabled: active,
   });
   const counts = facets.data?.facets.board;
-  const pages = { needs_you: needsYou, working, in_review: inReview, done };
+  const pages = { needs_you: needsYou, working, waiting, in_review: inReview, done };
   return SESSION_BOARD_COLUMNS.map(({ id, label }) => ({
     ...pages[id],
     id,

@@ -1,28 +1,32 @@
 ---
 title: Sessions board
-description: See every session by who owns the next step — Needs you, Working, In review, Done — and open any of them in a drawer without leaving the board.
+description: See every session by who owns the next step — Needs you, Working, Waiting, In review, Done — and open any of them in a drawer without leaving the board.
 ---
 
-The sessions board is a Kanban view of the session window. It places every session in one of four
+The sessions board is a Kanban view of the session window. It places every session in one of five
 columns by **who owns the next step**, so with ten agents running you can tell at a glance what is
-waiting on you, what is still working, and which pull requests are ready to merge.
+waiting on you, what is still working, what is parked until something wakes it, and which pull
+requests are ready to merge.
 
 You never move cards. The daemon derives each session's column from its badge and its pull request,
 and the board, the CLI, and the native tools all read that same value.
 
-## The four columns
+## The five columns
 
 The daemon checks these rules in order; the first one that matches wins.
 
 | Column        | A session lands here when…                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------ |
 | **Needs you** | it needs a decision from you: `waiting-for-input`, `waiting-for-auth`, `failed`, or `needs-attention`. |
-| **Working**   | it is `running`, `hung`, `unhealthy`, or `waiting` on child sessions or a monitor.                     |
+| **Working**   | it is `running`, `hung`, or `unhealthy`: something is executing, or should be.                         |
+| **Waiting**   | it is `waiting`: idle, with a registered wake source such as a monitor, a timer, or child sessions.    |
 | **In review** | its branch has an open pull request, drafts included.                                                  |
 | **Done**      | anything else that is not archived.                                                                    |
 
 A session with an open PR that asks for approval sits in **Needs you**, not **In review**: your
-decision comes first. A running session with an open PR stays in **Working** until its turn settles.
+decision comes first. A running session with an open PR stays in **Working** until its turn settles,
+and a waiting session with an open PR stays in **Waiting** until its wake arrives: active work comes
+before review. A **Waiting** card names what it waits on, such as **Monitoring** or **Waiting**.
 Archived sessions never appear in the columns; they live in the **Archive** bar at the bottom.
 
 ## Walkthrough: open the board and act on a card
@@ -33,8 +37,8 @@ Archived sessions never appear in the columns; they live in the **Archive** bar 
 
    <kbd>→</kbd>, and press <kbd>Enter</kbd>).
 
-   **Expected:** the window body becomes four columns. Each header shows its name and a count, for
-   example `Needs you 2 · Working 5 · In review 3 · Done 128`. The header now reads **Sessions** and
+   **Expected:** the window body becomes five columns. Each header shows its name and a count, for
+   example `Needs you 2 · Working 5 · Waiting 1 · In review 3 · Done 128`. The header now reads **Sessions** and
    offers **Group by**, **Sort by**, **Hide child sessions**, and **New session**.
 
 3. Read a card. Each card has three rows:
@@ -116,7 +120,7 @@ A few things to know:
   parent in the drawer. Subagents open in their own panel inside the drawer, as they do in **List**.
 - **Archive and delete.** Archiving or deleting the session from the drawer's **…** menu (or from its
   card) closes the drawer and moves focus to the next card in the same column.
-- **Cards that move.** A card can move from **Working** to **Needs you** or **Done** while its session
+- **Cards that move.** A card can move from **Working** to **Waiting**, **Needs you**, or **Done** while its session
   is open. The drawer stays open and the highlight follows the card.
 - **A session open in another window.** A session is shown by one window at a time. If another
   window already shows it, clicking its card brings that window forward instead of opening the
@@ -245,8 +249,20 @@ Each column shows 50 cards at a time. When a column holds more, it ends with
 The **Archive** bar at the bottom shows how many archived sessions the scope holds and stays hidden
 when there are none. Expand it to see them as cards; clicking one opens it like any other card.
 
-Collapse **Done** with the arrow in its header when you only care about live work; it folds into a
-narrow rail that still shows its count.
+### Fold a column
+
+1. Select the arrow at the right of a column's header, for example **Collapse Done**.
+
+   **Expected:** the column folds into a narrow rail that shows its mark, its name written
+   vertically, and its count. The other columns move over to use the space.
+
+2. Select the rail (or focus it with <kbd>Tab</kbd> and press <kbd>Enter</kbd>).
+
+   **Expected:** the column opens again and focus moves to its **Collapse** arrow.
+
+A fold applies to that column in every swimlane when the board is grouped, so the lanes stay
+aligned. Each session window remembers its folds across reloads; a new window opens with every column
+expanded. Selected cards in a folded column stay selected and count as hidden.
 
 ## Scope and freshness
 
@@ -262,6 +278,7 @@ The same columns are available outside the window:
 ```bash
 compozy session list --column in_review
 compozy session list --column needs_you,working --hide-children
+compozy session list --column waiting
 ```
 
 Agents read the same `board_column` field through `compozy__session_list` and

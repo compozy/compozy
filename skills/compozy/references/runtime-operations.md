@@ -656,13 +656,15 @@ canonical attention change.
 ### Session board columns
 
 `compozy session list --column in_review --hide-children` filters the derived board before
-pagination and counting. Repeat `--column` or comma-separate `needs_you`, `working`, `in_review`,
-and `done`; an unknown column exits 2. The filters combine with workspace, badge and archive
+pagination and counting. Repeat `--column` or comma-separate `needs_you`, `working`, `waiting`,
+`in_review`, and `done`; an unknown column exits 2. The filters combine with workspace, badge and archive
 selectors. Selecting a column removes the default active-state filter. Human output includes
 BRANCH, PR, CHECKS and REVIEW.
 
-The daemon assigns needs-you badges first, then running/hung/unhealthy/waiting to `working`,
-then remaining sessions with an open PR to `in_review`, and all others to `done`. A parent's
+The daemon assigns needs-you badges first, then running/hung/unhealthy to `working`, the
+`waiting` badge (idle on a registered wake source) to `waiting` even with an open PR, then
+remaining sessions with an open PR to `in_review`, and all others to `done`. Clients must tolerate
+board columns they do not know. A parent's
 column is independent of its children. `children` aggregates its direct, non-archived, readable
 children across every page; `parent_title` can name an archived readable parent.
 

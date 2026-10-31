@@ -4242,7 +4242,8 @@ func TestManagerBoardCatalog(t *testing.T) {
 			t.Fatalf("active projection calls = %d, want one batch", reader.calls)
 		}
 		counts := page.Sessions[0].Children
-		if counts == nil || counts.Working != 1 || counts.InReview != 1 || counts.Done != 0 {
+		// The monitoring child stays in Waiting despite its open pull request.
+		if counts == nil || counts.Waiting != 1 || counts.Working != 0 || counts.InReview != 1 || counts.Done != 0 {
 			t.Fatalf("children = %#v", counts)
 		}
 		facets, err := h.manager.CatalogFacets(ctx, query)
@@ -4257,15 +4258,17 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if facets.Facets.Board.InReview != 2 || facets.Facets.Board.Working != 1 || facets.Facets.All != 3 {
+		if facets.Facets.Board.InReview != 2 || facets.Facets.Board.Waiting != 1 ||
+			facets.Facets.Board.Working != 0 || facets.Facets.All != 3 {
 			t.Fatalf("all facets = %#v", facets)
 		}
-		query.Columns = []string{"working"}
+		query.Columns = []string{"waiting"}
 		page, err = h.manager.ListPage(ctx, query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].ParentTitle != "Parent" {
+		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].BoardColumn != BoardWaiting ||
+			page.Sessions[0].ParentTitle != "Parent" {
 			t.Fatalf("child board = %#v", page)
 		}
 		// Detail projects only direct children; the parent remains a title lookup.
@@ -4291,6 +4294,35 @@ func TestManagerBoardCatalog(t *testing.T) {
 		}
 		if len(snapshots.ids) != 0 {
 			t.Fatalf("parent title lookup projected PRs: %v", snapshots.ids)
+		}
+		// A parent whose only child is waiting still carries its rollup.
+		solo, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Solo", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		soloChild, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Name:      "Solo child",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: solo.ID,
+				RootSessionID:   solo.ID,
+				SpawnDepth:      1,
+				SpawnRole:       "worker",
+				TTLExpiresAt:    new(time.Now().Add(time.Hour)),
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		soloChild.mu.Lock()
+		soloChild.supervisionState = &SupervisionState{WorkSignals: []WorkSignal{{Kind: WorkSignalScheduledWait}}}
+		soloChild.mu.Unlock()
+		soloDetail := solo.Info()
+		if err := h.manager.PopulateSessionRelations(ctx, soloDetail); err != nil || soloDetail.Children == nil ||
+			soloDetail.Children.Waiting != 1 || soloDetail.Children.Total() != 1 {
+			t.Fatalf("waiting-only children = %#v, %v", soloDetail.Children, err)
 		}
 		h.manager.ConfigurePullRequests(nil, nil)
 		query.Columns = []string{"in_review"}

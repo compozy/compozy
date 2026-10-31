@@ -12,6 +12,8 @@
 // and a stored blob without subagent flags reads as every subagent list closed.
 // The List | Kanban view and the board's "Hide child sessions" filter are
 // window-only (UT-067): they survive a reload but never seed another window.
+// The board's column folds (#1075) are window-only too: one fold per column id
+// survives a reload and an expand drops it.
 // The board's session drawer width (#1052) is per window and survives a reload; the last
 // width dragged seeds windows that never chose one, it clamps into bounds, and a blob
 // written before drawers existed reads the default.
@@ -225,6 +227,30 @@ describe("useSessionSidebarState", () => {
       })
     );
     expect(renderView(after, WINDOW_TWO).current.view).toBe("list");
+  });
+
+  it("Should restore a window's board column folds after a reload, never seeding a new window", async () => {
+    const before = await loadFreshSidebarState();
+    const renderFolds = (module: SidebarModule, scopeId: string) =>
+      renderHook(() => module.useSessionBoardColumnFolds(), {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(module.WindowScopeContext, { value: scopeId }, children),
+      }).result;
+    const one = renderFolds(before, WINDOW_ONE);
+    expect(one.current.collapsed).toEqual({});
+    act(() => {
+      one.current.setCollapsed("done", true);
+      one.current.setCollapsed("waiting", true);
+    });
+    act(() => one.current.setCollapsed("waiting", false));
+    expect(one.current.collapsed).toEqual({ done: true });
+    expect(renderFolds(before, WINDOW_TWO).current.collapsed).toEqual({});
+
+    const after = await loadFreshSidebarState();
+    await waitFor(() =>
+      expect(renderFolds(after, WINDOW_ONE).current.collapsed).toEqual({ done: true })
+    );
+    expect(renderFolds(after, WINDOW_TWO).current.collapsed).toEqual({});
   });
 
   it("Should restore a window's drawer width, seed new windows with the last one, and clamp it", async () => {

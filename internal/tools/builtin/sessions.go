@@ -255,7 +255,7 @@ func sessionInputPromoteDescriptor() toolspkg.Descriptor {
 const sessionListInputSchema = `{
  "type":"object",
  "properties":{
- "board_column":{"type":"array","items":{"type":"string","enum":["needs_you","working","in_review","done"]}},
+ "board_column":{"type":"array","items":{"type":"string","enum":["needs_you","working","waiting","in_review","done"]}},
  "children":{"type":"string","enum":["include","exclude"]},
 		"workspace":{"type":"string"},
 		"worktree":{"type":"string"},
@@ -331,7 +331,7 @@ const sessionListOutputSchema = `{
 		"sessions":{"type":"array","items":{"type":"object","properties":{"branch":{"type":"string"},
  "pull_request":{"type":["object","null"]},
  "pull_request_lookup":{"type":["object","null"]},
- "board_column":{"type":"string","enum":["needs_you","working","in_review","done"]},
+ "board_column":{"type":"string","enum":["needs_you","working","waiting","in_review","done"]},
  "parent_title":{"type":"string"},
  "waiting_on":{"type":"string","enum":["sessions","monitor"]},
  "children":{"type":"object"}}}},

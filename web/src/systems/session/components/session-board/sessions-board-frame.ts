@@ -25,11 +25,15 @@ export const SESSION_BOARD_CARD_FOOTER_ROW =
  */
 export const SESSION_BOARD_CARD_CHECKBOX = "absolute bottom-3.25 left-3 z-10";
 
-/** A flat `sunken` column panel; Done folds it into a 44 px rail. */
+/** A flat `sunken` column panel; any column folds it into a 44 px rail. */
 export const SESSIONS_BOARD_COLUMN_FRAME =
   "flex min-h-0 w-74 shrink-0 flex-col overflow-hidden rounded-lg bg-sunken";
 
 export const SESSIONS_BOARD_COLUMN_HEADER = "flex shrink-0 items-center gap-2 px-3 pt-3 pb-2";
+
+/** A folded column: one full-height button stacking the mark, the vertical title and the count. */
+export const SESSIONS_BOARD_COLUMN_RAIL =
+  "flex min-h-40 w-full flex-1 cursor-pointer flex-col items-center gap-2.5 rounded-lg px-0 py-3 outline-none hover:bg-hover focus-visible:shadow-focus-inset";
 
 export const SESSIONS_BOARD_COLUMN_TITLE = "text-item-title font-medium text-fg";
 

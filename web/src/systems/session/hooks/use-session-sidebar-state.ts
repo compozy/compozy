@@ -118,6 +118,7 @@ function withScopeState(
     ...next,
     view: DEFAULT_SCOPE_STATE.view,
     hideChildren: false,
+    collapsedBoardColumns: previousShell?.collapsedBoardColumns ?? {},
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,
     // Only a drag sets the drawer width new windows start from (`drawerWidthChanged`).
@@ -220,6 +221,18 @@ export const sessionSidebarLogic = createStoreLogic({
       withScopeState(context, event.scopeId, state => ({
         ...state,
         hideChildren: event.hideChildren,
+      })),
+    boardColumnCollapsedChanged: (
+      context,
+      event: { scopeId: string; columnId: string; collapsed: boolean }
+    ) =>
+      withScopeState(context, event.scopeId, state => ({
+        ...state,
+        collapsedBoardColumns: withoutFalseFlag(
+          state.collapsedBoardColumns,
+          event.columnId,
+          event.collapsed
+        ),
       })),
     sortChanged: (context, event: { scopeId: string; sort: SessionListSort }) =>
       withScopeState(context, event.scopeId, state => ({ ...state, sort: event.sort })),

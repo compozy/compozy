@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { definePrototype, type PrototypeProps } from "#gallery/contract";
 
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
@@ -20,6 +22,7 @@ export const meta = definePrototype({
   states: [
     { id: "populated", label: "Populated" },
     { id: "open-session", label: "Open session highlighted" },
+    { id: "collapsed", label: "Columns folded" },
     { id: "empty", label: "Empty" },
     { id: "loading", label: "Loading columns" },
     { id: "skeleton", label: "Board skeleton" },
@@ -57,13 +60,20 @@ function boardOf(state: string): SessionsBoardView {
   }
 }
 
+const FOLDED_COLUMNS = { needs_you: true, done: true };
+
 export default function SessionsBoardPrototype({ state }: PrototypeProps) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
+    state === "collapsed" ? FOLDED_COLUMNS : {}
+  );
   if (state === "skeleton") return <SessionsBoardSkeleton />;
   return (
     <SessionBoardCardSlot value={PrototypeBoardCard}>
       <SessionsBoardLayout
         board={boardOf(state)}
+        collapsedColumns={collapsed}
         currentSessionId={state === "open-session" ? "s4" : null}
+        onColumnCollapsedChange={(id, next) => setCollapsed(value => ({ ...value, [id]: next }))}
         onOpen={() => undefined}
       />
     </SessionBoardCardSlot>

@@ -15,13 +15,15 @@ const inert: Handler = () => () => undefined;
 const LABELS: Record<SessionBoardColumnId, string> = {
   needs_you: "Needs you",
   working: "Working",
+  waiting: "Waiting",
   in_review: "In review",
   done: "Done",
 };
 
 const COUNTS: Record<SessionBoardColumnId, number> = {
   needs_you: 2,
-  working: 3,
+  working: 1,
+  waiting: 3,
   in_review: 4,
   done: 128,
 };

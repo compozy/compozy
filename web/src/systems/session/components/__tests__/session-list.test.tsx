@@ -2217,7 +2217,7 @@ describe("SessionList breadth and Group by", () => {
     needs_you: needsYou,
     finished: 0,
     idle: all - needsYou,
-    board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+    board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 0 },
   });
   const ROWS = [
     row("a1", "ws-alpha"),

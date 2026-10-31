@@ -195,7 +195,8 @@ func TestBoardColumnFor(t *testing.T) {
 	}{
 		{"Should prioritize input over an open PR", BadgeWaitingForInput, PullRequestOpen, BoardNeedsYou},
 		{"Should prioritize running over an open PR", BadgeRunning, PullRequestOpen, BoardWorking},
-		{"Should keep waiting sessions working", BadgeWaiting, "", BoardWorking},
+		{"Should place waiting sessions without a PR in waiting", BadgeWaiting, "", BoardWaiting},
+		{"Should keep waiting sessions with an open PR in waiting", BadgeWaiting, PullRequestOpen, BoardWaiting},
 		{"Should place idle sessions with an open PR in review", BadgeIdle, PullRequestOpen, BoardInReview},
 		{"Should place merged sessions in done", BadgeDone, PullRequestMerged, BoardDone},
 		{"Should place stopped sessions without a PR in done", BadgeStopped, "", BoardDone},

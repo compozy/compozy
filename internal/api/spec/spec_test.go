@@ -3673,6 +3673,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	addSessionProcessSummary(t, baseline)
 	addSessionProcessPolicyParameters(t, baseline)
 	addSessionsKanbanSchemas(t, baseline)
+	// #1075: the board gains a Waiting column; existing columns and counts keep their meaning.
+	if addSessionBoardWaitingColumn(baseline) == 0 {
+		t.Fatal("approved Waiting column: no historical board column schemas found")
+	}
 
 	// Composer mentions: optional additive `mentions` on queued-input payloads; no
 	// required/type/removal change.
@@ -3990,6 +3994,41 @@ func addToolErrorCode(value any, code string) int {
 				continue
 			}
 			count += addToolErrorCode(child, code)
+		}
+	}
+	return count
+}
+
+// addSessionBoardWaitingColumn inserts `waiting` after `working` in every board column enum and
+// adds the required `waiting` count to every per-column count object (facets and child rollups).
+func addSessionBoardWaitingColumn(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionBoardWaitingColumn(child)
+		}
+	case map[string]any:
+		for key, child := range node {
+			values, ok := child.([]any)
+			if ok && key == "enum" && slices.Contains(values, any("in_review")) &&
+				slices.Contains(values, any("needs_you")) && !slices.Contains(values, any("waiting")) {
+				index := slices.Index(values, any("working")) + 1
+				node[key] = slices.Insert(slices.Clone(values), index, any("waiting"))
+				count++
+				continue
+			}
+			count += addSessionBoardWaitingColumn(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["in_review"] != nil && properties["working"] != nil && properties["waiting"] == nil {
+			properties["waiting"] = maps.Clone(properties["working"].(map[string]any))
+			if required, ok := node["required"].([]any); ok {
+				next := append(slices.Clone(required), "waiting")
+				slices.SortFunc(next, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+				node["required"] = next
+			}
+			count++
 		}
 	}
 	return count

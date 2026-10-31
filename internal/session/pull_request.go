@@ -83,6 +83,7 @@ type BoardColumn string
 const (
 	BoardNeedsYou BoardColumn = "needs_you"
 	BoardWorking  BoardColumn = "working"
+	BoardWaiting  BoardColumn = "waiting"
 	BoardInReview BoardColumn = "in_review"
 	BoardDone     BoardColumn = "done"
 	BadgeWaiting  Badge       = "waiting"
@@ -95,13 +96,17 @@ const (
 	WaitingOnMonitor  WaitingOn = "monitor"
 )
 
+// BoardColumnFor derives a session's board column. A waiting session (idle on a registered
+// wake source) keeps its own column even with an open pull request: parked work beats review.
 func BoardColumnFor(badge Badge, prState PullRequestState) BoardColumn {
 	if ClassForBadge(badge) == AttentionNeedsYou {
 		return BoardNeedsYou
 	}
 	switch badge {
-	case BadgeRunning, BadgeHung, BadgeUnhealthy, BadgeWaiting:
+	case BadgeRunning, BadgeHung, BadgeUnhealthy:
 		return BoardWorking
+	case BadgeWaiting:
+		return BoardWaiting
 	}
 	if prState == PullRequestOpen {
 		return BoardInReview

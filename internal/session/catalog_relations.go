@@ -58,7 +58,7 @@ func (m *Manager) populateCatalogRelations(
 	}
 	for _, info := range page {
 		counts := relations.Children[info.ID]
-		if counts.NeedsYou+counts.Working+counts.InReview+counts.Done > 0 {
+		if counts.Total() > 0 {
 			info.Children = &counts
 		}
 		if info.Lineage != nil {

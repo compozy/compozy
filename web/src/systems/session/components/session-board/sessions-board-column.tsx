@@ -1,5 +1,5 @@
-import { ChevronRight, CircleSlash } from "lucide-react";
-import { use, useId } from "react";
+import { ChevronLeft, CircleSlash } from "lucide-react";
+import { use, useId, useRef } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";
 
@@ -18,6 +18,7 @@ import {
   SESSIONS_BOARD_COLUMN_COUNT,
   SESSIONS_BOARD_COLUMN_FRAME,
   SESSIONS_BOARD_COLUMN_HEADER,
+  SESSIONS_BOARD_COLUMN_RAIL,
   SESSIONS_BOARD_COLUMN_TITLE,
 } from "./sessions-board-frame";
 import {
@@ -28,6 +29,7 @@ import {
 const EMPTY_COPY: Record<SessionBoardColumnId, string> = {
   needs_you: "Nothing needs you",
   working: "Nothing running",
+  waiting: "Nothing waiting on a wake",
   in_review: "No open pull requests",
   done: "Nothing finished yet",
 };
@@ -37,7 +39,7 @@ export interface SessionsBoardColumnProps {
   currentSessionId?: string | null;
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   onOpen: (session: SessionBoardPayload) => void;
-  /** Done only: the column folds into a 44 px rail behind a disclosure button. */
+  /** The column folds into a 44 px rail: its mark, vertical title and count expand it again. */
   collapsible?: { collapsed: boolean; onToggle: () => void };
   /** Session list verbs every card offers (context menu and `…`). */
   actions?: SessionLifecycleActionHandlers;
@@ -156,8 +158,8 @@ export function SessionsBoardColumn({
 }
 
 /**
- * The column's mark (or its select-all while cards can be selected), title, facet count,
- * and Done's fold.
+ * The column's mark (or its select-all while cards can be selected), title, facet count, and
+ * fold. A folded column's header is the whole rail: one button that expands it again.
  */
 function SessionsBoardColumnHeader({
   column,
@@ -174,51 +176,73 @@ function SessionsBoardColumnHeader({
   shownIds: readonly string[];
   testIdPrefix: string;
 }) {
-  const collapsed = collapsible?.collapsed === true;
-  return (
-    <header
-      className={cn(
-        SESSIONS_BOARD_COLUMN_HEADER,
-        "group/board-select",
-        collapsed && "flex-col gap-2.5 px-0 py-2.5"
-      )}
-    >
-      {collapsed ? (
+  // The pressed toggle unmounts with the fold it flips: its replacement takes focus.
+  const moveFocus = useRef(false);
+  const onToggle = () => {
+    moveFocus.current = true;
+    collapsible?.onToggle();
+  };
+  const focusIfMoved = (element: HTMLButtonElement | null) => {
+    if (!element || !moveFocus.current) return;
+    moveFocus.current = false;
+    element.focus();
+  };
+  const count = (
+    <SessionsBoardColumnCount
+      column={column}
+      testId={`${testIdPrefix}-column-count-${column.id}`}
+    />
+  );
+  const toggle = collapsible
+    ? {
+        "aria-controls": bodyId,
+        "aria-expanded": !collapsible.collapsed,
+        "aria-label": `${collapsible.collapsed ? "Expand" : "Collapse"} ${column.label}`,
+        "data-testid": `${testIdPrefix}-column-toggle-${column.id}`,
+        type: "button" as const,
+      }
+    : null;
+  if (collapsible?.collapsed && toggle) {
+    return (
+      <button
+        {...toggle}
+        onClick={onToggle}
+        ref={focusIfMoved}
+        className={cn(
+          SESSIONS_BOARD_COLUMN_RAIL,
+          "transition-colors duration-fast ease-out motion-reduce:transition-none"
+        )}
+        title={`Expand ${column.label}`}
+      >
         <SessionsBoardColumnGlyph id={column.id} />
-      ) : (
-        <SessionsBoardSelectAll
-          ids={shownIds}
-          label={label}
-          testId={`${testIdPrefix}-column-select-${column.id}`}
-        >
-          <SessionsBoardColumnGlyph id={column.id} />
-        </SessionsBoardSelectAll>
-      )}
-      <h2 className={cn(SESSIONS_BOARD_COLUMN_TITLE, collapsed && "[writing-mode:vertical-rl]")}>
-        {column.label}
-      </h2>
-      <SessionsBoardColumnCount
-        column={column}
-        testId={`${testIdPrefix}-column-count-${column.id}`}
-      />
-      {collapsible ? (
+        <span className={cn(SESSIONS_BOARD_COLUMN_TITLE, "[writing-mode:vertical-rl]")}>
+          {column.label}
+        </span>
+        {count}
+      </button>
+    );
+  }
+  return (
+    <header className={cn(SESSIONS_BOARD_COLUMN_HEADER, "group/board-select")}>
+      <SessionsBoardSelectAll
+        ids={shownIds}
+        label={label}
+        testId={`${testIdPrefix}-column-select-${column.id}`}
+      >
+        <SessionsBoardColumnGlyph id={column.id} />
+      </SessionsBoardSelectAll>
+      <h2 className={SESSIONS_BOARD_COLUMN_TITLE}>{column.label}</h2>
+      {count}
+      {toggle ? (
         <Button
-          aria-controls={bodyId}
-          aria-expanded={!collapsed}
-          aria-label={`${collapsed ? "Expand" : "Collapse"} ${column.label}`}
-          className={cn("ml-auto aria-expanded:bg-transparent", collapsed && "order-first m-0")}
-          data-testid={`${testIdPrefix}-column-toggle-${column.id}`}
-          onClick={collapsible.onToggle}
+          {...toggle}
+          className="ml-auto text-subtle"
+          onClick={onToggle}
+          ref={focusIfMoved}
           size="icon-xs"
-          type="button"
           variant="quiet"
         >
-          <ChevronRight
-            className={cn(
-              "transition-transform duration-fast ease-out motion-reduce:transition-none",
-              !collapsed && "rotate-90"
-            )}
-          />
+          <ChevronLeft />
         </Button>
       ) : null}
     </header>
