@@ -9,6 +9,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import { useSessionCatalog } from "../../hooks/use-session-catalog";
+import { useSessionListGroupCatalog } from "../../hooks/use-session-list-group-catalog";
 import { useSessionFolders } from "../../hooks/use-session-folders";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
@@ -19,7 +20,6 @@ import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank, sessionListPairKey } from "../../lib/session-list-group-rows";
 import {
   sessionListGroupEmptyMessage,
-  sessionListGroupFilters,
   type SessionListGroupSpec,
 } from "../../lib/session-list-groups";
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
@@ -181,19 +181,7 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  // A pair with no sessions in view skips its page but keeps its folders, so a folder
-  // created from its + shows at once (#1085). A disabled read still holds its last page
-  // or error, so the group reads as settled and empty instead.
-  const read = useSessionCatalog(
-    group.scope,
-    sessionListGroupFilters(view, group),
-    group.total > 0,
-    {
-      facets: false,
-      lens: group.lens,
-    }
-  );
-  const catalog = group.total > 0 ? read : settledEmptyCatalog(read);
+  const catalog = useSessionListGroupCatalog(group, view);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
@@ -244,11 +232,7 @@ function SessionListPairGroupBody({
     );
   }
   if (catalog.loading) return <SessionGroupRowsSkeleton />;
-  // A group with no sessions and no folders keeps the quiet one-line note groups use (#1085).
-  const sections =
-    layout.sections && (layout.sections.folders.length > 0 || layout.sections.root.length > 0)
-      ? layout.sections
-      : undefined;
+  const sections = sectionsWithContent(layout.sections);
   return (
     <div className="flex flex-col gap-0.5 pl-2.5">
       {layout.layout && sections ? (
@@ -326,18 +310,13 @@ function GroupThreads({
 }
 
 /** A failed refresh over loaded rows, and the group's own previous/next paging. */
-/** A group catalog with nothing in view: no rows, nothing loading, failed, or paging. */
-function settledEmptyCatalog(catalog: GroupCatalog): GroupCatalog {
-  return {
-    ...catalog,
-    sessions: [],
-    loading: false,
-    placeholder: false,
-    failed: false,
-    next: false,
-    previous: false,
-    paging: false,
-  };
+/** Folder sections worth rendering; a group with none keeps the quiet one-line note (#1085). */
+function sectionsWithContent<T extends { folders: readonly unknown[]; root: readonly unknown[] }>(
+  sections: T | null | undefined
+): T | undefined {
+  return sections && (sections.folders.length > 0 || sections.root.length > 0)
+    ? sections
+    : undefined;
 }
 
 function GroupPager({ catalog }: { catalog: GroupCatalog }) {
