@@ -1,3 +1,6 @@
+import "./src/styles.css";
+
+import type { CanvasProps } from "@compozy/proto";
 import {
   RouterProvider,
   createMemoryHistory,
@@ -5,13 +8,12 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { createContext, use, useState, type ReactNode } from "react";
+import { createContext, use, useEffect, useState, type ReactNode } from "react";
 
 import { Toaster, TooltipProvider, UIProvider } from "@compozy/ui";
 
 import { resetClientStores } from "@/storybook/reset-client-stores";
-
-import type { Theme } from "#gallery/shell/view";
+import { applyTheme } from "@/systems/theme/lib/apply-theme";
 
 const CanvasContent = createContext<ReactNode>(null);
 
@@ -29,17 +31,21 @@ function createCanvasRouter() {
 }
 
 /**
- * The provider stack of one prototype canvas, mirroring the app and Storybook: `UIProvider` with
- * the user's reduced-motion preference, `TooltipProvider`, a fresh memory-history router (links
- * never reach production loaders or change the page URL) and the toast region in the canvas
- * theme. Mounting a canvas resets the module-level client stores, so a state never inherits the
- * previous one's edits. There is deliberately no QueryClient: prototypes render from fixtures.
+ * The provider stack of every prototype canvas, mirroring the app and Storybook: `UIProvider`
+ * with the user's reduced-motion preference, `TooltipProvider`, a fresh memory-history router
+ * (links never reach production loaders or change the page URL) and the toast region in the
+ * canvas theme, painted through the app's only theme writer (`data-theme` + `.dark`). Mounting a
+ * canvas resets the module-level client stores, so a state never inherits the previous one's
+ * edits. There is deliberately no QueryClient: prototypes render from fixtures.
  */
-export function PrototypeCanvas({ theme, children }: { theme: Theme; children: ReactNode }) {
+export function Canvas({ children, theme }: CanvasProps) {
   const [router] = useState(() => {
     resetClientStores();
     return createCanvasRouter();
   });
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
   return (
     <UIProvider reducedMotion="user">
       <TooltipProvider>

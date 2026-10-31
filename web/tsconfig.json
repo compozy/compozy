@@ -3,7 +3,7 @@
     "exclude": [
         "node_modules",
         "dist",
-        "dist-gallery",
+        "dist-proto",
         ".tmp",
         "storybook-static",
         "coverage",
@@ -26,8 +26,7 @@
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
         "paths": {
-            "@/*": ["./src/*"],
-            "#gallery/*": ["./gallery/*"]
+            "@/*": ["./src/*"]
         }
     }
 }

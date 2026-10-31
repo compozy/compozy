@@ -6,7 +6,7 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { useSessionHasDraft } from "../../hooks/use-session-store";
-import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-selection";
+import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-view-selection";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { SessionRowActions } from "../session-row-actions";

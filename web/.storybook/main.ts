@@ -1,4 +1,5 @@
 import type { StorybookConfig } from "@storybook/react-vite";
+import { fileURLToPath } from "node:url";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
@@ -6,7 +7,12 @@ const config: StorybookConfig = {
   staticDirs: ["../public"],
   framework: {
     name: "@storybook/react-vite",
-    options: {},
+    // The shared rendering config, without the app's `proto()` production boundary.
+    options: {
+      builder: {
+        viteConfigPath: fileURLToPath(new URL("../vite.presentation.ts", import.meta.url)),
+      },
+    },
   },
 };
 

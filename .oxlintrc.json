@@ -116,7 +116,7 @@
         {
             "files": [
                 "web/src/**/*.tsx",
-                "web/gallery/**/*.tsx",
+                "web/proto.canvas.tsx",
                 "packages/ui/src/**/*.tsx",
                 "packages/site/**/*.tsx",
                 "sdk/react/src/**/*.tsx"
@@ -136,7 +136,7 @@
         {
             "files": [
                 "web/src/**/*.{ts,tsx}",
-                "web/gallery/**/*.{ts,tsx}",
+                "web/proto.canvas.tsx",
                 "packages/ui/src/**/*.{ts,tsx}",
                 "packages/site/**/*.{ts,tsx}",
                 "sdk/react/src/**/*.{ts,tsx}"
@@ -148,7 +148,7 @@
         {
             "files": [
                 "web/src/**/*.{ts,tsx}",
-                "web/gallery/**/*.{ts,tsx}",
+                "web/proto.canvas.tsx",
                 "packages/ui/src/**/*.{ts,tsx}",
                 "packages/site/**/*.{ts,tsx}",
                 "sdk/react/src/**/*.{ts,tsx}"
@@ -214,11 +214,10 @@
                                     "**/*.proto",
                                     "**/*.proto.*",
                                     "**/drafts/**",
-                                    "#gallery",
-                                    "#gallery/**",
-                                    "**/gallery/**"
+                                    "@compozy/proto",
+                                    "@compozy/proto/**"
                                 ],
-                                "message": "Production web code cannot import prototypes, drafts or the gallery harness (flows included)."
+                                "message": "Production web code cannot import prototypes, drafts or the prototype gallery."
                             }
                         ]
                     }
@@ -297,7 +296,7 @@
         ".claude/skills/**",
         "**/.agents/skills/**",
         "web/dist/**",
-        "web/dist-gallery/**",
+        "web/dist-proto/**",
         "**/routeTree.gen.ts",
         ".compozy/tasks/**",
         "docs/design/**"

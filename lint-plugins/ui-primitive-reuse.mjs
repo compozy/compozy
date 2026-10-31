@@ -89,7 +89,7 @@ function isConsumerSourcePath(filename) {
   if (!normalized) return false;
   if (
     !normalized.includes("/web/src/") &&
-    !normalized.includes("/web/gallery/") &&
+    !normalized.endsWith("/web/proto.canvas.tsx") &&
     !normalized.includes("/packages/site/")
   ) {
     return false;

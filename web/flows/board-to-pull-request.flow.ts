@@ -1,4 +1,4 @@
-import { defineFlow } from "#gallery/flow";
+import { defineFlow } from "@compozy/proto/flow";
 
 /**
  * From the Sessions board to the pull request a session opened: pick the running card, land on
@@ -18,7 +18,7 @@ export const flow = defineFlow({
     failing: { proto: "session-pull-request-chip", state: "checks-failing" },
     ready: { proto: "session-pull-request-chip", state: "ready-to-merge" },
     github: {
-      external: "github",
+      external: "other",
       label: "Pull request on GitHub",
       url: "https://github.com/compozy/compozy/pull/932",
       end: true,
