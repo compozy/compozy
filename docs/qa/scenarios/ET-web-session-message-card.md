@@ -83,5 +83,5 @@ QA impact 2026-10-09 (agent-collaboration tasks 03/05): new in this change; no p
 
 QA impact 2026-10-31 (#1097): a long title on an openable party link overflowed the From / Sent to /
 Reply from header and rendered under the reply state and time. Step 2 now covers a long title at a
-narrow width. Automated owners: the `long party titles (#1097)` cases in `session-messages.test.tsx`
+narrow width. Automated owners: E2E-004 in `web/e2e/__tests__/session-messages.spec.ts` (layout), the `long party titles (#1097)` cases in `session-messages.test.tsx` (name and tooltip),
 and the `LongTitles` story (360px and the 560px card maximum).

@@ -457,11 +457,13 @@ describe("SessionMessageCard", () => {
   });
 });
 
+// The clipped layout itself (ellipsis, nothing under the reply state or time) is owned by the
+// browser suite, `web/e2e/__tests__/session-messages.spec.ts` E2E-004: jsdom has no layout.
 describe("long party titles (#1097)", () => {
   const LONG = "Preparar BnUI para migração do AdvOS (tema AdvOS + base-ui 1.8 + ícones)";
   const long = (party: SessionMessageParty) => ({ ...party, title: LONG });
 
-  it("Should keep the full title as the link's name and tooltip on every card while it ellipsizes", () => {
+  it("Should keep the full title as the link's name and tooltip on every card", () => {
     render(
       <>
         <SessionSentCard

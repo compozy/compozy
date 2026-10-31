@@ -20,8 +20,6 @@ import {
   crossWorkspaceSender,
   deletedSender,
   deletedTarget,
-  longTitleCrossWorkspace,
-  longTitleTarget,
   refactorBilling,
   renamedSender,
 } from "./session-message-story-fixtures";
@@ -413,76 +411,6 @@ function SenderFlow() {
   );
 }
 
-/** #1097: a long title ellipsizes in the middle column; chips, reply state and time stay whole. */
-function LongTitleCards() {
-  return (
-    <>
-      <SessionSentCard
-        target={longTitleTarget}
-        callState="sent"
-        mode="steer"
-        firstLine="Converse em português brasileiro; artefatos em inglês."
-        error={null}
-        reply="waiting"
-        timestampMs={at(0)}
-        onOpenTarget={onOpen}
-      />
-      <SessionSentCard
-        target={{ ...longTitleTarget, title: null }}
-        callState="sent"
-        mode="queue"
-        firstLine={QUESTION}
-        error={null}
-        reply="completed"
-        timestampMs={at(0)}
-        onOpenTarget={onOpen}
-      />
-      <SessionMessageCard
-        sender={longTitleCrossWorkspace}
-        delivery="steered"
-        replyRequested
-        timestampMs={at(1)}
-        onOpenSender={onOpen}
-      >
-        <Text>{QUESTION}</Text>
-      </SessionMessageCard>
-      <SessionMessageCard
-        sender={longTitleTarget}
-        delivery={null}
-        replyRequested={false}
-        timestampMs={at(2)}
-      >
-        <Text>{QUESTION}</Text>
-      </SessionMessageCard>
-      <SessionReplyCard
-        target={longTitleTarget}
-        outcome="completed"
-        text={ANSWER}
-        truncated={false}
-        timestampMs={at(3)}
-        onOpenTarget={onOpen}
-      />
-    </>
-  );
-}
-
-function LongTitleStates() {
-  return (
-    <div className="flex flex-col gap-8 p-8">
-      <Cell label="narrow · 360px">
-        <div className="flex w-[360px] flex-col gap-3" data-testid="long-title-narrow">
-          <LongTitleCards />
-        </div>
-      </Cell>
-      <Cell label="wide · 720px column, card at its 560px max">
-        <div className="flex w-[720px] flex-col gap-3" data-testid="long-title-wide">
-          <LongTitleCards />
-        </div>
-      </Cell>
-    </div>
-  );
-}
-
 const meta: Meta = {
   title: "systems/session/components/session-messages/SessionMessages",
   parameters: {
@@ -508,8 +436,6 @@ export const ReplyCard: Story = { render: () => <ReplyCardStates /> };
 export const SentCard: Story = { render: () => <SentCardStates /> };
 
 export const SenderTranscript: Story = { render: () => <SenderFlow /> };
-
-export const LongTitles: Story = { render: () => <LongTitleStates /> };
 
 /** The sender link opens the session; ⌘/Ctrl opens it in a new window. */
 export const OpenSender: Story = {
