@@ -385,8 +385,9 @@ describe("ProcessesLeftRunningDialog", () => {
     await user.click(
       within(group).getByRole("button", { name: /^Stop process: node .*proto dev and 2 more/ })
     );
-    // The root alone: the daemon expands it, so no tree outgrows the 100-target request cap.
-    expect(onStop).toHaveBeenLastCalledWith([chain!.wrappers[0]]);
+    // The lead alone: the daemon expands it, so no tree outgrows the 100-target request cap, and a
+    // wrapper that already exited cannot strand the server it launched.
+    expect(onStop).toHaveBeenLastCalledWith([chain!.lead]);
   });
 
   it("Should say so when nothing was left running", () => {

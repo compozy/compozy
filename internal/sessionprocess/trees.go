@@ -133,7 +133,9 @@ func foldDetachedHelpers(rows []Process, indexes []int, parent map[int]int, root
 func latestOwner(rows []Process, candidates []int, detached int, root func(int) int) (int, bool) {
 	for _, owner := range slices.Backward(candidates) {
 		// Another copy of the same program is a peer, not the app this helper serves.
+		// A tree rooted in the same program is another instance, reached through its own helper.
 		if root(owner) == detached || rows[owner].Argv0 == rows[detached].Argv0 ||
+			rows[root(owner)].Argv0 == rows[detached].Argv0 ||
 			rows[owner].StartedAt.After(rows[detached].StartedAt) {
 			continue
 		}

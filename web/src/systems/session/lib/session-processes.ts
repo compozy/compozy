@@ -121,11 +121,12 @@ export interface SessionProcessTree {
 }
 
 /**
- * The process a stop names for its whole tree: the outermost wrapper, else the lead. The daemon
- * expands it to every verified member, so a tree of any size is one target.
+ * The process a stop names for its whole tree: its lead, the live process the row shows. A wrapper
+ * may already have exited; the daemon expands the lead to every verified member, wrappers
+ * included, so a tree of any size is one target.
  */
-export function processTreeRoot(tree: SessionProcessTree): SessionProcessPayload {
-  return tree.wrappers[0] ?? tree.lead;
+export function processTreeTarget(tree: SessionProcessTree): SessionProcessPayload {
+  return tree.lead;
 }
 
 /** Every process a tree Stop signals: wrappers, the lead, and the helpers. */

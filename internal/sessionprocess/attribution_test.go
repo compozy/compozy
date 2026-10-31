@@ -623,6 +623,16 @@ func TestProcessTrees(t *testing.T) {
 	// Review regression: one install's daemonized server started twice is two trees, not helpers.
 	t.Run("Should keep two daemonized copies of one program apart", func(t *testing.T) {
 		t.Parallel()
+		// Two daemonized browsers: the second never folds into the first through its crash handler.
+		browsers := []Process{
+			row(700, 1, 700, 0, "background", chrome+"/MacOS/Google Chrome", "Google Chrome --headless"),
+			row(701, 1, 701, time.Second, "background", helpers+"/chrome_crashpad_handler", "chrome_crashpad_handler"),
+			row(710, 1, 710, 2*time.Second, "background", chrome+"/MacOS/Google Chrome", "Google Chrome --headless"),
+		}
+		assignTrees(browsers)
+		if trees := Trees(browsers); len(trees) != 2 || len(trees[1].Members) != 1 {
+			t.Fatalf("browser trees=%+v", trees)
+		}
 		rows := []Process{
 			row(600, 1, 600, 0, "background", "/opt/redis/redis-server", "redis-server --port 6379", 6379),
 			row(601, 1, 601, time.Second, "background", "/opt/redis/redis-server", "redis-server --port 6380", 6380),

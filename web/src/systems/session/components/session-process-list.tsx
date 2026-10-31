@@ -5,6 +5,7 @@ import { Button, Disclosure, StateGlyph, Time } from "@compozy/ui";
 import { ComposerPopoverRowsSkeleton } from "./composer-popover-rows-skeleton";
 import {
   processCommandLabel,
+  processIdentity,
   processHelperCountLabel,
   processHelperGroups,
   PROCESS_LINEAGE_HINT,
@@ -28,7 +29,7 @@ export interface SessionProcessListProps {
   /** Stops the whole tree: every member the daemon still verifies. */
   onStop?: (tree: SessionProcessTree) => void;
   /**
-   * Tree ids whose stop is in flight (they show the spinner), or `"all"`. Any
+   * Lead identities whose stop is in flight (they show the spinner), or `"all"`. Any
    * stop in flight locks every row: one stop at a time, so a second request can
    * never hide the first one's pending state.
    */
@@ -224,7 +225,9 @@ export function SessionProcessList({
       <ProcessRow
         key={tree.id}
         tree={tree}
-        stopping={stopping !== null && stopping !== "all" && stopping.has(tree.id)}
+        stopping={
+          stopping !== null && stopping !== "all" && stopping.has(processIdentity(tree.lead))
+        }
         locked={stopping !== null}
         expanded={defaultExpanded.includes(tree.id)}
         onStop={onStop}
