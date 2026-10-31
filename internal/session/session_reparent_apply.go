@@ -175,7 +175,11 @@ func (m *Manager) applyReparent(
 	if err := lineageStore.UpdateSessionLineages(ctx, source.workspaceID, updates); err != nil {
 		cause := rollback(fmt.Errorf("session: persist reparent lineage: %w", err))
 		if target.sessionType != "" {
-			if restoreErr := m.persistSessionCatalogFromMeta(ctx, &source.meta); restoreErr != nil {
+			// The request may be canceled already; the restore must still land so the
+			// catalog does not keep a taken-over row for a worker meta.json restored.
+			cleanupCtx, cancel := m.lifecycleCleanupContext()
+			defer cancel()
+			if restoreErr := m.persistSessionCatalogFromMeta(cleanupCtx, &source.meta); restoreErr != nil {
 				cause = errors.Join(cause, fmt.Errorf("session: restore catalog row of %q: %w", source.id, restoreErr))
 			}
 		}

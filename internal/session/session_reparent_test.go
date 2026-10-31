@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -322,8 +323,9 @@ func TestManagerAdoptSession(t *testing.T) {
 		}
 
 		catalog.armed.Store(true)
-		if _, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID); err == nil {
-			t.Fatal("DetachSession() error = nil, want the projection failure")
+		if _, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID); err == nil ||
+			!strings.Contains(err.Error(), "catalog unavailable") {
+			t.Fatalf("DetachSession() error = %v, want the injected projection failure", err)
 		}
 		meta := readMeta(t, worker.MetaPath())
 		if meta.SessionType != string(SessionTypeSpawned) || meta.Lineage == nil ||
@@ -589,6 +591,12 @@ func TestValidateReparentNodes(t *testing.T) {
 			{name: "daemon auto-title role", node: spawned(SpawnRoleAutoTitle, StateStopped), want: ReparentRefusalSourceNotUser},
 			// After a daemon restart a stopping worker is absent from the manager.
 			{name: "stopping worker without a run", node: spawned("worker", StateStopping), want: ReparentRefusalSourceRunning},
+			{name: "stopped worker with an unverifiable process", node: func() reparentNode {
+				node := spawned("worker", StateStopped)
+				// A recorded PID without its start time cannot prove the process exited.
+				node.meta.Liveness = &store.SessionLivenessMeta{SubprocessPID: 4242}
+				return node
+			}(), want: ReparentRefusalSourceRunning},
 			{name: "stopped worker", node: spawned("worker", StateStopped)},
 			{name: "stopped custom role", node: spawned("reviewer", StateStopped)},
 		} {
