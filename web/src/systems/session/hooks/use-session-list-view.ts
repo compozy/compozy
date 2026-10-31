@@ -71,6 +71,9 @@ export interface SessionListViewModel {
   laterCount?: number;
   setSort: (sort: SessionListSort) => void;
   setGroupBy: (groupBy: SessionListGroupBy) => void;
+  /** Project grouping also lists projects with no sessions in view (#1085); per window. */
+  showEmptyProjects: boolean;
+  setShowEmptyProjects: (show: boolean) => void;
   setShelf: (shelf: SessionListShelf) => void;
   /** Group-by groups from server facets; empty while flat. */
   groups: SessionListGroupSpec[];
@@ -179,6 +182,7 @@ export function useSessionListView(
     breadth,
     lens: profile.params,
     workspaces,
+    showEmptyProjects: sidebar.showEmptyProjects,
     enabled,
   });
   const groups = arranged.groups;
@@ -240,6 +244,8 @@ export function useSessionListView(
     laterCount,
     setSort: preferences.setSort,
     setGroupBy: preferences.setGroupBy,
+    showEmptyProjects: sidebar.showEmptyProjects,
+    setShowEmptyProjects: sidebar.setShowEmptyProjects,
     setShelf,
     groups,
     groupsLoading: awaiting.groupsLoading,

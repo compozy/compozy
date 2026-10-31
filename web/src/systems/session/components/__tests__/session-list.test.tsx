@@ -37,7 +37,11 @@ import { agentsListOptions } from "@/systems/agent";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
-import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
+import {
+  profileSessionGroups,
+  projectSessionGroup,
+  projectSessionGroups,
+} from "../../lib/session-list-groups";
 import { buildProjectGroupTree, projectGroupTreeGroups } from "../../lib/workspace-folders";
 import { workspaceFolderFixture } from "../../mocks/workspace-layout-handlers";
 import {
@@ -2498,6 +2502,44 @@ describe("SessionList breadth and Group by", () => {
     expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-group-by-project"));
     expect(setGroupBy).toHaveBeenCalledWith("project");
+  });
+
+  // #1085: "Show empty projects" belongs to project grouping and reports the operator's choice.
+  it("Should offer Show empty projects only while grouped by project", async () => {
+    // The first menu's close leaves its pointer lock for a frame; the reopen does not wait on it.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const setShowEmptyProjects = vi.fn();
+    const list = renderList({ sessions: [], view: grouped({ setShowEmptyProjects }) });
+    await user.click(screen.getByRole("button", { name: "Group by: Project" }));
+    const toggle = await screen.findByRole("menuitemcheckbox", { name: "Show empty projects" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await user.click(toggle);
+    expect(setShowEmptyProjects).toHaveBeenCalledWith(true);
+    await user.keyboard("{Escape}");
+
+    list.update(
+      [],
+      grouped({ groupBy: "none", storedGroupBy: "none", groups: [], setShowEmptyProjects })
+    );
+    await user.click(screen.getByRole("button", { name: "Group by: None" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Project" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Show empty projects" })).toBeNull();
+  });
+
+  it("Should name the project, never the profile, in an empty project group", async () => {
+    const empty = projectSessionGroup(
+      "ws-gamma",
+      { all: 0, working: 0, needs_you: 0 },
+      { workspaces: [{ id: "ws-gamma", name: "Gamma" }], lens: { profile: "default" } }
+    );
+    renderList({ sessions: [], view: grouped({ groups: [empty], showEmptyProjects: true }) });
+
+    const note = await screen.findByText("No sessions in Gamma yet.");
+    expect(note).toBeVisible();
+    // A quiet one-line note inside the group, not the list's full empty-state block.
+    expect(note.closest("[data-slot='empty']")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-group-project:ws-gamma")).toHaveTextContent("0");
+    expect(screen.queryByText(/in default/)).not.toBeInTheDocument();
   });
 
   it("W-09: Should group by project from facets, each open group reading its own rows", async () => {

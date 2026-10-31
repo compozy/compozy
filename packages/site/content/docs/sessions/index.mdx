@@ -212,6 +212,11 @@ touched. Project folders and project order belong to your profile, so under **Al
 **New folder** stays disabled with the reason. Projects you never moved keep their name order after
 the ones you placed.
 
+Grouped by project, the list shows only projects with sessions in the current view, and a folder
+whose projects are all empty stays hidden with them. To see every registered project, open
+**Group by** and check **Show empty projects**; each window remembers the choice. An empty project
+reads "No sessions in {project} yet." inside its group.
+
 ```bash
 compozy workspace folder create "Clients" -o json
 # {"id":"wfold-…","name":"Clients","position":0,"workspace_count":0,…}

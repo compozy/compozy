@@ -18,8 +18,9 @@ import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import type { SessionListGroupBy } from "../lib/session-list-preferences";
 import {
   buildProjectGroupTree,
+  mergeShownFolderOrder,
+  projectGroupsForView,
   projectGroupTreeGroups,
-  withPlacedProjectGroups,
   type ProjectGroupTree,
 } from "../lib/workspace-folders";
 import {
@@ -160,7 +161,9 @@ export function useWorkspaceLayout(options: {
 /**
  * Project groups arranged by the profile's project folders where they apply:
  * the groups in on-screen order, the folders model, and a failed layout read.
- * Until the layout loads, groups keep the order they were served in.
+ * Until the layout loads, groups keep the order they were served in. Projects
+ * with no sessions in view, and folders holding only those, show only while the
+ * operator shows empty projects (#1085).
  */
 export function useProjectFolderGroups(options: {
   groups: SessionListGroupSpec[];
@@ -168,24 +171,62 @@ export function useProjectFolderGroups(options: {
   breadth: { allProjects: boolean; allProfiles: boolean };
   lens: ProfileScopeParams;
   workspaces: ReadonlyArray<{ id: string; name: string }>;
+  showEmptyProjects: boolean;
   enabled: boolean;
 }): {
   groups: SessionListGroupSpec[];
   projectFolders?: { layout: WorkspaceLayout; tree: ProjectGroupTree };
   loadError?: { retry: () => void };
 } {
-  const { groupBy, breadth, lens } = options;
+  const { groupBy, breadth, lens, showEmptyProjects: showEmpty } = options;
+  const projectGrouping = groupBy === "project" && breadth.allProjects;
   // Project folders belong to one profile and arrange the project groups of All projects.
-  const applies = groupBy === "project" && breadth.allProjects && "profile" in lens;
+  const applies = projectGrouping && "profile" in lens;
   const { layout, loadError } = useWorkspaceLayout({
     profile: "profile" in lens ? lens.profile : "",
     enabled: options.enabled && applies,
   });
-  if (!layout) return { groups: options.groups, loadError };
-  const groups = withPlacedProjectGroups(options.groups, layout.placements, {
-    workspaces: options.workspaces,
-    lens,
+  const visible = (placements?: WorkspaceLayout["placements"]) =>
+    projectGrouping
+      ? projectGroupsForView(options.groups, {
+          showEmpty,
+          workspaces: options.workspaces,
+          lens,
+          placements,
+        })
+      : options.groups;
+  if (!layout) return { groups: visible(), loadError };
+  const tree = buildProjectGroupTree(visible(layout.placements), layout, {
+    hideEmptyFolders: !showEmpty,
   });
-  const tree = buildProjectGroupTree(groups, layout);
-  return { groups: projectGroupTreeGroups(tree), projectFolders: { layout, tree }, loadError };
+  return {
+    groups: projectGroupTreeGroups(tree),
+    projectFolders: { layout: withShownFolderOrder(layout, tree), tree },
+    loadError,
+  };
+}
+
+/**
+ * Folder reorders act on the folders on screen; while some hide, each write
+ * keeps the hidden ones in their slots so the daemon still gets every folder.
+ */
+function withShownFolderOrder(layout: WorkspaceLayout, tree: ProjectGroupTree): WorkspaceLayout {
+  if (tree.folders.length === layout.folders.length) return layout;
+  const allIds = [...layout.folders]
+    .sort((left, right) => left.position - right.position)
+    .map(folder => folder.id);
+  const reorderFolders = (shownOrder: readonly string[]) =>
+    layout.reorderFolders(mergeShownFolderOrder(allIds, shownOrder));
+  return {
+    ...layout,
+    reorderFolders,
+    moveFolder: (folderId, delta) => {
+      const next = shiftId(
+        tree.folders.map(node => node.folder.id),
+        folderId,
+        delta
+      );
+      if (next) reorderFolders(next);
+    },
+  };
 }

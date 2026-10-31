@@ -18,6 +18,9 @@ export interface SessionListToolbarProps {
   onShelfChange: (shelf: SessionListShelf) => void;
   onSortChange: (sort: SessionListSort) => void;
   onGroupByChange: (groupBy: SessionListGroupBy) => void;
+  /** Project grouping also lists projects with no sessions in view (#1085). */
+  showEmptyProjects: boolean;
+  onShowEmptyProjectsChange: (show: boolean) => void;
   onNewSession: () => void;
   /** Present only where folders apply; turns (+) into a New session / New folder menu. */
   onNewFolder?: () => void;
@@ -47,6 +50,8 @@ export function SessionListToolbar({
   onShelfChange,
   onSortChange,
   onGroupByChange,
+  showEmptyProjects,
+  onShowEmptyProjectsChange,
   onNewSession,
   onNewFolder,
   newFolderUnavailable,
@@ -74,6 +79,8 @@ export function SessionListToolbar({
       <SessionGroupByMenu
         onValueChange={onGroupByChange}
         options={groupByOptions}
+        showEmptyProjects={showEmptyProjects}
+        onShowEmptyProjectsChange={onShowEmptyProjectsChange}
         testId={`${testIdPrefix}-group-by`}
         value={groupBy}
       />

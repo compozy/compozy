@@ -12,6 +12,7 @@ import {
 import type { fetchSessionFacets } from "../adapters/session-catalog-api";
 import type { SessionListFilters } from "../types";
 import { sessionListSortParam, type SessionListSort } from "./session-list-preferences";
+import { sessionListShelfNoun, type SessionListShelf } from "./session-list-shelf";
 
 type SessionCatalogFacets = Awaited<ReturnType<typeof fetchSessionFacets>>;
 
@@ -157,4 +158,20 @@ export function sessionListGroupTarget(
     workspaceId: group.pair?.workspaceId ?? workspaceSelectorOrAll(group.scope),
     profile: group.pair?.profile ?? ("profile" in group.lens ? group.lens.profile : null) ?? null,
   };
+}
+
+/** What a group's header names: its project (User included) or its profile. */
+export function sessionListGroupName(group: Pick<SessionListGroupSpec, "badge" | "owner">): string {
+  return group.badge?.name ?? group.owner?.name ?? "group";
+}
+
+/**
+ * An empty group names itself, never the list's profile: inside the project
+ * group "compozy" the empty state is "No sessions in compozy yet." (#1085).
+ */
+export function sessionListGroupEmptyMessage(
+  group: Pick<SessionListGroupSpec, "badge" | "owner">,
+  shelf: SessionListShelf
+): string {
+  return `No ${sessionListShelfNoun(shelf)} in ${sessionListGroupName(group)} yet.`;
 }

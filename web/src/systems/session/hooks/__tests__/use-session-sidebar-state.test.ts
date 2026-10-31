@@ -21,6 +21,9 @@
 // List and Kanban: they survive the view toggle and a reload, two windows stay
 // independent, and a window that never chose follows the daemon's
 // `shell.sessions` value, which the web never writes.
+// "Show empty projects" (#1085) is rail state: per window, survives a reload,
+// seeds new windows with the last choice, and an entry stored before it existed
+// reads as off.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -199,6 +202,30 @@ describe("useSessionSidebarState", () => {
     });
     expect(one.current.open).toBe(true);
     expect(two.current.open).toBe(false);
+  });
+
+  it("Should keep Show empty projects per window across a reload, off for entries stored before it", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: { byScope: { [WINDOW_ONE]: { open: true } }, partitionByScope: {} },
+        version: 3,
+      })
+    );
+    const before = await loadFreshSidebarState();
+    const one = renderInScope(before, WINDOW_ONE);
+    expect(one.current.showEmptyProjects).toBe(false);
+    act(() => one.current.setShowEmptyProjects(true));
+    const two = renderInScope(before, WINDOW_TWO);
+    expect(two.current.showEmptyProjects).toBe(true);
+    act(() => two.current.setShowEmptyProjects(false));
+    expect(one.current.showEmptyProjects).toBe(true);
+
+    const after = await loadFreshSidebarState();
+    await waitFor(() =>
+      expect(renderInScope(after, WINDOW_ONE).current.showEmptyProjects).toBe(true)
+    );
+    expect(renderInScope(after, WINDOW_TWO).current.showEmptyProjects).toBe(false);
   });
 
   it("UT-067: Should restore a window's Kanban view and child filter after a reload, never seeding a new window", async () => {

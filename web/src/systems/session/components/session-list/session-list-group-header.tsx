@@ -17,7 +17,11 @@ import {
 } from "../../hooks/use-session-list-group-folder-create";
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
-import { sessionListGroupTarget, type SessionListGroupSpec } from "../../lib/session-list-groups";
+import {
+  sessionListGroupName,
+  sessionListGroupTarget,
+  type SessionListGroupSpec,
+} from "../../lib/session-list-groups";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListCreateMenu } from "./session-list-create-menu";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
@@ -52,10 +56,6 @@ export function SessionListGroupIdentity({ group }: { group: SessionListGroupSpe
   if (group.badge) return <WorkspaceBadge identity={group.badge} variant="chrome" />;
   if (group.owner) return <ProfileOwnerTag owner={group.owner} />;
   return null;
-}
-
-function groupName(group: SessionListGroupSpec): string {
-  return group.badge?.name ?? group.owner?.name ?? "group";
 }
 
 export interface SessionListGroupHeaderProps {
@@ -94,7 +94,7 @@ export function SessionListGroupHeader({
   const target = sessionListGroupTarget(group);
   const folder = useSessionListGroupFolderCreate(target);
   const testId = `${testIdPrefix}-group-${group.key}`;
-  const name = groupName(group);
+  const name = sessionListGroupName(group);
   return (
     <>
       <SessionListGroupProjectMenu group={group} leadingItems={arrange?.menuItems}>

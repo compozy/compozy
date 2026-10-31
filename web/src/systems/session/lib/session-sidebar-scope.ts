@@ -58,6 +58,11 @@ export interface SessionSidebarScopeState {
    */
   sort: SessionListSort | null;
   groupBy: SessionListGroupBy | null;
+  /**
+   * Project grouping lists every registered project, even one with no sessions
+   * in the current view (#1085). Off by default: only projects with sessions show.
+   */
+  showEmptyProjects: boolean;
 }
 
 export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
@@ -73,6 +78,7 @@ export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   collapsedBoardColumns: {},
   sort: null,
   groupBy: null,
+  showEmptyProjects: false,
 };
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -107,7 +113,34 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     collapsedBoardColumns: normalizedCollapsedFlags(value.collapsedBoardColumns),
     sort: oneOf(SESSION_LIST_SORTS, value.sort),
     groupBy: oneOf(SESSION_LIST_GROUP_BYS, value.groupBy),
+    // Absent in blobs written before #1085: the default (off) holds.
+    showEmptyProjects: value.showEmptyProjects === true,
   };
+}
+
+export function toggledFlag(flags: Record<string, boolean>, id: string): Record<string, boolean> {
+  return { ...flags, [id]: !(flags[id] ?? false) };
+}
+
+/** Subagent lists start closed, so only an open one is stored. */
+export function withoutFalseFlag(
+  flags: Record<string, boolean>,
+  id: string,
+  value: boolean
+): Record<string, boolean> {
+  if (value) return { ...flags, [id]: true };
+  if (!Object.hasOwn(flags, id)) return flags;
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
+}
+
+/**
+ * Group ids carry their whole lens, so every scope, profile, and grouping the
+ * operator ever toggled would pile up if an expand kept a `false` flag. Groups
+ * start expanded, so an expand just drops the entry: only folds are stored.
+ */
+export function toggledGroup(flags: Record<string, boolean>, id: string): Record<string, boolean> {
+  if (!flags[id]) return { ...flags, [id]: true };
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
 }
 
 function oneOf<T extends string>(values: readonly T[], value: unknown): T | null {
