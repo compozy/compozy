@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as terminalAPI from "../../adapters/terminal-api";
 
-import { destroyTerminalInstances } from "@compozy/ui";
+import { destroyTerminalInstances, Topbar, TopbarSlotProvider } from "@compozy/ui";
 
 import {
   ANSWERED_PASSWORD_REQUEST,
@@ -21,6 +21,7 @@ import {
 } from "../../mocks/terminal-fixtures";
 import { TerminalWindowApp, type TerminalWindowAppProps } from "../terminal-window-app";
 import { TERMINAL_SERVER_OP } from "../../lib/terminal-wire";
+import type { TerminalExit, TerminalInfo } from "../../types";
 import {
   recordingSocketFactory,
   renderTerminalWindow,
@@ -344,6 +345,55 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.queryByTestId("terminal-header")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-journal-head")).not.toBeInTheDocument();
     expect(screen.getByTestId("terminal-window")).toBeInTheDocument();
+  });
+
+  // Invariant: a live shell is not activity — the OS head of an open terminal
+  // shows its title with no state mark, while an ended terminal keeps the mark
+  // that says how it ended. Owning layer: the identity the window publishes.
+  it("Should title a live terminal's OS head without a running mark and keep exit marks", async () => {
+    const renderHead = (terminal: TerminalInfo) => {
+      const actions = stubWindowActions();
+      restoreFetch = stubTerminalTicketFetch();
+      return renderTerminalWindow(
+        <TopbarSlotProvider>
+          <Topbar title="Terminal" glyph={<span data-testid="app-glyph" />} />
+          <TerminalWindowApp
+            actions={actions}
+            engineLoader={stubEngineLoader}
+            hostChrome
+            inputRequests={[]}
+            journal={<div data-testid="journal-slot">journal</div>}
+            limit={TERMINAL_LIMIT}
+            profile={TERMINAL_FIXTURE_PROFILE}
+            socketFactory={silentSocketFactory}
+            terminals={[terminal]}
+            viewerId={TERMINAL_FIXTURE_VIEWER}
+            workspaceId="ws-atlas"
+          />
+        </TopbarSlotProvider>
+      );
+    };
+    const headGlyph = () =>
+      document.querySelector('[data-slot="topbar-identity"] [data-slot="state-glyph"]');
+
+    const live = renderHead(DEV_SERVER_TERMINAL);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "dev server" })).toBeVisible());
+    expect(headGlyph()).toBeNull();
+    expect(screen.getByTestId("app-glyph")).toBeInTheDocument();
+    live.unmount();
+    restoreFetch?.();
+
+    const outcomes: [TerminalExit, string][] = [
+      [{ cause: "exited", code: 0, signal: null, at: "2026-08-25T12:52:00Z" }, "done"],
+      [{ cause: "signaled", code: null, signal: "INT", at: "2026-08-25T12:52:00Z" }, "stopped"],
+      [{ cause: "exited", code: 1, signal: null, at: "2026-08-25T12:52:00Z" }, "idle"],
+    ];
+    for (const [exit, state] of outcomes) {
+      const ended = renderHead(exitedTerminal(exit));
+      await waitFor(() => expect(headGlyph()).toHaveAttribute("data-state", state));
+      ended.unmount();
+      restoreFetch?.();
+    }
   });
 
   it("Should keep another profile window's mounted terminal buffer alive", async () => {

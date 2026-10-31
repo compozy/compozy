@@ -205,7 +205,9 @@ function OsWindowTabGlyph({
   }
   if (isNewTab) return null;
   const AppIcon = app.icon;
-  return <AppIcon aria-hidden="true" className="size-3.5 shrink-0" />;
+  return (
+    <AppIcon aria-hidden="true" className="size-3.5 shrink-0" data-slot="os-window-tab-icon" />
+  );
 }
 
 /**

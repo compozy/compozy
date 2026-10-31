@@ -45,12 +45,15 @@ function terminalCapCount(terminalCount: number | undefined, limit: number | und
 }
 
 /**
- * The head's leading state mark. Only a clean exit earns the done check; a
- * failing run stays neutral (information, not an emergency — see
- * `terminalExitCopy`), and a signal reads as stopped.
+ * The head's leading state mark, or null while the terminal is live. A live
+ * shell is not activity — the process stays `running` for the terminal's whole
+ * life, idle prompt included — so the head keeps the app glyph instead of an
+ * animated mark that would claim work is happening. Once it ends, only a clean
+ * exit earns the done check; a failing run stays neutral (information, not an
+ * emergency — see `terminalExitCopy`), and a signal reads as stopped.
  */
-function terminalStateGlyph(terminal: TerminalInfo): StateGlyphState {
-  if (terminal.state === "running") return "running";
+function terminalStateGlyph(terminal: TerminalInfo): StateGlyphState | null {
+  if (terminal.state === "running") return null;
   if (terminal.exit?.cause === "signaled") return "stopped";
   if (terminal.exit?.cause === "exited" && terminal.exit.code === 0) return "done";
   return "idle";
@@ -183,11 +186,16 @@ export function TerminalHeader({
       viewers={terminal.viewers}
     />
   ) : null;
+  const stateGlyph = terminalStateGlyph(terminal);
   useTopbarSlot(
     hostChrome
       ? {
-          glyph: <StateGlyph size="sm" state={terminalStateGlyph(terminal)} />,
-          glyphPresentation: "state",
+          ...(stateGlyph
+            ? {
+                glyph: <StateGlyph size="sm" state={stateGlyph} />,
+                glyphPresentation: "state" as const,
+              }
+            : {}),
           crumb: terminalDisplayTitle(terminal),
           count: identityCount,
           status,
