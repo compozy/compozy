@@ -249,7 +249,7 @@ func (s *memoryWorktreeStore) ListRecoverable(context.Context) ([]Worktree, erro
 	items := make([]Worktree, 0)
 	for _, item := range s.items {
 		if item.State == StatePending || item.State == StateRemoving || item.State == StateMissing ||
-			item.State == StateFailed {
+			(item.State == StateFailed && item.CreateRollbackError != "") {
 			items = append(items, item)
 		}
 	}
@@ -361,6 +361,7 @@ func (s *memoryWorktreeStore) FailCreate(
 	workspaceID string,
 	id string,
 	createError string,
+	rollbackError string,
 	updatedAt time.Time,
 ) error {
 	s.mu.Lock()
@@ -375,16 +376,16 @@ func (s *memoryWorktreeStore) FailCreate(
 	}
 	item.State = StateFailed
 	item.CreateError = createError
+	item.CreateRollbackError = rollbackError
 	item.UpdatedAt = updatedAt
 	s.items[key] = item
 	return nil
 }
 
-func (s *memoryWorktreeStore) UpdateFailedCreateError(
+func (s *memoryWorktreeStore) CompleteFailedCreateRollback(
 	_ context.Context,
 	workspaceID string,
 	id string,
-	createError string,
 	updatedAt time.Time,
 ) error {
 	s.mu.Lock()
@@ -394,7 +395,7 @@ func (s *memoryWorktreeStore) UpdateFailedCreateError(
 	if !ok || item.State != StateFailed {
 		return ErrNotFound
 	}
-	item.CreateError = createError
+	item.CreateRollbackError = ""
 	item.UpdatedAt = updatedAt
 	s.items[key] = item
 	return nil

@@ -42,9 +42,11 @@ It emits `worktree.creation_failed` plus a WARN log, or an ERROR log when rollba
 (the cause then says `rollback incomplete` and leftover Git state is kept for inspection). A failed
 record keeps its name until `compozy worktree dismiss <ref>`; binding a session to it returns
 `worktree_not_ready` with the cause. Only `cancel` with a complete rollback deletes the pending row.
-On the next boot, a failed record whose cause says `rollback incomplete` gets its rollback retried for
-what Git still attributes to it (its registered checkout on its branch, and its minted branch at the
-recorded head); on success the cause keeps only the original failure.
+An incomplete rollback is recorded separately from the cause, and the next boot retries it only for
+what Git still attributes to the record: its checkout on its branch, force-removed only while it
+still holds the interrupted `git worktree add` lock (otherwise a plain remove that Git refuses for
+changes), and its minted branch while it still points at the recorded head. On success,
+`create_error` keeps only the original failure.
 Boot reconciliation settles an interrupted record the same way. `git worktree add` runs under
 `worktrees.checkout_timeout` (default `15m`); raise it for very large repositories. A setup-command
 failure instead leaves a usable `ready` record with `setup_state=failed`.

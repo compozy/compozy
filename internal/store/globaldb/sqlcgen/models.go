@@ -2194,26 +2194,27 @@ type WorkspacePlacement struct {
 }
 
 type Worktree struct {
-	ID            string `json:"id"`
-	ProfileID     string `json:"profile_id"`
-	WorkspaceID   string `json:"workspace_id"`
-	Name          string `json:"name"`
-	Branch        string `json:"branch"`
-	Path          string `json:"path"`
-	GitDir        string `json:"git_dir"`
-	State         string `json:"state"`
-	PendingPhase  string `json:"pending_phase"`
-	Origin        string `json:"origin"`
-	SetupState    string `json:"setup_state"`
-	SetupError    string `json:"setup_error"`
-	CreateError   string `json:"create_error"`
-	BaseRef       string `json:"base_ref"`
-	CreatedBranch int64  `json:"created_branch"`
-	RunNamespace  string `json:"run_namespace"`
-	CreatedHead   string `json:"created_head"`
-	RunID         string `json:"run_id"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
+	ID                  string `json:"id"`
+	ProfileID           string `json:"profile_id"`
+	WorkspaceID         string `json:"workspace_id"`
+	Name                string `json:"name"`
+	Branch              string `json:"branch"`
+	Path                string `json:"path"`
+	GitDir              string `json:"git_dir"`
+	State               string `json:"state"`
+	PendingPhase        string `json:"pending_phase"`
+	Origin              string `json:"origin"`
+	SetupState          string `json:"setup_state"`
+	SetupError          string `json:"setup_error"`
+	CreateError         string `json:"create_error"`
+	CreateRollbackError string `json:"create_rollback_error"`
+	BaseRef             string `json:"base_ref"`
+	CreatedBranch       int64  `json:"created_branch"`
+	RunNamespace        string `json:"run_namespace"`
+	CreatedHead         string `json:"created_head"`
+	RunID               string `json:"run_id"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
 }
 
 type WorktreeExitOp struct {

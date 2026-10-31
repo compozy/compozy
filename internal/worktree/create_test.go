@@ -124,6 +124,13 @@ func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) 
 			return gitResponse{}
 		case strings.HasPrefix(command, "ls-files --others --ignored --exclude-standard -z --"):
 			return gitResponse{stdout: []byte(".env\x00")}
+		case strings.HasPrefix(command, "for-each-ref --format=%(objectname) refs/heads/"):
+			return gitResponse{stdout: []byte("created-head\n")}
+		case strings.Contains(command, "worktree remove ") && !strings.Contains(command, "--force"):
+			return gitResponse{
+				stderr: []byte("fatal: '" + call.args[len(call.args)-1] + "' contains modified or untracked files"),
+				err:    errors.New("exit 128"),
+			}
 		case strings.Contains(command, "worktree remove --force"):
 			if fixture.failCheckoutRemoval.Load() {
 				return gitResponse{stderr: []byte("permission denied"), err: errors.New("exit 128")}
@@ -211,7 +218,7 @@ func requireFailedCreation(t *testing.T, fixture *createTestFixture, id, wantCau
 	t.Helper()
 	stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, id)
 	if err != nil || stored == nil || stored.State != StateFailed ||
-		!strings.Contains(stored.CreateError, wantCause) {
+		!strings.Contains(stored.CreateFailure(), wantCause) {
 		t.Fatalf("failed creation = %#v, %v, want failed record with cause %q", stored, err, wantCause)
 	}
 	if got := fixture.events.count(EventCreationFailed); got != 1 {
@@ -228,7 +235,7 @@ func requireFailedCreation(t *testing.T, fixture *createTestFixture, id, wantCau
 	}
 	fixture.events.mu.Unlock()
 	if payload.WorktreeID != id || payload.PendingPhase != stored.PendingPhase ||
-		payload.PendingPhase == PhaseNone || payload.Error != stored.CreateError {
+		payload.PendingPhase == PhaseNone || payload.Error != stored.CreateFailure() {
 		t.Fatalf("creation failed payload = %#v, want phase and cause of %#v", payload, stored)
 	}
 	return stored
@@ -332,7 +339,7 @@ func TestServiceCreate(t *testing.T) {
 		item := createAcceptedAndWait(t, fixture, "Stuck Checkout")
 
 		stored := requireFailedCreation(t, fixture, item.ID, "rollback incomplete")
-		if !strings.Contains(stored.CreateError, "permission denied") {
+		if !strings.Contains(stored.CreateRollbackError, "permission denied") {
 			t.Fatalf("failed record cause = %q, want rollback stderr", stored.CreateError)
 		}
 		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "update-ref -d ") {
@@ -375,9 +382,8 @@ func TestServiceCreate(t *testing.T) {
 			t.Fatalf("RecoverCreations() error = %v", err)
 		}
 		recovered, err := fixture.store.Get(t.Context(), fixture.workspace.ID, stored.ID)
-		if err != nil || recovered.State != StateFailed ||
-			strings.Contains(recovered.CreateError, "rollback incomplete") ||
-			!strings.Contains(recovered.CreateError, "worktrees.checkout_timeout") {
+		if err != nil || recovered.State != StateFailed || recovered.CreateRollbackError != "" ||
+			!strings.Contains(recovered.CreateFailure(), "worktrees.checkout_timeout") {
 			t.Fatalf("recovered = %#v, %v, want failed record with the original cause only", recovered, err)
 		}
 		if _, statErr := os.Lstat(stored.Path); !errors.Is(statErr, os.ErrNotExist) {
@@ -390,29 +396,44 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should leave a failed record's path alone once another checkout holds it", func(t *testing.T) {
-		t.Parallel()
-		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
-		fixture.interruptWorktreeAdd.Store(true)
-		fixture.failCheckoutRemoval.Store(true)
-		item := createAcceptedAndWait(t, fixture, "Reused Path")
-		fixture.failCheckoutRemoval.Store(false)
-		fixture.listOutput = append(worktreeListFixture(fixture.workspace.Root, "main"),
-			[]byte("worktree "+item.Path+"\x00HEAD other-head\x00branch refs/heads/someone-else\x00\x00")...)
-		before := len(fixture.runner.invocations())
+	for _, testCase := range []struct {
+		name  string
+		entry string
+	}{
+		{name: "on another branch", entry: "\x00HEAD other-head\x00branch refs/heads/someone-else\x00\x00"},
+		{name: "without the add lock", entry: "\x00HEAD created-head\x00branch refs/heads/replaced\x00\x00"},
+	} {
+		t.Run("Should never force-remove a replacement checkout "+testCase.name+" on recovery", func(t *testing.T) {
+			t.Parallel()
+			fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+			fixture.interruptWorktreeAdd.Store(true)
+			fixture.failCheckoutRemoval.Store(true)
+			item := createAcceptedAndWait(t, fixture, "Replaced")
+			fixture.failCheckoutRemoval.Store(false)
+			fixture.listOutput = append(worktreeListFixture(fixture.workspace.Root, "main"),
+				[]byte("worktree "+item.Path+testCase.entry)...)
+			before := len(fixture.runner.invocations())
 
-		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
-			t.Fatalf("RecoverCreations() error = %v", err)
-		}
-		for _, command := range invocationCommands(fixture.runner.invocations()[before:]) {
-			if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
-				t.Fatalf("recovery ran %q against a checkout it does not own", command)
+			if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+				t.Fatalf("RecoverCreations() error = %v", err)
 			}
-		}
-		if _, err := os.Lstat(item.Path); err != nil {
-			t.Fatalf("Lstat(other checkout) error = %v, want untouched", err)
-		}
-	})
+			for _, command := range invocationCommands(fixture.runner.invocations()[before:]) {
+				if strings.Contains(command, "--force") || strings.HasPrefix(command, "update-ref -d ") {
+					t.Fatalf("recovery ran %q against a checkout it cannot attribute", command)
+				}
+			}
+			if _, err := os.Lstat(item.Path); err != nil {
+				t.Fatalf("Lstat(replacement) error = %v, want untouched", err)
+			}
+			stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
+			if err != nil || stored.CreateRollbackError == "" {
+				t.Fatalf("stored = %#v, %v, want rollback still marked incomplete", stored, err)
+			}
+			if logs := fixture.logs.String(); !strings.Contains(logs, "rollback is still incomplete") {
+				t.Fatalf("logs = %s, want recovery warning", logs)
+			}
+		})
+	}
 
 	t.Run("Should not count an unverifiable admin entry for the checkout as removed", func(t *testing.T) {
 		t.Parallel()

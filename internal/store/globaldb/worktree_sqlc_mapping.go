@@ -24,7 +24,8 @@ func worktreeFromSQLC(row sqlcgen.Worktree) (*worktree.Worktree, error) {
 		Path: row.Path, GitDir: row.GitDir, State: worktree.State(row.State),
 		PendingPhase: worktree.PendingPhase(row.PendingPhase), Origin: worktree.Origin(row.Origin),
 		SetupState: worktree.SetupState(row.SetupState), SetupError: row.SetupError, CreateError: row.CreateError,
-		BaseRef: row.BaseRef, CreatedBranch: row.CreatedBranch != 0,
+		CreateRollbackError: row.CreateRollbackError,
+		BaseRef:             row.BaseRef, CreatedBranch: row.CreatedBranch != 0,
 		RunNamespace: row.RunNamespace, CreatedHead: row.CreatedHead, RunID: row.RunID,
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil

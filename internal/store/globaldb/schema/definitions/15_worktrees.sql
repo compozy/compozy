@@ -18,6 +18,7 @@ CREATE TABLE worktrees (
 		setup_state TEXT NOT NULL DEFAULT 'none' CHECK (setup_state IN ('none', 'ok', 'failed')),
 		setup_error TEXT NOT NULL DEFAULT '',
 		create_error TEXT NOT NULL DEFAULT '',
+		create_rollback_error TEXT NOT NULL DEFAULT '',
 		base_ref TEXT NOT NULL DEFAULT '',
 		created_branch INTEGER NOT NULL DEFAULT 0 CHECK (created_branch IN (0, 1)),
 		run_namespace TEXT NOT NULL DEFAULT '',

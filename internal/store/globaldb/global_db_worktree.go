@@ -212,13 +212,14 @@ func (g *WorktreeRepo) FailCreate(
 	workspaceID string,
 	id string,
 	createError string,
+	rollbackError string,
 	updatedAt time.Time,
 ) error {
 	if err := g.checkReady(ctx, "fail worktree create"); err != nil {
 		return err
 	}
 	count, err := g.queries.FailWorktreeCreate(ctx, sqlcgen.FailWorktreeCreateParams{
-		CreateError: createError, UpdatedAt: store.FormatTimestamp(updatedAt),
+		CreateError: createError, CreateRollbackError: rollbackError, UpdatedAt: store.FormatTimestamp(updatedAt),
 		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
 	})
 	if err != nil {
@@ -227,22 +228,24 @@ func (g *WorktreeRepo) FailCreate(
 	return g.pendingMutationResult(ctx, workspaceID, id, count)
 }
 
-func (g *WorktreeRepo) UpdateFailedCreateError(
+func (g *WorktreeRepo) CompleteFailedCreateRollback(
 	ctx context.Context,
 	workspaceID string,
 	id string,
-	createError string,
 	updatedAt time.Time,
 ) error {
-	if err := g.checkReady(ctx, "update failed worktree create error"); err != nil {
+	if err := g.checkReady(ctx, "complete failed worktree create rollback"); err != nil {
 		return err
 	}
-	count, err := g.queries.UpdateFailedWorktreeCreateError(ctx, sqlcgen.UpdateFailedWorktreeCreateErrorParams{
-		CreateError: createError, UpdatedAt: store.FormatTimestamp(updatedAt),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := g.queries.CompleteFailedWorktreeCreateRollback(
+		ctx,
+		sqlcgen.CompleteFailedWorktreeCreateRollbackParams{
+			UpdatedAt:   store.FormatTimestamp(updatedAt),
+			WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+		},
+	)
 	if err != nil {
-		return fmt.Errorf("store: update failed worktree create error: %w", err)
+		return fmt.Errorf("store: complete failed worktree create rollback: %w", err)
 	}
 	if count == 0 {
 		return worktree.ErrNotFound

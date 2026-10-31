@@ -108,9 +108,9 @@ func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Work
 func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree) error {
 	switch item.PendingPhase {
 	case PhaseCopy, PhaseSetup:
-		// A row whose checkout is gone (its rollback ran but the failure was
-		// never recorded) is not usable; settle it through the rollback path.
-		if info, err := os.Stat(item.Path); err != nil || !info.IsDir() {
+		// A checkout that is gone or no longer this creation's linked worktree
+		// (a rollback ran but its failure was never recorded) is not usable.
+		if !s.usableInterruptedCheckout(ctx, workspace, item) {
 			return s.recoverInterruptedCreate(ctx, workspace, item)
 		}
 		message := "setup interrupted by daemon restart"
