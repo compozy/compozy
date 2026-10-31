@@ -49,7 +49,7 @@ export function useSessionLabel({
   const workspace = useWorkspace(resolvedWorkspaceId, { enabled: crossWorkspace });
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
-    { ...detail, error: labelRead.error, isError: labelRead.isError },
+    { data: detail.data, error: labelRead.error, isError: labelRead.isError },
     sessionId,
     titleAtSend || null
   );
