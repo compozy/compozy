@@ -413,7 +413,7 @@ describe("SessionsBoard", () => {
     const parkedCard = within(body).getByTestId("session-board-card-l1");
     expect(parkedCard).not.toHaveAttribute("data-archived");
     expect(parkedCard).toHaveAccessibleName(
-      /In Later, Waiting on the vendor, Back .*, 1 message waiting/
+      /In Later, Waiting on the vendor, Back .*, Parked .*, 1 message waiting/
     );
     expect(within(body).getByTestId("session-later-pending-l1")).toHaveAttribute(
       "title",

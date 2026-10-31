@@ -5,7 +5,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
-import { laterInputValue } from "../../lib/session-later";
+import { laterInputValue, laterReturnAtFromInput } from "../../lib/session-later";
 import { SessionLaterDialog } from "../session-later-dialog";
 
 function renderDialog(overrides: Partial<Parameters<typeof SessionLaterDialog>[0]> = {}) {
@@ -48,6 +48,18 @@ describe("SessionLaterDialog", () => {
     });
   });
 
+  // `Date` would roll a wall-clock time that does not exist (a DST gap, Feb 30)
+  // onto another instant; the parser refuses it instead. The browser input
+  // sanitizes Feb 30 away, so the parser is exercised directly; a DST gap reads
+  // the same field mismatch in zones that have one.
+  it("Should refuse a local time that does not exist instead of shifting it", () => {
+    expect(laterReturnAtFromInput("2027-02-30T09:00", 0)).toEqual({
+      returnAt: null,
+      error: "Enter a date and time.",
+    });
+    expect(laterReturnAtFromInput("2027-02-28T25:00", 0).returnAt).toBeNull();
+  });
+
   it("Should refuse a return date in the past", () => {
     const { onConfirm } = renderDialog();
     fireEvent.change(screen.getByTestId("session-later-return"), {
@@ -68,5 +80,19 @@ describe("SessionLaterDialog", () => {
     expect(screen.getByRole("heading", { name: "Move 2 sessions to Later" })).toBeInTheDocument();
     expect(screen.getByTestId("session-later-confirm")).toBeDisabled();
     expect(screen.getByTestId("session-later-confirm")).toHaveTextContent("Moving to Later");
+  });
+
+  it("Should keep the typed reason when a partial failure narrows the sessions", () => {
+    const other = { ...primarySessionFixture, id: "other" };
+    const props = { isMoving: false, onConfirm: vi.fn(), onOpenChange: vi.fn(), open: true };
+    const { rerender } = render(
+      <SessionLaterDialog {...props} sessions={[primarySessionFixture, other]} />
+    );
+    fireEvent.change(screen.getByTestId("session-later-reason"), {
+      target: { value: "After the release" },
+    });
+    rerender(<SessionLaterDialog {...props} sessions={[other]} />);
+    expect(screen.getByRole("heading", { name: "Move to Later" })).toBeInTheDocument();
+    expect(screen.getByTestId("session-later-reason")).toHaveValue("After the release");
   });
 });

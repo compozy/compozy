@@ -45,6 +45,7 @@ export function sessionLaterSpoken(
     "In Later",
     details.reason,
     details.returnAt ? `Back ${formatDate(details.returnAt)}` : null,
+    `Parked ${formatDate(details.parkedAt)}`,
     details.pendingMessages > 0 ? laterPendingLabel(details.pendingMessages) : null,
   ]
     .filter(Boolean)
@@ -73,14 +74,25 @@ export function laterReturnAtFromInput(
   if (trimmed === "") return { returnAt: null, error: null };
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(trimmed);
   if (!match) return { returnAt: null, error: "Enter a date and time." };
-  const date = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    Number(match[4]),
-    Number(match[5])
-  );
-  if (!Number.isFinite(date.getTime())) return { returnAt: null, error: "Enter a date and time." };
+  const [year, month, day, hour, minute] = match.slice(1, 6).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const date = new Date(year, month - 1, day, hour, minute);
+  // `Date` silently rolls a wall-clock time that does not exist (a DST gap, Feb
+  // 30) to another one; reading the fields back rejects it instead of shifting it.
+  const exists =
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day &&
+    date.getHours() === hour &&
+    date.getMinutes() === minute;
+  if (!Number.isFinite(date.getTime()) || !exists) {
+    return { returnAt: null, error: "Enter a date and time." };
+  }
   if (date.getTime() <= now) return { returnAt: null, error: "Choose a time in the future." };
   return { returnAt: date.toISOString().replace(/\.\d{3}Z$/, "Z"), error: null };
 }

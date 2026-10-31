@@ -27,7 +27,8 @@ interface FeedbackNoteView {
 }
 
 function dispositionView(outcome: SessionSendOutcome): FeedbackNoteView {
-  if (outcome.replayed) {
+  // A replayed Later send still names the parked session, not a generic replay.
+  if (outcome.replayed && outcome.disposition !== "later") {
     return replayedView(outcome);
   }
   switch (outcome.disposition) {

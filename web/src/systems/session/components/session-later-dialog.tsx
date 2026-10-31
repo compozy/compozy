@@ -19,12 +19,7 @@ import {
 
 import type { SessionLaterConfirmation } from "../hooks/use-session-later-actions";
 import type { MoveSessionToLaterRequest } from "../adapters/session-later-api";
-import {
-  laterInputValue,
-  laterReasonError,
-  laterReturnAtFromInput,
-  SESSION_LATER_REASON_MAX,
-} from "../lib/session-later";
+import { laterInputValue, laterReasonError, laterReturnAtFromInput } from "../lib/session-later";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 
 export type SessionLaterDialogProps = SessionLaterConfirmation;
@@ -90,7 +85,6 @@ function SessionLaterForm({
           data-testid="session-later-reason"
           disabled={isMoving}
           id="session-later-reason"
-          maxLength={SESSION_LATER_REASON_MAX}
           onChange={event => setReason(event.target.value)}
           placeholder="Optional"
           value={reason}
@@ -177,7 +171,7 @@ export function SessionLaterDialog({
         <SessionLaterForm
           count={sessions.length}
           isMoving={isMoving}
-          key={`${sessions.map(session => session.id).join(",")}:${open ? "open" : "closed"}`}
+          key={open ? "open" : "closed"}
           onCancel={() => onOpenChange(false)}
           onConfirm={onConfirm}
           title={only ? getSessionDisplayTitle(only) : null}

@@ -5730,6 +5730,34 @@ describe("SessionThread composer running semantics", () => {
     expect(screen.getByTestId("composer-feedback-note")).not.toHaveTextContent("inp_4d8");
   });
 
+  // A replayed identity keeps its Later reading: the session is still parked, so
+  // the generic "nothing was sent twice" replay line must not hide that.
+  it("Should keep a replayed Later send naming the parked session", async () => {
+    const user = userEvent.setup();
+    const onQueuePrompt = vi.fn(() =>
+      Promise.resolve({
+        disposition: "later" as const,
+        entryId: "inp_7a1",
+        idempotencyKey: "idk_7a1",
+        messageId: "msg_01k5",
+        queuePosition: null,
+        replayed: true,
+        steerDelivery: null,
+        turnId: null,
+      })
+    );
+    renderComposer({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("pick this up when it returns");
+    await user.click(screen.getByTestId("composer-queue-button"));
+
+    const note = await screen.findByTestId("composer-feedback-note");
+    expect(note).toHaveAttribute("data-code", "later");
+    expect(note).toHaveTextContent("Queued — this session is in Later");
+    expect(note).not.toHaveTextContent("nothing was sent twice");
+  });
+
   it("Should admit only one busy-input submission while a queue request is pending", async () => {
     let resolveQueue: (() => void) | undefined;
     const queuePending = new Promise<void>(resolve => {

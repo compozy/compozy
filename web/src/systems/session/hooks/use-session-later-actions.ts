@@ -183,7 +183,14 @@ export function useSessionLaterActions({
     void runBatch("later", sessions, skipped, async session => {
       await move.mutateAsync({ ...session, body });
       onMovedToLater?.(session);
-    }).then(() => setTarget(null));
+    }).then(results => {
+      // A partial failure keeps the dialog open on the sessions still to move,
+      // with the same reason and date, so a retry does not retype the form.
+      const failed = sessions.filter(session =>
+        results?.some(result => result.id === session.id && result.status === "failed")
+      );
+      setTarget(failed.length > 0 ? { sessions: failed, skipped: new Map() } : null);
+    });
   };
 
   return {

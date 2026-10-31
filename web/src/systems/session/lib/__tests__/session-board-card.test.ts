@@ -68,6 +68,21 @@ describe("sessionBoardCardStatus (UT-068)", () => {
     ).toEqual({ label: "Back from Later", tone: "accent" });
   });
 
+  it("Should let a live badge outrank Back from Later", () => {
+    const returned = {
+      board_column: "needs_you" as const,
+      returned_from_later_at: "2026-10-30T09:00:00Z",
+    };
+    expect(sessionBoardCardStatus(session({ ...returned, badge: "failed" }))).toEqual({
+      label: "Failed",
+      tone: "danger",
+    });
+    expect(sessionBoardCardStatus(session({ ...returned, badge: "waiting-for-auth" }))).toEqual({
+      label: "Auth",
+      tone: "accent",
+    });
+  });
+
   it("Should name the needs-you reason before any PR signal", () => {
     const failing = pr({ checks: { ...pr().checks, state: "failing", failed: 2 } });
     expect(

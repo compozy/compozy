@@ -121,6 +121,7 @@ function SessionListGroupSplit({
     workspaces,
     shelf: view.shelf,
     search: view.groupFilters.q,
+    worktreeId: view.worktreeId,
     enabled: true,
   });
   if (split.error) {

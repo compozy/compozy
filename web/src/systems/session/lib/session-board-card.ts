@@ -54,8 +54,9 @@ export interface SessionBoardCardWaiting {
 }
 
 function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | null {
-  // The daemon brought it back on its return date: that is why it needs you now.
-  if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "accent" };
+  // The badge leads: a failure or a pending answer outranks the return, as the
+  // daemon's badge order does. Only the plain needs-attention badge a return
+  // date leaves behind reads "Back from Later".
   switch (session.badge) {
     case "failed":
       return { label: "Failed", tone: "danger" };
@@ -66,6 +67,7 @@ function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | 
         ? { label: "Approval", tone: "accent" }
         : { label: "Input", tone: "accent" };
     case "needs-attention":
+      if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "accent" };
       if (session.attention === ENDED_EARLY_ATTENTION)
         return { label: "Stopped early", tone: "accent" };
       return { label: sessionBadgeSignal(session.badge).displayLabel, tone: "accent" };

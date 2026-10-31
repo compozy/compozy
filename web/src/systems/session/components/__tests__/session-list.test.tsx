@@ -1289,6 +1289,13 @@ describe("SessionList Later", () => {
     expect(screen.getByTestId("session-sidebar-archived")).toHaveAttribute("aria-pressed", "false");
     await user.click(screen.getByTestId("session-sidebar-archived"));
     expect(setShelf).toHaveBeenLastCalledWith("archive");
+
+    // From the archive, Later switches straight to Later rather than back to Active.
+    update(sessions, { ...view, shelf: "archive", laterCount: 3, setShelf });
+    await user.click(screen.getByTestId("session-sidebar-later"));
+    expect(setShelf).toHaveBeenLastCalledWith("later");
+
+    update(sessions, { ...view, shelf: "later", laterCount: 3, setShelf });
     await user.click(screen.getByTestId("session-sidebar-later"));
     expect(setShelf).toHaveBeenLastCalledWith("active");
   });

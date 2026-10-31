@@ -294,6 +294,8 @@ export const handlers: HttpHandler[] = [
       const archivedSession = {
         ...session,
         archived_at: "2026-04-17T18:15:00Z",
+        // The daemon takes an archived session out of Later.
+        later: null,
       };
       sessionById.set(id, archivedSession);
       return HttpResponse.json({ session: archivedSession });
