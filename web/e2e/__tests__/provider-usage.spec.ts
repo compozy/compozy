@@ -80,18 +80,14 @@ async function runCLI(runtime: BrowserRuntime, args: string[]) {
   });
 }
 
-test("glances at Codex Weekly at the leading edge of the tray (E2E-001)", async ({
-  appPage,
-  runtime,
-}) => {
+test("glances at Codex Weekly right before the bell (E2E-001)", async ({ appPage, runtime }) => {
   await openShell(appPage, runtime);
 
   const tray = appPage.locator('[data-slot="os-menubar-tray"] [data-slot^="os-menubar-"]');
   const slots = await tray.evaluateAll(nodes => nodes.map(node => node.getAttribute("data-slot")));
-  // The optional meter leads the cluster so arriving usage cannot displace desktop controls.
-  expect(slots.indexOf("os-menubar-usage")).toBe(0);
-  expect(slots.indexOf("os-menubar-desktops")).toBeGreaterThan(0);
-  expect(slots.indexOf("os-menubar-usage")).toBeLessThan(slots.indexOf("os-menubar-bell"));
+  // The pager and All desktops lead the tray; the meter sits right before the bell.
+  expect(slots.indexOf("os-menubar-desktops")).toBeLessThan(slots.indexOf("os-menubar-usage"));
+  expect(slots.indexOf("os-menubar-usage")).toBe(slots.indexOf("os-menubar-bell") - 1);
 
   const control = usageControl(appPage);
   await expect(control).toHaveAccessibleName(/^Codex · Weekly 72% used · /);

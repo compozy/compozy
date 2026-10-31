@@ -6,7 +6,8 @@
 // aria-keyshortcuts once the keymap is known, and nothing before. The tray's
 // All desktops control toggles the desktops overlay; Settings is not a tray
 // control (it lives in the system menu). The Provider usage control sits
-// right after All desktops only while the profile has usage targets; opening
+// right before the bell while the profile has usage targets, and holds that
+// slot in its loading shape while the first usage read is pending; opening
 // it asks for a background refresh of stale rows, and its footer opens the
 // Usage app and the Provider usage settings (or their routes in a degraded
 // shell).
@@ -471,10 +472,9 @@ describe("DesktopMenubar provider usage control", () => {
     ).map(element => element.getAttribute("data-slot") ?? "");
   }
 
-  // The control leads the right-aligned cluster: it is known only once the usage read answers, so
-  // arriving there takes the spacer's room and the controls already on screen keep their place.
-  // DOM order is the visual and tab order.
-  it("Should lead the tray cluster while the profile has targets", () => {
+  // The control sits right before the bell; the pager and All desktops lead the tray. DOM order is
+  // the visual and tab order.
+  it("Should sit right before the bell while the profile has targets", () => {
     const { container } = renderMenubar({ usage: codexWeekly });
 
     expect(
@@ -485,33 +485,69 @@ describe("DesktopMenubar provider usage control", () => {
     const usageButton = screen.getByRole("button", { name: /^Codex · Weekly/ });
     expect([...footprint].filter(token => !usageButton.classList.contains(token))).toEqual([]);
     expect(trayOrder(container)).toEqual([
-      "os-menubar-usage",
       "os-menubar-desktops",
+      "os-menubar-usage",
       "os-menubar-bell",
       "os-menubar-command",
     ]);
   });
 
-  // Invariant: the tray control never mounts on an unknown answer, so a pending read never holds a
-  // slot that a no-target answer would then take away.
-  it("Should mount the control only once the read answers with a target", async () => {
-    let answer!: (response: Response) => void;
+  function holdUsageRead(): () => ((response: Response) => void) | undefined {
+    let answer: ((response: Response) => void) | undefined;
     vi.mocked(globalThis.fetch).mockImplementation(
       input =>
         new Promise<Response>(resolve => {
           const url = input instanceof Request ? input.url : String(input);
-          if (url.includes("/api/provider-usage")) answer = resolve;
+          if (url.includes("/api/provider-usage") && !url.includes("/stream")) answer = resolve;
           else resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
         })
     );
+    return () => answer;
+  }
+
+  // Invariant: the slot before the bell is held while the first read is pending, so a target
+  // answer lands in place and the controls already on screen do not move.
+  it("Should hold the usage slot while the first read is pending", async () => {
+    const answer = holdUsageRead();
     const { container } = renderMenubar();
 
-    await waitFor(() => expect(answer).toBeTypeOf("function"));
-    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
+    await waitFor(() => expect(answer()).toBeTypeOf("function"));
+    const pending = screen.getByRole("button", { name: "Provider usage" });
+    expect(pending).toHaveAttribute("data-loading", "true");
+    expect(trayOrder(container)).toEqual([
+      "os-menubar-desktops",
+      "os-menubar-usage",
+      "os-menubar-bell",
+      "os-menubar-command",
+    ]);
 
-    answer(jsonResponse(usageEnvelope([], { enabled: false }, NOW)));
-    await waitFor(() => expect(answer).toBeTypeOf("function"));
-    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
+    answer()?.(jsonResponse(codexWeekly));
+    const settled = await screen.findByRole("button", { name: /^Codex · Weekly/ });
+    expect(settled).not.toHaveAttribute("data-loading");
+    expect(trayOrder(container)).toEqual([
+      "os-menubar-desktops",
+      "os-menubar-usage",
+      "os-menubar-bell",
+      "os-menubar-command",
+    ]);
+  });
+
+  it("Should release the held slot when the first read answers without a target", async () => {
+    const answer = holdUsageRead();
+    const { container } = renderMenubar();
+
+    await waitFor(() => expect(answer()).toBeTypeOf("function"));
+    expect(container.querySelector('[data-slot="os-menubar-usage"]')).not.toBeNull();
+
+    answer()?.(jsonResponse(usageEnvelope([], { enabled: false }, NOW)));
+    await waitFor(() =>
+      expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull()
+    );
+    expect(trayOrder(container)).toEqual([
+      "os-menubar-desktops",
+      "os-menubar-bell",
+      "os-menubar-command",
+    ]);
   });
 
   it.each([
