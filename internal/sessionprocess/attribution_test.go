@@ -1,6 +1,7 @@
 package sessionprocess
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"os/exec"
 	"runtime"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -474,16 +477,127 @@ func TestAfterStopPreservesResumedProcesses(t *testing.T) {
 			t.Fatalf("old cleanup ended resumed work: %v", err)
 		}
 	})
+
+	// Review regression: delayed cleanup stops the identities it captured, not the trees they head.
+	t.Run("Should stop only a captured root when its tree gains a member before cleanup", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("process inspection unsupported")
+		}
+		leader, err := procutil.InspectProcess(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := &resumedProcessSource{owner: Owner{SessionID: "sess-captured", Live: true,
+			LeaderPID: leader.PID, LeaderStartedAt: leader.StartedAt}}
+		service := &Service{runCtx: t.Context(), source: source, store: discardObservations{},
+			observations: make(map[Identity]Observation), logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+		root := exec.CommandContext(t.Context(), "/bin/sh", "-c", "read start; sleep 60 & echo $!; wait")
+		for _, entry := range os.Environ() {
+			if !strings.HasPrefix(entry, "COMPOZY_SESSION_ID=") {
+				root.Env = append(root.Env, entry)
+			}
+		}
+		procutil.ConfigureCommandSession(root)
+		input, err := root.StdinPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		output, err := root.StdoutPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := root.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := root.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+			if err := root.Wait(); err != nil {
+				if _, expectedExit := errors.AsType[*exec.ExitError](err); !expectedExit {
+					t.Errorf("wait for captured root: %v", err)
+				}
+			}
+		}()
+		captured, err := service.Refresh(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(captured.Processes) != 1 || captured.Processes[0].PID != root.Process.Pid {
+			t.Fatalf("cleanup would capture more than the root: %+v", captured.Processes)
+		}
+		release := make(chan struct{})
+		service.AfterStop(source.owner.SessionID, func(ctx context.Context) error {
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+		t.Cleanup(func() { service.work.Wait() })
+		defer close(release)
+		if _, err := io.WriteString(input, "\n"); err != nil {
+			t.Fatal(err)
+		}
+		line, err := bufio.NewReader(output).ReadString('\n')
+		if err != nil {
+			t.Fatal(err)
+		}
+		memberPID, err := strconv.Atoi(strings.TrimSpace(line))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			member, err := os.FindProcess(memberPID)
+			if err == nil {
+				err = member.Kill()
+			}
+			if err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+		}()
+		snapshot, err := service.Refresh(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootIdx := slices.IndexFunc(snapshot.Processes, func(p Process) bool { return p.PID == root.Process.Pid })
+		memberIdx := slices.IndexFunc(snapshot.Processes, func(p Process) bool { return p.PID == memberPID })
+		if rootIdx < 0 || memberIdx < 0 {
+			t.Fatalf("captured tree not attributed: %+v", snapshot.Processes)
+		}
+		rootID := identity(snapshot.Processes[rootIdx].ScannedProcess)
+		if snapshot.Processes[memberIdx].Tree != rootID {
+			t.Fatalf("new member did not join the captured tree: %+v", snapshot.Processes[memberIdx])
+		}
+		release <- struct{}{}
+		service.work.Wait()
+		if !slices.Equal(source.terminated, []Identity{rootID}) {
+			t.Fatalf("cleanup terminated=%v, want only captured root %v", source.terminated, rootID)
+		}
+		if _, err := procutil.InspectProcess(memberPID); err != nil {
+			t.Fatalf("cleanup ended a member its tree gained after capture: %v", err)
+		}
+	})
 }
 
 type resumedProcessSource struct {
 	attributionSource
-	owner Owner
+	owner      Owner
+	terminated []Identity
+}
+
+func (s *resumedProcessSource) RecordTermination(_ context.Context, p Process, _ Result) error {
+	s.terminated = append(s.terminated, identity(p.ScannedProcess))
+	return nil
 }
 
 func (s *resumedProcessSource) Owners(context.Context) ([]Owner, error) { return []Owner{s.owner}, nil }
-func (s *resumedProcessSource) Owner(context.Context, string) (Owner, bool, error) {
-	return s.owner, true, nil
+
+// Owner resolves only this source's session, so host processes marked for other sessions stay
+// unattributed and out of reach of the cleanup under test.
+func (s *resumedProcessSource) Owner(_ context.Context, sessionID string) (Owner, bool, error) {
+	return s.owner, sessionID == s.owner.SessionID, nil
 }
 
 type discardObservations struct{}

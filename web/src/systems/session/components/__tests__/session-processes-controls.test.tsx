@@ -320,7 +320,7 @@ describe("ProcessesLeftRunningDialog", () => {
     );
     expect(onStop).toHaveBeenLastCalledWith([storybook, astro]);
     await user.click(screen.getByTestId("left-running-stop-all"));
-    // One root per tree, newest first within each session: the daemon stops each whole tree.
+    // Single-process trees, newest first within each session; multi-member trees are below.
     expect(onStop).toHaveBeenLastCalledWith(
       processesLeftRunningFixture.flatMap(group => sortSessionProcesses(group.items))
     );
@@ -345,7 +345,7 @@ describe("ProcessesLeftRunningDialog", () => {
     expect(screen.getByTestId("left-running-stop-all")).toBeDisabled();
   });
 
-  it("Should count a session's trees and stop one by its root", async () => {
+  it("Should count a session's trees and stop each by its lead", async () => {
     const user = userEvent.setup();
     const onStop = vi.fn();
     const [chain] = wrapperChainTreesFixture;
@@ -375,6 +375,7 @@ describe("ProcessesLeftRunningDialog", () => {
                 },
               ],
             },
+            processesLeftRunningFixture[1]!,
           ]}
           onStop={onStop}
         />
@@ -388,6 +389,12 @@ describe("ProcessesLeftRunningDialog", () => {
     // The lead alone: the daemon expands it, so no tree outgrows the 100-target request cap, and a
     // wrapper that already exited cannot strand the server it launched.
     expect(onStop).toHaveBeenLastCalledWith([chain!.lead]);
+    // Stop all sends one lead per tree too, never every member of a multi-process tree.
+    await user.click(screen.getByTestId("left-running-stop-all"));
+    expect(onStop).toHaveBeenLastCalledWith([
+      chain!.lead,
+      ...sortSessionProcesses(processesLeftRunningFixture[1]!.items),
+    ]);
   });
 
   it("Should say so when nothing was left running", () => {
