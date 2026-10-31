@@ -44,4 +44,19 @@ if (typeof window !== "undefined") {
   if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = function scrollIntoView() {};
   }
+
+  // ProseMirror (the Markdown editor) measures the selection on every edit;
+  // jsdom has no layout, so the measurements read as empty boxes.
+  const emptyRects = () => Object.assign([], { item: () => null }) as unknown as DOMRectList;
+  const emptyRect = () => new DOMRect(0, 0, 0, 0);
+  if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
+    Range.prototype.getClientRects = emptyRects;
+    Range.prototype.getBoundingClientRect = emptyRect;
+  }
+  if (typeof Element !== "undefined" && !Element.prototype.getClientRects) {
+    Element.prototype.getClientRects = emptyRects;
+  }
+  if (typeof document !== "undefined" && !document.elementFromPoint) {
+    document.elementFromPoint = () => null;
+  }
 }

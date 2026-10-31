@@ -11,8 +11,9 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// MaxLaterReasonLength bounds the one-line note shown on a Later card.
-const MaxLaterReasonLength = 200
+// MaxLaterReasonLength bounds the Markdown note shown on a Later card, counted
+// in characters of its Markdown source.
+const MaxLaterReasonLength = 1000
 
 var (
 	// ErrSessionInLater reports a runtime action on a session parked in Later.
@@ -56,10 +57,8 @@ func (m *Manager) laterProcessReleaser() LaterProcessReleaser {
 }
 
 func normalizeLaterRequest(req LaterRequest) (LaterRequest, error) {
-	reason := strings.TrimSpace(req.Reason)
-	if strings.ContainsAny(reason, "\r\n") {
-		return LaterRequest{}, fmt.Errorf("%w: reason must be one line", ErrSessionLaterInvalid)
-	}
+	// The reason is Markdown and may span lines; line endings settle on "\n".
+	reason := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(req.Reason, "\r\n", "\n"), "\r", "\n"))
 	if utf8.RuneCountInString(reason) > MaxLaterReasonLength {
 		return LaterRequest{}, fmt.Errorf(
 			"%w: reason must be at most %d characters", ErrSessionLaterInvalid, MaxLaterReasonLength,

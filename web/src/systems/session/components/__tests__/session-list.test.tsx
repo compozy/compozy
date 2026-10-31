@@ -1328,6 +1328,38 @@ describe("SessionList Later", () => {
     );
   });
 
+  // #1086: reasons are Markdown; the one-line row reads them as plain text.
+  it("Should read a Markdown reason as one plain line", () => {
+    const markdown = {
+      ...parked,
+      later: {
+        ...parked.later!,
+        reason:
+          "Waiting on **the vendor**\n\n- rerun `make **gate**`\n- see [spec](https://x.dev/a_(v2)) \\*now\\*" +
+          "\n\n> - check _docs_ at [d](https://x.dev/a_(b(c))) ``**go**``\n\n```\nrun fix_this\n```" +
+          "\n\n| step | owner |\n| --- | --- |\n| gate | **<b>me</b>** |" +
+          "\n\n<div>\nhidden\n</div>" +
+          "\n\nAT&amp;T `a&amp;b` \\&amp; first<br>second",
+      },
+    };
+    renderList({ sessions: [markdown], view: { ...view, shelf: "later" } });
+
+    const reason = screen.getByTestId("session-later-reason-parked");
+    // Parsed as GFM: code spans, escapes, and code lines stay literal; links keep
+    // their label; nested block markers and underscore emphasis drop.
+    const plain =
+      "Waiting on the vendor · rerun make **gate** · see spec *now* · check docs at d **go** · run fix_this · step · owner · gate · me · AT&T a&amp;b &amp; first · second";
+    expect(reason.textContent).toBe(plain);
+    // Table rows keep their cells on one line of the title.
+    expect(reason).toHaveAttribute(
+      "title",
+      "Waiting on the vendor\nrerun make **gate**\nsee spec *now*\ncheck docs at d **go**\nrun fix_this\nstep · owner\ngate · me\nAT&T a&amp;b &amp; first\nsecond"
+    );
+    expect(screen.getByTestId("session-sidebar-session-parked")).toHaveTextContent(
+      `In Later, ${plain}`
+    );
+  });
+
   it("Should name the Later view when it is empty", () => {
     renderList({ sessions: [], view: { ...view, shelf: "later", scopeLabel: "marketing" } });
     expect(screen.getByText("No sessions in Later in marketing yet.")).toBeInTheDocument();

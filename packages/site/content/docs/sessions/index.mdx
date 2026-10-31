@@ -112,7 +112,12 @@ compozy session resume-later sess-123 --with-children
 compozy session list --later                     # what is in Later
 ```
 
-- `--reason` is an optional one-line note shown on the Later card (up to 200 characters).
+- `--reason` is an optional note shown on the Later card. It is Markdown (bold, italic,
+  strikethrough, inline code, lists, and links) and may span several lines, up to 1,000
+  characters of Markdown source. Plain text is valid Markdown, so older one-line reasons read
+  unchanged. List rows and notifications show it as one plain line. In the web app, the Move to
+  Later dialog writes it with a formatting editor (Cmd/Ctrl+Enter confirms) and picks the return
+  date from a calendar with suggestions such as Tomorrow and Next Monday.
 - `--return-at` is optional. It takes an RFC 3339 time, a `YYYY-MM-DD` date (local midnight), or
   a duration such as `72h`. At that time the session leaves Later, lands in **Needs you** as
   "Back from Later", and you get a notification. The daemon checks return times when it starts, so

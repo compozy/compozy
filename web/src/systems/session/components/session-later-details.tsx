@@ -36,7 +36,7 @@ export function SessionLaterDetails({
         <span
           className="min-w-0 truncate text-muted"
           data-testid={`session-later-reason-${session.id}`}
-          title={details.reason}
+          title={details.reasonLines.join("\n")}
         >
           {details.reason}
         </span>

@@ -14,6 +14,7 @@ export {
   CardContent,
 } from "./components/card";
 export type { CardProps, CardSize } from "./components/card";
+export { Calendar, CalendarDayButton, type CalendarProps } from "./components/calendar";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Separator, type SeparatorProps } from "./components/separator";

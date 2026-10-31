@@ -4,14 +4,15 @@ import "time"
 
 // SessionLaterPayload is the Later state of a parked session.
 type SessionLaterPayload struct {
-	ParkedAt time.Time  `json:"parked_at"`
+	ParkedAt time.Time `json:"parked_at"`
+	// Reason is the operator's Markdown note; plain text is valid Markdown.
 	Reason   string     `json:"reason,omitempty"`
 	ReturnAt *time.Time `json:"return_at,omitempty"`
 	// PendingMessages counts agent messages queued while the session is parked.
 	PendingMessages int `json:"pending_messages"`
 }
 
-// MoveSessionToLaterRequest parks a session with an optional one-line reason
+// MoveSessionToLaterRequest parks a session with an optional Markdown reason
 // and an optional return time.
 type MoveSessionToLaterRequest struct {
 	Reason   string     `json:"reason,omitempty"`
