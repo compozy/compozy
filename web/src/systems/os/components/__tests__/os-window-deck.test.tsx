@@ -3,7 +3,12 @@
 // labels, attention state, pin state, and close-scope affordances for every member.
 // Boundary IN: OsWindowDeck and OsWindowTab rendering plus their deck view-model boundary.
 // Boundary OUT: window-manager command transport and pointer-gesture state machines.
-import { createTopbarSlotStore, TooltipProvider, type TopbarSlotStore } from "@compozy/ui";
+import {
+  createTopbarSlotStore,
+  StateGlyph,
+  TooltipProvider,
+  type TopbarSlotStore,
+} from "@compozy/ui";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -324,6 +329,35 @@ describe("OsWindowDeck", () => {
       })
     ).toHaveAttribute("data-state", "running");
     expect(within(screen.getByTestId("os-window-tab-window:session")).queryByText("1")).toBeNull();
+  });
+
+  // Invariant: a terminal tab names the terminal and never shows a live-state
+  // mark — a running shell is not activity (#1071). Session tabs keep theirs.
+  it("Should title a terminal tab without a state glyph, whatever its head publishes", () => {
+    windows = {
+      "window:terminal": windowFixture("window:terminal", { app: "terminal" }),
+      "window:tasks": windowFixture("window:tasks"),
+    };
+    const terminalSlot = createTopbarSlotStore();
+    terminalSlot.publishSlot(
+      {},
+      {
+        crumb: "dev server",
+        glyph: <StateGlyph size="sm" state="stopped" />,
+        glyphPresentation: "state",
+      }
+    );
+    renderDeck(
+      frameFixture({
+        members: ["window:terminal", "window:tasks"],
+        activeWindowId: "window:tasks",
+      }),
+      new Map([["window:terminal", terminalSlot]])
+    );
+
+    const terminalTab = screen.getByTestId("os-window-tab-window:terminal");
+    expect(within(terminalTab).getByRole("tab", { name: "dev server" })).toBeInTheDocument();
+    expect(terminalTab.querySelector('[data-slot="state-glyph"]')).toBeNull();
   });
 
   it("Should count a session's pending decisions on its tab and omit the count at zero", () => {

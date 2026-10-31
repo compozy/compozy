@@ -104,3 +104,11 @@ the project. Then `compozy terminal open --worktree <id> --detach -o json` and n
 workspace fails with typed `worktree_not_found`, the pending one with `worktree_not_ready`. While
 the worktree terminal runs, `compozy worktree remove` refuses with `worktree_operation_in_progress`;
 after the terminal exits the removal succeeds.
+
+2026-10-30 qa-impact (#1071): an open terminal's title carries no live-state mark. Walk: open a
+terminal from the dock (and one from `compozy terminal open --detach` so a non-UI origin is
+covered); in light and dark themes confirm the window head shows the Terminal app glyph and the
+terminal's title with no spinner or running mark while the shell idles at its prompt and while a
+command runs, and the deck tab shows only its glyph and title. Then end three terminals: `exit 0`
+shows the done check, `exit 1` the neutral idle mark, and Stop (signal) the stopped mark in the
+head. Session windows in the same deck keep their state glyphs.
