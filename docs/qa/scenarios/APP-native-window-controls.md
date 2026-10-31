@@ -38,3 +38,12 @@ globe). Real OS clicks and drags were not exercised (the machine was in live use
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-10-31 (#1094) the Skip to content link appeared during mouse use under the macOS
+traffic lights. Showing the window again (⌘H and back, Dock reopen) made Chromium hand initial focus to
+the page's first tabbable element, the skip link, and it rendered at `top-2 left-2` inside the 84px
+reserve. The link now reveals only on `:focus-visible` and sits below the 52px topbar. The window's
+activation hand-off is released back to the document. Expected: no pill after hiding and re-showing the
+window; Tab from a fresh load shows the pill below the topbar, clear of the lights and menubar controls,
+in light and dark; Enter moves focus to the desk (`#app-content`). Development evidence (macOS Electron
+harness against a branch daemon): verified in both themes. The full packaged walk remains outstanding.

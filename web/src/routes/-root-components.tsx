@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import {
   Link,
   Outlet,
@@ -10,6 +10,7 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 
+import { useReleaseActivationFocus } from "@/hooks/use-release-activation-focus";
 import { GatewayAccessBoundary } from "@/systems/gateway";
 import { FontAppearanceSync } from "@/systems/theme";
 
@@ -28,12 +29,20 @@ export function RootComponent() {
   );
 }
 
+/**
+ * Keyboard bypass to the app's main region. It stays visually hidden until a
+ * keyboard user reaches it, and then sits below the menubar so it never lands
+ * under the macOS traffic lights or the menubar controls.
+ */
 function SkipToContentLink() {
+  const linkRef = useRef<HTMLAnchorElement>(null);
+  useReleaseActivationFocus(linkRef);
   return (
     <a
+      ref={linkRef}
       data-testid="skip-to-content"
       href="#app-content"
-      className="sr-only fixed top-2 left-2 z-50 rounded-pill bg-primary px-3 py-2 text-form-label font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:px-3 focus:py-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
+      className="sr-only fixed top-[calc(var(--height-menubar)+--spacing(2))] left-2 z-50 rounded-pill bg-primary text-form-label font-medium text-primary-foreground focus-visible:not-sr-only focus-visible:fixed focus-visible:px-3 focus-visible:py-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
     >
       Skip to content
     </a>

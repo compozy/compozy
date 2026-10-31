@@ -79,6 +79,42 @@ describe("RootComponent", () => {
     expect(link).toHaveAttribute("href", "#app-content");
   });
 
+  it("keeps the skip link when the keyboard reaches it after the window activates", async () => {
+    renderRoot(<RootComponent />);
+    const link = screen.getByTestId("skip-to-content");
+
+    fireEvent.focus(window);
+    fireEvent.keyDown(document, { key: "Tab" });
+    await act(async () => link.focus());
+
+    expect(link).toHaveFocus();
+  });
+
+  it("releases the initial focus a reactivated window hands to the skip link", async () => {
+    renderRoot(<RootComponent />);
+    const link = screen.getByTestId("skip-to-content");
+
+    fireEvent.focus(window);
+    await act(async () => link.focus());
+
+    expect(link).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
+  });
+
+  it("restores the skip link the user held before the window lost focus", async () => {
+    renderRoot(<RootComponent />);
+    const link = screen.getByTestId("skip-to-content");
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => link.focus());
+
+    fireEvent.blur(window);
+    act(() => link.blur());
+    fireEvent.focus(window);
+    await act(async () => link.focus());
+
+    expect(link).toHaveFocus();
+  });
+
   it("renders a root-level not-found fallback with a clear path home", () => {
     renderRoot(<RootNotFoundBoundary isNotFound routeId="__root__" />);
 
