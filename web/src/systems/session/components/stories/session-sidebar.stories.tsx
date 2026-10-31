@@ -312,6 +312,20 @@ export const MixedRuntimes: Story = {
   },
 };
 
+/**
+ * A Codex child whose turn ended without delivering reads "Needs attention" and says
+ * why on its meta line instead of looking done (#1065).
+ */
+export const EndedEarlyChild: Story = {
+  ...MixedRuntimes,
+  args: {
+    ...MixedRuntimes.args,
+    sessions: MIXED_RUNTIMES.map(session =>
+      session.id === "sess-origin" ? { ...session, attention: "ended_early" } : session
+    ),
+  },
+};
+
 /** Selection keeps every provider mark; the checkbox covers only the state mark. */
 export const MixedRuntimesSelection: Story = {
   ...MixedRuntimes,
