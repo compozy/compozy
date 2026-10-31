@@ -65,7 +65,7 @@ export function useSessionLabel({
     workspaceName: sessionLabelWorkspaceName(
       crossWorkspace,
       userDestination,
-      workspace.data?.workspace.name
+      workspace.data?.workspace.name ?? owner.data?.workspace_name
     ),
   };
 }

@@ -15893,7 +15893,10 @@ func (m *nativeLaterSessionManager) ResumeFromLater(
 // Owner: native session_prompt registry suite; session policy owns durable provenance verification.
 type replyAccessNativeSessionManager struct{ originNativeSessionManager }
 
-func (m replyAccessNativeSessionManager) CanReplyToSession(_ context.Context, sender, target, message string) (bool, error) {
+func (m replyAccessNativeSessionManager) CanReplyToSession(
+	_ context.Context,
+	sender, target, message string,
+) (bool, error) {
 	return sender == "sender" && target == "target" && message == "received", nil
 }
 func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
@@ -15938,7 +15941,13 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 				Sessions:   replyAccessNativeSessionManager{originNativeSessionManager{SessionManager: base}},
 				Workspaces: nativeUserWorkspaceService{nativeTestWorkspaceService(t)},
 			}, nativeApproveAllPolicyInputs())
-			payload := map[string]any{"workspace": tc.workspace, "session_id": "target", "message": "pong", "message_id": "reply", "idempotency_key": "reply"}
+			payload := map[string]any{
+				"workspace":       tc.workspace,
+				"session_id":      "target",
+				"message":         "pong",
+				"message_id":      "reply",
+				"idempotency_key": "reply",
+			}
 			if tc.reply != "" {
 				payload["in_reply_to"] = tc.reply
 			}
@@ -15952,7 +15961,11 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = registry.Call(t.Context(), toolspkg.Scope{SessionID: "sender", WorkspaceID: "ws-origin", ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input})
+			_, err = registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sender", WorkspaceID: "ws-origin", ProfileID: store.DefaultProfileID},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input},
+			)
 			if tc.allowed {
 				if err != nil || !sent || sentTo != "target" {
 					t.Fatalf("reply sent=%v, error=%v", sent, err)

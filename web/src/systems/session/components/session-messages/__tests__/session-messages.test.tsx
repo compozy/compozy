@@ -604,9 +604,13 @@ describe("useSessionLabel", () => {
     expect(result.current.agentName).toBe("claude");
   });
 
-  it.each(["ws_site", "@user"])(
-    "Should resolve a target owner in %s before reading details",
-    async destination => {
+  it.each([
+    { destination: "ws_site", workspaceAvailable: true, workspaceName: "Current project" },
+    { destination: "ws_site", workspaceAvailable: false, workspaceName: "compozy-site" },
+    { destination: "@user", workspaceAvailable: false, workspaceName: "User" },
+  ])(
+    "Should resolve $destination with workspaceAvailable=$workspaceAvailable before reading details",
+    async ({ destination, workspaceAvailable, workspaceName }) => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async (input: RequestInfo | URL) => {
@@ -619,7 +623,9 @@ describe("useSessionLabel", () => {
             });
           }
           if (decodeURIComponent(url.pathname) === `/api/workspaces/${destination}`) {
-            return Response.json({ workspace: { id: "ws_site", name: "compozy-site" } });
+            return workspaceAvailable
+              ? Response.json({ workspace: { id: "ws_site", name: "Current project" } })
+              : Response.json({ error: "Workspace unavailable" }, { status: 403 });
           }
           if (
             decodeURIComponent(url.pathname) ===
@@ -643,9 +649,7 @@ describe("useSessionLabel", () => {
       await waitFor(() => expect(result.current.title).toBe("Live peer"));
       // Navigation consumes the stored owner ID, while API reads use the @user selector.
       expect(result.current.workspaceId).toBe(destination === "@user" ? "" : destination);
-      await waitFor(() =>
-        expect(result.current.workspaceName).toBe(destination === "@user" ? "User" : "compozy-site")
-      );
+      await waitFor(() => expect(result.current.workspaceName).toBe(workspaceName));
     }
   );
 
