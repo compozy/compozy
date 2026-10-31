@@ -46,4 +46,10 @@ cleared, later attempts must not stall, and a workspace cache retirement must no
 or let a stale in-flight load repopulate the replacement generation. The scenario remains
 `blocked-verify`; no prior verdict was promoted.
 
+QA impact 2026-10-31 (#1068): stdio servers now run in a daemon-owned pool shared by discovery,
+status probes, and calls. Terminating the sidecar ends the pooled process and the next launch waits
+an exponential backoff (1 s doubling to 60 s), so the five permanent failures accrue across backoff
+windows rather than per request; discovery inside a window fails fast without relaunching. Re-walk
+the mark/recovery path with this pacing; the scenario remains `blocked-verify`.
+
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-011-only-runnable-skills-are-offered-dead-sidecars-self-recover

@@ -2,21 +2,16 @@ package mcp
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mcp/securehttp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/vault"
@@ -28,6 +23,8 @@ import (
 type managedMCPClient struct {
 	session *mcpsdk.ClientSession
 	cleanup func() error
+	// release returns a pooled session instead of closing it.
+	release func(error)
 }
 
 const maxAuthorizationChallengeDrainBytes = int64(64 << 10)
@@ -41,6 +38,9 @@ func (e *CallExecutor) openClient(
 	transport := server.EffectiveTransport()
 	switch transport {
 	case compozyconfig.MCPServerTransportStdio:
+		if e.stdioPool != nil {
+			return e.openPooledStdioClient(ctx, resolved)
+		}
 		launch, err := e.newMCPStdioLaunch(ctx, server, resolved.Target)
 		if err != nil {
 			return nil, err
@@ -75,6 +75,10 @@ func (e *CallExecutor) openClient(
 }
 
 func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
+	return connectMCPClient(ctx, transport)
+}
+
+func connectMCPClient(ctx context.Context, transport mcpsdk.Transport) (*mcpsdk.ClientSession, error) {
 	client := mcpsdk.NewClient(
 		&mcpsdk.Implementation{Name: "compozy", Version: version.Current().Version},
 		&mcpsdk.ClientOptions{
@@ -99,8 +103,32 @@ func (e *CallExecutor) connectClient(ctx context.Context, transport mcpsdk.Trans
 	return session, nil
 }
 
+func (e *CallExecutor) openPooledStdioClient(ctx context.Context, resolved ResolvedServer) (*managedMCPClient, error) {
+	spec, err := e.mcpStdioSpec(ctx, resolved.Server, resolved.Target)
+	if err != nil {
+		return nil, err
+	}
+	lease, err := e.stdioPool.acquire(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	return &managedMCPClient{session: lease.session.session, release: lease.release}, nil
+}
+
 func closeMCPClient(client *managedMCPClient) error {
+	return releaseMCPClient(client, nil)
+}
+
+func joinMCPClientCleanup(err error, client *managedMCPClient) error {
+	return errors.Join(err, releaseMCPClient(client, err))
+}
+
+func releaseMCPClient(client *managedMCPClient, callErr error) error {
 	if client == nil {
+		return nil
+	}
+	if client.release != nil {
+		client.release(callErr)
 		return nil
 	}
 	var err error
@@ -115,10 +143,6 @@ func closeMCPClient(client *managedMCPClient) error {
 		}
 	}
 	return err
-}
-
-func joinMCPClientCleanup(err error, client *managedMCPClient) error {
-	return errors.Join(err, closeMCPClient(client))
 }
 
 func (e *CallExecutor) httpClientWithAuthorization(
@@ -276,142 +300,6 @@ func (e *CallExecutor) httpClientForCall() *http.Client {
 		cloned.Timeout = e.timeout
 	}
 	return &cloned
-}
-
-func mcpServerEnv(env map[string]string) []string {
-	merged := mcpStdioBaseEnv()
-	for key, value := range env {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey == "" {
-			continue
-		}
-		merged[trimmedKey] = value
-	}
-	keys := make([]string, 0, len(merged))
-	for key := range merged {
-		if strings.TrimSpace(key) != "" {
-			keys = append(keys, key)
-		}
-	}
-	slices.Sort(keys)
-	values := make([]string, 0, len(keys))
-	for _, key := range keys {
-		values = append(values, strings.TrimSpace(key)+"="+merged[key])
-	}
-	return values
-}
-
-func mcpStdioCommandWithExactEnv(ctx context.Context, command string, env []string, args []string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, command, args...)
-	cmd.Env = append([]string(nil), env...)
-	return cmd
-}
-
-type mcpStdioLaunch struct {
-	command *exec.Cmd
-	cleanup func() error
-}
-
-func (e *CallExecutor) newMCPStdioLaunch(
-	ctx context.Context,
-	server compozyconfig.MCPServer,
-	target mcpauth.Target,
-) (mcpStdioLaunch, error) {
-	if err := e.prepareMCPDataDir(server); err != nil {
-		return mcpStdioLaunch{}, err
-	}
-	env, err := e.mcpServerEnv(ctx, server)
-	if err != nil {
-		return mcpStdioLaunch{}, err
-	}
-	home, err := mcpStdioHome(target)
-	if err != nil {
-		return mcpStdioLaunch{}, err
-	}
-	cleanup := func() error {
-		return os.RemoveAll(home)
-	}
-	env = append(env,
-		"HOME="+home,
-		"XDG_CONFIG_HOME="+filepath.Join(home, "config"),
-		"XDG_CACHE_HOME="+filepath.Join(home, "cache"),
-		"npm_config_cache="+filepath.Join(home, "npm-cache"),
-		"UV_CACHE_DIR="+filepath.Join(home, "uv-cache"),
-	)
-	command := mcpStdioCommandWithExactEnv(ctx, strings.TrimSpace(server.Command), env, trimStrings(server.Args))
-	command.Dir = strings.TrimSpace(server.CWD)
-	return mcpStdioLaunch{command: command, cleanup: cleanup}, nil
-}
-
-func mcpStdioHome(target mcpauth.Target) (string, error) {
-	key, err := target.Key()
-	if err != nil {
-		return "", fmt.Errorf("mcp: derive stdio target identity: %w", err)
-	}
-	prefix := mcpStdioHomePrefix(key)
-	home, err := os.MkdirTemp("", prefix)
-	if err != nil {
-		return "", fmt.Errorf("mcp: create isolated stdio home: %w", err)
-	}
-	for _, path := range []string{
-		filepath.Join(home, "config"),
-		filepath.Join(home, "cache"),
-		filepath.Join(home, "npm-cache"),
-		filepath.Join(home, "uv-cache"),
-	} {
-		if err := os.Mkdir(path, 0o700); err != nil {
-			return "", errors.Join(
-				fmt.Errorf("mcp: create isolated stdio directory %q: %w", path, err),
-				os.RemoveAll(home),
-			)
-		}
-	}
-	return home, nil
-}
-
-func mcpStdioHomePrefix(targetKey string) string {
-	digest := sha256.Sum256([]byte(targetKey))
-	return fmt.Sprintf("compozy-mcp-%x-", digest[:8])
-}
-
-func mcpStdioBaseEnv() map[string]string {
-	keys := []string{
-		"PATH",
-		"SystemRoot",
-		"WINDIR",
-		"COMSPEC",
-		"PATHEXT",
-		"SSL_CERT_FILE",
-		"SSL_CERT_DIR",
-	}
-	base := make(map[string]string, len(keys))
-	for _, key := range keys {
-		if value, ok := os.LookupEnv(key); ok {
-			base[key] = value
-		}
-	}
-	return base
-}
-
-func (e *CallExecutor) mcpServerEnv(ctx context.Context, server compozyconfig.MCPServer) ([]string, error) {
-	env := cloneStringMap(server.Env)
-	if len(server.SecretEnv) > 0 {
-		if env == nil {
-			env = make(map[string]string, len(server.SecretEnv))
-		}
-		for key, ref := range server.SecretEnv {
-			trimmedKey := strings.TrimSpace(key)
-			if trimmedKey == "" {
-				continue
-			}
-			value, err := e.resolveSecretRef(ctx, ref)
-			if err != nil {
-				return nil, fmt.Errorf("mcp: resolve secret_env %s for server %q: %w", trimmedKey, server.Name, err)
-			}
-			env[trimmedKey] = value
-		}
-	}
-	return mcpServerEnv(env), nil
 }
 
 func (e *CallExecutor) resolveSecretRef(ctx context.Context, ref string) (string, error) {

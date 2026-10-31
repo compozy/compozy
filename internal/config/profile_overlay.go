@@ -18,6 +18,8 @@ var profileOverlayDeniedPaths = [][]string{
 	{"window_manager", "global_shortcuts"},
 	{"terminal", "max_per_daemon"},
 	toolSurfaceToolsClarifyTimeoutSegments,
+	mcpStdioConfigSegments,
+	mcpStatusProbeTimeoutSegments,
 }
 
 func applyProfileConfigOverlayFile(path string, dst *Config, source string) error {

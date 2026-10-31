@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -66,6 +67,7 @@ type daemonRuntimeState struct {
 	windowManagerRuntime
 	skillsRegistry    *skills.Registry
 	modelCatalog      *modelCatalogRuntime
+	mcpStdioPool      *mcppkg.StdioSessionPool
 	providerUsage     *providerUsageRuntime
 	marketplace       *marketplaceRuntime
 	skillsCancel      context.CancelFunc

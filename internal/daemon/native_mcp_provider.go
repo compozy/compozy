@@ -26,6 +26,9 @@ func (d *Daemon) newDaemonMCPToolProvider(
 		state.mcpRuntimeHealth = mcppkg.NewRuntimeHealthRegistry()
 	}
 	options = append(options, mcppkg.WithRuntimeHealthRegistry(state.mcpRuntimeHealth))
+	if state.mcpStdioPool != nil {
+		options = append(options, mcppkg.WithStdioSessionPool(state.mcpStdioPool))
+	}
 	if store, ok := state.registry.(mcpauth.TokenStore); ok {
 		options = append(
 			options,

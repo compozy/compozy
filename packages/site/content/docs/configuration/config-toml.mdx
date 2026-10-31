@@ -58,6 +58,8 @@ CompozyOS archives them on load instead of failing; see
 | `[tools.clarify]`                    | Timeout for one live agent clarification question.                                     | No automatic expiration (omitted or `0s`); `5m` restores the previous bound                           |
 | `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.                  | external tools disabled, 120 second approval timeout, no trusted sources                              |
 | `[mcp.oauth]`                        | Global MCP OAuth client metadata and callback identity.                                | CompozyOS public CIMD; loopback callback on port `2123`                                               |
+| `[mcp]`                              | MCP status probe deadline.                                                             | `status_probe_timeout = "15s"`                                                                        |
+| `[mcp.stdio]`                        | Reuse and launch bounds for local stdio MCP server processes.                          | `10m` idle, `60s` launch, 8 concurrent calls                                                          |
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                                | empty list                                                                                            |
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                              | empty map plus built-ins                                                                              |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                       | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
@@ -442,6 +444,16 @@ external_default = "disabled"
 approval_timeout_seconds = 120
 # External read-only sources trusted for approve-reads. Entries use kind:owner.
 trusted_sources = []
+
+[mcp]
+# Deadline for one settings or compozy__mcp_status probe.
+status_probe_timeout = "15s"
+
+[mcp.stdio]
+# Keep one stdio MCP server process per target; close it after 10 idle minutes.
+idle_timeout = "10m"
+connect_timeout = "60s"
+max_concurrent_calls = 8
 
 [[mcp_servers]]
 name = "filesystem"
@@ -1586,6 +1598,15 @@ with `lifecycle="restart-required"`; it does not change a question already waiti
 `trusted_sources` does not store credentials. Remote MCP OAuth tokens remain in the MCP auth store,
 and hosted MCP bind nonces are transient session launch state.
 
+## `[mcp]`
+
+| Field                  | Type     | Default | Valid values | Description                                                                                             |
+| ---------------------- | -------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| `status_probe_timeout` | duration | `15s`   | Positive.    | Bound one settings or `compozy__mcp_status` probe of any MCP server. Restart-required; user scope only. |
+
+A stdio server that is slower than this deadline on its first launch keeps starting in the
+background, bounded by `mcp.stdio.connect_timeout`; the next probe reuses the started process.
+
 ## `[mcp.oauth]`
 
 These global values identify CompozyOS to authorization servers that support a client metadata document.
@@ -1599,6 +1620,34 @@ They are restart-required because an in-flight authorization is bound to its cal
 The published CompozyOS document lists the default callback only. If you change the daemon port or
 use a self-hosted callback, publish a matching metadata document and configure both fields together.
 When the active callback is not listed, CompozyOS skips CIMD and may use the provider's one DCR fallback.
+
+## `[mcp.stdio]`
+
+The daemon keeps one stdio MCP server process for each MCP target (owner, scope, workspace, and
+server name) and launch definition (command, arguments, resolved environment, and working
+directory). Tool discovery, `compozy__mcp_status` probes, and tool calls share that process instead
+of starting a new one per request. A changed definition replaces the process; an unused one closes
+after `idle_timeout`; daemon shutdown closes every process.
+
+When a process fails to start or exits unexpectedly, the next launch waits 1 second, then 2, 4, and
+so on up to 60 seconds. Requests during that window fail fast with a `mcp_unreachable` diagnostic
+instead of starting another process. Status diagnostics include the last 2 KiB of the server's
+stderr, with resolved `secret_env` values and secret-like text redacted.
+
+Each process gets an isolated `HOME`, `XDG_CONFIG_HOME`, and `XDG_CACHE_HOME` under
+`$COMPOZY_HOME/cache/mcp/homes/`, removed when the process ends. Package caches are shared and
+persistent: `npm_config_cache` points to `$COMPOZY_HOME/cache/mcp/npm` and `UV_CACHE_DIR` to
+`$COMPOZY_HOME/cache/mcp/uv`, so `npx` and `uvx` servers do not reinstall on every launch. Daemon
+startup removes homes left by an earlier daemon generation.
+
+These keys are read once at daemon boot from the user config, so they are restart-required and
+rejected at workspace and profile scope.
+
+| Field                  | Type     | Default | Valid values      | Description                                                                                             |
+| ---------------------- | -------- | ------- | ----------------- | ------------------------------------------------------------------------------------------------------- |
+| `idle_timeout`         | duration | `10m`   | Positive.         | Close a stdio MCP server process after this long without requests.                                      |
+| `connect_timeout`      | duration | `60s`   | Positive.         | Bound one process launch plus MCP handshake. A slower first start keeps running past a caller deadline. |
+| `max_concurrent_calls` | integer  | `8`     | `1` through `64`. | In-flight requests allowed on one stdio MCP server process; more requests wait.                         |
 
 ## `[[mcp_servers]]`
 

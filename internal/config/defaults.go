@@ -48,10 +48,14 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
 		},
-		MCP: MCPConfig{OAuth: MCPOAuthConfig{
-			ClientMetadataURL: DefaultMCPClientMetadataURL,
-			RedirectURI:       "http://127.0.0.1:2123/api/mcp/oauth/callback",
-		}},
+		MCP: MCPConfig{
+			OAuth: MCPOAuthConfig{
+				ClientMetadataURL: DefaultMCPClientMetadataURL,
+				RedirectURI:       "http://127.0.0.1:2123/api/mcp/oauth/callback",
+			},
+			Stdio:              DefaultMCPStdioConfig(),
+			StatusProbeTimeout: DefaultMCPStatusProbeTimeout,
+		},
 		Providers:     map[string]ProviderConfig{},
 		ModelCatalog:  DefaultModelCatalogConfig(),
 		Marketplace:   DefaultMarketplaceRuntimeConfig(),

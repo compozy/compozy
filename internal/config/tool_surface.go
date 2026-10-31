@@ -47,6 +47,12 @@ const (
 // timeout path for scope checks without repeating its segments.
 var toolSurfaceToolsClarifyTimeoutSegments = strings.Split(toolSurfaceToolsClarifyTimeoutPath, ".")
 
+// mcpStdioConfigSegments prefixes the boot-scoped stdio MCP process reuse keys.
+var mcpStdioConfigSegments = []string{"mcp", "stdio"}
+
+// mcpStatusProbeTimeoutSegments names the boot-scoped MCP status probe deadline.
+var mcpStatusProbeTimeoutSegments = []string{"mcp", "status_probe_timeout"}
+
 var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 

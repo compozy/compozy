@@ -49,6 +49,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		windowManagers:        state.windowManagers,
 		skillsRegistry:        state.skillsRegistry,
 		modelCatalog:          state.modelCatalog,
+		mcpStdioPool:          state.mcpStdioPool,
 		providerUsage:         state.providerUsage,
 		marketplace:           state.marketplace,
 		skillsCancel:          state.skillsCancel,

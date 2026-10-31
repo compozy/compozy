@@ -58,6 +58,9 @@ func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdow
 	if targets.automation != nil {
 		appendWrappedError(errs, "daemon: shutdown automation", targets.automation.Shutdown(ctx))
 	}
+	if targets.mcpStdioPool != nil {
+		appendWrappedError(errs, "daemon: close stdio MCP sessions", targets.mcpStdioPool.Close(ctx))
+	}
 	if targets.retention != nil {
 		appendWrappedError(errs, "daemon: shutdown observability retention", targets.retention.ShutdownRetention(ctx))
 	}

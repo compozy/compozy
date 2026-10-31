@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -239,6 +240,32 @@ func (e *CallExecutor) toolCacheKey(
 		protocolVersion + "\x00" +
 		hex.EncodeToString(authBinding[:])
 	return key, nil
+}
+
+// cachedPooledStdioTools answers discovery from the tool cache without touching the child, using
+// the protocol the pool negotiated with the same launch identity.
+func (e *CallExecutor) cachedPooledStdioTools(
+	ctx context.Context,
+	resolved ResolvedServer,
+	authorizationHeader string,
+) ([]toolspkg.MCPToolDescriptor, string, bool) {
+	if e.stdioPool == nil || resolved.Server.EffectiveTransport() != compozyconfig.MCPServerTransportStdio {
+		return nil, "", false
+	}
+	spec, err := e.resolveMCPStdioSpec(ctx, resolved.Server, resolved.Target)
+	if err != nil {
+		return nil, "", false
+	}
+	protocolVersion, ok := e.stdioPool.knownProtocol(spec)
+	if !ok {
+		return nil, "", false
+	}
+	key, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
+	if err != nil {
+		return nil, "", false
+	}
+	descriptors, ok := e.cachedTools(key, time.Now())
+	return descriptors, protocolVersion, ok
 }
 
 func negotiatedProtocolVersion(session *mcpsdk.ClientSession) string {

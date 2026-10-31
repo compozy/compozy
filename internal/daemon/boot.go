@@ -127,6 +127,7 @@ type bootState struct {
 	extensionMCP          extensionmcp.Store
 	mcpAuthGeneration     *mcpauth.MutationGeneration
 	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
+	mcpStdioPool          *mcppkg.StdioSessionPool
 	toolProjectionEpoch   *mcppkg.ProjectionEpoch
 	agentProbeConfig      *agentProbeConfigState
 	loopCatalog           *resourceCatalog[looppkg.ResourceSpec]

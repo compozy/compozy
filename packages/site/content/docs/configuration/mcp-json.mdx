@@ -110,6 +110,15 @@ Both `env` and `secret_env` reject process-injection keys such as `NODE_OPTIONS`
 `PYTHONHOME`, `LD_PRELOAD`, and `DYLD_*`. Literal `env` also rejects secret-like names; place those
 bindings in `secret_env` with an `env:NAME` or `vault:mcp/**` ref.
 
+### Stdio process reuse
+
+The daemon launches a stdio server once per MCP target and keeps it running for discovery, status
+probes, and tool calls until it is idle for `mcp.stdio.idle_timeout`, its definition changes, or the
+daemon stops. A crashed or failed launch is retried with exponential backoff instead of on every
+request. Each process gets an isolated `HOME` while `npx` and `uvx` reuse persistent package caches
+under `$COMPOZY_HOME/cache/mcp/`. See [`[mcp.stdio]`](/docs/configuration/config-toml#mcpstdio) for
+the bounds.
+
 ### Management read and write projection
 
 `GET /api/settings/mcp-servers` does not return literal environment values or binding refs. Each

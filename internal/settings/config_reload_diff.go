@@ -69,6 +69,12 @@ func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Co
 	if current.MCP.OAuth.RedirectURI != desired.MCP.OAuth.RedirectURI {
 		changed = append(changed, "mcp.oauth.redirect_uri")
 	}
+	if current.MCP.Stdio != desired.MCP.Stdio {
+		changed = append(changed, "mcp.stdio.*")
+	}
+	if current.MCP.StatusProbeTimeout != desired.MCP.StatusProbeTimeout {
+		changed = append(changed, "mcp.status_probe_timeout")
+	}
 	if !reflect.DeepEqual(current.MCPServers, desired.MCPServers) {
 		changed = append(changed, "mcp-servers.*")
 	}

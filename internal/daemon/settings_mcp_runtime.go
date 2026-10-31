@@ -18,7 +18,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const defaultSettingsMCPStatusTimeout = 2 * time.Second
+const defaultSettingsMCPStatusTimeout = compozyconfig.DefaultMCPStatusProbeTimeout
 
 func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	ctx context.Context,
@@ -73,6 +73,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 	})
 	if err != nil {
 		status = runtimeStatusFromMCPProbeError(err)
+		status.Diagnostic = withMCPStderrTail(status.Diagnostic, s.mcpStdioPool.StderrTail(target))
 		return s.recordMCPProbeFailure(
 			ctx,
 			key,
@@ -121,7 +122,20 @@ func (s *settingsRuntimeSurface) newMCPProbeExecutor(
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
 		mcppkg.WithTimeout(s.mcpStatusTimeoutOrDefault()),
+		mcppkg.WithStdioSessionPool(s.mcpStdioPool),
 	)
+}
+
+// withMCPStderrTail appends the stdio server's redacted stderr tail unless the diagnostic has it.
+func withMCPStderrTail(diagnostic string, tail string) string {
+	tail = diagnostics.Redact(strings.TrimSpace(tail))
+	if tail == "" || strings.Contains(diagnostic, tail) {
+		return diagnostic
+	}
+	if strings.TrimSpace(diagnostic) == "" {
+		return "stderr: " + tail
+	}
+	return diagnostic + "; stderr: " + tail
 }
 
 func (s *settingsRuntimeSurface) mcpStatusTimeoutOrDefault() time.Duration {

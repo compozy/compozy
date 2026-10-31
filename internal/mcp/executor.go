@@ -75,6 +75,9 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		return nil, "", err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, resolved)
+	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, resolved, authorizationHeader); ok {
+		return cached, cachedProtocol, nil
+	}
 	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err

@@ -30,6 +30,7 @@ type settingsRuntimeSurface struct {
 	mcpAuthGeneration *mcpauth.MutationGeneration
 	mcpStatusTimeout  time.Duration
 	mcpHealthRegistry *mcppkg.RuntimeHealthRegistry
+	mcpStdioPool      *mcppkg.StdioSessionPool
 	mcpHealthKey      func(context.Context, mcpauth.Target) (mcppkg.RuntimeHealthKey, error)
 	secretResolver    mcpauth.SecretRefResolver
 	secretRefs        interface {
@@ -88,6 +89,8 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) (*settingsRuntimeSur
 		observer:          state.observer,
 		automation:        state.automation,
 		mcpHealthRegistry: state.mcpRuntimeHealth,
+		mcpStdioPool:      state.mcpStdioPool,
+		mcpStatusTimeout:  state.cfg.MCP.StatusProbeTimeout,
 		mcpHealthKey: func(ctx context.Context, target mcpauth.Target) (mcppkg.RuntimeHealthKey, error) {
 			return extensionMCPHealthKeyForTarget(ctx, state, target)
 		},
