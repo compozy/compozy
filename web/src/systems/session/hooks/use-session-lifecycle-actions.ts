@@ -10,6 +10,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  lifecyclePendingSessionId,
   readCurrentSessions,
   runSessionBatch,
   type SessionBatchResult,
@@ -190,12 +191,13 @@ export function useSessionLifecycleActions(
     onMovedToLater: onLaterSuccess,
   });
   const pendingAction = ownPending ?? later.pendingAction;
-  const pendingSessionId =
-    batchAction !== null
-      ? (batchResults.find(result => result.status === "running")?.id ?? null)
-      : ownPending !== null
-        ? (pendingMutation?.[1].variables?.id ?? null)
-        : later.pendingSessionId;
+  const pendingSessionId = lifecyclePendingSessionId({
+    batching: batchAction !== null,
+    batchResults,
+    ownPending: ownPending !== null,
+    mutationSessionId: pendingMutation?.[1].variables?.id,
+    laterSessionId: later.pendingSessionId,
+  });
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
   const runBatch = async (

@@ -18,8 +18,14 @@ import type { LucideIcon } from "lucide-react";
 import { use } from "react";
 
 import { SessionClearContext } from "../contexts/session-clear-context-value";
-import { SessionDeriveContext } from "../contexts/session-derive-context-value";
-import { SessionForkContext } from "../contexts/session-fork-context-value";
+import {
+  SessionDeriveContext,
+  type SessionContinueRequest,
+} from "../contexts/session-derive-context-value";
+import {
+  SessionForkContext,
+  type SessionForkRequest,
+} from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
@@ -109,6 +115,54 @@ function sessionLaterMenuItem(
     : null;
 }
 
+/** Continue and Fork, offered on live user sessions whose host can derive them. */
+function sessionDeriveMenuItems(
+  session: SessionPayload,
+  requestContinue: SessionContinueRequest | null,
+  requestFork: SessionForkRequest | null
+): SessionRowMenuItem[] {
+  if (!isUserControllableSession(session) || session.archived_at !== null) return [];
+  const items: SessionRowMenuItem[] = [];
+  if (requestContinue) {
+    items.push({
+      id: "continue",
+      label: "Continue with another agent…",
+      icon: ArrowRightLeft,
+      onSelect: () => requestContinue(session),
+    });
+  }
+  if (requestFork) {
+    items.push({
+      id: "fork",
+      label: "Fork session…",
+      icon: GitFork,
+      onSelect: () => requestFork(session),
+    });
+  }
+  return items;
+}
+
+/** Stop, Later, and Archive verbs gated on the session's lifecycle state. */
+function sessionStateMenuItems(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem[] {
+  const items: SessionRowMenuItem[] = [];
+  if (session.archived_at === null && isStopEligible(session)) {
+    items.push({
+      id: "stop",
+      label: "Stop session",
+      icon: Square,
+      onSelect: () => actions.onStop(session),
+    });
+  }
+  const laterItem = sessionLaterMenuItem(session, actions);
+  if (laterItem) items.push(laterItem);
+  const archiveItem = sessionArchiveMenuItem(session, actions);
+  if (archiveItem) items.push(archiveItem);
+  return items;
+}
+
 /** State-gated lifecycle verbs for one session row, in menu order. */
 export function useSessionRowMenuItems(
   session: SessionPayload,
@@ -117,7 +171,6 @@ export function useSessionRowMenuItems(
   const requestContinue = use(SessionDeriveContext);
   const requestFork = use(SessionForkContext);
   const clear = use(SessionClearContext);
-  const isArchived = session.archived_at !== null;
   const userSession = isUserControllableSession(session);
   const items: SessionRowMenuItem[] = [];
   if (userSession) {
@@ -142,22 +195,7 @@ export function useSessionRowMenuItems(
       onSelect: () => void copySessionText(getSessionDisplayTitle(session), "Title"),
     }
   );
-  if (userSession && !isArchived && requestContinue) {
-    items.push({
-      id: "continue",
-      label: "Continue with another agent…",
-      icon: ArrowRightLeft,
-      onSelect: () => requestContinue(session),
-    });
-  }
-  if (userSession && !isArchived && requestFork) {
-    items.push({
-      id: "fork",
-      label: "Fork session…",
-      icon: GitFork,
-      onSelect: () => requestFork(session),
-    });
-  }
+  items.push(...sessionDeriveMenuItems(session, requestContinue, requestFork));
   items.push(...sessionNestMenuItems(session, actions));
   const { onMakeTopLevel } = actions;
   if (onMakeTopLevel && sessionCanMakeTopLevel(session)) {
@@ -168,18 +206,7 @@ export function useSessionRowMenuItems(
       onSelect: () => onMakeTopLevel(session),
     });
   }
-  if (!isArchived && isStopEligible(session)) {
-    items.push({
-      id: "stop",
-      label: "Stop session",
-      icon: Square,
-      onSelect: () => actions.onStop(session),
-    });
-  }
-  const laterItem = sessionLaterMenuItem(session, actions);
-  if (laterItem) items.push(laterItem);
-  const archiveItem = sessionArchiveMenuItem(session, actions);
-  if (archiveItem) items.push(archiveItem);
+  items.push(...sessionStateMenuItems(session, actions));
   if (userSession && clear?.sessionId === session.id) {
     items.push({
       id: "clear",
