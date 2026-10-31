@@ -176,6 +176,8 @@ type Store interface {
 	CompleteCreate(context.Context, string, string, SetupState, string, time.Time) error
 	// FailCreate moves a pending row to failed and records the creation cause.
 	FailCreate(context.Context, string, string, string, time.Time) error
+	// UpdateFailedCreateError rewrites the recorded cause of a failed creation.
+	UpdateFailedCreateError(context.Context, string, string, string, time.Time) error
 	CompareAndSwapState(context.Context, string, string, State, State, time.Time) (bool, error)
 	SetState(context.Context, string, string, State, time.Time) error
 	SaveStatus(context.Context, string, string, Status) error

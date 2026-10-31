@@ -11,6 +11,10 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
+// rollbackIncompleteMarker separates a failed creation's cause from the
+// rollback error in create_error. Boot reconciliation retries such rows.
+const rollbackIncompleteMarker = "; rollback incomplete: "
+
 // logErrorKey names the structured log attribute carrying the primary cause.
 const logErrorKey = "error"
 
@@ -61,12 +65,13 @@ func checkoutStarted(item Worktree) bool {
 
 // rollbackCheckout removes the checkout and its Git admin entry. An
 // interrupted `git worktree add` leaves the entry locked as "initializing", so
-// a pending creation passes the second --force Git requires for locked trees.
+// a creation-owned (pending or failed) row passes the second --force Git
+// requires for locked trees.
 // Git refuses to remove an entry whose directory is already gone; that entry
 // is dropped directly once nothing on disk can still use it.
 func (s *Service) rollbackCheckout(ctx context.Context, root, commonDir string, item Worktree) error {
 	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction, "--force"}
-	if item.State == StatePending {
+	if item.State == StatePending || item.State == StateFailed {
 		args = append(args, "--force")
 	}
 	_, stderr, err := s.runCheckoutRemoval(ctx, root, append(args, item.Path)...)
@@ -189,7 +194,79 @@ func createFailureMessage(phase PendingPhase, cause, rollbackErr error) string {
 		message = string(phase) + " phase failed: " + message
 	}
 	if rollbackErr != nil {
-		message += "; rollback incomplete: " + rollbackErr.Error()
+		message += rollbackIncompleteMarker + rollbackErr.Error()
 	}
 	return diagnostics.RedactAndBound(message, setupDiagnosticLimit)
+}
+
+// retryFailedCreateRollback finishes a rollback a failed row records as
+// incomplete. The failed row no longer reserves its path or branch, so it
+// touches only what Git still attributes to it: a checkout registered at the
+// recorded path on the recorded branch, and a branch this creation minted that
+// still points at its recorded head and that no checkout holds.
+func (s *Service) retryFailedCreateRollback(ctx context.Context, workspace Workspace, item Worktree) error {
+	cause, _, incomplete := strings.Cut(item.CreateError, rollbackIncompleteMarker)
+	if !incomplete {
+		return nil
+	}
+	commonDir, err := s.commonDir(ctx, workspace.Root)
+	if err != nil {
+		return err
+	}
+	release, err := s.locks.Acquire(ctx, commonDir)
+	if err != nil {
+		return err
+	}
+	defer release()
+	entries, err := s.readWorktreeList(ctx, workspace.Root, commonDir)
+	if err != nil {
+		return err
+	}
+	branchHeld := false
+	for _, entry := range entries {
+		if filepath.Clean(entry.Path) == filepath.Clean(item.Path) {
+			if entry.Branch != item.Branch {
+				return nil
+			}
+			if err := s.rollbackCheckout(ctx, workspace.Root, commonDir, item); err != nil {
+				return err
+			}
+			continue
+		}
+		branchHeld = branchHeld || entry.Branch == item.Branch
+	}
+	if _, statErr := os.Lstat(item.Path); statErr == nil {
+		return fmt.Errorf(
+			"worktree: retry failed creation rollback: %s is not a checkout Git attributes to it",
+			item.Path,
+		)
+	}
+	if item.CreatedBranch && item.CreatedHead != "" && !branchHeld {
+		ref := "refs/heads/" + item.Branch
+		head, _, headErr := s.runner.Run(ctx, workspace.Root, "rev-parse", "--verify", "--quiet", ref)
+		if headErr == nil && strings.TrimSpace(string(head)) == item.CreatedHead {
+			if _, stderr, err := s.runner.Run(
+				ctx,
+				workspace.Root,
+				"update-ref",
+				"-d",
+				ref,
+				item.CreatedHead,
+			); err != nil {
+				return fmt.Errorf(
+					"worktree: retry branch rollback: %s: %w",
+					diagnostics.RedactAndBound(string(stderr), 2048), err,
+				)
+			}
+		}
+	}
+	if err := s.store.UpdateFailedCreateError(ctx, item.WorkspaceID, item.ID, cause, s.now().UTC()); err != nil {
+		return fmt.Errorf("worktree: record completed creation rollback: %w", err)
+	}
+	item.CreateError = cause
+	s.logger.InfoContext(ctx, "worktree creation rollback completed on recovery",
+		"workspace_id", item.WorkspaceID, "worktree_id", item.ID)
+	s.invalidateDiscovery(item.WorkspaceID)
+	s.publishCatalogEvent(CatalogEventUpserted, item)
+	return nil
 }

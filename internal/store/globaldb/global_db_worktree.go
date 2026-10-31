@@ -227,6 +227,29 @@ func (g *WorktreeRepo) FailCreate(
 	return g.pendingMutationResult(ctx, workspaceID, id, count)
 }
 
+func (g *WorktreeRepo) UpdateFailedCreateError(
+	ctx context.Context,
+	workspaceID string,
+	id string,
+	createError string,
+	updatedAt time.Time,
+) error {
+	if err := g.checkReady(ctx, "update failed worktree create error"); err != nil {
+		return err
+	}
+	count, err := g.queries.UpdateFailedWorktreeCreateError(ctx, sqlcgen.UpdateFailedWorktreeCreateErrorParams{
+		CreateError: createError, UpdatedAt: store.FormatTimestamp(updatedAt),
+		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+	})
+	if err != nil {
+		return fmt.Errorf("store: update failed worktree create error: %w", err)
+	}
+	if count == 0 {
+		return worktree.ErrNotFound
+	}
+	return nil
+}
+
 func (g *WorktreeRepo) CompareAndSwapState(
 	ctx context.Context,
 	workspaceID string,

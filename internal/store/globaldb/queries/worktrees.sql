@@ -46,7 +46,7 @@ ORDER BY created_at, id;
 
 -- name: ListRecoverableWorktrees :many
 SELECT * FROM worktrees
-WHERE state IN ('pending', 'removing', 'missing')
+WHERE state IN ('pending', 'removing', 'missing', 'failed')
 ORDER BY workspace_id, created_at, id;
 
 -- name: DeletePendingWorktree :execrows
@@ -118,6 +118,14 @@ UPDATE worktrees SET
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND id = sqlc.arg(worktree_id)
   AND state = 'pending';
+
+-- name: UpdateFailedWorktreeCreateError :execrows
+UPDATE worktrees SET
+  create_error = sqlc.arg(create_error),
+  updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(worktree_id)
+  AND state = 'failed';
 
 -- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = sqlc.arg(state), updated_at = sqlc.arg(updated_at)

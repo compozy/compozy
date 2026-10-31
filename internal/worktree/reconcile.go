@@ -39,6 +39,13 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 			if capabilityErr == nil {
 				recoverErr = errors.Join(recoverErr, s.restoreMissing(ctx, workspace, item))
 			}
+		case StateFailed:
+			if capabilityErr == nil {
+				if err := s.retryFailedCreateRollback(ctx, workspace, item); err != nil {
+					s.logger.WarnContext(ctx, "worktree creation rollback is still incomplete",
+						"worktree_id", item.ID, logErrorKey, diagnostics.RedactAndBound(err.Error(), 2048))
+				}
+			}
 		}
 	}
 	running, err := s.store.ListRunningExitOperations(ctx)

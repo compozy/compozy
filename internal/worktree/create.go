@@ -82,9 +82,10 @@ func (s *Service) CancelCreate(ctx context.Context, workspaceID, ref string) err
 	}
 	rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, *item)
 	if rollbackErr != nil {
-		// The row stays pending so boot reconciliation retries the rollback.
-		s.logCreateFailure(context.WithoutCancel(ctx), *item, context.Canceled, rollbackErr, nil)
-		return rollbackErr
+		// Boot reconciliation retries the rollback the failed row records as incomplete.
+		return errors.Join(rollbackErr, s.recordCreateFailure(
+			context.WithoutCancel(ctx), *item, context.Canceled, rollbackErr,
+		))
 	}
 	if deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), workspaceID, worktreeID); deleteErr != nil {
 		return deleteErr
@@ -144,9 +145,8 @@ func (s *Service) create(ctx context.Context, workspaceID string, options Create
 		cleanupCtx := context.WithoutCancel(ctx)
 		rollbackErr := s.rollbackCreate(cleanupCtx, workspace, commonDir, item)
 		if rollbackErr != nil {
-			// The row stays pending so boot reconciliation retries the rollback.
-			s.logCreateFailure(cleanupCtx, item, err, rollbackErr, nil)
-			return nil, errors.Join(err, rollbackErr)
+			// Boot reconciliation retries the rollback the failed row records as incomplete.
+			return nil, errors.Join(err, rollbackErr, s.recordCreateFailure(cleanupCtx, item, err, rollbackErr))
 		}
 		deleteErr := s.store.DeletePending(cleanupCtx, item.WorkspaceID, item.ID)
 		s.logCreateFailure(cleanupCtx, item, err, nil, deleteErr)

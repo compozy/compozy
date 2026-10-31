@@ -458,7 +458,7 @@ func (q *Queries) InsertWorktreeExitOperation(ctx context.Context, arg InsertWor
 
 const listRecoverableWorktrees = `-- name: ListRecoverableWorktrees :many
 SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
-WHERE state IN ('pending', 'removing', 'missing')
+WHERE state IN ('pending', 'removing', 'missing', 'failed')
 ORDER BY workspace_id, created_at, id
 `
 
@@ -719,6 +719,35 @@ func (q *Queries) TombstoneBoundRunMaterialization(ctx context.Context, arg Tomb
 		arg.WorkspaceID,
 		arg.WorktreeID,
 		arg.RunID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateFailedWorktreeCreateError = `-- name: UpdateFailedWorktreeCreateError :execrows
+UPDATE worktrees SET
+  create_error = ?1,
+  updated_at = ?2
+WHERE workspace_id = ?3
+  AND id = ?4
+  AND state = 'failed'
+`
+
+type UpdateFailedWorktreeCreateErrorParams struct {
+	CreateError string `json:"create_error"`
+	UpdatedAt   string `json:"updated_at"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+}
+
+func (q *Queries) UpdateFailedWorktreeCreateError(ctx context.Context, arg UpdateFailedWorktreeCreateErrorParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateFailedWorktreeCreateError,
+		arg.CreateError,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.WorktreeID,
 	)
 	if err != nil {
 		return 0, err

@@ -347,7 +347,7 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep a synchronous creation pending when its rollback is incomplete", func(t *testing.T) {
+	t.Run("Should record an incomplete synchronous rollback and finish it on recovery", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		fixture.interruptWorktreeAdd.Store(true)
@@ -359,15 +359,58 @@ func TestServiceCreate(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "roll back checkout") {
 			t.Fatalf("Create(stuck rollback) error = %v, want rollback failure", err)
 		}
-		stored, getErr := fixture.store.Get(t.Context(), fixture.workspace.ID, "sync-stuck")
-		if getErr != nil || stored.State != StatePending {
-			t.Fatalf("stuck creation = %#v, %v, want pending row for boot retry", stored, getErr)
-		}
+		stored := requireFailedCreation(t, fixture, "wt-create-a", "rollback incomplete")
 		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "update-ref -d ") {
 			t.Fatal("branch was deleted while its checkout is still registered")
 		}
-		if logs := fixture.logs.String(); !strings.Contains(logs, "rollback is incomplete") {
-			t.Fatalf("logs = %s, want structured incomplete-rollback error", logs)
+
+		// The next boot finds the leftover still registered on its branch.
+		fixture.failCheckoutRemoval.Store(false)
+		fixture.listOutput = append(
+			worktreeListFixture(fixture.workspace.Root, "main"),
+			[]byte(
+				"worktree "+stored.Path+"\x00HEAD created-head\x00branch refs/heads/sync-stuck\x00locked initializing\x00\x00",
+			)...)
+		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		recovered, err := fixture.store.Get(t.Context(), fixture.workspace.ID, stored.ID)
+		if err != nil || recovered.State != StateFailed ||
+			strings.Contains(recovered.CreateError, "rollback incomplete") ||
+			!strings.Contains(recovered.CreateError, "worktrees.checkout_timeout") {
+			t.Fatalf("recovered = %#v, %v, want failed record with the original cause only", recovered, err)
+		}
+		if _, statErr := os.Lstat(stored.Path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Lstat(leftover) error = %v, want removed on recovery", statErr)
+		}
+		if !containsCommandPrefix(
+			invocationCommands(fixture.runner.invocations()), "update-ref -d refs/heads/sync-stuck created-head",
+		) {
+			t.Fatal("recovery did not compare-delete the minted branch")
+		}
+	})
+
+	t.Run("Should leave a failed record's path alone once another checkout holds it", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		fixture.interruptWorktreeAdd.Store(true)
+		fixture.failCheckoutRemoval.Store(true)
+		item := createAcceptedAndWait(t, fixture, "Reused Path")
+		fixture.failCheckoutRemoval.Store(false)
+		fixture.listOutput = append(worktreeListFixture(fixture.workspace.Root, "main"),
+			[]byte("worktree "+item.Path+"\x00HEAD other-head\x00branch refs/heads/someone-else\x00\x00")...)
+		before := len(fixture.runner.invocations())
+
+		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		for _, command := range invocationCommands(fixture.runner.invocations()[before:]) {
+			if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
+				t.Fatalf("recovery ran %q against a checkout it does not own", command)
+			}
+		}
+		if _, err := os.Lstat(item.Path); err != nil {
+			t.Fatalf("Lstat(other checkout) error = %v, want untouched", err)
 		}
 	})
 
