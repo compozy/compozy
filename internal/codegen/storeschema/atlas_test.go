@@ -261,13 +261,18 @@ CREATE INDEX idx_records_band
 			t.Fatalf("write migration checksum: %v", err)
 		}
 		desiredPath := filepath.Join(root, "schema.sql")
-		writeSchemaTestFile(t, root, "schema.sql", `CREATE TABLE records (id TEXT PRIMARY KEY, state TEXT NOT NULL, marked_at TEXT);
+		writeSchemaTestFile(
+			t,
+			root,
+			"schema.sql",
+			`CREATE TABLE records (id TEXT PRIMARY KEY, state TEXT NOT NULL, marked_at TEXT);
 CREATE INDEX idx_records_band
     ON records((CASE
     WHEN state = 'stopped' AND marked_at IS NOT NULL THEN 2
     WHEN state = 'stopped' THEN 1
     ELSE 0 END), id);
-`)
+`,
+		)
 		plan, _, closeDev, err := planAtlasStream(testutil.Context(t), stream{
 			name:          "test",
 			schemaSource:  schemaSource{path: desiredPath},

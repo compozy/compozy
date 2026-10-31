@@ -502,7 +502,8 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("ParkSession() error = %v", err)
 		}
 		if info.LaterState() == nil || info.LaterState().Reason != "revisit after billing" || info.LaterState().ReturnAt == nil ||
-			!info.LaterState().ReturnAt.Equal(returnAt) || info.LaterState().PendingMessages != 0 {
+			!info.LaterState().ReturnAt.Equal(returnAt) ||
+			info.LaterState().PendingMessages != 0 {
 			t.Fatalf("ParkSession() later = %#v, want reason and return time", info.LaterState())
 		}
 		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{

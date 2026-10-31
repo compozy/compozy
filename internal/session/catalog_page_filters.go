@@ -71,13 +71,11 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	if err := query.Archive.Validate(); err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
 	}
-	query.Later = store.SessionLaterFilter(strings.TrimSpace(string(query.Later)))
-	if query.Later == "" {
-		query.Later = LaterExclude
+	later, err := normalizeLaterFilter(query.Later)
+	if err != nil {
+		return ListQuery{}, err
 	}
-	if err := query.Later.Validate(); err != nil {
-		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
-	}
+	query.Later = later
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
 	}
@@ -202,6 +200,18 @@ func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
 		return false
 	}
 	return true
+}
+
+// normalizeLaterFilter hides parked sessions unless the read asks for them.
+func normalizeLaterFilter(filter store.SessionLaterFilter) (store.SessionLaterFilter, error) {
+	filter = store.SessionLaterFilter(strings.TrimSpace(string(filter)))
+	if filter == "" {
+		filter = LaterExclude
+	}
+	if err := filter.Validate(); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
+	}
+	return filter, nil
 }
 
 func sessionMatchesLaterFilter(info *Info, filter store.SessionLaterFilter) bool {
