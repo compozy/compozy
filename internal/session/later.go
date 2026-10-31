@@ -312,7 +312,7 @@ func (m *Manager) laterFamily(
 			}
 			visited[id] = struct{}{}
 			queue = append(queue, id)
-			if parkedOnly && child.Later == nil {
+			if parkedOnly && child.LaterState() == nil {
 				continue
 			}
 			members = append(members, m.laterMemberInfo(ctx, child))

@@ -44,7 +44,7 @@ func (g *SessionRepo) SessionLaterState(
 	}); err != nil {
 		return nil, nil, err
 	}
-	return scanned.Later, scanned.LaterReturnedAt, nil
+	return scanned.LaterState(), scanned.LaterReturnedAtValue(), nil
 }
 
 // ParkSession marks one stopped, unarchived workspace session as parked in Later.

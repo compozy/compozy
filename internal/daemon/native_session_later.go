@@ -24,6 +24,15 @@ type sessionLaterInput struct {
 // turn ends; stopping a session tree outlives one tool call.
 const nativeLaterOperationTimeout = 3 * time.Minute
 
+func (n *daemonNativeTools) sessionLaterToolBindings(
+	catalogAvailability toolspkg.NativeAvailabilityFunc,
+) map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDSessionLater:       {call: n.sessionLater, availability: catalogAvailability},
+		toolspkg.ToolIDSessionResumeLater: {call: n.sessionResumeLater, availability: catalogAvailability},
+	}
+}
+
 func (n *daemonNativeTools) sessionLater(
 	ctx context.Context,
 	scope toolspkg.Scope,

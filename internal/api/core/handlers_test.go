@@ -409,30 +409,6 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			info.ArchivedAt = &archivedAt
 			return info, nil
 		},
-		MoveToLaterFn: func(
-			_ context.Context, workspaceID string, id string, req session.LaterRequest,
-		) (*session.Info, error) {
-			if workspaceID != "ws-workspace" || id != "sess-a" {
-				t.Fatalf("MoveToLater target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
-			}
-			if req.Reason == "invalid" {
-				return nil, fmt.Errorf("%w: reason must be one line", session.ErrSessionLaterInvalid)
-			}
-			info := testutil.NewSessionInfo(id)
-			info.ProfileID = store.DefaultProfileID
-			info.State = session.StateStopped
-			info.Later = &store.SessionLater{ParkedAt: now, Reason: req.Reason, ReturnAt: req.ReturnAt}
-			return info, nil
-		},
-		ResumeFromLaterFn: func(_ context.Context, _ string, id string, withChildren bool) (*session.Info, error) {
-			if !withChildren {
-				return nil, fmt.Errorf("%w: %s", session.ErrSessionInLater, id)
-			}
-			info := testutil.NewSessionInfo(id)
-			info.ProfileID = store.DefaultProfileID
-			info.State = session.StateStopped
-			return info, nil
-		},
 		UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 			if workspaceID != "ws-workspace" || id != "sess-a" {
 				t.Fatalf("Unarchive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
@@ -978,6 +954,9 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	})
 
 	t.Run("Should move a session to Later and bring it back with its request fields", func(t *testing.T) {
+		previous := fixture.Handlers.Sessions
+		fixture.Handlers.Sessions = &laterHandlerSessionManager{StubSessionManager: manager, now: now}
+		defer func() { fixture.Handlers.Sessions = previous }()
 		resp := performRequest(
 			t,
 			fixture.Engine,
@@ -6180,4 +6159,38 @@ func (s sessionProfileServiceStub) ListIdentities(ctx context.Context) ([]profil
 		profiles = append(profiles, item.Profile)
 	}
 	return profiles, nil
+}
+
+// laterHandlerSessionManager adds the Later operations to the shared session stub.
+type laterHandlerSessionManager struct {
+	testutil.StubSessionManager
+	now time.Time
+}
+
+func (s *laterHandlerSessionManager) MoveToLater(
+	_ context.Context, workspaceID string, id string, req session.LaterRequest,
+) (*session.Info, error) {
+	if workspaceID != "ws-workspace" || id != "sess-a" {
+		return nil, fmt.Errorf("MoveToLater target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+	}
+	if req.Reason == "invalid" {
+		return nil, fmt.Errorf("%w: reason must be one line", session.ErrSessionLaterInvalid)
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	info.Later = &store.SessionLater{ParkedAt: s.now, Reason: req.Reason, ReturnAt: req.ReturnAt}
+	return info, nil
+}
+
+func (s *laterHandlerSessionManager) ResumeFromLater(
+	_ context.Context, _ string, id string, withChildren bool,
+) (*session.Info, error) {
+	if !withChildren {
+		return nil, fmt.Errorf("%w: %s", session.ErrSessionInLater, id)
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	return info, nil
 }

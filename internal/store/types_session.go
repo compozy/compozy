@@ -102,11 +102,6 @@ type SessionInfo struct {
 	TranscriptEpoch int64
 	Attention       *SessionAttention
 	ArchivedAt      *time.Time
-	// Later is the parked state of a stopped session; nil when it is not parked.
-	Later *SessionLater
-	// LaterReturnedAt marks a session the daemon brought back from Later until
-	// the operator sees or resumes it.
-	LaterReturnedAt *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

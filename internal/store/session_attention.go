@@ -54,6 +54,11 @@ type SessionAttention struct {
 	// EndedEarlyTurnID names the settled turn that ended without a delivery or open
 	// work signal; empty when the session's last turn did not stop early.
 	EndedEarlyTurnID string
+	// Later is the operator's deferral of a stopped session; nil when it is not parked.
+	Later *SessionLater
+	// LaterReturnedAt marks a session the daemon brought back from Later until the
+	// operator sees or resumes it.
+	LaterReturnedAt *time.Time
 }
 
 // CloneSessionAttention returns an isolated copy of an optional attention projection.
@@ -67,6 +72,10 @@ func CloneSessionAttention(attention *SessionAttention) *SessionAttention {
 	}
 	if attention.AttentionChangedAt != nil {
 		cloned.AttentionChangedAt = new(*attention.AttentionChangedAt)
+	}
+	cloned.Later = CloneSessionLater(attention.Later)
+	if attention.LaterReturnedAt != nil {
+		cloned.LaterReturnedAt = new(*attention.LaterReturnedAt)
 	}
 	return &cloned
 }

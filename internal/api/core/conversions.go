@@ -168,8 +168,8 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		LastSeenAt:               cloneTimePtr(attention.LastSeenAt),
 		AttentionChangedAt:       cloneTimePtr(attention.AttentionChangedAt),
 		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
-		Later:                    store.CloneSessionLater(info.Later),
-		LaterReturnedAt:          cloneTimePtr(info.LaterReturnedAt),
+		Later:                    store.CloneSessionLater(info.LaterState()),
+		LaterReturnedAt:          cloneTimePtr(info.LaterReturnedAtValue()),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}

@@ -14,7 +14,10 @@ func populateSessionLaterScanParts(session *store.SessionInfo, row *sessionInfoR
 	if err != nil {
 		return err
 	}
-	session.LaterReturnedAt = returnedAt
+	if session.Attention == nil {
+		session.Attention = &store.SessionAttention{}
+	}
+	session.Attention.LaterReturnedAt = returnedAt
 	parkedAt, err := parseOptionalLaterTimestamp(row.parkedAt, "parked at")
 	if err != nil || parkedAt == nil {
 		return err
@@ -23,7 +26,7 @@ func populateSessionLaterScanParts(session *store.SessionInfo, row *sessionInfoR
 	if err != nil {
 		return err
 	}
-	session.Later = &store.SessionLater{
+	session.Attention.Later = &store.SessionLater{
 		ParkedAt:        *parkedAt,
 		Reason:          strings.TrimSpace(row.parkReason),
 		ReturnAt:        returnAt,

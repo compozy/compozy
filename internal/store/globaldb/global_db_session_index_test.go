@@ -501,9 +501,9 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParkSession() error = %v", err)
 		}
-		if info.Later == nil || info.Later.Reason != "revisit after billing" || info.Later.ReturnAt == nil ||
-			!info.Later.ReturnAt.Equal(returnAt) || info.Later.PendingMessages != 0 {
-			t.Fatalf("ParkSession() later = %#v, want reason and return time", info.Later)
+		if info.LaterState() == nil || info.LaterState().Reason != "revisit after billing" || info.LaterState().ReturnAt == nil ||
+			!info.LaterState().ReturnAt.Equal(returnAt) || info.LaterState().PendingMessages != 0 {
+			t.Fatalf("ParkSession() later = %#v, want reason and return time", info.LaterState())
 		}
 		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
 			WorkspaceID: workspaceID, SessionID: active.ID,
@@ -545,8 +545,8 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			if !slices.Equal(got, testCase.want) || page.Total != len(testCase.want) {
 				t.Fatalf("PageSessions(%s) = %#v total=%d, want %#v", testCase.name, got, page.Total, testCase.want)
 			}
-			if testCase.later == store.SessionLaterOnly && page.Sessions[0].Later.PendingMessages != 1 {
-				t.Fatalf("PageSessions(only) pending = %d, want 1", page.Sessions[0].Later.PendingMessages)
+			if testCase.later == store.SessionLaterOnly && page.Sessions[0].LaterState().PendingMessages != 1 {
+				t.Fatalf("PageSessions(only) pending = %d, want 1", page.Sessions[0].LaterState().PendingMessages)
 			}
 		}
 
@@ -593,7 +593,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("ParkSession(again) error = %v", err)
 		}
 		archived, err := globalDB.SetSessionArchived(ctx, workspaceID, parked.ID, true)
-		if err != nil || archived.ArchivedAt == nil || archived.Later != nil {
+		if err != nil || archived.ArchivedAt == nil || archived.LaterState() != nil {
 			t.Fatalf("SetSessionArchived(parked) = %#v, %v, want archived without Later", archived, err)
 		}
 		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{

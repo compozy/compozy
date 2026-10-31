@@ -90,3 +90,19 @@ type SessionLaterStore interface {
 	// ClearLaterReturn clears the back-from-Later mark; it reports whether one was set.
 	ClearLaterReturn(ctx context.Context, sessionID string) (bool, error)
 }
+
+// LaterState returns the parked state of the session; nil when it is not parked.
+func (s *SessionInfo) LaterState() *SessionLater {
+	if s == nil || s.Attention == nil {
+		return nil
+	}
+	return s.Attention.Later
+}
+
+// LaterReturnedAtValue returns when the daemon brought the session back from Later.
+func (s *SessionInfo) LaterReturnedAtValue() *time.Time {
+	if s == nil || s.Attention == nil {
+		return nil
+	}
+	return s.Attention.LaterReturnedAt
+}

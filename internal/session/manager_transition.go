@@ -212,12 +212,12 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 			LastSeenAt:             cloneTimePointer(info.LastSeenAt),
 			AttentionChangedAt:     cloneTimePointer(info.AttentionChangedAt),
 			EndedEarlyTurnID:       info.EndedEarlyTurnID,
+			Later:                  store.CloneSessionLater(info.Later),
+			LaterReturnedAt:        cloneTimePointer(info.LaterReturnedAt),
 		},
-		ArchivedAt:      cloneTimePointer(info.ArchivedAt),
-		Later:           store.CloneSessionLater(info.Later),
-		LaterReturnedAt: cloneTimePointer(info.LaterReturnedAt),
-		CreatedAt:       info.CreatedAt,
-		UpdatedAt:       info.UpdatedAt,
+		ArchivedAt: cloneTimePointer(info.ArchivedAt),
+		CreatedAt:  info.CreatedAt,
+		UpdatedAt:  info.UpdatedAt,
 	}
 	result.SetACPOptions(storeOptionSelectionsFromACP(info.ACPOptions))
 	result.SetRuntimeRecovery(info.RuntimeRecovery)

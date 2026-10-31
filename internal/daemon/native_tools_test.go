@@ -1862,13 +1862,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 			return info, err
 		}
-		var parked []session.LaterRequest
-		manager.MoveToLaterFn = func(_ context.Context, _ string, id string, req session.LaterRequest) (*session.Info, error) {
-			parked = append(parked, req)
-			return &session.Info{ID: id, State: session.StateStopped}, nil
-		}
+		later := &nativeLaterSessionManager{StubSessionManager: manager}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+			Sessions: later, Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		child := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-child", AgentName: "coder"}
 		_, err := registry.Call(t.Context(), child, toolspkg.CallRequest{
@@ -1888,9 +1884,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 		}
 		want := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
-		if len(parked) != 2 || parked[0].Reason != "after billing" || parked[0].ReturnAt == nil ||
-			!parked[0].ReturnAt.Equal(want) {
-			t.Fatalf("MoveToLater requests = %#v, want two parks with reason and return time", parked)
+		if len(later.parked) != 2 || later.parked[0].Reason != "after billing" || later.parked[0].ReturnAt == nil ||
+			!later.parked[0].ReturnAt.Equal(want) {
+			t.Fatalf("MoveToLater requests = %#v, want two parks with reason and return time", later.parked)
 		}
 	})
 
@@ -15850,4 +15846,23 @@ func (s *nativeProcessPolicyService) Terminate(
 	}
 	s.alive = false
 	return []sessionprocess.Result{{Outcome: "terminated"}}, nil
+}
+
+// nativeLaterSessionManager records Move to Later requests on top of the shared session stub.
+type nativeLaterSessionManager struct {
+	apitest.StubSessionManager
+	parked []session.LaterRequest
+}
+
+func (m *nativeLaterSessionManager) MoveToLater(
+	_ context.Context, _ string, id string, req session.LaterRequest,
+) (*session.Info, error) {
+	m.parked = append(m.parked, req)
+	return &session.Info{ID: id, State: session.StateStopped}, nil
+}
+
+func (m *nativeLaterSessionManager) ResumeFromLater(
+	_ context.Context, _ string, id string, _ bool,
+) (*session.Info, error) {
+	return &session.Info{ID: id, State: session.StateStopped}, nil
 }
