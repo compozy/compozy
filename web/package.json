@@ -15,6 +15,7 @@
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
         "preview": "vite preview",
+        "proto": "proto",
         "test": "bun run test:raw",
         "test:raw": "vitest run",
         "test:e2e": "bun run test:e2e:daemon-served",
@@ -53,7 +54,6 @@
         "ai": "7.0.128",
         "boring-avatars": "2.0.4",
         "date-fns": "^4.4.0",
-        "elkjs": "0.12.1",
         "lexical": "0.52.0",
         "lucide-react": "1.52.0",
         "marked": "17.0.6",
@@ -68,6 +68,7 @@
         "zod": "4.6.5"
     },
     "devDependencies": {
+        "@compozy/proto": "0.1.1",
         "@modelcontextprotocol/sdk": "1.32.1",
         "@playwright/test": "1.63.0",
         "@rolldown/plugin-babel": "0.2.4",
@@ -90,6 +91,7 @@
         "msw": "3.0.2",
         "msw-storybook-addon": "3.0.3",
         "openapi-msw": "2.1.0",
+        "playwright": "1.63.0",
         "storybook": "10.6.1",
         "vite": "8.3.2",
         "vitest": "5.0.3"

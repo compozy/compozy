@@ -9,7 +9,7 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import {
   useSessionsBoardShelfSelection,
   type SessionsBoardShelfId,
-} from "../../hooks/use-sessions-board-selection";
+} from "../../hooks/use-sessions-board-view-selection";
 import type { SessionsBoardShelf } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";

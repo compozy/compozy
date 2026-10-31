@@ -1,6 +1,6 @@
 import { PageContent } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "#gallery/contract";
+import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
 import { SESSION_PULL_REQUEST_CHIP_STATES } from "../mocks/session-pull-request-fixtures";
 import { SessionPullRequestChip } from "./session-pull-request-chip";

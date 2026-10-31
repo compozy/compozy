@@ -1,6 +1,6 @@
 import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
 import { sessionStore } from "@/systems/session/stores/session-store";
-import { clearActiveWorkspaceSelection } from "@/systems/workspace";
+import { clearActiveWorkspaceSelection } from "@/systems/workspace/stores/active-workspace-store";
 
 /**
  * Resets the module-level client stores views read outside React state (workspace selection,

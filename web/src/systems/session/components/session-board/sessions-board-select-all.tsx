@@ -4,7 +4,7 @@ import { Checkbox } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { useSessionsBoardGroupSelection } from "../../hooks/use-sessions-board-selection";
+import { useSessionsBoardGroupSelection } from "../../hooks/use-sessions-board-view-selection";
 
 /**
  * A column's or lane's select-all, in the leading slot of its header (the
