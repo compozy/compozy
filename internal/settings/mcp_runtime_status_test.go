@@ -779,11 +779,17 @@ func TestMCPAuthCredentialResolutionOrder(t *testing.T) {
 		if status.Scope != mcpauth.ScopeUser || !status.Inherited {
 			t.Fatalf("extension status = %#v, want inherited user record", status)
 		}
-		if _, err := service.LogoutMCPAuth(t.Context(), request); !errors.Is(err, ErrValidation) {
-			t.Fatalf("LogoutMCPAuth(extension workspace) error = %v, want ErrValidation", err)
+		_, beginErr := service.BeginMCPAuth(t.Context(), MCPAuthBeginRequest{MCPAuthTargetRequest: request})
+		_, exchangeErr := service.ExchangeMCPAuth(t.Context(), MCPAuthExchangeRequest{MCPAuthTargetRequest: request})
+		_, logoutErr := service.LogoutMCPAuth(t.Context(), request)
+		for name, err := range map[string]error{"begin": beginErr, "exchange": exchangeErr, "logout": logoutErr} {
+			if !errors.Is(err, ErrValidation) {
+				t.Fatalf("%s(extension workspace) error = %v, want ErrValidation", name, err)
+			}
 		}
-		if runtime.logoutTarget != (mcpauth.Target{}) {
-			t.Fatal("rejected extension workspace logout reached the user credential")
+		if runtime.beginTarget != (mcpauth.Target{}) || runtime.exchangeTarget != (mcpauth.Target{}) ||
+			runtime.logoutTarget != (mcpauth.Target{}) {
+			t.Fatal("rejected extension workspace mutation reached the user credential")
 		}
 	})
 

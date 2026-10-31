@@ -256,7 +256,12 @@ func (s *service) resolveMCPAuthDefinition(
 			if err != nil {
 				return mcpAuthDefinition{}, err
 			}
-			return mcpAuthDefinition{target: inherited.Normalize(), server: effective.Server, inherited: true}, nil
+			resolvedTarget := inherited.Normalize()
+			return mcpAuthDefinition{
+				target:    resolvedTarget,
+				server:    effective.Server,
+				inherited: !mcpAuthTargetCovers(target, resolvedTarget),
+			}, nil
 		}
 		return mcpAuthDefinition{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
