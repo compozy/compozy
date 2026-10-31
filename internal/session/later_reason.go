@@ -22,7 +22,7 @@ var laterReasonMarkdown = goldmark.New(goldmark.WithExtensions(extension.Striket
 // LaterReasonPlainText reads a Markdown Later reason as one plain line for
 // surfaces that cannot render Markdown: the reason is parsed as CommonMark,
 // its text (link labels, code spans, escaped characters, code block lines)
-// stays literal, its markup drops, and each paragraph, list item, or code line
+// stays literal, its markup (including raw HTML) drops, and each paragraph, list item, or code line
 // becomes one part joined with a middle dot. The stored reason is never
 // rewritten.
 func LaterReasonPlainText(reason string) string {
@@ -97,14 +97,14 @@ func (r *laterReasonReader) visit(node ast.Node, entering bool) (ast.WalkStatus,
 		}
 		return ast.WalkSkipChildren, nil
 	case *ast.RawHTML:
+		// Inline tags are markup; the text between them is read as usual.
+		return ast.WalkSkipChildren, nil
+	case *ast.HTMLBlock:
 		if entering {
-			for index := range typed.Segments.Len() {
-				segment := typed.Segments.At(index)
-				r.current.Write(segment.Value(r.source))
-			}
+			r.flush()
 		}
 		return ast.WalkSkipChildren, nil
-	case *ast.FencedCodeBlock, *ast.CodeBlock, *ast.HTMLBlock:
+	case *ast.FencedCodeBlock, *ast.CodeBlock:
 		if entering {
 			r.writeLines(node)
 		}

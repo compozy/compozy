@@ -19,7 +19,8 @@ function inlinePlainText(tokens: readonly Token[] | undefined): string {
         case "br":
           return "\n";
         case "html":
-          return token.raw;
+          // Inline tags are markup; the text between them is read as usual.
+          return "";
         default:
           return "tokens" in token && token.tokens
             ? inlinePlainText(token.tokens)
@@ -42,8 +43,9 @@ function blockPlainLines(tokens: readonly Token[]): string[] {
         return (token as Tokens.List).items.flatMap(item => blockPlainLines(item.tokens));
       case "blockquote":
         return blockPlainLines((token as Tokens.Blockquote).tokens);
-      case "code":
       case "html":
+        return [];
+      case "code":
         return String(token.text).split("\n");
       case "table": {
         const table = token as Tokens.Table;
@@ -61,7 +63,7 @@ function blockPlainLines(tokens: readonly Token[]): string[] {
 
 /**
  * The lines of a Markdown Later reason as plain text, read through a GFM
- * parser: markup drops; link labels, code spans, escaped characters, and code
+ * parser: markup (including raw HTML) drops; link labels, code spans, escaped characters, and code
  * lines stay literal; empty lines go. The stored reason is never rewritten.
  */
 export function laterReasonLines(reason: string): string[] {

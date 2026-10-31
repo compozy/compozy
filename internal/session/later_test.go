@@ -214,8 +214,13 @@ func TestLaterReasonPlainText(t *testing.T) {
 		{name: "Should keep a double-backtick code span literal", reason: "run ``**go**`` now", want: "run **go** now"},
 		{
 			name:   "Should read table rows as their cells",
-			reason: "| step | owner |\n| --- | --- |\n| gate | **me** |",
-			want:   "step · owner · gate · me",
+			reason: "| step | owner |\n| --- | --- |\n| gate | **me** |\n| ship | ops |",
+			want:   "step · owner · gate · me · ship · ops",
+		},
+		{
+			name:   "Should drop raw HTML and keep the text between inline tags",
+			reason: "<b>urgent</b> first\n\n<div>\nhidden\n</div>\n\nthen ship",
+			want:   "urgent first · then ship",
 		},
 		{
 			name:   "Should read fenced code lines without their fences",

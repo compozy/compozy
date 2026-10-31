@@ -1333,7 +1333,8 @@ describe("SessionList Later", () => {
         reason:
           "Waiting on **the vendor**\n\n- rerun `make **gate**`\n- see [spec](https://x.dev/a_(v2)) \\*now\\*" +
           "\n\n> - check _docs_ at [d](https://x.dev/a_(b(c))) ``**go**``\n\n```\nrun fix_this\n```" +
-          "\n\n| step | owner |\n| --- | --- |\n| gate | **me** |",
+          "\n\n| step | owner |\n| --- | --- |\n| gate | **<b>me</b>** |" +
+          "\n\n<div>\nhidden\n</div>",
       },
     };
     renderList({ sessions: [markdown], view: { ...view, shelf: "later" } });
