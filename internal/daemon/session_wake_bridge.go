@@ -122,9 +122,14 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 		"Reason: " + string(event.Reason) + ".",
 		sessionWakeAction(event),
 	}
-	if event.FinalAnswer != "" {
-		// An early-stop wake carries the child's answer; both parts are already bounded.
-		lines = append(lines, "Detail: "+event.Detail, "Final answer:\n---\n"+event.FinalAnswer)
+	if event.EndedEarly {
+		// The answer and detail are already redacted and bounded; sanitizing the whole
+		// message would cut the answer to the short wake bound, so only the header is.
+		lines[0] = session.SanitizeSpawnWakeText(lines[0])
+		lines = append(lines, "Detail: "+event.Detail)
+		if event.FinalAnswer != "" {
+			lines = append(lines, "Final answer:\n---\n"+event.FinalAnswer)
+		}
 		return strings.Join(lines, "\n")
 	}
 	if event.Detail != "" {
@@ -134,7 +139,7 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 }
 
 func sessionWakeAction(event session.SpawnWakeEvent) string {
-	if event.Badge == session.BadgeNeedsAttention && event.FinalAnswer != "" {
+	if event.EndedEarly {
 		return "It stopped before delivering. Prompt it to continue, or stop it with compozy__session_stop."
 	}
 	switch event.Badge {

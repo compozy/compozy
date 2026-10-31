@@ -6,6 +6,10 @@ type BranchSnapshotReader interface {
 	SessionBranches(context.Context, []string) (map[string]string, error)
 }
 
+// BranchSnapshotSaver records the branch a session currently has checked out, so a
+// branch created during a turn is visible to delivery checks before the turn-end refresh.
+type BranchSnapshotSaver func(context.Context, *Info) error
+
 type PullRequestProjection struct {
 	Branch string
 	PullRequestView
@@ -17,6 +21,23 @@ func (m *Manager) ConfigurePullRequests(reader PullRequestReader, branches Branc
 	defer m.mu.Unlock()
 	m.pullRequestReader = reader
 	m.branchSnapshots = branches
+}
+
+// ConfigureBranchSnapshotSaver connects the optional branch snapshot writer at daemon composition.
+func (m *Manager) ConfigureBranchSnapshotSaver(save BranchSnapshotSaver) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.branchSnapshotSaver = save
+}
+
+func (m *Manager) saveSessionBranch(ctx context.Context, info *Info) error {
+	m.mu.RLock()
+	save := m.branchSnapshotSaver
+	m.mu.RUnlock()
+	if save == nil || info == nil {
+		return nil
+	}
+	return save(ctx, info)
 }
 
 func (m *Manager) SessionPullRequests(ctx context.Context, infos []*Info) (map[string]PullRequestProjection, error) {

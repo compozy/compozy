@@ -221,6 +221,10 @@ func (m *Manager) configurePromptRuntime(
 		)
 		return false, m.restoreConfiguredRuntime(cleanupCtx, session, snapshot, err, rollbackErr)
 	}
+	// A live model switch keeps the process; later rebinds must still name the new model.
+	if plan.runtime.startupRebuilt {
+		session.setRuntimeDefinition(&plan.runtime)
+	}
 	return false, nil
 }
 

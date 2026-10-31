@@ -139,7 +139,9 @@ completions of opted-out children stay suppressed. The mark is durable attention
 the child's next prompt clears it. Walk: create a child with `compozy__session_create` and a
 parent, prompt it with a task it answers without delivering, and confirm the badge, the parent wake
 text, and that a follow-up prompt clears the mark; repeat with a registered monitor, a delegated
-child, a linked PR, and a top-level session and confirm no flag. Owning automated evidence:
+child, a linked PR (including one opened during the turn on a newly created branch), a turn that
+stops on the token limit, and a top-level session and confirm no flag; a transient pull request
+lookup failure also leaves the turn unflagged. Owning automated evidence:
 `TestManagerEarlyStopSupervision` in `internal/session/spawn_wake_test.go`, the early-stop cases in
 `TestCanonicalBadgeAttentionPrecedence`, the idle-release case in
 `TestSupervisionReleasesIdleRuntime`, and `TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog`.

@@ -32,7 +32,11 @@ func (m *Manager) preparePromptRuntimeStartupDefinition(
 	if err := m.prepareResumeSoul(ctx, spec); err != nil {
 		return fmt.Errorf("session: prepare soul for runtime switch of %q: %w", spec.sessionID, err)
 	}
-	return m.assembleAcceptedStartupDefinition(ctx, spec, runtime, m.now())
+	if err := m.assembleAcceptedStartupDefinition(ctx, spec, runtime, m.now()); err != nil {
+		return err
+	}
+	runtime.startupRebuilt = true
+	return nil
 }
 
 func startupRuntimeIdentityChanged(current *Info, provider string, model string) bool {

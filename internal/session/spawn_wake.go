@@ -44,6 +44,8 @@ type SpawnWakeEvent struct {
 	Reason         SpawnWakeReason `json:"reason"`
 	Badge          Badge           `json:"badge"`
 	Detail         string          `json:"detail,omitempty"`
+	// EndedEarly marks the wake for a child turn that stopped before delivering.
+	EndedEarly bool `json:"ended_early,omitempty"`
 	// FinalAnswer is the child's last answer, carried only when its turn ended early.
 	FinalAnswer string `json:"final_answer,omitempty"`
 	WakeEventID string `json:"wake_event_id"`
@@ -62,6 +64,7 @@ func (event SpawnWakeEvent) Normalize() SpawnWakeEvent {
 		Reason:         SpawnWakeReason(strings.ToLower(strings.TrimSpace(string(event.Reason)))),
 		Badge:          Badge(strings.ToLower(strings.TrimSpace(string(event.Badge)))),
 		Detail:         SanitizeSpawnWakeText(event.Detail),
+		EndedEarly:     event.EndedEarly,
 		FinalAnswer:    sanitizeSpawnWakeAnswer(event.FinalAnswer),
 		WakeEventID:    strings.TrimSpace(event.WakeEventID),
 	}
@@ -180,8 +183,9 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	}
 	// An early stop is a supervision alarm, not a lifecycle notification: it reaches
 	// the parent even when the parent opted out of completion wakes.
-	endedEarly := endedEarlyWake(info, badge)
+	endedEarly := EndedEarlyAttention(info, badge)
 	if endedEarly {
+		event.EndedEarly = true
 		event.FinalAnswer = sanitizeSpawnWakeAnswer(m.endedEarlyAnswer(ctx, info))
 	}
 	if !lineage.NotifyCreator && !endedEarly {
@@ -283,7 +287,7 @@ func spawnWakeDetail(info *Info, badge Badge) string {
 	}
 	switch badge {
 	case BadgeNeedsAttention:
-		if endedEarlyWake(info, badge) {
+		if EndedEarlyAttention(info, badge) {
 			return endedEarlyWakeDetail
 		}
 		return "Process exit could not be verified; retry stop."

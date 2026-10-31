@@ -219,6 +219,51 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a live same-provider model switch in the stored startup prompt", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithPromptAssembler(startupPromptAssemblerFunc(func(
+			_ context.Context,
+			startup StartupPromptContext,
+			agent compozyconfig.AgentDef,
+			_ *workspacepkg.ResolvedWorkspace,
+		) (string, error) {
+			return agent.Prompt + "\n\nself: " + startup.Provider + "/" + startup.Model, nil
+		})))
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		initial, _ := session.startupDefinition()
+
+		snapshot := session.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.Model = "switched-model"
+		process, err := h.manager.ensurePromptRuntime(testutil.Context(t), session, &selection, snapshot.process)
+		if err != nil {
+			t.Fatalf("ensurePromptRuntime(model switch) error = %v", err)
+		}
+		if process != snapshot.process || len(driver.configSnapshots()) != 1 {
+			t.Fatal("ensurePromptRuntime() replaced the process, want live reconfiguration")
+		}
+		want := "self: " + selection.Provider + "/switched-model"
+		definition, _ := session.startupDefinition()
+		if !strings.Contains(definition.Prompt, want) || definition.Prompt == initial.Prompt {
+			t.Fatalf("stored startup definition = %q, want one assembled with %q", definition.Prompt, want)
+		}
+
+		// A later same-runtime rebind reuses the stored prompt instead of the creation one.
+		rebind := session.runtimeBindingSnapshot().selection
+		if _, err := h.manager.ensurePromptRuntime(
+			testutil.Context(t), session, &rebind, session.processHandle(),
+		); err != nil {
+			t.Fatalf("ensurePromptRuntime(same runtime) error = %v", err)
+		}
+		if after, _ := session.startupDefinition(); after.Prompt != definition.Prompt {
+			t.Fatalf("startup definition after same-runtime rebind = %q, want %q", after.Prompt, definition.Prompt)
+		}
+	})
+
 	t.Run("Should preserve the prior binding and transcript when replacement startup fails", func(t *testing.T) {
 		t.Parallel()
 

@@ -144,6 +144,7 @@ type Manager struct {
 	pullRequestReader          PullRequestReader
 	catalogRefreshes           map[[32]byte]time.Time
 	branchSnapshots            BranchSnapshotReader
+	branchSnapshotSaver        BranchSnapshotSaver
 	replyWatches               ReplyWatchService
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings

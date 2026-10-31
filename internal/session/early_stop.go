@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -17,20 +18,34 @@ const EndedEarlyAttentionCode = "ended_early"
 const endedEarlyWakeDetail = "Turn ended without a linked pull request and with no monitor, " +
 	"subagent, reply watch, or pending interaction left to resume it."
 
-const endedEarlyPullRequestTimeout = 5 * time.Second
+const (
+	endedEarlyPullRequestTimeout = 5 * time.Second
+	endedEarlyAnswerTimeout      = 5 * time.Second
+	endedEarlyWriteAttempts      = 3
+	endedEarlyWriteRetryDelay    = 50 * time.Millisecond
+)
+
+// Lookup causes that prove the session cannot have a hosted pull request, as opposed
+// to a transient failure that leaves delivery unknown.
+const (
+	endedEarlyLookupUnsupportedRemote = "unsupported_remote"
+	endedEarlyLookupProviderDisabled  = "provider_disabled"
+)
 
 // recordTurnEndedEarly marks a settled child turn that stopped on its own without
 // delivering. The mark is part of the durable attention projection, so the badge
 // survives idle runtime release and daemon restarts until the next prompt clears it.
+// A settled turn that did not end early drops a mark a failed clear left behind.
 func (m *Manager) recordTurnEndedEarly(ctx context.Context, target *Session, turnState *promptTurnDispatchState) {
 	if m == nil || m.attentionStore == nil || target == nil || turnState == nil {
 		return
 	}
 	turnID := strings.TrimSpace(turnState.turnID)
-	if turnID == "" || !m.turnEndedEarly(ctx, target, turnState) {
+	if turnID != "" && m.turnEndedEarly(ctx, target, turnState) {
+		m.setEndedEarly(ctx, target, turnID)
 		return
 	}
-	m.setEndedEarly(ctx, target, turnID)
+	m.clearEndedEarly(ctx, target)
 }
 
 // clearEndedEarly drops the early-stop mark when the session receives its next prompt.
@@ -46,11 +61,26 @@ func (m *Manager) clearEndedEarly(ctx context.Context, target *Session) {
 	}
 }
 
+// setEndedEarly retries the durable write so a transient store failure neither hides
+// an early stop nor keeps a stale mark that would alarm the parent on a later turn.
 func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID string) {
-	commit, err := m.attentionStore.MarkSessionEndedEarly(context.WithoutCancel(ctx), target.ID, turnID)
+	writeCtx := context.WithoutCancel(ctx)
+	var (
+		commit store.SessionAttentionCommit
+		err    error
+	)
+	for attempt := range endedEarlyWriteAttempts {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * endedEarlyWriteRetryDelay)
+		}
+		commit, err = m.attentionStore.MarkSessionEndedEarly(writeCtx, target.ID, turnID)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
-		m.sessionLogger(target).WarnContext(ctx, "session: persist early-stop mark failed",
-			"turn_id", turnID, "error", err)
+		m.sessionLogger(target).ErrorContext(ctx, "session: persist early-stop mark failed",
+			"turn_id", turnID, "attempts", endedEarlyWriteAttempts, "error", err)
 		return
 	}
 	m.applyAttentionProjection(target.ID, commit.After)
@@ -78,7 +108,8 @@ func (m *Manager) turnEndedEarly(ctx context.Context, target *Session, turnState
 	if m.creatorAwaitsChildReply(ctx, parentID, info.ID, turnState.turnID) {
 		return false
 	}
-	return !m.sessionHasPullRequest(ctx, info)
+	delivered, known := m.sessionHasPullRequest(ctx, info)
+	return known && !delivered
 }
 
 // endedEarlyCandidate limits the trigger to live sessions with a parent session.
@@ -109,36 +140,60 @@ func supervisionProvesNoOpenWork(state *SupervisionState) bool {
 	return true
 }
 
-// sessionHasPullRequest reads the cached pull request first and refreshes the branch
-// once, so a pull request opened during the turn counts as delivery.
-func (m *Manager) sessionHasPullRequest(ctx context.Context, info *Info) bool {
+// sessionHasPullRequest records the branch the turn left checked out, reads the cached
+// pull request, and refreshes the branch once, so a pull request opened during the turn
+// counts as delivery. known is false when a transient failure leaves delivery unproven.
+func (m *Manager) sessionHasPullRequest(ctx context.Context, info *Info) (delivered bool, known bool) {
 	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyPullRequestTimeout)
 	defer cancel()
+	if err := m.saveSessionBranch(lookupCtx, info); err != nil {
+		m.logger.WarnContext(ctx, "session: early-stop branch snapshot failed",
+			"session_id", info.ID, "error", err)
+		return false, false
+	}
 	views, err := m.SessionPullRequests(lookupCtx, []*Info{info})
 	if err == nil && views[info.ID].PullRequest != nil {
-		return true
+		return true, true
 	}
 	if err == nil && views[info.ID].Branch == "" {
-		return false
+		return false, true
 	}
 	refreshed, refreshErr := m.RefreshSessionPullRequest(lookupCtx, info)
 	if refreshErr != nil {
+		known = pullRequestLookupConclusive(refreshErr, refreshed.Lookup.Cause)
 		m.logger.WarnContext(ctx, "session: early-stop pull request lookup failed",
-			"session_id", info.ID, "error", refreshErr)
-		return false
+			"session_id", info.ID, "cause", refreshed.Lookup.Cause, "conclusive", known, "error", refreshErr)
+		return false, known
 	}
-	return refreshed.PullRequest != nil
+	return refreshed.PullRequest != nil, true
 }
 
-// endedEarlyWake reports whether a needs-attention badge edge is the early-stop case.
-func endedEarlyWake(info *Info, badge Badge) bool {
+// pullRequestLookupConclusive accepts a failure that proves no hosted pull request can
+// exist (no supported remote, no forge provider); timeouts and forge errors stay unknown.
+func pullRequestLookupConclusive(err error, cause string) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+	switch strings.TrimSpace(cause) {
+	case endedEarlyLookupUnsupportedRemote, endedEarlyLookupProviderDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
+// EndedEarlyAttention reports whether a needs-attention badge is the early-stop case:
+// an unverified stop or a supervision source that needs attention names the cause first.
+func EndedEarlyAttention(info *Info, badge Badge) bool {
 	return info != nil && badge == BadgeNeedsAttention && strings.TrimSpace(info.EndedEarlyTurnID) != "" &&
 		!info.StopVerificationFailed && !supervisionNeedsAttention(info.Supervision)
 }
 
 // endedEarlyAnswer reads the final answer of the early-stopped turn for the parent wake.
 func (m *Manager) endedEarlyAnswer(ctx context.Context, info *Info) string {
-	result, err := m.TurnResult(context.WithoutCancel(ctx), info.ID, info.EndedEarlyTurnID)
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyAnswerTimeout)
+	defer cancel()
+	result, err := m.TurnResult(readCtx, info.ID, info.EndedEarlyTurnID)
 	if err != nil {
 		m.logger.WarnContext(ctx, "session: read early-stop answer failed",
 			"session_id", info.ID, "turn_id", info.EndedEarlyTurnID, "error", err)

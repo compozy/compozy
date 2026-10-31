@@ -107,8 +107,13 @@ func (h *BaseHandlers) sessionHealthPayloadForRoute(
 	payload.LifecycleState = info.State
 	payload.Verified = new(info.State == session.StateStopped)
 	payload.Escalated = new(info.StopEscalated)
+	badge := session.BadgeForHealth(info, health)
 	payload.Attention = sessionAttention(info)
-	return payload, session.BadgeForHealth(info, health), info, true
+	// A degraded or hung runtime outranks the early stop, so the cause follows the badge.
+	if payload.Attention == session.EndedEarlyAttentionCode && badge != session.BadgeNeedsAttention {
+		payload.Attention = ""
+	}
+	return payload, badge, info, true
 }
 
 func (h *BaseHandlers) sessionPayloadWithOptionalHealth(

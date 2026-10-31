@@ -125,6 +125,12 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			{"unverified stop first", session.Info{
 				ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1", StopVerificationFailed: true,
 			}, session.StopVerificationFailedCode},
+			{"blocked supervision source first", session.Info{
+				ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1",
+				Supervision: &session.SupervisionState{Sources: []session.SignalSourceState{
+					{Kind: session.WorkSignalActiveMonitor, State: "attention"},
+				}},
+			}, ""},
 		} {
 			payload := core.SessionPayloadFromInfo(&tc.info)
 			if payload.Attention != tc.want {

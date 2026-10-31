@@ -261,7 +261,10 @@ task lease, or pending question) is not `done`: it reads `needs-attention` with
 `attention: "ended_early"`, and the web app says "Stopped before delivering". Its parent receives
 one wake with the child's final answer, even when the parent opted out of completion wakes. The mark
 survives runtime release and daemon restarts, and the child's next prompt clears it. Subagents and
-top-level sessions are never marked.
+top-level sessions are never marked. A pull request opened during the turn, including on a branch
+the turn just created, counts as delivery. When the pull request lookup fails for a transient
+reason, such as a forge timeout, the turn is not marked; a repository without a supported remote is
+treated as having no pull request.
 
 Use `compozy session list --attention` for sessions that need you, or `--badge done` for finished
 sessions with unseen results. `--all-workspaces` removes the workspace filter, while `--summary`
