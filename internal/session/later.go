@@ -210,12 +210,16 @@ func (m *Manager) releaseSettledLaterFamily(
 		for _, member := range pending {
 			released[member.ID] = struct{}{}
 		}
-		// Spawn holds spawnMu from admission to child creation; taking it waits
-		// for every spawn admitted before the stop.
-		m.spawnMu.Lock()
-		m.spawnMu.Unlock() //nolint:staticcheck // Empty critical section waits for in-flight spawns.
+		m.waitForAdmittedSpawns()
 	}
 	return nil, fmt.Errorf("%w: %s: the session tree kept growing", ErrSessionLaterStopFailed, rootID)
+}
+
+// waitForAdmittedSpawns returns once every spawn admitted so far has created its
+// child: Spawn holds spawnMu from admission to child creation.
+func (m *Manager) waitForAdmittedSpawns() {
+	m.spawnMu.Lock()
+	defer m.spawnMu.Unlock()
 }
 
 // releaseLaterFamily stops each live member and releases the resources that
