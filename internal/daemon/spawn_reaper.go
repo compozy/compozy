@@ -286,6 +286,9 @@ func (r *spawnReaper) reap(
 	if reason == "" {
 		reason = spawnReapReasonOrphaned
 	}
+	if stale, err := r.candidateStale(ctx, child.ID, reason); err != nil || stale {
+		return err
+	}
 
 	r.dispatchReasonHook(ctx, candidate)
 	released, releaseErr := r.releaseChildLeases(ctx, child, reason)
@@ -315,6 +318,28 @@ func (r *spawnReaper) reap(
 		errs = append(errs, fmt.Errorf("daemon: stop spawned child %q: %w", child.ID, stopErr))
 	}
 	return errors.Join(errs...)
+}
+
+// candidateStale rereads the child before any reap effect. A sweep snapshot can
+// outlive the run it saw: the child may have stopped, then been resumed after its
+// parent stopped, which releases auto_stop_on_parent. Stopping that new run on the
+// old snapshot would kill a deliberate resume.
+func (r *spawnReaper) candidateStale(ctx context.Context, childID string, reason string) (bool, error) {
+	current, err := r.sessions.Status(ctx, childID)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("daemon: reread spawned child %q: %w", childID, err)
+	}
+	if current == nil || !spawnReaperLiveState(current.State) {
+		return true, nil
+	}
+	if reason == spawnReapReasonParentStopped &&
+		!store.NormalizeSessionLineage(current.ID, current.Lineage).AutoStopOnParent {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (r *spawnReaper) releaseChildLeases(ctx context.Context, child *session.Info, reason string) (int, error) {

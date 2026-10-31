@@ -164,16 +164,22 @@ func (m *Manager) applyReparent(
 			UpdatedAt: now,
 		})
 	}
-	if err := lineageStore.UpdateSessionLineages(ctx, source.workspaceID, updates); err != nil {
-		return nil, rollback(fmt.Errorf("session: persist reparent lineage: %w", err))
-	}
 	if target.sessionType != "" {
-		// The hierarchy update leaves type and governance columns alone; project the
-		// taken-over source's full metadata. meta.json is already durable, so boot
-		// reconciliation repairs the catalog if this projection fails.
+		// The hierarchy update leaves type and governance columns alone, so a
+		// take-over projects the source's full row first. A refused projection
+		// changes no row, and the metadata rolls back with it.
 		if err := m.persistSessionCatalogFromMeta(ctx, &source.meta); err != nil {
-			return nil, fmt.Errorf("session: project take-over of %q: %w", source.id, err)
+			return nil, rollback(fmt.Errorf("session: project take-over of %q: %w", source.id, err))
 		}
+	}
+	if err := lineageStore.UpdateSessionLineages(ctx, source.workspaceID, updates); err != nil {
+		cause := rollback(fmt.Errorf("session: persist reparent lineage: %w", err))
+		if target.sessionType != "" {
+			if restoreErr := m.persistSessionCatalogFromMeta(ctx, &source.meta); restoreErr != nil {
+				cause = errors.Join(cause, fmt.Errorf("session: restore catalog row of %q: %w", source.id, restoreErr))
+			}
+		}
+		return nil, cause
 	}
 
 	var result *Info

@@ -88848,7 +88848,7 @@
             "description": "Session reparent unavailable"
           }
         },
-        "summary": "Make a child session top-level or take over a stopped spawned worker",
+        "summary": "Make an adopted child session top-level, or take over a stopped spawned worker",
         "tags": [
           "sessions"
         ],

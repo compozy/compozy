@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -507,6 +508,33 @@ func TestSpawnReaperLiveInventory(t *testing.T) {
 			t.Fatalf("report=%#v parents=%d all=%d error=%v", report, manager.parentsRead, manager.allReads, err)
 		}
 	})
+	t.Run("Should skip a child resumed after its parent stopped since the sweep snapshot", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		parent := rootReaperInfo("stopped-parent", session.StateStopped)
+		snapshot := spawnedReaperInfo("resumed-child", parent.ID, now.Add(time.Hour), true)
+		// The resume released the parent-stop binding after the sweep listed the child.
+		current := spawnedReaperInfo("resumed-child", parent.ID, now.Add(time.Hour), false)
+		leases := &fakeSpawnLeaseReleaser{}
+		hooks := &recordingSpawnHooks{}
+		manager := &liveInventoryReaperManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{parent, current}},
+			live:               []*session.Info{snapshot},
+		}
+		reaper, err := newSpawnReaper(
+			t.Context(), manager, leases, hooks, discardLogger(),
+			func() time.Time { return now }, time.Hour,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := reaper.Sweep(t.Context())
+		if err != nil || report.Reaped != 0 || len(manager.stopWithCauseCalls) != 0 ||
+			len(leases.releases) != 0 || len(hooks.parentStopped) != 0 || len(hooks.reaped) != 0 {
+			t.Fatalf("report=%#v stops=%#v releases=%#v error=%v",
+				report, manager.stopWithCauseCalls, leases.releases, err)
+		}
+	})
 	t.Run("Should propagate parent read failure without treating it as an orphan", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
@@ -547,7 +575,9 @@ func (m *liveInventoryReaperManager) ListAll(ctx context.Context) ([]*session.In
 	return m.fakeSessionManager.ListAll(ctx)
 }
 func (m *liveInventoryReaperManager) Status(ctx context.Context, id string) (*session.Info, error) {
-	m.parentsRead++
+	if !slices.ContainsFunc(m.live, func(info *session.Info) bool { return info.ID == id }) {
+		m.parentsRead++
+	}
 	if m.parentErr != nil {
 		return nil, m.parentErr
 	}

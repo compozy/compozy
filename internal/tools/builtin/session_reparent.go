@@ -14,7 +14,8 @@ func sessionReparentDescriptor() toolspkg.Descriptor {
 		"Nest a top-level user session under another user session in the same workspace and profile, "+
 			"or make a child top-level again. top_level on an adopted child keeps its type; on a stopped "+
 			"spawned worker it takes the session over as a user session without spawn TTL, auto-stop, "+
-			"creator wake, budget, or permission narrowing. Subagents are refused. "+
+			"creator wake, budget, or permission narrowing; only an operator call may take over. "+
+			"Subagents are refused. "+
 			"Set exactly one of parent_session_id or top_level.",
 		sessionReparentInputSchema,
 		toolspkg.RiskMutating,

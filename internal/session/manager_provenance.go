@@ -141,7 +141,7 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		}
 		spec.sessionType = normalizeSessionType(Type(meta.SessionType))
 		spec.lineage = store.NormalizeSessionLineage(spec.sessionID, meta.Lineage)
-		m.releaseResumedParentStopBinding(spec)
+		m.releaseResumedParentStopBinding(ctx, spec)
 		return store.ValidateSessionLineage(spec.sessionID, spec.lineage)
 	}
 	if spec.lineage == nil || spec.lineage.ParentSessionID == "" {
@@ -187,12 +187,21 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 // after its parent stopped. The parent-stop binding already fired; reviving the
 // child is a deliberate act, and keeping the binding would let the spawn reaper
 // cancel the launch on its next sweep. Lineage, TTL, and permission narrowing stay.
-func (m *Manager) releaseResumedParentStopBinding(spec *sessionStartSpec) {
+func (m *Manager) releaseResumedParentStopBinding(ctx context.Context, spec *sessionStartSpec) {
 	lineage := spec.lineage
 	if lineage == nil || !lineage.AutoStopOnParent || lineage.ParentSessionID == "" {
 		return
 	}
-	if m.sessionLive(lineage.ParentSessionID) {
+	live, err := m.sessionLive(ctx, lineage.ParentSessionID)
+	if err != nil {
+		// Unknown parent state keeps the binding: the reaper decides from the same state.
+		spec.startLogger(m).Warn(
+			"session.resume.parent_state_unavailable",
+			"parent_session_id", lineage.ParentSessionID, "error", err,
+		)
+		return
+	}
+	if live {
 		return
 	}
 	lineage.AutoStopOnParent = false
@@ -202,19 +211,30 @@ func (m *Manager) releaseResumedParentStopBinding(spec *sessionStartSpec) {
 	)
 }
 
-// sessionLive reports whether id is starting, active, or stopping in this manager.
-func (m *Manager) sessionLive(id string) bool {
+// sessionLive reports whether id is starting, active, or stopping, by the same
+// rule the spawn reaper applies: the in-memory run when there is one, else the
+// persisted state. A deleted session is not live.
+func (m *Manager) sessionLive(ctx context.Context, id string) (bool, error) {
 	if m.isPending(id) {
-		return true
+		return true, nil
 	}
-	session, ok := m.Get(id)
-	if !ok || session == nil {
-		return false
+	state := State("")
+	if session, ok := m.Get(id); ok && session != nil {
+		state = session.Info().State
+	} else {
+		meta, err := m.readSessionMetaReadOnly(ctx, id)
+		if errors.Is(err, ErrSessionNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		state = State(meta.State)
 	}
-	switch session.Info().State {
+	switch state {
 	case StateStarting, StateActive, StateStopping:
-		return true
+		return true, nil
 	default:
-		return false
+		return false, nil
 	}
 }

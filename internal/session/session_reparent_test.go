@@ -1,7 +1,9 @@
 package session
 
 import (
+	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,11 +28,42 @@ func newSpawnReparentHarness(t *testing.T) *reparentHarness {
 	return newReparentHarnessFrom(t, newHostedMCPHarness(t))
 }
 
-func newReparentHarnessFrom(t *testing.T, h *harness) *reparentHarness {
+// failingTakeOverCatalog refuses to register a user-typed row while armed, the
+// projection a take-over writes before its lineage transaction.
+type failingTakeOverCatalog struct {
+	*globaldb.GlobalDB
+	armed atomic.Bool
+}
+
+func (c *failingTakeOverCatalog) RegisterSession(ctx context.Context, info store.SessionInfo) error {
+	if c.armed.Load() && info.SessionType == string(SessionTypeUser) {
+		return errors.New("catalog unavailable")
+	}
+	return c.GlobalDB.RegisterSession(ctx, info)
+}
+
+func (c *failingTakeOverCatalog) RegisterSessionWithCreationIdentity(
+	ctx context.Context,
+	info store.SessionInfo,
+	identity store.SessionCreationIdentity,
+) (store.SessionCreationRegistration, error) {
+	if c.armed.Load() && info.SessionType == string(SessionTypeUser) {
+		return store.SessionCreationRegistration{}, errors.New("catalog unavailable")
+	}
+	return c.GlobalDB.RegisterSessionWithCreationIdentity(ctx, info, identity)
+}
+
+func newReparentHarnessFrom(t *testing.T, h *harness, catalog ...store.SessionCatalog) *reparentHarness {
 	t.Helper()
 	db := openManagerInputQueueStore(t)
 	registerManagerInputQueueWorkspace(t, db, h)
-	h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithHostedMCPLauncher(h.manager.hostedMCP))
+	var sessionCatalog store.SessionCatalog = db
+	if len(catalog) > 0 {
+		sessionCatalog = catalog[0]
+	}
+	h.manager = newManagerWithHarness(
+		t, h, WithSessionCatalog(sessionCatalog), WithHostedMCPLauncher(h.manager.hostedMCP),
+	)
 	cleanupTestManager(t, h.manager)
 	return &reparentHarness{harness: h, db: db}
 }
@@ -267,6 +300,50 @@ func TestManagerAdoptSession(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave a worker unchanged when the take-over projection fails", func(t *testing.T) {
+		t.Parallel()
+
+		hostedHarness := newHostedMCPHarness(t)
+		catalog := &failingTakeOverCatalog{}
+		h := newReparentHarnessFrom(t, hostedHarness, catalog)
+		catalog.GlobalDB = h.db
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		for _, id := range []string{worker.ID, parent.ID} {
+			if err := h.manager.Stop(ctx, id); err != nil {
+				t.Fatalf("Stop(%q) error = %v", id, err)
+			}
+		}
+
+		catalog.armed.Store(true)
+		if _, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID); err == nil {
+			t.Fatal("DetachSession() error = nil, want the projection failure")
+		}
+		meta := readMeta(t, worker.MetaPath())
+		if meta.SessionType != string(SessionTypeSpawned) || meta.Lineage == nil ||
+			meta.Lineage.ParentSessionID != parent.ID || !meta.Lineage.AutoStopOnParent {
+			t.Fatalf(
+				"meta after failed take-over = type %q lineage %#v, want unchanged",
+				meta.SessionType, meta.Lineage,
+			)
+		}
+		if got := h.catalogLineage(t, worker.ID); got.ParentSessionID != parent.ID {
+			t.Fatalf("catalog lineage after failed take-over = %#v, want unchanged", got)
+		}
+
+		catalog.armed.Store(false)
+		info, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID)
+		if err != nil || info.Type != SessionTypeUser {
+			t.Fatalf("retry DetachSession() = %#v, %v; want the take-over", info, err)
+		}
+	})
+
 	t.Run("Should refuse taking over a running spawned worker without changing it", func(t *testing.T) {
 		t.Parallel()
 
@@ -494,14 +571,43 @@ func TestValidateReparentNodes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse taking over a subagent", func(t *testing.T) {
+	t.Run("Should admit only stopped, exited spawned workers for take-over", func(t *testing.T) {
 		t.Parallel()
-		node := reparentNode{id: "sess-a", sessionType: SessionTypeSpawned, lineage: store.SessionLineage{
-			ParentSessionID: "sess-p", SpawnRole: store.SubagentSpawnRole, Kind: store.LineageKindSpawn,
-		}}
-		_, err := validateDetachSource(&node)
-		if refusal, ok := errors.AsType[*ReparentError](err); !ok || refusal.Reason != ReparentRefusalSourceNotUser {
-			t.Fatalf("validateDetachSource(subagent) error = %v, want %q", err, ReparentRefusalSourceNotUser)
+		spawned := func(role string, state State) reparentNode {
+			return reparentNode{
+				id: "sess-a", sessionType: SessionTypeSpawned,
+				lineage: store.SessionLineage{ParentSessionID: "sess-p", SpawnRole: role, Kind: store.LineageKindSpawn},
+				meta:    store.SessionMeta{ID: "sess-a", State: string(state)},
+			}
+		}
+		for _, test := range []struct {
+			name string
+			node reparentNode
+			want ReparentRefusal
+		}{
+			{name: "subagent", node: spawned(store.SubagentSpawnRole, StateStopped), want: ReparentRefusalSourceNotUser},
+			{name: "daemon auto-title role", node: spawned(SpawnRoleAutoTitle, StateStopped), want: ReparentRefusalSourceNotUser},
+			// After a daemon restart a stopping worker is absent from the manager.
+			{name: "stopping worker without a run", node: spawned("worker", StateStopping), want: ReparentRefusalSourceRunning},
+			{name: "stopped worker", node: spawned("worker", StateStopped)},
+			{name: "stopped custom role", node: spawned("reviewer", StateStopped)},
+		} {
+			t.Run("Should classify "+test.name, func(t *testing.T) {
+				t.Parallel()
+				takeOver, err := validateDetachSource(&test.node)
+				if !takeOver {
+					t.Fatalf("validateDetachSource(%s) takeOver = false, want a take-over request", test.name)
+				}
+				if test.want == "" {
+					if err != nil {
+						t.Fatalf("validateDetachSource(%s) error = %v, want admitted", test.name, err)
+					}
+					return
+				}
+				if refusal, ok := errors.AsType[*ReparentError](err); !ok || refusal.Reason != test.want {
+					t.Fatalf("validateDetachSource(%s) error = %v, want %q", test.name, err, test.want)
+				}
+			})
 		}
 	})
 

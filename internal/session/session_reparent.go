@@ -36,6 +36,8 @@ const (
 	ReparentRefusalNotDetachable ReparentRefusal = "not_detachable"
 	// ReparentRefusalSourceRunning rejects taking over a spawned worker that is still running.
 	ReparentRefusalSourceRunning ReparentRefusal = "source_running"
+	// ReparentRefusalOperatorRequired rejects an agent taking over a spawned worker.
+	ReparentRefusalOperatorRequired ReparentRefusal = "operator_required"
 )
 
 // ReparentError reports which lineage rule refused a reparent request.
@@ -233,22 +235,34 @@ func validateDetachSource(node *reparentNode) (bool, error) {
 }
 
 // validateTakeOverSource admits a stopped spawned worker. Subagents stay owned by
-// their parent's delegation, and a running worker keeps the governance its
-// runtime was launched with until it stops.
+// their parent's delegation, daemon-owned internal roles stay governed, and a
+// worker whose runtime may still run keeps the governance it was launched with:
+// it must be stopped, with its process exit verified, as resume requires too.
 func validateTakeOverSource(node *reparentNode) error {
-	if node.lineage.SpawnRole == store.SubagentSpawnRole || node.lineage.Kind != store.LineageKindSpawn {
+	role := node.lineage.SpawnRole
+	if role == store.SubagentSpawnRole || IsInternalSpawnRole(role) || node.lineage.Kind != store.LineageKindSpawn {
 		return reparentRefusal(
 			ReparentRefusalSourceNotUser,
 			node.id,
-			"only spawned workers can be taken over; subagents stay with their parent",
+			"only spawned workers can be taken over; subagents and daemon roles stay governed",
 		)
 	}
-	if node.active != nil {
+	if node.active != nil || !takeOverStopVerified(&node.meta) {
 		return reparentRefusal(
 			ReparentRefusalSourceRunning, node.id, "stop the spawned session before taking it over",
 		)
 	}
 	return nil
+}
+
+// takeOverStopVerified reports whether inactive metadata records a stopped session
+// whose process has exited. After a daemon restart a stopping worker can be absent
+// from the manager while its old process still runs.
+func takeOverStopVerified(meta *store.SessionMeta) bool {
+	if State(meta.State) != StateStopped {
+		return false
+	}
+	return meta.Liveness == nil || meta.Liveness.SubprocessPID <= 0 || inactiveProcessExitVerified(meta)
 }
 
 func (m *Manager) requireReparentUnarchived(ctx context.Context, nodes ...*reparentNode) error {

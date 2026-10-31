@@ -1045,8 +1045,9 @@ runtime, permissions, spawn budget, and auto-stop stay unchanged.
 
 `--top-level` on a stopped spawned worker takes it over: it becomes a root `type=user` session, and
 its spawn TTL, parent auto-stop, creator wake, spawn budget, and permission narrowing end. The
-operator's request is the authority for dropping that governance. A running worker is refused with
-`session_reparent_source_running`. A worker that an older release left `failed` with
+operator's request is the authority for dropping that governance: the native tool refuses agent
+callers with `session_reparent_operator_required`. A worker that is not stopped with a verified
+process exit is refused with `session_reparent_source_running`. A worker that an older release left `failed` with
 `session: startup canceled for ...` (a stop that interrupted its launch, such as the spawn reaper
 cancelling a resume) is reclassified as a canceled stop on take-over, so it resumes again.
 

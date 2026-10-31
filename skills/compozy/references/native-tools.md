@@ -470,11 +470,13 @@ archived. Subagent, continued, forked, and recovery sessions keep their lineage.
 lineage kind is `provenance`; the subtree's `root_session_id` and `spawn_depth` follow, and no
 governance field changes. `top_level: true` on a stopped spawned worker (not a subagent) takes it
 over: it becomes a root `type=user` session and its spawn TTL, parent auto-stop, creator wake,
-spawn budget, and permission narrowing end, so it gets the normal user-session controls. The
-request is the authority for dropping that governance; it grants nothing a `session_create` user
-session would not have. A running worker is refused with `source_running`; stop it first. Refusals
-carry a `session_reparent_*` code (`source_has_parent`, `source_not_user`, `parent_ineligible`,
-`cycle`, `archived`, `not_detachable`, `source_running`). The CLI fallback is
+spawn budget, and permission narrowing end, so it gets the normal user-session controls. Only an
+operator call may take over: an agent caller is refused with `operator_required`, because ending
+another session's governance is the operator's decision. A worker that is not stopped with a
+verified process exit is refused with `source_running`, and daemon roles such as `auto-title` with
+`source_not_user`. Refusals carry a `session_reparent_*` code (`source_has_parent`,
+`source_not_user`, `parent_ineligible`, `cycle`, `archived`, `not_detachable`, `source_running`,
+`operator_required`). The CLI fallback is
 `compozy session reparent <id> --parent <parent-id>` or `--top-level`.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
