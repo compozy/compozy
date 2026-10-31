@@ -95,6 +95,7 @@ setup_command = ""
 setup_timeout = "10m"
 teardown_command = ""
 teardown_timeout = "10m"
+checkout_timeout = "15m"
 discovery_cache_ttl = "30s"
 
 [task.orchestration.profile]

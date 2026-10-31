@@ -407,6 +407,7 @@ setup_command = ""
 setup_timeout = "10m"
 teardown_command = ""
 teardown_timeout = "10m"
+checkout_timeout = "15m"
 discovery_cache_ttl = "30s"
 
 [tools]
@@ -1532,6 +1533,7 @@ config scope.
 | `teardown_command`     | string       | empty                     | Shell command or empty.               | Cleanup command before removing a managed Worktree.                      |
 | `setup_timeout`        | duration     | `10m`                     | Positive Go duration.                 | Deadline for `setup_command`.                                            |
 | `teardown_timeout`     | duration     | `10m`                     | Positive Go duration.                 | Deadline for `teardown_command`.                                         |
+| `checkout_timeout`     | duration     | `15m`                     | Positive Go duration.                 | Deadline for the `git worktree add` checkout of a new managed Worktree.  |
 | `discovery_cache_ttl`  | duration     | `30s`                     | Positive Go duration.                 | Freshness window for Git discovery and cached local status.              |
 
 The section applies live. New creation and later discovery read the active generation; accepted

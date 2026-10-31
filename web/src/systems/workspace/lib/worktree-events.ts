@@ -12,6 +12,7 @@ export const WORKTREE_LIFECYCLE_EVENTS = [
   "worktree.missing",
   "worktree.dismissed",
   "worktree.creation_canceled",
+  "worktree.creation_failed",
   "worktree.setup_failed",
   "worktree.status_refreshed",
   "worktree.branch_reclaimed",

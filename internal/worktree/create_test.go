@@ -1,8 +1,11 @@
 package worktree
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -31,7 +34,31 @@ type createTestFixture struct {
 	adminGitDir     string
 	worktreesRoot   string
 	listOutput      []byte
+	events          *recordingEventSink
+	logs            *lockedLogBuffer
 	failWorktreeAdd atomic.Bool
+	// interruptWorktreeAdd leaves the locked, half-written checkout a killed
+	// `git worktree add` leaves behind and reports its deadline.
+	interruptWorktreeAdd atomic.Bool
+	failCheckoutRemoval  atomic.Bool
+}
+
+// lockedLogBuffer collects structured logs written by detached creations.
+type lockedLogBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedLogBuffer) Write(value []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(value)
+}
+
+func (b *lockedLogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
 }
 
 func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) *createTestFixture {
@@ -49,6 +76,7 @@ func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) 
 		store: store, workspace: workspace, commonDir: commonDir,
 		adminGitDir: adminGitDir, worktreesRoot: worktreesRoot,
 		listOutput: worktreeListFixture(root, "main"),
+		events:     &recordingEventSink{}, logs: &lockedLogBuffer{},
 	}
 	runner := &recordingGitRunner{}
 	runner.run = func(call gitInvocation) gitResponse {
@@ -77,6 +105,12 @@ func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) 
 				return gitResponse{stderr: []byte("checkout failed"), err: errors.New("exit 1")}
 			}
 			target := call.args[len(call.args)-2]
+			if fixture.interruptWorktreeAdd.Load() {
+				if err := writeInterruptedCheckout(target, adminGitDir); err != nil {
+					return gitResponse{err: err}
+				}
+				return gitResponse{err: context.DeadlineExceeded}
+			}
 			if err := os.MkdirAll(target, 0o700); err != nil {
 				return gitResponse{err: err}
 			}
@@ -90,8 +124,23 @@ func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) 
 			return gitResponse{}
 		case strings.HasPrefix(command, "ls-files --others --ignored --exclude-standard -z --"):
 			return gitResponse{stdout: []byte(".env\x00")}
+		case strings.HasPrefix(command, "for-each-ref --format=%(objectname) refs/heads/"):
+			return gitResponse{stdout: []byte("created-head\n")}
 		case strings.Contains(command, "worktree remove --force"):
+			if fixture.failCheckoutRemoval.Load() {
+				return gitResponse{stderr: []byte("permission denied"), err: errors.New("exit 128")}
+			}
+			if _, err := os.Lstat(filepath.Join(adminGitDir, "locked")); err == nil &&
+				!strings.Contains(command, "--force --force") {
+				return gitResponse{
+					stderr: []byte("fatal: cannot remove a locked working tree, lock reason: initializing"),
+					err:    errors.New("exit 128"),
+				}
+			}
 			if err := os.RemoveAll(call.args[len(call.args)-1]); err != nil {
+				return gitResponse{err: err}
+			}
+			if err := os.RemoveAll(adminGitDir); err != nil {
 				return gitResponse{err: err}
 			}
 			return gitResponse{}
@@ -109,12 +158,82 @@ func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) 
 		WithCapabilityGate(readyCapabilityGate()),
 		WithWorkspaceResolver(staticWorkspaceResolver{workspaces: map[string]Workspace{workspace.ID: workspace}}),
 		WithConfig(worktreesConfig, worktreesRoot),
+		WithEvents(fixture.events),
+		WithLogger(slog.New(slog.NewJSONHandler(fixture.logs, nil))),
 		WithIDGenerator(func(string) (string, error) {
 			return "wt-create-" + string(rune('a'+sequence.Add(1)-1)), nil
 		}),
 		WithClock(func() time.Time { return time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC) }),
 	)
 	return fixture
+}
+
+// writeInterruptedCheckout mirrors what Git leaves after `worktree add` is
+// killed mid-checkout: a partial tree and an admin entry locked "initializing".
+func writeInterruptedCheckout(target, adminGitDir string) error {
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(target, "partial.txt"), []byte("partial"), 0o600); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(adminGitDir, 0o700); err != nil {
+		return err
+	}
+	backlink := filepath.Join(target, ".git") + "\n"
+	if err := os.WriteFile(filepath.Join(adminGitDir, "gitdir"), []byte(backlink), 0o600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(adminGitDir, "locked"), []byte("initializing"), 0o600)
+}
+
+func createAcceptedAndWait(t *testing.T, fixture *createTestFixture, name string) *Worktree {
+	t.Helper()
+	item, err := fixture.service.CreateAccepted(
+		t.Context(), fixture.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: name},
+	)
+	if err != nil {
+		t.Fatalf("CreateAccepted() error = %v", err)
+	}
+	operation := fixture.service.getCreateOperation(fixture.workspace.ID, item.ID)
+	if operation == nil {
+		t.Fatal("accepted creation operation = nil")
+	}
+	select {
+	case <-operation.done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("accepted creation did not finish")
+	}
+	return item
+}
+
+// requireFailedCreation asserts the row survived as a failed tombstone with
+// its cause and that the failure reached the lifecycle event stream.
+func requireFailedCreation(t *testing.T, fixture *createTestFixture, id, wantCause string) *Worktree {
+	t.Helper()
+	stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, id)
+	if err != nil || stored == nil || stored.State != StateFailed ||
+		!strings.Contains(stored.CreateFailure(), wantCause) {
+		t.Fatalf("failed creation = %#v, %v, want failed record with cause %q", stored, err, wantCause)
+	}
+	if got := fixture.events.count(EventCreationFailed); got != 1 {
+		t.Fatalf("creation failed events = %d, want one", got)
+	}
+	var payload creationFailedPayload
+	fixture.events.mu.Lock()
+	for _, event := range fixture.events.events {
+		if event.Name == EventCreationFailed {
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Errorf("decode creation failed payload: %v", err)
+			}
+		}
+	}
+	fixture.events.mu.Unlock()
+	if payload.WorktreeID != id || payload.PendingPhase != stored.PendingPhase ||
+		payload.PendingPhase == PhaseNone || payload.Error != stored.CreateFailure() {
+		t.Fatalf("creation failed payload = %#v, want phase and cause of %#v", payload, stored)
+	}
+	return stored
 }
 
 func worktreeListFixture(root, branch string) []byte {
@@ -125,7 +244,7 @@ func worktreeListFixture(root, branch string) []byte {
 func TestServiceCreate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should publish a redacted failure after an accepted creation rolls back", func(t *testing.T) {
+	t.Run("Should keep a failed record with its cause after an accepted creation rolls back", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		fixture.failWorktreeAdd.Store(true)
@@ -135,23 +254,7 @@ func TestServiceCreate(t *testing.T) {
 		}
 		defer cancel()
 
-		item, err := fixture.service.CreateAccepted(
-			t.Context(),
-			fixture.workspace.ID,
-			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Async Failure"},
-		)
-		if err != nil {
-			t.Fatalf("CreateAccepted() error = %v", err)
-		}
-		operation := fixture.service.getCreateOperation(fixture.workspace.ID, item.ID)
-		if operation == nil {
-			t.Fatal("accepted creation operation = nil")
-		}
-		select {
-		case <-operation.done:
-		case <-time.After(time.Second):
-			t.Fatal("accepted creation did not finish")
-		}
+		item := createAcceptedAndWait(t, fixture, "Async Failure")
 
 		var received []CatalogEvent
 		var failed CatalogEvent
@@ -168,10 +271,200 @@ func TestServiceCreate(t *testing.T) {
 			!strings.Contains(failed.Error, "checkout failed") {
 			t.Fatalf("catalog failure = %#v, want scoped accepted failure", failed)
 		}
-		if _, getErr := fixture.store.Get(
-			t.Context(), fixture.workspace.ID, item.ID,
-		); !errors.Is(getErr, ErrNotFound) {
-			t.Fatalf("Get(rolled back) error = %v, want ErrNotFound", getErr)
+		stored := requireFailedCreation(t, fixture, item.ID, "checkout phase failed")
+		if !strings.Contains(stored.CreateError, "checkout failed") {
+			t.Fatalf("failed record cause = %q, want Git stderr", stored.CreateError)
+		}
+		commands := invocationCommands(fixture.runner.invocations())
+		if !containsCommandPrefix(commands, "update-ref -d refs/heads/async-failure created-head") {
+			t.Fatalf("rollback Git calls = %#v, want compare-and-delete", commands)
+		}
+		if logs := fixture.logs.String(); !strings.Contains(logs, `"level":"WARN"`) ||
+			!strings.Contains(logs, "worktree creation failed and was rolled back") ||
+			!strings.Contains(logs, `"worktree_id":"`+item.ID+`"`) {
+			t.Fatalf("logs = %s, want structured rollback warning", logs)
+		}
+		if err := fixture.service.Dismiss(t.Context(), fixture.workspace.ID, item.ID); err != nil {
+			t.Fatalf("Dismiss(failed creation) error = %v", err)
+		}
+	})
+
+	t.Run("Should unwind an interrupted locked checkout before deleting its branch", func(t *testing.T) {
+		t.Parallel()
+		settings := config.DefaultWorktreesConfig()
+		settings.CheckoutTimeout = 42 * time.Minute
+		fixture := newCreateTestFixture(t, settings)
+		fixture.interruptWorktreeAdd.Store(true)
+
+		item := createAcceptedAndWait(t, fixture, "Large Checkout")
+
+		stored := requireFailedCreation(t, fixture, item.ID, "worktrees.checkout_timeout (42m0s)")
+		if stored.PendingPhase != PhaseCheckout {
+			t.Fatalf("failed phase = %q, want checkout", stored.PendingPhase)
+		}
+		if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Lstat(checkout) error = %v, want removed checkout", err)
+		}
+		if _, err := os.Lstat(fixture.adminGitDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Lstat(admin entry) error = %v, want removed admin entry", err)
+		}
+		invocations := fixture.runner.invocations()
+		addIndex := slices.IndexFunc(invocations, func(call gitInvocation) bool {
+			return strings.HasPrefix(strings.Join(call.args, " "), "worktree add ")
+		})
+		if addIndex < 0 || invocations[addIndex].timeout != settings.CheckoutTimeout {
+			t.Fatalf("checkout invocation = %#v, want worktrees.checkout_timeout budget", invocations)
+		}
+		commands := invocationCommands(invocations)
+		removeIndex := slices.IndexFunc(commands, func(command string) bool {
+			return strings.HasSuffix(command, " worktree remove --force --force "+item.Path)
+		})
+		branchIndex := slices.Index(commands, "update-ref -d refs/heads/large-checkout created-head")
+		if removeIndex < 0 || branchIndex < removeIndex {
+			t.Fatalf("rollback Git calls = %#v, want locked checkout removed before branch", commands)
+		}
+	})
+
+	t.Run("Should keep the branch and report an incomplete rollback", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		fixture.interruptWorktreeAdd.Store(true)
+		fixture.failCheckoutRemoval.Store(true)
+
+		item := createAcceptedAndWait(t, fixture, "Stuck Checkout")
+
+		stored := requireFailedCreation(t, fixture, item.ID, "rollback incomplete")
+		if !strings.Contains(stored.CreateRollbackError, "permission denied") {
+			t.Fatalf("failed record cause = %q, want rollback stderr", stored.CreateError)
+		}
+		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "update-ref -d ") {
+			t.Fatal("branch was deleted while its checkout is still registered")
+		}
+		if _, err := os.Lstat(item.Path); err != nil {
+			t.Fatalf("Lstat(leftover checkout) error = %v, want leftover kept for inspection", err)
+		}
+		if logs := fixture.logs.String(); !strings.Contains(logs, `"level":"ERROR"`) ||
+			!strings.Contains(logs, "rollback is incomplete") {
+			t.Fatalf("logs = %s, want structured incomplete-rollback error", logs)
+		}
+	})
+
+	t.Run("Should record an incomplete synchronous rollback and finish it on recovery", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		fixture.interruptWorktreeAdd.Store(true)
+		fixture.failCheckoutRemoval.Store(true)
+
+		_, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Sync Stuck",
+		})
+		if err == nil || !strings.Contains(err.Error(), "roll back checkout") {
+			t.Fatalf("Create(stuck rollback) error = %v, want rollback failure", err)
+		}
+		stored := requireFailedCreation(t, fixture, "wt-create-a", "rollback incomplete")
+		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "update-ref -d ") {
+			t.Fatal("branch was deleted while its checkout is still registered")
+		}
+
+		// The next boot finds the leftover still registered on its branch.
+		fixture.failCheckoutRemoval.Store(false)
+		fixture.listOutput = append(
+			worktreeListFixture(fixture.workspace.Root, "main"),
+			[]byte(
+				"worktree "+stored.Path+"\x00HEAD created-head\x00branch refs/heads/sync-stuck\x00locked initializing\x00\x00",
+			)...)
+		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		recovered, err := fixture.store.Get(t.Context(), fixture.workspace.ID, stored.ID)
+		if err != nil || recovered.State != StateFailed || recovered.CreateRollbackError != "" ||
+			!strings.Contains(recovered.CreateFailure(), "worktrees.checkout_timeout") {
+			t.Fatalf("recovered = %#v, %v, want failed record with the original cause only", recovered, err)
+		}
+		if _, statErr := os.Lstat(stored.Path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Lstat(leftover) error = %v, want removed on recovery", statErr)
+		}
+		if !containsCommandPrefix(
+			invocationCommands(fixture.runner.invocations()), "update-ref -d refs/heads/sync-stuck created-head",
+		) {
+			t.Fatal("recovery did not compare-delete the minted branch")
+		}
+	})
+
+	for _, testCase := range []struct {
+		name          string
+		entry         string
+		leftoverGone  bool
+		wantLeftPath  bool
+		wantRecovered string
+	}{
+		{
+			name: "a replacement checkout on another branch", entry: "\x00HEAD other-head\x00branch refs/heads/someone-else\x00\x00",
+			wantLeftPath: true, wantRecovered: "checked out on another branch",
+		},
+		{
+			name: "a replacement checkout without the add lock", entry: "\x00HEAD created-head\x00branch refs/heads/replaced\x00\x00",
+			wantLeftPath: true, wantRecovered: "not attributable",
+		},
+		{
+			name: "a minted branch another checkout holds", leftoverGone: true,
+			entry:         "-elsewhere\x00HEAD created-head\x00branch refs/heads/replaced\x00\x00",
+			wantRecovered: "checked out elsewhere",
+		},
+	} {
+		t.Run("Should leave "+testCase.name+" alone on recovery", func(t *testing.T) {
+			t.Parallel()
+			fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+			fixture.interruptWorktreeAdd.Store(true)
+			fixture.failCheckoutRemoval.Store(true)
+			item := createAcceptedAndWait(t, fixture, "Replaced")
+			fixture.failCheckoutRemoval.Store(false)
+			if testCase.leftoverGone {
+				if err := os.RemoveAll(item.Path); err != nil {
+					t.Fatalf("remove leftover: %v", err)
+				}
+			}
+			fixture.listOutput = append(worktreeListFixture(fixture.workspace.Root, "main"),
+				[]byte("worktree "+item.Path+testCase.entry)...)
+			before := len(fixture.runner.invocations())
+
+			if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+				t.Fatalf("RecoverCreations() error = %v", err)
+			}
+			for _, command := range invocationCommands(fixture.runner.invocations()[before:]) {
+				if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
+					t.Fatalf("recovery ran %q against state it cannot attribute", command)
+				}
+			}
+			if _, err := os.Lstat(item.Path); testCase.wantLeftPath && err != nil {
+				t.Fatalf("Lstat(replacement) error = %v, want untouched", err)
+			}
+			stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
+			if err != nil || stored.CreateRollbackError == "" {
+				t.Fatalf("stored = %#v, %v, want rollback still marked incomplete", stored, err)
+			}
+			if logs := fixture.logs.String(); !strings.Contains(logs, "rollback is still incomplete") ||
+				!strings.Contains(logs, testCase.wantRecovered) {
+				t.Fatalf("logs = %s, want recovery warning %q", logs, testCase.wantRecovered)
+			}
+		})
+	}
+
+	t.Run("Should not count an unverifiable admin entry for the checkout as removed", func(t *testing.T) {
+		t.Parallel()
+		commonDir := t.TempDir()
+		checkout := filepath.Join(t.TempDir(), "big-one")
+		for _, name := range []string{"big-one2", "unrelated"} {
+			if err := os.MkdirAll(filepath.Join(commonDir, "worktrees", name), 0o700); err != nil {
+				t.Fatalf("seed admin entry %s: %v", name, err)
+			}
+		}
+		err := dropCheckoutAdminEntries(commonDir, checkout)
+		if err == nil || !strings.Contains(err.Error(), "big-one2") {
+			t.Fatalf("dropCheckoutAdminEntries() error = %v, want unverifiable big-one2 entry", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(commonDir, "worktrees", "unrelated")); statErr != nil {
+			t.Fatalf("unrelated admin entry was touched: %v", statErr)
 		}
 	})
 
@@ -379,12 +672,14 @@ func TestServiceCreate(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 		materializationStarted := make(chan struct{})
-		continueMaterialization := make(chan struct{})
 		baseRun := fixture.runner.run
 		fixture.runner.run = func(call gitInvocation) gitResponse {
 			if strings.HasPrefix(strings.Join(call.args, " "), "branch canceled-ready ") {
 				close(materializationStarted)
-				<-continueMaterialization
+				// Like the real runner, the in-flight Git command dies with the
+				// operation context the caller's cancellation reaches.
+				<-call.ctx.Done()
+				return gitResponse{err: call.ctx.Err()}
 			}
 			return baseRun(call)
 		}
@@ -407,9 +702,7 @@ func TestServiceCreate(t *testing.T) {
 		if err != nil || len(rows) != 1 {
 			t.Fatalf("rows before CreateReady cancellation = %#v, %v", rows, err)
 		}
-		fixture.failWorktreeAdd.Store(true)
 		cancel()
-		close(continueMaterialization)
 		if err := <-errResult; !errors.Is(err, context.Canceled) {
 			t.Fatalf("CreateReady() error = %v, want context.Canceled", err)
 		}

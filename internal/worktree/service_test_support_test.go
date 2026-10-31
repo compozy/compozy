@@ -11,8 +11,10 @@ import (
 )
 
 type gitInvocation struct {
-	dir  string
-	args []string
+	ctx     context.Context
+	dir     string
+	args    []string
+	timeout time.Duration
 }
 
 type gitResponse struct {
@@ -28,10 +30,20 @@ type recordingGitRunner struct {
 	run       func(gitInvocation) gitResponse
 }
 
-func (r *recordingGitRunner) Run(_ context.Context, dir string, args ...string) ([]byte, []byte, error) {
+func (r *recordingGitRunner) Run(ctx context.Context, dir string, args ...string) ([]byte, []byte, error) {
+	return r.RunWithTimeout(ctx, dir, 0, args...)
+}
+
+// RunWithTimeout records the per-command budget a caller requested.
+func (r *recordingGitRunner) RunWithTimeout(
+	ctx context.Context,
+	dir string,
+	timeout time.Duration,
+	args ...string,
+) ([]byte, []byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	invocation := gitInvocation{dir: dir, args: append([]string(nil), args...)}
+	invocation := gitInvocation{ctx: ctx, dir: dir, args: append([]string(nil), args...), timeout: timeout}
 	r.calls = append(r.calls, invocation)
 	var response gitResponse
 	switch {
@@ -55,7 +67,7 @@ func (r *recordingGitRunner) invocations() []gitInvocation {
 	defer r.mu.Unlock()
 	result := make([]gitInvocation, len(r.calls))
 	for index, call := range r.calls {
-		result[index] = gitInvocation{dir: call.dir, args: append([]string(nil), call.args...)}
+		result[index] = gitInvocation{dir: call.dir, args: append([]string(nil), call.args...), timeout: call.timeout}
 	}
 	return result
 }
@@ -236,7 +248,8 @@ func (s *memoryWorktreeStore) ListRecoverable(context.Context) ([]Worktree, erro
 	defer s.mu.Unlock()
 	items := make([]Worktree, 0)
 	for _, item := range s.items {
-		if item.State == StatePending || item.State == StateRemoving || item.State == StateMissing {
+		if item.State == StatePending || item.State == StateRemoving || item.State == StateMissing ||
+			(item.State == StateFailed && item.CreateRollbackError != "") {
 			items = append(items, item)
 		}
 	}
@@ -341,6 +354,51 @@ func (s *memoryWorktreeStore) CompareAndSwapState(
 	item.State, item.UpdatedAt = next, updatedAt
 	s.items[key] = item
 	return true, nil
+}
+
+func (s *memoryWorktreeStore) FailCreate(
+	_ context.Context,
+	workspaceID string,
+	id string,
+	createError string,
+	rollbackError string,
+	updatedAt time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := worktreeStoreKey(workspaceID, id)
+	item, ok := s.items[key]
+	if !ok {
+		return ErrNotFound
+	}
+	if item.State != StatePending {
+		return ErrNotPending
+	}
+	item.State = StateFailed
+	item.CreateError = createError
+	item.CreateRollbackError = rollbackError
+	item.UpdatedAt = updatedAt
+	s.items[key] = item
+	return nil
+}
+
+func (s *memoryWorktreeStore) CompleteFailedCreateRollback(
+	_ context.Context,
+	workspaceID string,
+	id string,
+	updatedAt time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := worktreeStoreKey(workspaceID, id)
+	item, ok := s.items[key]
+	if !ok || item.State != StateFailed {
+		return ErrNotFound
+	}
+	item.CreateRollbackError = ""
+	item.UpdatedAt = updatedAt
+	s.items[key] = item
+	return nil
 }
 
 func (s *memoryWorktreeStore) SetState(

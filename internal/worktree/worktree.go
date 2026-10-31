@@ -67,13 +67,27 @@ type Worktree struct {
 	Origin          Origin
 	SetupState      SetupState
 	SetupError      string
-	BaseRef         string
-	CreatedBranch   bool
-	RunNamespace    string
-	CreatedHead     string
-	RunID           string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// CreateError keeps the redacted cause of a failed creation until dismissal.
+	CreateError string
+	// CreateRollbackError is non-empty while that creation's rollback is
+	// incomplete; boot reconciliation retries it until it clears.
+	CreateRollbackError string
+	BaseRef             string
+	CreatedBranch       bool
+	RunNamespace        string
+	CreatedHead         string
+	RunID               string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+// CreateFailure reports a failed creation's cause and, while it is
+// incomplete, its rollback error.
+func (w Worktree) CreateFailure() string {
+	if w.CreateRollbackError == "" {
+		return w.CreateError
+	}
+	return w.CreateError + "; rollback incomplete: " + w.CreateRollbackError
 }
 
 type Status struct {
@@ -172,6 +186,11 @@ type Store interface {
 	DeleteRunMaterialization(context.Context, string, string, string) error
 	UpdatePending(context.Context, string, string, PendingUpdate) error
 	CompleteCreate(context.Context, string, string, SetupState, string, time.Time) error
+	// FailCreate moves a pending row to failed and records the creation cause
+	// and, when its rollback is incomplete, the rollback error.
+	FailCreate(context.Context, string, string, string, string, time.Time) error
+	// CompleteFailedCreateRollback clears a failed row's incomplete rollback.
+	CompleteFailedCreateRollback(context.Context, string, string, time.Time) error
 	CompareAndSwapState(context.Context, string, string, State, State, time.Time) (bool, error)
 	SetState(context.Context, string, string, State, time.Time) error
 	SaveStatus(context.Context, string, string, Status) error

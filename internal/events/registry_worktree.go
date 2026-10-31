@@ -7,6 +7,7 @@ var worktreeRegistryEntries = []Metadata{
 	global(warning(WorktreeMissing, "worktree", ComponentWorktree)),
 	global(info(WorktreeDismissed, "worktree", ComponentWorktree)),
 	global(info(WorktreeCreationCanceled, "worktree", ComponentWorktree)),
+	global(failure(WorktreeCreationFailed, "worktree", ComponentWorktree)),
 	global(warning(WorktreeSetupFailed, "worktree", ComponentWorktree)),
 	global(info(WorktreeTeardownOutput, "worktree", ComponentWorktree)),
 	global(warning(WorktreeTeardownFailed, "worktree", ComponentWorktree)),

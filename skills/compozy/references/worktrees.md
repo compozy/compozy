@@ -34,9 +34,23 @@ Adopting the same path again is idempotent. If a registered path is `missing`, a
 its Git identity and restores the existing record to `ready`; a different repository remains refused.
 
 Creation is asynchronous. Follow the catalog/per-worktree streams or inspect the record while it is
-`pending`; success reaches `ready`. A failed accepted creation emits a bounded failure event and may
-remove the pending row after rollback. Boot reconciliation can retain an interrupted record as
-`failed`. A setup-command failure instead leaves a usable `ready` record with `setup_state=failed`.
+`pending`; success reaches `ready`. A failed accepted creation rolls back in order — the linked
+checkout and its Git admin entry first (a locked, half-written checkout included), then the branch,
+only when that creation minted it and the checkout is gone — and the record stays `failed` with
+`pending_phase` naming the failed phase and `create_error` its redacted cause (`inspect`/`list`).
+It emits `worktree.creation_failed` plus a WARN log, or an ERROR log when rollback is incomplete
+(the cause then says `rollback incomplete` and leftover Git state is kept for inspection). A failed
+record keeps its name until `compozy worktree dismiss <ref>`; binding a session to it returns
+`worktree_not_ready` with the cause. Only `cancel` with a complete rollback deletes the pending row.
+An incomplete rollback is recorded separately from the cause, and the next boot retries it only for
+what Git still attributes to the record: its checkout on its branch, removed only while it still
+holds the interrupted `git worktree add` lock, and its minted branch while it still points at the
+recorded head and no checkout holds it. Anything else (a replacement checkout, a held or moved
+branch) is left in place with a WARN each boot until the operator cleans it up. On success,
+`create_error` keeps only the original failure.
+Boot reconciliation settles an interrupted record the same way. `git worktree add` runs under
+`worktrees.checkout_timeout` (default `15m`); raise it for very large repositories. A setup-command
+failure instead leaves a usable `ready` record with `setup_state=failed`.
 `compozy worktree cancel <ref>` applies only while creation is pending.
 
 ## Exit Plan And Actions

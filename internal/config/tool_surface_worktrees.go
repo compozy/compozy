@@ -9,6 +9,7 @@ func worktreeToolSurfaceMutableConfigKinds() map[string]ValueKind {
 		worktreeCopyListConfigPath:  ConfigValueStringSlice,
 		worktreeSetupCommandPath:    ConfigValueString,
 		worktreeSetupTimeoutPath:    ConfigValueDuration,
+		worktreeCheckoutTimeoutPath: ConfigValueDuration,
 		worktreeDiscoveryTTLPath:    ConfigValueDuration,
 	}
 }

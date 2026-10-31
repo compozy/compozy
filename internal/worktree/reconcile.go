@@ -25,21 +25,7 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 		if statErr != nil || !workspaceInfo.IsDir() {
 			continue
 		}
-		switch item.State {
-		case StatePending:
-			if capabilityErr != nil && item.PendingPhase != PhaseCopy && item.PendingPhase != PhaseSetup {
-				continue
-			}
-			recoverErr = errors.Join(recoverErr, s.recoverPending(ctx, workspace, item))
-		case StateRemoving:
-			if capabilityErr == nil {
-				recoverErr = errors.Join(recoverErr, s.recoverRemoval(ctx, item))
-			}
-		case StateMissing:
-			if capabilityErr == nil {
-				recoverErr = errors.Join(recoverErr, s.restoreMissing(ctx, workspace, item))
-			}
-		}
+		recoverErr = errors.Join(recoverErr, s.recoverRow(ctx, workspace, item, capabilityErr))
 	}
 	running, err := s.store.ListRunningExitOperations(ctx)
 	if err != nil {
@@ -96,9 +82,43 @@ func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
 	return nil
 }
 
+// recoverRow settles one recoverable row. Every row waits for Git: even a
+// copy/setup checkout needs its Git identity checked before it is usable.
+func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Worktree, capabilityErr error) error {
+	if capabilityErr != nil {
+		return nil
+	}
+	switch item.State {
+	case StatePending:
+		return s.recoverPending(ctx, workspace, item)
+	case StateRemoving:
+		return s.recoverRemoval(ctx, item)
+	case StateMissing:
+		return s.restoreMissing(ctx, workspace, item)
+	case StateFailed:
+		if err := s.retryFailedCreateRollback(ctx, workspace, item); err != nil {
+			s.logger.WarnContext(ctx, "worktree creation rollback is still incomplete",
+				"worktree_id", item.ID, logErrorKey, diagnostics.RedactAndBound(err.Error(), 2048))
+		}
+	}
+	return nil
+}
+
 func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree) error {
 	switch item.PendingPhase {
 	case PhaseCopy, PhaseSetup:
+		// A rollback may have run without its failure being recorded, so the
+		// checkout must still be this creation's linked worktree to be usable.
+		checkout, err := s.inspectInterruptedCheckout(ctx, workspace, item)
+		if err != nil {
+			return err
+		}
+		switch checkout {
+		case interruptedCheckoutGone:
+			return s.recoverInterruptedCreate(ctx, workspace, item)
+		case interruptedCheckoutForeign:
+			return s.recordCreateFailure(ctx, item, errCreationInterrupted, errCheckoutReplaced)
+		}
 		message := "setup interrupted by daemon restart"
 		if err := s.store.CompleteCreate(
 			ctx,
@@ -114,19 +134,23 @@ func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item 
 		s.emit(ctx, EventSetupFailed, item)
 		return nil
 	default:
-		commonDir, err := s.commonDir(ctx, workspace.Root)
-		if err != nil {
-			return err
-		}
-		release, err := s.locks.Acquire(ctx, commonDir)
-		if err != nil {
-			return err
-		}
-		defer release()
-		rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
-		stateErr := s.store.SetState(ctx, item.WorkspaceID, item.ID, StateFailed, s.now().UTC())
-		return errors.Join(rollbackErr, stateErr)
+		return s.recoverInterruptedCreate(ctx, workspace, item)
 	}
+}
+
+func (s *Service) recoverInterruptedCreate(ctx context.Context, workspace Workspace, item Worktree) error {
+	commonDir, err := s.commonDir(ctx, workspace.Root)
+	if err != nil {
+		return err
+	}
+	release, err := s.locks.Acquire(ctx, commonDir)
+	if err != nil {
+		return err
+	}
+	defer release()
+	rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
+	recordErr := s.recordCreateFailure(ctx, item, errCreationInterrupted, rollbackErr)
+	return errors.Join(rollbackErr, recordErr)
 }
 
 func (s *Service) restoreMissing(ctx context.Context, workspace Workspace, item Worktree) error {

@@ -197,6 +197,7 @@ const (
 	WorktreeMissing             = "worktree.missing"
 	WorktreeDismissed           = "worktree.dismissed"
 	WorktreeCreationCanceled    = "worktree.creation_canceled"
+	WorktreeCreationFailed      = "worktree.creation_failed"
 	WorktreeSetupFailed         = "worktree.setup_failed"
 	WorktreeTeardownOutput      = "worktree.teardown_output"
 	WorktreeTeardownFailed      = "worktree.teardown_failed"

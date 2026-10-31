@@ -20,6 +20,7 @@ const (
 	worktreeTeardownCommandPath  = "worktrees.teardown_command"
 	worktreeSetupTimeoutPath     = "worktrees.setup_timeout"
 	worktreeTeardownTimeoutPath  = "worktrees.teardown_timeout"
+	worktreeCheckoutTimeoutPath  = "worktrees.checkout_timeout"
 	worktreeDiscoveryTTLPath     = "worktrees.discovery_cache_ttl"
 )
 
@@ -32,6 +33,7 @@ type WorktreesConfig struct {
 	TeardownCommand    string        `toml:"teardown_command"`
 	SetupTimeout       time.Duration `toml:"setup_timeout"`
 	TeardownTimeout    time.Duration `toml:"teardown_timeout"`
+	CheckoutTimeout    time.Duration `toml:"checkout_timeout"`
 	DiscoveryCacheTTL  time.Duration `toml:"discovery_cache_ttl"`
 }
 
@@ -41,6 +43,7 @@ func DefaultWorktreesConfig() WorktreesConfig {
 		RunBranchNamespace: "run/",
 		SetupTimeout:       10 * time.Minute,
 		TeardownTimeout:    10 * time.Minute,
+		CheckoutTimeout:    15 * time.Minute,
 		DiscoveryCacheTTL:  30 * time.Second,
 	}
 }
@@ -102,6 +105,13 @@ func (c WorktreesConfig) Validate() error {
 		return ValidationError{
 			Code:    worktreeConfigInvalidCode,
 			Path:    worktreeTeardownTimeoutPath,
+			Message: positiveWorktreeValueMessage,
+		}
+	}
+	if c.CheckoutTimeout <= 0 {
+		return ValidationError{
+			Code:    worktreeConfigInvalidCode,
+			Path:    worktreeCheckoutTimeoutPath,
 			Message: positiveWorktreeValueMessage,
 		}
 	}

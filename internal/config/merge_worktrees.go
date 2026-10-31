@@ -10,6 +10,7 @@ type worktreesOverlay struct {
 	TeardownCommand    *string        `toml:"teardown_command"`
 	SetupTimeout       *time.Duration `toml:"setup_timeout"`
 	TeardownTimeout    *time.Duration `toml:"teardown_timeout"`
+	CheckoutTimeout    *time.Duration `toml:"checkout_timeout"`
 	DiscoveryCacheTTL  *time.Duration `toml:"discovery_cache_ttl"`
 }
 
@@ -34,6 +35,9 @@ func (o worktreesOverlay) Apply(dst *WorktreesConfig) {
 	}
 	if o.TeardownTimeout != nil {
 		dst.TeardownTimeout = *o.TeardownTimeout
+	}
+	if o.CheckoutTimeout != nil {
+		dst.CheckoutTimeout = *o.CheckoutTimeout
 	}
 	if o.DiscoveryCacheTTL != nil {
 		dst.DiscoveryCacheTTL = *o.DiscoveryCacheTTL

@@ -12105,6 +12105,7 @@ export type WorktreePayload = {
   base_ref?: string;
   behind: number | null;
   branch: string;
+  create_error?: string;
   created_at: string;
   created_branch: boolean;
   created_head?: string;

@@ -713,11 +713,11 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		branchPending.Branch = "run/recover"
 		copyPending := fixture.item
 		copyPending.ID, copyPending.Name = "wt-copy", "copy-recovery"
-		copyPending.Path = t.TempDir()
+		copyPending.Path, copyPending.GitDir = linkTestCheckout(t, fixture.commonDir, "copy-recovery")
 		copyPending.State, copyPending.PendingPhase = StatePending, PhaseCopy
 		setupPending := fixture.item
 		setupPending.ID, setupPending.Name = "wt-setup", "setup-recovery"
-		setupPending.Path = t.TempDir()
+		setupPending.Path, setupPending.GitDir = linkTestCheckout(t, fixture.commonDir, "setup-recovery")
 		setupPending.State, setupPending.PendingPhase = StatePending, PhaseSetup
 		if err := fixture.store.Insert(t.Context(), branchPending); err != nil {
 			t.Fatalf("seed branch recovery: %v", err)
@@ -753,6 +753,78 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 		if got := fixture.events.count(EventSetupFailed); got != 2 {
 			t.Fatalf("setup failed events = %d, want two", got)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name        string
+		path        func(t *testing.T) string
+		leftInPlace bool
+	}{
+		{name: "is gone", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "gone") }},
+		{
+			name: "is no longer its linked checkout", path: func(t *testing.T) string { return t.TempDir() },
+			leftInPlace: true,
+		},
+	} {
+		t.Run("Should fail an interrupted copy phase whose checkout "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newRemovalTestFixture(t)
+			gone := fixture.item
+			gone.ID, gone.Name = "wt-gone", "gone-recovery"
+			gone.Path = testCase.path(t)
+			gone.State, gone.PendingPhase = StatePending, PhaseCopy
+			if err := fixture.store.Insert(t.Context(), gone); err != nil {
+				t.Fatalf("seed interrupted copy: %v", err)
+			}
+			if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+				t.Fatalf("RecoverCreations() error = %v", err)
+			}
+			stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, gone.ID)
+			if err != nil || stored.State != StateFailed ||
+				!strings.Contains(stored.CreateError, "daemon restart") {
+				t.Fatalf("interrupted copy = %#v, %v, want failed record instead of a ready one", stored, err)
+			}
+			if testCase.leftInPlace {
+				if _, statErr := os.Stat(gone.Path); statErr != nil ||
+					!strings.Contains(stored.CreateRollbackError, "left in place") {
+					t.Fatalf(
+						"replacement = %v, %q, want it left in place and reported",
+						statErr,
+						stored.CreateRollbackError,
+					)
+				}
+				for _, command := range invocationCommands(fixture.runner.invocations()) {
+					if strings.Contains(command, "worktree remove") {
+						t.Fatalf("recovery ran %q against a checkout it does not own", command)
+					}
+				}
+			}
+			if got := fixture.events.count(EventSetupFailed); got != 0 {
+				t.Fatalf("setup failed events = %d, want none for an unusable checkout", got)
+			}
+		})
+	}
+
+	t.Run("Should keep an interrupted copy phase pending while Git is unavailable", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		fixture.service.capability = &CapabilityGate{
+			cached: true, result: CapabilityDiagnostic{Code: ErrGitUnavailable.Error()}, err: ErrGitUnavailable,
+		}
+		copyPending := fixture.item
+		copyPending.ID, copyPending.Name = "wt-copy", "copy-recovery"
+		copyPending.Path, copyPending.GitDir = linkTestCheckout(t, fixture.commonDir, "copy-recovery")
+		copyPending.State, copyPending.PendingPhase = StatePending, PhaseCopy
+		if err := fixture.store.Insert(t.Context(), copyPending); err != nil {
+			t.Fatalf("seed copy recovery: %v", err)
+		}
+		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, copyPending.ID)
+		if err != nil || stored.State != StatePending {
+			t.Fatalf("copy recovery without Git = %#v, %v, want pending until its identity can be checked", stored, err)
 		}
 	})
 
@@ -969,6 +1041,30 @@ func (v *atomicInt) Load() int {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.value
+}
+
+// linkTestCheckout writes the .git pointer and admin entry Git keeps for a
+// linked checkout, returning the canonical checkout path and admin directory.
+func linkTestCheckout(t *testing.T, commonDir, name string) (string, string) {
+	t.Helper()
+	path, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("canonicalize linked checkout: %v", err)
+	}
+	adminGitDir := filepath.Join(commonDir, "worktrees", name)
+	if err := os.MkdirAll(adminGitDir, 0o700); err != nil {
+		t.Fatalf("create linked admin dir: %v", err)
+	}
+	for file, content := range map[string]string{
+		filepath.Join(path, ".git"):             "gitdir: " + adminGitDir + "\n",
+		filepath.Join(adminGitDir, "commondir"): "../..\n",
+		filepath.Join(adminGitDir, "gitdir"):    filepath.Join(path, ".git") + "\n",
+	} {
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+			t.Fatalf("write linked checkout metadata: %v", err)
+		}
+	}
+	return path, adminGitDir
 }
 
 func newRemovalTestFixture(t *testing.T) *removalTestFixture {

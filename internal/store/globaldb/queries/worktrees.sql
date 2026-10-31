@@ -47,6 +47,7 @@ ORDER BY created_at, id;
 -- name: ListRecoverableWorktrees :many
 SELECT * FROM worktrees
 WHERE state IN ('pending', 'removing', 'missing')
+  OR (state = 'failed' AND create_rollback_error <> '')
 ORDER BY workspace_id, created_at, id;
 
 -- name: DeletePendingWorktree :execrows
@@ -109,6 +110,24 @@ WHERE worktrees.workspace_id = sqlc.arg(workspace_id)
 		AND worktree_exit_ops.state = 'running'
     )
   );
+
+-- name: FailWorktreeCreate :execrows
+UPDATE worktrees SET
+  state = 'failed',
+  create_error = sqlc.arg(create_error),
+  create_rollback_error = sqlc.arg(create_rollback_error),
+  updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(worktree_id)
+  AND state = 'pending';
+
+-- name: CompleteFailedWorktreeCreateRollback :execrows
+UPDATE worktrees SET
+  create_rollback_error = '',
+  updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(worktree_id)
+  AND state = 'failed';
 
 -- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = sqlc.arg(state), updated_at = sqlc.arg(updated_at)

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -218,15 +219,20 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 	})
 
 	for _, test := range []struct {
-		name    string
-		state   worktree.State
-		getErr  error
-		path    string
-		wantErr error
+		name        string
+		state       worktree.State
+		getErr      error
+		path        string
+		createError string
+		wantErr     error
+		wantDetail  string
 	}{
 		{name: "unknown", getErr: worktree.ErrNotFound, wantErr: worktree.ErrNotFound},
 		{name: "pending", state: worktree.StatePending, wantErr: worktree.ErrNotReady},
-		{name: "failed", state: worktree.StateFailed, wantErr: worktree.ErrNotReady},
+		{
+			name: "failed", state: worktree.StateFailed, createError: "checkout phase failed: timed out",
+			wantErr: worktree.ErrNotReady, wantDetail: "creation failed (checkout phase failed: timed out)",
+		},
 		{name: "removing", state: worktree.StateRemoving, wantErr: worktree.ErrNotReady},
 		{name: "missing", state: worktree.StateMissing, wantErr: worktree.ErrMissing},
 		{name: "removed", state: worktree.StateRemoved, wantErr: worktree.ErrMissing},
@@ -240,12 +246,17 @@ func TestDaemonSessionWorktreeResolver(t *testing.T) {
 					if test.getErr != nil {
 						return nil, test.getErr
 					}
-					return &worktree.Worktree{ID: "wt-target", Path: test.path, State: test.state}, nil
+					return &worktree.Worktree{
+						ID: "wt-target", Path: test.path, State: test.state, CreateError: test.createError,
+					}, nil
 				})
 			}}
 			_, _, err := resolver.ResolveSessionWorktree(t.Context(), "ws-1", "target")
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("ResolveSessionWorktree(%s) error = %v, want %v", test.name, err, test.wantErr)
+			}
+			if test.wantDetail != "" && !strings.Contains(err.Error(), test.wantDetail) {
+				t.Fatalf("ResolveSessionWorktree(%s) error = %v, want detail %q", test.name, err, test.wantDetail)
 			}
 		})
 	}

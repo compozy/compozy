@@ -71,8 +71,18 @@ only after:
 With a non-empty `setup_command`, `setup_state` becomes `ok` after a successful bootstrap.
 The Web dialog follows the accepted Worktree by ID through these phases. When that row reaches
 `ready`, the Web app selects it and closes the dialog. A failed `setup_command` still produces a
-usable `ready` Worktree with `setup_state: "failed"`; a checkout failure instead remains visible as
-an error in the Web dialog after the runtime removes the rolled-back pending row.
+usable `ready` Worktree with `setup_state: "failed"`. A branch or checkout failure is rolled back —
+the checkout and its Git registration first, then a branch the creation made — and the Worktree
+stays listed as `failed`, with `pending_phase` naming the failed phase and `create_error` the
+cause. The Web dialog shows that cause. A failed Worktree keeps its name until you dismiss it:
+
+```bash
+compozy worktree inspect feature-auth --workspace . -o json
+compozy worktree dismiss feature-auth --workspace . -o json
+```
+
+The checkout runs under `worktrees.checkout_timeout` (default `15m`). If a very large repository
+reports `checkout exceeded worktrees.checkout_timeout`, raise it and create the Worktree again.
 
 Cancel only while it is pending:
 
