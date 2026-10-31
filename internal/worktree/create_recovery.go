@@ -146,8 +146,25 @@ func (s *Service) inspectInterruptedCheckout(
 	if err != nil {
 		return 0, err
 	}
-	identity, err := s.validateAdoptionIdentity(ctx, item.Path, commonDir)
-	if err != nil || identity.adminGitDir != item.GitDir {
+	// Git records canonical paths, so compare against the resolved checkout.
+	canonical, err := filepath.EvalSymlinks(item.Path)
+	if err != nil {
+		return 0, fmt.Errorf("worktree: resolve interrupted checkout: %w", err)
+	}
+	identity, err := s.validateAdoptionIdentity(ctx, canonical, commonDir)
+	if err != nil || filepath.Clean(identity.adminGitDir) != filepath.Clean(item.GitDir) {
+		return interruptedCheckoutForeign, nil
+	}
+	// The row records its branch; a checkout switched elsewhere (or detached,
+	// which reads as HEAD) holds other files and is not this creation's.
+	head, stderr, err := s.runner.Run(ctx, item.Path, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return 0, fmt.Errorf(
+			"worktree: read interrupted checkout branch: %s: %w",
+			diagnostics.RedactAndBound(string(stderr), 2048), err,
+		)
+	}
+	if strings.TrimSpace(string(head)) != item.Branch {
 		return interruptedCheckoutForeign, nil
 	}
 	return interruptedCheckoutUsable, nil

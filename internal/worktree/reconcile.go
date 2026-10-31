@@ -115,7 +115,7 @@ func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item 
 		}
 		switch checkout {
 		case interruptedCheckoutGone:
-			return s.recoverInterruptedCreate(ctx, workspace, item)
+			return s.recoverInterruptedCreate(ctx, workspace, item, true)
 		case interruptedCheckoutForeign:
 			return s.recordCreateFailure(ctx, item, errCreationInterrupted, errCheckoutReplaced)
 		}
@@ -134,11 +134,19 @@ func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item 
 		s.emit(ctx, EventSetupFailed, item)
 		return nil
 	default:
-		return s.recoverInterruptedCreate(ctx, workspace, item)
+		return s.recoverInterruptedCreate(ctx, workspace, item, false)
 	}
 }
 
-func (s *Service) recoverInterruptedCreate(ctx context.Context, workspace Workspace, item Worktree) error {
+// recoverInterruptedCreate rolls back an interrupted creation and records it
+// failed. When the checkout was found gone, that is rechecked under the lock so
+// a checkout that appeared meanwhile is left for the next boot to classify.
+func (s *Service) recoverInterruptedCreate(
+	ctx context.Context,
+	workspace Workspace,
+	item Worktree,
+	checkoutGone bool,
+) error {
 	commonDir, err := s.commonDir(ctx, workspace.Root)
 	if err != nil {
 		return err
@@ -148,6 +156,13 @@ func (s *Service) recoverInterruptedCreate(ctx context.Context, workspace Worksp
 		return err
 	}
 	defer release()
+	if checkoutGone {
+		if _, statErr := os.Lstat(item.Path); statErr == nil {
+			return nil
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("worktree: recheck interrupted checkout: %w", statErr)
+		}
+	}
 	rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
 	recordErr := s.recordCreateFailure(ctx, item, errCreationInterrupted, rollbackErr)
 	return errors.Join(rollbackErr, recordErr)

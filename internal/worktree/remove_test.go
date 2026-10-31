@@ -758,12 +758,26 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name        string
-		path        func(t *testing.T) string
+		checkout    func(t *testing.T, fixture *removalTestFixture) (string, string)
 		leftInPlace bool
 	}{
-		{name: "is gone", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "gone") }},
+		{name: "is gone", checkout: func(t *testing.T, fixture *removalTestFixture) (string, string) {
+			return filepath.Join(t.TempDir(), "gone"), fixture.item.GitDir
+		}},
 		{
-			name: "is no longer its linked checkout", path: func(t *testing.T) string { return t.TempDir() },
+			name: "is no longer its linked checkout",
+			checkout: func(t *testing.T, fixture *removalTestFixture) (string, string) {
+				return t.TempDir(), fixture.item.GitDir
+			},
+			leftInPlace: true,
+		},
+		{
+			name: "was switched to another branch",
+			checkout: func(t *testing.T, fixture *removalTestFixture) (string, string) {
+				path, gitDir := linkTestCheckout(t, fixture.commonDir, "switched")
+				fixture.switchedCheckout = path
+				return path, gitDir
+			},
 			leftInPlace: true,
 		},
 	} {
@@ -772,7 +786,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			fixture := newRemovalTestFixture(t)
 			gone := fixture.item
 			gone.ID, gone.Name = "wt-gone", "gone-recovery"
-			gone.Path = testCase.path(t)
+			gone.Path, gone.GitDir = testCase.checkout(t, fixture)
 			gone.State, gone.PendingPhase = StatePending, PhaseCopy
 			if err := fixture.store.Insert(t.Context(), gone); err != nil {
 				t.Fatalf("seed interrupted copy: %v", err)
@@ -802,6 +816,65 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			}
 			if got := fixture.events.count(EventSetupFailed); got != 0 {
 				t.Fatalf("setup failed events = %d, want none for an unusable checkout", got)
+			}
+		})
+	}
+
+	for _, testCase := range []struct {
+		name   string
+		appear func(path string) error
+	}{
+		{name: "directory", appear: func(path string) error { return os.MkdirAll(path, 0o700) }},
+		// A dangling symlink is visible to Lstat but not to Stat.
+		{name: "dangling symlink", appear: func(path string) error {
+			return os.Symlink(filepath.Join(filepath.Dir(path), "missing-target"), path)
+		}},
+	} {
+		t.Run("Should leave a "+testCase.name+" that appears while recovery waits for the lock", func(t *testing.T) {
+			t.Parallel()
+			fixture := newRemovalTestFixture(t)
+			appearing := fixture.item
+			appearing.ID, appearing.Name = "wt-appearing", "appearing-recovery"
+			appearing.Path = filepath.Join(t.TempDir(), "appearing")
+			appearing.State, appearing.PendingPhase = StatePending, PhaseCopy
+			if err := fixture.store.Insert(t.Context(), appearing); err != nil {
+				t.Fatalf("seed interrupted copy: %v", err)
+			}
+			release, err := fixture.service.locks.Acquire(t.Context(), fixture.commonDir)
+			if err != nil {
+				t.Fatalf("hold repository lock: %v", err)
+			}
+			recovered := make(chan error, 1)
+			go func() { recovered <- fixture.service.RecoverCreations(t.Context()) }()
+			// Recovery resolves the common dir right before it waits for the lock.
+			deadline := time.Now().Add(5 * time.Second)
+			for !slices.Contains(invocationCommands(fixture.runner.invocations()),
+				"rev-parse --path-format=absolute --git-common-dir") {
+				if time.Now().After(deadline) {
+					release()
+					t.Fatal("recovery never reached the repository lock")
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			if err := testCase.appear(appearing.Path); err != nil {
+				release()
+				t.Fatalf("create appearing checkout: %v", err)
+			}
+			release()
+			if err := <-recovered; err != nil {
+				t.Fatalf("RecoverCreations() error = %v", err)
+			}
+			stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, appearing.ID)
+			if err != nil || stored.State != StatePending {
+				t.Fatalf("appearing recovery = %#v, %v, want pending for the next boot", stored, err)
+			}
+			if _, err := os.Lstat(appearing.Path); err != nil {
+				t.Fatalf("Lstat(appearing checkout) error = %v, want preserved", err)
+			}
+			for _, command := range invocationCommands(fixture.runner.invocations()) {
+				if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
+					t.Fatalf("recovery ran %q against a checkout that appeared meanwhile", command)
+				}
 			}
 		})
 	}
@@ -990,6 +1063,8 @@ type removalTestFixture struct {
 	removeFails            atomicBool
 	failFirstForcedRemoval atomicBool
 	removeCalls            atomicInt
+	// switchedCheckout names a checkout whose HEAD reads as another branch.
+	switchedCheckout string
 	// onRemove runs while Git deletes the checkout, e.g. to drop the request.
 	onRemove func()
 }
@@ -1110,6 +1185,11 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 		switch {
 		case command == "rev-parse --path-format=absolute --git-common-dir":
 			return gitResponse{stdout: []byte(commonDir + "\n")}
+		case command == "rev-parse --abbrev-ref HEAD":
+			if call.dir == fixture.switchedCheckout {
+				return gitResponse{stdout: []byte("someone-else\n")}
+			}
+			return gitResponse{stdout: []byte(fixture.item.Branch + "\n")}
 		case command == "status --porcelain=v2 --branch -z":
 			status := "# branch.oid head\x00# branch.head " + fixture.item.Branch + "\x00"
 			if fixture.dirty.Load() {
