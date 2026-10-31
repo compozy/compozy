@@ -1,10 +1,11 @@
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
-import { Check, ChevronRight } from "lucide-react";
+import { Archive, Check, ChevronRight } from "lucide-react";
 
 import {
   MenubarContent,
   MenubarItem,
   MenubarMenu,
+  MenubarSeparator,
   MenubarSub,
   MenubarSubContent,
   MenubarSubTrigger,
@@ -66,6 +67,11 @@ export interface WorkspaceMenuProps {
    * menu, so the host closes this menu and opens the project's at the point.
    */
   onProjectContextMenu?: (workspace: WorkspacePayload, point: WorkspaceProjectMenuPoint) => void;
+  /**
+   * Archive project from a project's submenu. The submenu closes with the
+   * menu, so the host owns the confirm. Remove project stays off this hover menu.
+   */
+  onArchiveProject?: (workspace: WorkspacePayload) => void;
 }
 
 /** Right-click and Shift+F10 on a project row relay its project menu to the host. */
@@ -158,6 +164,7 @@ export function WorkspaceMenu({
   onRemoveWorktrees,
   notice,
   onProjectContextMenu,
+  onArchiveProject,
 }: WorkspaceMenuProps) {
   const focusedProjectId =
     breadthMode === "focused" && focus.kind === "project" ? focus.workspaceId : undefined;
@@ -284,6 +291,19 @@ export function WorkspaceMenu({
                                   : undefined
                               }
                             />
+                            {onArchiveProject && !workspace.archived_at ? (
+                              <>
+                                <MenubarSeparator />
+                                <MenubarItem
+                                  className="min-h-control-compact text-muted"
+                                  data-testid={`os-workspace-archive-${workspace.id}`}
+                                  onClick={() => onArchiveProject(workspace)}
+                                >
+                                  <Archive className="size-3.5 text-faint" />
+                                  Archive project
+                                </MenubarItem>
+                              </>
+                            ) : null}
                           </MenubarSubContent>
                         </MenubarSub>
                       );

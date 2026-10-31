@@ -125,13 +125,18 @@ export function DesktopMenubar(props: DesktopMenubarProps) {
   const projectMenu = useProjectPointMenu(props.workspaces);
   return (
     <>
-      <DesktopMenubarChrome {...props} onProjectContextMenu={projectMenu.open} />
+      <DesktopMenubarChrome
+        {...props}
+        onProjectContextMenu={projectMenu.open}
+        onArchiveProject={projectMenu.archive}
+      />
       {projectMenu.workspace ? (
         <WorkspaceProjectPointMenu
-          key={projectMenu.workspace.id}
+          key={projectMenu.key}
           workspace={projectMenu.workspace}
           listed={projectMenu.listed}
           point={projectMenu.point}
+          initialAction={projectMenu.initialAction}
           onClose={projectMenu.close}
           finalFocus={() =>
             document.querySelector<HTMLElement>('[data-slot="os-menubar-workspace"]')
@@ -174,8 +179,10 @@ function DesktopMenubarChrome({
   pager,
   layoutUnbound = false,
   onProjectContextMenu,
+  onArchiveProject,
 }: DesktopMenubarProps & {
   onProjectContextMenu: (workspace: WorkspacePayload, point: WorkspaceProjectMenuPoint) => void;
+  onArchiveProject: (workspace: WorkspacePayload) => void;
 }) {
   const breadthMode = breadthModeProp ?? (activeWorkspace ? "focused" : "all");
   const focus: Focus =
@@ -281,6 +288,10 @@ function DesktopMenubarChrome({
           onProjectContextMenu={(workspace, point) => {
             onOverlayOpenChange("workspace-menu", false);
             onProjectContextMenu(workspace, point);
+          }}
+          onArchiveProject={workspace => {
+            onOverlayOpenChange("workspace-menu", false);
+            onArchiveProject(workspace);
           }}
         />
       )}
