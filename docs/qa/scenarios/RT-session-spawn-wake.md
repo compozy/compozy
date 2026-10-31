@@ -126,3 +126,20 @@ commit/push/PR facts after the delivery fence releases. Those facts come from th
 forge observation, independently of the UI's PR display cache. The existing
 TestIsolatedSubagentDeliveryIntegration passed locally with real Git and ACP,
 using a stub only for external forge I/O (6.171s).
+
+QA impact 2026-10-30 (issue #1065, early stop): a child with any parent lineage (spawned or
+`provenance`) whose turn ends with `end_turn` while no open work signal (monitor, child session,
+awaited reply, Loop run, task lease, scheduled wait), no pending interaction, no parent reply watch
+on that turn, and no linked pull request remains now reads `needs-attention` with
+`attention: "ended_early"` (board column Needs you, row reason "Stopped before delivering", card
+"Stopped early") instead of `done`. The parent gets one `needs_attention` wake whose prompt carries
+the child's final answer (bounded to 4,000 characters) even with `notify_creator: false`; normal
+completions of opted-out children stay suppressed. The mark is durable attention state
+(`sessions.ended_early_turn_id`), survives idle runtime release and catalog reads after restart, and
+the child's next prompt clears it. Walk: create a child with `compozy__session_create` and a
+parent, prompt it with a task it answers without delivering, and confirm the badge, the parent wake
+text, and that a follow-up prompt clears the mark; repeat with a registered monitor, a delegated
+child, a linked PR, and a top-level session and confirm no flag. Owning automated evidence:
+`TestManagerEarlyStopSupervision` in `internal/session/spawn_wake_test.go`, the early-stop cases in
+`TestCanonicalBadgeAttentionPrecedence`, the idle-release case in
+`TestSupervisionReleasesIdleRuntime`, and `TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog`.

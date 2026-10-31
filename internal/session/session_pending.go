@@ -249,6 +249,7 @@ func applyAttentionProjectionLocked(target *Session, projection store.SessionAtt
 	target.LastSeenRevision = projection.LastSeenRevision
 	target.LastSeenAt = cloneTimePointer(projection.LastSeenAt)
 	target.AttentionChangedAt = cloneTimePointer(projection.AttentionChangedAt)
+	target.EndedEarlyTurnID = projection.EndedEarlyTurnID
 }
 
 func clonePendingInteractions(values []store.PendingInteraction) []store.PendingInteraction {

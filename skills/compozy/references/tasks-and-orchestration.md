@@ -43,8 +43,8 @@ When a worker should rely on its provider shell, say so in `prompt_overlay` or t
 ## Ask an existing session and wait for its reply
 
 Use `compozy__session_prompt` with `notify_on_complete: true` when you need an answer from an
-existing session. Save `reply_watch.id`, finish your current turn, and let the reply wake resume your
-work. The watch follows the message through queued or steered delivery, not an unrelated turn.
+existing session. Save `reply_watch.id`, finish the steps that do not need the answer, then end your
+turn and let the reply wake resume your work. The watch follows the message through queued or steered delivery, not an unrelated turn.
 Inspect `compozy__session_status.reply_watches` when diagnosing outstanding requests. While the target
 is live, your open watch is an `awaiting_reply` work signal, so you are not stopped for inactivity while
 you wait. An unanswered watch expires after `session.messaging.reply_watch_ttl` (24h by default) with
@@ -54,6 +54,14 @@ keeps queued messages and their watches. If CompozyOS stopped you (restart, cras
 stop of a hung turn), the reply resumes you; an operator stop waits for the operator's resume.
 Ask with `notify_on_complete` whenever you need the answer: without it nothing wakes you when the
 other session finishes.
+
+A child session (any session with a parent) that ends a turn on its own with no linked pull request,
+no open work signal (monitor, subagent, reply watch, task lease, Loop run, scheduled wait), no pending
+interaction, and no reply watch from you on that turn is marked `needs-attention` with
+`attention: "ended_early"` instead of `done`. The parent receives one wake with the child's final
+answer even when the child was created with `notify_creator: false`. Prompt the child to continue,
+or stop it; its next prompt clears the mark. Subagents report through `compozy__subagent_status`
+instead and are never marked.
 Read `references/native-tools.md` for reply outcomes and truncation. A reply is communication and does
 not confer a task claim, permission, or approval.
 

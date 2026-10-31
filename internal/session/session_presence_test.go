@@ -245,6 +245,18 @@ func (s *presenceAttentionStore) MarkSessionSeen(
 	return store.SessionAttentionCommit{Before: before, After: s.projection, Outcome: "seen"}, nil
 }
 
+func (s *presenceAttentionStore) MarkSessionEndedEarly(
+	_ context.Context,
+	_ string,
+	turnID string,
+) (store.SessionAttentionCommit, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	before := s.projection
+	s.projection.EndedEarlyTurnID = turnID
+	return store.SessionAttentionCommit{Before: before, After: s.projection, Outcome: "ended-early"}, nil
+}
+
 func (s *presenceAttentionStore) setMarkSeenError(err error) {
 	s.mu.Lock()
 	s.markSeenErr = err

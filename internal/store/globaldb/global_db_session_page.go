@@ -42,7 +42,7 @@ const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_i
 	subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
 	activity_json, attached_to, attach_expires_at, transcript_epoch,
 	pending_permission_count, pending_clarify_count, attention_revision,
-	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
+	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at, ended_early_turn_id,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
 	created_at, updated_at, ` + sessionCatalogVerdictOnlyExpression + `
 FROM sessions`

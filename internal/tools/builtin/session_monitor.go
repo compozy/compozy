@@ -20,7 +20,8 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"kind=terminal watches a terminal_id from compozy__terminal_exec (still_running) or compozy__terminal_open "+
 			"until it exits or its output matches a pattern; kind=timer fires once after delay_seconds. Use it "+
 			"instead of provider-internal background tasks, Monitor, ScheduleWakeup, sleep loops, or polling — those "+
-			"cannot wake a CompozyOS session. After registering, end your turn; the wake arrives as a "+
+			"cannot wake a CompozyOS session. After registering, keep working on steps that do not depend on it; end "+
+			"your turn only when every remaining step waits on a registered monitor or subagent. The wake arrives as a "+
 			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn.",
 		monitorCreateInputSchema,
 		toolspkg.RiskMutating,

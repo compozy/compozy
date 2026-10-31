@@ -126,6 +126,9 @@ func (m *Manager) assembleAcceptedStartupDefinition(
 	if strings.TrimSpace(startupCtx.Provider) == "" {
 		startupCtx.Provider = strings.TrimSpace(runtime.agent.Provider)
 	}
+	if strings.TrimSpace(startupCtx.Model) == "" {
+		startupCtx.Model = strings.TrimSpace(runtime.agent.Model)
+	}
 	startupCtx.ProviderHomePolicy = runtime.agent.HomePolicy
 	startupPrompt, manifest, err := m.startupPrompt(
 		ctx,

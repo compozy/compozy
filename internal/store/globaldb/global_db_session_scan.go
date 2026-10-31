@@ -59,6 +59,7 @@ type sessionInfoRow struct {
 	lastSeenRevision       int64
 	lastSeenAt             sql.NullString
 	attentionChangedAt     sql.NullString
+	endedEarlyTurnID       string
 	soulSnapshotID         sql.NullString
 	soulDigest             string
 	parentSoulDigest       string
@@ -295,6 +296,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.lastSeenRevision,
 		&row.lastSeenAt,
 		&row.attentionChangedAt,
+		&row.endedEarlyTurnID,
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,

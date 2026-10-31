@@ -88,6 +88,31 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 			want: BadgeUnhealthy,
 		},
 		{
+			name:  "Should request attention for a turn that ended early instead of completing it",
+			input: BadgeInputs{State: StateActive, EndedEarly: true, Unseen: true},
+			want:  BadgeNeedsAttention,
+		},
+		{
+			name:  "Should keep an early stop after the operator has seen the turn",
+			input: BadgeInputs{State: StateActive, EndedEarly: true},
+			want:  BadgeNeedsAttention,
+		},
+		{
+			name:  "Should prefer a live prompt over an early stop",
+			input: BadgeInputs{State: StateActive, EndedEarly: true, ActivePrompt: true},
+			want:  BadgeRunning,
+		},
+		{
+			name:  "Should prefer open work over an early stop",
+			input: BadgeInputs{State: StateActive, EndedEarly: true, Waiting: true},
+			want:  BadgeWaiting,
+		},
+		{
+			name:  "Should prefer stopped lifecycle over an early stop",
+			input: BadgeInputs{State: StateStopped, EndedEarly: true},
+			want:  BadgeStopped,
+		},
+		{
 			name:  "Should derive idle for an active settled session",
 			input: BadgeInputs{State: StateActive},
 			want:  BadgeIdle,

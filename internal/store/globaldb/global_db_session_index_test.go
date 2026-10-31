@@ -1677,6 +1677,76 @@ func TestSessionAttentionSeenFenceIsMonotonicAndPassiveReadsArePure(t *testing.T
 	}
 }
 
+// Invariant: the early-stop mark is durable attention that the SQL catalog badge, attention
+// filter, and attention rank read exactly like session.CanonicalBadge; clearing it restores done.
+func TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{
+		AttentionRevision: 2, LastSettledRevision: 2, LastSeenRevision: 1,
+	})
+	page := func(query store.SessionCatalogPageQuery) []string {
+		t.Helper()
+		query.ReadScope = store.ReadScope{ProfileID: store.DefaultProfileID}
+		query.Limit = 10
+		if query.Sort == "" {
+			query.Sort = sessionCatalogSortRecent
+		}
+		result, err := globalDB.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatalf("PageSessions(%#v) error = %v", query, err)
+		}
+		ids := make([]string, 0, len(result.Sessions))
+		for _, session := range result.Sessions {
+			ids = append(ids, session.ID)
+		}
+		return ids
+	}
+
+	commit, err := globalDB.MarkSessionEndedEarly(ctx, sessionID, "turn-early")
+	if err != nil {
+		t.Fatalf("MarkSessionEndedEarly() error = %v", err)
+	}
+	if commit.Before.EndedEarlyTurnID != "" || commit.After.EndedEarlyTurnID != "turn-early" ||
+		commit.After.AttentionRevision != commit.Before.AttentionRevision {
+		t.Fatalf("MarkSessionEndedEarly() commit = %#v, want the mark without a revision bump", commit)
+	}
+	listed, err := globalDB.ListSessions(ctx, store.SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, ID: sessionID, Limit: 1,
+	})
+	if err != nil || len(listed) != 1 || listed[0].AttentionSnapshot().EndedEarlyTurnID != "turn-early" {
+		t.Fatalf("ListSessions() = %#v, %v; want the durable early-stop mark", listed, err)
+	}
+	if got := page(
+		store.SessionCatalogPageQuery{Badges: []string{"needs-attention"}},
+	); !slices.Equal(
+		got,
+		[]string{sessionID},
+	) {
+		t.Fatalf("needs-attention page = %#v, want the early-stopped session", got)
+	}
+	if got := page(
+		store.SessionCatalogPageQuery{AttentionOnly: true, Sort: sessionCatalogSortAttention},
+	); !slices.Equal(
+		got,
+		[]string{sessionID},
+	) {
+		t.Fatalf("attention page = %#v, want the early-stopped session", got)
+	}
+
+	if _, err := globalDB.MarkSessionEndedEarly(ctx, sessionID, ""); err != nil {
+		t.Fatalf("MarkSessionEndedEarly(clear) error = %v", err)
+	}
+	if got := page(store.SessionCatalogPageQuery{Badges: []string{"needs-attention"}}); len(got) != 0 {
+		t.Fatalf("needs-attention page after clear = %#v, want none", got)
+	}
+	if got := page(store.SessionCatalogPageQuery{Badges: []string{"done"}}); !slices.Equal(got, []string{sessionID}) {
+		t.Fatalf("done page after clear = %#v, want the unseen settled session", got)
+	}
+}
+
 func TestSessionAttentionLifecycleUpdateBumpsOrderingFenceAtomically(t *testing.T) {
 	t.Parallel()
 

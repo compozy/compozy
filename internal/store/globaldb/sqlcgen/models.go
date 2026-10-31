@@ -1456,6 +1456,7 @@ type Session struct {
 	LineageKind              string         `json:"lineage_kind"`
 	OriginMessageID          sql.NullString `json:"origin_message_id"`
 	OriginAgentName          string         `json:"origin_agent_name"`
+	EndedEarlyTurnID         string         `json:"ended_early_turn_id"`
 }
 
 type SessionCreationProfile struct {

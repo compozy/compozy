@@ -113,8 +113,10 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 			"Background work that outlives your turn must wake you through Compozy. Provider-internal " +
 				"background tasks, monitors, scheduled wakeups, and \"I will report when it finishes\" promises " +
 				"cannot start a Compozy turn, so their results never reach the user. Run long commands with " +
-				"`compozy__terminal_exec`, register `compozy__monitor_create` on the returned terminal or as a " +
-				"timer, then end your turn; Compozy wakes this session when the monitor fires.\n\n",
+				"`compozy__terminal_exec` and register `compozy__monitor_create` on the returned terminal or as a " +
+				"timer; Compozy wakes this session when the monitor fires. End your turn only when every remaining " +
+				"step is blocked on a registered monitor or subagent; otherwise keep working until the requested " +
+				"outcome is delivered.\n\n",
 		)
 	}
 	builder.WriteString("Current session facts:\n")

@@ -162,7 +162,8 @@ cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
 still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400). A session
 holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. After
-`monitor_create`, end your turn instead of polling or sleeping. The wake is a synthetic `monitor`
+`monitor_create`, do not poll or sleep: keep working on steps that do not depend on the monitor, and
+end your turn only when every remaining step waits on a registered monitor or subagent. The wake is a synthetic `monitor`
 message headed `[COMPOZY MONITOR - NOT USER INPUT]` with the monitor id, status (exit code, match,
 timeout, or timer), and an entity-encoded, untrusted output tail. A busy session runs it after the
 current turn; a full input queue retries the wake for up to 15 minutes (`status: "delivering"`).
@@ -227,8 +228,8 @@ was released keeps its selection and rebinds without it. Model, reasoning effort
 rather than deriving it from the session state.
 
 For ask-and-wait with an existing agent session, send `compozy__session_prompt` with
-`notify_on_complete: true` and keep the returned `reply_watch.id`. End your turn after sending;
-the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
+`notify_on_complete: true` and keep the returned `reply_watch.id`. Once every remaining step needs
+that answer, end your turn; the daemon queues one reply wake when the turn that consumed your message settles. Do not poll
 history or hold `session_wait` just to collect the answer. `compozy__session_status` lists outstanding
 `reply_watches` in state `armed` or `fired`; delivered and abandoned watches drop off that list.
 A reply contains the last non-empty assistant message (up to 12000 Unicode characters), or the failure
@@ -302,7 +303,8 @@ by another agent, provider, or model while you keep working:
    The first prompt names the isolated branch and delivery command. `spawn.pre_create` exposes
    read-only `subagent.isolation` and `subagent.worktree_id`.
 3. Prefer `mode: "async"` (default): the call returns `status: "running"` with `subagent_id` and
-   `child_session_id`. Keep working, then end your turn. Do not poll or wait in loops.
+   `child_session_id`. Keep working on steps that do not need the result; end your turn only when
+   every remaining step waits on a registered subagent or monitor. Do not poll or wait in loops.
 4. When the subagent settles, CompozyOS wakes you once per batch with a pointer message:
    `Subagent "<title>" (<subagent_id>) finished: <status>.` lines followed by
    `Call compozy__subagent_status to read its result.` (one subagent) or `… to read each result.`

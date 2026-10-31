@@ -38,8 +38,10 @@ type BadgeInputs struct {
 	ActivePrompt           bool
 	Stalled                bool
 	Waiting                bool
-	Unseen                 bool
-	IneligibilityReason    string
+	// EndedEarly marks a settled turn that stopped without delivering or open work.
+	EndedEarly          bool
+	Unseen              bool
+	IneligibilityReason string
 }
 
 // CanonicalBadge collapses runtime state, health, and failure classification into
@@ -72,8 +74,17 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	if runningBadgeInput(input) {
 		return BadgeRunning
 	}
+	return settledBadge(input)
+}
+
+// settledBadge orders the badges of a session with no turn in flight: open work
+// first, then an early stop that needs the operator, then unseen and seen results.
+func settledBadge(input BadgeInputs) Badge {
 	if idleEligibleBadgeInput(input) && input.Waiting {
 		return BadgeWaiting
+	}
+	if input.State == StateActive && input.EndedEarly {
+		return BadgeNeedsAttention
 	}
 	if idleEligibleBadgeInput(input) && input.Unseen {
 		return BadgeDone
@@ -120,6 +131,7 @@ func BadgeForInfo(info *Info) Badge {
 		PendingClarify: info.PendingClarifyCount > 0,
 		Stalled:        infoHasDetectedStall(info),
 		Waiting:        waitingFromInfo(info),
+		EndedEarly:     strings.TrimSpace(info.EndedEarlyTurnID) != "",
 		Unseen:         info.LastSettledRevision > info.LastSeenRevision,
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
@@ -184,6 +196,7 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		ActivePrompt:           health.ActivePrompt,
 		Unseen:                 unseen,
 		Waiting:                waitingFromInfo(info),
+		EndedEarly:             info != nil && strings.TrimSpace(info.EndedEarlyTurnID) != "",
 		IneligibilityReason:    health.IneligibilityReason,
 	})
 }

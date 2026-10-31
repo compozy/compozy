@@ -18,6 +18,8 @@ type promptTurnDispatchState struct {
 	userMessage string
 	messageSeq  int
 	turnEnded   bool
+	// stopReason is the provider stop reason of the turn's terminal done event.
+	stopReason  acp.PromptStopReason
 	openMessage *promptMessageDispatchState
 	managed     *managedInputExecution
 	recovery    *promptRecoveryState

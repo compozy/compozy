@@ -66,7 +66,8 @@ func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {
 		left.LastSettledRevision == right.LastSettledRevision &&
 		left.LastSeenRevision == right.LastSeenRevision &&
 		timePointersEqual(left.LastSeenAt, right.LastSeenAt) &&
-		timePointersEqual(left.AttentionChangedAt, right.AttentionChangedAt)
+		timePointersEqual(left.AttentionChangedAt, right.AttentionChangedAt) &&
+		left.EndedEarlyTurnID == right.EndedEarlyTurnID
 }
 
 func timePointersEqual(left, right *time.Time) bool {
@@ -117,6 +118,7 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 	info.LastSeenRevision = projection.LastSeenRevision
 	info.LastSeenAt = cloneTimePointer(projection.LastSeenAt)
 	info.AttentionChangedAt = cloneTimePointer(projection.AttentionChangedAt)
+	info.EndedEarlyTurnID = projection.EndedEarlyTurnID
 	info.PendingPermission = projection.PendingPermissionCount > 0
 }
 

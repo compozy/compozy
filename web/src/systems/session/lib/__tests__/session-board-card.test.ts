@@ -66,6 +66,11 @@ describe("sessionBoardCardStatus (UT-068)", () => {
     expect(
       sessionBoardCardStatus(session({ badge: "waiting-for-input", board_column: "needs_you" }))
     ).toEqual({ label: "Input", tone: "accent" });
+    expect(
+      sessionBoardCardStatus(
+        session({ badge: "needs-attention", board_column: "needs_you", attention: "ended_early" })
+      )
+    ).toEqual({ label: "Stopped early", tone: "accent" });
   });
 
   it("Should map the PR signal by precedence", () => {

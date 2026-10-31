@@ -170,6 +170,7 @@ func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupProm
 		SessionName:  strings.TrimSpace(s.sessionName),
 		AgentName:    strings.TrimSpace(s.agentName),
 		Provider:     strings.TrimSpace(s.provider),
+		Model:        strings.TrimSpace(s.model),
 		WorkspaceID:  ref.WorkspaceID,
 		Workspace:    ref.Workspace,
 		WorktreeID:   strings.TrimSpace(s.worktreeID),

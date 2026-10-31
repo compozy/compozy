@@ -255,6 +255,14 @@ an awaited reply, a Loop run, or a task lease (`waiting_on: "sessions"`), otherw
 `done` follows once the last of that work closes. The [sessions board](/docs/sessions/board) groups
 every badge into Needs you, Working, In review, and Done.
 
+A child session (one created with a parent) that ends a turn on its own with no linked pull
+request and nothing left running to resume it (no monitor, child session, awaited reply, Loop run,
+task lease, or pending question) is not `done`: it reads `needs-attention` with
+`attention: "ended_early"`, and the web app says "Stopped before delivering". Its parent receives
+one wake with the child's final answer, even when the parent opted out of completion wakes. The mark
+survives runtime release and daemon restarts, and the child's next prompt clears it. Subagents and
+top-level sessions are never marked.
+
 Use `compozy session list --attention` for sessions that need you, or `--badge done` for finished
 sessions with unseen results. `--all-workspaces` removes the workspace filter, while `--summary`
 returns exact needs-you and finished totals for every workspace. Attention results use

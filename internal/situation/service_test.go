@@ -168,6 +168,34 @@ func TestContextForSessionRuntimeIdentity(t *testing.T) {
 			t.Fatalf("Self.Provider = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should report the startup runtime over the agent definition defaults", func(t *testing.T) {
+		t.Parallel()
+
+		service := NewService(Deps{
+			Now: fixedNow,
+			AgentResolver: agentResolverFunc(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{Name: "general", Provider: "claude", Model: "claude-opus-5-5"}, nil
+				},
+			),
+		})
+		payload, err := service.ContextForStartup(
+			t.Context(),
+			session.StartupPromptContext{
+				SessionID: "sess-1", AgentName: "general", Provider: "codex", Model: "gpt-6-astra",
+				SessionType: session.SessionTypeUser,
+			},
+			compozyconfig.AgentDef{Name: "general", Provider: "claude", Model: "claude-opus-5-5"},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("ContextForStartup() error = %v", err)
+		}
+		if payload.Self.Provider != "codex" || payload.Self.Model != "gpt-6-astra" {
+			t.Fatalf("Self = %#v, want the codex runtime the startup prompt is built for", payload.Self)
+		}
+	})
 }
 
 func TestContextReportsEnforcedSpawnBudget(t *testing.T) {

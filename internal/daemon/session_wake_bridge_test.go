@@ -122,6 +122,48 @@ func TestSessionWakeBridge(t *testing.T) {
 		}
 	})
 
+	t.Run("Should carry the early-stopped child's final answer in the wake prompt", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &sessionWakeManagerStub{
+			status: &session.Info{ID: "parent-1", State: session.StateActive},
+			events: make(chan acp.AgentEvent),
+		}
+		bridge, err := newSessionWakeBridge(
+			testutil.Context(t),
+			func() sessionWakeSessionManager { return manager },
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		if err != nil {
+			t.Fatalf("newSessionWakeBridge() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := bridge.shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("shutdown() error = %v", err)
+			}
+		})
+		answer := "Delivery incomplete; next step is to push the branch. " + strings.Repeat("detail ", 60)
+		event := session.SpawnWakeEvent{
+			ChildSessionID: "child-1",
+			Reason:         session.SpawnWakeReasonNeedsAttention,
+			Badge:          session.BadgeNeedsAttention,
+			Detail:         "Turn ended without a linked pull request.",
+			FinalAnswer:    answer,
+			WakeEventID:    "wake-early",
+		}
+		if err := bridge.WakeSpawnCreator(testutil.Context(t), "parent-1", event); err != nil {
+			t.Fatalf("WakeSpawnCreator() error = %v", err)
+		}
+		manager.mu.Lock()
+		message := manager.promptOpts.Message
+		manager.mu.Unlock()
+		if !strings.Contains(message, "Final answer:\n---\n"+strings.TrimSpace(answer)) ||
+			!strings.Contains(message, "compozy__session_stop") ||
+			!strings.Contains(message, "Detail: Turn ended without a linked pull request.") {
+			t.Fatalf("wake prompt = %q, want the full bounded final answer and next actions", message)
+		}
+	})
+
 	t.Run("Should classify a stopped creator as not live", func(t *testing.T) {
 		t.Parallel()
 

@@ -2,6 +2,7 @@ package session
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -13,6 +14,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
@@ -174,6 +176,46 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		}
 		if got := session.processHandle(); got != currentProcess {
 			t.Fatalf("current runtime after retired runtime exit = %p, want %p", got, currentProcess)
+		}
+	})
+
+	// Invariant: the startup prompt names the runtime it was assembled for, so a prompt that
+	// switches provider rebuilds it while a same-runtime rebind keeps the accepted prompt.
+	t.Run("Should reassemble the startup prompt for the provider a prompt switches to", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithPromptAssembler(startupPromptAssemblerFunc(func(
+			_ context.Context,
+			startup StartupPromptContext,
+			agent compozyconfig.AgentDef,
+			_ *workspacepkg.ResolvedWorkspace,
+		) (string, error) {
+			return agent.Prompt + "\n\nself: " + startup.Provider + "/" + startup.Model, nil
+		})))
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		initial := h.driver.startCalls[0].SystemPrompt
+
+		replacement, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+			Message: "Continue on codex",
+			Runtime: &RuntimeSelection{Provider: "codex", Model: "gpt-6-astra"},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(replacement) error = %v", err)
+		}
+		collectEvents(t, replacement.Events)
+
+		if got, want := len(h.driver.startCalls), 2; got != want {
+			t.Fatalf("runtime start calls = %d, want %d", got, want)
+		}
+		got := h.driver.startCalls[1].SystemPrompt
+		if !strings.Contains(got, "self: codex/gpt-6-astra") || got == initial {
+			t.Fatalf("replacement system prompt = %q, want one assembled for codex/gpt-6-astra (initial %q)",
+				got, initial)
+		}
+		definition, _ := session.startupDefinition()
+		if definition.Prompt != got {
+			t.Fatalf("stored startup definition = %q, want the replacement prompt %q", definition.Prompt, got)
 		}
 	})
 

@@ -35,3 +35,9 @@ appear. `session wait --until idle` must return. Cancel the last monitor without
 supervision pass publishes exactly one `waiting → done` edge for unseen work. Repeat after marking
 the settled turn seen: closure yields `idle`, without a finished delivery. A failed signal inspection
 must yield `needs-attention`, never `done`.
+
+QA impact 2026-10-30 (issue #1065): the runtime envelope, the `compozy__monitor_create` and
+`compozy__subagent_delegate` descriptions, and the official skill references no longer tell agents to
+end the turn unconditionally after registering a monitor. They end it only when every remaining step
+waits on a registered monitor or subagent, and otherwise keep working until the requested outcome is
+delivered. Owning automated evidence: `TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance`.

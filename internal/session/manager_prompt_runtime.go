@@ -447,10 +447,9 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
 	}
 	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP {
-		existingDefinition, manifest := session.startupDefinition()
-		runtime.startupManifest = manifest
-		runtime.agentDef.Prompt = existingDefinition.Prompt
-		runtime.agent.Prompt = existingDefinition.Prompt
+		if err := m.preparePromptRuntimeStartupDefinition(ctx, session, &spec, &runtime); err != nil {
+			return nil, err
+		}
 	}
 	// Pi reassembles after readiness, using the authored prompt resolved above.
 

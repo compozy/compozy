@@ -110,6 +110,29 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 	})
 
+	t.Run("Should name an early stop as the needs-attention cause on the session payload", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name string
+			info session.Info
+			want string
+		}{
+			{"early stop", session.Info{ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1"},
+				session.EndedEarlyAttentionCode},
+			{"early stop behind a running turn", session.Info{
+				ID: "sess-1", State: session.StateStarting, EndedEarlyTurnID: "turn-1",
+			}, ""},
+			{"unverified stop first", session.Info{
+				ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1", StopVerificationFailed: true,
+			}, session.StopVerificationFailedCode},
+		} {
+			payload := core.SessionPayloadFromInfo(&tc.info)
+			if payload.Attention != tc.want {
+				t.Fatalf("%s attention = %q, want %q", tc.name, payload.Attention, tc.want)
+			}
+		}
+	})
+
 	t.Run("Should map session info into a sanitized session payload", func(t *testing.T) {
 		t.Parallel()
 
