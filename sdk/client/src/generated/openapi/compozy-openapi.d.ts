@@ -20087,6 +20087,7 @@ export interface components {
       base_ref?: string;
       behind: number | null;
       branch: string;
+      create_error?: string;
       /** Format: date-time */
       created_at: string;
       created_branch: boolean;

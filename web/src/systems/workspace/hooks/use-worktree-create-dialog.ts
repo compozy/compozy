@@ -212,7 +212,9 @@ export function useWorktreeCreateDialog(
       : (worktrees.find(worktree => worktree.id === trackedPending.id) ?? null);
   const catalogFailure =
     listedAccepted && listedAccepted.state !== "pending" && listedAccepted.state !== "ready"
-      ? listedAccepted.setup_error?.trim() || "Worktree creation failed and was rolled back."
+      ? listedAccepted.create_error?.trim() ||
+        listedAccepted.setup_error?.trim() ||
+        "Worktree creation failed and was rolled back."
       : null;
   const acceptedRowVanished =
     trackedPending !== null && listing !== undefined && acceptedCatalogSeen && !listedAccepted;

@@ -56,3 +56,18 @@ unique commits in `risk.unpushed_commits`), never a 500 `worktree_removal_failed
 the folder and clears only that Git entry; the record becomes removed and the path leaves
 `git worktree list`. Text output names the reason after the code. A record left `removing` by a
 daemon stop returns to `ready` on boot without failing startup.
+
+2026-10-31 #1078 impact: a creation whose branch or checkout phase fails must stay listed as
+`failed` with `pending_phase` and a redacted `create_error`, never vanish as `worktree_not_found`.
+Rollback removes the linked checkout and its Git admin entry first — including the locked,
+half-written checkout a killed `git worktree add` leaves — and deletes the branch only when the
+creation minted it and the checkout is gone; an incomplete rollback keeps the branch and says
+`rollback incomplete`. Isolated-lab walk on 2026-10-31 (30,000-file repo,
+`worktrees.checkout_timeout = "150ms"`): `create` returned `pending`; `inspect` showed `failed`,
+`pending_phase: checkout` and the `checkout exceeded worktrees.checkout_timeout` cause, with a
+"Creation Failure" section in text output; `git worktree list` listed only the main checkout, with
+no `.git/worktrees` entry and no `big-one` branch; the daemon log held a WARN
+`worktree creation failed and was rolled back`; `logs --type worktree.creation_failed` returned the
+event with phase and cause; `session new --worktree big-one` refused with `worktree_not_ready` and the
+cause; `dismiss` released the name, and after raising the timeout to `15m` the same name reached
+`ready`. Evidence is in the PR description.

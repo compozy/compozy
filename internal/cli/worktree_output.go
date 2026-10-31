@@ -74,7 +74,15 @@ func worktreeInspectBundle(item WorktreeInspectRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			return worktreeRecordBundle(item.Worktree).human()
+			table, err := worktreeRecordBundle(item.Worktree).human()
+			if err != nil || item.Worktree.CreateError == "" {
+				return table, err
+			}
+			failure, err := renderHumanSectionResult("Creation Failure", []keyValue{
+				{Label: "Phase", Value: stringOrDash(item.Worktree.PendingPhase)},
+				{Label: "Cause", Value: item.Worktree.CreateError},
+			})
+			return table + "\n" + failure, err
 		},
 		toon: func() (string, error) {
 			return worktreeRecordBundle(item.Worktree).toon()

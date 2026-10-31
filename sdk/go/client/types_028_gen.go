@@ -178,6 +178,7 @@ type WorktreePayload struct {
 	Origin          string    `json:"origin"`
 	SetupState      string    `json:"setup_state"`
 	SetupError      string    `json:"setup_error,omitempty"`
+	CreateError     string    `json:"create_error,omitempty"`
 	BaseRef         string    `json:"base_ref,omitempty"`
 	CreatedBranch   bool      `json:"created_branch"`
 	RunNamespace    string    `json:"run_namespace,omitempty"`

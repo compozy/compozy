@@ -207,6 +207,26 @@ func (g *WorktreeRepo) CompleteCreate(
 	return g.pendingMutationResult(ctx, workspaceID, id, count)
 }
 
+func (g *WorktreeRepo) FailCreate(
+	ctx context.Context,
+	workspaceID string,
+	id string,
+	createError string,
+	updatedAt time.Time,
+) error {
+	if err := g.checkReady(ctx, "fail worktree create"); err != nil {
+		return err
+	}
+	count, err := g.queries.FailWorktreeCreate(ctx, sqlcgen.FailWorktreeCreateParams{
+		CreateError: createError, UpdatedAt: store.FormatTimestamp(updatedAt),
+		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+	})
+	if err != nil {
+		return fmt.Errorf("store: fail worktree create: %w", err)
+	}
+	return g.pendingMutationResult(ctx, workspaceID, id, count)
+}
+
 func (g *WorktreeRepo) CompareAndSwapState(
 	ctx context.Context,
 	workspaceID string,

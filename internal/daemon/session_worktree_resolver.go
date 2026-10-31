@@ -75,7 +75,9 @@ func (r daemonSessionWorktreeResolver) resolveSessionWorktree(
 		return item.ID, item.Path, nil
 	case worktree.StateMissing, worktree.StateRemoved, worktree.StateDismissed:
 		return "", "", worktree.ErrMissing
-	case worktree.StatePending, worktree.StateFailed, worktree.StateRemoving:
+	case worktree.StateFailed:
+		return "", "", failedWorktreeRefusal(*item)
+	case worktree.StatePending, worktree.StateRemoving:
 		return "", "", worktree.ErrNotReady
 	default:
 		return "", "", worktree.ErrNotReady
@@ -141,4 +143,15 @@ func (r daemonSessionWorktreeResolver) AcquireSessionWorktreeUnbinding(
 		return nil, worktree.ErrNotFound
 	}
 	return release, nil
+}
+
+// failedWorktreeRefusal keeps the worktree_not_ready code for a failed
+// creation and names its recorded cause, so callers can dismiss and retry.
+func failedWorktreeRefusal(item worktree.Worktree) error {
+	cause := strings.TrimSpace(item.CreateError)
+	if cause == "" {
+		cause = "cause unavailable"
+	}
+	return fmt.Errorf("%w: worktree %s creation failed (%s); dismiss it and create a new worktree",
+		worktree.ErrNotReady, item.ID, cause)
 }

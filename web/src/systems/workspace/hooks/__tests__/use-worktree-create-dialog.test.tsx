@@ -299,7 +299,8 @@ describe("useWorktreeCreateDialog", () => {
     const failedRow = buildWorktreeFixture({
       ...pendingRow,
       state: "failed",
-      setup_error: "Checkout recovery failed.",
+      pending_phase: "checkout",
+      create_error: "checkout phase failed: worktree: add checkout: fatal: disk full",
     });
     act(() => {
       listing = { ...listing, worktrees: [failedRow] };
@@ -307,7 +308,9 @@ describe("useWorktreeCreateDialog", () => {
       rerender();
     });
 
-    expect(result.current.materializationError).toBe("Checkout recovery failed.");
+    expect(result.current.materializationError).toBe(
+      "checkout phase failed: worktree: add checkout: fatal: disk full"
+    );
     expect(result.current.isSubmitting).toBe(false);
     expect(result.current.canSubmit).toBe(true);
     expect(result.current.pendingWorktree).toBeNull();

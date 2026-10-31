@@ -82,7 +82,9 @@ func (s *Service) CancelCreate(ctx context.Context, workspaceID, ref string) err
 	}
 	rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, *item)
 	if rollbackErr != nil {
-		return rollbackErr
+		return errors.Join(rollbackErr, s.recordCreateFailure(
+			context.WithoutCancel(ctx), *item, context.Canceled, rollbackErr,
+		))
 	}
 	if deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), workspaceID, worktreeID); deleteErr != nil {
 		return deleteErr
@@ -137,11 +139,15 @@ func (s *Service) create(ctx context.Context, workspaceID string, options Create
 		return nil, err
 	}
 	if err := s.materializePending(ctx, workspace, &item, options); err != nil {
-		rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, item)
+		// The caller receives this error, so a complete rollback frees the name
+		// for an exact retry; leftover Git state keeps a visible failed row.
+		cleanupCtx := context.WithoutCancel(ctx)
+		rollbackErr := s.rollbackCreate(cleanupCtx, workspace, commonDir, item)
 		if rollbackErr != nil {
-			return nil, errors.Join(err, rollbackErr)
+			return nil, errors.Join(err, rollbackErr, s.recordCreateFailure(cleanupCtx, item, err, rollbackErr))
 		}
-		deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), item.WorkspaceID, item.ID)
+		deleteErr := s.store.DeletePending(cleanupCtx, item.WorkspaceID, item.ID)
+		s.logCreateFailure(cleanupCtx, item, err, nil, deleteErr)
 		if deleteErr == nil {
 			s.publishCatalogEvent(CatalogEventDeleted, item)
 		}
@@ -357,8 +363,8 @@ func (s *Service) materializePending(
 	if err := s.validateCreatePath(ctx, workspace, item.Path, options.Path != "", item.ID); err != nil {
 		return err
 	}
-	if _, stderr, err := s.runner.Run(ctx, workspace.Root, "worktree", "add", item.Path, item.Branch); err != nil {
-		return fmt.Errorf("worktree: add checkout: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+	if err := s.addCheckout(ctx, workspace, *item); err != nil {
+		return err
 	}
 	gitDir, err := s.resolveGitDir(ctx, item.Path)
 	if err != nil {
@@ -421,52 +427,4 @@ func eventPayloadFromWorktree(item Worktree, workspaceRoot string) HookWorktree 
 		WorkspaceRoot: redact.String(workspaceRoot), Branch: redact.String(item.Branch),
 		Path: redact.String(item.Path), Origin: item.Origin, RunID: item.RunID,
 	}
-}
-
-func (s *Service) rollbackCreate(
-	ctx context.Context,
-	workspace Workspace,
-	commonDir string,
-	item Worktree,
-) error {
-	var rollbackErr error
-	if item.PendingPhase == PhaseCheckout || item.PendingPhase == PhaseCopy || item.PendingPhase == PhaseSetup ||
-		item.GitDir != "" {
-		_, stderr, err := s.runCheckoutRemoval(
-			ctx,
-			workspace.Root,
-			"--git-dir",
-			commonDir,
-			"worktree",
-			"remove",
-			"--force",
-			item.Path,
-		)
-		if err != nil {
-			_, statErr := os.Lstat(item.Path)
-			if !errors.Is(statErr, os.ErrNotExist) {
-				rollbackErr = errors.Join(rollbackErr, fmt.Errorf(
-					"worktree: roll back checkout: %s: %w",
-					diagnostics.RedactAndBound(string(stderr), 2048), err,
-				))
-				if statErr != nil {
-					rollbackErr = errors.Join(
-						rollbackErr,
-						fmt.Errorf("worktree: inspect failed checkout rollback path: %w", statErr),
-					)
-				}
-			}
-		}
-	}
-	if item.CreatedBranch && item.CreatedHead != "" {
-		ref := "refs/heads/" + item.Branch
-		_, stderr, err := s.runner.Run(ctx, workspace.Root, "update-ref", "-d", ref, item.CreatedHead)
-		if err != nil {
-			rollbackErr = errors.Join(rollbackErr, fmt.Errorf(
-				"worktree: roll back branch: %s: %w",
-				diagnostics.RedactAndBound(string(stderr), 2048), err,
-			))
-		}
-	}
-	return rollbackErr
 }

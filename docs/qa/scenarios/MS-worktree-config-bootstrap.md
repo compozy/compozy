@@ -5,7 +5,7 @@ title: Configure future worktree creation without moving existing checkouts
 persona: Dora
 journey: J-worktree-management
 expected: Worktree defaults, parent-workspace overlays, personal-profile and workspace-profile destination layers, copy and setup bootstrap, timeouts, discovery caching, and the default task mode apply live only to future operations; invalid values name the exact config key, adoption skips bootstrap, setup failure leaves a truthful ready-but-flagged worktree, and existing paths never move after a live config edit.
-entry_points: config.toml [worktrees].root|run_branch_namespace|copy_list|setup_command|setup_timeout|teardown_command|teardown_timeout|discovery_cache_ttl; [task.orchestration.profile].default_worktree_mode; active `--profile <name>` config context; compozy config show|list|get; compozy config set|unset --scope user|profile|workspace -o json; workspace named-profile config layer
+entry_points: config.toml [worktrees].root|run_branch_namespace|copy_list|setup_command|setup_timeout|teardown_command|teardown_timeout|checkout_timeout|discovery_cache_ttl; [task.orchestration.profile].default_worktree_mode; active `--profile <name>` config context; compozy config show|list|get; compozy config set|unset --scope user|profile|workspace -o json; workspace named-profile config layer
 qa_status: skipped
 bug_ids: BUG-20260813-default-home-global-config-reclassified; BUG-20260813-worktree-config-paths-not-mutable
 fix_status: fixed

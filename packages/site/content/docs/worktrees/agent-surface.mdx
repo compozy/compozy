@@ -81,7 +81,8 @@ dismiss. Use structured CLI or HTTP/UDS for those actions. Related tools are
 ## Durable events and hooks
 
 Lifecycle events include `worktree.created`, `worktree.adopted`, `worktree.removed`,
-`worktree.missing`, `worktree.dismissed`, `worktree.creation_canceled`, `worktree.setup_failed`,
+`worktree.missing`, `worktree.dismissed`, `worktree.creation_canceled`, `worktree.creation_failed`
+(with `pending_phase` and the redacted `error`), `worktree.setup_failed`,
 `worktree.status_refreshed`, and `worktree.branch_reclaimed`. Removal also emits
 `worktree.teardown_output` for redacted command output and `worktree.teardown_failed` when cleanup
 fails or times out; removal continues. Exit progress adds

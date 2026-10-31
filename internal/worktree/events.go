@@ -22,6 +22,7 @@ const (
 	EventMissing             = "worktree.missing"
 	EventDismissed           = "worktree.dismissed"
 	EventCreationCanceled    = "worktree.creation_canceled"
+	EventCreationFailed      = "worktree.creation_failed"
 	EventSetupFailed         = "worktree.setup_failed"
 	EventStatusRefreshed     = "worktree.status_refreshed"
 	EventBranchReclaimed     = "worktree.branch_reclaimed"
@@ -121,8 +122,12 @@ func (s *Service) dispatchGate(ctx context.Context, event string, payload any) e
 }
 
 func (s *Service) emit(ctx context.Context, name string, item Worktree) {
+	s.emitWithPayload(ctx, name, item, eventPayloadFromWorktree(item, ""))
+}
+
+func (s *Service) emitWithPayload(ctx context.Context, name string, item Worktree, value any) {
 	if s.events != nil {
-		payload, err := json.Marshal(eventPayloadFromWorktree(item, ""))
+		payload, err := json.Marshal(value)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "worktree event payload failed", "event", name, "error", err)
 		} else if err := s.events.PublishWorktreeEvent(ctx, LifecycleEvent{

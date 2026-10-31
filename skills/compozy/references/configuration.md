@@ -226,7 +226,7 @@ Loop-specific key or Settings control.
 `[worktrees]` controls the parent-workspace Worktree lifecycle. `root` defaults to
 `$COMPOZY_HOME/worktrees`; `run_branch_namespace` defaults to `run/`; `copy_list`,
 `setup_command` and `teardown_command` default empty; `setup_timeout` and `teardown_timeout` default
-to `10m`; and `discovery_cache_ttl` defaults to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
+to `10m`; `checkout_timeout` (the `git worktree add` deadline) defaults to `15m`; and `discovery_cache_ttl` defaults to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
 copy entries must be non-empty relative Git pathspecs, and all durations must be positive. The copy
 candidate set is limited to ignored, untracked files matched by those pathspecs. Workspace overlays
 merge each field independently. `worktrees.*` applies live to later creation, removal and discovery

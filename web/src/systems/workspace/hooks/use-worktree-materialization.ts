@@ -67,7 +67,7 @@ function deriveStatus(
     return { status: "pending", phase: worktree.pending_phase };
   }
   if (worktree.state === "ready") return { status: "ready" };
-  return { status: "failed", error: worktree.setup_error };
+  return { status: "failed", error: worktree.create_error || worktree.setup_error };
 }
 
 /**

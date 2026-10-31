@@ -2206,6 +2206,7 @@ type Worktree struct {
 	Origin        string `json:"origin"`
 	SetupState    string `json:"setup_state"`
 	SetupError    string `json:"setup_error"`
+	CreateError   string `json:"create_error"`
 	BaseRef       string `json:"base_ref"`
 	CreatedBranch int64  `json:"created_branch"`
 	RunNamespace  string `json:"run_namespace"`

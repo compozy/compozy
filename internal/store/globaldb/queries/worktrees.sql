@@ -110,6 +110,15 @@ WHERE worktrees.workspace_id = sqlc.arg(workspace_id)
     )
   );
 
+-- name: FailWorktreeCreate :execrows
+UPDATE worktrees SET
+  state = 'failed',
+  create_error = sqlc.arg(create_error),
+  updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND id = sqlc.arg(worktree_id)
+  AND state = 'pending';
+
 -- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = sqlc.arg(state), updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id)

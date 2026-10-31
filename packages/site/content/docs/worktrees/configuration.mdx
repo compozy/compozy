@@ -22,6 +22,8 @@ setup_command = "bun install --frozen-lockfile"
 setup_timeout = "10m"
 teardown_command = ""
 teardown_timeout = "10m"
+# Deadline for `git worktree add`; raise it for very large repositories.
+checkout_timeout = "15m"
 # Git discovery and cached status freshness.
 discovery_cache_ttl = "30s"
 
@@ -41,6 +43,7 @@ default_worktree_mode = "inherit"
 | `teardown_command`     | empty                     | Shell command; empty skips teardown. |
 | `setup_timeout`        | `10m`                     | Positive Go duration.                |
 | `teardown_timeout`     | `10m`                     | Positive Go duration.                |
+| `checkout_timeout`     | `15m`                     | Positive Go duration.                |
 | `discovery_cache_ttl`  | `30s`                     | Positive Go duration.                |
 
 Changing `root` affects new managed Worktrees only; it does not move existing checkouts. The copy

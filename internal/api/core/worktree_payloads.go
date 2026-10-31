@@ -18,9 +18,9 @@ func WorktreePayloadFromInspection(inspection worktree.Inspection) contract.Work
 		WorkspaceID: item.WorkspaceID, Name: item.Name, Branch: item.Branch,
 		Path: item.Path, State: string(item.State), PendingPhase: string(item.PendingPhase),
 		Origin: string(item.Origin), SetupState: string(item.SetupState), SetupError: item.SetupError,
-		BaseRef: item.BaseRef, CreatedBranch: item.CreatedBranch, RunNamespace: item.RunNamespace,
-		CreatedHead: item.CreatedHead, RunID: item.RunID, AgentActivity: string(inspection.AgentActivity),
-		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
+		CreateError: item.CreateError, BaseRef: item.BaseRef, CreatedBranch: item.CreatedBranch,
+		RunNamespace: item.RunNamespace, CreatedHead: item.CreatedHead, RunID: item.RunID,
+		AgentActivity: string(inspection.AgentActivity), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 	}
 	if inspection.Status != nil {
 		payload.Ahead = inspection.Status.Ahead

@@ -75,3 +75,9 @@ report's session matrix in a future QA cycle.
 returns keyboard focus to the persistent workspace menubar button. Reopen the overview
 with a normal pointer click and continue mixed worktree selection. The canonical worktrees
 E2E covers this handoff at a narrow viewport; no forced clicks or timeout changes are allowed.
+
+2026-10-31 #1078 impact: a materialization failure now leaves the accepted row listed as `failed`
+with `create_error`; the dialog must show that cause (not the generic rolled-back copy) and the row
+must stay in the list as "creation failed" until dismissed. Covered by the dialog hook suite; the
+cause-bearing row was verified through CLI/HTTP in the isolated lab walk recorded in
+`RT-worktree-cli-lifecycle`.

@@ -130,22 +130,44 @@ func (s *Service) runAcceptedCreation(
 
 	err := s.materializePending(ctx, workspace, &item, options)
 	if err != nil {
-		rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, item)
-		deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), item.WorkspaceID, item.ID)
-		if errors.Is(ctx.Err(), context.Canceled) {
-			operation.setResult(errors.Join(rollbackErr, deleteErr), rollbackErr == nil && deleteErr == nil)
-		} else {
-			operation.setResult(errors.Join(err, rollbackErr, deleteErr), false)
-		}
-		if errors.Is(ctx.Err(), context.Canceled) && rollbackErr == nil && deleteErr == nil {
-			s.emit(context.WithoutCancel(ctx), EventCreationCanceled, item)
-		} else if deleteErr == nil {
-			s.publishCatalogFailure(item, err)
-		}
+		s.settleAcceptedFailure(ctx, operation, workspace, commonDir, item, err)
 		return
 	}
 	s.invalidateDiscovery(item.WorkspaceID)
 	s.emit(ctx, EventCreated, item)
+}
+
+// settleAcceptedFailure unwinds a failed accepted creation. Only a requested
+// cancellation with a complete rollback deletes the row: the caller already
+// holds the ID, so every other failure stays visible as a failed row with its
+// cause until dismissed instead of vanishing as worktree_not_found.
+func (s *Service) settleAcceptedFailure(
+	ctx context.Context,
+	operation *createOperation,
+	workspace Workspace,
+	commonDir string,
+	item Worktree,
+	cause error,
+) {
+	cleanupCtx := context.WithoutCancel(ctx)
+	canceled := errors.Is(ctx.Err(), context.Canceled)
+	rollbackErr := s.rollbackCreate(cleanupCtx, workspace, commonDir, item)
+	if canceled && rollbackErr == nil {
+		deleteErr := s.store.DeletePending(cleanupCtx, item.WorkspaceID, item.ID)
+		operation.setResult(deleteErr, deleteErr == nil)
+		if deleteErr != nil {
+			s.logCreateFailure(cleanupCtx, item, cause, nil, deleteErr)
+			return
+		}
+		s.emit(cleanupCtx, EventCreationCanceled, item)
+		return
+	}
+	recordErr := s.recordCreateFailure(cleanupCtx, item, cause, rollbackErr)
+	if canceled {
+		operation.setResult(errors.Join(rollbackErr, recordErr), false)
+		return
+	}
+	operation.setResult(errors.Join(cause, rollbackErr, recordErr), false)
 }
 
 func (s *Service) cancelAcceptedCreation(ctx context.Context, workspaceID, id string) (bool, error) {

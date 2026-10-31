@@ -124,8 +124,8 @@ func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item 
 		}
 		defer release()
 		rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
-		stateErr := s.store.SetState(ctx, item.WorkspaceID, item.ID, StateFailed, s.now().UTC())
-		return errors.Join(rollbackErr, stateErr)
+		recordErr := s.recordCreateFailure(ctx, item, errCreationInterrupted, rollbackErr)
+		return errors.Join(rollbackErr, recordErr)
 	}
 }
 

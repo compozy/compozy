@@ -148,6 +148,36 @@ func (q *Queries) FailRunningWorktreeExitOperations(ctx context.Context, finishe
 	return err
 }
 
+const failWorktreeCreate = `-- name: FailWorktreeCreate :execrows
+UPDATE worktrees SET
+  state = 'failed',
+  create_error = ?1,
+  updated_at = ?2
+WHERE workspace_id = ?3
+  AND id = ?4
+  AND state = 'pending'
+`
+
+type FailWorktreeCreateParams struct {
+	CreateError string `json:"create_error"`
+	UpdatedAt   string `json:"updated_at"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+}
+
+func (q *Queries) FailWorktreeCreate(ctx context.Context, arg FailWorktreeCreateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failWorktreeCreate,
+		arg.CreateError,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.WorktreeID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const finishWorktreeExitOperation = `-- name: FinishWorktreeExitOperation :execrows
 UPDATE worktree_exit_ops SET state = ?1, finished_at = ?2
 WHERE workspace_id = ?3
@@ -179,7 +209,7 @@ func (q *Queries) FinishWorktreeExitOperation(ctx context.Context, arg FinishWor
 }
 
 const getLiveWorktreeByPath = `-- name: GetLiveWorktreeByPath :one
-SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE workspace_id = ?1
   AND path = ?2
   AND state NOT IN ('removed', 'dismissed')
@@ -207,6 +237,7 @@ func (q *Queries) GetLiveWorktreeByPath(ctx context.Context, arg GetLiveWorktree
 		&i.Origin,
 		&i.SetupState,
 		&i.SetupError,
+		&i.CreateError,
 		&i.BaseRef,
 		&i.CreatedBranch,
 		&i.RunNamespace,
@@ -219,7 +250,7 @@ func (q *Queries) GetLiveWorktreeByPath(ctx context.Context, arg GetLiveWorktree
 }
 
 const getWorktreeByID = `-- name: GetWorktreeByID :one
-SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE workspace_id = ?1
   AND id = ?2
 LIMIT 1
@@ -246,6 +277,7 @@ func (q *Queries) GetWorktreeByID(ctx context.Context, arg GetWorktreeByIDParams
 		&i.Origin,
 		&i.SetupState,
 		&i.SetupError,
+		&i.CreateError,
 		&i.BaseRef,
 		&i.CreatedBranch,
 		&i.RunNamespace,
@@ -258,7 +290,7 @@ func (q *Queries) GetWorktreeByID(ctx context.Context, arg GetWorktreeByIDParams
 }
 
 const getWorktreeByName = `-- name: GetWorktreeByName :one
-SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE workspace_id = ?1
   AND name = ?2
   AND state <> 'dismissed'
@@ -286,6 +318,7 @@ func (q *Queries) GetWorktreeByName(ctx context.Context, arg GetWorktreeByNamePa
 		&i.Origin,
 		&i.SetupState,
 		&i.SetupError,
+		&i.CreateError,
 		&i.BaseRef,
 		&i.CreatedBranch,
 		&i.RunNamespace,
@@ -424,7 +457,7 @@ func (q *Queries) InsertWorktreeExitOperation(ctx context.Context, arg InsertWor
 }
 
 const listRecoverableWorktrees = `-- name: ListRecoverableWorktrees :many
-SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE state IN ('pending', 'removing', 'missing')
 ORDER BY workspace_id, created_at, id
 `
@@ -451,6 +484,7 @@ func (q *Queries) ListRecoverableWorktrees(ctx context.Context) ([]Worktree, err
 			&i.Origin,
 			&i.SetupState,
 			&i.SetupError,
+			&i.CreateError,
 			&i.BaseRef,
 			&i.CreatedBranch,
 			&i.RunNamespace,
@@ -510,7 +544,7 @@ func (q *Queries) ListRunningWorktreeExitOperations(ctx context.Context) ([]Work
 }
 
 const listWorktrees = `-- name: ListWorktrees :many
-SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees
 WHERE workspace_id = ?1
   AND state <> 'dismissed'
 ORDER BY created_at, id
@@ -538,6 +572,7 @@ func (q *Queries) ListWorktrees(ctx context.Context, workspaceID string) ([]Work
 			&i.Origin,
 			&i.SetupState,
 			&i.SetupError,
+			&i.CreateError,
 			&i.BaseRef,
 			&i.CreatedBranch,
 			&i.RunNamespace,
@@ -560,7 +595,7 @@ func (q *Queries) ListWorktrees(ctx context.Context, workspaceID string) ([]Work
 }
 
 const listWorktreesAggregate = `-- name: ListWorktreesAggregate :many
-SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees WHERE state <> 'dismissed' ORDER BY created_at, id
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, create_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees WHERE state <> 'dismissed' ORDER BY created_at, id
 `
 
 func (q *Queries) ListWorktreesAggregate(ctx context.Context) ([]Worktree, error) {
@@ -585,6 +620,7 @@ func (q *Queries) ListWorktreesAggregate(ctx context.Context) ([]Worktree, error
 			&i.Origin,
 			&i.SetupState,
 			&i.SetupError,
+			&i.CreateError,
 			&i.BaseRef,
 			&i.CreatedBranch,
 			&i.RunNamespace,

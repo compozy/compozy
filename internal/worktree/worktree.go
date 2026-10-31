@@ -67,13 +67,15 @@ type Worktree struct {
 	Origin          Origin
 	SetupState      SetupState
 	SetupError      string
-	BaseRef         string
-	CreatedBranch   bool
-	RunNamespace    string
-	CreatedHead     string
-	RunID           string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// CreateError keeps the redacted cause of a failed creation until dismissal.
+	CreateError   string
+	BaseRef       string
+	CreatedBranch bool
+	RunNamespace  string
+	CreatedHead   string
+	RunID         string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Status struct {
@@ -172,6 +174,8 @@ type Store interface {
 	DeleteRunMaterialization(context.Context, string, string, string) error
 	UpdatePending(context.Context, string, string, PendingUpdate) error
 	CompleteCreate(context.Context, string, string, SetupState, string, time.Time) error
+	// FailCreate moves a pending row to failed and records the creation cause.
+	FailCreate(context.Context, string, string, string, time.Time) error
 	CompareAndSwapState(context.Context, string, string, State, State, time.Time) (bool, error)
 	SetState(context.Context, string, string, State, time.Time) error
 	SaveStatus(context.Context, string, string, Status) error

@@ -72,7 +72,7 @@ func (n *daemonNativeTools) sessionWorktreeBinding(
 			worktree.ErrOperationInProgress, worktree.ErrSessionActive} {
 			if errors.Is(err, refusal) {
 				return toolspkg.ToolResult{}, toolspkg.NewToolError(
-					toolspkg.ErrorCode(core.WorktreeErrorCode(err)), req.ToolID, refusal.Error(), err)
+					toolspkg.ErrorCode(core.WorktreeErrorCode(err)), req.ToolID, err.Error(), err)
 			}
 		}
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
