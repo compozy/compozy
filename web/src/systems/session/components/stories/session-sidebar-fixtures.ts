@@ -210,13 +210,17 @@ export const MIXED_RUNTIMES: SessionPayload[] = [
   ),
   onRuntime(
     minutesAgo(
-      sidebarSession(
-        "sess-origin",
-        "Tailscale gateway origin",
-        "general",
-        "needs-attention",
-        "sess-orch"
-      ),
+      {
+        ...sidebarSession(
+          "sess-origin",
+          "Tailscale gateway origin",
+          "general",
+          "needs-attention",
+          "sess-orch"
+        ),
+        // A child whose turn ended without delivering (#1065).
+        attention: "ended_early",
+      },
       2
     ),
     "codex",
