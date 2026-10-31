@@ -110,34 +110,44 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 	})
 
-	t.Run("Should name an early stop as the needs-attention cause on the session payload", func(t *testing.T) {
-		t.Parallel()
-		for _, tc := range []struct {
-			name string
-			info session.Info
-			want string
-		}{
-			{"early stop", session.Info{ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1"},
-				session.EndedEarlyAttentionCode},
-			{"early stop behind a running turn", session.Info{
-				ID: "sess-1", State: session.StateStarting, EndedEarlyTurnID: "turn-1",
-			}, ""},
-			{"unverified stop first", session.Info{
+	for _, tc := range []struct {
+		name string
+		info session.Info
+		want string
+	}{
+		{
+			name: "Should name an early stop as the needs-attention cause on the session payload",
+			info: session.Info{ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1"},
+			want: session.EndedEarlyAttentionCode,
+		},
+		{
+			name: "Should omit the early stop behind a running turn",
+			info: session.Info{ID: "sess-1", State: session.StateStarting, EndedEarlyTurnID: "turn-1"},
+		},
+		{
+			name: "Should name an unverified stop before the early stop",
+			info: session.Info{
 				ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1", StopVerificationFailed: true,
-			}, session.StopVerificationFailedCode},
-			{"blocked supervision source first", session.Info{
+			},
+			want: session.StopVerificationFailedCode,
+		},
+		{
+			name: "Should leave a blocked supervision source as the cause before the early stop",
+			info: session.Info{
 				ID: "sess-1", State: session.StateActive, EndedEarlyTurnID: "turn-1",
 				Supervision: &session.SupervisionState{Sources: []session.SignalSourceState{
 					{Kind: session.WorkSignalActiveMonitor, State: "attention"},
 				}},
-			}, ""},
-		} {
-			payload := core.SessionPayloadFromInfo(&tc.info)
-			if payload.Attention != tc.want {
-				t.Fatalf("%s attention = %q, want %q", tc.name, payload.Attention, tc.want)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := core.SessionPayloadFromInfo(&tc.info).Attention; got != tc.want {
+				t.Fatalf("attention = %q, want %q", got, tc.want)
 			}
-		}
-	})
+		})
+	}
 
 	t.Run("Should map session info into a sanitized session payload", func(t *testing.T) {
 		t.Parallel()

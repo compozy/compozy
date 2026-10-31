@@ -1704,10 +1704,28 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 
 type runtimeConfigRecordingDriver struct {
 	*fakeDriver
-	configMu   sync.Mutex
-	configs    []acp.RuntimeConfig
-	configErr  error
-	configHook func(*AgentProcess, acp.RuntimeConfig) error
+	configMu       sync.Mutex
+	configs        []acp.RuntimeConfig
+	configErr      error
+	configHook     func(*AgentProcess, acp.RuntimeConfig) error
+	startupPrompts []string
+}
+
+func (d *runtimeConfigRecordingDriver) ReplacePendingStartupPrompt(
+	_ *AgentProcess,
+	prompt string,
+	_ acp.StartupManifest,
+) bool {
+	d.configMu.Lock()
+	defer d.configMu.Unlock()
+	d.startupPrompts = append(d.startupPrompts, prompt)
+	return true
+}
+
+func (d *runtimeConfigRecordingDriver) replacedStartupPrompts() []string {
+	d.configMu.Lock()
+	defer d.configMu.Unlock()
+	return append([]string(nil), d.startupPrompts...)
 }
 
 func (d *runtimeConfigRecordingDriver) ConfigureRuntime(

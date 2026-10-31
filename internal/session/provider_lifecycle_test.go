@@ -251,6 +251,9 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		if !strings.Contains(definition.Prompt, want) || definition.Prompt == initial.Prompt {
 			t.Fatalf("stored startup definition = %q, want one assembled with %q", definition.Prompt, want)
 		}
+		if replaced := driver.replacedStartupPrompts(); len(replaced) != 1 || replaced[0] != definition.Prompt {
+			t.Fatalf("live process startup prompts = %q, want the rebuilt prompt %q", replaced, definition.Prompt)
+		}
 
 		// A later same-runtime rebind reuses the stored prompt instead of the creation one.
 		rebind := session.runtimeBindingSnapshot().selection

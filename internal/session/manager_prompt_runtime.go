@@ -221,9 +221,15 @@ func (m *Manager) configurePromptRuntime(
 		)
 		return false, m.restoreConfiguredRuntime(cleanupCtx, session, snapshot, err, rollbackErr)
 	}
-	// A live model switch keeps the process; later rebinds must still name the new model.
+	// A live model switch keeps the process: later rebinds and a first turn that has not
+	// sent its startup guidance yet must name the new model.
 	if plan.runtime.startupRebuilt {
 		session.setRuntimeDefinition(&plan.runtime)
+		if replacer, ok := m.driver.(StartupPromptReplacer); ok {
+			replacer.ReplacePendingStartupPrompt(
+				snapshot.process, plan.runtime.agent.Prompt, plan.runtime.startupManifest,
+			)
+		}
 	}
 	return false, nil
 }

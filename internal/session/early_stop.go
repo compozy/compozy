@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
@@ -21,8 +22,9 @@ const endedEarlyWakeDetail = "Turn ended without a linked pull request and with 
 const (
 	endedEarlyPullRequestTimeout = 5 * time.Second
 	endedEarlyAnswerTimeout      = 5 * time.Second
-	endedEarlyWriteAttempts      = 3
-	endedEarlyWriteRetryDelay    = 50 * time.Millisecond
+	endedEarlyWriteTimeout       = 2 * time.Second
+	endedEarlyRetryAttempts      = 3
+	endedEarlyRetryDelay         = 50 * time.Millisecond
 )
 
 // Lookup causes that prove the session cannot have a hosted pull request, as opposed
@@ -63,24 +65,27 @@ func (m *Manager) clearEndedEarly(ctx context.Context, target *Session) {
 
 // setEndedEarly retries the durable write so a transient store failure neither hides
 // an early stop nor keeps a stale mark that would alarm the parent on a later turn.
+// Each attempt has its own deadline because the caller holds the supervision lock; a
+// mark that still fails stays unwritten, and the next settle reconciles a stale one.
 func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID string) {
-	writeCtx := context.WithoutCancel(ctx)
 	var (
 		commit store.SessionAttentionCommit
 		err    error
 	)
-	for attempt := range endedEarlyWriteAttempts {
+	for attempt := range endedEarlyRetryAttempts {
 		if attempt > 0 {
-			time.Sleep(time.Duration(attempt) * endedEarlyWriteRetryDelay)
+			time.Sleep(time.Duration(attempt) * endedEarlyRetryDelay)
 		}
+		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyWriteTimeout)
 		commit, err = m.attentionStore.MarkSessionEndedEarly(writeCtx, target.ID, turnID)
+		cancel()
 		if err == nil {
 			break
 		}
 	}
 	if err != nil {
 		m.sessionLogger(target).ErrorContext(ctx, "session: persist early-stop mark failed",
-			"turn_id", turnID, "attempts", endedEarlyWriteAttempts, "error", err)
+			"turn_id", turnID, "attempts", endedEarlyRetryAttempts, "error", err)
 		return
 	}
 	m.applyAttentionProjection(target.ID, commit.After)
@@ -189,15 +194,28 @@ func EndedEarlyAttention(info *Info, badge Badge) bool {
 		!info.StopVerificationFailed && !supervisionNeedsAttention(info.Supervision)
 }
 
-// endedEarlyAnswer reads the final answer of the early-stopped turn for the parent wake.
+// endedEarlyAnswer reads the final answer of the early-stopped turn for the parent wake,
+// retrying within one bound because the wake for this episode is sent only once.
 func (m *Manager) endedEarlyAnswer(ctx context.Context, info *Info) string {
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyAnswerTimeout)
 	defer cancel()
-	result, err := m.TurnResult(readCtx, info.ID, info.EndedEarlyTurnID)
-	if err != nil {
-		m.logger.WarnContext(ctx, "session: read early-stop answer failed",
-			"session_id", info.ID, "turn_id", info.EndedEarlyTurnID, "error", err)
-		return ""
+	var err error
+	for attempt := range endedEarlyRetryAttempts {
+		if attempt > 0 {
+			select {
+			case <-readCtx.Done():
+			case <-time.After(time.Duration(attempt) * endedEarlyRetryDelay):
+			}
+		}
+		if readCtx.Err() != nil {
+			break
+		}
+		var result TurnResult
+		if result, err = m.TurnResult(readCtx, info.ID, info.EndedEarlyTurnID); err == nil {
+			return result.Text
+		}
 	}
-	return result.Text
+	m.logger.WarnContext(ctx, "session: read early-stop answer failed",
+		"session_id", info.ID, "turn_id", info.EndedEarlyTurnID, "error", cmp.Or(err, readCtx.Err()))
+	return ""
 }
