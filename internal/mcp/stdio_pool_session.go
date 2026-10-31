@@ -19,6 +19,10 @@ const (
 	legacyStdioHomeMinAge = time.Hour
 	maxStdioReapInterval  = 30 * time.Second
 	minStdioReapInterval  = 10 * time.Millisecond
+	// minStdioSlotRetention keeps an unused target's negotiated protocol (for cache-first discovery),
+	// backoff history, and last stderr well past the idle close of its child.
+	minStdioSlotRetention    = time.Hour
+	stdioSlotRetentionFactor = 6
 )
 
 // run owns one child from launch to removal of its isolated home.
@@ -150,13 +154,15 @@ func (p *StdioSessionPool) reapIdleOnce() {
 		return
 	}
 	now := p.cfg.now()
+	retention := max(stdioSlotRetentionFactor*p.cfg.IdleTimeout, minStdioSlotRetention)
 	for key, slot := range p.slots {
 		current := slot.current
 		if current != nil && current.session != nil && current.inFlight == 0 &&
 			now.Sub(current.lastUsed) >= p.cfg.IdleTimeout {
 			p.retireLocked(current)
 		}
-		if slot.current == nil && !now.Before(slot.retryAt) && now.Sub(slot.lastSeen) >= p.cfg.IdleTimeout {
+		if slot.current == nil && !now.Before(slot.retryAt) && now.Sub(slot.lastSeen) >= retention {
+			slot.releaseSecretProtection()
 			delete(p.slots, key)
 		}
 	}

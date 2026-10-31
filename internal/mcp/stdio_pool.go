@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -64,15 +65,20 @@ type StdioSessionPool struct {
 
 // stdioSlot is the restart history of one target; it outlives the children it launches.
 type stdioSlot struct {
-	current        *stdioSession
-	failures       int
-	retryAt        time.Time
-	lastErr        string
-	failedDigest   string
-	lastStderr     *stdioStderrRing
-	protocolDigest string
-	protocol       string
-	lastSeen       time.Time
+	current      *stdioSession
+	failures     int
+	retryAt      time.Time
+	lastErr      string
+	failedDigest string
+	lastStderr   *stdioStderrRing
+	// secretsDigest/releaseSecrets keep the launch's resolved secrets registered with the
+	// process-wide redactor while the slot retains its child or that child's diagnostics.
+	secretsDigest      string
+	releaseSecrets     func()
+	releasePrevSecrets func()
+	protocolDigest     string
+	protocol           string
+	lastSeen           time.Time
 }
 
 type stdioSession struct {
@@ -231,6 +237,7 @@ func (p *StdioSessionPool) sessionFor(spec mcpStdioSpec) (*stdioSession, error) 
 		)
 		return nil, stdioUnavailableError(message, errors.New(slot.lastErr))
 	}
+	slot.protectSecrets(spec)
 	session := &stdioSession{
 		slot:      slot,
 		digest:    spec.digest,
@@ -245,7 +252,8 @@ func (p *StdioSessionPool) sessionFor(spec mcpStdioSpec) (*stdioSession, error) 
 	return session, nil
 }
 
-// knownProtocol reports the protocol negotiated by the last child launched for spec.
+// knownProtocol reports the protocol negotiated by the last child launched for spec. A slot that is
+// backing off after a failure reports none, so discovery surfaces the failure instead of stale tools.
 func (p *StdioSessionPool) knownProtocol(spec mcpStdioSpec) (string, bool) {
 	if p == nil {
 		return "", false
@@ -254,6 +262,9 @@ func (p *StdioSessionPool) knownProtocol(spec mcpStdioSpec) (string, bool) {
 	defer p.mu.Unlock()
 	slot := p.slots[spec.slot]
 	if p.closed || slot == nil || slot.protocolDigest != spec.digest || slot.protocol == "" {
+		return "", false
+	}
+	if slot.current == nil && p.cfg.now().Before(slot.retryAt) {
 		return "", false
 	}
 	return slot.protocol, true
@@ -279,6 +290,39 @@ func (p *StdioSessionPool) StderrTail(target mcpauth.Target) string {
 	}
 	p.mu.Unlock()
 	return ring.Tail()
+}
+
+// protectSecrets registers spec's secrets for redaction until the slot is dropped. It keeps the
+// previous definition's registration too, because a retired child may still be draining.
+func (s *stdioSlot) protectSecrets(spec mcpStdioSpec) {
+	if s.secretsDigest == spec.digest && s.releaseSecrets != nil {
+		return
+	}
+	releases := make([]func(), 0, len(spec.secrets))
+	for _, secret := range spec.secrets {
+		releases = append(releases, diagnostics.RegisterRequiredSecret(secret))
+	}
+	if s.releasePrevSecrets != nil {
+		s.releasePrevSecrets()
+	}
+	s.releasePrevSecrets = s.releaseSecrets
+	s.secretsDigest = spec.digest
+	s.releaseSecrets = func() {
+		for _, release := range releases {
+			release()
+		}
+	}
+}
+
+func (s *stdioSlot) releaseSecretProtection() {
+	for _, release := range []func(){s.releasePrevSecrets, s.releaseSecrets} {
+		if release != nil {
+			release()
+		}
+	}
+	s.releasePrevSecrets = nil
+	s.releaseSecrets = nil
+	s.secretsDigest = ""
 }
 
 func (l *stdioLease) release(callErr error) {
@@ -373,6 +417,7 @@ func (p *StdioSessionPool) Close(ctx context.Context) error {
 		p.wg.Wait()
 		close(done)
 	}()
+	defer p.releaseAllSecretProtection()
 	var err error
 	select {
 	case <-done:
@@ -383,6 +428,14 @@ func (p *StdioSessionPool) Close(ctx context.Context) error {
 	}
 	p.cancelProcess()
 	return err
+}
+
+func (p *StdioSessionPool) releaseAllSecretProtection() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, slot := range p.slots {
+		slot.releaseSecretProtection()
+	}
 }
 
 func stdioUnavailableError(message string, cause error) error {

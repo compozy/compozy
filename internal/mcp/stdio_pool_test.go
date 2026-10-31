@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,23 +66,61 @@ func TestStdioSessionPool(t *testing.T) {
 		}
 	})
 
-	t.Run("Should answer cached discovery without contacting the child", func(t *testing.T) {
+	t.Run("Should answer cached discovery without relaunching an idle-closed child", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, nil)
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{IdleTimeout: 100 * time.Millisecond}, nil)
 		requireMCPDescriptor(t, fixture.executor, fixture.server.Name, "mcp__pooled__echo")
-		descriptor := requireMCPDescriptor(t, fixture.executor, fixture.server.Name, "mcp__pooled__echo")
-		_, err := fixture.executor.CallTool(testContext(t), descriptor.Source, toolspkg.MCPToolCallRequest{
-			ToolID: descriptor.ID, RawToolName: descriptor.RawName,
-			Input: json.RawMessage(`{"message":"` + stdioPoolCrashMessage + `"}`),
-		})
-		if err == nil {
-			t.Fatal("CallTool(crash) error = nil, want child exit failure")
-		}
 		fixture.waitForNoSession(t)
 		requireMCPDescriptor(t, fixture.executor, fixture.server.Name, "mcp__pooled__echo")
 		if got := fixture.launches(); got != 1 {
 			t.Fatalf("stdio launches = %d, want cached discovery to skip relaunch", got)
+		}
+	})
+
+	t.Run("Should report a crashed child during backoff instead of cached tools", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{backoffInitial: time.Minute}, nil)
+		fixture.crash(t)
+		_, err := fixture.executor.ListTools(testContext(t), fixture.source())
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
+		if got := fixture.launches(); got != 1 {
+			t.Fatalf("stdio launches = %d, want no relaunch during backoff", got)
+		}
+	})
+
+	t.Run("Should not mark a failed server healthy from cached discovery", func(t *testing.T) {
+		t.Parallel()
+
+		registry := NewRuntimeHealthRegistry()
+		healthKey := RuntimeHealthKey{InstanceName: "kit", BundleGeneration: "generation-a", ServerName: "pooled"}
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{backoffInitial: 100 * time.Millisecond}, nil)
+		executor, err := NewMCPCallExecutor(
+			ServerResolverFunc(func(context.Context, toolspkg.SourceRef, string) (ResolvedServer, error) {
+				return ResolvedServer{
+					Server: fixture.server, Target: fixture.target(), HealthKey: healthKey,
+				}, nil
+			}),
+			WithStdioSessionPool(fixture.pool),
+			WithRuntimeHealthRegistry(registry),
+			WithSecretLookup(stdioPoolSecretLookup),
+		)
+		if err != nil {
+			t.Fatalf("NewMCPCallExecutor() error = %v", err)
+		}
+		fixture.executor = executor
+		fixture.crash(t)
+		if registry.Ready(healthKey) {
+			t.Fatal("runtime health Ready() = true after the child crashed")
+		}
+		time.Sleep(200 * time.Millisecond)
+		requireMCPDescriptor(t, executor, fixture.server.Name, "mcp__pooled__echo")
+		if got := fixture.launches(); got != 1 {
+			t.Fatalf("stdio launches = %d, want cached discovery after backoff", got)
+		}
+		if registry.Ready(healthKey) {
+			t.Fatal("runtime health Ready() = true after cached discovery, want the crash retained")
 		}
 	})
 
@@ -161,8 +200,9 @@ func TestStdioSessionPool(t *testing.T) {
 		if !strings.Contains(tail, "fixture crashed on start") || !strings.Contains(tail, "fixture booting") {
 			t.Fatalf("StderrTail() = %q, want the child's stderr", tail)
 		}
-		if strings.Contains(tail, stdioPoolSecretValue) {
-			t.Fatalf("StderrTail() = %q, leaked the resolved secret_env value", tail)
+		encodedSecret := hex.EncodeToString([]byte(stdioPoolSecretValue))
+		if strings.Contains(tail, stdioPoolSecretValue) || strings.Contains(tail, encodedSecret) {
+			t.Fatalf("StderrTail() = %q, leaked the resolved secret_env value after the request ended", tail)
 		}
 		fixture.requireNoHomes(t)
 	})
@@ -315,7 +355,8 @@ func TestMCPStdioPoolHelperProcess(t *testing.T) {
 				os.Exit(4)
 			}
 		}
-		_, _ = fmt.Fprintf(os.Stderr, "fixture booting token=%s\n", os.Getenv(stdioPoolSecretEnv))
+		secret := os.Getenv(stdioPoolSecretEnv)
+		_, _ = fmt.Fprintf(os.Stderr, "fixture booting token=%s encoded=%x\n", secret, secret)
 		if delay, err := time.ParseDuration(os.Getenv(stdioPoolStartDelayEnv)); err == nil {
 			time.Sleep(delay)
 		}
@@ -392,12 +433,29 @@ func newStdioPoolFixture(t *testing.T, cfg StdioPoolConfig, env map[string]strin
 func (f *stdioPoolFixture) executorFor(t *testing.T, server compozyconfig.MCPServer) *CallExecutor {
 	t.Helper()
 
-	return newTestMCPExecutor(t, server, WithStdioSessionPool(f.pool), WithSecretLookup(func(key string) string {
-		if key == stdioPoolSecretSource {
-			return stdioPoolSecretValue
-		}
-		return ""
-	}))
+	return newTestMCPExecutor(t, server, WithStdioSessionPool(f.pool), WithSecretLookup(stdioPoolSecretLookup))
+}
+
+func stdioPoolSecretLookup(key string) string {
+	if key == stdioPoolSecretSource {
+		return stdioPoolSecretValue
+	}
+	return ""
+}
+
+// crash discovers the fixture's tool, makes the child exit mid-call, and waits for the pool to notice.
+func (f *stdioPoolFixture) crash(t *testing.T) {
+	t.Helper()
+
+	descriptor := requireMCPDescriptor(t, f.executor, f.server.Name, "mcp__pooled__echo")
+	_, err := f.executor.CallTool(testContext(t), descriptor.Source, toolspkg.MCPToolCallRequest{
+		ToolID: descriptor.ID, RawToolName: descriptor.RawName,
+		Input: json.RawMessage(`{"message":"` + stdioPoolCrashMessage + `"}`),
+	})
+	if err == nil {
+		t.Fatal("CallTool(crash) error = nil, want child exit failure")
+	}
+	f.waitForNoSession(t)
 }
 
 func (f *stdioPoolFixture) source() toolspkg.SourceRef {
