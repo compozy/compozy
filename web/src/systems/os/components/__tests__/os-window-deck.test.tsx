@@ -357,6 +357,7 @@ describe("OsWindowDeck", () => {
 
     const terminalTab = screen.getByTestId("os-window-tab-window:terminal");
     expect(within(terminalTab).getByRole("tab", { name: "dev server" })).toBeInTheDocument();
+    expect(terminalTab.querySelector('[data-slot="os-window-tab-icon"]')).toBeInTheDocument();
     expect(terminalTab.querySelector('[data-slot="state-glyph"]')).toBeNull();
   });
 
