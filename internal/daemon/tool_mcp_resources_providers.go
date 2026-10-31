@@ -55,9 +55,14 @@ func daemonConfigMCPDeclarationProvider(
 			// workspace declares so inherited servers keep their declaring scope as OAuth owner.
 			declared, err := compozyconfig.WorkspaceDeclaredMCPServerNames(homePaths, resolved.RootDir)
 			if err != nil {
-				return toolMCPDesiredResources{}, fmt.Errorf(
-					"daemon: load workspace %q MCP declarations: %w", scope.ID, err,
-				)
+				// One unreadable workspace must not block every other publication; keep what
+				// it already published until its declarations read again.
+				if logger != nil {
+					logger.WarnContext(ctx, "daemon: workspace MCP declarations unavailable; keeping published servers",
+						"workspace_id", scope.ID, "error", err)
+				}
+				desired.heldMCPScopes = append(desired.heldMCPScopes, scope)
+				continue
 			}
 			for _, server := range resolved.Config.MCPServers {
 				if _, ok := declared[strings.TrimSpace(server.Name)]; !ok {

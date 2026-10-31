@@ -57,6 +57,9 @@ func (s *service) buildMCPServerItems(
 	if err := s.populateMCPCollectionStatuses(ctx, items); err != nil {
 		return nil, err
 	}
+	markInheritedMCPAuthStatuses(items, MCPAuthTargetRequest{
+		Scope: scope, WorkspaceID: workspaceID, ProfileName: profileName,
+	})
 	result := make([]MCPServerItem, 0, len(items))
 	for index := range items {
 		result = append(result, cloneMCPServerItem(items[index].item))

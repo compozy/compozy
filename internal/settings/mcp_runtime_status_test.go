@@ -793,6 +793,85 @@ func TestMCPAuthCredentialResolutionOrder(t *testing.T) {
 		}
 	})
 
+	// The default profile layers alias the user and workspace credentials they project, so a
+	// request through either alias owns the declaring credential instead of inheriting it.
+	t.Run("Should report the user credential as owned for a default profile request", func(t *testing.T) {
+		t.Parallel()
+		service, runtime := newService(t, "")
+		request := MCPAuthTargetRequest{Scope: ScopeProfile, ProfileName: "default", Name: "newrelic"}
+		status, err := service.GetMCPAuthStatus(t.Context(), request)
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(default profile) error = %v", err)
+		}
+		if runtime.statusTarget != userTarget || status.Scope != mcpauth.ScopeUser || status.Inherited {
+			t.Fatalf("default profile status = %#v target = %#v, want owned user record", status, runtime.statusTarget)
+		}
+		if _, err := service.LogoutMCPAuth(t.Context(), request); err != nil {
+			t.Fatalf("LogoutMCPAuth(default profile) error = %v, want the user credential mutated", err)
+		}
+		if runtime.logoutTarget != userTarget {
+			t.Fatalf("logout target = %#v, want %#v", runtime.logoutTarget, userTarget)
+		}
+	})
+
+	t.Run(
+		"Should report the workspace credential as owned for a workspace default profile request",
+		func(t *testing.T) {
+			t.Parallel()
+			service, runtime := newService(t, `{"mcpServers":{"newrelic":{"transport":"http",`+
+				`"url":"https://workspace.newrelic.example/mcp","auth":{"registration":"pre_registered",`+
+				`"issuer_url":"https://workspace.newrelic.example","client_id":"workspace-client"}}}}`)
+			request := MCPAuthTargetRequest{
+				Scope: ScopeProfile, WorkspaceID: "workspace-a", ProfileName: "default", Name: "newrelic",
+			}
+			status, err := service.GetMCPAuthStatus(t.Context(), request)
+			if err != nil {
+				t.Fatalf("GetMCPAuthStatus(workspace default profile) error = %v", err)
+			}
+			want := mcpauth.Target{
+				Owner: "manual", Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "newrelic",
+			}
+			if runtime.statusTarget != want || status.Scope != mcpauth.ScopeWorkspace || status.Inherited {
+				t.Fatalf("workspace default profile status = %#v target = %#v, want owned workspace record",
+					status, runtime.statusTarget)
+			}
+			if _, err := service.LogoutMCPAuth(t.Context(), request); err != nil {
+				t.Fatalf("LogoutMCPAuth(workspace default profile) error = %v, want the workspace credential", err)
+			}
+			if runtime.logoutTarget != want {
+				t.Fatalf("logout target = %#v, want %#v", runtime.logoutTarget, want)
+			}
+		},
+	)
+
+	t.Run("Should mark a user-declared server's credential inherited in a workspace listing", func(t *testing.T) {
+		t.Parallel()
+		service, _ := newService(t, "")
+		listed := func(scope ScopeKind, workspaceID string) *mcpauth.Status {
+			t.Helper()
+			envelope, err := service.ListCollection(t.Context(), CollectionRequest{
+				Collection: CollectionMCPServers, Scope: scope, WorkspaceID: workspaceID,
+			})
+			if err != nil {
+				t.Fatalf("ListCollection(%s) error = %v", scope, err)
+			}
+			for index := range envelope.MCPServers {
+				if envelope.MCPServers[index].Name == "newrelic" {
+					return envelope.MCPServers[index].AuthStatus
+				}
+			}
+			t.Fatalf("ListCollection(%s) has no newrelic item", scope)
+			return nil
+		}
+		if status := listed(ScopeWorkspace, "workspace-a"); status == nil || status.Scope != mcpauth.ScopeUser ||
+			!status.Inherited {
+			t.Fatalf("workspace listing auth status = %#v, want the inherited user record", status)
+		}
+		if status := listed(ScopeUser, ""); status == nil || status.Inherited {
+			t.Fatalf("user listing auth status = %#v, want the declaring scope unlabeled", status)
+		}
+	})
+
 	t.Run("Should report not found when no layer declares the server", func(t *testing.T) {
 		t.Parallel()
 		service, _ := newService(t, "")

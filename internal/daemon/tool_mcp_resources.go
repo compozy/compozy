@@ -53,6 +53,9 @@ type mcpServerPublicationInput struct {
 type toolMCPDesiredResources struct {
 	tools      []toolPublicationInput
 	mcpServers []mcpServerPublicationInput
+	// heldMCPScopes keep their published MCP servers this pass: their declarations
+	// could not be read, so absence is not evidence that a server was removed.
+	heldMCPScopes []resources.ResourceScope
 }
 
 type toolMCPDeclarationProvider func(context.Context) (toolMCPDesiredResources, error)
@@ -171,7 +174,7 @@ func (s *toolMCPSourceSyncer) syncConfig(ctx context.Context, cfg *compozyconfig
 	if err != nil {
 		return err
 	}
-	mcpChanged, err := s.syncMCPServers(ctx, desired.mcpServers)
+	mcpChanged, err := s.syncMCPServers(ctx, desired.mcpServers, desired.heldMCPScopes)
 	if err != nil {
 		return err
 	}
@@ -206,16 +209,20 @@ type desiredMCPServerResource struct {
 	encoded []byte
 }
 
-func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *compozyconfig.Config) (struct {
-	tools      map[string]*desiredToolResource
-	mcpServers map[string]desiredMCPServerResource
-}, error) {
-	desired := struct {
-		tools      map[string]*desiredToolResource
-		mcpServers map[string]desiredMCPServerResource
-	}{
-		tools:      make(map[string]*desiredToolResource),
-		mcpServers: make(map[string]desiredMCPServerResource),
+type toolMCPDesiredSet struct {
+	tools         map[string]*desiredToolResource
+	mcpServers    map[string]desiredMCPServerResource
+	heldMCPScopes map[resources.ResourceScope]struct{}
+}
+
+func (s *toolMCPSourceSyncer) desiredResources(
+	ctx context.Context,
+	cfg *compozyconfig.Config,
+) (toolMCPDesiredSet, error) {
+	desired := toolMCPDesiredSet{
+		tools:         make(map[string]*desiredToolResource),
+		mcpServers:    make(map[string]desiredMCPServerResource),
+		heldMCPScopes: make(map[resources.ResourceScope]struct{}),
 	}
 
 	providers := make([]toolMCPDesiredResources, 0, len(s.providers)+1)
@@ -243,6 +250,9 @@ func (s *toolMCPSourceSyncer) desiredResources(ctx context.Context, cfg *compozy
 		}
 	}
 	for _, items := range providers {
+		for _, scope := range items.heldMCPScopes {
+			desired.heldMCPScopes[scope.Normalize()] = struct{}{}
+		}
 		for i := range items.tools {
 			item := &items.tools[i]
 			spec, encoded, err := validateAndEncodeTool(ctx, s.toolCodec, item.scope, item.spec)

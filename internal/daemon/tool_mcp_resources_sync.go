@@ -72,6 +72,7 @@ func (s *toolMCPSourceSyncer) syncTools(ctx context.Context, desired map[string]
 func (s *toolMCPSourceSyncer) syncMCPServers(
 	ctx context.Context,
 	desired map[string]desiredMCPServerResource,
+	held map[resources.ResourceScope]struct{},
 ) (bool, error) {
 	source := s.actor.Source
 	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{
@@ -118,6 +119,9 @@ func (s *toolMCPSourceSyncer) syncMCPServers(
 	}
 
 	for _, stale := range currentByID {
+		if _, ok := held[stale.Scope.Normalize()]; ok {
+			continue
+		}
 		if err := s.mcpStore.Delete(ctx, s.actor, stale.ID, stale.Version); err != nil {
 			return false, fmt.Errorf("daemon: delete stale mcp server %q: %w", stale.ID, err)
 		}

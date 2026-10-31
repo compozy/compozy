@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -403,6 +404,38 @@ func TestToolMCPSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 			t.Fatalf("triggered after replacement = %#v, want delete/update triggers", triggered)
 		}
 	})
+
+	t.Run("Should keep a held scope's published servers until its declarations read again", func(t *testing.T) {
+		t.Parallel()
+
+		raw, toolStore, toolCodec, mcpStore, mcpCodec := toolMCPSyncStores(t)
+		workspace := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-held"}
+		desired := toolMCPDesiredResources{mcpServers: []mcpServerPublicationInput{{
+			sourceKey: "config/workspace/ws-held/local",
+			scope:     workspace,
+			spec:      compozyconfig.MCPServer{Name: "local", Command: "local-server"},
+		}}}
+		syncer := newToolMCPSourceSyncer(
+			raw, toolStore, toolCodec, mcpStore, mcpCodec, toolMCPSyncActor(), discardLogger(), nil,
+			func(context.Context) (toolMCPDesiredResources, error) { return desired, nil },
+		)
+		if err := syncer.Sync(t.Context()); err != nil {
+			t.Fatalf("Sync() error = %v", err)
+		}
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 0, 1)
+
+		desired = toolMCPDesiredResources{heldMCPScopes: []resources.ResourceScope{workspace}}
+		if err := syncer.Sync(t.Context()); err != nil {
+			t.Fatalf("Sync(held) error = %v", err)
+		}
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 0, 1)
+
+		desired = toolMCPDesiredResources{}
+		if err := syncer.Sync(t.Context()); err != nil {
+			t.Fatalf("Sync(released) error = %v", err)
+		}
+		assertToolMCPStoreCounts(t, toolStore, mcpStore, 0, 0)
+	})
 }
 
 func TestNewToolMCPPublisherFallsBackToNoopWithoutResourceRuntime(t *testing.T) {
@@ -789,6 +822,51 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("published MCP servers = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should hold an unreadable workspace and keep publishing every other scope", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		brokenRoot, healthyRoot := t.TempDir(), t.TempDir()
+		writeMCPDeclarationFile(t, filepath.Join(brokenRoot, compozyconfig.DirName, compozyconfig.MCPJSONName),
+			`{"mcpServers":`)
+		writeMCPDeclarationFile(t, filepath.Join(healthyRoot, compozyconfig.DirName, compozyconfig.MCPJSONName),
+			`{"mcpServers":{"local":{"command":"local-server"}}}`)
+		local := compozyconfig.MCPServer{Name: "local", Command: "local-server"}
+		workspaces := mcpDeclarationWorkspaceStub{resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-broken": {
+				Workspace: workspacepkg.Workspace{ID: "ws-broken", RootDir: brokenRoot},
+				Config:    compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{local}},
+			},
+			"ws-healthy": {
+				Workspace: workspacepkg.Workspace{ID: "ws-healthy", RootDir: healthyRoot},
+				Config:    compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{local}},
+			},
+		}}
+		cfg := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{{
+			Name: "newrelic", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://user.example/mcp",
+		}}}
+		provider := daemonConfigMCPDeclarationProvider(&cfg, homePaths, workspaces, workspaces, discardLogger())
+
+		desired, err := provider(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("provider() error = %v, want the unreadable workspace held, not a failed pass", err)
+		}
+		keys := make([]string, 0, len(desired.mcpServers))
+		for i := range desired.mcpServers {
+			keys = append(keys, desired.mcpServers[i].sourceKey)
+		}
+		slices.Sort(keys)
+		if want := []string{"config/global/newrelic", "config/workspace/ws-healthy/local"}; !slices.Equal(keys, want) {
+			t.Fatalf("published MCP servers = %#v, want %#v", keys, want)
+		}
+		held := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-broken"}
+		if !slices.Equal(desired.heldMCPScopes, []resources.ResourceScope{held}) {
+			t.Fatalf("held scopes = %#v, want only %#v", desired.heldMCPScopes, held)
 		}
 	})
 }

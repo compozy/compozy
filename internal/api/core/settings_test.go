@@ -598,6 +598,12 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 					status.WorkspaceID = "marketing"
 					return status, nil
 				}
+				if req.Scope == settingspkg.ScopeWorkspace && req.WorkspaceID == "workspace-b" {
+					// workspace-b inherits the user declaration's credential.
+					status := confirmedWorkspaceMCPAuthStatus(expiresAt)
+					status.Scope, status.WorkspaceID, status.Inherited = mcpauth.ScopeUser, "", true
+					return status, nil
+				}
 				if req.Scope != settingspkg.ScopeWorkspace || req.WorkspaceID != "workspace-a" {
 					t.Fatalf("GetMCPAuthStatus workspace target = %#v", req)
 				}
@@ -676,6 +682,17 @@ func TestSettingsMCPAuthHandlersKeepSecretsOutOfResponses(t *testing.T) {
 		}
 		if service.ListCollectionCalls != 0 {
 			t.Fatalf("GetSettingsMCPAuthStatus triggered collection listing %d times", service.ListCollectionCalls)
+		}
+		// Invariant: an inherited credential is labeled on the wire; an owned one omits the marker.
+		if strings.Contains(statusResponse.Body.String(), `"inherited"`) {
+			t.Fatalf("owned status body = %s, want no inherited marker", statusResponse.Body.String())
+		}
+		inheritedResponse := performRequest(t, fixture.Engine, http.MethodGet,
+			targetPath+"status?scope=workspace&workspace_id=workspace-b", nil)
+		if inheritedResponse.Code != http.StatusOK ||
+			!strings.Contains(inheritedResponse.Body.String(), `"inherited":true`) {
+			t.Fatalf("inherited status = %d %s, want inherited true", inheritedResponse.Code,
+				inheritedResponse.Body.String())
 		}
 		ownedResponse := performRequest(t, fixture.Engine, http.MethodGet,
 			targetPath+"status"+query+"&owner=extension%3Alinear", nil)

@@ -31,3 +31,24 @@ func (s *service) populateMCPServerStatuses(
 	}
 	return nil
 }
+
+// markInheritedMCPAuthStatuses applies GetMCPAuthStatus's rule to a listing: a status
+// whose declaring scope is broader than the listed scope is the inherited credential.
+func markInheritedMCPAuthStatuses(items []mcpCollectionItem, listed MCPAuthTargetRequest) {
+	for index := range items {
+		status := items[index].item.AuthStatus
+		if status == nil {
+			continue
+		}
+		resolved, err := mcpAuthTargetForSource(items[index].entry)
+		if err != nil {
+			continue
+		}
+		listed.Name, listed.Owner = resolved.ServerName, resolved.Owner
+		requested, err := normalizeMCPAuthTarget(listed)
+		if err != nil {
+			continue
+		}
+		status.Inherited = !mcpAuthTargetCovers(requested, resolved.Normalize())
+	}
+}
