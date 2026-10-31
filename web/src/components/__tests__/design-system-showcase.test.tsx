@@ -92,12 +92,7 @@ describe("DesignSystemShowcase", () => {
 
     const block = screen.getByTestId("section-code-chat");
     expect(block.querySelector('[data-slot="code-block"]')).toBeInTheDocument();
-    expect(block.querySelectorAll('[data-slot="chat-message"]').length).toBeGreaterThanOrEqual(4);
     expect(block.querySelector('[data-slot="tool-call-row"]')).toBeInTheDocument();
-
-    const layout = screen.getByTestId("section-layout");
-    expect(layout.querySelector('[data-slot="sidebar"]')).toBeInTheDocument();
-    expect(layout.querySelector('[data-slot="split-pane"]')).toBeInTheDocument();
 
     for (const group of TOKEN_GROUPS) {
       expect(screen.getByTestId(`token-group-${group.id}`)).toBeInTheDocument();

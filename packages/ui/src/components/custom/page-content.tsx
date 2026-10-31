@@ -27,7 +27,7 @@ function pageContentVertical(density: PageContentDensity): string {
 }
 
 /**
- * Canonical page content container. ListingPage and PageShell compose this so
+ * Canonical page content container. ListingPage composes this so
  * main-pane routes share one horizontal gutter (`px-9` + `max-w-content-max`).
  */
 function PageContent({ density = "listing", className, children, ...props }: PageContentProps) {

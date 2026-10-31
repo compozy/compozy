@@ -10,5 +10,4 @@ export * from "./exports/viz";
 export * from "./exports/editors";
 export * from "./exports/conversation";
 export * from "./exports/foundation";
-export * from "./exports/animation";
 export * from "./exports/terminal";

@@ -1328,7 +1328,7 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   is provided.
 - `<Time>`: timestamp primitive. It owns relative/absolute formatting and tick
   refresh behavior.
-- `<PriorityBars>` and queue sparklines: visualization components. Color and
+- Queue sparklines: visualization components. Color and
   thresholds come from typed inputs, not local class maps.
 
 ## 10. Anti-patterns

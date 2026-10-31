@@ -8,11 +8,7 @@ import {
   InputsAndSearchSection,
   StatusAndMetricSection,
 } from "./design-system-showcase-controls";
-import {
-  CodeAndChatSection,
-  LayoutSection,
-  ListingRowSection,
-} from "./design-system-showcase-layouts";
+import { CodeAndChatSection, ListingRowSection } from "./design-system-showcase-layouts";
 import { FeedbackSection, OverlaysSection } from "./design-system-showcase-feedback";
 import { FoundationsTokenSection, TypographySection } from "./design-system-showcase-foundations";
 
@@ -104,7 +100,6 @@ export function DesignSystemShowcase() {
           <FeedbackSection />
           <OverlaysSection />
           <CodeAndChatSection />
-          <LayoutSection />
           <ListingRowSection />
         </div>
 

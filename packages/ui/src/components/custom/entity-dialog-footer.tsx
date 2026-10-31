@@ -45,8 +45,7 @@ export interface EntityDialogFooterProps extends Omit<
  * left, then Cancel and exactly one primary action.
  *
  * Composes `DialogFooter variant="ruled"` (which owns the ruled chrome) and
- * adds the 52px floor from `--height-editor-footer`. `EditorFooter` is the
- * page/sheet editor footer and stays untouched — this is the modal contract.
+ * adds the 52px floor from `--height-editor-footer`.
  */
 function EntityDialogFooter({
   hint,

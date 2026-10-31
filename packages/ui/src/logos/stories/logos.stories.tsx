@@ -5,22 +5,17 @@ import {
   AntigravityLogo,
   ClaudeLogo,
   CursorLogo,
-  DiscordLogo,
   GeminiLogo,
   GithubLogo,
-  GoogleChatLogo,
   KimiLogo,
   LinearLogo,
-  MicrosoftTeamsLogo,
   OpenAILogo,
   OpenCodeLogo,
   OpenRouterLogo,
   PiLogo,
   QwenLogo,
   SlackLogo,
-  TelegramLogo,
   VercelLogo,
-  WhatsAppLogo,
   XAILogo,
   ZAILogo,
 } from "../index";
@@ -50,14 +45,9 @@ const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
 ];
 
 const INTEGRATION_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
-  { label: "Discord", Logo: DiscordLogo },
   { label: "GitHub", Logo: GithubLogo },
-  { label: "Google Chat", Logo: GoogleChatLogo },
   { label: "Linear", Logo: LinearLogo },
-  { label: "Microsoft Teams", Logo: MicrosoftTeamsLogo },
   { label: "Slack", Logo: SlackLogo },
-  { label: "Telegram", Logo: TelegramLogo },
-  { label: "WhatsApp", Logo: WhatsAppLogo },
 ];
 
 function LogoSection({

@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { useMotionValue, useMotionValueEvent, useSpring } from "motion/react";
 
-import { useIsInView, type UseIsInViewOptions } from "./use-is-in-view";
+import { useIsInView, type UseIsInViewOptions } from "@/components/site/use-is-in-view";
 
 export interface UseSlidingNumberParams {
   ref?: React.Ref<HTMLElement>;

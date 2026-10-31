@@ -141,25 +141,6 @@ export {
   SelectValue,
 } from "./components/select";
 export {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxClear,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxLabel,
-  ComboboxList,
-  ComboboxSeparator,
-  ComboboxTrigger,
-  ComboboxValue,
-} from "./components/combobox";
-export { useComboboxAnchor } from "./components/hooks/use-combobox-anchor";
-export {
   Command,
   CommandDialog,
   CommandEmpty,
@@ -217,22 +198,12 @@ export {
   AccordionTrigger,
 } from "./components/accordion";
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
-export { Sidebar, SidebarSectionLabel, type SidebarProps } from "./components/sidebar";
 export {
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_MD,
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
-  SIDEBAR_RAIL_WIDTH,
   useSidebarViewport,
   type SidebarViewport,
-} from "./components/hooks/use-sidebar-state";
-export {
-  SplitPane,
-  SPLIT_LIST_WIDTH_DEFAULT,
-  type SplitPaneProps,
-} from "./components/custom/split-pane";
-export { PageShell, type PageShellProps } from "./components/custom/page-shell";
+} from "./components/hooks/use-sidebar-viewport";
 export {
   PageContent,
   PAGE_CONTENT_GUTTER,

@@ -461,7 +461,7 @@
 
   /* Form control geometry — the field-control ladder rides the button ladder
      so a field and its button share one edge (polish contract P4). Input /
-     Select / NativeSelect / Combobox / CommandSelect / InputGroup = 30 (button
+     Select / NativeSelect / CommandSelect / InputGroup = 30 (button
      `default`); compact (Select sm, NativeSelect sm, Command input) = 26
      (button `sm`); toolbar search = 26, level with `sm` toolbar buttons and
      PillGroup / RouteNav segments; textarea min body = 84. */

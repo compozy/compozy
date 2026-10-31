@@ -15,7 +15,7 @@ const meta: Meta<typeof EntityDialogFooter> = {
     docs: {
       description: {
         component:
-          "Modal footer contract: an optional consequence hint on the left, then Cancel and exactly one verb+object primary action. `EditorFooter` remains the page/sheet editor footer.",
+          "Modal footer contract: an optional consequence hint on the left, then Cancel and exactly one verb+object primary action.",
       },
     },
   },

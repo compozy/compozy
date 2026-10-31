@@ -4,9 +4,9 @@ import * as React from "react";
 
 import { AnimatePresence, m, type HTMLMotionProps } from "motion/react";
 
-import { useIsInView, type UseIsInViewOptions } from "../../hooks/use-is-in-view";
-import { Slot, type WithAsChild } from "../../primitives/slot";
-import { ParticlesProvider, useParticles } from "./particles-context";
+import { useIsInView, type UseIsInViewOptions } from "@/components/site/use-is-in-view";
+import { Slot, type WithAsChild } from "@/components/site/slot";
+import { ParticlesProvider, useParticles } from "@/components/site/particles-context";
 
 type Side = "top" | "bottom" | "left" | "right";
 type Align = "start" | "center" | "end";

@@ -11,10 +11,10 @@ import {
   type SpringOptions,
 } from "motion/react";
 
-import { type UseIsInViewOptions } from "../../hooks/use-is-in-view";
-import { useMeasure } from "../../hooks/use-measure";
-import { useSlidingNumber } from "../../hooks/use-sliding-number";
-import { cn } from "../../lib/utils";
+import { type UseIsInViewOptions } from "@/components/site/use-is-in-view";
+import { useMeasure } from "@compozy/ui/hooks/use-measure";
+import { useSlidingNumber } from "@/components/site/use-sliding-number";
+import { cn } from "@compozy/ui/lib/utils";
 
 interface SlidingNumberRollerProps {
   prevValue: number;

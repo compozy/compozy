@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { isMotionComponent, m, type HTMLMotionProps } from "motion/react";
 
-import { cn } from "../lib/utils";
+import { cn } from "@compozy/ui/lib/utils";
 
 type AnyProps = Record<string, unknown>;
 

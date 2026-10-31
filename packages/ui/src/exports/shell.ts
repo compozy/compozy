@@ -15,16 +15,7 @@ export {
   type TopbarSlotValue,
 } from "../components/custom/hooks/use-topbar-slot";
 export { RouteNav } from "../components/custom/route-nav";
-export {
-  RightRail,
-  type RightRailMode,
-  type RightRailProps,
-} from "../components/custom/right-rail";
 export { Dock, type DockProps, type DockStatusProps } from "../components/custom/dock";
-export {
-  PageActionsTopbarSlot,
-  type PageActionsTopbarSlotProps,
-} from "../components/custom/page-actions-topbar-slot";
 export {
   RestartBanner,
   type RestartBannerProps,

@@ -10,7 +10,7 @@ const meta: Meta<typeof PageContent> = {
     docs: {
       description: {
         component:
-          "Canonical main-pane content container — `max-w-content-max` + `px-9`. ListingPage and PageShell compose this so every route shares one horizontal gutter. Route identity lives in the OS window head (Topbar), not in the body.",
+          "Canonical main-pane content container — `max-w-content-max` + `px-9`. ListingPage composes this so every route shares one horizontal gutter. Route identity lives in the OS window head (Topbar), not in the body.",
       },
     },
   },
@@ -30,9 +30,7 @@ export const Listing: Story = {
   render: () => (
     <PageContent density="listing">
       <p className="text-card-title font-semibold text-fg-strong">Page content</p>
-      <p className="text-small-body text-muted">
-        Horizontal inset matches ListingPage and PageShell.
-      </p>
+      <p className="text-small-body text-muted">Horizontal inset matches ListingPage.</p>
     </PageContent>
   ),
 };

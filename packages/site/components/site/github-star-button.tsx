@@ -1,15 +1,16 @@
 "use client";
 
+import { Button } from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
+import { Star } from "lucide-react";
+import Link from "next/link";
+
 import {
-  Button,
   GithubStars,
   GithubStarsIcon,
   GithubStarsNumber,
   GithubStarsParticles,
-} from "@compozy/ui";
-import { GithubLogo } from "@compozy/ui/logos";
-import { Star } from "lucide-react";
-import Link from "next/link";
+} from "@/components/site/github-stars";
 
 const GITHUB_REPO_URL = "https://github.com/compozy/compozy";
 

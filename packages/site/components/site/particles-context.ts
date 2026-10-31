@@ -1,4 +1,4 @@
-import { getStrictContext } from "../../lib/context";
+import { getStrictContext } from "@/components/site/strict-context";
 
 export interface ParticlesContextType {
   animate: boolean;
