@@ -14,7 +14,7 @@ const meta: Meta<typeof SessionSidebar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The active list with sessions in Later: the clock toggle beside Archive carries their count. */
+/** The active list with sessions in Later: the bookmark toggle beside Archive carries their count. */
 export const LaterCount: Story = {
   args: {
     ...ProvenanceThreads.args,

@@ -1,7 +1,7 @@
 import {
   Archive,
   ArrowRightLeft,
-  Clock,
+  Bookmark,
   Copy,
   CornerLeftUp,
   CornerDownRight,
@@ -111,7 +111,12 @@ function sessionLaterMenuItem(
       : null;
   }
   return onMoveToLater
-    ? { id: "later", label: "Move to Later…", icon: Clock, onSelect: () => onMoveToLater(session) }
+    ? {
+        id: "later",
+        label: "Move to Later…",
+        icon: Bookmark,
+        onSelect: () => onMoveToLater(session),
+      }
     : null;
 }
 

@@ -1,4 +1,4 @@
-import { Clock, MessageSquare } from "lucide-react";
+import { CalendarClock, MessageSquare } from "lucide-react";
 
 import { formatAbsoluteTime, Pill, Time } from "@compozy/ui";
 
@@ -42,7 +42,7 @@ export function SessionLaterDetails({
         </span>
       ) : null}
       <span className="flex min-w-0 items-center gap-1.25 overflow-hidden">
-        <Clock aria-hidden="true" className="size-3 shrink-0" />
+        <CalendarClock aria-hidden="true" className="size-3 shrink-0" />
         {details.returnAt ? (
           <span
             className="shrink-0"

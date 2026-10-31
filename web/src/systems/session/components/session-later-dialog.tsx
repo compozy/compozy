@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Clock } from "lucide-react";
+import { Bookmark } from "lucide-react";
 
 import {
   Button,
@@ -138,7 +138,7 @@ function SessionLaterForm({
             </>
           ) : (
             <>
-              <Clock className="size-3" />
+              <Bookmark className="size-3" />
               Move to Later
             </>
           )}

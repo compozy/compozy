@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Archive, Clock, type LucideIcon } from "lucide-react";
+import { Archive, Bookmark, type LucideIcon } from "lucide-react";
 
 import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 
@@ -140,7 +140,7 @@ export function SessionLaterToggle({
     <ToolbarToggle
       copy={SESSION_LATER_COPY}
       count={count}
-      icon={Clock}
+      icon={Bookmark}
       on={later}
       busy={false}
       onChange={onLaterChange}

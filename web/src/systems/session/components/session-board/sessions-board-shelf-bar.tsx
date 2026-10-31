@@ -1,4 +1,4 @@
-import { Archive, ChevronRight, CircleSlash, Clock, type LucideIcon } from "lucide-react";
+import { Archive, ChevronRight, CircleSlash, Bookmark, type LucideIcon } from "lucide-react";
 import { use, useId, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
@@ -31,7 +31,7 @@ const SHELF_COPY: Record<SessionsBoardShelfId, ShelfCopy> = {
     failed: "Couldn't load archived sessions.",
   },
   later: {
-    icon: Clock,
+    icon: Bookmark,
     label: "Later",
     loading: "Loading sessions in Later",
     failed: "Couldn't load sessions in Later.",

@@ -1,4 +1,4 @@
-import { Archive, Clock, Hash, RotateCcw, Square, Trash2, Undo2 } from "lucide-react";
+import { Archive, Bookmark, Hash, RotateCcw, Square, Trash2, Undo2 } from "lucide-react";
 
 import {
   ContextMenuGroup,
@@ -98,7 +98,7 @@ export function SessionSelectionMenuItems({
           onClick={verbs.onMoveToLater}
           data-testid={`${testId}-later`}
         >
-          <Clock className="size-3" />
+          <Bookmark className="size-3" />
           Move to Later…<Shortcut>{sessionCountLabel(verbs.laterable)}</Shortcut>
         </Item>
       ) : null}
