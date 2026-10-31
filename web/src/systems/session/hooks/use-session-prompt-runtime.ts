@@ -12,7 +12,11 @@ import {
 } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeSelection, SessionRuntimePayload } from "../types";
-import { currentRuntimeApplyNotice, type RuntimeApplyTarget } from "../lib/runtime-apply-notice";
+import {
+  currentRuntimeApplyNotice,
+  runtimeApplyTargetSettled,
+  type RuntimeApplyTarget,
+} from "../lib/runtime-apply-notice";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
 import {
   normalizeRuntimeSpeed,
@@ -109,9 +113,9 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeSelectionController = useRef<AbortController | null>(null);
   const queuedSelection = useRef<{ value: RuntimeSelectorValue; speed: RuntimeSpeed } | null>(null);
   const [applyTarget, setApplyTarget] = useState<RuntimeApplyTarget | null>(null);
-  const applyNotice = applyTarget
-    ? currentRuntimeApplyNotice(applyTarget, { badge: liveBadge, runtime: runtimeCapabilities })
-    : null;
+  const liveSession = { badge: liveBadge, runtime: runtimeCapabilities };
+  const applyNotice = applyTarget ? currentRuntimeApplyNotice(applyTarget, liveSession) : null;
+  if (applyTarget && runtimeApplyTargetSettled(applyTarget, liveSession)) setApplyTarget(null);
   const workspace = useWorkspace(input.workspaceId, { enabled: input.canPrompt });
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });

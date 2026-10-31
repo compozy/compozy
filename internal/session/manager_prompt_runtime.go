@@ -31,8 +31,10 @@ func (m *Manager) ensurePromptRuntime(
 	reservedProcess *AgentProcess,
 ) (*AgentProcess, error) {
 	// A live selection apply and prompt admission never reconfigure the same process at once.
-	session.runtimeApplyMu.Lock()
-	defer session.runtimeApplyMu.Unlock()
+	if err := session.lockRuntimeApply(ctx); err != nil {
+		return nil, fmt.Errorf("session: wait for runtime configuration: %w", err)
+	}
+	defer session.unlockRuntimeApply()
 	selection, err := normalizePromptRuntimeSelection(session, requested)
 	if err != nil {
 		return nil, err

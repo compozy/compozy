@@ -31,8 +31,10 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 	if !ok {
 		return
 	}
-	session.runtimeApplyMu.Lock()
-	defer session.runtimeApplyMu.Unlock()
+	if err := session.lockRuntimeApply(m.lifecycleCtx); err != nil {
+		return
+	}
+	defer session.unlockRuntimeApply()
 
 	snapshot := session.runtimeBindingSnapshot()
 	if !liveRuntimeApplyEligible(&snapshot) {
@@ -53,20 +55,22 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 	plan, err := m.prepareLiveRuntimePlan(ctx, session, &snapshot, selection)
 	if err != nil || plan == nil {
 		failed.cause = err
-		m.recordLiveRuntimeFailure(ctx, session, &snapshot, failed)
+		m.recordLiveRuntimeFailure(session, &snapshot, failed)
 		return
 	}
 	requested := runtimeConfigForSelection(plan.selection, plan.spec.transportModel)
 	rollback := runtimeConfigForSelection(snapshot.selection, currentTransportModel(snapshot.process.CapsSnapshot()))
-	// Captured before the provider reports the new values through its config options.
+	// Captured before the provider reports the new values through its config options, and
+	// from the dispatched run: a prompt still in setup waits on this lock and gets the change.
 	previous := session.Info().EffectiveRuntime()
+	turnID := dispatchedTurnID(m, session)
 	if err := configurator.ConfigureRuntime(ctx, snapshot.process, requested); err != nil {
 		failed.cause = fmt.Errorf("session: apply runtime selection live: %w", err)
 		m.rollbackLiveRuntime(configurator, &snapshot, rollback, &failed)
-		m.recordLiveRuntimeFailure(ctx, session, &snapshot, failed)
+		m.recordLiveRuntimeFailure(session, &snapshot, failed)
 		return
 	}
-	held := holdRunningTurn(plan, &previous)
+	held := holdRunningTurn(plan, turnID, &previous)
 	if !session.commitLiveRuntimeSelection(snapshot.process, plan.selection, held, m.now()) {
 		return
 	}
@@ -74,7 +78,7 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 		failed.cause = err
 		m.rollbackLiveRuntime(configurator, &snapshot, rollback, &failed)
 		session.commitLiveRuntimeSelection(snapshot.process, snapshot.selection, nil, m.now())
-		m.recordLiveRuntimeFailure(ctx, session, &snapshot, failed)
+		m.recordLiveRuntimeFailure(session, &snapshot, failed)
 		return
 	}
 	if plan.runtime.startupRebuilt {
@@ -87,7 +91,7 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 			)
 		}
 	}
-	m.recordRuntimeChangedMarker(ctx, session, &snapshot, plan.selection)
+	m.recordRuntimeChangedMarker(ctx, session, &snapshot, plan.selection, turnID)
 }
 
 // liveRuntimeApplyEligible admits only a ready process whose provider honors session config;
@@ -134,9 +138,20 @@ type liveRuntimeFailure struct {
 	rollbackFailed bool
 }
 
-// holdRunningTurn returns the running turn's runtime when the provider honors a live
+func dispatchedTurnID(m *Manager, session *Session) string {
+	identity, ok := m.activePromptRunSnapshot(session.ID)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(identity.TurnID)
+}
+
+// holdRunningTurn returns the dispatched turn's runtime when the provider honors a live
 // change only from its next turn, so that turn's remaining events keep their runtime.
-func holdRunningTurn(plan *promptRuntimePlan, previous *RuntimeSelection) *RuntimeSelection {
+func holdRunningTurn(plan *promptRuntimePlan, turnID string, previous *RuntimeSelection) *liveTurnRuntime {
+	if turnID == "" {
+		return nil
+	}
 	runtimeProvider := strings.TrimSpace(plan.runtime.agent.RuntimeProvider)
 	if runtimeProvider == "" {
 		runtimeProvider = strings.TrimSpace(plan.runtime.agent.Provider)
@@ -144,7 +159,7 @@ func holdRunningTurn(plan *promptRuntimePlan, previous *RuntimeSelection) *Runti
 	if RuntimeLiveApplyForProvider(runtimeProvider) != acp.RuntimeLiveApplyNextTurn {
 		return nil
 	}
-	return previous
+	return &liveTurnRuntime{turnID: turnID, selection: *previous}
 }
 
 // rollbackLiveRuntime restores the previous provider config after a partial apply. A failed
@@ -164,8 +179,9 @@ func (m *Manager) rollbackLiveRuntime(
 	}
 }
 
+// recordLiveRuntimeFailure persists on a fresh context: the corrective write must land
+// even when the apply's own deadline is what failed.
 func (m *Manager) recordLiveRuntimeFailure(
-	ctx context.Context,
 	session *Session,
 	snapshot *runtimeBindingSnapshot,
 	failed liveRuntimeFailure,
@@ -179,7 +195,9 @@ func (m *Manager) recordLiveRuntimeFailure(
 	) {
 		return
 	}
-	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	if err := m.persistSessionLifecycleState(cleanupCtx, session, false); err != nil {
 		m.sessionLogger(session).Warn("session: persist live runtime failure", "error", err)
 	}
 }
@@ -191,8 +209,8 @@ func (m *Manager) recordRuntimeChangedMarker(
 	session *Session,
 	snapshot *runtimeBindingSnapshot,
 	applied RuntimeSelection,
+	turnID string,
 ) {
-	turnID := session.CurrentTurnID()
 	duringTurn := turnID != ""
 	if !duringTurn {
 		var err error

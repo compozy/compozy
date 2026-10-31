@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -27,6 +28,8 @@ func (m *Manager) SetRuntimeSelection(
 	if err != nil {
 		return nil, err
 	}
+	// One provider identity, so an alias compares equal to the bound provider everywhere.
+	normalized.Provider = compozyconfig.CanonicalProviderName(normalized.Provider)
 	return m.updateRuntimeSelection(ctx, id, &normalized, expectedRevision)
 }
 

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -13,15 +14,38 @@ type liveTurnRuntime struct {
 	selection RuntimeSelection
 }
 
+// lockRuntimeApply waits for exclusive runtime configuration until ctx ends.
+func (s *Session) lockRuntimeApply(ctx context.Context) error {
+	s.mu.Lock()
+	if s.runtimeApplySlot == nil {
+		s.runtimeApplySlot = make(chan struct{}, 1)
+	}
+	slot := s.runtimeApplySlot
+	s.mu.Unlock()
+	select {
+	case slot <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *Session) unlockRuntimeApply() {
+	s.mu.RLock()
+	slot := s.runtimeApplySlot
+	s.mu.RUnlock()
+	<-slot
+}
+
 // commitLiveRuntimeSelection records a configured selection on the still-bound process.
 // It leaves runtime status, generation, and liveness untouched so a live turn's
-// supervision and health are not disturbed. A non-nil runningTurn keeps the running
-// turn's events attributed to that runtime when the provider honors the change only
-// from its next turn.
+// supervision and health are not disturbed. A non-nil hold keeps a dispatched turn's
+// events attributed to the runtime it started with when the provider honors the change
+// only from its next turn.
 func (s *Session) commitLiveRuntimeSelection(
 	proc *AgentProcess,
 	selection RuntimeSelection,
-	runningTurn *RuntimeSelection,
+	hold *liveTurnRuntime,
 	now time.Time,
 ) bool {
 	if s == nil || proc == nil {
@@ -32,11 +56,8 @@ func (s *Session) commitLiveRuntimeSelection(
 	if s.State != StateActive || s.process != proc {
 		return false
 	}
-	turnID := strings.TrimSpace(s.currentTurnID)
-	if runningTurn != nil && turnID != "" && (s.liveTurnRuntime == nil || s.liveTurnRuntime.turnID != turnID) {
-		held := *runningTurn
-		held.ACPOptions = acp.CloneSessionConfigOptionSelections(runningTurn.ACPOptions)
-		s.liveTurnRuntime = &liveTurnRuntime{turnID: turnID, selection: held}
+	if hold != nil && (s.liveTurnRuntime == nil || s.liveTurnRuntime.turnID != hold.turnID) {
+		s.liveTurnRuntime = hold
 	}
 	s.Provider = strings.TrimSpace(selection.Provider)
 	s.Model = strings.TrimSpace(selection.Model)

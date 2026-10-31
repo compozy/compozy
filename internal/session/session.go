@@ -155,9 +155,9 @@ type Session struct {
 	steerDelivery           store.SteerDeliveryMode
 	mu                      sync.RWMutex
 	persistMu               sync.Mutex
-	// runtimeApplyMu serializes live runtime reconfiguration with prompt runtime admission.
-	// Order: runtimeApplyMu before persistMu and mu.
-	runtimeApplyMu             sync.Mutex
+	// runtimeApplySlot serializes live runtime reconfiguration with prompt runtime admission;
+	// a channel so a canceled waiter can leave. Order: slot before persistMu and mu. Protected by mu.
+	runtimeApplySlot           chan struct{}
 	goalStopMu                 sync.Mutex // Orders Goal pause persistence before interrupted setup recovery.
 	conversationRewindReserved bool
 

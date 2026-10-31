@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
@@ -335,8 +336,15 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 		t.Fatalf("payloads[0].Name = %q, want default provider %q first (%#v)", got, want, payloads)
 	}
 	seen := make(map[string]bool, len(payloads))
+	liveApply := make(map[string]contract.ProviderRuntimeLiveApply, len(payloads))
 	for _, payload := range payloads {
 		seen[payload.Name] = true
+		liveApply[payload.Name] = payload.RuntimeLiveApply
+	}
+	if liveApply["claude"] != contract.ProviderRuntimeLiveApplyNextStep ||
+		liveApply["alpha"] != contract.ProviderRuntimeLiveApplyNextTurn ||
+		liveApply["cursor"] != "" {
+		t.Fatalf("runtime live apply = %#v, want claude next_step, alpha next_turn, cursor omitted", liveApply)
 	}
 	for _, want := range expected {
 		if !seen[want.Name] {

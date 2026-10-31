@@ -6,7 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { currentRuntimeApplyNotice, runtimeApplyNotice } from "../runtime-apply-notice";
+import {
+  currentRuntimeApplyNotice,
+  runtimeApplyNotice,
+  runtimeApplyTargetSettled,
+} from "../runtime-apply-notice";
 
 const selected = {
   provider: "claude",
@@ -111,6 +115,38 @@ describe("currentRuntimeApplyNotice", () => {
         runtime: { ...saved.runtime, failure: undefined },
       })
     ).toBeNull();
+  });
+
+  it("Should not revive the note on a later turn after the save settles", () => {
+    const idleSave = {
+      saved: { ...saved, badge: "idle" as const },
+      liveApply: "next_step" as const,
+    };
+    expect(
+      currentRuntimeApplyNotice(idleSave, { badge: "running", runtime: saved.runtime })
+    ).toBeNull();
+
+    const midTurnSave = { saved, liveApply: "next_step" as const };
+    expect(
+      runtimeApplyTargetSettled(midTurnSave, { badge: "running", runtime: saved.runtime })
+    ).toBe(false);
+    expect(runtimeApplyTargetSettled(midTurnSave, { badge: "idle", runtime: saved.runtime })).toBe(
+      true
+    );
+  });
+
+  it("Should keep a deferred selection from claiming an older failure as its refusal", () => {
+    const earlierFailure = {
+      status: "ready" as const,
+      selection_revision: 1,
+      failure: "session: bind failed earlier",
+      selected: { provider: "codex", model: "gpt-6-astra" },
+      effective: selected,
+    };
+    expect(runtimeApplyNotice({ badge: "idle", runtime: earlierFailure }, "next_step")).toEqual({
+      text: "Applies from the next message.",
+      tone: "neutral",
+    });
   });
 
   it("Should drop the note when a newer selection supersedes the save", () => {

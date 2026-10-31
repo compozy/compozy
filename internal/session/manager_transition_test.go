@@ -1804,6 +1804,115 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		}
 	})
 
+	t.Run("Should attribute a prompt waiting on a live apply to the applied runtime", func(t *testing.T) {
+		t.Parallel()
+		entered, unblock := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		blockMedium := func(config acp.RuntimeConfig) error {
+			if config.ReasoningEffort == "medium" {
+				once.Do(func() { close(entered) })
+				<-unblock
+			}
+			return nil
+		}
+		h, _, active := newLiveRuntimeHarness(t, "codex", blockMedium)
+		applied := make(chan error, 1)
+		go func() {
+			_, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+			applied <- err
+		}()
+		waitLiveApplyEntered(t, entered)
+		h.driver.mu.Lock()
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			sessionID := active.Info().ACPSessionID
+			events <- acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: sessionID, TurnID: req.TurnID, Text: "after the change",
+			}
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: sessionID, TurnID: req.TurnID}
+			close(events)
+			return events, nil
+		}
+		h.driver.mu.Unlock()
+		prompted := make(chan string, 1)
+		go func() {
+			events, err := h.manager.Prompt(t.Context(), active.ID, "admitted behind the live apply")
+			if err != nil {
+				t.Errorf("Prompt() error = %v", err)
+				prompted <- ""
+				return
+			}
+			collectEvents(t, events)
+			prompted <- "done"
+		}()
+		var turnID string
+		deadline := time.Now().Add(5 * time.Second)
+		for turnID == "" && time.Now().Before(deadline) {
+			turnID = active.CurrentTurnID()
+			time.Sleep(time.Millisecond)
+		}
+		close(unblock)
+		if err := <-applied; err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		if outcome := <-prompted; outcome != "done" || turnID == "" {
+			t.Fatalf("prompt outcome = %q turn = %q, want a dispatched turn", outcome, turnID)
+		}
+		if effort := liveAgentMessageEffort(t, h, active, turnID); effort != "medium" {
+			t.Fatalf("waiting prompt message effort = %q, want the applied medium", effort)
+		}
+		markers := transcriptMarkersOfKind(t, h.manager, active.ID, transcript.MarkerRuntimeChanged)
+		if len(markers) != 1 || markers[0].Evidence["during_turn"] != false {
+			t.Fatalf("markers = %#v, want no during-turn claim for an undispatched prompt", markers)
+		}
+	})
+
+	t.Run("Should leave a canceled prompt waiting on a live apply", func(t *testing.T) {
+		t.Parallel()
+		entered, unblock := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		blockMedium := func(config acp.RuntimeConfig) error {
+			if config.ReasoningEffort == "medium" {
+				once.Do(func() { close(entered) })
+				<-unblock
+			}
+			return nil
+		}
+		h, _, active := newLiveRuntimeHarness(t, runtimeProviderClaude, blockMedium)
+		applied := make(chan error, 1)
+		go func() {
+			_, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+			applied <- err
+		}()
+		waitLiveApplyEntered(t, entered)
+		process := active.processHandle()
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, err := h.manager.ensurePromptRuntime(canceled, active, nil, process)
+		close(unblock)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ensurePromptRuntime(canceled) error = %v, want context.Canceled", err)
+		}
+		if err := <-applied; err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+	})
+
+	t.Run("Should apply a selection saved under a provider alias", func(t *testing.T) {
+		t.Parallel()
+		h, driver, active := newLiveRuntimeHarness(t, runtimeProviderClaude, nil)
+		selection := liveEffortSelection(active, "medium")
+		selection.Provider = "claude-code"
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, selection, 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(alias) error = %v", err)
+		}
+		if got := driver.configSnapshots(); len(got) != 1 || updated.ReasoningEffort != "medium" ||
+			updated.SelectedRuntime == nil || updated.SelectedRuntime.Provider != runtimeProviderClaude {
+			t.Fatalf("alias selection configs = %#v info = %#v, want a canonical live apply", got, updated)
+		}
+	})
+
 	t.Run("Should reconfigure before dispatch after a failed rollback with a matching selection", func(t *testing.T) {
 		t.Parallel()
 		var rollbackFails atomic.Bool
@@ -1856,7 +1965,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 			_, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "max"), 0)
 			first <- err
 		}()
-		<-entered
+		waitLiveApplyEntered(t, entered)
 		second := make(chan *Info, 1)
 		go func() {
 			info, err := h.manager.SetRuntimeSelection(
@@ -1910,9 +2019,8 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 			t.Fatalf("refused turn events = %#v, want completed turn", last)
 		}
 
-		next, err := h.manager.Prompt(t.Context(), active.ID, "retry the stored selection")
-		if err == nil {
-			collectEvents(t, next)
+		if _, err := h.manager.Prompt(t.Context(), active.ID, "retry the stored selection"); !errors.Is(err, refusal) {
+			t.Fatalf("Prompt(retry) error = %v, want the provider refusal", err)
 		}
 		if got := driver.configSnapshots(); len(got) < 3 || got[2].ReasoningEffort != "max" {
 			t.Fatalf("next prompt configs = %#v, want the stored selection retried", got)
@@ -1979,7 +2087,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 			_, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
 			applied <- err
 		}()
-		<-entered
+		waitLiveApplyEntered(t, entered)
 		prompted := make(chan error, 1)
 		go func() {
 			events, err := h.manager.Prompt(t.Context(), active.ID, "admitted after the live apply")
@@ -2099,6 +2207,15 @@ func startBlockedLivePrompt(
 	releaseOnce := func() { once.Do(func() { close(release) }) }
 	t.Cleanup(releaseOnce)
 	return events, turnID, releaseOnce
+}
+
+func waitLiveApplyEntered(t *testing.T, entered <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("live apply did not reach ConfigureRuntime")
+	}
 }
 
 func liveAgentMessageEffort(t *testing.T, h *harness, active *Session, turnID string) string {

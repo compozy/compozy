@@ -25,6 +25,12 @@ export interface RuntimeApplyTarget {
   liveApply: RuntimeProviderLiveApply | undefined;
 }
 
+/** The live session as the composer currently sees it; undefined until it is mounted. */
+export interface RuntimeApplyLiveSession {
+  badge: SessionPayload["badge"] | undefined;
+  runtime: SessionRuntime | undefined;
+}
+
 /** Every option the selection names must hold that value on the effective runtime. */
 function acpOptionsApplied(runtime: SessionRuntime): boolean {
   const selected = normalizeRuntimeACPSelections(runtime.selected?.acp_options);
@@ -63,9 +69,17 @@ export function runtimeApplyNotice(
   session: RuntimeApplySession,
   liveApply: RuntimeProviderLiveApply | undefined
 ): RuntimeApplyNotice | null {
-  if (!session.runtime.selected) return null;
+  const { selected, effective, failure, status } = session.runtime;
+  if (!selected) return null;
   if (!selectionApplied(session.runtime)) {
-    return session.runtime.failure?.trim()
+    // Only a ready same-provider session_config runtime attempts a live apply; any other
+    // failure belongs to an earlier bind, not to this deferred selection.
+    const refused =
+      !!failure?.trim() &&
+      liveApply !== undefined &&
+      status === "ready" &&
+      effective?.provider === selected.provider;
+    return refused
       ? { text: "Couldn't apply this now. It retries with the next message.", tone: "danger" }
       : { text: "Applies from the next message.", tone: "neutral" };
   }
@@ -75,21 +89,43 @@ export function runtimeApplyNotice(
     : { text: "Applies from the next message.", tone: "neutral" };
 }
 
-/**
- * The notice for a saved selection, re-derived from the live session once it reports
- * that save: a finished turn or a later successful retry clears it, and a newer
- * selection from anywhere supersedes it.
- */
-export function currentRuntimeApplyNotice(
+/** The session state this save is judged against; null once a newer selection replaced it. */
+function reportedSession(
   target: RuntimeApplyTarget,
-  live: { badge: SessionPayload["badge"] | undefined; runtime: SessionRuntime | undefined }
-): RuntimeApplyNotice | null {
+  live: RuntimeApplyLiveSession
+): RuntimeApplySession | null {
   const revision = target.saved.runtime.selection_revision;
   if (live.runtime && live.badge !== undefined) {
     if (live.runtime.selection_revision > revision) return null;
     if (live.runtime.selection_revision === revision) {
-      return runtimeApplyNotice({ badge: live.badge, runtime: live.runtime }, target.liveApply);
+      return { badge: live.badge, runtime: live.runtime };
     }
   }
-  return runtimeApplyNotice(target.saved, target.liveApply);
+  return target.saved;
+}
+
+/**
+ * The notice for a saved selection, re-derived from the live session once it reports
+ * that save. The "takes effect" note belongs to the turn the change was saved during;
+ * a change that lands later (idle save, retried refusal) has nothing left to say.
+ */
+export function currentRuntimeApplyNotice(
+  target: RuntimeApplyTarget,
+  live: RuntimeApplyLiveSession
+): RuntimeApplyNotice | null {
+  const session = reportedSession(target, live);
+  if (!session) return null;
+  const savedDuringTurn =
+    selectionApplied(target.saved.runtime) && TURN_ACTIVE_BADGES.has(target.saved.badge);
+  if (selectionApplied(session.runtime) && !savedDuringTurn) return null;
+  return runtimeApplyNotice(session, target.liveApply);
+}
+
+/** True once the save has nothing left to report, so a later turn cannot revive its note. */
+export function runtimeApplyTargetSettled(
+  target: RuntimeApplyTarget,
+  live: RuntimeApplyLiveSession
+): boolean {
+  const session = reportedSession(target, live);
+  return !session || (selectionApplied(session.runtime) && !TURN_ACTIVE_BADGES.has(session.badge));
 }
