@@ -13,7 +13,12 @@ import type {
   SessionProcessGroupPayload,
   SessionProcessPayload,
 } from "../adapters/session-processes-api";
-import { processCountLabel, sortSessionProcesses } from "../lib/session-processes";
+import {
+  processCountLabel,
+  processTreeMembers,
+  singleProcessTrees,
+  sortSessionProcesses,
+} from "../lib/session-processes";
 import { ProcessListNote, SessionProcessList } from "./session-process-list";
 
 export interface ProcessesLeftRunningDialogProps {
@@ -75,9 +80,9 @@ function LeftRunningGroup({
         ) : null}
       </div>
       <SessionProcessList
-        processes={processes}
+        trees={singleProcessTrees(processes)}
         stopping={stopping}
-        onStop={process => onStop([process])}
+        onStop={tree => onStop(processTreeMembers(tree))}
       />
     </section>
   );
@@ -157,7 +162,7 @@ function LeftRunningBody({
     // The shared list owns the unsupported, loading, failed, and empty lines.
     return (
       <SessionProcessList
-        processes={[]}
+        trees={[]}
         supported={supported}
         loading={loading}
         failed={failed}

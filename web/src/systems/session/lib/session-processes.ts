@@ -100,6 +100,72 @@ export function processIdentity(process: Pick<SessionProcessPayload, "pid" | "st
   return `${process.pid}@${process.started_at}`;
 }
 
+/**
+ * One logical thing a session started: a dev server behind `bun run`, a headless browser with
+ * its helpers, a Terminal. The row names `lead`; a Stop signals every member.
+ */
+export interface SessionProcessTree {
+  /** Stable row identity: the identity of the tree's root process. */
+  id: string;
+  kind: SessionProcessKind;
+  /** The process the row names: the leaf of a wrapper chain, else the tree's root. */
+  lead: SessionProcessPayload;
+  /** Wrapper commands above `lead` (`bun run dev` → `node …`), outermost first. */
+  wrappers: readonly SessionProcessPayload[];
+  /** Every other member below or beside `lead`: browser helpers, detached crash handlers. */
+  helpers: readonly SessionProcessPayload[];
+  /** The union of every member's listening ports, in first-seen order. */
+  ports: readonly number[];
+}
+
+/** Every process a tree Stop signals: wrappers, the lead, and the helpers. */
+export function processTreeMembers(tree: SessionProcessTree): SessionProcessPayload[] {
+  return [...tree.wrappers, tree.lead, ...tree.helpers];
+}
+
+/** One tree per process: the list as flat rows, before the daemon groups them. */
+export function singleProcessTrees(
+  processes: readonly SessionProcessPayload[]
+): SessionProcessTree[] {
+  return processes.map(process => ({
+    id: processIdentity(process),
+    kind: process.kind,
+    lead: process,
+    wrappers: [],
+    helpers: [],
+    ports: process.ports,
+  }));
+}
+
+export function processHelperCountLabel(count: number): string {
+  return `+${count} ${count === 1 ? "helper" : "helpers"}`;
+}
+
+/** The program a helper runs, by name: `Google Chrome Helper (Renderer)`, not its bundle path. */
+function processProgramName(process: Pick<SessionProcessPayload, "argv0" | "command">): string {
+  const program = process.argv0.trim() || process.command.trim().split(/\s+/)[0] || "";
+  return program.slice(program.lastIndexOf("/") + 1) || program;
+}
+
+/** A tree's helpers folded by program: eight Chrome helpers read as three lines. */
+export function processHelperGroups(
+  helpers: readonly SessionProcessPayload[]
+): { program: string; count: number; title: string }[] {
+  const groups = new Map<string, { program: string; count: number; title: string }>();
+  for (const helper of helpers) {
+    const program = processProgramName(helper);
+    const group = groups.get(program);
+    const line = `pid ${helper.pid}: ${helper.command}`;
+    if (group) {
+      group.count += 1;
+      group.title = `${group.title}\n${line}`;
+    } else {
+      groups.set(program, { program, count: 1, title: line });
+    }
+  }
+  return [...groups.values()];
+}
+
 /** Background and Terminal rows first (they outlive the turn), then tool calls; newest first. */
 export function sortSessionProcesses(
   items: readonly SessionProcessPayload[]

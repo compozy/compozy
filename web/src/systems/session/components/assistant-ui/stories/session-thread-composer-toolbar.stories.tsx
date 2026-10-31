@@ -10,7 +10,7 @@ import type { SessionMonitorPayload } from "@/systems/session/adapters/session-m
 import { MonitorComposerControl } from "@/systems/session/components/monitor-composer-control";
 import { SessionProcessesComposerControl } from "@/systems/session/components/session-processes-composer-control";
 import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
-import { primarySessionFixture, sessionProcessesFixture } from "@/systems/session/mocks";
+import { primarySessionFixture, sessionProcessTreesFixture } from "@/systems/session/mocks";
 
 import { baseArgs, composerToolbarArgs } from "./session-thread-story-runtime";
 import { mixedStreamingTranscript, transcriptPayload } from "./session-thread-story-transcripts";
@@ -179,8 +179,8 @@ export const Processes: Story = {
     monitorControl: <MonitorComposerControl active={1} monitors={STORY_MONITORS.slice(0, 1)} />,
     processControl: (
       <SessionProcessesComposerControl
-        count={sessionProcessesFixture.length}
-        processes={sessionProcessesFixture}
+        count={sessionProcessTreesFixture.length}
+        trees={sessionProcessTreesFixture}
         onStop={() => undefined}
         onStopAll={() => undefined}
       />
@@ -198,7 +198,7 @@ export const ProcessesLoading: Story = {
   args: {
     ...baseArgs,
     ...composerToolbarArgs,
-    processControl: <SessionProcessesComposerControl count={3} processes={[]} loading />,
+    processControl: <SessionProcessesComposerControl count={3} trees={[]} loading />,
   },
   play: async ({ canvasElement }) => {
     await userEvent.click(await within(canvasElement).findByTestId("composer-processes-button"));

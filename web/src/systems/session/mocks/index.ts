@@ -47,5 +47,6 @@ export {
   processesLeftRunningFixture,
   sessionProcessFixture,
   sessionProcessesFixture,
+  sessionProcessTreesFixture,
   withSessionProcessSummary,
 } from "./process-fixtures";

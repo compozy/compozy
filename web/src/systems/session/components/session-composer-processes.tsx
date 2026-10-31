@@ -7,7 +7,11 @@ import {
   type SessionProcessStopRequest,
 } from "../hooks/use-session-processes";
 import { reportProcessStop } from "../lib/session-process-feedback";
-import { sessionRunningProcesses } from "../lib/session-processes";
+import {
+  processTreeMembers,
+  sessionRunningProcesses,
+  singleProcessTrees,
+} from "../lib/session-processes";
 import type { SessionPayload } from "../types";
 import { SessionProcessesComposerControl } from "./session-processes-composer-control";
 
@@ -48,14 +52,14 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
   return (
     <SessionProcessesComposerControl
       count={count}
-      processes={model.processes}
+      trees={singleProcessTrees(model.processes)}
       supported={model.supported}
       loading={model.loading}
       failed={model.failed}
       missing={model.missing}
       onRetry={model.retry}
       stopping={model.stopping}
-      onStop={process => stop({ targets: [process] })}
+      onStop={tree => stop({ targets: processTreeMembers(tree) })}
       onStopAll={() => stop({ all: true })}
       onOpenChange={setOpen}
     />

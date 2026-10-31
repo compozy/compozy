@@ -8,8 +8,9 @@ import {
   processesLeftRunningFixture,
   sessionProcessFixture,
   sessionProcessesFixture,
+  sessionProcessTreesFixture,
 } from "../../mocks/process-fixtures";
-import { processIdentity } from "../../lib/session-processes";
+import { processIdentity, singleProcessTrees } from "../../lib/session-processes";
 import { ProcessesLeftRunningDialog } from "../processes-left-running-dialog";
 import { SessionProcessChoiceDialog } from "../session-process-choice-dialog";
 import { SessionProcessesComposerControl } from "../session-processes-composer-control";
@@ -24,14 +25,14 @@ import { SessionProcessesComposerControl } from "../session-processes-composer-c
 function renderControl(props: Partial<Parameters<typeof SessionProcessesComposerControl>[0]> = {}) {
   return render(
     <UIProvider reducedMotion="always">
-      <SessionProcessesComposerControl count={3} processes={[]} {...props} />
+      <SessionProcessesComposerControl count={3} trees={[]} {...props} />
     </UIProvider>
   );
 }
 
 describe("SessionProcessesComposerControl", () => {
   it("Should render nothing while the session has no process running", () => {
-    renderControl({ count: 0, processes: sessionProcessesFixture });
+    renderControl({ count: 0, trees: sessionProcessTreesFixture });
     expect(screen.queryByTestId("composer-processes-button")).not.toBeInTheDocument();
   });
 
@@ -40,7 +41,7 @@ describe("SessionProcessesComposerControl", () => {
     const onStop = vi.fn();
     const onStopAll = vi.fn();
     const onOpenChange = vi.fn();
-    renderControl({ processes: sessionProcessesFixture, onStop, onStopAll, onOpenChange });
+    renderControl({ trees: sessionProcessTreesFixture, onStop, onStopAll, onOpenChange });
 
     const trigger = screen.getByRole("button", { name: "Processes, 3 running" });
     expect(trigger).toHaveTextContent("3");
@@ -65,7 +66,7 @@ describe("SessionProcessesComposerControl", () => {
     await user.click(
       within(server).getByRole("button", { name: "Stop process: bun run dev --port 5173" })
     );
-    expect(onStop).toHaveBeenCalledExactlyOnceWith(sessionProcessesFixture[0]);
+    expect(onStop).toHaveBeenCalledExactlyOnceWith(sessionProcessTreesFixture[0]);
     await user.click(screen.getByRole("button", { name: "Stop all" }));
     expect(onStopAll).toHaveBeenCalledOnce();
   });
@@ -75,7 +76,7 @@ describe("SessionProcessesComposerControl", () => {
   it("Should lock every Stop while one stop is in flight, spinning only its own row", async () => {
     const user = userEvent.setup();
     const view = renderControl({
-      processes: sessionProcessesFixture,
+      trees: sessionProcessTreesFixture,
       onStop: vi.fn(),
       onStopAll: vi.fn(),
       stopping: new Set([processIdentity(sessionProcessesFixture[1]!)]),
@@ -96,7 +97,7 @@ describe("SessionProcessesComposerControl", () => {
       <UIProvider reducedMotion="always">
         <SessionProcessesComposerControl
           count={3}
-          processes={sessionProcessesFixture}
+          trees={sessionProcessTreesFixture}
           onStop={vi.fn()}
           onStopAll={vi.fn()}
           stopping="all"
@@ -114,7 +115,10 @@ describe("SessionProcessesComposerControl", () => {
     const { attribution: _omitted, ...legacy } = sessionProcessFixture({ pid: 90001 });
     renderControl({
       count: 4,
-      processes: [...sessionProcessesFixture, legacy as (typeof sessionProcessesFixture)[number]],
+      trees: singleProcessTrees([
+        ...sessionProcessesFixture,
+        legacy as (typeof sessionProcessesFixture)[number],
+      ]),
     });
     await user.click(screen.getByRole("button", { name: "Processes, 4 running" }));
     const lineage = within(screen.getByTestId("session-process-76112")).getByText(
@@ -132,7 +136,9 @@ describe("SessionProcessesComposerControl", () => {
     const user = userEvent.setup();
     renderControl({
       count: 1,
-      processes: [sessionProcessFixture({ command: "bash -c 'cat <<EOF\nhello\nEOF'" })],
+      trees: singleProcessTrees([
+        sessionProcessFixture({ command: "bash -c 'cat <<EOF\nhello\nEOF'" }),
+      ]),
       onStop: vi.fn(),
     });
     await user.click(screen.getByRole("button", { name: "Processes, 1 running" }));
@@ -168,7 +174,7 @@ describe("SessionProcessesComposerControl", () => {
 
   it("Should keep cached rows when a refresh fails", async () => {
     const user = userEvent.setup();
-    renderControl({ processes: sessionProcessesFixture, failed: true, onRetry: vi.fn() });
+    renderControl({ trees: sessionProcessTreesFixture, failed: true, onRetry: vi.fn() });
     await user.click(screen.getByRole("button", { name: "Processes, 3 running" }));
     expect(screen.getByTestId("session-process-76050")).toBeInTheDocument();
     expect(screen.getByText("Couldn't refresh processes.")).toBeInTheDocument();
