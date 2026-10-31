@@ -196,8 +196,8 @@ Reviewers press C in the gallery, click an element or drag a region, and write; 
 records the selector, text, rects and the JSX source chain of what was clicked, plus the commit,
 state, theme, role and viewport. Review files live in `web/proto/review/<key>.json` (flow keys are
 `flow-<id>`), written under a per-key lock by the dev server and the CLI. Agents apply comments
-with the shipped `apply-prototype-comments` skill (`.agents/skills/apply-prototype-comments/`) and
-author prototypes with `author-prototype`:
+with the shipped `proto-apply-comments` skill (`.agents/skills/proto-apply-comments/`) and
+author prototypes with `proto`:
 
 ```sh
 bun run proto comments list [--status open|resolved|all] [--json]
