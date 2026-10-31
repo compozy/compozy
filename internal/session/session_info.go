@@ -93,6 +93,7 @@ func (s *Session) infoLocked() *Info {
 		LastSeenRevision:         s.LastSeenRevision,
 		LastSeenAt:               cloneSessionTimePtr(s.LastSeenAt),
 		AttentionChangedAt:       cloneSessionTimePtr(s.AttentionChangedAt),
+		EndedEarlyTurnID:         s.EndedEarlyTurnID,
 		PendingInteractions:      clonePendingInteractions(s.PendingInteractions),
 		ArchivedAt:               nil,
 		CreatedAt:                s.CreatedAt,

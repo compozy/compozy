@@ -56,8 +56,8 @@ func (s *Service) ContextForStartup(
 		Self: contract.AgentIdentityPayload{
 			SessionID: strings.TrimSpace(startup.SessionID),
 			AgentName: agentName,
-			Provider:  firstTrimmed(resolvedAgent.Provider, startup.Provider, agent.Provider),
-			Model:     firstTrimmed(resolvedAgent.Model, agent.Model),
+			Provider:  firstTrimmed(startup.Provider, resolvedAgent.Provider, agent.Provider),
+			Model:     firstTrimmed(startup.Model, resolvedAgent.Model, agent.Model),
 		},
 		Workspace:    workspaceSection,
 		Session:      startupSessionPayload(startup),

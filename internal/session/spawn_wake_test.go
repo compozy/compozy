@@ -8,8 +8,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -381,6 +384,306 @@ func TestFinishPromptPumpSpawnWakeCancelSuppression(t *testing.T) {
 				if events[0].Reason != SpawnWakeReasonCompleted || events[0].Badge != BadgeDone {
 					t.Fatalf("wake = %#v, want completed/done", events[0])
 				}
+			}
+		})
+	}
+}
+
+// earlyStopPullRequests fakes the branch snapshot and pull request read model. saved is
+// the stored branch, current the branch the saver records at settle, and refreshErr
+// with refreshCause a failed forge refresh.
+type earlyStopPullRequests struct {
+	mu           sync.Mutex
+	saved        string
+	current      string
+	prBranch     string
+	refreshErr   error
+	refreshCause string
+}
+
+func (r *earlyStopPullRequests) SessionBranches(_ context.Context, ids []string) (map[string]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[string]string, len(ids))
+	for _, id := range ids {
+		out[id] = r.saved
+	}
+	return out, nil
+}
+
+func (r *earlyStopPullRequests) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[BranchKey]PullRequestView, len(keys))
+	for _, key := range keys {
+		if key.Branch == r.prBranch && r.refreshErr == nil {
+			out[key] = PullRequestView{PullRequest: &PullRequest{Number: 7, State: PullRequestOpen}}
+		}
+	}
+	return out
+}
+
+func (r *earlyStopPullRequests) RefreshBranch(_ context.Context, key BranchKey) (PullRequestView, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.refreshErr != nil {
+		return PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: r.refreshCause}}, r.refreshErr
+	}
+	if key.Branch == r.prBranch {
+		return PullRequestView{PullRequest: &PullRequest{Number: 7, State: PullRequestOpen}}, nil
+	}
+	return PullRequestView{}, nil
+}
+
+func (r *earlyStopPullRequests) saveBranch(context.Context, *Info) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.current != "" {
+		r.saved = r.current
+	}
+	return nil
+}
+
+// flakyEarlyStopAttentionStore fails the first early-stop writes, then delegates.
+type flakyEarlyStopAttentionStore struct {
+	store.SessionAttentionStore
+	mu       sync.Mutex
+	failures int
+	count    int
+}
+
+func (s *flakyEarlyStopAttentionStore) MarkSessionEndedEarly(
+	ctx context.Context, sessionID string, turnID string,
+) (store.SessionAttentionCommit, error) {
+	s.mu.Lock()
+	s.count++
+	fail := s.count <= s.failures
+	s.mu.Unlock()
+	if fail {
+		return store.SessionAttentionCommit{}, errors.New("database is locked")
+	}
+	return s.SessionAttentionStore.MarkSessionEndedEarly(ctx, sessionID, turnID)
+}
+
+func (s *flakyEarlyStopAttentionStore) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.count
+}
+
+func earlyStopWorkSources(open WorkSignalKind) []WorkSignalSource {
+	sources := make([]WorkSignalSource, 0, len(WorkSignalKindValues()))
+	for _, name := range WorkSignalKindValues() {
+		kind := WorkSignalKind(name)
+		if kind == WorkSignalAgentProgress {
+			continue
+		}
+		sources = append(sources, WorkSignalSource{
+			Kind: kind,
+			Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+				if kind != open {
+					return nil, nil
+				}
+				now := time.Now().UTC()
+				return []WorkSignal{{Kind: kind, Since: now, ValidUntil: now.Add(time.Hour), Ref: "open-work"}}, nil
+			}),
+		})
+	}
+	return sources
+}
+
+// Invariant: a child session whose turn ends with end_turn and nothing left to resume
+// or deliver needs attention instead of reading done, durably across catalog reads, and
+// wakes its parent once with the final answer even when the parent opted out of wakes.
+// Owner: session supervision and spawn wake dispatch; canonical spawn_wake_test.go suite.
+func TestManagerEarlyStopSupervision(t *testing.T) {
+	t.Parallel()
+
+	newEarlyStopHarness := func(
+		t *testing.T, open WorkSignalKind, withParent bool, pullRequests *earlyStopPullRequests,
+	) (*harness, *globaldb.GlobalDB, *recordingSpawnWakeNotifier, *Session, *Session) {
+		t.Helper()
+		db := openManagerInputQueueStore(t)
+		notifier := &recordingSpawnWakeNotifier{}
+		h := newHarness(t, WithSessionInputQueueStore(db), WithSessionCatalog(db), WithSpawnWakeNotifier(notifier))
+		registerManagerInputQueueWorkspace(t, db, h)
+		cleanupTestManager(t, h.manager)
+		h.manager.SetWorkSignalSources(earlyStopWorkSources(open)...)
+		if pullRequests != nil {
+			h.manager.ConfigurePullRequests(pullRequests, pullRequests)
+			h.manager.ConfigureBranchSnapshotSaver(pullRequests.saveBranch)
+		}
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		var lineage *store.SessionLineage
+		if withParent {
+			lineage = &store.SessionLineage{
+				ParentSessionID: parent.ID, RootSessionID: parent.ID, Kind: store.LineageKindProvenance,
+			}
+		}
+		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Name: "executor", Workspace: h.workspaceID, Lineage: lineage,
+		})
+		if err != nil {
+			t.Fatalf("Create(child) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+		return h, db, notifier, parent, child
+	}
+	promptChild := func(t *testing.T, h *harness, child *Session) {
+		t.Helper()
+		events, err := h.manager.Prompt(testutil.Context(t), child.ID, "keep working until delivered")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+	}
+
+	t.Run("Should flag the early stop durably and wake the parent with the final answer", func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, parent, child := newEarlyStopHarness(t, "", true, nil)
+
+		promptChild(t, h, child)
+
+		info := child.Info()
+		if info.EndedEarlyTurnID == "" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("child badge = %s ended_early_turn_id = %q, want needs-attention", BadgeForInfo(info),
+				info.EndedEarlyTurnID)
+		}
+		if got := BoardColumnFor(BadgeForInfo(info), ""); got != BoardNeedsYou {
+			t.Fatalf("board column = %s, want %s", got, BoardNeedsYou)
+		}
+		parents, events := notifier.calls()
+		if len(events) != 1 || parents[0] != parent.ID {
+			t.Fatalf("parent wakes = %#v to %#v, want one wake to %s", events, parents, parent.ID)
+		}
+		if events[0].Badge != BadgeNeedsAttention || events[0].Reason != SpawnWakeReasonNeedsAttention ||
+			events[0].FinalAnswer != "reply" || events[0].Detail != endedEarlyWakeDetail {
+			t.Fatalf("parent wake = %#v, want the early-stop wake carrying the final answer", events[0])
+		}
+
+		attention, err := db.GetSessionAttention(testutil.Context(t), child.ID)
+		if err != nil || attention.EndedEarlyTurnID != info.EndedEarlyTurnID {
+			t.Fatalf("durable attention = %#v, %v; want turn %q", attention, err, info.EndedEarlyTurnID)
+		}
+		durable, err := h.manager.durableSessionInfoForLifecycleTransition(testutil.Context(t), child.ID)
+		if err != nil {
+			t.Fatalf("durable catalog read error = %v", err)
+		}
+		if got := BadgeForInfo(durable); got != BadgeNeedsAttention {
+			t.Fatalf("durable catalog badge = %s, want needs-attention after a runtime-less read", got)
+		}
+	})
+
+	t.Run("Should clear the early stop when the next prompt starts", func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, _, child := newEarlyStopHarness(t, "", true, nil)
+		promptChild(t, h, child)
+		h.manager.SetWorkSignalSources(earlyStopWorkSources(WorkSignalActiveMonitor)...)
+
+		promptChild(t, h, child)
+
+		if info := child.Info(); info.EndedEarlyTurnID != "" || BadgeForInfo(info) != BadgeWaiting {
+			t.Fatalf("child badge = %s ended_early_turn_id = %q, want waiting with the mark cleared",
+				BadgeForInfo(info), info.EndedEarlyTurnID)
+		}
+		attention, err := db.GetSessionAttention(testutil.Context(t), child.ID)
+		if err != nil || attention.EndedEarlyTurnID != "" {
+			t.Fatalf("durable attention = %#v, %v; want the mark cleared", attention, err)
+		}
+		if _, events := notifier.calls(); len(events) != 1 {
+			t.Fatalf("parent wakes = %#v, want only the first early-stop wake", events)
+		}
+	})
+
+	t.Run("Should retry a failed early-stop write before settling attention", func(t *testing.T) {
+		t.Parallel()
+		h, db, notifier, _, child := newEarlyStopHarness(t, "", true, nil)
+		flaky := &flakyEarlyStopAttentionStore{SessionAttentionStore: h.manager.attentionStore, failures: 1}
+		h.manager.attentionStore = flaky
+
+		promptChild(t, h, child)
+
+		attention, err := db.GetSessionAttention(testutil.Context(t), child.ID)
+		if err != nil || attention.EndedEarlyTurnID == "" || flaky.calls() < 2 {
+			t.Fatalf("durable attention = %#v, %v after %d writes; want the retried mark",
+				attention, err, flaky.calls())
+		}
+		if _, events := notifier.calls(); len(events) != 1 || !events[0].EndedEarly {
+			t.Fatalf("parent wakes = %#v, want one early-stop wake after the retry", events)
+		}
+	})
+
+	t.Run("Should flag a child whose remote cannot host a pull request", func(t *testing.T) {
+		t.Parallel()
+		h, _, notifier, _, child := newEarlyStopHarness(t, "", true, &earlyStopPullRequests{
+			saved: "fix/issue", refreshErr: errors.New("no supported remote"), refreshCause: "unsupported_remote",
+		})
+
+		promptChild(t, h, child)
+
+		if info := child.Info(); info.EndedEarlyTurnID == "" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("child badge = %s ended_early_turn_id = %q, want needs-attention",
+				BadgeForInfo(info), info.EndedEarlyTurnID)
+		}
+		if _, events := notifier.calls(); len(events) != 1 || !events[0].EndedEarly {
+			t.Fatalf("parent wakes = %#v, want one early-stop wake", events)
+		}
+	})
+
+	for _, tc := range []struct {
+		name         string
+		open         WorkSignalKind
+		withParent   bool
+		pullRequests *earlyStopPullRequests
+		stopReason   acp.PromptStopReason
+	}{
+		{name: "Should not flag a child that registered a monitor", open: WorkSignalActiveMonitor, withParent: true},
+		{name: "Should not flag a child that delegated work", open: WorkSignalActiveChild, withParent: true},
+		{name: "Should not flag a child awaiting another session's reply", open: WorkSignalAwaitingReply, withParent: true},
+		{
+			name: "Should not flag a child with a linked pull request", withParent: true,
+			pullRequests: &earlyStopPullRequests{saved: "fix/issue", prBranch: "fix/issue"},
+		},
+		{
+			name: "Should not flag a child that opened a pull request on a new branch during its turn", withParent: true,
+			pullRequests: &earlyStopPullRequests{current: "fix/new", prBranch: "fix/new"},
+		},
+		{
+			name: "Should not flag a child when the pull request lookup fails transiently", withParent: true,
+			pullRequests: &earlyStopPullRequests{
+				saved: "fix/issue", refreshErr: errors.New("forge timeout"), refreshCause: "provider_failed",
+			},
+		},
+		{
+			name: "Should not flag a child whose turn stopped on the token limit", withParent: true,
+			stopReason: acp.PromptStopReasonMaxTokens,
+		},
+		{name: "Should not flag a top-level session without a parent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h, _, notifier, _, child := newEarlyStopHarness(t, tc.open, tc.withParent, tc.pullRequests)
+			if tc.stopReason != "" {
+				h.driver.mu.Lock()
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent, 2)
+					events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: req.TurnID, Text: "partial"}
+					events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID, PromptStopReason: tc.stopReason}
+					close(events)
+					return events, nil
+				}
+				h.driver.mu.Unlock()
+			}
+
+			promptChild(t, h, child)
+
+			if info := child.Info(); info.EndedEarlyTurnID != "" || BadgeForInfo(info) == BadgeNeedsAttention {
+				t.Fatalf("child badge = %s ended_early_turn_id = %q, want no early-stop flag",
+					BadgeForInfo(info), info.EndedEarlyTurnID)
+			}
+			if _, events := notifier.calls(); len(events) != 0 {
+				t.Fatalf("parent wakes = %#v, want none for an opted-out parent", events)
 			}
 		})
 	}

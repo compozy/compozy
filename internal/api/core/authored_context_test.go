@@ -824,6 +824,74 @@ func TestSessionStatusCarriesLineage(t *testing.T) {
 	}
 }
 
+// Invariant: the status attention names the cause of the badge it is returned with, so
+// a degraded runtime that outranks an early stop does not report the early-stop cause.
+func TestSessionStatusEarlyStopAttentionFollowsBadge(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		health        heartbeat.SessionHealthStatus
+		wantAttention string
+	}{
+		{name: "Should report the early stop on a healthy runtime", health: heartbeat.SessionHealthHealthy,
+			wantAttention: session.EndedEarlyAttentionCode},
+		{name: "Should drop the early stop when a degraded runtime sets the badge",
+			health: heartbeat.SessionHealthDegraded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID: id, WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID,
+						AgentName: "coder", State: session.StateActive, EndedEarlyTurnID: "turn-1",
+					}, nil
+				},
+			}
+			workspaces := testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						ID: "ws-registry", RootDir: t.TempDir(), WorkspaceID: "ws-stable",
+					}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
+			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
+				SessionID: "sess-child", WorkspaceID: "ws-registry", AgentName: "coder",
+				State: heartbeat.SessionHealthStateIdle, Health: tc.health,
+			}}
+			fixture.Engine.GET(
+				"/workspaces/:workspace_id/sessions/:session_id/status",
+				fixture.Handlers.GetSessionStatus,
+			)
+
+			req := httptest.NewRequestWithContext(
+				t.Context(), http.MethodGet, "/workspaces/ws-stable/sessions/sess-child/status", nil,
+			)
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("response code = %d body=%s", recorder.Code, recorder.Body.String())
+			}
+			var payload struct {
+				Attention string `json:"attention"`
+				Badge     string `json:"badge"`
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("Unmarshal(response) error = %v", err)
+			}
+			if payload.Attention != tc.wantAttention {
+				t.Fatalf("attention = %q with badge %q, want %q", payload.Attention, payload.Badge, tc.wantAttention)
+			}
+			if (payload.Badge == string(session.BadgeNeedsAttention)) != (tc.wantAttention != "") {
+				t.Fatalf("badge = %q, want needs-attention only with the early-stop cause", payload.Badge)
+			}
+		})
+	}
+}
+
 func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {
 	t.Parallel()
 

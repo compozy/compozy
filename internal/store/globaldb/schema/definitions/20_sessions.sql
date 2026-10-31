@@ -180,6 +180,7 @@ CREATE TABLE sessions (
 				CHECK (policy_spec_digest IS NULL OR length(trim(policy_spec_digest)) > 0), creation_profile_ref TEXT
 				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
 				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
+		ended_early_turn_id TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
@@ -298,7 +299,9 @@ CREATE INDEX idx_sessions_global_catalog_attention
  WHEN (stop_verification_failed = 1 AND state <> 'stopped')
  OR pending_permission_count > 0 OR pending_clarify_count > 0
  OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure')
- OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation') THEN 0
+ OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation')
+ OR (state = 'active' AND ended_early_turn_id <> '' AND trim(COALESCE(stall_state, '')) <> 'stalled'
+ AND trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) = '') THEN 0
  WHEN state = 'active' AND trim(COALESCE(stall_state, '')) <> 'stalled'
  AND trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) = ''
  AND last_settled_revision > last_seen_revision THEN 1
@@ -331,6 +334,7 @@ CREATE INDEX idx_sessions_global_catalog_navigator
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND ended_early_turn_id <> '' THEN 0
  WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
  ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
 
@@ -343,6 +347,7 @@ CREATE INDEX idx_sessions_profile_global_catalog_navigator
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND ended_early_turn_id <> '' THEN 0
  WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
  ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
 
@@ -355,6 +360,7 @@ CREATE INDEX idx_sessions_workspace_catalog_navigator
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND ended_early_turn_id <> '' THEN 0
  WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
  ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
 
@@ -367,6 +373,7 @@ CREATE INDEX idx_sessions_profile_workspace_catalog_navigator
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND ended_early_turn_id <> '' THEN 0
  WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
  ELSE 3 END), COALESCE(attention_changed_at, updated_at) DESC, id ASC);
 

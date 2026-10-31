@@ -16,10 +16,12 @@ import (
 
 type sessionStartRuntime struct {
 	nativeToolsUnavailable bool
-	startupManifest        acp.StartupManifest
-	agent                  compozyconfig.ResolvedAgent
-	agentDef               compozyconfig.AgentDef
-	mcpServers             []compozyconfig.MCPServer
+	// startupRebuilt marks a startup definition reassembled for a switched provider or model.
+	startupRebuilt  bool
+	startupManifest acp.StartupManifest
+	agent           compozyconfig.ResolvedAgent
+	agentDef        compozyconfig.AgentDef
+	mcpServers      []compozyconfig.MCPServer
 }
 
 type sessionStartStorage struct {
@@ -170,6 +172,7 @@ func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupProm
 		SessionName:  strings.TrimSpace(s.sessionName),
 		AgentName:    strings.TrimSpace(s.agentName),
 		Provider:     strings.TrimSpace(s.provider),
+		Model:        strings.TrimSpace(s.model),
 		WorkspaceID:  ref.WorkspaceID,
 		Workspace:    ref.Workspace,
 		WorktreeID:   strings.TrimSpace(s.worktreeID),

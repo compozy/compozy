@@ -72,7 +72,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		StopCause:           sessionStopCause(info),
 		Verified:            new(info.State == session.StateStopped),
 		Escalated:           new(info.StopEscalated),
-		Attention:           sessionStopAttention(info),
+		Attention:           sessionAttention(info),
 		StopDetail:          info.StopDetail,
 		Failure:             SessionFailurePayloadFromStore(info.Failure),
 		AvailableCommands:   availableCommandPayloads(info.AdvertisedCommands),

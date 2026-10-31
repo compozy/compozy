@@ -221,6 +221,16 @@ func (m *Manager) configurePromptRuntime(
 		)
 		return false, m.restoreConfiguredRuntime(cleanupCtx, session, snapshot, err, rollbackErr)
 	}
+	// A live model switch keeps the process: later rebinds and a first turn that has not
+	// sent its startup guidance yet must name the new model.
+	if plan.runtime.startupRebuilt {
+		session.setRuntimeDefinition(&plan.runtime)
+		if replacer, ok := m.driver.(StartupPromptReplacer); ok {
+			replacer.ReplacePendingStartupPrompt(
+				snapshot.process, plan.runtime.agent.Prompt, plan.runtime.startupManifest,
+			)
+		}
+	}
 	return false, nil
 }
 
@@ -447,10 +457,9 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
 	}
 	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP {
-		existingDefinition, manifest := session.startupDefinition()
-		runtime.startupManifest = manifest
-		runtime.agentDef.Prompt = existingDefinition.Prompt
-		runtime.agent.Prompt = existingDefinition.Prompt
+		if err := m.preparePromptRuntimeStartupDefinition(ctx, session, &spec, &runtime); err != nil {
+			return nil, err
+		}
 	}
 	// Pi reassembles after readiness, using the authored prompt resolved above.
 

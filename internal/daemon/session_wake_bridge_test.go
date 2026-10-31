@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -119,6 +120,82 @@ func TestSessionWakeBridge(t *testing.T) {
 		}
 		if err := bridge.shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("shutdown() error = %v", err)
+		}
+	})
+
+	earlyStopWakePrompt := func(t *testing.T, event session.SpawnWakeEvent) string {
+		t.Helper()
+		manager := &sessionWakeManagerStub{
+			status: &session.Info{ID: "parent-1", State: session.StateActive},
+			events: make(chan acp.AgentEvent),
+		}
+		bridge, err := newSessionWakeBridge(
+			testutil.Context(t),
+			func() sessionWakeSessionManager { return manager },
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		if err != nil {
+			t.Fatalf("newSessionWakeBridge() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := bridge.shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("shutdown() error = %v", err)
+			}
+		})
+		event.ChildSessionID = cmp.Or(event.ChildSessionID, "child-1")
+		event.Reason, event.Badge = session.SpawnWakeReasonNeedsAttention, session.BadgeNeedsAttention
+		event.Detail, event.EndedEarly = "Turn ended without a linked pull request.", true
+		event.WakeEventID = "wake-early"
+		if err := bridge.WakeSpawnCreator(testutil.Context(t), "parent-1", event); err != nil {
+			t.Fatalf("WakeSpawnCreator() error = %v", err)
+		}
+		manager.mu.Lock()
+		defer manager.mu.Unlock()
+		return manager.promptOpts.Message
+	}
+
+	t.Run("Should carry the early-stopped child's final answer in the wake prompt", func(t *testing.T) {
+		t.Parallel()
+
+		answer := "Delivery incomplete; next step is to push the branch. " + strings.Repeat("detail ", 60)
+		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{FinalAnswer: answer})
+		if !strings.Contains(message, "Final answer:\n---\n"+strings.TrimSpace(answer)) ||
+			!strings.Contains(message, "compozy__session_stop") ||
+			!strings.Contains(message, "Detail: Turn ended without a linked pull request.") {
+			t.Fatalf("wake prompt = %q, want the full bounded final answer and next actions", message)
+		}
+	})
+
+	t.Run("Should truncate an early-stop final answer above the bound", func(t *testing.T) {
+		t.Parallel()
+
+		answer := strings.Repeat("reply ", 1000) + "end"
+		// The bound is 4000 runes, including the 3-rune "..." suffix.
+		want := string([]rune(answer)[:4000-3]) + "..."
+		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{FinalAnswer: answer})
+		if !strings.HasSuffix(message, "Final answer:\n---\n"+want) || strings.Contains(message, answer) {
+			t.Fatalf("wake prompt = %q, want the final answer truncated to the bound", message)
+		}
+	})
+
+	t.Run("Should keep the early-stop guidance when the final answer is unreadable", func(t *testing.T) {
+		t.Parallel()
+
+		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{})
+		if !strings.Contains(message, "It stopped before delivering.") ||
+			!strings.Contains(message, "compozy__session_stop") || strings.Contains(message, "Final answer:") {
+			t.Fatalf("wake prompt = %q, want the continue-or-stop guidance without an answer block", message)
+		}
+	})
+
+	t.Run("Should redact child identifiers in the early-stop wake prompt", func(t *testing.T) {
+		t.Parallel()
+
+		message := earlyStopWakePrompt(t, session.SpawnWakeEvent{
+			ChildAgentName: "compozy_claim_private-token", FinalAnswer: "partial",
+		})
+		if strings.Contains(message, "compozy_claim_private-token") || !strings.Contains(message, "child-1") {
+			t.Fatalf("wake prompt = %q, want the child identity with the claim token redacted", message)
 		}
 	})
 

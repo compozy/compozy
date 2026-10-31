@@ -93,9 +93,16 @@ func SessionStopOutcomePayload(id string, outcome session.StopOutcome) contract.
 	return payload
 }
 
-func sessionStopAttention(info *session.Info) string {
+// sessionAttention names the cause of a needs-attention session that the payload
+// carries durably: an unverified stop first, then a turn that ended early unless a
+// supervision source that needs attention is the live cause.
+func sessionAttention(info *session.Info) string {
 	if info != nil && info.StopVerificationFailed && info.State != session.StateStopped {
 		return session.StopVerificationFailedCode
+	}
+	if info != nil && info.State == session.StateActive &&
+		session.EndedEarlyAttention(info, session.BadgeForInfo(info)) {
+		return session.EndedEarlyAttentionCode
 	}
 	return ""
 }

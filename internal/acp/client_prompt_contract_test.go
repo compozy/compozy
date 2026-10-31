@@ -342,6 +342,48 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	}
 }
 
+// Invariant: startup guidance rebuilt for a live runtime switch replaces the first-turn
+// prefix only while it is unsent; native delivery and a sent prefix stay unchanged.
+func TestReplacePendingStartupPrompt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send the replaced guidance on the first turn and refuse after it", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{SystemPrompt: "self: claude/old-model"})
+		defer stopProcess(t, driver, proc)
+
+		if !proc.ReplacePendingStartupPrompt("self: claude/new-model", StartupManifest{}) {
+			t.Fatal("ReplacePendingStartupPrompt(unsent) = false, want true")
+		}
+		events, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{TurnID: "turn-1", Message: "go"})
+		if err != nil {
+			t.Fatalf("Prompt(first) error = %v", err)
+		}
+		first := collectEvents(t, events)
+		if len(first) == 0 || !strings.Contains(first[0].Text, "self: claude/new-model") ||
+			strings.Contains(first[0].Text, "old-model") {
+			t.Fatalf("first prompt events = %#v, want the replaced startup guidance", first)
+		}
+		if proc.ReplacePendingStartupPrompt("self: claude/later", StartupManifest{}) {
+			t.Fatal("ReplacePendingStartupPrompt(sent) = true, want false once the prefix was delivered")
+		}
+	})
+
+	t.Run("Should leave natively delivered guidance unchanged", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			SystemPrompt: "self: claude/old-model", SystemPromptDelivery: SystemPromptDeliveryNative,
+		})
+		defer stopProcess(t, driver, proc)
+
+		if proc.ReplacePendingStartupPrompt("self: claude/new-model", StartupManifest{}) {
+			t.Fatal("ReplacePendingStartupPrompt(native) = true, want false")
+		}
+	})
+}
+
 func TestPromptMaintenancePreservesStartupDelivery(t *testing.T) {
 	t.Parallel()
 	for _, delivery := range []SystemPromptDeliveryMode{

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -26,6 +27,12 @@ func registerSessionPullRequests(
 	if ok {
 		projection.ConfigurePullRequests(reader, store)
 	}
+	saveBranch := sessionBranchSaver(store, reader, branches)
+	if saver, ok := sessions.(interface {
+		ConfigureBranchSnapshotSaver(session.BranchSnapshotSaver)
+	}); ok {
+		saver.ConfigureBranchSnapshotSaver(saveBranch)
+	}
 	registrar, ok := sessions.(turnEndNotifierRegistrar)
 	if !ok {
 		return
@@ -35,19 +42,9 @@ func registerSessionPullRequests(
 		if err != nil || info == nil || info.WorkspaceID == "" {
 			return
 		}
-		if info.WorktreeID == "" {
-			workspace, err := reader.resolver.ResolveWorktreeWorkspace(ctx, info.WorkspaceID, "")
-			if err != nil {
-				return
-			}
-			branch, err := branches.CurrentBranch(ctx, workspace.Root)
-			if err != nil {
-				return
-			}
-			if err = store.SaveSessionBranch(ctx, info.WorkspaceID, info.ID, branch); err != nil {
-				logger.WarnContext(ctx, "session branch snapshot failed", "session_id", info.ID, "error", err)
-				return
-			}
+		if err := saveBranch(ctx, info); err != nil {
+			logger.WarnContext(ctx, "session branch snapshot failed", "session_id", info.ID, "error", err)
+			return
 		}
 		if publisher, ok := sessions.(interface{ PublishSessionCatalogChanged(context.Context, string) }); ok {
 			publisher.PublishSessionCatalogChanged(ctx, info.ID)
@@ -78,5 +75,29 @@ func registerSessionPullRequests(
 		bindings.AddWorktreeBindingNotifier(func(ctx context.Context, info *session.Info, _ string) {
 			refresh(ctx, session.PromptRunIdentity{SessionID: info.ID})
 		})
+	}
+}
+
+// sessionBranchSaver records the current branch of a session in its workspace root;
+// worktree sessions keep the branch bound to their worktree.
+func sessionBranchSaver(
+	store sessionBranchStore,
+	reader sessionPullRequestAdapter,
+	branches session.BranchReader,
+) session.BranchSnapshotSaver {
+	return func(ctx context.Context, info *session.Info) error {
+		if info == nil || info.WorkspaceID == "" || info.WorkspaceID == workspaceaccess.UserSelector ||
+			info.WorktreeID != "" {
+			return nil
+		}
+		workspace, err := reader.resolver.ResolveWorktreeWorkspace(ctx, info.WorkspaceID, "")
+		if err != nil {
+			return err
+		}
+		branch, err := branches.CurrentBranch(ctx, workspace.Root)
+		if err != nil {
+			return err
+		}
+		return store.SaveSessionBranch(ctx, info.WorkspaceID, info.ID, branch)
 	}
 }

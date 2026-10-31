@@ -51,6 +51,9 @@ type SessionAttention struct {
 	LastSeenRevision       int64
 	LastSeenAt             *time.Time
 	AttentionChangedAt     *time.Time
+	// EndedEarlyTurnID names the settled turn that ended without a delivery or open
+	// work signal; empty when the session's last turn did not stop early.
+	EndedEarlyTurnID string
 }
 
 // CloneSessionAttention returns an isolated copy of an optional attention projection.
@@ -284,6 +287,8 @@ type SessionAttentionStore interface {
 	ListPendingInteractions(ctx context.Context, sessionID string, statuses []string) ([]PendingInteraction, error)
 	MarkSessionSettled(ctx context.Context, sessionID string, seen bool, at time.Time) (SessionAttentionCommit, error)
 	MarkSessionSeen(ctx context.Context, sessionID string, at time.Time) (SessionAttentionCommit, error)
+	// MarkSessionEndedEarly records the early-stopped turn; an empty turn id clears it.
+	MarkSessionEndedEarly(ctx context.Context, sessionID string, turnID string) (SessionAttentionCommit, error)
 }
 
 // ValidPendingInteractionKind reports whether kind belongs to the durable vocabulary.

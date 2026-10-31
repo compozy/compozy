@@ -1369,6 +1369,21 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			t.Fatalf("rebound runtime = %s, ACP session = %q", info.RuntimeStatus, info.ACPSessionID)
 		}
 	})
+	// Invariant: an early-stop mark is attention state, so releasing the idle runtime keeps it.
+	t.Run("Should keep an early-stop mark through idle release", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		h.manager.attentionStore = newPresenceAttentionStore()
+		h.manager.setEndedEarly(testutil.Context(t), target, "turn-ended-early")
+		superviseFor(t, h, clock, advance, 3)
+		info := target.Info()
+		if info.RuntimeStatus != RuntimeStatusUnbound {
+			t.Fatalf("released runtime = %s, want unbound", info.RuntimeStatus)
+		}
+		if info.EndedEarlyTurnID != "turn-ended-early" || BadgeForInfo(info) != BadgeNeedsAttention {
+			t.Fatalf("released badge = %s ended_early_turn_id = %q, want needs-attention kept",
+				BadgeForInfo(info), info.EndedEarlyTurnID)
+		}
+	})
 	t.Run("Should let the driver finish a stop that outlasts the cleanup deadline", func(t *testing.T) {
 		t.Parallel()
 		h, target, clock, advance := idleReleaseHarness(t, nil)

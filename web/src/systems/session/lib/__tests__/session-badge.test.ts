@@ -200,4 +200,14 @@ describe("needs-attention reason (#760)", () => {
       sessionAttentionReason({ state: "active", supervision: null }, "needs-attention")
     ).toBeNull();
   });
+
+  it("Should name a child turn that ended without delivering (#1065)", () => {
+    const early = { attention: "ended_early", state: "active" as const, supervision: null };
+    const reason = sessionAttentionReason(early, "needs-attention");
+    expect(reason?.summary).toBe("Stopped before delivering");
+    expect(reason?.detail).toBe(
+      "Stopped before delivering: no pull request, and nothing left running to resume it"
+    );
+    expect(sessionAttentionReason(early, "running")).toBeNull();
+  });
 });

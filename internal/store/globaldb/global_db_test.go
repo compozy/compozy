@@ -5215,6 +5215,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"origin_agent_name",
 				"effective_workspace_access",
 				"branch",
+				"ended_early_turn_id",
 			},
 		)
 	})

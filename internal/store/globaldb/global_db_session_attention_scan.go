@@ -14,6 +14,7 @@ func populateSessionAttentionScanParts(session *store.SessionInfo, row *sessionI
 		AttentionRevision:      row.attentionRevision,
 		LastSettledRevision:    row.lastSettledRevision,
 		LastSeenRevision:       row.lastSeenRevision,
+		EndedEarlyTurnID:       strings.TrimSpace(row.endedEarlyTurnID),
 	}
 	if row.lastSeenAt.Valid && strings.TrimSpace(row.lastSeenAt.String) != "" {
 		lastSeenAt, err := store.ParseTimestamp(row.lastSeenAt.String)

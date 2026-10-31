@@ -131,6 +131,53 @@ WHERE id = ?`, nextRevision, nextRevision, store.FormatTimestamp(at), store.Form
 	return commit, err
 }
 
+// MarkSessionEndedEarly records or clears the turn that ended without delivering.
+// It leaves the revision fences alone: the settle that follows owns the badge edge.
+func (g *SessionRepo) MarkSessionEndedEarly(
+	ctx context.Context,
+	sessionID string,
+	turnID string,
+) (commit store.SessionAttentionCommit, err error) {
+	if err := g.checkReady(ctx, "mark session ended early"); err != nil {
+		return store.SessionAttentionCommit{}, err
+	}
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return store.SessionAttentionCommit{}, errors.New("store: session id is required")
+	}
+	turn := strings.TrimSpace(turnID)
+	err = g.withImmediateTransaction(ctx, "mark session ended early", func(exec globalSQLExecutor) error {
+		before, readErr := getSessionAttention(ctx, exec, target)
+		if readErr != nil {
+			return readErr
+		}
+		if before.EndedEarlyTurnID == turn {
+			commit = store.SessionAttentionCommit{Before: before, After: before, Outcome: "unchanged"}
+			return nil
+		}
+		// dynamic-sql: the early-stop mark is part of the catalog-owned attention projection.
+		result, updateErr := exec.ExecContext(
+			ctx,
+			`UPDATE sessions SET ended_early_turn_id = ? WHERE id = ?`,
+			turn,
+			target,
+		)
+		if updateErr != nil {
+			return fmt.Errorf("store: mark session %q ended early: %w", target, updateErr)
+		}
+		if affectedErr := requireOneAffected(result, target); affectedErr != nil {
+			return affectedErr
+		}
+		after, readErr := getSessionAttention(ctx, exec, target)
+		if readErr != nil {
+			return readErr
+		}
+		commit = store.SessionAttentionCommit{Before: before, After: after, Outcome: "ended-early"}
+		return nil
+	})
+	return commit, err
+}
+
 func getSessionAttention(
 	ctx context.Context,
 	exec globalSQLExecutor,
@@ -138,7 +185,8 @@ func getSessionAttention(
 ) (store.SessionAttention, error) {
 	var row sessionAttentionRow
 	err := exec.QueryRowContext(ctx, `SELECT pending_permission_count, pending_clarify_count,
-attention_revision, last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at
+attention_revision, last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
+ended_early_turn_id
 FROM sessions WHERE id = ?`, sessionID).Scan(
 		&row.pendingPermissionCount,
 		&row.pendingClarifyCount,
@@ -147,6 +195,7 @@ FROM sessions WHERE id = ?`, sessionID).Scan(
 		&row.lastSeenRevision,
 		&row.lastSeenAt,
 		&row.attentionChangedAt,
+		&row.endedEarlyTurnID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionAttention{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
@@ -165,6 +214,7 @@ type sessionAttentionRow struct {
 	lastSeenRevision       int64
 	lastSeenAt             sql.NullString
 	attentionChangedAt     sql.NullString
+	endedEarlyTurnID       string
 }
 
 func (r sessionAttentionRow) toStore() (store.SessionAttention, error) {
@@ -174,6 +224,7 @@ func (r sessionAttentionRow) toStore() (store.SessionAttention, error) {
 		AttentionRevision:      r.attentionRevision,
 		LastSettledRevision:    r.lastSettledRevision,
 		LastSeenRevision:       r.lastSeenRevision,
+		EndedEarlyTurnID:       strings.TrimSpace(r.endedEarlyTurnID),
 	}
 	var err error
 	result.LastSeenAt, err = parseNullableAttentionTime(r.lastSeenAt, "last seen")

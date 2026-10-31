@@ -206,6 +206,9 @@ func (m *Manager) finishPromptPump(
 	if activity != nil {
 		activity.finish(m.now())
 	}
+	if fatalPromptFailure == nil {
+		m.recordTurnEndedEarly(lifecycleCtx, session, turnState)
+	}
 	m.settlePromptAttention(lifecycleCtx, session, before, turnState)
 	if session != nil {
 		session.supervisionInspectMu.Unlock()

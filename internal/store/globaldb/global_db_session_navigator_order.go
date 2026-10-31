@@ -17,6 +17,7 @@ const sessionCatalogNavigatorBandExpression = `(CASE
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(
  CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
+ WHEN state = 'active' AND ended_early_turn_id <> '' THEN 0
  WHEN state = 'active' AND last_settled_revision > last_seen_revision THEN 1
  ELSE 3 END)`
 

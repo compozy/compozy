@@ -14,11 +14,13 @@ import (
 // StartupPromptContext carries the durable session metadata available during
 // startup prompt assembly and overlay selection.
 type StartupPromptContext struct {
-	SessionID              string
-	ProfileID              string
-	SessionName            string
-	AgentName              string
-	Provider               string
+	SessionID   string
+	ProfileID   string
+	SessionName string
+	AgentName   string
+	Provider    string
+	// Model is the effective model of the runtime this startup prompt is assembled for.
+	Model                  string
 	ProviderHomePolicy     compozyconfig.ProviderHomePolicy
 	NativeToolsUnavailable bool
 	WorkspaceID            string

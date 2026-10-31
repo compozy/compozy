@@ -211,6 +211,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 			LastSeenRevision:       info.LastSeenRevision,
 			LastSeenAt:             cloneTimePointer(info.LastSeenAt),
 			AttentionChangedAt:     cloneTimePointer(info.AttentionChangedAt),
+			EndedEarlyTurnID:       info.EndedEarlyTurnID,
 		},
 		ArchivedAt: cloneTimePointer(info.ArchivedAt),
 		CreatedAt:  info.CreatedAt,

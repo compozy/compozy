@@ -797,3 +797,23 @@ func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
 		}
 	})
 }
+
+func TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance(t *testing.T) {
+	t.Parallel()
+	t.Run("Should end the turn only when every remaining step waits on a monitor or subagent", func(t *testing.T) {
+		t.Parallel()
+		envelope := renderCompozyRuntimeEnvelope(session.StartupPromptContext{SessionID: "sess-1"})
+		for _, want := range []string{
+			"register `compozy__monitor_create` on the returned terminal or as a timer",
+			"End your turn only when every remaining step is blocked on a registered monitor or subagent",
+			"otherwise keep working until the requested outcome is delivered",
+		} {
+			if !strings.Contains(envelope, want) {
+				t.Fatalf("runtime envelope = %q, want %q", envelope, want)
+			}
+		}
+		if strings.Contains(envelope, "then end your turn") {
+			t.Fatalf("runtime envelope still ends the turn unconditionally: %q", envelope)
+		}
+	})
+}

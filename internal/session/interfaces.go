@@ -380,6 +380,12 @@ type RuntimeConfigurator interface {
 	ConfigureRuntime(ctx context.Context, proc *AgentProcess, config acp.RuntimeConfig) error
 }
 
+// StartupPromptReplacer is the optional driver surface for replacing startup guidance
+// that a live process has not delivered yet, after a live runtime switch rebuilt it.
+type StartupPromptReplacer interface {
+	ReplacePendingStartupPrompt(proc *AgentProcess, prompt string, manifest acp.StartupManifest) bool
+}
+
 // ForkDriver is the optional driver surface for ACP session/fork on a bound process.
 // The clone's traffic never reaches the process's bound session (ADR-003).
 type ForkDriver interface {

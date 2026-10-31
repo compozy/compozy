@@ -297,6 +297,7 @@ func (m *Manager) startPromptActivity(
 ) (*promptActivitySupervisor, *Info) {
 	activity := newPromptActivitySupervisor(ctx, m, session, turnState, m.supervision)
 	before := session.Info()
+	m.clearEndedEarly(ctx, session)
 	activity.start()
 	running := session.Info()
 	m.publishLifecycleAttentionTransition(ctx, before, running)

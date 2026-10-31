@@ -114,10 +114,12 @@ type Info struct {
 	LastSeenRevision       int64
 	LastSeenAt             *time.Time
 	AttentionChangedAt     *time.Time
-	PendingInteractions    []store.PendingInteraction
-	ArchivedAt             *time.Time
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
+	// EndedEarlyTurnID names the settled turn that ended without delivering work.
+	EndedEarlyTurnID    string
+	PendingInteractions []store.PendingInteraction
+	ArchivedAt          *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.
@@ -204,6 +206,7 @@ type Session struct {
 	LastSeenRevision          int64
 	LastSeenAt                *time.Time
 	AttentionChangedAt        *time.Time
+	EndedEarlyTurnID          string
 	PendingInteractions       []store.PendingInteraction
 	CreatedAt                 time.Time
 	UpdatedAt                 time.Time

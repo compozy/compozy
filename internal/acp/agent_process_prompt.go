@@ -185,6 +185,23 @@ func (p *AgentProcess) nextPromptText(message string, maintenance bool) (string,
 	), true, delivery
 }
 
+// ReplacePendingStartupPrompt swaps startup guidance that has not reached the provider:
+// it applies only to first-turn-prefix delivery before the first prompt is sent.
+func (p *AgentProcess) ReplacePendingStartupPrompt(prompt string, manifest StartupManifest) bool {
+	if p == nil {
+		return false
+	}
+	p.systemPromptMu.Lock()
+	defer p.systemPromptMu.Unlock()
+	if p.systemPromptSent || p.systemPromptDelivery == SystemPromptDeliveryNative ||
+		strings.TrimSpace(prompt) == "" {
+		return false
+	}
+	p.systemPrompt = prompt
+	p.startupManifest = CloneStartupManifest(manifest)
+	return true
+}
+
 func (p *AgentProcess) markSystemPromptSent() {
 	p.systemPromptMu.Lock()
 	defer p.systemPromptMu.Unlock()

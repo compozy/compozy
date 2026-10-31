@@ -120,7 +120,17 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 	lines := []string{
 		"Session wake: child session " + child + " is " + string(event.Badge) + ".",
 		"Reason: " + string(event.Reason) + ".",
-		sessionWakeAction(event.Badge),
+		sessionWakeAction(event),
+	}
+	if event.EndedEarly {
+		// The answer and detail are already redacted and bounded; sanitizing the whole
+		// message would cut the answer to the short wake bound, so only the header is.
+		lines[0] = session.SanitizeSpawnWakeText(lines[0])
+		lines = append(lines, "Detail: "+event.Detail)
+		if event.FinalAnswer != "" {
+			lines = append(lines, "Final answer:\n---\n"+event.FinalAnswer)
+		}
+		return strings.Join(lines, "\n")
 	}
 	if event.Detail != "" {
 		lines = append(lines, "Detail: "+event.Detail)
@@ -128,8 +138,11 @@ func sessionWakePromptMessage(event session.SpawnWakeEvent) string {
 	return session.SanitizeSpawnWakeText(strings.Join(lines, "\n"))
 }
 
-func sessionWakeAction(badge session.Badge) string {
-	switch badge {
+func sessionWakeAction(event session.SpawnWakeEvent) string {
+	if event.EndedEarly {
+		return "It stopped before delivering. Prompt it to continue, or stop it with compozy__session_stop."
+	}
+	switch event.Badge {
 	case session.BadgeWaitingForInput:
 		return "Use compozy__session_clarify_answer or compozy__session_events to act."
 	case session.BadgeWaitingForAuth:

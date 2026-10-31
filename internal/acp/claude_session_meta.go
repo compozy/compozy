@@ -24,8 +24,8 @@ var claudeDaemonOwnedBackgroundEnv = map[string]string{
 
 // claudeBackgroundShellDenyReason is the guidance a refused background shell returns.
 const claudeBackgroundShellDenyReason = "CompozyOS cannot wake you when a background shell command exits. " +
-	"Run it with compozy__terminal_exec, register compozy__monitor_create on the returned terminal_id, " +
-	"then end your turn."
+	"Run it with compozy__terminal_exec and register compozy__monitor_create on the returned terminal_id; " +
+	"end your turn only when every remaining step waits on that monitor."
 
 const claudeBackgroundShellDenyOutput = `{"hookSpecificOutput":{"hookEventName":"PreToolUse",` +
 	`"permissionDecision":"deny","permissionDecisionReason":"` + claudeBackgroundShellDenyReason + `"}}`

@@ -1,5 +1,6 @@
 // Why a session reads "Needs attention" (#760). The daemon raises the badge for
-// a stop it could not verify (`attention`) or for supervision evidence it could
+// a stop it could not verify (`attention`), for a child whose turn ended without
+// delivering (`attention: "ended_early"`, #1065), or for supervision evidence it could
 // not trust (`internal/session/work_signal_registry.go`): a source that reported
 // an explicit blocker (`attention`), went stale (`stale`), or could not be read
 // (`unknown`). Both causes already ride on the session payload, so the reason
@@ -29,6 +30,13 @@ const SIGNAL_NOUN: Record<SessionWorkSignalKind, string> = {
 };
 
 const STOP_REASON = "Stop not confirmed";
+
+/** The daemon's attention code for a child turn that ended without delivering. */
+export const ENDED_EARLY_ATTENTION = "ended_early";
+
+const ENDED_EARLY_REASON = "Stopped before delivering";
+const ENDED_EARLY_DETAIL =
+  "Stopped before delivering: no pull request, and nothing left running to resume it";
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -70,6 +78,9 @@ export function sessionAttentionReason(
   if (sessionStopAttention(session)) {
     lines.push(STOP_REASON);
     summaries.push(STOP_REASON);
+  } else if (session.attention === ENDED_EARLY_ATTENTION) {
+    lines.push(ENDED_EARLY_DETAIL);
+    summaries.push(ENDED_EARLY_REASON);
   }
   const sources = (session.supervision?.sources ?? [])
     .filter(source => source.state in SOURCE_RANK)

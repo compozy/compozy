@@ -8,6 +8,7 @@ import type { PillTone, StateGlyphState } from "@compozy/ui";
 
 import { pullRequestPill, pullRequestShape, type PullRequestShape } from "./pull-request-signal";
 import type { SessionBoardColumnId, SessionBoardPayload } from "./session-board-contract";
+import { ENDED_EARLY_ATTENTION } from "./session-attention-reason";
 import { sessionBadgeSignal } from "./session-badge";
 import { pendingPermissionCount } from "./session-pending-interactions";
 
@@ -50,6 +51,8 @@ function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | 
         ? { label: "Approval", tone: "accent" }
         : { label: "Input", tone: "accent" };
     case "needs-attention":
+      if (session.attention === ENDED_EARLY_ATTENTION)
+        return { label: "Stopped early", tone: "accent" };
       return { label: sessionBadgeSignal(session.badge).displayLabel, tone: "accent" };
     default:
       return null;

@@ -16,7 +16,10 @@ type ACPDriverAdapter struct {
 
 var _ AgentDriver = (*ACPDriverAdapter)(nil)
 var _ ScopedInterrupter = (*ACPDriverAdapter)(nil)
-var _ RuntimeConfigurator = (*ACPDriverAdapter)(nil)
+var (
+	_ RuntimeConfigurator   = (*ACPDriverAdapter)(nil)
+	_ StartupPromptReplacer = (*ACPDriverAdapter)(nil)
+)
 var _ ForkDriver = (*ACPDriverAdapter)(nil)
 var _ AgentExitVerifier = (*ACPDriverAdapter)(nil)
 var _ AgentKiller = (*ACPDriverAdapter)(nil)
@@ -155,6 +158,16 @@ func (a *ACPDriverAdapter) nativeProcess(proc *AgentProcess) (*acp.AgentProcess,
 		return nil, errors.New("session: unsupported agent process implementation")
 	}
 	return native, nil
+}
+
+// ReplacePendingStartupPrompt updates first-turn startup guidance the process has not sent.
+func (a *ACPDriverAdapter) ReplacePendingStartupPrompt(
+	proc *AgentProcess,
+	prompt string,
+	manifest acp.StartupManifest,
+) bool {
+	native, err := a.nativeProcess(proc)
+	return err == nil && native.ReplacePendingStartupPrompt(prompt, manifest)
 }
 
 // Kill requests the final forced termination phase from the process owner.

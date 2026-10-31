@@ -96,6 +96,30 @@ export const Empty: Story = {
   },
 };
 
+/** A child whose turn ended without delivering lands in Needs you with its own reason (#1065). */
+export const EndedEarlyChild: Story = {
+  args: {
+    board: sessionsBoardView({
+      needs_you: {
+        count: 3,
+        sessions: [
+          {
+            ...SESSIONS_BOARD_SESSIONS.needs_you[0]!,
+            id: "s-early",
+            name: "Claude hosted MCP stdio ENOENT",
+            badge: "needs-attention",
+            attention: "ended_early",
+            branch: "fix/issue-1050-claude-mcp-enoent",
+            pull_request: null,
+            pull_request_lookup: null,
+          },
+          ...SESSIONS_BOARD_SESSIONS.needs_you,
+        ],
+      },
+    }),
+  },
+};
+
 export const ColumnError: Story = {
   args: {
     board: sessionsBoardView({ in_review: { failure: "initial", sessions: [] } }),

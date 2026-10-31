@@ -21,8 +21,10 @@ const (
 	// SpawnWakeReasonCompleted wakes the creator when a child finishes its turn normally.
 	SpawnWakeReasonCompleted SpawnWakeReason = "completed"
 
-	spawnWakeTextMaxRunes  = 240
-	spawnWakeCacheMaxItems = 4096
+	spawnWakeTextMaxRunes = 240
+	// spawnWakeAnswerMaxRunes bounds the child's final answer carried by an early-stop wake.
+	spawnWakeAnswerMaxRunes = 4000
+	spawnWakeCacheMaxItems  = 4096
 )
 
 var (
@@ -42,7 +44,11 @@ type SpawnWakeEvent struct {
 	Reason         SpawnWakeReason `json:"reason"`
 	Badge          Badge           `json:"badge"`
 	Detail         string          `json:"detail,omitempty"`
-	WakeEventID    string          `json:"wake_event_id"`
+	// EndedEarly marks the wake for a child turn that stopped before delivering.
+	EndedEarly bool `json:"ended_early,omitempty"`
+	// FinalAnswer is the child's last answer, carried only when its turn ended early.
+	FinalAnswer string `json:"final_answer,omitempty"`
+	WakeEventID string `json:"wake_event_id"`
 }
 
 // SpawnWakeNotifier delivers a child-session wake to its creator.
@@ -58,6 +64,8 @@ func (event SpawnWakeEvent) Normalize() SpawnWakeEvent {
 		Reason:         SpawnWakeReason(strings.ToLower(strings.TrimSpace(string(event.Reason)))),
 		Badge:          Badge(strings.ToLower(strings.TrimSpace(string(event.Badge)))),
 		Detail:         SanitizeSpawnWakeText(event.Detail),
+		EndedEarly:     event.EndedEarly,
+		FinalAnswer:    sanitizeSpawnWakeAnswer(event.FinalAnswer),
 		WakeEventID:    strings.TrimSpace(event.WakeEventID),
 	}
 }
@@ -96,6 +104,15 @@ func SanitizeSpawnWakeText(value string) string {
 		return redacted
 	}
 	return string(runes[:spawnWakeTextMaxRunes-3]) + "..."
+}
+
+func sanitizeSpawnWakeAnswer(value string) string {
+	redacted := strings.TrimSpace(diagnostics.Redact(redact.ClaimTokens(value)))
+	runes := []rune(redacted)
+	if len(runes) <= spawnWakeAnswerMaxRunes {
+		return redacted
+	}
+	return string(runes[:spawnWakeAnswerMaxRunes-3]) + "..."
 }
 
 func (reason SpawnWakeReason) valid() bool {
@@ -164,7 +181,14 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	if !m.reserveSpawnWakeEvent(event.WakeEventID) {
 		return
 	}
-	if !lineage.NotifyCreator {
+	// An early stop is a supervision alarm, not a lifecycle notification: it reaches
+	// the parent even when the parent opted out of completion wakes.
+	endedEarly := EndedEarlyAttention(info, badge)
+	if endedEarly {
+		event.EndedEarly = true
+		event.FinalAnswer = sanitizeSpawnWakeAnswer(m.endedEarlyAnswer(ctx, info))
+	}
+	if !lineage.NotifyCreator && !endedEarly {
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "wake_creator_disabled", nil)
 		return
 	}
@@ -263,6 +287,9 @@ func spawnWakeDetail(info *Info, badge Badge) string {
 	}
 	switch badge {
 	case BadgeNeedsAttention:
+		if EndedEarlyAttention(info, badge) {
+			return endedEarlyWakeDetail
+		}
 		return "Process exit could not be verified; retry stop."
 	case BadgeWaitingForInput:
 		for _, interaction := range info.PendingInteractions {
