@@ -4,10 +4,10 @@ area: RT
 title: Read Mermaid diagrams and their source in session messages
 persona: Bruno
 journey: J-12
-expected: Mermaid fences retain a stable bounded frame while streaming and rendering; completed diagrams fit within half the column and their natural size, with viewport fullscreen, zoom, pan, source and copy actions. Invalid syntax and unavailable chunks retain readable source without swallowing subsequent Markdown.
+expected: Mermaid fences retain a stable bounded frame while streaming and rendering; completed diagrams fit within half the column and their natural size, with viewport fullscreen, button/keyboard/Ctrl-or-Cmd-wheel/pinch zoom anchored where the user points, drag/Space/middle-button pan, source and copy actions. Invalid syntax and unavailable chunks retain readable source without swallowing subsequent Markdown.
 entry_points: Session messages; shared StreamMarkdown stories
 qa_status: pass
-bug_ids: 818, 981
+bug_ids: 818, 981, 1056
 fix_status: in_progress
 retest_status: pass
 fix_commits:
@@ -41,6 +41,17 @@ Open Fullscreen from a window smaller than the viewport: its dialog must use the
 window bounds. Zoom in/out, drag to inspect clipped details, focus the viewer and pan with all four
 arrow keys, reset, and dismiss with Escape/Close.
 Reopening starts at 100% and centered; the original inline diagram, source and copy action remain usable.
+With the pointer over a detail away from the centre, Ctrl+scroll (Cmd+scroll on macOS) and a trackpad
+pinch zoom the diagram in proportional steps while that detail stays under the pointer, within
+25%–400%; the page, desktop shell and Electron window must not zoom. Plain scroll does not zoom.
+With the viewer focused, `+`/`=` zooms in, `-` zooms out and `0` resets; Cmd/Ctrl+0 stays with the
+app. Pan by Space+drag and middle-button drag as well as left drag. The toolbar hint reads
+"⌘+scroll to zoom · drag to pan" on macOS and "Ctrl+scroll to zoom · drag to pan" elsewhere.
+
+2026-10-30 #1056 Storybook probe in real Chromium: Ctrl+wheel and synthesized trackpad pinch zoomed
+with at most 1px anchor drift while `visualViewport.scale` stayed 1 (a pinch outside the viewer
+zoomed the page to 1.5x as a control); plain wheel, keys, Space+drag and middle drag behaved as
+described. Desktop-shell and Electron re-walks are owed to the next QA cycle.
 
 2026-10-20 targeted re-walk: PASS in real Chromium and isolated Electron 44.5.1/macOS against a
 live Codex session. The assistant diagram rendered; View source exposed the original fence; following
