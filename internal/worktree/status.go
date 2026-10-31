@@ -37,7 +37,21 @@ func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bo
 	return s.refreshStatus(ctx, *item)
 }
 
+// refreshStatus is the explicit refresh gesture: it rereads, persists, and
+// announces the status so every stream consumer rereads after it.
 func (s *Service) refreshStatus(ctx context.Context, item Worktree) (*Status, error) {
+	status, err := s.persistStatus(ctx, item)
+	if err != nil {
+		return nil, err
+	}
+	s.emit(ctx, EventStatusRefreshed, item)
+	return status, nil
+}
+
+// persistStatus rereads and persists the status without announcing it. A read
+// that refreshes as a side effect must not publish a frame its own readers
+// treat as an invalidation, or every read schedules the next one.
+func (s *Service) persistStatus(ctx context.Context, item Worktree) (*Status, error) {
 	status := s.collectStatus(ctx, item)
 	if err := s.store.SaveStatus(ctx, item.WorkspaceID, item.ID, status); err != nil {
 		if status.ReadError != "" {
@@ -45,7 +59,6 @@ func (s *Service) refreshStatus(ctx context.Context, item Worktree) (*Status, er
 		}
 		return nil, fmt.Errorf("worktree: persist status: %w", err)
 	}
-	s.emit(ctx, EventStatusRefreshed, item)
 	return &status, nil
 }
 

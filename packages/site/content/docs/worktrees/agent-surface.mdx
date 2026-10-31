@@ -83,7 +83,10 @@ dismiss. Use structured CLI or HTTP/UDS for those actions. Related tools are
 Lifecycle events include `worktree.created`, `worktree.adopted`, `worktree.removed`,
 `worktree.missing`, `worktree.dismissed`, `worktree.creation_canceled`, `worktree.creation_failed`
 (with `pending_phase` and the redacted `error`), `worktree.setup_failed`,
-`worktree.status_refreshed`, and `worktree.branch_reclaimed`. Removal also emits
+`worktree.status_refreshed`, and `worktree.branch_reclaimed`. `worktree.status_refreshed` follows an
+explicit refresh (`GET .../status?refresh=true`, the CLI refresh, or a settled action); reading the
+exit plan refreshes the cached status without emitting it, because the Web ladder rereads the plan on
+that frame. Removal also emits
 `worktree.teardown_output` for redacted command output and `worktree.teardown_failed` when cleanup
 fails or times out; removal continues. Exit progress adds
 `worktree.exit_action_started`, `worktree.exit_action_step`, `worktree.exit_hook_output`, and exactly

@@ -59,7 +59,7 @@ func (s *Service) exitPlan(ctx context.Context, workspaceID, id string, action b
 	if item.State != StateReady {
 		return nil, ErrNotReady
 	}
-	status, err := s.Status(ctx, workspaceID, item.ID, true)
+	status, err := s.readExitStatus(ctx, *item)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +105,16 @@ func (s *Service) exitPlan(ctx context.Context, workspaceID, id string, action b
 	plan.Primary = selectExitPrimary(plan.Actions, status)
 	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, nil)
 	return plan, nil
+}
+
+// readExitStatus refreshes the status the plan is built from without emitting
+// worktree.status_refreshed. The Web ladder rereads the plan on that frame, so
+// a plan read that announced its own refresh would refetch itself without end.
+func (s *Service) readExitStatus(ctx context.Context, item Worktree) (*Status, error) {
+	if _, err := s.capability.Check(ctx); err != nil {
+		return nil, err
+	}
+	return s.persistStatus(ctx, item)
 }
 
 func (s *Service) remoteUnreadableExitPlan(

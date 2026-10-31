@@ -46,6 +46,28 @@ slices link to this entry and update only the lines they change.
     item, parity/contrast/screen evidence, a §7 guide section and `icon-map.json` additions.
   - BnUI CI owns those checks.
 
+## Worktree exit-plan read storm — 2026-10-31
+
+Owner: `fix/worktree-exit-plan-status-refresh-loop` (local branch; issue draft for the
+Web request storm on a session bound to a worktree). `GET .../worktrees/{id}/exit`
+refreshed the status with the emitting path, the Web ladder rereads the exit plan on
+`worktree.status_refreshed`, and the exit query has no stale window, so every plan
+read scheduled the next one.
+
+- **Public surfaces:** the exit-plan read still refreshes and persists the cached
+  status, and no longer emits `worktree.status_refreshed`. `GET .../status?refresh=true`,
+  the CLI refresh, and settled actions keep emitting it. Event vocabulary, DTOs,
+  OpenAPI, CLI, and UDS routes are unchanged.
+- **Web:** the per-worktree stream coalesces lifecycle and terminal frames into one
+  scope reread per quiet window (150 ms) and pays a pending reread when the connection
+  goes away, so the retained-history replay on first connect costs one reread.
+- **Isolation / persistence / native tools / extensions / hooks / config:** none.
+- **Docs / official skill:** `worktrees/agent-surface.mdx` states which paths emit the
+  frame; `ET-worktree-hook-event-contract` records the quiet read. `skills/compozy/` has
+  no text on this frame.
+- **Validation:** `TestExitPlan` case for the quiet read; `use-worktree-stream` hook
+  suite for coalescing; local before/after request-rate measurement on a bound session.
+
 ## Release 0.4.6 catalog request repair — 2026-10-30
 
 Owner: `fix/release-046-validation`, release PR #1042. The shell reuses the

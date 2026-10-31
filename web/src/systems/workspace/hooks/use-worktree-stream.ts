@@ -37,6 +37,9 @@ interface UseWorktreeStreamOptions {
 
 export type { WorktreeStreamStatus } from "./worktree-stream-store";
 
+/** Quiet window after the last frame before the worktree scope rereads once. */
+export const WORKTREE_REREAD_COALESCE_MS = 150;
+
 export function worktreeStreamURL(workspaceID: string, worktreeID: string): string {
   return `/api/workspaces/${encodeURIComponent(workspaceID)}/worktrees/${encodeURIComponent(worktreeID)}/stream`;
 }
@@ -45,11 +48,49 @@ function defaultEventSourceFactory(url: string): WorktreeEventSource {
   return createStreamEventSource(url, { resumeWithLastEventId: true });
 }
 
+interface CoalescedReread {
+  request: () => void;
+  /** Pays a reread still waiting for its quiet window, so no frame is lost with the connection. */
+  flush: () => void;
+}
+
+/**
+ * Collapses a burst of frames into one scope reread. The first connection
+ * replays the retained history (hundreds of frames in under a second) and every
+ * lifecycle frame asks for the same four reads, so rereading per frame repeats
+ * the same requests once per frame and cancels its own in-flight fetches on
+ * each repeat.
+ */
+function createCoalescedReread(reread: () => void, delayMs: number): CoalescedReread {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return {
+    request: () => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = undefined;
+        reread();
+      }, delayMs);
+    },
+    flush: () => {
+      if (timer === undefined) return;
+      clearTimeout(timer);
+      timer = undefined;
+      reread();
+    },
+  };
+}
+
 interface WorktreeStreamBinding {
   queryClient: QueryClient;
   workspaceID: string;
   worktreeID: string;
   onExitEvent?: WorktreeExitEventHandler;
+}
+
+interface WorktreeListenerSet {
+  listeners: Array<[string, EventListener]>;
+  /** Pays a reread still waiting for its quiet window before the listeners go. */
+  dispose: () => void;
 }
 
 /**
@@ -60,11 +101,12 @@ interface WorktreeStreamBinding {
 function buildWorktreeListeners(
   binding: WorktreeStreamBinding,
   onStatusChange: (status: Exclude<WorktreeStreamStatus, "disabled">) => void
-): Array<[string, EventListener]> {
+): WorktreeListenerSet {
   const { queryClient, workspaceID, worktreeID, onExitEvent } = binding;
-  const rereadScope = () => {
+  const reread = createCoalescedReread(() => {
     void invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID);
-  };
+  }, WORKTREE_REREAD_COALESCE_MS);
+  const rereadScope = reread.request;
   // A reconnect may have missed frames, so the whole worktree scope rereads.
   const handleOpen: EventListener = () => {
     onStatusChange("live");
@@ -91,7 +133,7 @@ function buildWorktreeListeners(
       },
     ]);
   }
-  return listeners;
+  return { listeners, dispose: reread.flush };
 }
 
 function openWorktreeStream(
@@ -99,9 +141,10 @@ function openWorktreeStream(
   eventSourceFactory: WorktreeEventSourceFactory,
   onStatusChange: (status: Exclude<WorktreeStreamStatus, "disabled">) => void
 ): () => void {
-  const listeners = buildWorktreeListeners(binding, onStatusChange);
+  const { listeners, dispose } = buildWorktreeListeners(binding, onStatusChange);
   const source = eventSourceFactory(worktreeStreamURL(binding.workspaceID, binding.worktreeID));
   const detach = () => {
+    dispose();
     for (const [name, listener] of listeners) source.removeEventListener(name, listener);
   };
   try {
