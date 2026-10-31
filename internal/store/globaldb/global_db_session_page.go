@@ -41,7 +41,8 @@ var sessionCatalogHierarchyChildExpression = fmt.Sprintf(
 const sessionLaterPendingMessagesExpression = `(CASE WHEN parked_at IS NULL THEN 0 ELSE (
  SELECT COUNT(1) FROM session_input_queue AS later_input
  WHERE later_input.session_id = sessions.id AND later_input.status = 'queued'
- AND later_input.origin_class = 'agent') END)`
+ AND later_input.origin_class = 'agent'
+ AND later_input.session_generation = sessions.input_generation) END)`
 
 const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model,
 	reasoning_effort, speed,

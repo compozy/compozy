@@ -12,7 +12,7 @@ import (
 
 // maxLaterFamilyPasses bounds the re-walks that catch children created while
 // the tree was being stopped.
-const maxLaterFamilyPasses = 4
+const maxLaterFamilyPasses = 8
 
 // stopAndParkLaterFamily stops the tree, waits for spawns already in flight,
 // and walks it again until no unreleased member appears. The final walk and the
@@ -27,10 +27,14 @@ func (m *Manager) stopAndParkLaterFamily(
 	req LaterRequest,
 ) (*Info, error) {
 	released := make(map[string]struct{})
-	for range maxLaterFamilyPasses {
+	// The extra pass lets the walk after the last release settle the tree.
+	for pass := 0; pass <= maxLaterFamilyPasses; pass++ {
 		pending, err := m.unreleasedLaterMembers(ctx, workspaceID, rootID, released)
 		if err != nil {
 			return nil, err
+		}
+		if len(pending) > 0 && pass == maxLaterFamilyPasses {
+			break
 		}
 		if len(pending) > 0 {
 			if err := m.releaseLaterFamily(ctx, pending); err != nil {

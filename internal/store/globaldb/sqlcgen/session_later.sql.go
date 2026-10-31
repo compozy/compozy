@@ -36,7 +36,8 @@ SELECT parked_at, park_reason, park_until, later_returned_at,
   CAST((CASE WHEN parked_at IS NULL THEN 0 ELSE (
     SELECT COUNT(1) FROM session_input_queue AS later_input
     WHERE later_input.session_id = sessions.id AND later_input.status = 'queued'
-      AND later_input.origin_class = 'agent') END) AS INTEGER) AS pending_messages
+      AND later_input.origin_class = 'agent'
+      AND later_input.session_generation = sessions.input_generation) END) AS INTEGER) AS pending_messages
 FROM sessions
 WHERE sessions.workspace_id = ?1 AND sessions.id = ?2
 `

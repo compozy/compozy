@@ -551,6 +551,16 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			}
 		}
 
+		// A clear advances the input generation; rows from the old generation are never delivered.
+		if _, err := globalDB.db.ExecContext(
+			ctx, "UPDATE sessions SET input_generation = input_generation + 1 WHERE id = ?", parked.ID,
+		); err != nil {
+			t.Fatalf("advance input generation error = %v", err)
+		}
+		if later, _, err := globalDB.SessionLaterState(ctx, workspaceID, parked.ID); err != nil ||
+			later == nil || later.PendingMessages != 0 {
+			t.Fatalf("SessionLaterState(after clear) = %#v, %v, want no pending messages", later, err)
+		}
 		returned, err := globalDB.ReturnDueLaterSessions(ctx, baseAt.Add(30*time.Minute), 10)
 		if err != nil || len(returned) != 0 {
 			t.Fatalf("ReturnDueLaterSessions(before return) = %#v, %v, want none", returned, err)
