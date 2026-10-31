@@ -82,16 +82,15 @@ func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
 	return nil
 }
 
-// recoverRow settles one recoverable row. Without Git only copy/setup rows,
-// which need no Git command, can recover.
+// recoverRow settles one recoverable row. Every row waits for Git: even a
+// copy/setup checkout needs its Git identity checked before it is usable.
 func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Worktree, capabilityErr error) error {
-	if capabilityErr != nil && (item.State != StatePending ||
-		(item.PendingPhase != PhaseCopy && item.PendingPhase != PhaseSetup)) {
+	if capabilityErr != nil {
 		return nil
 	}
 	switch item.State {
 	case StatePending:
-		return s.recoverPending(ctx, workspace, item, capabilityErr == nil)
+		return s.recoverPending(ctx, workspace, item)
 	case StateRemoving:
 		return s.recoverRemoval(ctx, item)
 	case StateMissing:
@@ -105,20 +104,14 @@ func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Work
 	return nil
 }
 
-func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree, gitAvailable bool) error {
+func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree) error {
 	switch item.PendingPhase {
 	case PhaseCopy, PhaseSetup:
 		// A rollback may have run without its failure being recorded, so the
 		// checkout must still be this creation's linked worktree to be usable.
-		// Without Git only its presence can be checked.
-		checkout := interruptedCheckoutUsable
-		if gitAvailable {
-			var err error
-			if checkout, err = s.inspectInterruptedCheckout(ctx, workspace, item); err != nil {
-				return err
-			}
-		} else if info, err := os.Stat(item.Path); err != nil || !info.IsDir() {
-			return nil
+		checkout, err := s.inspectInterruptedCheckout(ctx, workspace, item)
+		if err != nil {
+			return err
 		}
 		switch checkout {
 		case interruptedCheckoutGone:

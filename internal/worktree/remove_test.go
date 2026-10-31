@@ -806,6 +806,28 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		})
 	}
 
+	t.Run("Should keep an interrupted copy phase pending while Git is unavailable", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		fixture.service.capability = &CapabilityGate{
+			cached: true, result: CapabilityDiagnostic{Code: ErrGitUnavailable.Error()}, err: ErrGitUnavailable,
+		}
+		copyPending := fixture.item
+		copyPending.ID, copyPending.Name = "wt-copy", "copy-recovery"
+		copyPending.Path, copyPending.GitDir = linkTestCheckout(t, fixture.commonDir, "copy-recovery")
+		copyPending.State, copyPending.PendingPhase = StatePending, PhaseCopy
+		if err := fixture.store.Insert(t.Context(), copyPending); err != nil {
+			t.Fatalf("seed copy recovery: %v", err)
+		}
+		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, copyPending.ID)
+		if err != nil || stored.State != StatePending {
+			t.Fatalf("copy recovery without Git = %#v, %v, want pending until its identity can be checked", stored, err)
+		}
+	})
+
 	t.Run("Should resume a stale removal and fail interrupted exit operations", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
