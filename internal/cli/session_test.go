@@ -1295,14 +1295,14 @@ func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
 			"session",
 			"list",
 			"--column",
-			"in_review,done",
+			"waiting,in_review,done",
 			"--hide-children",
 			"-o",
 			"json",
 		); err != nil {
 			t.Fatal(err)
 		}
-		if seen.State != "" || !seen.HideChildren || !slices.Equal(seen.Columns, []string{"in_review", "done"}) {
+		if seen.State != "" || !seen.HideChildren || !slices.Equal(seen.Columns, []string{"waiting", "in_review", "done"}) {
 			t.Fatalf("query = %#v", seen)
 		}
 		values := sessionListValues(seen)
