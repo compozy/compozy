@@ -1803,7 +1803,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reconfigure before dispatch after a failed rollback even when the selection matches", func(t *testing.T) {
+	t.Run("Should reconfigure before dispatch after a failed rollback with a matching selection", func(t *testing.T) {
 		t.Parallel()
 		var rollbackFails atomic.Bool
 		rollbackFails.Store(true)
