@@ -33,7 +33,8 @@ func (s *Service) addCheckout(ctx context.Context, workspace Workspace, item Wor
 		return nil
 	}
 	detail := diagnostics.RedactAndBound(string(stderr), 2048)
-	if errors.Is(err, context.DeadlineExceeded) {
+	// Only the runner's own budget names the key; a parent deadline keeps the generic error.
+	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 		return fmt.Errorf(
 			"worktree: checkout exceeded worktrees.checkout_timeout (%s); raise it for large repositories: %s: %w",
 			timeout, detail, err,

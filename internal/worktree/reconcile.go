@@ -99,6 +99,11 @@ func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
 func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree) error {
 	switch item.PendingPhase {
 	case PhaseCopy, PhaseSetup:
+		// A row whose checkout is gone (its rollback ran but the failure was
+		// never recorded) is not usable; settle it through the rollback path.
+		if info, err := os.Stat(item.Path); err != nil || !info.IsDir() {
+			return s.recoverInterruptedCreate(ctx, workspace, item)
+		}
 		message := "setup interrupted by daemon restart"
 		if err := s.store.CompleteCreate(
 			ctx,
@@ -114,19 +119,23 @@ func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item 
 		s.emit(ctx, EventSetupFailed, item)
 		return nil
 	default:
-		commonDir, err := s.commonDir(ctx, workspace.Root)
-		if err != nil {
-			return err
-		}
-		release, err := s.locks.Acquire(ctx, commonDir)
-		if err != nil {
-			return err
-		}
-		defer release()
-		rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
-		recordErr := s.recordCreateFailure(ctx, item, errCreationInterrupted, rollbackErr)
-		return errors.Join(rollbackErr, recordErr)
+		return s.recoverInterruptedCreate(ctx, workspace, item)
 	}
+}
+
+func (s *Service) recoverInterruptedCreate(ctx context.Context, workspace Workspace, item Worktree) error {
+	commonDir, err := s.commonDir(ctx, workspace.Root)
+	if err != nil {
+		return err
+	}
+	release, err := s.locks.Acquire(ctx, commonDir)
+	if err != nil {
+		return err
+	}
+	defer release()
+	rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
+	recordErr := s.recordCreateFailure(ctx, item, errCreationInterrupted, rollbackErr)
+	return errors.Join(rollbackErr, recordErr)
 }
 
 func (s *Service) restoreMissing(ctx context.Context, workspace Workspace, item Worktree) error {

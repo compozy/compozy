@@ -82,9 +82,9 @@ func (s *Service) CancelCreate(ctx context.Context, workspaceID, ref string) err
 	}
 	rollbackErr := s.rollbackCreate(context.WithoutCancel(ctx), workspace, commonDir, *item)
 	if rollbackErr != nil {
-		return errors.Join(rollbackErr, s.recordCreateFailure(
-			context.WithoutCancel(ctx), *item, context.Canceled, rollbackErr,
-		))
+		// The row stays pending so boot reconciliation retries the rollback.
+		s.logCreateFailure(context.WithoutCancel(ctx), *item, context.Canceled, rollbackErr, nil)
+		return rollbackErr
 	}
 	if deleteErr := s.store.DeletePending(context.WithoutCancel(ctx), workspaceID, worktreeID); deleteErr != nil {
 		return deleteErr
@@ -140,11 +140,13 @@ func (s *Service) create(ctx context.Context, workspaceID string, options Create
 	}
 	if err := s.materializePending(ctx, workspace, &item, options); err != nil {
 		// The caller receives this error, so a complete rollback frees the name
-		// for an exact retry; leftover Git state keeps a visible failed row.
+		// for an exact retry.
 		cleanupCtx := context.WithoutCancel(ctx)
 		rollbackErr := s.rollbackCreate(cleanupCtx, workspace, commonDir, item)
 		if rollbackErr != nil {
-			return nil, errors.Join(err, rollbackErr, s.recordCreateFailure(cleanupCtx, item, err, rollbackErr))
+			// The row stays pending so boot reconciliation retries the rollback.
+			s.logCreateFailure(cleanupCtx, item, err, rollbackErr, nil)
+			return nil, errors.Join(err, rollbackErr)
 		}
 		deleteErr := s.store.DeletePending(cleanupCtx, item.WorkspaceID, item.ID)
 		s.logCreateFailure(cleanupCtx, item, err, nil, deleteErr)

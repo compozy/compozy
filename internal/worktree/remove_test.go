@@ -756,6 +756,29 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should fail an interrupted copy phase whose checkout is gone", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		gone := fixture.item
+		gone.ID, gone.Name = "wt-gone", "gone-recovery"
+		gone.Path = filepath.Join(t.TempDir(), "gone")
+		gone.State, gone.PendingPhase = StatePending, PhaseCopy
+		if err := fixture.store.Insert(t.Context(), gone); err != nil {
+			t.Fatalf("seed gone recovery: %v", err)
+		}
+		if err := fixture.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, gone.ID)
+		if err != nil || stored.State != StateFailed ||
+			!strings.Contains(stored.CreateError, "daemon restart") {
+			t.Fatalf("gone recovery = %#v, %v, want failed record instead of a ready one", stored, err)
+		}
+		if got := fixture.events.count(EventSetupFailed); got != 0 {
+			t.Fatalf("setup failed events = %d, want none for a missing checkout", got)
+		}
+	})
+
 	t.Run("Should resume a stale removal and fail interrupted exit operations", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)

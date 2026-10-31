@@ -4,10 +4,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { notifyUser } from "@/lib/user-feedback";
 
-import type { WorktreePayload } from "../types";
+import type { WorktreePayload, WorktreesResponse } from "../types";
 import { workspaceKeys } from "../lib/query-keys";
 import { worktreeMaterializationFailureOptions } from "../lib/query-options";
-import { useCancelWorktreeCreate, useCreateWorktree, useWorktrees } from "./use-worktrees";
+import {
+  useCancelWorktreeCreate,
+  useCreateWorktree,
+  useDismissWorktree,
+  useWorktrees,
+} from "./use-worktrees";
 import {
   worktreeMaterializationLogic,
   type WorktreeMaterializationRequestState,
@@ -84,6 +89,7 @@ export function useWorktreeMaterialization(workspaceId: string): WorktreeMateria
   const request = useSelector(store, snapshot => snapshot.context);
   const createWorktree = useCreateWorktree(workspaceId);
   const cancelCreate = useCancelWorktreeCreate(workspaceId);
+  const dismissWorktree = useDismissWorktree(workspaceId);
   const worktrees = useWorktrees(workspaceId, { enabled: request.status === "active" });
 
   const worktree = request.worktreeId
@@ -150,7 +156,15 @@ export function useWorktreeMaterialization(workspaceId: string): WorktreeMateria
     recover: reset,
     retry: () =>
       store.trigger.retryRequested({
-        execute: value => createWorktree.mutateAsync(value.trim() ? { name: value } : {}),
+        execute: async value => {
+          // A failed creation keeps its name until dismissed, so Retry releases
+          // it first; otherwise repeating the same name is refused as taken.
+          const failed = queryClient
+            .getQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceId))
+            ?.worktrees.find(row => row.id === request.worktreeId && row.state === "failed");
+          if (failed) await dismissWorktree.mutateAsync({ worktreeID: failed.id });
+          return createWorktree.mutateAsync(value.trim() ? { name: value } : {});
+        },
         cancel: cancelWorktree,
       }),
     reset,

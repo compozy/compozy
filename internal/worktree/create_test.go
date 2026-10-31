@@ -332,6 +332,48 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a synchronous creation pending when its rollback is incomplete", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		fixture.interruptWorktreeAdd.Store(true)
+		fixture.failCheckoutRemoval.Store(true)
+
+		_, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Sync Stuck",
+		})
+		if err == nil || !strings.Contains(err.Error(), "roll back checkout") {
+			t.Fatalf("Create(stuck rollback) error = %v, want rollback failure", err)
+		}
+		stored, getErr := fixture.store.Get(t.Context(), fixture.workspace.ID, "sync-stuck")
+		if getErr != nil || stored.State != StatePending {
+			t.Fatalf("stuck creation = %#v, %v, want pending row for boot retry", stored, getErr)
+		}
+		if containsCommandPrefix(invocationCommands(fixture.runner.invocations()), "update-ref -d ") {
+			t.Fatal("branch was deleted while its checkout is still registered")
+		}
+		if logs := fixture.logs.String(); !strings.Contains(logs, "rollback is incomplete") {
+			t.Fatalf("logs = %s, want structured incomplete-rollback error", logs)
+		}
+	})
+
+	t.Run("Should not count an unverifiable admin entry for the checkout as removed", func(t *testing.T) {
+		t.Parallel()
+		commonDir := t.TempDir()
+		checkout := filepath.Join(t.TempDir(), "big-one")
+		for _, name := range []string{"big-one2", "unrelated"} {
+			if err := os.MkdirAll(filepath.Join(commonDir, "worktrees", name), 0o700); err != nil {
+				t.Fatalf("seed admin entry %s: %v", name, err)
+			}
+		}
+		err := dropCheckoutAdminEntries(commonDir, checkout)
+		if err == nil || !strings.Contains(err.Error(), "big-one2") {
+			t.Fatalf("dropCheckoutAdminEntries() error = %v, want unverifiable big-one2 entry", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(commonDir, "worktrees", "unrelated")); statErr != nil {
+			t.Fatalf("unrelated admin entry was touched: %v", statErr)
+		}
+	})
+
 	t.Run("Should materialize a per-run worktree with readable names and recorded namespace", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())

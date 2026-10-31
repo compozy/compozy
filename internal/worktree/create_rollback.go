@@ -90,7 +90,10 @@ func (s *Service) rollbackCheckout(ctx context.Context, root, commonDir string, 
 }
 
 // dropCheckoutAdminEntries deletes the admin entries under commonDir whose
-// gitdir backlink names path/.git. Callers first prove path is absent.
+// gitdir backlink names path/.git. Callers first prove path is absent. Git
+// names an entry after the checkout's base name, adding digits on collision;
+// such an entry whose backlink cannot be read could still be this checkout's,
+// so it is reported instead of being treated as removed.
 func dropCheckoutAdminEntries(commonDir, path string) error {
 	adminRoot := filepath.Join(commonDir, "worktrees")
 	entries, err := os.ReadDir(adminRoot)
@@ -101,6 +104,7 @@ func dropCheckoutAdminEntries(commonDir, path string) error {
 		return fmt.Errorf("worktree: list Git admin entries: %w", err)
 	}
 	want := filepath.Join(filepath.Clean(path), ".git")
+	base := filepath.Base(path)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -108,6 +112,9 @@ func dropCheckoutAdminEntries(commonDir, path string) error {
 		adminPath := filepath.Join(adminRoot, entry.Name())
 		raw, readErr := os.ReadFile(filepath.Join(adminPath, "gitdir"))
 		if readErr != nil {
+			if adminEntryNamedFor(entry.Name(), base) {
+				return fmt.Errorf("worktree: verify Git admin entry %s: %w", entry.Name(), readErr)
+			}
 			continue
 		}
 		backlink := strings.TrimSpace(string(raw))
@@ -122,6 +129,19 @@ func dropCheckoutAdminEntries(commonDir, path string) error {
 		}
 	}
 	return nil
+}
+
+func adminEntryNamedFor(name, base string) bool {
+	suffix, ok := strings.CutPrefix(name, base)
+	if !ok {
+		return false
+	}
+	for _, r := range suffix {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // recordCreateFailure keeps a failed creation visible as a failed row with its
