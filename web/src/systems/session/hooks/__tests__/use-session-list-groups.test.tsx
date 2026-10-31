@@ -295,11 +295,13 @@ describe("useSessionListView", () => {
   let registered: Array<[string, string]> = [];
   let layout: { folders: unknown[]; placements: unknown[] } = { folders: [], placements: [] };
   let workspaceOrders: unknown[] = [];
+  let layoutReads = 0;
 
   beforeEach(() => {
     registered = [["ws-alpha", "Alpha"]];
     layout = { folders: [], placements: [] };
     workspaceOrders = [];
+    layoutReads = 0;
     vi.clearAllMocks();
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
       sessions: [],
@@ -327,7 +329,10 @@ describe("useSessionListView", () => {
           })),
         });
       }
-      if (path === "/api/workspace-folders") return json(layout);
+      if (path === "/api/workspace-folders") {
+        layoutReads += 1;
+        return json(layout);
+      }
       if (path === "/api/workspace-order/workspaces" && request.method === "PUT") {
         const body = (await request.json()) as { workspace_ids: string[] };
         workspaceOrders.push(body);
@@ -460,12 +465,15 @@ describe("useSessionListView", () => {
         "project:ws-beta",
       ])
     );
+    const readsBeforeReorder = layoutReads;
     act(() =>
       result.current.projectFolders!.layout.reorderWorkspaces(null, ["ws-beta", "ws-alpha"])
     );
     await waitFor(() => expect(workspaceOrders).toHaveLength(1));
     expect(workspaceOrders[0]).toEqual({ workspace_ids: ["ws-gamma", "ws-beta", "ws-alpha"] });
-    // Once the layout rereads, the list shows the new order with the hidden project still out.
+    // The write rereads the daemon's layout, and the list shows that order with the hidden
+    // project still out.
+    await waitFor(() => expect(layoutReads).toBeGreaterThan(readsBeforeReorder));
     await waitFor(() =>
       expect(result.current.groups.map(group => group.key)).toEqual([
         "project:ws-beta",
