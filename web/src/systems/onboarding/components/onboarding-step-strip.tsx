@@ -60,7 +60,7 @@ export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: Onboardin
               aria-hidden="true"
               className={cn(
                 "grid size-setup-step-marker flex-none place-items-center rounded-full border",
-                "font-mono text-pill-group-badge font-semibold",
+                "font-mono text-pill-group-badge font-semibold tabular-nums",
                 "transition-colors duration-base",
                 state === "done"
                   ? "border-transparent bg-primary text-primary-foreground"
@@ -69,7 +69,15 @@ export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: Onboardin
                     : "border-line-strong text-subtle"
               )}
             >
-              {state === "done" ? <Check className="size-2.5" /> : entry.step}
+              {state === "done" ? (
+                <Check className="size-2.5" />
+              ) : (
+                // The figure's box is trimmed to its cap height, so the badge centres
+                // the glyph itself; the inherited line-height would sit it low.
+                <span className="block leading-none [text-box:trim-both_cap_alphabetic]">
+                  {entry.step}
+                </span>
+              )}
             </span>
             {entry.label}
           </button>

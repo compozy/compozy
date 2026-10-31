@@ -1,10 +1,18 @@
 import { Folder, X } from "lucide-react";
 
-import { Alert, AlertDescription, Button, Empty, Eyebrow, KindIcon } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  DirectoryPickerInput,
+  Empty,
+  Eyebrow,
+  KindIcon,
+  Spinner,
+} from "@compozy/ui";
 
 import { DESTINATION_COPY } from "@/systems/workspace";
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
-import { DirectoryBrowser } from "./directory-browser";
 
 interface StepWorkspacesProps {
   workspaces: OnboardingWorkspacesApi;
@@ -13,47 +21,66 @@ interface StepWorkspacesProps {
 }
 
 /**
- * Browse on the left, confirm on the right: the two columns close flush at a
- * fixed split height so the panel keeps one shape while folders come and go.
+ * Type, complete, or browse to a folder and add it; added projects list
+ * below. The column keeps a fixed height so the panel holds one shape while
+ * folders come and go.
  */
 export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: StepWorkspacesProps) {
   const selected = workspaces.workspaces;
+  const field = workspaces.pathField;
+  const message = field.message ?? workspaces.resolveError;
 
   return (
     <div className="mt-5" data-testid="onboarding-step-workspaces">
-      <div className="grid h-setup-split grid-cols-[1.12fr_1fr] gap-4.5 max-md:h-auto max-md:grid-cols-1 max-md:gap-5">
-        <section className="flex min-h-0 min-w-0 flex-col">
-          <Eyebrow className="mb-2.5 block text-subtle">Browse for a folder</Eyebrow>
-          {/* Onboarding registers on pick — the wizard has no deferred commit. */}
-          <DirectoryBrowser
-            browseError={workspaces.browseError}
-            currentPath={workspaces.currentPath}
-            entries={workspaces.entries}
-            homePath={workspaces.home}
-            isBrowsing={workspaces.isBrowsing}
-            isPicked={workspaces.isAdded}
-            onGoHome={workspaces.goHome}
-            onGoParent={workspaces.goToParent}
-            onNavigate={workspaces.navigateTo}
-            onPick={path => void workspaces.addWorkspace(path)}
-            parentPath={workspaces.parent}
-            pickPending={workspaces.isResolving}
-            pickRowLabel={name => `Add ${name} as a project`}
-            roots={workspaces.roots}
-            testIdPrefix="onboarding-directory-browser"
-          />
-          {workspaces.resolveError ? (
+      <div className="flex h-setup-split flex-col gap-5 max-md:h-auto">
+        <section className="flex flex-none flex-col">
+          <label className="mb-2.5 block" htmlFor="onboarding-project-folder">
+            <Eyebrow className="text-subtle">Project folder</Eyebrow>
+          </label>
+          {/* Onboarding registers on add — the wizard has no deferred commit. */}
+          <form
+            className="flex items-center gap-2"
+            onSubmit={event => {
+              event.preventDefault();
+              void workspaces.addFromField();
+            }}
+          >
+            <DirectoryPickerInput
+              aria-describedby={message ? "onboarding-project-folder-message" : undefined}
+              data-testid="onboarding-folder-input"
+              id="onboarding-project-folder"
+              invalid={field.status === "invalid"}
+              onBrowse={field.browse}
+              onValueChange={field.onValueChange}
+              placeholder="~/code/my-project"
+              rootClassName="min-w-0 flex-1"
+              suggestions={field.suggestions}
+              browsePending={field.browsePending}
+              value={field.value}
+            />
+            <Button
+              data-testid="onboarding-add-folder"
+              disabled={field.status !== "valid" || workspaces.isResolving}
+              type="submit"
+              variant="secondary"
+            >
+              {workspaces.isResolving ? <Spinner /> : null}
+              Add
+            </Button>
+          </form>
+          {message ? (
             <p
               className="mt-2 text-form-hint text-danger"
-              role="alert"
               data-testid="onboarding-resolve-error"
+              id="onboarding-project-folder-message"
+              role="alert"
             >
-              {workspaces.resolveError}
+              {message}
             </p>
           ) : null}
         </section>
 
-        <section className="flex min-h-0 min-w-0 flex-col">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex items-baseline justify-between gap-2.5">
             <Eyebrow className="text-subtle">Selected projects</Eyebrow>
             <span className="text-micro text-muted tabular-nums">

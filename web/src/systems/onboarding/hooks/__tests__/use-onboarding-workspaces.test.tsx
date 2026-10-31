@@ -2,7 +2,9 @@
 // Invariant: persisted workspace identities are valid only when present in the current daemon catalog.
 // Boundary IN: onboarding workspace hook and persisted draft store.
 // Boundary OUT: workspace HTTP adapters and browser journey replay.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { rehydrateStore } from "@xstate/store/persist";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +12,7 @@ import {
   ONBOARDING_DRAFT_STORAGE_KEY,
   onboardingDraftStore,
 } from "../../stores/use-onboarding-draft-store";
+import { onboardingKeys } from "../../lib/query-keys";
 import { useOnboardingWorkspaces } from "../use-onboarding-workspaces";
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -20,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   workspacesIsLoading: false,
   workspacesError: null as Error | null,
   refetchWorkspaces: vi.fn(),
-  browse: { isLoading: false, isFetching: false },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
@@ -41,27 +43,27 @@ vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
   }),
 }));
 
-vi.mock("../use-directory-browser", () => ({
-  useDirectoryBrowser: () => ({
-    currentPath: "/Users/operator",
-    parent: null,
-    home: "/Users/operator",
-    roots: ["/"],
-    navigateTo: vi.fn(),
-    goToParent: vi.fn(),
-    goHome: vi.fn(),
-    data: {
-      path: "/Users/operator",
-      parent: null,
-      home: "/Users/operator",
-      roots: ["/"],
-      entries: [],
-    },
-    error: null,
-    isFetching: mocks.browse.isFetching,
-    isLoading: mocks.browse.isLoading,
-  }),
+vi.mock("../../adapters/onboarding-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/onboarding-api")>()),
+  browseDirectory: vi.fn(async ({ path }: { path?: string }) => ({
+    ...HOME_LISTING,
+    path: path ?? HOME_LISTING.path,
+  })),
 }));
+
+const HOME_LISTING = {
+  path: "/Users/operator",
+  home: "/Users/operator",
+  roots: ["/"],
+  entries: [],
+};
+
+/** Each test seeds the daemon home listing so the operator home is known from the first render. */
+function wrapper({ children }: { children: ReactNode }) {
+  return createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
+let queryClient: QueryClient;
 
 const now = "2026-05-27T00:00:00Z";
 
@@ -84,19 +86,9 @@ describe("useOnboardingWorkspaces", () => {
     mocks.registeredWorkspaces = [];
     mocks.workspacesIsLoading = false;
     mocks.workspacesError = null;
-    mocks.browse = { isLoading: false, isFetching: false };
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(onboardingKeys.browse({ dirsOnly: true }), HOME_LISTING);
     onboardingDraftStore.trigger.draftCleared();
-  });
-
-  it("reports browsing for a folder it has no listing of, not for a refetch of one it has", () => {
-    // Loading UI follows "no data yet", so a background refetch never swaps the listing for a skeleton.
-    mocks.browse = { isLoading: true, isFetching: true };
-    const { result, rerender } = renderHook(() => useOnboardingWorkspaces());
-    expect(result.current.isBrowsing).toBe(true);
-
-    mocks.browse = { isLoading: false, isFetching: true };
-    rerender();
-    expect(result.current.isBrowsing).toBe(false);
   });
 
   it("hydrates an empty onboarding draft from project workspaces only", async () => {
@@ -109,7 +101,7 @@ describe("useOnboardingWorkspaces", () => {
       }),
     ];
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.workspaces).toEqual([
@@ -124,7 +116,7 @@ describe("useOnboardingWorkspaces", () => {
   it("ignores an attempt to add the operator-home registration as a project workspace", async () => {
     mocks.registeredWorkspaces = [workspace()];
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await act(async () => {
       await result.current.addWorkspace("/Users/operator/");
@@ -148,7 +140,7 @@ describe("useOnboardingWorkspaces", () => {
       workspace({ id: "ws_project", root_dir: "/Users/operator/project", name: "project" }),
     ];
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.workspaces).toEqual([
@@ -170,7 +162,7 @@ describe("useOnboardingWorkspaces", () => {
     });
     mocks.registeredWorkspaces = [workspace()];
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.workspaces).toEqual([
@@ -198,7 +190,7 @@ describe("useOnboardingWorkspaces", () => {
     mocks.registeredWorkspaces = undefined;
     mocks.workspacesIsLoading = true;
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     expect.soft(result.current.isRemoving).toBe(false);
     expect.soft(result.current.isCatalogLoading).toBe(true);
@@ -215,7 +207,7 @@ describe("useOnboardingWorkspaces", () => {
     mocks.workspacesError = new Error("workspace catalog unavailable");
     mocks.refetchWorkspaces.mockResolvedValue(undefined);
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     expect(result.current.catalogError).toBe("workspace catalog unavailable");
     expect(result.current.isCatalogLoading).toBe(false);
@@ -245,7 +237,7 @@ describe("useOnboardingWorkspaces", () => {
       )
     );
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await act(async () => {
       await result.current.removeWorkspace(staleWorkspace.path);
@@ -267,7 +259,7 @@ describe("useOnboardingWorkspaces", () => {
       mocks.registeredWorkspaces = [];
     });
 
-    const { result, rerender } = renderHook(() => useOnboardingWorkspaces());
+    const { result, rerender } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await act(async () => {
       await result.current.addWorkspace("/Users/operator/project");
@@ -297,7 +289,7 @@ describe("useOnboardingWorkspaces", () => {
     });
     mocks.registeredWorkspaces = [parentWorkspace];
     mocks.createWorkspace.mockResolvedValue(selectedChild);
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
     await waitFor(() => expect(result.current.workspaces).toEqual([]));
 
     await act(async () => {
@@ -324,7 +316,7 @@ describe("useOnboardingWorkspaces", () => {
     });
     mocks.registeredWorkspaces = [registeredWorkspace];
     mocks.deleteWorkspace.mockResolvedValue(undefined);
-    const { result, rerender } = renderHook(() => useOnboardingWorkspaces());
+    const { result, rerender } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
     await waitFor(() => expect(result.current.workspaces).toHaveLength(1));
 
     await act(async () => {
@@ -356,7 +348,7 @@ describe("useOnboardingWorkspaces", () => {
     ];
     mocks.deleteWorkspace.mockRejectedValue(new Error("workspace has active sessions"));
 
-    const { result } = renderHook(() => useOnboardingWorkspaces());
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
 
     await act(async () => {
       await result.current.removeWorkspace("/Users/operator/project");
@@ -367,5 +359,68 @@ describe("useOnboardingWorkspaces", () => {
     expect(onboardingDraftStore.getSnapshot().context.workspaces).toEqual([
       { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
     ]);
+  });
+
+  it("registers the folder typed in the field once it validates, then clears the field", async () => {
+    mocks.createWorkspace.mockResolvedValue(
+      workspace({ id: "ws_typed", root_dir: "/Users/operator/typed", name: "typed" })
+    );
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
+
+    act(() => result.current.pathField.onValueChange("~/typed/"));
+    await waitFor(() => expect(result.current.pathField.status).toBe("valid"));
+    expect(result.current.pathField.path).toBe("/Users/operator/typed");
+
+    await act(async () => {
+      await result.current.addFromField();
+    });
+
+    expect(mocks.createWorkspace).toHaveBeenCalledWith({ root_dir: "/Users/operator/typed" });
+    expect(result.current.pathField.value).toBe("");
+    expect(result.current.workspaces).toEqual([
+      { path: "/Users/operator/typed", name: "typed", workspaceId: "ws_typed" },
+    ]);
+  });
+
+  it("refuses a typed folder that is already in the selection", async () => {
+    onboardingDraftStore.trigger.workspaceDraftAdded({
+      workspace: { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
+    });
+    mocks.registeredWorkspaces = [
+      workspace({ id: "ws_project", root_dir: "/Users/operator/project", name: "project" }),
+    ];
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
+
+    act(() => result.current.pathField.onValueChange("/Users/operator/project"));
+    await waitFor(() => expect(result.current.pathField.status).toBe("invalid"));
+    expect(result.current.pathField.message).toBe("This folder is already a project.");
+  });
+
+  it("keeps a folder typed while the previous add was still in flight", async () => {
+    let finishCreate: (() => void) | undefined;
+    mocks.createWorkspace.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finishCreate = () =>
+            resolve(
+              workspace({ id: "ws_first", root_dir: "/Users/operator/first", name: "first" })
+            );
+        })
+    );
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
+
+    act(() => result.current.pathField.onValueChange("~/first"));
+    await waitFor(() => expect(result.current.pathField.status).toBe("valid"));
+    let adding: Promise<void> | undefined;
+    act(() => {
+      adding = result.current.addFromField();
+    });
+    act(() => result.current.pathField.onValueChange("~/second"));
+    await act(async () => {
+      finishCreate?.();
+      await adding;
+    });
+
+    expect(result.current.pathField.value).toBe("~/second");
   });
 });

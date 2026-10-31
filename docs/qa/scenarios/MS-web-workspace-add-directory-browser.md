@@ -1,10 +1,10 @@
 ---
 id: MS-web-workspace-add-directory-browser
 area: MS
-title: Add workspace picks a root by browsing and registers once on submit
+title: Add workspace picks a root with the directory picker and registers once on submit
 persona: Dora
 journey: J-operate-workspace-context
-expected: Add project opens in Simple mode as a single-pane dialog holding only the filesystem browser (home/up toolbar, Locations row, mono current path, "Use this folder", always-visible row picks at reduced emphasis) that chooses the root; there is no plain path input and no one-click global-default / home-folder card. Picking a root only updates the draft — it must not register a workspace — and it autofills the display name from the folder name until the operator types their own. Switching to Advanced widens the dialog to two panes; the right pane, "Defaults for new sessions", carries the optional default agent and "Other folders agents can read" as removable chips. Exactly one `POST /api/workspaces` is issued when the footer primary is pressed, carrying `root_dir` plus any of `name`, `add_dirs`, and `default_agent` that are set. A failed registration reports inline and keeps every entered value. Below 980px the Advanced panes collapse to one column with the defaults stacked underneath. The browser's reading, empty, and permission-error states are all visible. First-run onboarding uses the same browser; folders are optional and "Skip — use my home folder" starts in Global scope without calling `POST /api/workspaces/resolve` for `$HOME`.
+expected: Add project opens in Simple mode as a single-pane dialog whose Root directory is a directory picker input — a mono path field that accepts absolute paths and `~`, completes folders from `GET /api/fs/browse` as the operator types (↑/↓ move, Enter or click chooses, Tab completes and keeps listing that folder's children, Esc closes), and, in the desktop app only, a Browse… button that opens the native OS folder dialog (cancel leaves the field unchanged). There is no in-dialog folder list and no one-click global-default / home-folder card. The field validates inline: no folder at this path, a file instead of a folder, an unreadable folder, a folder that is already a project, a relative path, and the home folder each block submit with their own message. Choosing a root only updates the draft — it must not register a workspace — and it autofills the display name from the folder name until the operator types their own. Switching to Advanced widens the dialog to two panes; the right pane, "Defaults for new sessions", carries the optional default agent and "Other folders agents can read" as removable chips. Exactly one `POST /api/workspaces` is issued when the footer primary is pressed, carrying the expanded absolute `root_dir` plus any of `name`, `add_dirs`, and `default_agent` that are set. A failed registration reports inline and keeps every entered value. Below 980px the Advanced panes collapse to one column with the defaults stacked underneath. First-run onboarding uses the same picker with an Add button; folders are optional and "Skip — use my home folder" starts in Global scope without calling `POST /api/workspaces/resolve` for `$HOME`.
 entry_points: web desktop shell → Add project…; web workspaces overview → New project; web first-run onboarding
 qa_status: pass
 bug_ids: BUG-20261002-directory-error-traps-navigation; BUG-20261002-onboarding-skip-keeps-project
@@ -22,7 +22,7 @@ Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.
 
 `POST /api/workspaces` (`createWorkspace`) is now wired from the web client for the first time. `$HOME` is registered by the daemon, not by a UI card; Add workspace never offers a global-default row.
 
-src: web/src/systems/workspace/components/workspace-setup.tsx; web/src/systems/workspace/components/workspace-setup-location-pane.tsx; web/src/systems/workspace/components/workspace-setup-defaults-pane.tsx; web/src/systems/workspace/hooks/use-workspace-setup-content.ts; web/src/systems/onboarding/components/directory-browser.tsx
+src: web/src/systems/workspace/components/workspace-setup.tsx; web/src/systems/workspace/components/workspace-setup-location-pane.tsx; web/src/systems/workspace/components/workspace-setup-defaults-pane.tsx; web/src/systems/workspace/hooks/use-workspace-setup-content.ts; web/src/systems/onboarding/hooks/use-directory-path-field.ts; packages/ui/src/components/custom/directory-picker-input.tsx; desktop/src/product/directory-dialog.ts
 
 inventory: Needs QA
 
@@ -76,3 +76,9 @@ QA impact 2026-10-20 (#864): Unknown keys in the selected project's `.compozy/co
 that message inline, retain the draft and allow retry after the operator renames the temporary legacy
 file. Rejected registration must leave no workspace behind. The legacy CLI format remains unsupported.
 Targeted execution: [Workspace config rejection report](../reports/2026-10-20-issue-864-legacy-config-error.md).
+
+QA impact 2026-10-30 (#1063): the in-dialog folder browser (home/up toolbar, Locations row, folder
+list, "Use this folder") is replaced by the directory picker input described above, in Add project
+and onboarding step 2. The desktop app adds a validated `dialog.pick_directory` shell bridge method
+for Browse…; plain web has no Browse button. Targeted walk:
+[Directory picker report](../reports/2026-10-30-issue-1063-directory-picker.md).

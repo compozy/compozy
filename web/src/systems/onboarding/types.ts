@@ -4,7 +4,6 @@ export type OnboardingStatusResponse = OperationResponse<"getOnboardingStatus", 
 export type OnboardingStatus = OnboardingStatusResponse["onboarding"];
 
 export type FSBrowseResponse = OperationResponse<"browseDirectory", 200>;
-export type FSEntry = FSBrowseResponse["entries"][number];
 
 export interface DirectoryBrowseQuery {
   path?: string;

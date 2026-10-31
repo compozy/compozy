@@ -9,6 +9,7 @@ import {
   validProductResponse,
   type GlobalShortcutBinding,
   type GlobalShortcutRegistration,
+  type PickDirectoryParams,
   type ProductMethod,
   type ProductResponses,
   type ThemePreference,
@@ -57,6 +58,12 @@ contextBridge.exposeInMainWorld("compozyShell", {
   theme: {
     async set(preference: ThemePreference): Promise<void> {
       await invoke("theme.set", { preference });
+    },
+  },
+  dialogs: {
+    /** Opens the native folder dialog; resolves the chosen absolute path or `null` on cancel. */
+    async pickDirectory(options: PickDirectoryParams = {}): Promise<string | null> {
+      return (await invoke("dialog.pick_directory", options)).path;
     },
   },
 });

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@compozy/ui";
@@ -9,26 +10,12 @@ import { useWorkspaceSetupContent } from "../../hooks/use-workspace-setup-conten
 import type { WorkspaceSetupDefaultsModel } from "../../lib/workspace-setup-defaults";
 import { WorkspaceSetupDialog } from "../workspace-setup";
 
-const { mockCreateMutateAsync, mockToastSuccess, mockToastError, mockBrowseState } = vi.hoisted(
+const { mockCreateMutateAsync, mockToastSuccess, mockToastError, mockRegisteredRoots } = vi.hoisted(
   () => ({
     mockCreateMutateAsync: vi.fn(),
     mockToastSuccess: vi.fn(),
     mockToastError: vi.fn(),
-    mockBrowseState: {
-      data: {
-        path: "/Users/pedro/Dev",
-        parent: "/Users/pedro",
-        home: "/Users/pedro",
-        roots: ["/"],
-        entries: [
-          { name: "checkout-platform", path: "/Users/pedro/Dev/checkout-platform", is_dir: true },
-          { name: "billing", path: "/Users/pedro/Dev/billing", is_dir: true },
-        ],
-      } as unknown,
-      isLoading: false,
-      isFetching: false,
-      error: null as Error | null,
-    },
+    mockRegisteredRoots: [] as string[],
   })
 );
 
@@ -36,21 +23,42 @@ vi.mock("sonner", () => ({
   toast: { success: mockToastSuccess, error: mockToastError },
 }));
 
-vi.mock("@/systems/onboarding/hooks/use-directory-browser", () => ({
-  useDirectoryBrowser: () => ({
-    ...mockBrowseState,
-    currentPath: (mockBrowseState.data as { path?: string })?.path ?? "",
-    parent: (mockBrowseState.data as { parent?: string })?.parent ?? null,
-    home: (mockBrowseState.data as { home?: string })?.home ?? null,
-    roots: (mockBrowseState.data as { roots?: string[] })?.roots ?? [],
-    navigateTo: vi.fn(),
-    goToParent: vi.fn(),
-    goHome: vi.fn(),
-  }),
-}));
+/** The daemon's `/api/fs/browse` over a small fixed tree — the I/O boundary of the folder field. */
+const HOME = "/Users/pedro";
+const FOLDERS: Record<string, string[]> = {
+  [HOME]: ["Dev"],
+  "/Users/pedro/Dev": ["billing", "checkout-platform"],
+  "/Users/pedro/Dev/billing": [],
+  "/Users/pedro/Dev/checkout-platform": [],
+};
+const FAILURES: Record<string, number> = {
+  "/Users/pedro/notes.txt": 400,
+  "/Users/pedro/locked": 403,
+};
+
+vi.mock("@/systems/onboarding/adapters/onboarding-api", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/onboarding/adapters/onboarding-api")>();
+  return {
+    ...actual,
+    browseDirectory: vi.fn(async ({ path = HOME }: { path?: string }) => {
+      const children = FOLDERS[path];
+      if (!children) {
+        throw new actual.OnboardingApiError("browse failed", FAILURES[path] ?? 404);
+      }
+      return {
+        path,
+        home: HOME,
+        roots: ["/"],
+        entries: children.map(name => ({ name, path: `${path}/${name}`, is_dir: true })),
+      };
+    }),
+  };
+});
 
 vi.mock("../../hooks/use-workspaces", () => ({
   useCreateWorkspace: () => ({ mutateAsync: mockCreateMutateAsync }),
+  useWorkspaces: () => ({ data: mockRegisteredRoots.map(root_dir => ({ root_dir })) }),
 }));
 
 const createdWorkspace = {
@@ -96,15 +104,18 @@ function renderDialog(
   const onWorkspaceResolved = props.onWorkspaceResolved ?? vi.fn();
   const open = props.open ?? true;
 
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
-    <UIProvider reducedMotion="never" skipAnimations>
-      <WorkspaceSetupDialogHarness
-        defaults={props.defaults ?? mockDefaults}
-        open={open}
-        onOpenChange={onOpenChange}
-        onWorkspaceResolved={onWorkspaceResolved}
-      />
-    </UIProvider>
+    <QueryClientProvider client={queryClient}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <WorkspaceSetupDialogHarness
+          defaults={props.defaults ?? mockDefaults}
+          open={open}
+          onOpenChange={onOpenChange}
+          onWorkspaceResolved={onWorkspaceResolved}
+        />
+      </UIProvider>
+    </QueryClientProvider>
   );
 
   return { ...utils, onOpenChange, onWorkspaceResolved };
@@ -114,33 +125,20 @@ function resetMocks() {
   mockDefaults = {
     agents: { state: "ready", entries: [] },
   };
-  mockBrowseState.isLoading = false;
-  mockBrowseState.isFetching = false;
-  mockBrowseState.error = null;
-  mockBrowseState.data = {
-    path: "/Users/pedro/Dev",
-    parent: "/Users/pedro",
-    home: "/Users/pedro",
-    entries: [
-      { name: "checkout-platform", path: "/Users/pedro/Dev/checkout-platform", is_dir: true },
-      { name: "billing", path: "/Users/pedro/Dev/billing", is_dir: true },
-    ],
-  };
+  mockRegisteredRoots.length = 0;
   mockCreateMutateAsync.mockReset();
   mockToastSuccess.mockReset();
   mockToastError.mockReset();
 }
 
+/** Types a root and waits for the daemon to validate it. */
+async function chooseRoot(user: ReturnType<typeof userEvent.setup>, path: string) {
+  await user.type(screen.getByTestId("workspace-setup-root-input"), path);
+  await waitFor(() => expect(screen.getByTestId("workspace-setup-submit")).toBeEnabled());
+}
+
 describe("WorkspaceSetupDialog", () => {
   beforeEach(resetMocks);
-
-  it("offers no plain path input for root selection", () => {
-    renderDialog({ open: true });
-
-    expect(screen.queryByLabelText("Workspace path")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("workspace-manual-path-input")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("workspace-register-manual")).not.toBeInTheDocument();
-  });
 
   it("renders a portaled dialog when `open` is true", () => {
     renderDialog({ open: true });
@@ -156,11 +154,11 @@ describe("WorkspaceSetupDialog", () => {
     renderDialog({ open: true });
 
     const body = screen.getByTestId("workspace-setup-dialog-body");
-    expect(within(body).getByTestId("workspace-setup-browser")).toBeInTheDocument();
+    expect(within(body).getByTestId("workspace-setup-root-input")).toBeInTheDocument();
     expect(within(body).queryByTestId("workspace-setup-add-dir-input")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
-    expect(within(body).getByTestId("workspace-setup-browser")).toBeInTheDocument();
+    expect(within(body).getByTestId("workspace-setup-root-input")).toBeInTheDocument();
     expect(within(body).getByTestId("workspace-setup-add-dir-input")).toBeInTheDocument();
   });
 
@@ -169,26 +167,68 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.queryByTestId("workspace-setup-dialog-body")).not.toBeInTheDocument();
   });
 
-  it("selects a root from the browser without registering anything", async () => {
+  it("accepts a typed ~ root, validates it, and registers nothing until submit", async () => {
     const user = userEvent.setup();
     renderDialog({ open: true });
 
-    expect(screen.queryByTestId("workspace-setup-selected-root")).not.toBeInTheDocument();
     expect(screen.getByTestId("workspace-setup-submit")).toBeDisabled();
+    await chooseRoot(user, "~/Dev/checkout-platform");
 
-    await user.click(
-      screen.getByRole("button", { name: "Use checkout-platform as the project folder" })
-    );
-
-    // Picking a root must not write anything — registration waits for submit.
+    // Choosing a root must not write anything — registration waits for submit.
     expect(mockCreateMutateAsync).not.toHaveBeenCalled();
-    expect(
-      within(screen.getByTestId("workspace-setup-selected-root")).getByText(
-        "/Users/pedro/Dev/checkout-platform"
-      )
-    ).toBeInTheDocument();
     expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue("checkout-platform");
-    expect(screen.getByTestId("workspace-setup-submit")).toBeEnabled();
+    mockCreateMutateAsync.mockResolvedValue(createdWorkspace);
+    await user.click(screen.getByTestId("workspace-setup-submit"));
+    await waitFor(() =>
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith({
+        root_dir: "/Users/pedro/Dev/checkout-platform",
+        name: "checkout-platform",
+      })
+    );
+  });
+
+  it("completes folders from the daemon listing with the keyboard", async () => {
+    const user = userEvent.setup();
+    renderDialog({ open: true });
+    const input = screen.getByTestId("workspace-setup-root-input");
+
+    await user.type(input, "~/Dev/ch");
+    expect(await screen.findByRole("option", { name: "checkout-platform" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "billing" })).not.toBeInTheDocument();
+    await user.keyboard("{Tab}");
+
+    expect(input).toHaveValue("~/Dev/checkout-platform/");
+    await waitFor(() => expect(screen.getByTestId("workspace-setup-submit")).toBeEnabled());
+
+    // A listing of the previous folder never completes newer text.
+    await user.clear(input);
+    await user.type(input, "~/Dev/ch");
+    expect(await screen.findByRole("option", { name: "checkout-platform" })).toBeInTheDocument();
+    await user.keyboard("{Tab}src{Tab}");
+    expect(input).toHaveValue("~/Dev/checkout-platform/src");
+  });
+
+  it("explains why a typed root cannot be a project", async () => {
+    const user = userEvent.setup();
+    mockRegisteredRoots.push("/Users/pedro/Dev/billing");
+    renderDialog({ open: true });
+    const input = screen.getByTestId("workspace-setup-root-input");
+    const cases = [
+      ["code/app", "Use an absolute path, like ~/code/app."],
+      ["~/missing", "No folder at this path."],
+      ["~/notes.txt", "This path is a file, not a folder."],
+      ["~/locked", "This folder can't be read. Check its permissions."],
+      ["~/Dev/billing", "This folder is already a project."],
+      ["~", "Your home folder can't be a project. Choose a folder inside it."],
+    ];
+
+    for (const [path, message] of cases) {
+      await user.clear(input);
+      await user.type(input, path!);
+      expect(await screen.findByTestId("workspace-setup-root-error")).toHaveTextContent(message!);
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByTestId("workspace-setup-submit")).toBeDisabled();
+    }
   });
 
   it("issues exactly one create request carrying the full draft on submit", async () => {
@@ -197,7 +237,7 @@ describe("WorkspaceSetupDialog", () => {
     const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });
 
     await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await chooseRoot(user, "/Users/pedro/Dev");
     await user.clear(screen.getByTestId("workspace-setup-name-input"));
     await user.type(screen.getByTestId("workspace-setup-name-input"), "Checkout platform");
     await user.type(screen.getByTestId("workspace-setup-add-dir-input"), "/Users/pedro/Dev/shared");
@@ -229,7 +269,7 @@ describe("WorkspaceSetupDialog", () => {
     renderDialog({ open: true });
 
     await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await chooseRoot(user, "/Users/pedro/Dev");
     await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
     await user.click(screen.getByTestId(`agent-command-item-${primaryAgentFixture.name}`));
     await user.click(screen.getByTestId("workspace-setup-submit"));
@@ -252,7 +292,7 @@ describe("WorkspaceSetupDialog", () => {
     renderDialog({ open: true });
 
     await user.click(screen.getByTestId("workspace-setup-mode-advanced"));
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await chooseRoot(user, "/Users/pedro/Dev");
     await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
     await user.click(screen.getByTestId(`agent-command-item-${primaryAgentFixture.name}`));
     await user.click(screen.getByTestId("workspace-setup-default-agent-select"));
@@ -292,14 +332,8 @@ describe("WorkspaceSetupDialog", () => {
     ];
 
     for (const testCase of cases) {
-      mockBrowseState.data = {
-        path: testCase.path,
-        parent: null,
-        home: null,
-        entries: [],
-      };
       const view = renderDialog({ open: true });
-      await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+      await user.type(screen.getByTestId("workspace-setup-root-input"), testCase.path);
       expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue(testCase.name);
       view.unmount();
     }
@@ -316,7 +350,7 @@ describe("WorkspaceSetupDialog", () => {
     );
     renderDialog({ open: true });
 
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await chooseRoot(user, "/Users/pedro/Dev");
     await user.click(screen.getByTestId("workspace-setup-submit"));
 
     await waitFor(() => {
@@ -340,7 +374,7 @@ describe("WorkspaceSetupDialog", () => {
     mockCreateMutateAsync.mockRejectedValue(new Error("root is already registered"));
     const { onOpenChange } = renderDialog({ open: true });
 
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await chooseRoot(user, "/Users/pedro/Dev");
     await user.click(screen.getByTestId("workspace-setup-submit"));
 
     expect(await screen.findByTestId("workspace-setup-error")).toHaveTextContent(
@@ -359,7 +393,7 @@ describe("WorkspaceSetupDialog", () => {
     mockCreateMutateAsync.mockRejectedValue(new Error(message));
     const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });
 
-    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await chooseRoot(user, "/Users/pedro/Dev");
     await user.click(screen.getByTestId("workspace-setup-submit"));
 
     expect(await screen.findByTestId("workspace-setup-error")).toHaveTextContent(message);
@@ -367,30 +401,5 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.getByTestId("workspace-setup-submit")).toBeEnabled();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     expect(onWorkspaceResolved).not.toHaveBeenCalled();
-  });
-
-  it("surfaces the browser reading, empty, and error states", () => {
-    mockBrowseState.isLoading = true;
-    const { unmount } = renderDialog({ open: true });
-    expect(screen.getByTestId("workspace-setup-browser-loading")).toBeInTheDocument();
-    unmount();
-
-    resetMocks();
-    mockBrowseState.data = {
-      path: "/Users/pedro/Dev",
-      parent: "/Users/pedro",
-      home: "/Users/pedro",
-      entries: [],
-    };
-    const empty = renderDialog({ open: true });
-    expect(screen.getByTestId("workspace-setup-browser-empty")).toBeInTheDocument();
-    empty.unmount();
-
-    resetMocks();
-    mockBrowseState.error = new Error("permission denied");
-    renderDialog({ open: true });
-    expect(screen.getByTestId("workspace-setup-browser-error")).toHaveTextContent(
-      "permission denied"
-    );
   });
 });

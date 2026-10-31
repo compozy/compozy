@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
-import { useCreateWorkspace } from "./use-workspaces";
-import { useDirectoryBrowser } from "@/systems/onboarding";
+import { useCreateWorkspace, useWorkspaces } from "./use-workspaces";
+import { useDirectoryPathField } from "@/systems/onboarding";
 
 type SubmissionMode = "create" | null;
 
@@ -48,16 +48,13 @@ export function useWorkspaceSetupContent({
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const browse = useDirectoryBrowser({ dirsOnly: true }, enabled);
-  const browseData = browse.data;
+  const workspaces = useWorkspaces({ enabled });
 
   /**
-   * Picking a root only updates the draft. Registration happens once, on the
-   * dialog's primary action — browsing must never create a workspace.
+   * Typing or picking a root only updates the draft. Registration happens once,
+   * on the dialog's primary action — choosing a folder must never create a workspace.
    */
-  const selectRoot = (path: string) => {
-    const rootDir = path.trim();
-    if (rootDir === "") return;
+  const selectRoot = (rootDir: string) => {
     setCreateError(null);
     setDraft(current => ({
       ...current,
@@ -93,13 +90,20 @@ export function useWorkspaceSetupContent({
     setCreateError(null);
   };
 
-  const canSubmit = draft.rootDir.trim() !== "" && submissionMode === null;
+  const rootField = useDirectoryPathField({
+    value: draft.rootDir,
+    onValueChange: selectRoot,
+    isProject: path => (workspaces.data ?? []).some(workspace => workspace.root_dir === path),
+    enabled,
+  });
+
+  const canSubmit = rootField.status === "valid" && submissionMode === null;
 
   const handleCreateSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    const rootDir = draft.rootDir.trim();
-    if (rootDir === "") {
-      setCreateError("Pick the project folder in the browser above.");
+    const rootDir = rootField.path;
+    if (rootDir === null) {
+      setCreateError(rootField.status === "empty" ? "Choose the project folder." : null);
       return;
     }
 
@@ -126,20 +130,7 @@ export function useWorkspaceSetupContent({
   };
 
   return {
-    browse: {
-      currentPath: browse.currentPath,
-      parentPath: browse.parent,
-      homePath: browse.home,
-      roots: browse.roots,
-      entries: browseData?.entries ?? [],
-      isBrowsing: browse.isLoading || browse.isFetching,
-      browseError: browse.error
-        ? getErrorMessage(browse.error, "Failed to browse directory.")
-        : null,
-      navigateTo: browse.navigateTo,
-      goToParent: browse.goToParent,
-      goHome: browse.goHome,
-    },
+    rootField,
     canSubmit,
     createError,
     draft,

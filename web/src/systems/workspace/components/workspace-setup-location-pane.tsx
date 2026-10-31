@@ -1,63 +1,64 @@
 import {
+  DirectoryPickerInput,
   Field,
+  FieldDescription,
+  FieldError,
   FieldHeader,
   FieldLabel,
   FormSection,
   HelpTip,
-  ImmutableIdentity,
   Input,
   RequiredMark,
 } from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
-import { DirectoryBrowser } from "@/systems/onboarding";
 
 interface WorkspaceSetupLocationPaneProps {
   setup: WorkspaceSetupContent;
 }
 
 /**
- * Left pane of the split shell: the filesystem browser that chooses the root,
- * and the display name.
+ * Left pane of the split shell: the project folder and the display name.
  *
- * The root is picked in the browser — a plain path input is forbidden for root
- * selection (`MODAL-STANDARD.md` § Component grammar).
+ * The folder is typed with completion, or chosen in the OS folder dialog when
+ * the desktop shell offers one.
  */
 export function WorkspaceSetupLocationPane({ setup }: WorkspaceSetupLocationPaneProps) {
+  const root = setup.rootField;
   return (
     <div className="flex min-h-0 flex-col gap-4">
       <FormSection className="flex min-h-0 flex-col" title="Location">
         <div className="flex min-h-0 flex-col gap-4">
-          <div className="flex min-h-0 flex-col gap-1.5">
-            <span className="flex items-center text-form-label text-fg">
-              Root directory
-              <RequiredMark />
-            </span>
-            <DirectoryBrowser
-              browseError={setup.browse.browseError}
-              currentPath={setup.browse.currentPath}
-              entries={setup.browse.entries}
-              homePath={setup.browse.homePath}
-              isBrowsing={setup.browse.isBrowsing}
-              isPicked={path => path === setup.draft.rootDir}
-              onGoHome={setup.browse.goHome}
-              onGoParent={setup.browse.goToParent}
-              onNavigate={setup.browse.navigateTo}
-              onPick={setup.selectRoot}
-              parentPath={setup.browse.parentPath}
-              pickRowLabel={name => `Use ${name} as the project folder`}
-              roots={setup.browse.roots}
-              testIdPrefix="workspace-setup-browser"
+          <Field data-invalid={root.status === "invalid" || undefined}>
+            <FieldHeader>
+              <FieldLabel htmlFor="workspace-setup-root">
+                Root directory
+                <RequiredMark />
+              </FieldLabel>
+            </FieldHeader>
+            <DirectoryPickerInput
+              aria-describedby="workspace-setup-root-hint"
+              browsePending={root.browsePending}
+              data-testid="workspace-setup-root-input"
+              disabled={setup.submissionMode !== null}
+              id="workspace-setup-root"
+              invalid={root.status === "invalid"}
+              onBrowse={root.browse}
+              onValueChange={root.onValueChange}
+              placeholder="~/code/checkout-platform"
+              suggestions={root.suggestions}
+              value={root.value}
             />
-          </div>
-
-          {setup.draft.rootDir ? (
-            <ImmutableIdentity
-              data-testid="workspace-setup-selected-root"
-              hint="Sessions read and write inside this root — it cannot change later."
-              rows={[{ label: "Selected root", value: setup.draft.rootDir, mono: true }]}
-            />
-          ) : null}
+            {root.message ? (
+              <FieldError data-testid="workspace-setup-root-error" id="workspace-setup-root-hint">
+                {root.message}
+              </FieldError>
+            ) : (
+              <FieldDescription id="workspace-setup-root-hint">
+                Sessions read and write inside this folder — it cannot change later.
+              </FieldDescription>
+            )}
+          </Field>
 
           <Field>
             <FieldHeader>

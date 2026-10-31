@@ -12,6 +12,7 @@ describe("product preload contract", () => {
     expect(PRODUCT_METHODS.has("global_shortcuts.sync")).toBe(true);
     expect(PRODUCT_METHODS.has("global_shortcuts.status")).toBe(true);
     expect(PRODUCT_METHODS.has("theme.set")).toBe(true);
+    expect(PRODUCT_METHODS.has("dialog.pick_directory")).toBe(true);
     expect(PRODUCT_METHODS.has("shell.execute")).toBe(false);
   });
 
@@ -71,5 +72,31 @@ describe("product preload contract", () => {
     expect(validProductParams("theme.set", { preference: "dark", extra: true })).toBe(false);
     expect(validProductResponse("theme.set", { preference: "light" })).toBe(true);
     expect(validProductResponse("theme.set", [])).toBe(false);
+  });
+
+  it("Should accept only an absolute folder to open in and an absolute or canceled pick", () => {
+    expect(validProductParams("dialog.pick_directory", {})).toBe(true);
+    expect(validProductParams("dialog.pick_directory", { default_path: "/Users/ada" })).toBe(true);
+    expect(validProductParams("dialog.pick_directory", { default_path: "C:\\Users\\ada" })).toBe(
+      true
+    );
+    expect(validProductParams("dialog.pick_directory", { default_path: "~/code" })).toBe(false);
+    expect(validProductParams("dialog.pick_directory", { default_path: "\\\\server\\share" })).toBe(
+      true
+    );
+    expect(validProductParams("dialog.pick_directory", { default_path: "\\\\server" })).toBe(false);
+    expect(validProductParams("dialog.pick_directory", { default_path: "/tmp\u0000x" })).toBe(
+      false
+    );
+    expect(validProductParams("dialog.pick_directory", { default_path: "/x", extra: true })).toBe(
+      false
+    );
+    expect(validProductResponse("dialog.pick_directory", { path: "/Users/ada/code" })).toBe(true);
+    expect(validProductResponse("dialog.pick_directory", { path: null })).toBe(true);
+    expect(validProductResponse("dialog.pick_directory", { path: "relative/dir" })).toBe(false);
+    expect(validProductResponse("dialog.pick_directory", { path: "/x", canceled: false })).toBe(
+      false
+    );
+    expect(validProductResponse("dialog.pick_directory", {})).toBe(false);
   });
 });

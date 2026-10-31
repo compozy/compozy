@@ -5,6 +5,11 @@ export { QrCode, type QrCodeProps, type QrCodeSize } from "../components/custom/
 export { Time, type TimeMode, type TimeProps } from "../components/custom/time";
 export { Disclosure, type DisclosureProps } from "../components/custom/disclosure";
 export {
+  DirectoryPickerInput,
+  type DirectoryPickerInputProps,
+  type DirectoryPickerSuggestion,
+} from "../components/custom/directory-picker-input";
+export {
   StatusDot,
   type StatusDotProps,
   type StatusDotSize,
