@@ -120,6 +120,14 @@ export interface SessionProcessTree {
   ports: readonly number[];
 }
 
+/**
+ * The process a stop names for its whole tree: the outermost wrapper, else the lead. The daemon
+ * expands it to every verified member, so a tree of any size is one target.
+ */
+export function processTreeRoot(tree: SessionProcessTree): SessionProcessPayload {
+  return tree.wrappers[0] ?? tree.lead;
+}
+
 /** Every process a tree Stop signals: wrappers, the lead, and the helpers. */
 export function processTreeMembers(tree: SessionProcessTree): SessionProcessPayload[] {
   return [...tree.wrappers, tree.lead, ...tree.helpers];

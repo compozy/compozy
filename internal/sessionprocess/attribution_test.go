@@ -620,6 +620,40 @@ func TestProcessTrees(t *testing.T) {
 		}
 	})
 
+	// Review regression: one install's daemonized server started twice is two trees, not helpers.
+	t.Run("Should keep two daemonized copies of one program apart", func(t *testing.T) {
+		t.Parallel()
+		rows := []Process{
+			row(600, 1, 600, 0, "background", "/opt/redis/redis-server", "redis-server --port 6379", 6379),
+			row(601, 1, 601, time.Second, "background", "/opt/redis/redis-server", "redis-server --port 6380", 6380),
+			// A different program of that install started much later is not a helper either.
+			row(602, 1, 602, time.Hour, "background", "/opt/redis/redis-sentinel", "redis-sentinel", 26379),
+		}
+		assignTrees(rows)
+		if trees := Trees(rows); len(trees) != 3 {
+			t.Fatalf("trees=%+v", trees)
+		}
+	})
+
+	// Review regression: background work re-parented out of a tool call stays left running.
+	t.Run("Should keep a re-parented background process out of a tool call's group", func(t *testing.T) {
+		t.Parallel()
+		orphan := row(302, 1, 300, 2*time.Second, "background", "/opt/homebrew/bin/node", "node watcher.js")
+		rows := append(slices.Clone(tool), orphan)
+		assignTrees(rows)
+		trees := Trees(rows)
+		if len(trees) != 2 || trees[1].Root != id(orphan) || trees[1].Kind != "background" {
+			t.Fatalf("trees=%+v", trees)
+		}
+		indexed := map[Identity]Process{}
+		for _, p := range rows {
+			indexed[id(p)] = p
+		}
+		if got := expandTrees(rows, indexed, nil, AllLeftRunning); !slices.Equal(got, []Identity{id(orphan)}) {
+			t.Fatalf("all left running=%v", got)
+		}
+	})
+
 	t.Run("Should count trees, not processes, and leave tool calls out of the badge", func(t *testing.T) {
 		t.Parallel()
 		rows := slices.Concat(browser, wrapped, tool)
@@ -648,6 +682,12 @@ func TestProcessTrees(t *testing.T) {
 		}
 		if got := expandTrees(rows, indexed, nil, AllIncludingTools); len(got) != len(rows) {
 			t.Fatalf("all including tools=%v", got)
+		}
+		// Delayed cleanup stops what it captured, never members its trees gained since.
+		if got := expandTrees(rows, indexed, []Identity{id(browser[0])}, Captured); !slices.Equal(
+			got, []Identity{id(browser[0])},
+		) {
+			t.Fatalf("captured=%v", got)
 		}
 		// A member outside the caller's authority is never added; an unknown target stays to report.
 		delete(indexed, id(wrapped[2]))

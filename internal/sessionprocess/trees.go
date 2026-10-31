@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Tree roles: the lead names the tree, wrappers launched it, helpers run beside or below it.
@@ -64,24 +65,7 @@ func assignSessionTrees(rows []Process, indexes []int) {
 		}
 		return i
 	}
-	// A root still in another row's process group belongs with that group's leader, or with the
-	// earliest root of a leaderless group.
-	groupRoot := make(map[int]int)
-	for _, i := range indexes {
-		if _, ok := parent[i]; ok || rows[i].PGID <= 1 || rows[i].PGID == rows[i].PID {
-			continue
-		}
-		if leader, ok := byPID[rows[i].PGID]; ok && rows[leader].PGID == rows[leader].PID &&
-			!rows[leader].StartedAt.After(rows[i].StartedAt) && root(leader) != i {
-			parent[i] = leader
-			continue
-		}
-		if first, ok := groupRoot[rows[i].PGID]; ok && root(first) != i {
-			parent[i] = first
-			continue
-		}
-		groupRoot[rows[i].PGID] = i
-	}
+	joinProcessGroups(rows, indexes, byPID, parent, root)
 	foldDetachedHelpers(rows, indexes, parent, root)
 	members := make(map[int][]int)
 	for _, i := range indexes {
@@ -93,10 +77,40 @@ func assignSessionTrees(rows []Process, indexes []int) {
 	}
 }
 
-// foldDetachedHelpers folds a detached root (re-parented to init) whose own executable lives in an
-// app bundle or private directory into the tree that most recently started a process from that same
-// install, so each browser instance keeps its own crash handlers. A daemonized launcher such as a
-// node script is never folded: its interpreter lives in a shared bin directory.
+// helperWindow bounds how long after its app a detached helper starts: Chrome's crash handler
+// starts within a second of the browser.
+const helperWindow = 5 * time.Second
+
+// joinProcessGroups attaches a root still in another row's process group to that group's leader,
+// or to the earliest root of a leaderless group, when both are the same kind: background work
+// re-parented out of a tool call stays left running, never hidden in the turn's tool tree.
+func joinProcessGroups(rows []Process, indexes []int, byPID, parent map[int]int, root func(int) int) {
+	sameKind := func(i, other int) bool { return rows[root(other)].Kind == rows[i].Kind && root(other) != i }
+	groupRoot := make(map[int]int)
+	for _, i := range indexes {
+		if _, ok := parent[i]; ok || rows[i].PGID <= 1 || rows[i].PGID == rows[i].PID {
+			continue
+		}
+		if leader, ok := byPID[rows[i].PGID]; ok && rows[leader].PGID == rows[leader].PID &&
+			!rows[leader].StartedAt.After(rows[i].StartedAt) && sameKind(i, leader) {
+			parent[i] = leader
+			continue
+		}
+		if first, ok := groupRoot[rows[i].PGID]; ok && sameKind(i, first) {
+			parent[i] = first
+			continue
+		}
+		if _, ok := groupRoot[rows[i].PGID]; !ok {
+			groupRoot[rows[i].PGID] = i
+		}
+	}
+}
+
+// foldDetachedHelpers folds a detached root (re-parented to init) into the tree that most recently
+// started a process from the same install (app bundle or private directory), so each browser
+// instance keeps its own crash handlers. Only a different program from that install, started within
+// helperWindow, counts as a helper: two daemonized copies of one server stay separate trees, and a
+// launcher such as a node script never folds because its interpreter lives in a shared bin directory.
 func foldDetachedHelpers(rows []Process, indexes []int, parent map[int]int, root func(int) int) {
 	owners := make(map[string][]int)
 	for _, i := range indexes {
@@ -114,12 +128,16 @@ func foldDetachedHelpers(rows []Process, indexes []int, parent map[int]int, root
 }
 
 // latestOwner picks the last process started from the same install before the detached root, in a
-// tree other than the root's own.
+// tree other than the root's own, running a different program; it counts only when it started
+// shortly before the root.
 func latestOwner(rows []Process, candidates []int, detached int, root func(int) int) (int, bool) {
 	for _, owner := range slices.Backward(candidates) {
-		if root(owner) != detached && !rows[owner].StartedAt.After(rows[detached].StartedAt) {
-			return owner, true
+		// Another copy of the same program is a peer, not the app this helper serves.
+		if root(owner) == detached || rows[owner].Argv0 == rows[detached].Argv0 ||
+			rows[owner].StartedAt.After(rows[detached].StartedAt) {
+			continue
 		}
+		return owner, rows[detached].StartedAt.Sub(rows[owner].StartedAt) <= helperWindow
 	}
 	return 0, false
 }

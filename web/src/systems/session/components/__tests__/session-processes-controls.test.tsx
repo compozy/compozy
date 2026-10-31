@@ -13,7 +13,11 @@ import {
   sessionProcessTreesFixture,
   wrapperChainTreesFixture,
 } from "../../mocks/process-fixtures";
-import { processIdentity, singleProcessTrees } from "../../lib/session-processes";
+import {
+  processIdentity,
+  singleProcessTrees,
+  sortSessionProcesses,
+} from "../../lib/session-processes";
 import { ProcessesLeftRunningDialog } from "../processes-left-running-dialog";
 import { SessionProcessChoiceDialog } from "../session-process-choice-dialog";
 import { SessionProcessesComposerControl } from "../session-processes-composer-control";
@@ -316,8 +320,9 @@ describe("ProcessesLeftRunningDialog", () => {
     );
     expect(onStop).toHaveBeenLastCalledWith([storybook, astro]);
     await user.click(screen.getByTestId("left-running-stop-all"));
+    // One root per tree, newest first within each session: the daemon stops each whole tree.
     expect(onStop).toHaveBeenLastCalledWith(
-      processesLeftRunningFixture.flatMap(group => group.items)
+      processesLeftRunningFixture.flatMap(group => sortSessionProcesses(group.items))
     );
   });
 
@@ -340,7 +345,7 @@ describe("ProcessesLeftRunningDialog", () => {
     expect(screen.getByTestId("left-running-stop-all")).toBeDisabled();
   });
 
-  it("Should count a session's trees and stop every member of one", async () => {
+  it("Should count a session's trees and stop one by its root", async () => {
     const user = userEvent.setup();
     const onStop = vi.fn();
     const [chain] = wrapperChainTreesFixture;
@@ -380,7 +385,8 @@ describe("ProcessesLeftRunningDialog", () => {
     await user.click(
       within(group).getByRole("button", { name: /^Stop process: node .*proto dev and 2 more/ })
     );
-    expect(onStop).toHaveBeenLastCalledWith(members);
+    // The root alone: the daemon expands it, so no tree outgrows the 100-target request cap.
+    expect(onStop).toHaveBeenLastCalledWith([chain!.wrappers[0]]);
   });
 
   it("Should say so when nothing was left running", () => {

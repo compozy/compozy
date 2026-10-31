@@ -16,7 +16,7 @@ import type {
 import {
   buildProcessTrees,
   processCountLabel,
-  processTreeMembers,
+  processTreeRoot,
   sortSessionProcesses,
 } from "../lib/session-processes";
 import { ProcessListNote, SessionProcessList } from "./session-process-list";
@@ -48,7 +48,8 @@ function LeftRunningGroup({
   onStop: (processes: readonly SessionProcessPayload[]) => void;
 }) {
   const trees = buildProcessTrees(sortSessionProcesses(group.items), group.trees);
-  const processes = trees.flatMap(processTreeMembers);
+  // One root per tree: the daemon stops each root's whole tree.
+  const processes = trees.map(processTreeRoot);
   const name = group.session_name.trim();
   const locked = stopping !== null;
   return (
@@ -83,7 +84,7 @@ function LeftRunningGroup({
       <SessionProcessList
         trees={trees}
         stopping={stopping}
-        onStop={tree => onStop(processTreeMembers(tree))}
+        onStop={tree => onStop([processTreeRoot(tree)])}
       />
     </section>
   );
@@ -105,11 +106,10 @@ export function ProcessesLeftRunningDialog({
   onStop,
   stopping = null,
 }: ProcessesLeftRunningDialogProps) {
-  const all = groups.flatMap(group => group.items);
-  const treeCount = groups.reduce(
-    (total, group) => total + buildProcessTrees(group.items, group.trees).length,
-    0
+  const all = groups.flatMap(group =>
+    buildProcessTrees(group.items, group.trees).map(processTreeRoot)
   );
+  const treeCount = all.length;
   const anyStopping = stopping !== null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

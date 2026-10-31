@@ -19,6 +19,9 @@ const (
 	AllLeftRunning
 	// AllIncludingTools adds every tree, tool calls included (stop, archive, delete cleanup).
 	AllIncludingTools
+	// Captured stops exactly the given identities, never their trees' later members: delayed
+	// cleanup captured them before the session could resume and start new work.
+	Captured
 )
 
 // Terminate resolves targets only inside the caller's authorized ownership set and stops each
@@ -34,7 +37,7 @@ func (s *Service) Terminate(
 	if err != nil {
 		return nil, err
 	}
-	if scope != Targets && sessionID == "" {
+	if (scope == AllLeftRunning || scope == AllIncludingTools) && sessionID == "" {
 		return nil, errors.New("all requires a session")
 	}
 	indexed := make(map[Identity]Process)
@@ -87,6 +90,9 @@ func (s *Service) terminateTargets(
 // expandTrees replaces each target with every authorized member of its tree, root first, and adds
 // the trees a session-wide scope covers. A target outside every tree stays, to report it.
 func expandTrees(rows []Process, indexed map[Identity]Process, targets []Identity, scope Scope) []Identity {
+	if scope == Captured {
+		return targets
+	}
 	trees := Trees(rows)
 	byMember := make(map[Identity]int)
 	for i, tree := range trees {
@@ -111,7 +117,7 @@ func expandTrees(rows []Process, indexed map[Identity]Process, targets []Identit
 		}
 		out = append(out, target)
 	}
-	if scope != Targets {
+	if scope == AllLeftRunning || scope == AllIncludingTools {
 		for _, tree := range trees {
 			if scope == AllIncludingTools || tree.Kind != kindTool {
 				add(tree)
@@ -182,7 +188,7 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 			ctx,
 			sessionID,
 			targets,
-			Targets,
+			Captured,
 			func(o Owner) bool { return o.SessionID == sessionID },
 		)
 		if err != nil {

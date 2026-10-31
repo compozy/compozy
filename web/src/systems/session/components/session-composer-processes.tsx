@@ -7,7 +7,7 @@ import {
 } from "../hooks/use-session-processes";
 import { reportProcessStop } from "../lib/session-process-feedback";
 import {
-  processTreeMembers,
+  processTreeRoot,
   sessionRunningProcesses,
   type SessionProcessTree,
 } from "../lib/session-processes";
@@ -58,7 +58,7 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
       missing={model.missing}
       onRetry={model.retry}
       stopping={model.stopping}
-      onStop={tree => stop({ targets: processTreeMembers(tree) })}
+      onStop={tree => stop({ targets: [processTreeRoot(tree)] })}
       onStopAll={() => stop({ all: true })}
       onOpenChange={setOpen}
     />

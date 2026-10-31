@@ -68,6 +68,11 @@ func newSessionProcessesCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, processListBundle(result, result.Items))
 		},
 	}
+	cmd.AddCommand(newSessionProcessesStopCommand(deps))
+	return cmd
+}
+
+func newSessionProcessesStopCommand(deps commandDeps) *cobra.Command {
 	var pid int
 	var started string
 	var all, includeTools bool
@@ -131,8 +136,7 @@ func newSessionProcessesCommand(deps commandDeps) *cobra.Command {
 		"Terminate every process tree this session left running; tool calls still running in its turn stay")
 	stop.Flags().BoolVar(&includeTools, "include-tools", false,
 		"With --all, also terminate tool calls still running in the agent's turn")
-	cmd.AddCommand(stop)
-	return cmd
+	return stop
 }
 func newProcessCommand(deps commandDeps) *cobra.Command {
 	root := &cobra.Command{Use: "process", Short: "Inspect processes left running by sessions"}
