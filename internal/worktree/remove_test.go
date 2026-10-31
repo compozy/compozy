@@ -758,12 +758,26 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name        string
-		path        func(t *testing.T) string
+		checkout    func(t *testing.T, fixture *removalTestFixture) (string, string)
 		leftInPlace bool
 	}{
-		{name: "is gone", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "gone") }},
+		{name: "is gone", checkout: func(t *testing.T, fixture *removalTestFixture) (string, string) {
+			return filepath.Join(t.TempDir(), "gone"), fixture.item.GitDir
+		}},
 		{
-			name: "is no longer its linked checkout", path: func(t *testing.T) string { return t.TempDir() },
+			name: "is no longer its linked checkout",
+			checkout: func(t *testing.T, fixture *removalTestFixture) (string, string) {
+				return t.TempDir(), fixture.item.GitDir
+			},
+			leftInPlace: true,
+		},
+		{
+			name: "was switched to another branch",
+			checkout: func(t *testing.T, fixture *removalTestFixture) (string, string) {
+				path, gitDir := linkTestCheckout(t, fixture.commonDir, "switched")
+				fixture.switchedCheckout = path
+				return path, gitDir
+			},
 			leftInPlace: true,
 		},
 	} {
@@ -772,7 +786,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			fixture := newRemovalTestFixture(t)
 			gone := fixture.item
 			gone.ID, gone.Name = "wt-gone", "gone-recovery"
-			gone.Path = testCase.path(t)
+			gone.Path, gone.GitDir = testCase.checkout(t, fixture)
 			gone.State, gone.PendingPhase = StatePending, PhaseCopy
 			if err := fixture.store.Insert(t.Context(), gone); err != nil {
 				t.Fatalf("seed interrupted copy: %v", err)
@@ -990,6 +1004,8 @@ type removalTestFixture struct {
 	removeFails            atomicBool
 	failFirstForcedRemoval atomicBool
 	removeCalls            atomicInt
+	// switchedCheckout names a checkout whose HEAD reads as another branch.
+	switchedCheckout string
 	// onRemove runs while Git deletes the checkout, e.g. to drop the request.
 	onRemove func()
 }
@@ -1110,6 +1126,11 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 		switch {
 		case command == "rev-parse --path-format=absolute --git-common-dir":
 			return gitResponse{stdout: []byte(commonDir + "\n")}
+		case command == "rev-parse --abbrev-ref HEAD":
+			if call.dir == fixture.switchedCheckout {
+				return gitResponse{stdout: []byte("someone-else\n")}
+			}
+			return gitResponse{stdout: []byte(fixture.item.Branch + "\n")}
 		case command == "status --porcelain=v2 --branch -z":
 			status := "# branch.oid head\x00# branch.head " + fixture.item.Branch + "\x00"
 			if fixture.dirty.Load() {
