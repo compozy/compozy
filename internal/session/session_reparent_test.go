@@ -17,10 +17,20 @@ type reparentHarness struct {
 
 func newReparentHarness(t *testing.T) *reparentHarness {
 	t.Helper()
-	h := newHarness(t)
+	return newReparentHarnessFrom(t, newHarness(t))
+}
+
+// newSpawnReparentHarness supports governed spawns, whose tool narrowing needs hosted MCP.
+func newSpawnReparentHarness(t *testing.T) *reparentHarness {
+	t.Helper()
+	return newReparentHarnessFrom(t, newHostedMCPHarness(t))
+}
+
+func newReparentHarnessFrom(t *testing.T, h *harness) *reparentHarness {
+	t.Helper()
 	db := openManagerInputQueueStore(t)
 	registerManagerInputQueueWorkspace(t, db, h)
-	h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db))
+	h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithHostedMCPLauncher(h.manager.hostedMCP))
 	cleanupTestManager(t, h.manager)
 	return &reparentHarness{harness: h, db: db}
 }
@@ -45,6 +55,21 @@ func (h *reparentHarness) createStopped(t *testing.T, parentID string) *Session 
 		t.Fatalf("Stop(%q) error = %v", created.ID, err)
 	}
 	return created
+}
+
+func (h *reparentHarness) spawnParent(t *testing.T) *Session {
+	t.Helper()
+	parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName: "coder", Name: "orchestrator", Workspace: h.workspaceID, Type: SessionTypeUser,
+		Lineage: &store.SessionLineage{
+			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Create(spawn parent) error = %v", err)
+	}
+	return parent
 }
 
 func (h *reparentHarness) catalogLineage(t *testing.T, sessionID string) store.SessionLineage {
@@ -165,6 +190,106 @@ func TestManagerAdoptSession(t *testing.T) {
 		assertReparentLineage(t, h, child, wantLineage{
 			parent: source.ID, root: source.ID, depth: 1, kind: store.LineageKindProvenance,
 		})
+	})
+
+	t.Run("Should take over a stopped spawned worker as a resumable root user session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID:  parent.ID,
+			AgentName:        "coder",
+			Name:             "worker",
+			TTL:              time.Hour,
+			AutoStopOnParent: true,
+			NotifyCreator:    true,
+			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		for _, id := range []string{worker.ID, parent.ID} {
+			if err := h.manager.Stop(ctx, id); err != nil {
+				t.Fatalf("Stop(%q) error = %v", id, err)
+			}
+		}
+		// Releases before the canceled-start fix recorded a reaper-canceled resume
+		// as a process failure, which marks the runtime dead.
+		metaPath := worker.MetaPath()
+		meta := readMeta(t, metaPath)
+		meta.Failure = &store.SessionFailure{
+			Kind:    store.FailureProcess,
+			Summary: `session: startup canceled for "` + worker.ID + `": spawn_reaper:parent_stopped`,
+		}
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+			t.Fatal(err)
+		}
+
+		info, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID)
+		if err != nil {
+			t.Fatalf("DetachSession(spawned worker) error = %v", err)
+		}
+		if info.Type != SessionTypeUser {
+			t.Fatalf("DetachSession() type = %q, want user", info.Type)
+		}
+		assertReparentLineage(t, h, worker, wantLineage{root: worker.ID, kind: store.LineageKindRoot})
+		meta = readMeta(t, metaPath)
+		if meta.SessionType != string(SessionTypeUser) || meta.Failure == nil ||
+			meta.Failure.Kind != store.FailureCanceled {
+			t.Fatalf(
+				"taken-over meta type=%q failure=%#v, want user with a canceled stop",
+				meta.SessionType, meta.Failure,
+			)
+		}
+		lineage := store.NormalizeSessionLineage(worker.ID, meta.Lineage)
+		if lineage.SpawnRole != "" || lineage.TTLExpiresAt != nil || lineage.AutoStopOnParent ||
+			lineage.NotifyCreator || lineage.SpawnBudget != (store.SessionSpawnBudget{}) ||
+			len(lineage.PermissionPolicy.Tools) != 0 {
+			t.Fatalf("taken-over lineage kept spawn governance: %#v", lineage)
+		}
+		rows, err := h.db.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, ID: worker.ID,
+		})
+		if err != nil || len(rows) != 1 || rows[0].SessionType != string(SessionTypeUser) ||
+			rows[0].Lineage == nil || rows[0].Lineage.TTLExpiresAt != nil || rows[0].Lineage.SpawnRole != "" {
+			t.Fatalf("catalog row after take-over = %#v, %v", rows, err)
+		}
+
+		resumed, err := h.manager.Resume(ctx, worker.ID)
+		if err != nil {
+			t.Fatalf("Resume(taken-over worker) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h.harness, resumed.ID) })
+		if got := resumed.Info().Type; got != SessionTypeUser {
+			t.Fatalf("resumed type = %q, want user", got)
+		}
+	})
+
+	t.Run("Should refuse taking over a running spawned worker without changing it", func(t *testing.T) {
+		t.Parallel()
+
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		t.Cleanup(func() { reportSessionStop(t, h.harness, parent.ID) })
+		worker, err := h.manager.Spawn(ctx, SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Hour, AutoStopOnParent: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h.harness, worker.ID) })
+
+		_, err = h.manager.DetachSession(ctx, h.workspaceID, worker.ID)
+		refusal, ok := errors.AsType[*ReparentError](err)
+		if !ok || refusal.Reason != ReparentRefusalSourceRunning {
+			t.Fatalf("DetachSession(running worker) error = %v, want %q", err, ReparentRefusalSourceRunning)
+		}
+		if got := worker.Info(); got.Type != SessionTypeSpawned || got.Lineage.ParentSessionID != parent.ID {
+			t.Fatalf("running worker changed after refusal: %#v", got)
+		}
 	})
 
 	t.Run("Should refuse a subtree crossing workspaces without changing any lineage", func(t *testing.T) {
@@ -369,13 +494,24 @@ func TestValidateReparentNodes(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse taking over a subagent", func(t *testing.T) {
+		t.Parallel()
+		node := reparentNode{id: "sess-a", sessionType: SessionTypeSpawned, lineage: store.SessionLineage{
+			ParentSessionID: "sess-p", SpawnRole: store.SubagentSpawnRole, Kind: store.LineageKindSpawn,
+		}}
+		_, err := validateDetachSource(&node)
+		if refusal, ok := errors.AsType[*ReparentError](err); !ok || refusal.Reason != ReparentRefusalSourceNotUser {
+			t.Fatalf("validateDetachSource(subagent) error = %v, want %q", err, ReparentRefusalSourceNotUser)
+		}
+	})
+
 	t.Run("Should refuse detaching continued, forked, and spawned sessions", func(t *testing.T) {
 		t.Parallel()
 		for _, kind := range []store.LineageKind{
 			store.LineageKindContinue, store.LineageKindFork, store.LineageKindRecovery, store.LineageKindSpawn,
 		} {
 			node := user(store.SessionLineage{ParentSessionID: "sess-p", Kind: kind})
-			if err := validateDetachSource(&node); !errors.Is(err, ErrSessionReparentRefused) {
+			if _, err := validateDetachSource(&node); !errors.Is(err, ErrSessionReparentRefused) {
 				t.Fatalf("validateDetachSource(%s) error = %v, want refusal", kind, err)
 			}
 		}

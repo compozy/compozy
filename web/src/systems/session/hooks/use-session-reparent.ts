@@ -25,7 +25,9 @@ function workspacePath(session: SessionPayload): string {
 
 /**
  * Nests a top-level session under another (a drop onto its row) and returns a
- * nested child to the top level (Make top-level, and the drop's Undo). The
+ * nested child to the top level (Make top-level, and the drop's Undo). Take over
+ * uses the same detach request: the daemon turns a stopped spawned worker into a
+ * top-level user session. The
  * daemon owns the lineage change and validates it; each request names the
  * session's own profile, so it routes under any profile lens.
  */
@@ -56,7 +58,12 @@ export function useSessionReparent() {
       { kind: "detach", session },
       {
         onError: failed,
-        onSuccess: () => toast.success(`“${getSessionDisplayTitle(session)}” is top-level again`),
+        onSuccess: () =>
+          toast.success(
+            session.type === "spawned"
+              ? `You took over “${getSessionDisplayTitle(session)}”`
+              : `“${getSessionDisplayTitle(session)}” is top-level again`
+          ),
       }
     );
   return {

@@ -37,3 +37,18 @@ export function sessionCanMakeTopLevel(session: SessionPayload): boolean {
     (session.lineage.parent_session_id ?? "") !== ""
   );
 }
+
+/**
+ * A stopped spawned worker the operator can take over as a normal session. The
+ * daemon ends its spawn governance (TTL, parent auto-stop, permission narrowing);
+ * subagents stay with their parent, and a running worker must stop first.
+ */
+export function sessionCanTakeOver(session: SessionPayload): boolean {
+  return (
+    session.type === "spawned" &&
+    !isSubagentSession(session) &&
+    session.lineage?.kind === "spawn" &&
+    session.state === "stopped" &&
+    session.archived_at === null
+  );
+}

@@ -7829,7 +7829,7 @@ export class sessions extends HeyApiClient {
   }
 
   /**
-   * Make an adopted child session top-level again
+   * Make a child session top-level or take over a stopped spawned worker
    */
   public clearSessionParent<ThrowOnError extends boolean = true>(
     options: Options<ClearSessionParentData, ThrowOnError>

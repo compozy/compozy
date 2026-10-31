@@ -31,7 +31,11 @@ import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
-import { sessionAdoptRefusal, sessionCanMakeTopLevel } from "../lib/session-reparent";
+import {
+  sessionAdoptRefusal,
+  sessionCanMakeTopLevel,
+  sessionCanTakeOver,
+} from "../lib/session-reparent";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
@@ -45,6 +49,7 @@ export interface SessionRowMenuItem {
     | "continue"
     | "fork"
     | "make-top-level"
+    | "take-over"
     | "nest"
     | "stop"
     | "unarchive"
@@ -207,6 +212,14 @@ export function useSessionRowMenuItems(
     items.push({
       id: "make-top-level",
       label: "Make top-level",
+      icon: CornerLeftUp,
+      onSelect: () => onMakeTopLevel(session),
+    });
+  }
+  if (onMakeTopLevel && sessionCanTakeOver(session)) {
+    items.push({
+      id: "take-over",
+      label: "Take over session",
       icon: CornerLeftUp,
       onSelect: () => onMakeTopLevel(session),
     });

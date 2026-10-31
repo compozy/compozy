@@ -2290,6 +2290,50 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 		})
 	})
+	t.Run("Should settle a stop requested during startup as a resumable stop", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		entered := make(chan struct{})
+		h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(entered)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		created := make(chan error, 1)
+		go func() {
+			_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+			created <- err
+		}()
+		<-entered
+		if err := h.manager.RequestStopWithCause(
+			t.Context(), "sess-1", CauseUserRequested, "spawn_reaper:parent_stopped",
+		); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := h.manager.AwaitStopped(t.Context(), "sess-1")
+		if err != nil || !outcome.Verified || outcome.FinalState != StateStopped {
+			t.Fatalf("startup stop outcome = %#v, %v", outcome, err)
+		}
+		<-created
+		meta := readMeta(t, store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, "sess-1")))
+		if meta.State != string(StateStopped) || meta.Failure == nil ||
+			meta.Failure.Kind != store.FailureCanceled ||
+			meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
+			t.Fatalf("startup stop recorded state=%s failure=%#v reason=%v, want a canceled stop",
+				meta.State, meta.Failure, meta.StopReason)
+		}
+
+		h.driver.mu.Lock()
+		h.driver.startContextHook = nil
+		h.driver.mu.Unlock()
+		resumed, err := h.manager.Resume(t.Context(), "sess-1")
+		if err != nil {
+			t.Fatalf("Resume() after startup stop error = %v, want a resumable session", err)
+		}
+		if err := h.manager.Stop(t.Context(), resumed.ID); err != nil {
+			t.Fatalf("Stop(resumed) error = %v", err)
+		}
+	})
 	t.Run("Should retain an unverified process acquired after startup cancellation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

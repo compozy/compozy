@@ -254,7 +254,10 @@ session supervision does not mistake orchestration for inactivity.
 `compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
 positive `ttl_seconds`; permission arrays only narrow the parent. Omitted lists grant nothing unless
 `inherit_permissions: true` keeps the parent's grant for each omitted list; `toolsets` adds the
-parent-granted members of named toolsets. `notify_creator` defaults to true. `provider`, `model`,
+parent-granted members of named toolsets. `notify_creator` defaults to true. `auto_stop_on_parent`
+defaults to true, also for a child in another workspace: the spawn reaper stops the child when its
+parent stops. The stopped child stays resumable; resuming it after the parent stopped releases that
+binding, and the operator can take it over with `compozy__session_reparent` `top_level: true`. `provider`, `model`,
 `reasoning_effort`, `speed`, and `acp_options` override the agent's runtime.
 
 `workspace` targets another registered workspace when the access policy allows it. `worktree` binds
@@ -463,10 +466,15 @@ the CLI fallback is `compozy session rename <id> <name>`.
 workspace and profile (`parent_session_id`), or makes an adopted child top-level again
 (`top_level: true`); set exactly one. The session must have no parent to be adopted, the parent
 must be a user session that is not the session or one of its descendants, and neither may be
-archived. Subagent, spawned, continued, forked, and recovery sessions keep their lineage. The new
+archived. Subagent, continued, forked, and recovery sessions keep their lineage. The new
 lineage kind is `provenance`; the subtree's `root_session_id` and `spawn_depth` follow, and no
-governance field changes. Refusals carry a `session_reparent_*` code (`source_has_parent`,
-`source_not_user`, `parent_ineligible`, `cycle`, `archived`, `not_detachable`). The CLI fallback is
+governance field changes. `top_level: true` on a stopped spawned worker (not a subagent) takes it
+over: it becomes a root `type=user` session and its spawn TTL, parent auto-stop, creator wake,
+spawn budget, and permission narrowing end, so it gets the normal user-session controls. The
+request is the authority for dropping that governance; it grants nothing a `session_create` user
+session would not have. A running worker is refused with `source_running`; stop it first. Refusals
+carry a `session_reparent_*` code (`source_has_parent`, `source_not_user`, `parent_ineligible`,
+`cycle`, `archived`, `not_detachable`, `source_running`). The CLI fallback is
 `compozy session reparent <id> --parent <parent-id>` or `--top-level`.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.

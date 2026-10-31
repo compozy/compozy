@@ -1038,10 +1038,17 @@ session ID, transcript, archive state, and lineage.
 
 `compozy session reparent <id> --parent <parent-id>` nests a session that has no parent under
 another user session in the same workspace and profile; `--top-level` undoes it for a session
-whose lineage kind is `provenance`. The daemon refuses archived sessions, cycles, subagent or
-spawned sessions, and continued, forked, or recovery sessions with HTTP 409 and a
-`session_reparent_*` code. The session's descendants take the new `root_session_id` and shift
-`spawn_depth` with it; runtime, permissions, spawn budget, and auto-stop stay unchanged.
+whose lineage kind is `provenance`. The daemon refuses archived sessions, cycles, subagent
+sessions, and continued, forked, or recovery sessions with HTTP 409 and a `session_reparent_*`
+code. The session's descendants take the new `root_session_id` and shift `spawn_depth` with it;
+runtime, permissions, spawn budget, and auto-stop stay unchanged.
+
+`--top-level` on a stopped spawned worker takes it over: it becomes a root `type=user` session, and
+its spawn TTL, parent auto-stop, creator wake, spawn budget, and permission narrowing end. The
+operator's request is the authority for dropping that governance. A running worker is refused with
+`session_reparent_source_running`. A worker that an older release left `failed` with
+`session: startup canceled for ...` (a stop that interrupted its launch, such as the spawn reaper
+cancelling a resume) is reclassified as a canceled stop on take-over, so it resumes again.
 
 The session catalog is counted and workspace-scoped. Internal auto-title sessions never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
@@ -1068,6 +1075,14 @@ a turn, stops, fails, or enters a needs-you state; a canceled child turn sends n
 `notify_creator` behavior defaults to on and has no `config.toml` key. Use `--no-notify-creator` in
 the CLI or explicit `notify_creator: false` in the HTTP/UDS or native-tool request to opt out for that
 child.
+
+`auto_stop_on_parent` also defaults to on, including for a child spawned into another workspace: the
+spawn reaper stops the child (`spawn_reaper:parent_stopped`) when its parent stops. A stop that lands
+while a launch is still starting settles as a canceled stop, never a failed runtime, so the child
+stays resumable. Resuming a child whose parent is no longer live releases its `auto_stop_on_parent`
+binding before launch (lineage, TTL, and permission narrowing stay), so the reaper does not cancel a
+deliberate resume. Take it over with `compozy session reparent <id> --top-level` to make it a normal
+session.
 
 ### Subagents
 

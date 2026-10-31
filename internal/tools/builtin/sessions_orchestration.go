@@ -124,7 +124,12 @@ const sessionSpawnInputSchema = `{
 		"name":{"type":"string"},"workspace":{"type":"string","minLength":1},
 		"prompt_overlay":{"type":"string"},"spawn_role":{"type":"string"},
 		"ttl_seconds":{"type":"integer","minimum":1},
-		"auto_stop_on_parent":{"type":"boolean"},"notify_creator":{"type":"boolean"},
+		"auto_stop_on_parent":{
+			"type":"boolean",
+			"description":"Stop the child when its parent stops. Defaults to true, also for a child in ` +
+	`another workspace; a stopped child stays resumable and the operator can take it over."
+		},
+		"notify_creator":{"type":"boolean"},
 		"inherit_permissions":{"type":"boolean"},
 		"tools":{"type":"array","items":{"type":"string"},"uniqueItems":true},
 		"toolsets":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},

@@ -139,7 +139,9 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		if err != nil {
 			return fmt.Errorf("session: refresh resumed lineage: %w", err)
 		}
+		spec.sessionType = normalizeSessionType(Type(meta.SessionType))
 		spec.lineage = store.NormalizeSessionLineage(spec.sessionID, meta.Lineage)
+		m.releaseResumedParentStopBinding(spec)
 		return store.ValidateSessionLineage(spec.sessionID, spec.lineage)
 	}
 	if spec.lineage == nil || spec.lineage.ParentSessionID == "" {
@@ -179,4 +181,40 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 	}
 	spec.lineage = lineage
 	return nil
+}
+
+// releaseResumedParentStopBinding drops auto_stop_on_parent from a child resumed
+// after its parent stopped. The parent-stop binding already fired; reviving the
+// child is a deliberate act, and keeping the binding would let the spawn reaper
+// cancel the launch on its next sweep. Lineage, TTL, and permission narrowing stay.
+func (m *Manager) releaseResumedParentStopBinding(spec *sessionStartSpec) {
+	lineage := spec.lineage
+	if lineage == nil || !lineage.AutoStopOnParent || lineage.ParentSessionID == "" {
+		return
+	}
+	if m.sessionLive(lineage.ParentSessionID) {
+		return
+	}
+	lineage.AutoStopOnParent = false
+	spec.startLogger(m).Info(
+		"session.resume.parent_stop_binding_released",
+		"parent_session_id", lineage.ParentSessionID,
+	)
+}
+
+// sessionLive reports whether id is starting, active, or stopping in this manager.
+func (m *Manager) sessionLive(id string) bool {
+	if m.isPending(id) {
+		return true
+	}
+	session, ok := m.Get(id)
+	if !ok || session == nil {
+		return false
+	}
+	switch session.Info().State {
+	case StateStarting, StateActive, StateStopping:
+		return true
+	default:
+		return false
+	}
 }

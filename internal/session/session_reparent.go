@@ -34,6 +34,8 @@ const (
 	ReparentRefusalArchived ReparentRefusal = "archived"
 	// ReparentRefusalNotDetachable rejects detaching a session that was not adopted.
 	ReparentRefusalNotDetachable ReparentRefusal = "not_detachable"
+	// ReparentRefusalSourceRunning rejects taking over a spawned worker that is still running.
+	ReparentRefusalSourceRunning ReparentRefusal = "source_running"
 )
 
 // ReparentError reports which lineage rule refused a reparent request.
@@ -123,11 +125,14 @@ func (m *Manager) AdoptSession(
 	adopted.RootSessionID = rootID
 	adopted.SpawnDepth = parentNode.lineage.SpawnDepth + 1
 	adopted.Kind = store.LineageKindProvenance
-	return m.applyReparent(ctx, &sourceNode, adopted)
+	return m.applyReparent(ctx, &sourceNode, reparentTarget{lineage: adopted})
 }
 
-// DetachSession makes an adopted (provenance) child a top-level session again,
-// re-rooting its subtree at the session itself.
+// DetachSession makes a child session top-level again, re-rooting its subtree at
+// the session itself. An adopted (provenance) child keeps its type. A stopped
+// spawned worker is taken over: the operator's explicit request is the authority
+// that ends its spawn governance, so it becomes a root user session without the
+// parent-stop binding, TTL, creator wake, spawn budget, or permission narrowing.
 func (m *Manager) DetachSession(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
 	if err := m.requireReparentInputs(ctx); err != nil {
 		return nil, err
@@ -144,13 +149,20 @@ func (m *Manager) DetachSession(ctx context.Context, workspaceID string, session
 	if err != nil {
 		return nil, err
 	}
-	if err := validateDetachSource(&sourceNode); err != nil {
+	takeOver, err := validateDetachSource(&sourceNode)
+	if err != nil {
 		return nil, err
 	}
 	if err := m.requireReparentUnarchived(ctx, &sourceNode); err != nil {
 		return nil, err
 	}
 
+	if takeOver {
+		return m.applyReparent(ctx, &sourceNode, reparentTarget{
+			lineage:     store.SessionLineage{RootSessionID: sourceNode.id, Kind: store.LineageKindRoot},
+			sessionType: SessionTypeUser,
+		})
+	}
 	detached := sourceNode.lineage
 	detached.ParentSessionID = ""
 	detached.RootSessionID = sourceNode.id
@@ -158,7 +170,7 @@ func (m *Manager) DetachSession(ctx context.Context, workspaceID string, session
 	detached.Kind = store.LineageKindRoot
 	// A root lineage can never auto-stop on a parent.
 	detached.AutoStopOnParent = false
-	return m.applyReparent(ctx, &sourceNode, detached)
+	return m.applyReparent(ctx, &sourceNode, reparentTarget{lineage: detached})
 }
 
 func (m *Manager) requireReparentInputs(ctx context.Context) error {
@@ -204,13 +216,36 @@ func validateAdoptParent(source *reparentNode, parent *reparentNode) error {
 	return nil
 }
 
-func validateDetachSource(node *reparentNode) error {
+// validateDetachSource reports whether detaching node takes over a spawned worker.
+func validateDetachSource(node *reparentNode) (bool, error) {
+	if node.sessionType == SessionTypeSpawned {
+		return true, validateTakeOverSource(node)
+	}
 	if node.sessionType != SessionTypeUser || node.lineage.SpawnRole != "" {
-		return reparentRefusal(ReparentRefusalSourceNotUser, node.id, "only user sessions can be made top-level")
+		return false, reparentRefusal(ReparentRefusalSourceNotUser, node.id, "only user sessions can be made top-level")
 	}
 	if node.lineage.Kind != store.LineageKindProvenance || node.lineage.ParentSessionID == "" {
-		return reparentRefusal(
+		return false, reparentRefusal(
 			ReparentRefusalNotDetachable, node.id, "only adopted (provenance) child sessions can be made top-level",
+		)
+	}
+	return false, nil
+}
+
+// validateTakeOverSource admits a stopped spawned worker. Subagents stay owned by
+// their parent's delegation, and a running worker keeps the governance its
+// runtime was launched with until it stops.
+func validateTakeOverSource(node *reparentNode) error {
+	if node.lineage.SpawnRole == store.SubagentSpawnRole || node.lineage.Kind != store.LineageKindSpawn {
+		return reparentRefusal(
+			ReparentRefusalSourceNotUser,
+			node.id,
+			"only spawned workers can be taken over; subagents stay with their parent",
+		)
+	}
+	if node.active != nil {
+		return reparentRefusal(
+			ReparentRefusalSourceRunning, node.id, "stop the spawned session before taking it over",
 		)
 	}
 	return nil

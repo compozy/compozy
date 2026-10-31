@@ -12,7 +12,10 @@ func sessionReparentDescriptor() toolspkg.Descriptor {
 		"session_reparent",
 		"Session Reparent",
 		"Nest a top-level user session under another user session in the same workspace and profile, "+
-			"or make an adopted child top-level again. Set exactly one of parent_session_id or top_level.",
+			"or make a child top-level again. top_level on an adopted child keeps its type; on a stopped "+
+			"spawned worker it takes the session over as a user session without spawn TTL, auto-stop, "+
+			"creator wake, budget, or permission narrowing. Subagents are refused. "+
+			"Set exactly one of parent_session_id or top_level.",
 		sessionReparentInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -20,7 +23,10 @@ func sessionReparentDescriptor() toolspkg.Descriptor {
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
 		[]string{sessionsSessionsKey, "reparent", "lineage"},
-		[]string{"nest session under parent", "make session a child", "make session top-level"},
+		[]string{
+			"nest session under parent", "make session a child", "make session top-level",
+			"take over spawned session",
+		},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
 	return descriptor

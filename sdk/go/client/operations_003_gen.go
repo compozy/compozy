@@ -104,7 +104,7 @@ type ClearSessionParentParams struct {
 	Profile     *string `url:"profile"`
 }
 
-// ClearSessionParent Make an adopted child session top-level again
+// ClearSessionParent Make a child session top-level or take over a stopped spawned worker
 func (c *Client) ClearSessionParent(ctx context.Context, params ClearSessionParentParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))

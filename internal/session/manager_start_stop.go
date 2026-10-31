@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+// errStartupCanceledByStop marks the cancellation cause of a launch a stop request
+// interrupted. It is the requested stop, not a runtime failure of the session.
+var errStartupCanceledByStop = errors.New("session: startup canceled")
+
 func (m *Manager) stopStartingSession(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
 	session, run, handled, err := m.prepareStartingSessionStop(ctx, id, cause, detail)
 	if !handled || err != nil {
@@ -93,9 +97,9 @@ func (m *Manager) prepareStartingSessionStop(
 	if run == nil {
 		return session, nil, true, nil
 	}
-	cancelCause := fmt.Errorf("session: startup canceled for %q", strings.TrimSpace(id))
+	cancelCause := fmt.Errorf("%w for %q", errStartupCanceledByStop, strings.TrimSpace(id))
 	if trimmed := strings.TrimSpace(detail); trimmed != "" {
-		cancelCause = fmt.Errorf("session: startup canceled for %q: %s", strings.TrimSpace(id), trimmed)
+		cancelCause = fmt.Errorf("%w for %q: %s", errStartupCanceledByStop, strings.TrimSpace(id), trimmed)
 	}
 	run.cancel(cancelCause)
 	releaseLaunchCommit()
