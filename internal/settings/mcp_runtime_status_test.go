@@ -733,6 +733,60 @@ func TestMCPAuthCredentialResolutionOrder(t *testing.T) {
 		}
 	})
 
+	t.Run("Should prefer a profile declaration over the user declaration", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, userServer)
+		writeFile(t, filepath.Join(homePaths.ProfilesDir, "marketing", compozyconfig.MCPJSONName),
+			`{"mcpServers":{"newrelic":{"transport":"http","url":"https://profile.newrelic.example/mcp"}}}`)
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, homePaths, Dependencies{MCPAuth: runtime})
+		status, err := service.GetMCPAuthStatus(t.Context(), MCPAuthTargetRequest{
+			Scope: ScopeProfile, ProfileName: "marketing", Name: "newrelic",
+		})
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(profile) error = %v", err)
+		}
+		want := mcpauth.Target{
+			Owner:       "manual",
+			Scope:       mcpauth.ScopeProfile,
+			WorkspaceID: "marketing",
+			ServerName:  "newrelic",
+		}
+		if runtime.statusTarget != want || status.Inherited ||
+			runtime.statusServer.URL != "https://profile.newrelic.example/mcp" {
+			t.Fatalf("profile status = %#v target = %#v, want own profile record", status, runtime.statusTarget)
+		}
+	})
+
+	t.Run("Should label and reject a workspace request for a user-scoped extension server", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		runtime := &recordingMCPAuthRuntime{}
+		service := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"workspace-a": {ID: "workspace-a", RootDir: t.TempDir()},
+			}},
+			MCPAuth: runtime, MCPExtensions: extensionMCPDefinitionStub{},
+		})
+		request := MCPAuthTargetRequest{
+			Scope: ScopeWorkspace, WorkspaceID: "workspace-a", Name: "linear", Owner: "extension:linear",
+		}
+		status, err := service.GetMCPAuthStatus(t.Context(), request)
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(extension workspace) error = %v", err)
+		}
+		if status.Scope != mcpauth.ScopeUser || !status.Inherited {
+			t.Fatalf("extension status = %#v, want inherited user record", status)
+		}
+		if _, err := service.LogoutMCPAuth(t.Context(), request); !errors.Is(err, ErrValidation) {
+			t.Fatalf("LogoutMCPAuth(extension workspace) error = %v, want ErrValidation", err)
+		}
+		if runtime.logoutTarget != (mcpauth.Target{}) {
+			t.Fatal("rejected extension workspace logout reached the user credential")
+		}
+	})
+
 	t.Run("Should report not found when no layer declares the server", func(t *testing.T) {
 		t.Parallel()
 		service, _ := newService(t, "")

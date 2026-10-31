@@ -205,6 +205,29 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		})
 	}
 
+	t.Run("Should label credentials owned by a broader scope than the session context", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			scope, profileID, workspaceID string
+			want                          bool
+		}{
+			{scope: "user", want: false},
+			{scope: "user", workspaceID: "ws-team", want: true},
+			{scope: "user", profileID: "prof-marketing", want: true},
+			{scope: "profile", profileID: "prof-marketing", want: false},
+			{scope: "profile", profileID: "prof-marketing", workspaceID: "ws-team", want: true},
+			{scope: "workspace", workspaceID: "ws-team", want: false},
+			{scope: "workspace", profileID: "prof-marketing", workspaceID: "ws-team", want: true},
+			{scope: "workspace_profile", profileID: "prof-marketing", workspaceID: "ws-team", want: false},
+		}
+		for _, tc := range cases {
+			got := mcpAuthStatusInherited(toolspkg.MCPAuthStatus{Scope: tc.scope}, tc.profileID, tc.workspaceID)
+			if got != tc.want {
+				t.Fatalf("mcpAuthStatusInherited(%+v) = %v, want %v", tc, got, tc.want)
+			}
+		}
+	})
+
 	t.Run("Should expose workspace-scoped dead runtime state and reason", func(t *testing.T) {
 		t.Parallel()
 

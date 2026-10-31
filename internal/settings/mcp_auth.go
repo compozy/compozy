@@ -11,6 +11,8 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 )
 
+const mcpAuthDefaultProfileName = "default"
+
 // MCPAuthTargetRequest selects one exact user, profile, or workspace MCP definition.
 type MCPAuthTargetRequest struct {
 	Scope       ScopeKind
@@ -228,8 +230,13 @@ func (s *service) resolveMCPAuthDefinition(
 		return mcpAuthDefinition{}, err
 	}
 	if target.Owner != "manual" {
-		target, server, err := s.resolveExtensionMCPAuthTarget(ctx, req)
-		return mcpAuthDefinition{target: target, server: server}, err
+		resolved, server, err := s.resolveExtensionMCPAuthTarget(ctx, req)
+		if err != nil {
+			return mcpAuthDefinition{}, err
+		}
+		return mcpAuthDefinition{
+			target: resolved, server: server, inherited: !mcpAuthTargetCovers(target, resolved),
+		}, nil
 	}
 	_, sources, err := s.resolveMCPTargetContext(
 		ctx,
@@ -262,6 +269,24 @@ func (s *service) resolveMCPAuthDefinition(
 		)
 	}
 	return mcpAuthDefinition{target: target, server: entry.Server}, nil
+}
+
+// mcpAuthTargetCovers reports whether the resolved credential owner is the requested scope itself.
+// The default profile layers alias the user and workspace credentials they project.
+func mcpAuthTargetCovers(requested mcpauth.Target, resolved mcpauth.Target) bool {
+	if requested.Scope == resolved.Scope && requested.WorkspaceID == resolved.WorkspaceID {
+		return true
+	}
+	switch requested.Scope {
+	case mcpauth.ScopeProfile:
+		return requested.WorkspaceID == mcpAuthDefaultProfileName && resolved.Scope == mcpauth.ScopeUser
+	case mcpauth.ScopeWorkspaceProfile:
+		workspaceID, profileName, _ := strings.Cut(requested.WorkspaceID, "@pf:")
+		return profileName == mcpAuthDefaultProfileName && resolved.Scope == mcpauth.ScopeWorkspace &&
+			resolved.WorkspaceID == workspaceID
+	default:
+		return false
+	}
 }
 
 func publicMCPAuthScope(target mcpauth.Target) string {

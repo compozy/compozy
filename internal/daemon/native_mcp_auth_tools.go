@@ -277,12 +277,15 @@ func mcpAuthRepairPathsFor(status toolspkg.MCPAuthStatus) mcpAuthRepairPaths {
 // mcpAuthStatusInherited reports whether the effective credential owner is broader than the
 // caller's workspace or profile context, meaning the caller inherits the declaring scope's token.
 func mcpAuthStatusInherited(status toolspkg.MCPAuthStatus, profileID string, workspaceID string) bool {
+	profileID = strings.TrimSpace(profileID)
+	namedProfile := profileID != "" && profileID != store.DefaultProfileID
 	switch mcpauth.Scope(status.Scope) {
 	case mcpauth.ScopeUser:
-		profileID = strings.TrimSpace(profileID)
-		return workspaceID != "" || (profileID != "" && profileID != store.DefaultProfileID)
+		return workspaceID != "" || namedProfile
 	case mcpauth.ScopeProfile:
 		return workspaceID != ""
+	case mcpauth.ScopeWorkspace:
+		return namedProfile
 	default:
 		return false
 	}

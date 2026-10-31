@@ -39,7 +39,9 @@ func mcpAuthStatusListBundle(statuses []SettingsMCPAuthStatusRecord) outputBundl
 		"MCP Auth",
 		[]string{"Server", mcpScopeValue, automationStatusValue, "Client", mcpAuthExpiresValue, "Diagnostic"},
 		"mcp_auth",
-		[]string{"server", mcpScopeKey, automationStatusKey, "client", mcpAuthExpiresAtKey, "diagnostic"},
+		[]string{
+			"server", mcpScopeKey, automationStatusKey, "client", mcpAuthExpiresAtKey, "diagnostic", "inherited",
+		},
 		func(item SettingsMCPAuthStatusRecord) []string {
 			return []string{
 				stringOrDash(item.ServerName),
@@ -58,6 +60,7 @@ func mcpAuthStatusListBundle(statuses []SettingsMCPAuthStatusRecord) outputBundl
 				item.ClientID,
 				timePtrString(item.ExpiresAt),
 				item.Diagnostic,
+				boolString(item.Inherited),
 			}
 		},
 	)

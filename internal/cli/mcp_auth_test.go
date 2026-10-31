@@ -993,6 +993,13 @@ func TestMCPAuthStatusBundlesRenderScopeAndTokenPresence(t *testing.T) {
 		if !strings.Contains(list, "user (inherited)") {
 			t.Fatalf("human list = %q, want inherited scope label", list)
 		}
+		toon, err := mcpAuthStatusListBundle([]SettingsMCPAuthStatusRecord{status}).toon()
+		if err != nil {
+			t.Fatalf("mcpAuthStatusListBundle.toon() error = %v", err)
+		}
+		if !strings.Contains(toon, "inherited") || !strings.Contains(toon, "true") {
+			t.Fatalf("toon list = %q, want inherited field", toon)
+		}
 	})
 }
 
