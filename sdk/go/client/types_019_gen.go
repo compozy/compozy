@@ -4,6 +4,14 @@ package client
 
 import "time"
 
+// SettingsInstalledExtensionPaletteViewPayload is a daemon API value.
+type SettingsInstalledExtensionPaletteViewPayload struct {
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 // SettingsInstalledExtensionPayload is a daemon API value.
 type SettingsInstalledExtensionPayload struct {
 	Name          string                                    `json:"name"`
@@ -435,12 +443,4 @@ type SettingsProviderWritePayload struct {
 	AuthLoginCmd    *string                                 `json:"auth_login_command,omitzero"`
 	AuthACPMethod   *string                                 `json:"auth_acp_method,omitzero"`
 	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
-}
-
-// SettingsProvidersResponse is a daemon API value.
-type SettingsProvidersResponse struct {
-	Collection      SettingsCollectionName        `json:"collection"`
-	Scope           SettingsUserScopeKind         `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
-	Providers       []SettingsProviderItemPayload `json:"providers"`
 }

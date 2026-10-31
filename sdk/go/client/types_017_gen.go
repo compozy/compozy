@@ -4,6 +4,14 @@ package client
 
 import "time"
 
+// SessionLaterPayload is a daemon API value.
+type SessionLaterPayload struct {
+	ParkedAt        time.Time  `json:"parked_at"`
+	Reason          string     `json:"reason,omitempty"`
+	ReturnAt        *time.Time `json:"return_at,omitempty"`
+	PendingMessages int        `json:"pending_messages"`
+}
+
 // SessionLineagePayload is a daemon API value.
 type SessionLineagePayload struct {
 	ParentSessionID  string                       `json:"parent_session_id,omitempty"`
@@ -431,20 +439,4 @@ type SessionTranscriptResponse struct {
 	HasOlder           bool    `json:"has_older"`
 	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
 	Limit              int     `json:"limit"`
-}
-
-// SessionTurnInjectedPayload is a daemon API value.
-type SessionTurnInjectedPayload struct {
-	Estimate string                      `json:"estimate"`
-	Tokens   int64                       `json:"tokens"`
-	Sequence int64                       `json:"sequence"`
-	SentAt   time.Time                   `json:"sent_at"`
-	Spans    []SessionContextSpanPayload `json:"spans"`
-}
-
-// SessionUsageChangedPayload is a daemon API value.
-type SessionUsageChangedPayload struct {
-	Sequence int64  `json:"sequence"`
-	TurnID   string `json:"turn_id,omitempty"`
-	Kind     string `json:"kind"`
 }

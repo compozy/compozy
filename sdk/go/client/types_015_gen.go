@@ -442,11 +442,3 @@ type SessionCommandsResponse struct {
 
 // SessionCompactRequest is a daemon API value.
 type SessionCompactRequest struct{}
-
-// SessionCompactResponse is a daemon API value.
-type SessionCompactResponse struct {
-	SessionID string `json:"session_id"`
-	PromptID  string `json:"prompt_id"`
-	Command   string `json:"command"`
-	Status    string `json:"status"`
-}

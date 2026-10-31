@@ -1043,7 +1043,7 @@ describe("sessions board order and swimlanes", () => {
       sort: "created",
       groupBy: "project",
     });
-    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(6));
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(7));
     expect(result.current.groupBy).toBe("none");
     expect(result.current.lanes).toBeNull();
     expect(result.current.columns).toHaveLength(5);

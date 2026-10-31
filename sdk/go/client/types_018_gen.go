@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SessionTurnInjectedPayload is a daemon API value.
+type SessionTurnInjectedPayload struct {
+	Estimate string                      `json:"estimate"`
+	Tokens   int64                       `json:"tokens"`
+	Sequence int64                       `json:"sequence"`
+	SentAt   time.Time                   `json:"sent_at"`
+	Spans    []SessionContextSpanPayload `json:"spans"`
+}
+
+// SessionUsageChangedPayload is a daemon API value.
+type SessionUsageChangedPayload struct {
+	Sequence int64  `json:"sequence"`
+	TurnID   string `json:"turn_id,omitempty"`
+	Kind     string `json:"kind"`
+}
+
 // SessionUsagePayload is a daemon API value.
 type SessionUsagePayload struct {
 	WorkTime         *SessionWorkTimePayload `json:"work_time,omitzero"`
@@ -428,12 +444,4 @@ type SettingsInstalledExtensionPaletteCommandPayload struct {
 type SettingsInstalledExtensionPalettePayload struct {
 	Commands []SettingsInstalledExtensionPaletteCommandPayload `json:"commands"`
 	Views    []SettingsInstalledExtensionPaletteViewPayload    `json:"views"`
-}
-
-// SettingsInstalledExtensionPaletteViewPayload is a daemon API value.
-type SettingsInstalledExtensionPaletteViewPayload struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Available bool   `json:"available"`
-	Reason    string `json:"reason,omitempty"`
 }

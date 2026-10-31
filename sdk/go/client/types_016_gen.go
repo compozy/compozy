@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// SessionCompactResponse is a daemon API value.
+type SessionCompactResponse struct {
+	SessionID string `json:"session_id"`
+	PromptID  string `json:"prompt_id"`
+	Command   string `json:"command"`
+	Status    string `json:"status"`
+}
+
 // SessionCompactionContextAfterPayload is a daemon API value.
 type SessionCompactionContextAfterPayload struct {
 	Used     int64  `json:"used"`
@@ -437,12 +445,4 @@ type SessionInspectResponse struct {
 // SessionInteractionsResponse is a daemon API value.
 type SessionInteractionsResponse struct {
 	Interactions []PendingInteractionPayload `json:"interactions"`
-}
-
-// SessionLaterPayload is a daemon API value.
-type SessionLaterPayload struct {
-	ParkedAt        time.Time  `json:"parked_at"`
-	Reason          string     `json:"reason,omitempty"`
-	ReturnAt        *time.Time `json:"return_at,omitempty"`
-	PendingMessages int        `json:"pending_messages"`
 }
