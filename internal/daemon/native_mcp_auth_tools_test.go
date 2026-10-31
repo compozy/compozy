@@ -11,6 +11,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -268,6 +269,8 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 				workspaceID: "ws-team", want: true},
 			{name: "Should label a user credential in a named profile session", scope: "user",
 				profileID: "prof-marketing", want: true},
+			{name: "Should not label a user credential in the default profile session", scope: "user",
+				profileID: store.DefaultProfileID},
 			{name: "Should not label a profile credential in its profile session", scope: "profile",
 				profileID: "prof-marketing"},
 			{name: "Should label a profile credential in a profile workspace session", scope: "profile",
