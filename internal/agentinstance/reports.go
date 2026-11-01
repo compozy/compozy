@@ -91,10 +91,7 @@ func (p ReportPublisher) Sweep(ctx context.Context) error {
 }
 
 func (r ReportInput) Validate() error {
-	prefix, suffix, ok := strings.Cut(r.SourceKey, ":")
-	rotation := prefix == "rotation" && (r.Kind == "rotation_failed" || r.Kind == "rotation_deferred")
-	if !ok || strings.TrimSpace(suffix) == "" ||
-		(!rotation && prefix != "occ" && prefix != "interaction" && prefix != "turn") {
+	if !r.validSourceKey() {
 		return errors.New("agentinstance: invalid report source key")
 	}
 	if len(r.Payload) == 0 || len(r.Payload) > 65536 || !r.Payload.IsValid() {
@@ -107,23 +104,7 @@ func (r ReportInput) Validate() error {
 	var required []string
 	switch r.Kind {
 	case "proposal":
-		var proposals []struct {
-			Title    string   `json:"title"`
-			Body     string   `json:"body"`
-			ItemKeys []string `json:"item_keys"`
-		}
-		if err := json.Unmarshal(
-			fields["proposals"],
-			&proposals,
-		); err != nil || len(proposals) == 0 ||
-			len(proposals) > 20 {
-			return errors.New("agentinstance: invalid proposals")
-		}
-		for _, proposal := range proposals {
-			if strings.TrimSpace(proposal.Title) == "" || strings.TrimSpace(proposal.Body) == "" {
-				return errors.New("agentinstance: proposal title and body are required")
-			}
-		}
+		return validateReportProposals(fields)
 	case "failure":
 		required = []string{"reason", "detail"}
 	case "approval_expired":
@@ -142,6 +123,37 @@ func (r ReportInput) Validate() error {
 		}
 		if key == "expired_by" && value != "timeout" && value != "provider" {
 			return errors.New("agentinstance: invalid expiry source")
+		}
+	}
+	return nil
+}
+
+func (r ReportInput) validSourceKey() bool {
+	prefix, suffix, ok := strings.Cut(r.SourceKey, ":")
+	rotation := prefix == "rotation" && (r.Kind == "rotation_failed" || r.Kind == "rotation_deferred")
+	if !ok || strings.TrimSpace(suffix) == "" ||
+		(!rotation && prefix != "occ" && prefix != "interaction" && prefix != "turn") {
+		return false
+	}
+	return true
+}
+
+func validateReportProposals(fields map[string]jsontext.Value) error {
+	var proposals []struct {
+		Title    string   `json:"title"`
+		Body     string   `json:"body"`
+		ItemKeys []string `json:"item_keys"`
+	}
+	if err := json.Unmarshal(
+		fields["proposals"],
+		&proposals,
+	); err != nil || len(proposals) == 0 ||
+		len(proposals) > 20 {
+		return errors.New("agentinstance: invalid proposals")
+	}
+	for _, proposal := range proposals {
+		if strings.TrimSpace(proposal.Title) == "" || strings.TrimSpace(proposal.Body) == "" {
+			return errors.New("agentinstance: proposal title and body are required")
 		}
 	}
 	return nil
