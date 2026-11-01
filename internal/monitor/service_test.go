@@ -1006,8 +1006,16 @@ func (*failingStore) SaveMonitor(context.Context, Record) error { return errors.
 // toggleStore fails every write after the first (version > 1) while fail is set.
 type toggleStore struct {
 	*memoryStore
-	mu   sync.Mutex
-	fail bool
+	mu       sync.Mutex
+	fail     bool
+	rejected []Record
+}
+
+// rejectedWrites returns every write refused while the store was failing.
+func (s *toggleStore) rejectedWrites() []Record {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]Record(nil), s.rejected...)
 }
 
 func (s *toggleStore) setFail(fail bool) {
@@ -1019,6 +1027,9 @@ func (s *toggleStore) setFail(fail bool) {
 func (s *toggleStore) SaveMonitor(ctx context.Context, record Record) error {
 	s.mu.Lock()
 	failing := s.fail && record.Version > 1
+	if failing {
+		s.rejected = append(s.rejected, record)
+	}
 	s.mu.Unlock()
 	if failing {
 		return errors.New("database is locked")
@@ -1761,6 +1772,18 @@ func TestServiceRecoveryStartsTheWatchOnlyAfterTheAnchorClearIsDurable(t *testin
 			}
 			if store.records[created.ID].OwnerCheckFailedAt.IsZero() {
 				t.Fatal("anchor cleared in the store while it was failing")
+			}
+			// The window outlasts the timer's deadline, so a watch that started early would have attempted
+			// its fired write (refused by the failing store). Only the anchor clear may have been attempted.
+			attempts := store.rejectedWrites()
+			if len(attempts) == 0 {
+				t.Fatal("the anchor clear was never attempted while the store was failing")
+			}
+			for _, attempt := range attempts {
+				if attempt.Monitor.Status != StatusActive || !attempt.OwnerCheckFailedAt.IsZero() {
+					t.Fatalf("write attempted before the anchor clear was durable: %+v, want only active clears",
+						attempt)
+				}
 			}
 			store.setFail(false)
 			time.Sleep(durableRetryInterval + 2*time.Second)
