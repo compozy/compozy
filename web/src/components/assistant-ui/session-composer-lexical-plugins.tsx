@@ -10,8 +10,11 @@ import {
   $isTextNode,
   COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_HIGH,
+  KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_UP_COMMAND,
   KEY_ENTER_COMMAND,
   KEY_ESCAPE_COMMAND,
+  KEY_TAB_COMMAND,
   PASTE_COMMAND,
   type BaseSelection,
   type EditorState,
@@ -261,8 +264,9 @@ export function SessionCommandScopePlugin({
  * that occurrence — above the library's handlers, so the `@` stays closed
  * while typing continues after it and when the caret returns to it
  * (US-004.AC-1). The full text travels with each report so a dismissal
- * follows its `@` across edits elsewhere. Lexical drops key commands
- * during IME composition, so composition always wins (US-004.EC-1).
+ * follows its `@` across edits elsewhere. The library forwards arrows and Tab
+ * to the picker even during IME composition, so they stop here and composition
+ * always wins (US-004.EC-1).
  */
 export function SessionMentionTriggerPlugin({
   onTrigger,
@@ -296,7 +300,17 @@ export function SessionMentionTriggerPlugin({
       },
       COMMAND_PRIORITY_CRITICAL
     );
+    const yieldToComposition = (event: KeyboardEvent | null) =>
+      event !== null && (event.isComposing || event.keyCode === 229);
+    const unregisterCompositionKeys = [
+      KEY_ARROW_DOWN_COMMAND,
+      KEY_ARROW_UP_COMMAND,
+      KEY_TAB_COMMAND,
+    ].map(command =>
+      editor.registerCommand(command, yieldToComposition, COMMAND_PRIORITY_CRITICAL)
+    );
     return () => {
+      for (const unregister of unregisterCompositionKeys) unregister();
       unregisterUpdate();
       unregisterEscape();
     };
