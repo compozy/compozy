@@ -177,7 +177,10 @@ func TestGlobalDBToolProcessRecords(t *testing.T) {
 func TestGlobalDBSessionMonitors(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)
-	db := openTestGlobalDB(t)
+	suite := t
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, path)
+	db := openGlobalDBForTest(t, path)
 	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 	code := 2
 	active := monitor.Record{
@@ -188,10 +191,15 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		},
 		WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, OwnerBinding: `{"turn_id":""}`, Version: 1,
 	}
-	t.Run("Should round-trip the definition and owner binding", func(t *testing.T) {
+	t.Run("Should round-trip the definition and owner binding across a reopen", func(t *testing.T) {
 		if err := db.SaveMonitor(ctx, active); err != nil {
 			t.Fatal(err)
 		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		// The reopened handle belongs to the suite, not this subtest, so later subtests keep using it.
+		db = openGlobalDBForTest(suite, path)
 		got, err := db.LoadMonitors(ctx)
 		if err != nil || len(got) != 1 || got[0].Monitor != active.Monitor || got[0].Timeout != time.Hour ||
 			got[0].OwnerBinding != active.OwnerBinding || got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {

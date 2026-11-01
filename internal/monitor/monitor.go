@@ -198,8 +198,8 @@ func normalizeTerminalSpec(spec Spec) (Spec, error) {
 	if spec.Timeout == 0 {
 		spec.Timeout = DefaultTerminalTimeout
 	}
-	if spec.Timeout < 0 || spec.Timeout > MaxTerminalTimeout {
-		return Spec{}, invalid("terminal timeout must be at most 6 hours")
+	if spec.Timeout < time.Millisecond || spec.Timeout > MaxTerminalTimeout {
+		return Spec{}, invalid("terminal timeout must be between 1 millisecond and 6 hours")
 	}
 	return spec, nil
 }

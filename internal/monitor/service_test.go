@@ -661,6 +661,16 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				spec.Until, spec.Pattern = UntilMatch, "("
 				return spec
 			}(),
+			"sub-millisecond terminal timeout": func() Spec {
+				spec := terminalSpec("s")
+				spec.Timeout = time.Microsecond
+				return spec
+			}(),
+			"negative terminal timeout": func() Spec {
+				spec := terminalSpec("s")
+				spec.Timeout = -time.Second
+				return spec
+			}(),
 		}
 		for name, spec := range cases {
 			if _, err := service.Create(t.Context(), spec); !errors.Is(err, ErrInvalid) {
