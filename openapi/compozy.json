@@ -18259,6 +18259,64 @@
         ],
         "type": "object"
       },
+      "PermissionEntriesResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionEntryPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "PermissionEntryPayload": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "agent_name": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "initiator_id": {
+            "type": "string"
+          },
+          "initiator_kind": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "agent_name",
+          "decision",
+          "id",
+          "initiator_id",
+          "initiator_kind",
+          "resource",
+          "session_id",
+          "timestamp"
+        ],
+        "type": "object"
+      },
       "PermissionRollupResponse": {
         "properties": {
           "rollups": {
@@ -62937,6 +62995,114 @@
           "diagnostics"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/permissions": {
+      "get": {
+        "operationId": "listPermissionEntries",
+        "parameters": [
+          {
+            "description": "UTC calendar days including today, 1 through 90 (default 30)",
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by agent name",
+            "in": "query",
+            "name": "agent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include only automation, daemon and extension initiators",
+            "in": "query",
+            "name": "unattended",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionEntriesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid query"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent aggregate access denied"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Observe service is not configured"
+          }
+        },
+        "summary": "List the newest permission decisions with their initiators",
+        "tags": [
+          "observe"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

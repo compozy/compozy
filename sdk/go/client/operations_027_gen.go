@@ -5,8 +5,39 @@ package client
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// RepairSessionParams carries the path, query, and header parameters.
+type RepairSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+	DryRun      *bool  `url:"dry_run"`
+	Force       *bool  `url:"force"`
+}
+
+// RepairSession Inspect and repair an interrupted session transcript
+func (c *Client) RepairSession(ctx context.Context, params RepairSessionParams) (*SessionRepairResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/repair"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.DryRun != nil {
+		query.Set("dry_run", strconv.FormatBool(*params.DryRun))
+	}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionRepairResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // ReplaceAgentMemoryParams carries the path, query, and header parameters.
 type ReplaceAgentMemoryParams struct {
@@ -412,38 +443,4 @@ func (c *Client) RetryProfileOperation(ctx context.Context, params RetryProfileO
 type RetryTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// RetryTaskRun Retry one failed task run
-func (c *Client) RetryTaskRun(ctx context.Context, params RetryTaskRunParams, body RetryTaskRunRequest) (*RetryTaskRunResponse, error) {
-	path := "/api/runs/{id}/retry"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RetryTaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeAppTokenParams carries the path, query, and header parameters.
-type RevokeAppTokenParams struct {
-	AppTokenID string `url:"app_token_id"`
-}
-
-// RevokeAppToken Revoke an app token and cancel its active streams Experimental: pin the exact SDK version.
-func (c *Client) RevokeAppToken(ctx context.Context, params RevokeAppTokenParams) (*AppTokenRevokeResponse, error) {
-	path := "/api/app-tokens/{app_token_id}"
-	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
-	var out AppTokenRevokeResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

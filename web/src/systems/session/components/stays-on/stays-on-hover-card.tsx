@@ -45,7 +45,7 @@ function checkMark({ result }: AgentInstanceCheckIn): CheckMark {
   return result === "failed" ? "failed" : "reported";
 }
 
-function CheckTicks({ checkIns }: { checkIns: readonly AgentInstanceCheckIn[] }) {
+export function CheckTicks({ checkIns }: { checkIns: readonly AgentInstanceCheckIn[] }) {
   const marks = checkIns.map(checkMark);
   const quiet = marks.filter(mark => mark === "quiet").length;
   return (

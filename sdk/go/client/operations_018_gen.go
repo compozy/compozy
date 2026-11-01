@@ -379,27 +379,27 @@ func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsPa
 	return &out, nil
 }
 
-// ListProcessesParams carries the path, query, and header parameters.
-type ListProcessesParams struct {
-	WorkspaceID   *string `url:"workspace_id"`
-	AllWorkspaces *bool   `url:"all_workspaces"`
-	Orphaned      *bool   `url:"orphaned"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+// ListPermissionEntriesParams carries the path, query, and header parameters.
+type ListPermissionEntriesParams struct {
+	Days        *string `url:"days"`
+	Agent       *string `url:"agent"`
+	Unattended  *bool   `url:"unattended"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// ListProcesses List processes grouped by session, including left-running processes
-func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
-	path := "/api/processes"
+// ListPermissionEntries List the newest permission decisions with their initiators
+func (c *Client) ListPermissionEntries(ctx context.Context, params ListPermissionEntriesParams) (*PermissionEntriesResponse, error) {
+	path := "/api/permissions"
 	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
+	if params.Days != nil {
+		query.Set("days", *params.Days)
 	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
 	}
-	if params.Orphaned != nil {
-		query.Set("orphaned", strconv.FormatBool(*params.Orphaned))
+	if params.Unattended != nil {
+		query.Set("unattended", strconv.FormatBool(*params.Unattended))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -410,38 +410,18 @@ func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) 
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out ProcessesResponse
+	var out PermissionEntriesResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ListProfileOperations List profile lifecycle operations
-func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
-	path := "/api/profiles/ops"
-	var out []ProfileOperation
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProfiles List profiles
-func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
-	path := "/api/profiles"
-	var out []Profile
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProviderModelsParams carries the path, query, and header parameters.
-type ListProviderModelsParams struct {
-	ProviderID   *string `url:"provider_id"`
-	View         *string `url:"view"`
-	SourceID     *string `url:"source_id"`
-	Refresh      *bool   `url:"refresh"`
-	IncludeStale *bool   `url:"include_stale"`
+// ListProcessesParams carries the path, query, and header parameters.
+type ListProcessesParams struct {
+	WorkspaceID   *string `url:"workspace_id"`
+	AllWorkspaces *bool   `url:"all_workspaces"`
+	Orphaned      *bool   `url:"orphaned"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
 }

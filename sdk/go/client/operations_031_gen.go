@@ -11,6 +11,43 @@ import (
 	"strings"
 )
 
+// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamSessionCatalogFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
+
+var _ json.Marshaler = StreamSessionCatalogFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSessionCatalogEventPayload decodes this payload as SessionCatalogEventPayload.
+func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatalogEventPayload, error) {
+	var out SessionCatalogEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
+func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
+	var out SessionAttentionEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
 func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
 	var out OperatorNotificationEventPayload
@@ -401,32 +438,4 @@ type UnexposeSkillParams struct {
 	Name     string  `url:"name"`
 	Profile  *string `url:"profile"`
 	ForAgent *string `url:"for_agent"`
-}
-
-// UnexposeSkill Remove owned provider-root links for one skill
-func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, body SkillExposureRequest) (*SkillUnexposeResponse, error) {
-	path := "/api/skills/{name}/unexpose"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillUnexposeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnpinCmdPaletteCommandParams carries the path, query, and header parameters.
-type UnpinCmdPaletteCommandParams struct {
-	ID        string  `url:"id"`
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

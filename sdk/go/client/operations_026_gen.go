@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// RejectTerminalInputRequestParams carries the path, query, and header parameters.
+type RejectTerminalInputRequestParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	RequestID   string  `url:"request_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RejectTerminalInputRequest Reject one terminal input request
+func (c *Client) RejectTerminalInputRequest(ctx context.Context, params RejectTerminalInputRequestParams, body TerminalRejectInputRequest) (*TerminalInputRejectResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{request_id}", url.PathEscape(params.RequestID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalInputRejectResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ReleaseAgentTaskRunParams carries the path, query, and header parameters.
 type ReleaseAgentTaskRunParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
@@ -412,36 +440,6 @@ func (c *Client) ReorderWorkspaces(ctx context.Context, params ReorderWorkspaces
 	}
 	var out WorkspaceLayoutResponse
 	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RepairSessionParams carries the path, query, and header parameters.
-type RepairSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-	DryRun      *bool  `url:"dry_run"`
-	Force       *bool  `url:"force"`
-}
-
-// RepairSession Inspect and repair an interrupted session transcript
-func (c *Client) RepairSession(ctx context.Context, params RepairSessionParams) (*SessionRepairResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/repair"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.DryRun != nil {
-		query.Set("dry_run", strconv.FormatBool(*params.DryRun))
-	}
-	if params.Force != nil {
-		query.Set("force", strconv.FormatBool(*params.Force))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionRepairResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

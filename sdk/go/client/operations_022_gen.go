@@ -4,11 +4,48 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// ListTools List operator-visible registry tools
+func (c *Client) ListTools(ctx context.Context, params ListToolsParams) (*ToolsResponse, error) {
+	path := "/api/tools"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListToolsetsParams carries the path, query, and header parameters.
+type ListToolsetsParams struct {
+	WorkspaceID *string `url:"workspace_id"`
+	Workspace   *string `url:"workspace"`
+	SessionID   *string `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+	Profile     *string `url:"profile"`
+}
 
 // ListToolsets List named toolsets and expansion status
 func (c *Client) ListToolsets(ctx context.Context, params ListToolsetsParams) (*ToolsetsResponse, error) {
@@ -397,37 +434,4 @@ type MintTerminalAttachTicketParams struct {
 	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
 	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
 	Profile                 *string `url:"profile"`
-}
-
-// MintTerminalAttachTicket Mint a single-use terminal attach ticket
-func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	headers := http.Header{}
-	if params.XCompozyClientToken != nil {
-		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
-	}
-	if params.XCompozyClientWorkspace != nil {
-		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
-	}
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalAttachTicketResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionParams carries the path, query, and header parameters.
-type MoveSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

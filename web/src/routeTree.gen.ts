@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppActivityRouteImport } from './routes/_app/activity'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppAutomationsRouteImport } from './routes/_app/automations'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
@@ -85,6 +86,11 @@ const DesignSystemRoute = DesignSystemRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppActivityRoute = AppActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAgentsRoute = AppAgentsRouteImport.update({
@@ -394,6 +400,7 @@ const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
+  '/activity': typeof AppActivityRoute
   '/agents': typeof AppAgentsRouteWithChildren
   '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
@@ -457,6 +464,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/activity': typeof AppActivityRoute
   '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
@@ -518,6 +526,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/_app/activity': typeof AppActivityRoute
   '/_app/agents': typeof AppAgentsRouteWithChildren
   '/_app/automations': typeof AppAutomationsRouteWithChildren
   '/_app/jobs': typeof AppJobsRouteWithChildren
@@ -585,6 +594,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design-system'
+    | '/activity'
     | '/agents'
     | '/automations'
     | '/jobs'
@@ -648,6 +658,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
+    | '/activity'
     | '/automations'
     | '/jobs'
     | '/loop-runs'
@@ -708,6 +719,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/design-system'
+    | '/_app/activity'
     | '/_app/agents'
     | '/_app/automations'
     | '/_app/jobs'
@@ -797,6 +809,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/activity': {
+      id: '/_app/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppActivityRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/agents': {
@@ -1451,6 +1470,7 @@ const AppTriggersRouteWithChildren = AppTriggersRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
+  AppActivityRoute: typeof AppActivityRoute
   AppAgentsRoute: typeof AppAgentsRouteWithChildren
   AppAutomationsRoute: typeof AppAutomationsRouteWithChildren
   AppJobsRoute: typeof AppJobsRouteWithChildren
@@ -1470,6 +1490,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppActivityRoute: AppActivityRoute,
   AppAgentsRoute: AppAgentsRouteWithChildren,
   AppAutomationsRoute: AppAutomationsRouteWithChildren,
   AppJobsRoute: AppJobsRouteWithChildren,

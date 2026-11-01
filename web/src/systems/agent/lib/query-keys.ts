@@ -25,6 +25,7 @@ export const agentKeys = {
     ] as const,
   /** The operator's stays-on agents across every scope; one read shared by every row. */
   instances: () => [...agentKeys.all, "instances"] as const,
+  instanceAway: (id: string) => [...agentKeys.instances(), id, "away"] as const,
   instanceCheckIns: (id: string) => [...agentKeys.all, "instance-check-ins", id] as const,
   instanceDayCheckIns: (id: string) => [...agentKeys.instanceCheckIns(id), "day"] as const,
   instanceOccurrence: (id: string, occurrence: string) =>

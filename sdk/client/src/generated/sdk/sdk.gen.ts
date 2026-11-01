@@ -867,6 +867,9 @@ import type {
   ListOpenAIModelsData,
   ListOpenAIModelsErrors,
   ListOpenAIModelsResponses,
+  ListPermissionEntriesData,
+  ListPermissionEntriesErrors,
+  ListPermissionEntriesResponses,
   ListProcessesData,
   ListProcessesErrors,
   ListProcessesResponses,
@@ -7160,6 +7163,29 @@ export class observe extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/observe/tasks/inbox",
+      ...options,
+    });
+  }
+
+  /**
+   * List the newest permission decisions with their initiators
+   */
+  public listPermissionEntries<ThrowOnError extends boolean = true>(
+    options?: Options<ListPermissionEntriesData, ThrowOnError>
+  ): RequestResult<
+    ListPermissionEntriesResponses,
+    ListPermissionEntriesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListPermissionEntriesResponses,
+      ListPermissionEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/permissions",
       ...options,
     });
   }

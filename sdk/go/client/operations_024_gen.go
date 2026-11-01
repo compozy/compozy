@@ -8,6 +8,30 @@ import (
 	"strings"
 )
 
+// PreviewExtensionInstall Preview an extension install without changing state
+func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExtensionInstallParams, body InstallExtensionRequest) (*ExtensionInstallPreviewPayload, error) {
+	path := "/api/extensions/preview-install"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionInstallPreviewPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PreviewSessionDeriveParams carries the path, query, and header parameters.
+type PreviewSessionDeriveParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	MessageID   *string `url:"message_id"`
+}
+
 // PreviewSessionDerive Preview what a continue or fork of a session would carry
 func (c *Client) PreviewSessionDerive(ctx context.Context, params PreviewSessionDeriveParams) (*SessionDerivePreviewResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview"
@@ -408,36 +432,4 @@ type PutWindowManagerLayoutProfileParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ProfileID   string  `url:"profile_id"`
 	Profile     *string `url:"profile"`
-}
-
-// PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
-func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ResourceResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// QueryTerminalJournalParams carries the path, query, and header parameters.
-type QueryTerminalJournalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Actor       *string `url:"actor"`
-	Since       *string `url:"since"`
-	Failed      *bool   `url:"failed"`
-	TerminalID  *string `url:"terminal_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -342,6 +342,14 @@ export interface CompozyPermissionData extends AgentEventPayload {
  * `in_progress | completed | failed | cancelled` or a vendor value passed through
  * verbatim; the item updates in place under the same `compaction_id`.
  */
+export interface SessionReportData {
+  report_id: string;
+  instance_id: string;
+  kind: string;
+  payload: unknown;
+  created_at: string;
+}
+
 export interface SessionCompactionItemData {
   kind: "compaction";
   compaction_id: string;
@@ -356,6 +364,7 @@ export interface SessionDataParts extends Record<string, unknown> {
   "compozy-event": AgentEventPayload;
   "compozy-permission": CompozyPermissionData;
   "compozy-compaction": SessionCompactionItemData;
+  "compozy-report": SessionReportData;
 }
 
 export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;

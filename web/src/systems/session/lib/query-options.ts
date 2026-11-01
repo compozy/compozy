@@ -7,6 +7,7 @@ import {
   fetchSessionHistory,
   fetchSessionInputs,
   fetchSessionInteractions,
+  fetchSessionPendingWithDescendants,
   fetchSessionGoal,
   fetchSessionRecap,
   fetchSessionUsage,
@@ -282,6 +283,17 @@ function isTerminalInputReadError(error: unknown): boolean {
     error instanceof SessionApiError &&
     (error.status === 404 || error.status === 410 || error.code === "session_not_promptable")
   );
+}
+
+/** Asks reaching a main session from the sessions it started. A new ask needs no prompt to show. */
+export function sessionRelayedInteractionsOptions(workspace: string, id: string, enabled: boolean) {
+  return queryOptions({
+    queryKey: sessionKeys.interactions(workspace, id, "descendants"),
+    queryFn: ({ signal }) => fetchSessionPendingWithDescendants(workspace, id, signal),
+    enabled,
+    refetchInterval: 15_000,
+    retry: false,
+  });
 }
 
 export { sessionTranscriptOptions } from "./session-transcript-options";

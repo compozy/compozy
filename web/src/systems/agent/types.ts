@@ -175,7 +175,39 @@ export interface AgentActivityPayload {
   busy_by_hour: { weekday: number; hour: number; events: number }[];
 }
 
-export type AgentInstanceReport = OperationResponse<
-  "listAgentInstanceReports",
-  200
->["reports"][number];
+export type AgentInstanceReportKind =
+  | "proposal"
+  | "failure"
+  | "approval_expired"
+  | "interrupted"
+  | "rotation_failed"
+  | "rotation_deferred";
+
+export type AgentInstanceReportState = "pending" | "reserved" | "delivered" | "indeterminate";
+
+export interface AgentInstanceReport {
+  id: string;
+  kind: AgentInstanceReportKind;
+  state: AgentInstanceReportState;
+  created_at: string;
+  proposals?: { title: string; body: string }[];
+  reason?: string;
+  detail?: string;
+  session_id?: string;
+  tool?: string;
+  expired_by?: string;
+  cause?: string;
+  since?: string;
+}
+
+export interface AgentInstanceReportsResponse {
+  reports: AgentInstanceReport[];
+  next_cursor: string;
+}
+
+/** `GET /api/agent-instances/{id}/away`, from `_dx.md`; this route ships with the away reads. */
+export interface AgentInstanceAway {
+  last_seen_at: string | null;
+  quiet_check_ins: number;
+  reports: AgentInstanceReport[];
+}

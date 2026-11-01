@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// ListProcesses List processes grouped by session, including left-running processes
+func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
+	path := "/api/processes"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.Orphaned != nil {
+		query.Set("orphaned", strconv.FormatBool(*params.Orphaned))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProcessesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProfileOperations List profile lifecycle operations
+func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
+	path := "/api/profiles/ops"
+	var out []ProfileOperation
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProfiles List profiles
+func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
+	path := "/api/profiles"
+	var out []Profile
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderModelsParams carries the path, query, and header parameters.
+type ListProviderModelsParams struct {
+	ProviderID   *string `url:"provider_id"`
+	View         *string `url:"view"`
+	SourceID     *string `url:"source_id"`
+	Refresh      *bool   `url:"refresh"`
+	IncludeStale *bool   `url:"include_stale"`
+}
+
 // ListProviderModels List provider model catalog entries across providers
 func (c *Client) ListProviderModels(ctx context.Context, params ListProviderModelsParams) (*ProviderModelListResponse, error) {
 	path := "/api/model-catalog/models"
@@ -382,48 +440,4 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 type ListSessionFoldersParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ListSessionFolders List session folders in manual order
-func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInputsParams carries the path, query, and header parameters.
-type ListSessionInputsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// ListSessionInputs List pending session input
-func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionInputListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInteractionsParams carries the path, query, and header parameters.
-type ListSessionInteractionsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Descendants *bool   `url:"descendants"`
-	Status      *string `url:"status"`
 }

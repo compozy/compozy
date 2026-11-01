@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// RecapSnapshotPayload is a daemon API value.
+type RecapSnapshotPayload struct {
+	GeneratedAt      time.Time `json:"generated_at"`
+	EventCursor      int64     `json:"event_cursor"`
+	TranscriptCursor int64     `json:"transcript_cursor"`
+	QueueGeneration  int64     `json:"queue_generation"`
+	Consistency      string    `json:"consistency"`
+}
+
 // RecoverTaskRequest is a daemon API value.
 type RecoverTaskRequest struct {
 	Note string `json:"note,omitempty"`

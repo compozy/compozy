@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 type InstanceReportEvent struct {
@@ -37,7 +38,7 @@ func (m *Manager) PublishInstanceReport(
 	}
 	persisted, inserted, err := m.appendDurableSessionEvent(ctx, sessionID, store.SessionEvent{
 		ID: "report:" + report.ID, SessionID: sessionID, TurnID: "report:" + report.ID,
-		Type: "session.report", AgentName: info.AgentName,
+		Type: transcript.ReportEventType, AgentName: info.AgentName,
 		Content: string(content), Timestamp: report.CreatedAt.UTC(),
 	})
 	if err != nil {

@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronRight } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
+  Button,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -24,6 +25,8 @@ export interface HomeActivityFeedProps {
   events: HomeActivityEvent[];
   status?: HomeSurfaceStatus;
   errorMessage?: string | null;
+  /** Opens the Activity page; absent where there is nowhere to go. */
+  onOpenAll?: () => void;
 }
 
 const LOUD_EVENT_LIMIT = 8;
@@ -110,6 +113,7 @@ export function HomeActivityFeed({
   events,
   status = "ready",
   errorMessage,
+  onOpenAll,
 }: HomeActivityFeedProps) {
   const { loud, quiet } = partitionActivity(events);
   const loudVisible = loud.slice(0, LOUD_EVENT_LIMIT);
@@ -136,6 +140,13 @@ export function HomeActivityFeed({
       className="flex min-h-full flex-col"
       data-slot="home-activity"
       label="Activity"
+      right={
+        onOpenAll ? (
+          <Button onClick={onOpenAll} size="sm" type="button" variant="ghost">
+            See everything
+          </Button>
+        ) : undefined
+      }
     >
       <Panel bodyClassName="flex flex-1 flex-col p-0" className="flex-1 overflow-hidden">
         {status === "error" ? (

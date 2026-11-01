@@ -5043,6 +5043,22 @@ export type PermissionDailyRollupPayload = {
   decision: string;
 };
 
+export type PermissionEntriesResponse = {
+  entries: Array<PermissionEntryPayload>;
+};
+
+export type PermissionEntryPayload = {
+  action: string;
+  agent_name: string;
+  decision: string;
+  id: string;
+  initiator_id: string;
+  initiator_kind: string;
+  resource: string;
+  session_id: string;
+  timestamp: string;
+};
+
 export type PermissionRollupResponse = {
   rollups: Array<PermissionDailyRollupPayload>;
   since: string;
@@ -21130,6 +21146,66 @@ export type GetOpenAPIDocumentResponses = {
    */
   200: unknown;
 };
+
+export type ListPermissionEntriesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * UTC calendar days including today, 1 through 90 (default 30)
+     */
+    days?: string;
+    /**
+     * Filter by agent name
+     */
+    agent?: string;
+    /**
+     * Include only automation, daemon and extension initiators
+     */
+    unattended?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/permissions";
+};
+
+export type ListPermissionEntriesErrors = {
+  /**
+   * Invalid query
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Observe service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListPermissionEntriesError =
+  ListPermissionEntriesErrors[keyof ListPermissionEntriesErrors];
+
+export type ListPermissionEntriesResponses = {
+  /**
+   * OK
+   */
+  200: PermissionEntriesResponse;
+};
+
+export type ListPermissionEntriesResponse =
+  ListPermissionEntriesResponses[keyof ListPermissionEntriesResponses];
 
 export type GetPermissionRollupData = {
   body?: never;

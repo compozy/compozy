@@ -126,6 +126,7 @@ func registerSupportRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/permissions/rollup", handlers.PermissionRollup)
+	api.GET("/permissions", handlers.PermissionEntries)
 	observe := api.Group("/observe")
 	observe.GET("/overview", handlers.ObserveOverview)
 

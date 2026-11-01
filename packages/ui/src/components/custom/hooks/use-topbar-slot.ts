@@ -16,6 +16,8 @@ export interface TopbarSlotValue {
    * identity from loader data push it as a live node.
    */
   crumb?: React.ReactNode;
+  /** Host context before the title, in place of the window's own. */
+  leading?: React.ReactNode;
   /** Quiet identity glyph at window root (hidden when drill-in crumbs/back are set). */
   glyph?: React.ReactNode;
   /** Icon well by default; `state` renders a bare live-state mark for document windows. */

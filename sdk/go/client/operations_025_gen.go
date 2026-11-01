@@ -9,6 +9,38 @@ import (
 	"strings"
 )
 
+// PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
+func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// QueryTerminalJournalParams carries the path, query, and header parameters.
+type QueryTerminalJournalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Actor       *string `url:"actor"`
+	Since       *string `url:"since"`
+	Failed      *bool   `url:"failed"`
+	TerminalID  *string `url:"terminal_id"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // QueryTerminalJournal Query terminal command history
 func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJournalParams) (*TerminalJournalResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/journal"
@@ -411,34 +443,6 @@ func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*Task
 	}
 	var out TaskResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RejectTerminalInputRequestParams carries the path, query, and header parameters.
-type RejectTerminalInputRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	RequestID   string  `url:"request_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RejectTerminalInputRequest Reject one terminal input request
-func (c *Client) RejectTerminalInputRequest(ctx context.Context, params RejectTerminalInputRequestParams, body TerminalRejectInputRequest) (*TerminalInputRejectResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{request_id}", url.PathEscape(params.RequestID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalInputRejectResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

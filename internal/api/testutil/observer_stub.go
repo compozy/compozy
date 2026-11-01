@@ -13,6 +13,7 @@ import (
 
 type StubObserver struct {
 	QueryPermissionDailyRollupsFn func(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error)
+	QueryPermissionEntriesFn      func(context.Context, store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error)
 	QueryEventsFn                 func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
 	OnAgentEventFn                func(context.Context, string, acp.AgentEvent)
 	QueryHookCatalogFn            func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
@@ -128,6 +129,13 @@ var _ core.Observer = (*StubObserver)(nil)
 func (s StubObserver) QueryPermissionDailyRollups(ctx context.Context, q store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
 	if s.QueryPermissionDailyRollupsFn != nil {
 		return s.QueryPermissionDailyRollupsFn(ctx, q)
+	}
+	return nil, nil
+}
+
+func (s StubObserver) QueryPermissionEntries(ctx context.Context, q store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+	if s.QueryPermissionEntriesFn != nil {
+		return s.QueryPermissionEntriesFn(ctx, q)
 	}
 	return nil, nil
 }

@@ -12,6 +12,7 @@ import {
   fetchAgentInstanceReports,
   fetchAgentInstanceOccurrence,
   fetchAgentInstances,
+  fetchAgentInstanceAway,
 } from "../adapters/agent-instance-api";
 import {
   fetchAgentHeartbeat,
@@ -43,6 +44,17 @@ export function agentInstancesOptions() {
     queryKey: agentKeys.instances(),
     queryFn: ({ signal }) => fetchAgentInstances(signal),
     staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** One read per visit: the digest holds still until the operator leaves and it's marked seen. */
+export function agentInstanceAwayOptions(id: string) {
+  return queryOptions({
+    queryKey: agentKeys.instanceAway(id),
+    queryFn: ({ signal }) => fetchAgentInstanceAway(id, signal),
+    staleTime: Infinity,
+    gcTime: 0,
     retry: false,
   });
 }

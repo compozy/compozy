@@ -2177,6 +2177,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/permissions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the newest permission decisions with their initiators */
+    get: operations["listPermissionEntries"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/permissions/rollup": {
     parameters: {
       query?: never;
@@ -12525,6 +12542,21 @@ export interface components {
       count: number;
       day: string;
       decision: string;
+    };
+    PermissionEntriesResponse: {
+      entries: components["schemas"]["PermissionEntryPayload"][];
+    };
+    PermissionEntryPayload: {
+      action: string;
+      agent_name: string;
+      decision: string;
+      id: string;
+      initiator_id: string;
+      initiator_kind: string;
+      resource: string;
+      session_id: string;
+      /** Format: date-time */
+      timestamp: string;
     };
     PermissionRollupResponse: {
       rollups: components["schemas"]["PermissionDailyRollupPayload"][];
@@ -31929,6 +31961,73 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listPermissionEntries: {
+    parameters: {
+      query?: {
+        /** @description UTC calendar days including today, 1 through 90 (default 30) */
+        days?: string;
+        /** @description Filter by agent name */
+        agent?: string;
+        /** @description Include only automation, daemon and extension initiators */
+        unattended?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PermissionEntriesResponse"];
+        };
+      };
+      /** @description Invalid query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };

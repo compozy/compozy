@@ -11,6 +11,42 @@ import (
 	"strings"
 )
 
+// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
+func (f StreamGlobalSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
+	var out TranscriptSnapshotPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
+func (f StreamGlobalSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
+	var out TranscriptDeltaPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
+func (f StreamGlobalSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
+	var out GoalSnapshotChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
+func (f StreamGlobalSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
+	var out SessionCommandsChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsErrorPayload decodes this payload as ErrorPayload.
 func (f StreamGlobalSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
 	var out ErrorPayload
@@ -410,41 +446,4 @@ type StreamSessionCatalogParams struct {
 	LastEventIDQuery *string `url:"last_event_id"`
 	Profile          *string `url:"profile"`
 	AllProfiles      *bool   `url:"all_profiles"`
-}
-
-// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamSessionCatalogFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
-
-var _ json.Marshaler = StreamSessionCatalogFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSessionCatalogEventPayload decodes this payload as SessionCatalogEventPayload.
-func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatalogEventPayload, error) {
-	var out SessionCatalogEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
-func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
-	var out SessionAttentionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

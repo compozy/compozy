@@ -1460,6 +1460,9 @@ explicitly aggregate the profile lens. `GET /api/permissions/rollup` over HTTP/U
 `until`, and `rollups` describe the complete filtered population, not a page of audit rows.
 Unattended means `automation`, `daemon`, or `extension`; unknown historical initiators,
 humans, apps, and agent-session initiators are excluded when the filter is enabled.
+`GET /api/permissions` takes the same selectors and returns `entries`: the newest 1,000
+decisions in the window, each with `initiator_kind` and `initiator_id`. An empty initiator
+means the row predates initiator tracking, so read it as unknown. Use the rollup for totals.
 
 `compozy observe overview -o json` reads the selected profile by default. Use `--profile <name>` for
 another active profile or `--all-profiles` for an intentional aggregate; combine either mode with

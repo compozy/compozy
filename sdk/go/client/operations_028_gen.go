@@ -9,6 +9,40 @@ import (
 	"strings"
 )
 
+// RetryTaskRun Retry one failed task run
+func (c *Client) RetryTaskRun(ctx context.Context, params RetryTaskRunParams, body RetryTaskRunRequest) (*RetryTaskRunResponse, error) {
+	path := "/api/runs/{id}/retry"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RetryTaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RevokeAppTokenParams carries the path, query, and header parameters.
+type RevokeAppTokenParams struct {
+	AppTokenID string `url:"app_token_id"`
+}
+
+// RevokeAppToken Revoke an app token and cancel its active streams Experimental: pin the exact SDK version.
+func (c *Client) RevokeAppToken(ctx context.Context, params RevokeAppTokenParams) (*AppTokenRevokeResponse, error) {
+	path := "/api/app-tokens/{app_token_id}"
+	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
+	var out AppTokenRevokeResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RevokeGatewayDeviceParams carries the path, query, and header parameters.
 type RevokeGatewayDeviceParams struct {
 	ID string `url:"id"`
@@ -407,42 +441,6 @@ func (c *Client) SetExtensionSecrets(ctx context.Context, params SetExtensionSec
 		path += "?" + query.Encode()
 	}
 	var out ExtensionSecretsPayload
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetGatewaySurface Set durable exposure for one gateway surface
-func (c *Client) SetGatewaySurface(ctx context.Context, body GatewaySurfaceRequest) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/surfaces"
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetSessionParentParams carries the path, query, and header parameters.
-type SetSessionParentParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// SetSessionParent Adopt a parentless user session as a child of another session
-func (c *Client) SetSessionParent(ctx context.Context, params SetSessionParentParams, body SetSessionParentRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
 	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

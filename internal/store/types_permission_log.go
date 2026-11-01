@@ -61,6 +61,12 @@ type PermissionRollupQuery struct {
 	Until       time.Time
 }
 
+// PermissionEntriesQuery reads the newest audit rows in the caller's reach.
+type PermissionEntriesQuery struct {
+	PermissionRollupQuery
+	Limit int
+}
+
 type PermissionDailyRollup struct {
 	Day       string
 	AgentName string

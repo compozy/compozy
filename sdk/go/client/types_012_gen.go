@@ -305,6 +305,24 @@ type PermissionDailyRollupPayload struct {
 	Count     int64  `json:"count"`
 }
 
+// PermissionEntriesResponse is a daemon API value.
+type PermissionEntriesResponse struct {
+	Entries []PermissionEntryPayload `json:"entries"`
+}
+
+// PermissionEntryPayload is a daemon API value.
+type PermissionEntryPayload struct {
+	ID            string    `json:"id"`
+	SessionID     string    `json:"session_id"`
+	AgentName     string    `json:"agent_name"`
+	Action        string    `json:"action"`
+	Resource      string    `json:"resource"`
+	Decision      string    `json:"decision"`
+	InitiatorKind string    `json:"initiator_kind"`
+	InitiatorID   string    `json:"initiator_id"`
+	Timestamp     time.Time `json:"timestamp"`
+}
+
 // PermissionRollupResponse is a daemon API value.
 type PermissionRollupResponse struct {
 	Since   time.Time                      `json:"since"`
@@ -428,15 +446,4 @@ type ProfileSelection struct {
 	WorkspaceID string                `json:"workspace_id,omitempty"`
 	Profile     string                `json:"profile"`
 	Note        string                `json:"note,omitempty"`
-}
-
-// ProfileSelectionScope is a daemon API value.
-type ProfileSelectionScope string
-
-// PromoteSessionInputRequest is a daemon API value.
-type PromoteSessionInputRequest struct {
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
 }

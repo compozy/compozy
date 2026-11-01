@@ -1,5 +1,6 @@
 // Components
 export { HomeDashboard } from "./components/home-dashboard";
+export { ActivityPage } from "./components/activity/activity-page";
 // The loading shapes also live on their own light entry, `@/systems/dashboard/skeleton`.
 export { DashboardWindowSkeleton } from "./components/dashboard-window-skeleton";
 

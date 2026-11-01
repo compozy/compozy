@@ -53,7 +53,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     id: "dashboard",
     title: "Dashboard",
     icon: LayoutDashboard,
-    paths: ["/"],
+    paths: ["/", "/activity"],
     dock: { group: 1 },
   },
   session: {

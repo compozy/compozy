@@ -50,9 +50,11 @@ import {
   isAgentEventPayload,
   isClarifyEventData,
   isCompactionItemData,
+  isSessionReportData,
   PermissionDataPart,
   RuntimeActivityNotice,
   SessionCompactionItem,
+  SessionReportPart,
   ThinkingBlock,
 } from "@/systems/session";
 
@@ -109,6 +111,9 @@ function SessionDataRowView({ row }: { row: SessionDataRow }) {
   }
   if (row.part.name === "data-compozy-compaction" && isCompactionItemData(row.part.data)) {
     return <SessionCompactionItem item={row.part.data} />;
+  }
+  if (row.part.name === "data-compozy-report" && isSessionReportData(row.part.data)) {
+    return <SessionReportPart data={row.part.data} />;
   }
 
   return <SessionDataEventMarker name={row.part.name} />;

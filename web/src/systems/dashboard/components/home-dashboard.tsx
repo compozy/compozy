@@ -27,9 +27,15 @@ import { HOME_BODY_CLASS, HOME_ZONE_PAIR_CLASS, HOME_ZONE_STACK_CLASS } from "./
  */
 export interface HomeDashboardProps extends ComponentProps<"div"> {
   liveEnabled?: boolean;
+  onOpenActivity?: () => void;
 }
 
-export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeDashboardProps) {
+export function HomeDashboard({
+  className,
+  liveEnabled = true,
+  onOpenActivity,
+  ...props
+}: HomeDashboardProps) {
   const model = useHomeDashboard({ liveEnabled });
   const { workingNow, agents, system } = model;
 
@@ -102,6 +108,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                   <div className={HOME_ZONE_PAIR_CLASS}>
                     <HomeAgentsPanel loading={agents.loading} rows={agents.rows} />
                     <HomeActivityFeed
+                      onOpenAll={onOpenActivity}
                       errorMessage={model.activityErrorMessage}
                       events={model.activity ?? []}
                       status={model.activityStatus}

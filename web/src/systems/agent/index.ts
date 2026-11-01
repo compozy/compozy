@@ -1,5 +1,8 @@
 // Types
 export type {
+  AgentInstanceAway,
+  AgentInstanceReport,
+  AgentInstanceReportKind,
   AgentAggregateFilter,
   AgentCatalogFilter,
   AgentCatalogItem,
@@ -343,7 +346,13 @@ export {
   agentInstancesByUrgency,
   agentScopeLabel,
 } from "./lib/agent-instance";
-export { agentInstanceCheckInsOptions, agentTeamOptions } from "./lib/query-options";
+export { agentTeamOptions } from "./lib/query-options";
 export { formatRelativeClock } from "./lib/agent-time";
 export { useAgentMemorySummary } from "./hooks/use-agent-memory";
 export { agentFromOrphanInstance } from "./lib/agent-instance-wire";
+export {
+  agentInstanceAwayOptions,
+  agentInstanceCheckInsOptions,
+  agentInstanceReportsOptions,
+} from "./lib/query-options";
+export { markAgentInstanceSeen } from "./adapters/agent-instance-api";

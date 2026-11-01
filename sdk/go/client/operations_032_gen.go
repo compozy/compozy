@@ -8,6 +8,34 @@ import (
 	"strings"
 )
 
+// UnexposeSkill Remove owned provider-root links for one skill
+func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, body SkillExposureRequest) (*SkillUnexposeResponse, error) {
+	path := "/api/skills/{name}/unexpose"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillUnexposeResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnpinCmdPaletteCommandParams carries the path, query, and header parameters.
+type UnpinCmdPaletteCommandParams struct {
+	ID        string  `url:"id"`
+	Workspace string  `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // UnpinCmdPaletteCommand Unpin one command palette command
 func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
 	path := "/api/cmd-palette/pins/{id}"
@@ -417,30 +445,4 @@ type UpdateSettingsSkillsParams struct {
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 	AgentName   *string `url:"agent_name"`
-}
-
-// UpdateSettingsSkills Update the skills settings section
-func (c *Client) UpdateSettingsSkills(ctx context.Context, params UpdateSettingsSkillsParams, body UpdateSettingsSkillsRequest) (*SettingsSkillsMutationResponse, error) {
-	path := "/api/settings/skills"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsSkillsMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

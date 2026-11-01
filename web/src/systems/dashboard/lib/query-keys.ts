@@ -1,4 +1,4 @@
-import { PROFILE_AGGREGATE } from "@/systems/profiles";
+import { PROFILE_AGGREGATE, type ProfileScopeParams } from "@/systems/profiles";
 import type { HomeActivityFilter, HomeOverviewFilter } from "../types";
 
 function normalizeText(value?: string | null): string {
@@ -34,6 +34,11 @@ export const dashboardKeys = {
    */
   overviewPopulation: (queryKey: readonly unknown[]) =>
     queryKey.filter((_, index) => index !== OVERVIEW_USAGE_WINDOW_SLOT),
+
+  permissionRollup: (filter: string, profile: ProfileScopeParams) =>
+    [...dashboardKeys.all, "permission-rollup", filter, profile] as const,
+  permissionEntries: (filter: string, profile: ProfileScopeParams) =>
+    [...dashboardKeys.all, "permission-entries", filter, profile] as const,
 
   activityRoot: () => [...dashboardKeys.all, "activity"] as const,
   activity: (filters: HomeActivityFilter = {}) =>

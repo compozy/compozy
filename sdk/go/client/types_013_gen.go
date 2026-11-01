@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// ProfileSelectionScope is a daemon API value.
+type ProfileSelectionScope string
+
+// PromoteSessionInputRequest is a daemon API value.
+type PromoteSessionInputRequest struct {
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
+}
+
 // PromptAttachmentRef is a daemon API value.
 type PromptAttachmentRef struct {
 	ID       string `json:"id"`
@@ -434,13 +445,4 @@ type RecapPayload struct {
 	PendingInputs  int                       `json:"pending_inputs"`
 	PendingMarkers int                       `json:"pending_markers"`
 	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
-}
-
-// RecapSnapshotPayload is a daemon API value.
-type RecapSnapshotPayload struct {
-	GeneratedAt      time.Time `json:"generated_at"`
-	EventCursor      int64     `json:"event_cursor"`
-	TranscriptCursor int64     `json:"transcript_cursor"`
-	QueueGeneration  int64     `json:"queue_generation"`
-	Consistency      string    `json:"consistency"`
 }

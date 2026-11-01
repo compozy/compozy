@@ -37,6 +37,11 @@ func (o *Observer) QueryPermissionLog(
 	return o.registry.ListPermissionLog(ctx, query)
 }
 
+// QueryPermissionEntries returns the newest audit rows in a profile's reach.
+func (o *Observer) QueryPermissionEntries(ctx context.Context, query store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+	return o.registry.PermissionEntries(ctx, query)
+}
+
 // QueryHookCatalog returns the resolved hook catalog for the supplied filter.
 func (o *Observer) QueryHookCatalog(
 	ctx context.Context,

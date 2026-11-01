@@ -47,6 +47,18 @@ describe("Topbar", () => {
     expect(document.querySelector("[data-slot='topbar-breadcrumb']")).toBeNull();
   });
 
+  it("Should let the surface name its own host context", () => {
+    const { container } = render(
+      <TopbarSlotProvider>
+        <Topbar leading={<span>window host</span>} title="Session" />
+        <ProbeSlot label="slot" slot={{ leading: <span>compozy</span> }} />
+      </TopbarSlotProvider>
+    );
+    const leading = container.querySelector("[data-slot='topbar-leading']");
+    expect(leading).toHaveTextContent("compozy");
+    expect(leading).not.toHaveTextContent("window host");
+  });
+
   it("Should render host context before the identity only when supplied", () => {
     const { container, rerender } = render(
       <TopbarSlotProvider>

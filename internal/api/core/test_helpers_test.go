@@ -344,6 +344,7 @@ func newHandlerFixtureWithRuntime(
 	engine.POST("/task-reviews/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
 	engine.GET("/observe/overview", handlers.ObserveOverview)
 	engine.GET("/permissions/rollup", handlers.PermissionRollup)
+	engine.GET("/permissions", handlers.PermissionEntries)
 	engine.GET("/observe/tasks/dashboard", handlers.TaskDashboard)
 	engine.GET("/observe/tasks/inbox", handlers.TaskInbox)
 	engine.POST("/workspaces", handlers.CreateWorkspace)

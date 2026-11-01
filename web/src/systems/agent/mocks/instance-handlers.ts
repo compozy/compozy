@@ -5,6 +5,8 @@ import type {
   AgentInstanceCheckDigestItem,
   AgentInstanceCheckIn,
   AgentInstancePayload,
+  AgentInstanceAway,
+  AgentInstanceReport,
 } from "../types";
 import { agentInstanceFixture } from "./instance-fixtures";
 
@@ -12,6 +14,8 @@ let instancesState: AgentInstancePayload[] = [];
 let checkInsState: AgentInstanceCheckIn[] = [];
 let digestState: AgentInstanceCheckDigestItem[] = [];
 let activityState: AgentActivityPayload | null = null;
+let reportsState: AgentInstanceReport[] = [];
+let awayState: AgentInstanceAway | null = null;
 
 export function resetAgentInstanceMock(): void {
   instancesState = [];
@@ -23,6 +27,8 @@ export function resetAgentInstanceMock(): void {
 /** Without a seed the activity route answers 404, the way a daemon without it does. */
 export function seedAgentActivityMock(activity: AgentActivityPayload | null): void {
   activityState = activity;
+  reportsState = [];
+  awayState = null;
 }
 
 export function seedAgentInstanceMock(
@@ -33,6 +39,15 @@ export function seedAgentInstanceMock(
   instancesState = structuredClone([...instances]);
   checkInsState = structuredClone([...checkIns]);
   digestState = structuredClone([...digest]);
+}
+
+/** What the reports route and the away read return; no away seeded answers 404, as today. */
+export function seedAgentInstanceReports(
+  reports: readonly AgentInstanceReport[],
+  away: AgentInstanceAway | null = null
+): void {
+  reportsState = structuredClone([...reports]);
+  awayState = structuredClone(away);
 }
 
 function respond(id: unknown, patch: Partial<AgentInstancePayload>) {
@@ -53,6 +68,15 @@ export const instanceHandlers: HttpHandler[] = [
   http.get("*/api/agent-instances/:id/reports", () =>
     HttpResponse.json({ reports: [], next_cursor: "" })
   ),
+  http.get("*/api/agent-instances/:id/reports", () =>
+    HttpResponse.json({ reports: reportsState, next_cursor: "" })
+  ),
+  http.get("*/api/agent-instances/:id/away", () =>
+    awayState
+      ? HttpResponse.json(awayState)
+      : HttpResponse.json({ code: "not_found" }, { status: 404 })
+  ),
+  http.post("*/api/agent-instances/:id/away", () => new HttpResponse(null, { status: 204 })),
   http.get("*/api/agent-instances", () =>
     HttpResponse.json({ instances: instancesState, next_cursor: "" })
   ),

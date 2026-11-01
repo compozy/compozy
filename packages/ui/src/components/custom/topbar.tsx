@@ -316,6 +316,7 @@ function Topbar({ controls, title, titleRef, glyph, leading, className, ...props
   const slot = useTopbarSlotValue();
   const hasControls = controls != null;
   const hasTrail = Boolean(slot?.status) || Boolean(slot?.actions);
+  const lead = slot?.leading ?? leading;
 
   return (
     <header
@@ -326,9 +327,9 @@ function Topbar({ controls, title, titleRef, glyph, leading, className, ...props
       )}
       {...props}
     >
-      {leading != null ? (
+      {lead != null ? (
         <div data-slot="topbar-leading" className="flex min-w-0 shrink-[2] items-center">
-          {leading}
+          {lead}
         </div>
       ) : null}
       <TopbarIdentity title={title} titleRef={titleRef} glyph={glyph} slot={slot} />

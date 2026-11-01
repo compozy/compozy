@@ -7231,6 +7231,14 @@ func TestPermissionDailyRollups(t *testing.T) {
 		if err != nil || len(rows) != 1 || rows[0].Count != 3 {
 			t.Fatalf("unattended rollups = %#v, %v", rows, err)
 		}
+		entries, err := db.PermissionEntries(t.Context(), store.PermissionEntriesQuery{PermissionRollupQuery: query, Limit: 2})
+		if err != nil || len(entries) != 2 || entries[0].ID != "rollup-3" || entries[0].InitiatorKind != "extension" {
+			t.Fatalf("unattended entries = %#v, %v", entries, err)
+		}
+		foreign, err := db.PermissionEntries(t.Context(), store.PermissionEntriesQuery{PermissionRollupQuery: store.PermissionRollupQuery{ReadScope: store.ReadScope{ProfileID: "other-profile"}, Since: start, Until: start.Add(24 * time.Hour)}, Limit: 10})
+		if err != nil || len(foreign) != 0 {
+			t.Fatalf("foreign entries = %#v, %v", foreign, err)
+		}
 		query.ReadScope.ProfileID = "other-profile"
 		rows, err = db.PermissionDailyRollups(t.Context(), query)
 		if err != nil || len(rows) != 0 {

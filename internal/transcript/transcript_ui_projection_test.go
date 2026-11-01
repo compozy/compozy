@@ -980,6 +980,66 @@ func TestCompactionProjection(t *testing.T) {
 	})
 }
 
+// Invariant: a report is one data entry that leaves the running assistant message open.
+func TestReportProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project a report beside a running turn", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		turn := func(id string, seq int64, text string) store.SessionEvent {
+			return mustUIAgentSessionEvent(t, id, seq, at, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: "s1", TurnID: "t1", Timestamp: at, Text: text,
+			})
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{
+			turn("a1", 1, "Hello "),
+			{
+				ID: "report:arpt-1", SessionID: "s1", TurnID: "report:arpt-1", Sequence: 2, Timestamp: at,
+				Type: ReportEventType, Content: `{"report_id":"arpt-1","instance_id":"ainst-1","kind":"proposal","payload":{"proposals":[{"title":"Unblock","body":"Run 12"}]},"created_at":"2026-11-01T12:00:00Z"}`,
+			},
+			turn("a2", 3, "again"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(messages) != 2 {
+			t.Fatalf("messages = %#v", messages)
+		}
+		report := messages[1]
+		if report.ID != "report:arpt-1" || report.Role != UIRoleSystem || len(report.Parts) != 1 ||
+			report.Parts[0].Type != "data-compozy-report" || report.Parts[0].ID != "arpt-1" {
+			t.Fatalf("report = %#v", report)
+		}
+		var data struct {
+			Kind    string `json:"kind"`
+			Payload struct {
+				Proposals []struct {
+					Title string `json:"title"`
+				} `json:"proposals"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal(report.Parts[0].Data, &data); err != nil {
+			t.Fatal(err)
+		}
+		if data.Kind != "proposal" || len(data.Payload.Proposals) != 1 || data.Payload.Proposals[0].Title != "Unblock" {
+			t.Fatalf("data = %#v", data)
+		}
+		if got := messages[0].Parts[0].Text; got != "Hello again" {
+			t.Fatalf("assistant text = %q", got)
+		}
+	})
+	t.Run("Should leave an undecodable report out", func(t *testing.T) {
+		t.Parallel()
+		messages, err := ToUIMessages([]store.SessionEvent{{ID: "report:x", SessionID: "s1", Sequence: 1, Type: ReportEventType, Content: "{"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(messages) != 0 {
+			t.Fatalf("messages = %#v", messages)
+		}
+	})
+}
+
 func TestSubagentUIProjection(t *testing.T) {
 	t.Run("Should project hosted delegate names from both metadata surfaces", func(t *testing.T) {
 		t.Parallel()

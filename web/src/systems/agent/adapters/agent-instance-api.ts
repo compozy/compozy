@@ -3,11 +3,13 @@ import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
 import { normalizeAgentInstance } from "../lib/agent-instance-wire";
 import type {
   AgentActivityPayload,
+  AgentInstanceAway,
   AgentInstanceCheckInsResponse,
-  AgentInstanceReport,
   AgentInstanceCheckResponse,
   AgentInstanceOccurrence,
   AgentInstancePayload,
+  AgentInstanceReport,
+  AgentInstanceReportsResponse,
   AgentInstancesResponse,
   CreateAgentInstanceParams,
   DraftAgentInstructionsParams,
@@ -149,10 +151,16 @@ export function fetchAgentInstanceOccurrence(id: string, occurrence: string, sig
   );
 }
 
-export async function fetchAgentInstanceReports(id: string, limit: number, signal?: AbortSignal) {
-  const { reports } = await request<{ reports: AgentInstanceReport[] }>(
+const REPORTS_READ_LIMIT = 100;
+
+export async function fetchAgentInstanceReports(
+  id: string,
+  limit = REPORTS_READ_LIMIT,
+  signal?: AbortSignal
+): Promise<AgentInstanceReport[]> {
+  const { reports } = await request<AgentInstanceReportsResponse>(
     `${instancePath(id)}/reports?limit=${limit}`,
-    { signal, fallback: "Failed to fetch what it found" }
+    { signal, fallback: "Failed to fetch this agent's reports" }
   );
   return reports;
 }
@@ -180,6 +188,34 @@ export async function fetchAgentActivity(
     );
   } catch (error) {
     if (error instanceof AgentInstanceApiError && [404, 501].includes(error.status)) return null;
+    throw error;
+  }
+}
+
+/** `null` until the daemon serves away reads: no route means no digest, never a made-up one. */
+export async function fetchAgentInstanceAway(
+  id: string,
+  signal?: AbortSignal
+): Promise<AgentInstanceAway | null> {
+  try {
+    return await request<AgentInstanceAway>(`/api/agent-instances/${encodeURIComponent(id)}/away`, {
+      signal,
+      fallback: "Failed to fetch what happened while you were away",
+    });
+  } catch (error) {
+    if (error instanceof AgentInstanceApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function markAgentInstanceSeen(id: string): Promise<void> {
+  try {
+    await request<void>(`/api/agent-instances/${encodeURIComponent(id)}/away`, {
+      method: "POST",
+      fallback: "Failed to mark this agent as seen",
+    });
+  } catch (error) {
+    if (error instanceof AgentInstanceApiError && error.status === 404) return;
     throw error;
   }
 }

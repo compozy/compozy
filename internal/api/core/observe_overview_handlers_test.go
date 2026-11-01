@@ -158,6 +158,25 @@ func TestPermissionRollupHandler(t *testing.T) {
 			t.Fatalf("response = %d %s", response.Code, response.Body.String())
 		}
 	})
+	t.Run("Should list entries under the same scope and filters", func(t *testing.T) {
+		t.Parallel()
+		observer := testutil.StubObserver{QueryPermissionEntriesFn: func(_ context.Context, q store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+			if !q.Unattended || q.ReadScope.ProfileID != store.DefaultProfileID || q.Limit != 1000 || q.Since.IsZero() {
+				t.Fatalf("query = %#v", q)
+			}
+			return []store.PermissionLogEntry{{ID: "p1", AgentName: "coder", Decision: "allow", InitiatorKind: "daemon"}}, nil
+		}}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/permissions?days=14&unattended=true", nil))
+		var payload contract.PermissionEntriesResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || len(payload.Entries) != 1 || payload.Entries[0].InitiatorKind != "daemon" {
+			t.Fatalf("response = %d %s", response.Code, response.Body.String())
+		}
+	})
 	for _, query := range []string{"days=0", "days=91", "days=bad", "unattended=bad"} {
 		t.Run("Should reject invalid query "+query, func(t *testing.T) {
 			t.Parallel()

@@ -2003,6 +2003,13 @@
             "resource": "openai",
             "app_access": "denied"
         },
+        "listPermissionEntries": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.observe.listPermissionEntries();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListPermissionEntries(ctx, client.ListPermissionEntriesParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "observe",
+            "app_access": "denied"
+        },
         "listProcesses": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listProcesses();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListProcesses(ctx, client.ListProcessesParams{})\nif err != nil { return err }\nfmt.Println(result)",
