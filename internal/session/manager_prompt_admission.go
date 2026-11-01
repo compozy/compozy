@@ -135,6 +135,14 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		replayed.TargetInLater = parked && replayed.Status == store.SessionPromptResultStatusQueued
 		return *replayed, nil
 	}
+	if reader, ok := m.promptAdmissionStore.(interface {
+		CheckSessionSuperseded(context.Context, string) error
+	}); ok {
+		if err := reader.CheckSessionSuperseded(ctx, preparation.request.target); err != nil {
+			return SendPromptResult{}, err
+		}
+	}
+
 	if !found {
 		if err := m.canonicalizeAdmissionPromptAttachments(
 			ctx,

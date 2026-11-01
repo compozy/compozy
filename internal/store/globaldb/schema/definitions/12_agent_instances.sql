@@ -34,11 +34,15 @@ CREATE TABLE agent_instance_reports (
     event_session_id TEXT NOT NULL DEFAULT '',
     event_seq INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    delivered_at TEXT
+    delivered_at TEXT,
+    recovery_noted INTEGER NOT NULL DEFAULT 0 CHECK (recovery_noted IN (0, 1))
 );
 
 CREATE INDEX idx_agent_instance_reports_history ON agent_instance_reports(instance_id, created_at, id);
 CREATE INDEX idx_agent_instance_reports_pending ON agent_instance_reports(instance_id, state, created_at, id);
+
+CREATE INDEX idx_agent_instance_reports_unnoted ON agent_instance_reports(id)
+    WHERE state = 'indeterminate' AND recovery_noted = 0;
 
 CREATE TRIGGER agent_instances_workspace_insert_guard
 BEFORE INSERT ON agent_instances

@@ -272,29 +272,27 @@ func (p *AgentProcess) resolvePermissionRequest(
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
 
+	decision, actor := decisionCanceled, cancellationActor
 	select {
-	case resolvedDecision := <-pending.response:
-		outcome, appliedDecision := selectPermissionOutcome(request.Options, resolvedDecision)
-		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, pending.resolvedBy, raw,
-		)
-		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	case decision = <-pending.response:
+		actor = pending.resolvedBy
 	case <-timer.C:
-		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
-		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "timeout", raw,
-		)
-		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+		decision, actor = p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
 	case <-p.permissionConnectionDone():
+		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	case <-ctx.Done():
+		if cancellationActor == "system" && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+			cancellationActor = "timeout"
+		}
+		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	}
-	raw = buildPermissionEventRaw(requestID, decisionCanceled, request)
-	p.emitPermissionEvent(
-		sessionID, turnID, requestID, title, toolCallID, resource, decisionCanceled, cancellationActor, raw,
-	)
-	return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
+	if appliedDecision == "" {
+		appliedDecision = decisionCanceled
+	}
+	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
+	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
+	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
 
 func permissionRequestDisplay(request acpsdk.RequestPermissionRequest) (string, string) {

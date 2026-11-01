@@ -14,7 +14,7 @@ AND NOT EXISTS(SELECT 1 FROM session_subagents WHERE parent_session_id=sqlc.arg(
 AND NOT EXISTS(SELECT 1 FROM session_subagent_wakes WHERE parent_session_id=sqlc.arg(session_id) AND state IN ('open','dispatched'))
 AND NOT EXISTS(SELECT 1 FROM session_pending_interactions WHERE session_id=sqlc.arg(session_id) AND status IN ('pending','orphaned'))
 AND NOT EXISTS(SELECT 1 FROM session_prompt_reply_watches WHERE (sender_session_id=sqlc.arg(session_id) OR target_session_id=sqlc.arg(session_id)) AND state IN ('armed','fired'))
-AND NOT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE session_id=sqlc.arg(session_id) AND state IN ('reserved','dispatch_committed','indeterminate'))
+AND NOT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE session_id=sqlc.arg(session_id) AND state IN ('reserved','dispatch_committed'))
 AND NOT EXISTS(SELECT 1 FROM session_input_queue WHERE session_id=sqlc.arg(session_id) AND status IN ('queued','dispatching'));
 
 -- name: PublishRotatedInstanceMain :execrows

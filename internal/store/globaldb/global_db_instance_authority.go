@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 )
@@ -31,4 +34,31 @@ func (r *InstanceRepo) InstanceCaller(ctx context.Context, sessionID string) (ag
 		return agentinstance.Caller{}, err
 	}
 	return result, nil
+}
+
+func (r *SessionRepo) CheckSessionSuperseded(ctx context.Context, sessionID string) error {
+	if err := r.checkReady(ctx, "check session supersession"); err != nil {
+		return err
+	}
+	return checkSessionSuperseded(ctx, r.queries, sessionID)
+}
+
+func checkSessionSuperseded(ctx context.Context, queries *sqlcgen.Queries, sessionID string) error {
+	superseded, err := queries.IsSupersededInstanceSession(ctx, sessionID)
+	if err != nil || !superseded {
+		return err
+	}
+	caller, err := queries.GetInstanceCaller(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	id, ok := caller.OriginatingInstanceID.(string)
+	if !ok {
+		return errors.New("store: invalid originating instance")
+	}
+	instance, err := queries.GetAgentInstance(ctx, id)
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("%w: current main session %s", store.ErrSessionSuperseded, instance.MainSessionID.String)
 }

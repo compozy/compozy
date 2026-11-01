@@ -240,13 +240,10 @@ func claimSessionPromptAdmission(
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	superseded, err := queries.IsSupersededInstanceSession(ctx, req.SessionID)
-	if err != nil {
+	if err := checkSessionSuperseded(ctx, queries, req.SessionID); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	if superseded {
-		return store.SessionPromptAdmission{}, false, store.ErrSessionSuperseded
-	}
+
 	message, err := queries.GetSessionPromptAdmissionByMessageID(
 		ctx,
 		sqlcgen.GetSessionPromptAdmissionByMessageIDParams{

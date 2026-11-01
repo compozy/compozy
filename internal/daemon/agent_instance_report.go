@@ -24,11 +24,12 @@ func (w instanceReportEventWriter) Publish(
 		ctx,
 		sessionID,
 		session.InstanceReportEvent{
-			ID:         report.ID,
-			InstanceID: report.InstanceID,
-			Kind:       report.Kind,
-			Payload:    report.Payload,
-			CreatedAt:  report.CreatedAt,
+			Republished: report.EventSessionID != "",
+			ID:          report.ID,
+			InstanceID:  report.InstanceID,
+			Kind:        report.Kind,
+			Payload:     report.Payload,
+			CreatedAt:   report.CreatedAt,
 		},
 	)
 }

@@ -138,10 +138,19 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 		pending.resolvedBy = "operator"
 	}
 	delete(p.pendingPermissions, requestID)
-	p.pendingPermissionMu.Unlock()
-
 	pending.response <- decision
+	p.pendingPermissionMu.Unlock()
 	return nil
+}
+
+func (p *AgentProcess) expirePendingPermission(pending *pendingPermission, decision permissionDecision, actor string) (permissionDecision, string) {
+	p.pendingPermissionMu.Lock()
+	defer p.pendingPermissionMu.Unlock()
+	if p.pendingPermissions[pending.requestID] == pending {
+		delete(p.pendingPermissions, pending.requestID)
+		return decision, actor
+	}
+	return <-pending.response, pending.resolvedBy
 }
 
 // RequestPermission reuses the ACP client-side permission path for daemon-originated tool approvals.

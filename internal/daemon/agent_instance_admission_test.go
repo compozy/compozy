@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"log/slog"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -514,12 +515,26 @@ func TestInstanceRotationFlow(t *testing.T) {
 				f.stopErr = failure
 			}
 			r := instanceMainRotator{sessions: f, store: f, monitors: f, starter: f, reports: f, now: func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) }}
+			var changes []agentinstance.Instance
+			r.changed = func(instance agentinstance.Instance) {
+				if !f.published || len(f.stopped) != 0 {
+					t.Fatal("catalog change must follow publication and precede cleanup")
+				}
+				changes = append(changes, instance)
+			}
 			err := r.Rotate(t.Context(), agentinstance.Instance{ID: "instance", MainSessionID: "main"}, agentinstance.RotationDecision{Eligible: true, Publication: agentinstance.RotationPublication{InstanceID: "instance", PredecessorID: "main"}})
 			failed := tc.start || tc.publish || tc.stop
 			if (err != nil) != failed {
 				t.Fatalf("rotation error = %v", err)
 			}
 			wantPublished := !tc.start && !tc.publish
+			if wantPublished {
+				if len(changes) != 1 || changes[0].ID != "instance" || changes[0].MainSessionID != "candidate" {
+					t.Fatalf("catalog changes = %#v", changes)
+				}
+			} else if len(changes) != 0 {
+				t.Fatalf("failed publication emitted catalog changes: %#v", changes)
+			}
 			wantStopped := "candidate"
 			if wantPublished {
 				wantStopped = "main"
@@ -530,7 +545,7 @@ func TestInstanceRotationFlow(t *testing.T) {
 			if wantPublished && len(f.reports) != 0 {
 				t.Fatal("post-publication cleanup generated a pre-publication failure report")
 			}
-			if !wantPublished && (len(f.reports) != 1 || f.reports[0].Kind != "rotation_failed") {
+			if !wantPublished && (len(f.reports) != 1 || f.reports[0].Kind != "rotation_failed" || f.reports[0].SourceKey != "rotation:failed:main") {
 				t.Fatalf("failure reports = %v", f.reports)
 			}
 		})
@@ -745,6 +760,87 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 		want := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...)})
 		if len(want.WorkspacePaths) != 2 || !reflect.DeepEqual(definition.Policy.WorkspacePaths, want.WorkspacePaths) {
 			t.Fatalf("definition paths = %v, want %v", definition.Policy.WorkspacePaths, want.WorkspacePaths)
+		}
+	})
+}
+
+type blockedInstanceReconciliation struct {
+	agentinstance.InstanceStore
+	agentinstance.Admission
+	agentinstance.MainSessionStarter
+	agentinstance.ReconciliationSessions
+	started chan struct{}
+	stopped chan struct{}
+}
+
+func (b *blockedInstanceReconciliation) ReconciliationPage(ctx context.Context, _ string, _ int) ([]agentinstance.Instance, error) {
+	close(b.started)
+	<-ctx.Done()
+	close(b.stopped)
+	return nil, ctx.Err()
+}
+func TestInstanceMaintenanceWorker(t *testing.T) {
+	t.Run("Should isolate blocked reconciliation and join it on shutdown", func(t *testing.T) {
+		t.Parallel()
+		boundary := &blockedInstanceReconciliation{started: make(chan struct{}), stopped: make(chan struct{})}
+		service, err := agentinstance.NewService(agentinstance.WithStore(boundary), agentinstance.WithAdmission(boundary), agentinstance.WithMainSessions(boundary), agentinstance.WithActiveLimit(10))
+		if err != nil {
+			t.Fatal(err)
+		}
+		state := &bootState{logger: slog.Default(), agentInstances: &core.AgentInstanceAPI{Service: service}}
+		cleanup := &bootCleanup{}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		if err := (&Daemon{}).bootInstanceMaintenance(ctx, state, cleanup, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			var errs []error
+			state.runtimeWorkers.shutdown(context.Background(), &errs)
+			if len(errs) > 0 {
+				t.Error(errs)
+			}
+		})
+		select {
+		case <-boundary.started:
+		case <-t.Context().Done():
+			t.Fatal("maintenance did not start")
+		}
+		var errs []error
+		state.runtimeWorkers.shutdown(t.Context(), &errs)
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		select {
+		case <-boundary.stopped:
+		default:
+			t.Fatal("shutdown did not join reconciliation")
+		}
+	})
+}
+
+func TestInstanceRotationRetry(t *testing.T) {
+	t.Run("Should postpone failed rotation until the configured retry interval", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		used, size := int64(90), int64(100)
+		f := &rotationFlowFixture{startErr: errors.New("start failed")}
+		f.info = &session.Info{State: session.StateActive}
+		f.ready = true
+		f.events = []store.SessionEvent{managedGoalContextEvent(t, 1, acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: &used, ContextSize: &size}})}
+		r := instanceMainRotator{sessions: f, store: f, monitors: f, starter: f, reports: f, now: func() time.Time { return now }, threshold: 0.8, retryDelay: time.Minute}
+		instance := agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"}
+		if err := r.Rotate(t.Context(), instance, agentinstance.RotationDecision{}); err == nil {
+			t.Fatal("missing startup error")
+		}
+		decision, err := r.Eligible(t.Context(), instance)
+		if err != nil || decision.Eligible {
+			t.Fatalf("early retry = %#v, %v", decision, err)
+		}
+		now = now.Add(time.Minute)
+		decision, err = r.Eligible(t.Context(), instance)
+		if err != nil || !decision.Eligible {
+			t.Fatalf("due retry = %#v, %v", decision, err)
 		}
 	})
 }

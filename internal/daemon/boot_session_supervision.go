@@ -74,16 +74,32 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 		if sweeper, ok := state.registry.(heartbeatWakeSweeper); ok {
 			_, sweepErr = sweeper.SweepHeartbeatWakeEvents(ctx, d.now(), 1000)
 		}
-		var instanceErr error
-		if state.agentInstances != nil {
-			instanceErr = state.agentInstances.Service.Reconcile(ctx)
-		}
-		return errors.Join(registryErr, supervisionErr, sweepErr, instanceErr, sweepInstanceReports(ctx, state))
+		return errors.Join(registryErr, supervisionErr, sweepErr)
 	}, interval, func(err error) { state.logger.Error("session supervision failed", "error", err) })
 	if startErr := worker.Start(ctx); startErr != nil {
 		return fmt.Errorf("daemon: start session supervision: %w", startErr)
 	}
 	cleanup.add(worker.Shutdown)
 	state.runtimeWorkers.supervision = worker
+	return d.bootInstanceMaintenance(ctx, state, cleanup, interval)
+}
+
+func (d *Daemon) bootInstanceMaintenance(ctx context.Context, state *bootState, cleanup *bootCleanup, interval time.Duration) error {
+	worker := retention.NewPeriodicWorker("instance maintenance", func(ctx context.Context) error {
+		var reconcileErr error
+		if state.agentInstances != nil {
+			reconcileErr = state.agentInstances.Service.Reconcile(ctx)
+		}
+		var retentionErr error
+		if provider, ok := state.registry.(instanceReportRepositoryProvider); ok {
+			_, retentionErr = provider.InstanceReports().SweepTerminalReports(ctx, d.now(), state.cfg.Agents.Heartbeat.WakeEventRetention, 1000)
+		}
+		return errors.Join(reconcileErr, sweepInstanceReports(ctx, state), retentionErr)
+	}, interval, func(err error) { state.logger.Error("instance maintenance failed", "error", err) })
+	if err := worker.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start instance maintenance: %w", err)
+	}
+	cleanup.add(worker.Shutdown)
+	state.runtimeWorkers.instanceMaintenance = worker
 	return nil
 }

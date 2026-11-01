@@ -1041,6 +1041,11 @@ func TestInstanceReportPublication(t *testing.T) {
 		if err != nil || first != second {
 			t.Fatalf("retry=%d first=%d err=%v", second, first, err)
 		}
+		successor := createSession(t, h)
+		report.Republished = true
+		if seq, err := h.manager.PublishInstanceReport(t.Context(), successor.ID, report); err != nil || seq <= 0 {
+			t.Fatalf("successor publication = %d, %v", seq, err)
+		}
 		count := 0
 		for {
 			select {
@@ -1078,6 +1083,11 @@ func TestInstanceReportPublication(t *testing.T) {
 		second, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
 		if err != nil || first != second {
 			t.Fatalf("retry=%d first=%d err=%v", second, first, err)
+		}
+		successor := createSession(t, h)
+		report.Republished = true
+		if seq, err := h.manager.PublishInstanceReport(t.Context(), successor.ID, report); err != nil || seq <= 0 {
+			t.Fatalf("successor publication = %d, %v", seq, err)
 		}
 		count := 0
 		for {
@@ -1196,5 +1206,5 @@ type reportPublicationWriter struct{ manager *Manager }
 var _ agentinstance.ReportEventWriter = reportPublicationWriter{}
 
 func (w reportPublicationWriter) Publish(ctx context.Context, id string, report agentinstance.Report) (int64, error) {
-	return w.manager.PublishInstanceReport(ctx, id, InstanceReportEvent{ID: report.ID, InstanceID: report.InstanceID, Kind: report.Kind, Payload: report.Payload, CreatedAt: report.CreatedAt})
+	return w.manager.PublishInstanceReport(ctx, id, InstanceReportEvent{Republished: report.EventSessionID != "", ID: report.ID, InstanceID: report.InstanceID, Kind: report.Kind, Payload: report.Payload, CreatedAt: report.CreatedAt})
 }

@@ -519,6 +519,7 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 	}{
 		{name: "Should close the permission event when the caller cancels", cause: context.Canceled, actor: "provider"},
 		{name: "Should close the permission event when the caller deadline expires", cause: context.DeadlineExceeded, actor: "provider"},
+		{name: "Should attribute native approval deadlines to timeout", cause: context.DeadlineExceeded, native: true, actor: "timeout"},
 		{name: "Should preserve system attribution for a canceled native approval", cause: context.Canceled, native: true, actor: "system"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -566,8 +567,70 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 	}
 }
 
+func TestPermissionExpiryOwnership(t *testing.T) {
+	for _, operatorFirst := range []bool{false, true} {
+		name := "Should reject answers after expiry wins"
+		if operatorFirst {
+			name = "Should preserve an operator answer that wins before expiry"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			id, pending, err := proc.registerPendingPermission("turn", acpsdk.RequestPermissionRequest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			answer := ApproveRequest{RequestID: id, Decision: string(decisionAllowOnce)}
+			if operatorFirst {
+				if err := proc.ResolvePermission(answer); err != nil {
+					t.Fatal(err)
+				}
+			}
+			decision, actor := proc.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+			if operatorFirst {
+				if decision != decisionAllowOnce || actor != "operator" {
+					t.Fatalf("winner = %s/%s", decision, actor)
+				}
+			} else if decision != decisionRejectOnce || actor != "timeout" {
+				t.Fatalf("winner = %s/%s", decision, actor)
+			}
+			if err := proc.ResolvePermission(answer); !errors.Is(err, ErrPendingPermissionNotFound) {
+				t.Fatalf("late answer = %v", err)
+			}
+		})
+	}
+}
+
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
+	t.Run("Should close expiry without a provider rejection option", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissionTimeout = time.Nanosecond
+		active, err := proc.beginPrompt("turn-no-reject", 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct", ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "write", Kind: new(acpsdk.ToolKindEdit)},
+			Options: []acpsdk.PermissionOption{{OptionId: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.Outcome.Selected != nil {
+			t.Fatal("expired request was allowed")
+		}
+		events := collectEventsUntilCount(t, active.events, 2)
+		terminal := events[1]
+		if terminal.Decision != "canceled" || terminal.ResolvedByValue() != "timeout" {
+			t.Fatalf("terminal = %#v", terminal)
+		}
+		if err := proc.ResolvePermission(ApproveRequest{RequestID: terminal.RequestIDValue(), Decision: string(decisionAllowOnce)}); !errors.Is(err, ErrPendingPermissionNotFound) {
+			t.Fatalf("late answer = %v", err)
+		}
+	})
 	t.Run("Should attribute automatic rejection to timeout", func(t *testing.T) {
 		t.Parallel()
 

@@ -103,3 +103,78 @@ shows its receipt; force a failed answer and confirm the ask remains. Leave a ma
 reading fewer than six check-ins, then come back: nothing already read returns as While you were
 away. Any report kind in `indeterminate` shows the may-not-have-reached note, however old. Read it
 and See check-ins navigate in place, in the instance's own scope, without reloading the app.
+
+Rotation catalog invalidation regression: after a successful main-session pointer
+swap, subscribers must receive the instance catalog change before predecessor
+cleanup. A cleanup failure must not suppress that change; a refused publication
+must emit none. `TestInstanceRotationFlow` covers these daemon boundaries.
+The browser re-walk remains part of the enclosing integration QA.
+
+Approval expiry attribution regression: a provider-ended permission request must
+persist `approval_expired` with `expired_by: provider`; a deadline expiry must
+persist `expired_by: timeout`. `TestPendingInteractionReportsAtomicity` exercises
+both causes with real SQLite, transactional rollback, subprocess crashes, reopen,
+and duplicate transitions. The report remains unique per interaction.
+
+Native approval deadline regression: expiry of the bridge's deadline must emit a
+terminal permission event attributed to `timeout`, persist `timed_out`, and enter
+the transactional approval-expiry report path. Ordinary caller cancellation keeps
+its existing attribution. ACP permission-boundary and session lifecycle suites
+cover event attribution and durable status respectively.
+
+ACP expiry ownership regression: timeout removes the approval from the actionable
+set before emitting its terminal event. An operator answer that already won stays
+authoritative; later answers fail. Without a provider rejection option, expiry
+emits a canceled decision attributed to timeout so the persisted request closes.
+The ACP permission-expiry suite covers both winner orders and missing rejection.
+
+Report notification regression: republishing a pending proposal or fatigue report
+on the successor must still append its transcript entry, without issuing a second
+operator notification. Publication carries the report's existing publication
+state internally; this does not add a field to the transcript payload.
+
+Indeterminate-report recovery must continue past an unavailable session and write
+notes for later recoverable reports, returning the individual failures to the
+caller. The report-delivery suite injects a missing session before a valid report
+and verifies the later durable note. After durable note persistence, recovery
+acknowledges the report in the global catalog. Subsequent recovery scans exclude
+acknowledged reports, including after restart; failed sessions remain retryable.
+A crash before acknowledgement retries the idempotent event append without
+duplicating the note.
+
+Interruption attribution regression: boot expiry reports `daemon_restart`; recovery
+of a lost provider turn during session resume reports `provider_interrupted`.
+Approval expiry preserves the canonical tool ID when present, otherwise the
+provider's request title, and falls back to `provider` only when both are absent.
+The atomic pending-report suite verifies these payloads across crash and reopen.
+
+Instance maintenance runs in a separate owned periodic worker from session
+supervision. A slow reconciliation or successor startup must not delay process
+reconciliation or inactivity supervision. Shutdown cancels and joins instance
+maintenance; the daemon instance suite exercises a blocked reconciliation through
+that lifecycle. The existing periodic-worker cadence and no-overlap rules apply.
+
+Terminal-report retention runs in bounded maintenance batches. Pending and
+reserved reports never expire. Delivered and indeterminate reports remain for
+at least max(agents.heartbeat.wake_event_retention, 48h), measured from delivery
+when present, otherwise creation. Rows exactly on the cutoff remain until a later
+sweep. The real SQLite report suite covers both configured and minimum retention.
+
+Superseded prompt admission checks the current instance pointer before restarting
+a stopped predecessor, for both default and explicit queue modes. The rejection
+retains `session_superseded` and identifies the current main in its error message.
+Previously completed idempotent receipts remain replayable; transaction admission
+rechecks the pointer to fence a concurrent rotation.
+
+Rotation retry regression: indeterminate admissions are terminal uncertainty and
+must not permanently block rotation; reserved and dispatch-committed work still
+blocks it. Failed candidates share a report key per predecessor. Retry waits for
+agents.heartbeat.default_interval after each failure, using a process-local clock
+fence; restarting the daemon may retry immediately, while persisted report
+source-key deduplication survives restart. No new configuration key is introduced.
+
+Provider context refusal regression: an error event explicitly identifying an
+exhausted context window or an overlong prompt writes one instance failure report
+per turn, reason `context_exhausted`. Repeated error events deduplicate by turn.
+Deadline and generic provider errors do not enter this classification. The report
+uses fixed descriptive text, avoiding propagation of raw provider error content.

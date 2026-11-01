@@ -77,6 +77,9 @@ func (m *Manager) applyAttentionAgentEvent(
 	}
 	if event.Decision == string(acp.PermissionDecisionCanceled) {
 		status = store.PendingInteractionStatusCanceled
+		if resolvedBy == "timeout" {
+			status = store.PendingInteractionStatusTimedOut
+		}
 		if resolvedBy == "provider" {
 			status = store.PendingInteractionStatusTimedOut
 			resolution = "expired-by-provider"

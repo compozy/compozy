@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -113,4 +114,42 @@ func instanceReport(row sqlcgen.AgentInstanceReport) (agentinstance.Report, erro
 		delivered = &value
 	}
 	return agentinstance.Report{ID: row.ID, InstanceID: row.InstanceID, ReportInput: agentinstance.ReportInput{SourceKey: row.SourceKey, Kind: row.Kind, Payload: []byte(row.Payload), Fingerprint: row.Fingerprint}, State: row.State, PromptAdmissionID: row.PromptAdmissionID, EventSessionID: row.EventSessionID, EventSeq: row.EventSeq, CreatedAt: created, DeliveredAt: delivered}, nil
+}
+
+func (r *InstanceReportRepo) SweepTerminalReports(ctx context.Context, now time.Time, retention time.Duration, limit int) (int64, error) {
+	if err := r.checkReady(ctx, "sweep terminal instance reports"); err != nil {
+		return 0, err
+	}
+	if now.IsZero() || limit <= 0 {
+		return 0, errors.New("report retention requires time and positive batch limit")
+	}
+	retention = max(retention, 48*time.Hour)
+	return r.queries.SweepTerminalInstanceReports(ctx, sqlcgen.SweepTerminalInstanceReportsParams{Cutoff: sql.NullString{String: store.FormatTimestamp(now.Add(-retention)), Valid: true}, BatchLimit: int64(limit)})
+}
+
+func (r *SessionRepo) ReportContextExhaustion(ctx context.Context, sessionID, turnID string) error {
+	if err := r.checkReady(ctx, "report exhausted context"); err != nil {
+		return err
+	}
+	caller, err := r.queries.GetInstanceCaller(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	id, ok := caller.OriginatingInstanceID.(string)
+	if !ok {
+		return errors.New("store: invalid originating instance")
+	}
+	if id == "" {
+		return nil
+	}
+	instance, err := r.queries.GetAgentInstance(ctx, id)
+	if err != nil {
+		return err
+	}
+	if instance.ArchivedAt.Valid {
+		return nil
+	}
+	reports := &InstanceReportRepo{repoBase: r.repoBase}
+	_, err = reports.AppendReport(ctx, id, agentinstance.ReportInput{SourceKey: "turn:" + turnID, Kind: "failure", Payload: []byte(`{"reason":"context_exhausted","detail":"The provider refused the prompt because its context limit was reached."}`)})
+	return err
 }

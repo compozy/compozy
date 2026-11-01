@@ -47,7 +47,8 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		agentinstance.WithMainSessionRotator(&instanceMainRotator{
 			sessions: manager, store: repo, monitors: state.sessionMonitors,
 			starter: instanceMainSessions{sessions: manager, attempts: repo}, reports: provider.InstanceReports(), now: d.now,
-			threshold: state.cfg.Agents.StaysOn.RotationThreshold,
+			threshold:  state.cfg.Agents.StaysOn.RotationThreshold,
+			retryDelay: state.cfg.Agents.Heartbeat.DefaultInterval,
 			changed: func(instance agentinstance.Instance) {
 				manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 			},

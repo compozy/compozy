@@ -18,23 +18,34 @@ func appendPendingInteractionReport(ctx context.Context, exec globalSQLExecutor,
 	case transition.Status == store.PendingInteractionStatusTimedOut && interaction.Kind == store.PendingInteractionKindPermission:
 		tool := interaction.Payload.ToolID
 		if tool == "" {
+			tool = strings.TrimSpace(interaction.Title)
+		}
+		if tool == "" {
 			tool = "provider"
+		}
+		expiredBy := "timeout"
+		if transition.Resolution == "expired-by-provider" {
+			expiredBy = "provider"
 		}
 		input.Kind, input.SourceKey = "approval_expired", "interaction:"+interaction.InteractionID
 		payload = struct {
 			SessionID string `json:"session_id"`
 			Tool      string `json:"tool"`
 			ExpiredBy string `json:"expired_by"`
-		}{interaction.SessionID, tool, "timeout"}
+		}{interaction.SessionID, tool, expiredBy}
 	case transition.Status == store.PendingInteractionStatusOrphaned || transition.Resolution == "failed-by-restart":
 		if strings.TrimSpace(interaction.TurnID) == "" {
 			return nil
+		}
+		cause := "provider_interrupted"
+		if transition.Resolution == "failed-by-restart" {
+			cause = "daemon_restart"
 		}
 		input.Kind, input.SourceKey = "interrupted", "turn:"+interaction.TurnID
 		payload = struct {
 			SessionID string `json:"session_id"`
 			Cause     string `json:"cause"`
-		}{interaction.SessionID, "daemon_restart"}
+		}{interaction.SessionID, cause}
 	default:
 		return nil
 	}

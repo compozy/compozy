@@ -13,6 +13,7 @@ import (
 
 type daemonRuntimeWorkers struct {
 	proactiveChecks       *heartbeat.CheckService
+	instanceMaintenance   *retention.PeriodicWorker
 	supervision           *retention.PeriodicWorker
 	autoTitle             *autoTitleRuntime
 	runtimeMemory         *runtimeMemoryMonitor
@@ -30,6 +31,9 @@ func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
 	}
 	appendWrappedError(errs, "daemon: stop managed delivery recovery",
 		stopManagedDeliveryRecovery(ctx, w.managedDeliveries))
+	if w.instanceMaintenance != nil {
+		appendWrappedError(errs, "daemon: shutdown instance maintenance", w.instanceMaintenance.Shutdown(ctx))
+	}
 	if w.supervision != nil {
 		appendWrappedError(errs, "daemon: shutdown supervision", w.supervision.Shutdown(ctx))
 	}

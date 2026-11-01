@@ -71,5 +71,16 @@ WHERE state = 'delivered' AND prompt_admission_id IN (
 -- name: ListIndeterminatePromptReports :many
 SELECT r.id, r.created_at, a.session_id, a.turn_id FROM agent_instance_reports r
 JOIN session_prompt_admissions a ON a.id = r.prompt_admission_id
-WHERE r.state = 'indeterminate' AND r.id > sqlc.arg(after_id)
+WHERE r.state = 'indeterminate' AND r.recovery_noted = 0 AND r.id > sqlc.arg(after_id)
 ORDER BY r.id LIMIT 100;
+
+-- name: SweepTerminalInstanceReports :execrows
+DELETE FROM agent_instance_reports WHERE id IN (
+ SELECT r.id FROM agent_instance_reports r
+ WHERE r.state IN ('delivered', 'indeterminate')
+ AND COALESCE(r.delivered_at, r.created_at) < sqlc.arg(cutoff)
+ ORDER BY COALESCE(r.delivered_at, r.created_at), r.id LIMIT sqlc.arg(batch_limit)
+);
+
+-- name: MarkIndeterminateReportNoted :exec
+UPDATE agent_instance_reports SET recovery_noted = 1 WHERE id = ? AND state = 'indeterminate';

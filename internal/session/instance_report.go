@@ -5,6 +5,8 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"github.com/compozy/compozy/internal/acp"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -12,11 +14,12 @@ import (
 )
 
 type InstanceReportEvent struct {
-	ID         string         `json:"report_id"`
-	InstanceID string         `json:"instance_id"`
-	Kind       string         `json:"kind"`
-	Payload    jsontext.Value `json:"payload"`
-	CreatedAt  time.Time      `json:"created_at"`
+	Republished bool           `json:"-"`
+	ID          string         `json:"report_id"`
+	InstanceID  string         `json:"instance_id"`
+	Kind        string         `json:"kind"`
+	Payload     jsontext.Value `json:"payload"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 func (m *Manager) PublishInstanceReport(
@@ -48,7 +51,7 @@ func (m *Manager) PublishInstanceReport(
 			title, body = "Proactive checks paused", "Consecutive checks failed. Review the agent report before resuming."
 		}
 	}
-	if title != "" {
+	if title != "" && !report.Republished {
 		if m.attentionWorkspaceMutes == nil {
 			return 0, errors.New("session: attention workspace mute reader is required")
 		}
@@ -80,4 +83,28 @@ func (m *Manager) PublishInstanceReport(
 		m.PublishInstanceCatalogChanged(info.ProfileID, info.WorkspaceID, report.InstanceID)
 	}
 	return persisted.Sequence, nil
+}
+
+func (m *Manager) reportExhaustedContext(ctx context.Context, sessionID string, event acp.AgentEvent) error {
+	if event.Type != acp.EventTypeError || strings.TrimSpace(event.TurnID) == "" {
+		return nil
+	}
+	message := strings.ToLower(event.Error)
+	if event.Failure != nil {
+		message += " " + strings.ToLower(event.Failure.Summary)
+	}
+	exhausted := false
+	for _, phrase := range []string{"context_length_exceeded", "context window exceeded", "context window is full", "maximum context length", "prompt is too long", "prompt too long"} {
+		exhausted = exhausted || strings.Contains(message, phrase)
+	}
+	if !exhausted {
+		return nil
+	}
+	writer, ok := m.promptAdmissionStore.(interface {
+		ReportContextExhaustion(context.Context, string, string) error
+	})
+	if !ok {
+		return nil
+	}
+	return writer.ReportContextExhaustion(ctx, sessionID, event.TurnID)
 }

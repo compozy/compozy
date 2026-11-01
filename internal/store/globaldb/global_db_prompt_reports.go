@@ -126,3 +126,7 @@ func (g *SessionRepo) FailSessionReports(
 		return nil
 	})
 }
+
+func (g *SessionRepo) MarkIndeterminateReportNoted(ctx context.Context, id string) error {
+	return g.queries.MarkIndeterminateReportNoted(ctx, id)
+}

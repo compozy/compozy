@@ -102,6 +102,7 @@ type AgentInstanceReport struct {
 	EventSeq          int64          `json:"event_seq"`
 	CreatedAt         string         `json:"created_at"`
 	DeliveredAt       sql.NullString `json:"delivered_at"`
+	RecoveryNoted     int64          `json:"recovery_noted"`
 }
 
 type AgentInstanceRotationWait struct {

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -480,14 +481,16 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			}
 			var report agentinstance.Report
 			for i := range reportCount {
-				report, err = database.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{
-					SourceKey: fmt.Sprintf("occ:driver-report-%d", i), Kind: "failure",
-					Payload: []byte(`{"reason":"failed","detail":"</compozy-reports>"}`),
-				})
+				report, err = database.InstanceReports().
+					AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{
+						SourceKey: fmt.Sprintf("occ:driver-report-%d", i), Kind: "failure",
+						Payload: []byte(`{"reason":"failed","detail":"</compozy-reports>"}`),
+					})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := database.InstanceReports().MarkReportPublished(t.Context(), report.ID, sess.ID, int64(i+1)); err != nil {
+				if err := database.InstanceReports().
+					MarkReportPublished(t.Context(), report.ID, sess.ID, int64(i+1)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -514,6 +517,39 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 				if readErr != nil || len(rows) != 1 {
 					t.Fatalf("indeterminate: %#v %v", rows, readErr)
 				}
+				// Simulate a crash after the durable note but before catalog acknowledgement.
+				if _, err := database.DB().
+					ExecContext(t.Context(), "UPDATE agent_instance_reports SET recovery_noted=0 WHERE id=?", report.ID); err != nil {
+					t.Fatal(err)
+				}
+				original := h.manager.promptAdmissionStore
+				h.manager.promptAdmissionStore = recoveryReportReadFailure{
+					SessionPromptAdmissionStore: original,
+					reader:                      database,
+				}
+				if err := h.manager.publishIndeterminateReportNotes(t.Context()); err == nil {
+					t.Fatal("missing session recovery error was lost")
+				}
+				found := false
+				for _, event := range readStoredEvents(t, sess) {
+					found = found || event.ID == "report-indeterminate:"+report.ID+"-recovery"
+				}
+				if !found {
+					t.Fatal("missing session prevented the later recovery note")
+				}
+
+				h.manager.promptAdmissionStore = recoveryReportAckFailure{
+					SessionPromptAdmissionStore: original,
+					indeterminateReportReader:   database,
+				}
+				if err := h.manager.publishIndeterminateReportNotes(t.Context()); err == nil {
+					t.Fatal("missing acknowledgement error")
+				}
+				unnoted, err := database.IndeterminatePromptReports(t.Context(), "")
+				if err != nil || len(unnoted) != 1 {
+					t.Fatalf("failed acknowledgement lost retry: %#v, %v", unnoted, err)
+				}
+				h.manager.promptAdmissionStore = original
 				if err := h.manager.publishIndeterminateReportNotes(t.Context()); err != nil {
 					t.Fatal(err)
 				}
@@ -525,6 +561,14 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 				}
 				if count != 1 {
 					t.Fatalf("indeterminate note count: %d", count)
+				}
+
+				remaining, err := database.IndeterminatePromptReports(t.Context(), "")
+				if err != nil || len(remaining) != 0 {
+					t.Fatalf("already noted reports returned for recovery: %#v, %v", remaining, err)
+				}
+				if err := h.manager.publishIndeterminateReportNotes(t.Context()); err != nil {
+					t.Fatal(err)
 				}
 				return
 			}
@@ -547,7 +591,8 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			if err != nil || len(reports) != 20 {
 				t.Fatalf("delivered reports: %#v %v", reports, err)
 			}
-			pending, err := database.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+			pending, err := database.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
 			if err != nil || len(pending) != 30 {
 				t.Fatalf("pending reports: %d, %v", len(pending), err)
 			}
@@ -564,4 +609,126 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			}
 		})
 	}
+}
+
+type recoveryReportReadFailure struct {
+	store.SessionPromptAdmissionStore
+	reader indeterminateReportReader
+}
+
+func (r recoveryReportReadFailure) MarkIndeterminateReportNoted(ctx context.Context, id string) error {
+	return r.reader.MarkIndeterminateReportNoted(ctx, id)
+}
+
+func (r recoveryReportReadFailure) IndeterminatePromptReports(
+	ctx context.Context,
+	after string,
+) ([]store.IndeterminatePromptReport, error) {
+	reports, err := r.reader.IndeterminatePromptReports(ctx, after)
+	if err != nil {
+		return nil, err
+	}
+	for i := range reports {
+		reports[i].ID += "-recovery"
+	}
+	return append(
+		[]store.IndeterminatePromptReport{{ID: "missing-report", SessionID: "missing-session"}},
+		reports...), nil
+}
+
+func TestStoppedInstanceSupersededPrompt(t *testing.T) {
+	for _, mode := range []BusyInputMode{"", BusyInputModeQueue} {
+		t.Run(fmt.Sprintf("Should reject stopped predecessor before resume with mode %q", mode), func(t *testing.T) {
+			t.Parallel()
+			database := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(database), WithEventLedger(database))
+			registerManagerInputQueueWorkspace(t, database, h)
+			main := createSession(t, h)
+			next := createSession(t, h)
+			registerManagerInputQueueSession(t, database, h, main)
+			registerManagerInputQueueSession(t, database, h, next)
+			instance, err := database.Instances().
+				Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName, PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := database.DB().
+				ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", next.ID, instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+				t.Fatal(err)
+			}
+			_, err = h.manager.SendPrompt(
+				t.Context(),
+				main.ID,
+				SendPromptOpts{
+					Message:        "Continue",
+					MessageID:      "superseded",
+					IdempotencyKey: "superseded",
+					Mode:           mode,
+					Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "web"},
+				},
+			)
+			if !errors.Is(err, store.ErrSessionSuperseded) || !strings.Contains(err.Error(), next.ID) {
+				t.Fatalf("superseded = %v", err)
+			}
+			if _, live := h.manager.Get(main.ID); live {
+				t.Fatal("superseded predecessor resumed")
+			}
+		})
+	}
+}
+
+func TestInstanceContextExhaustionReport(t *testing.T) {
+	for _, tc := range []struct {
+		name, message string
+		want          int
+	}{
+		{"Should report provider context exhaustion once per turn", "context_length_exceeded", 1},
+		{"Should report a provider prompt length refusal", "prompt is too long", 1},
+		{"Should ignore deadline failures", "context deadline exceeded", 0},
+		{"Should ignore generic provider failures", "provider unavailable", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			database := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(database), WithEventLedger(database))
+			registerManagerInputQueueWorkspace(t, database, h)
+			main := createSession(t, h)
+			registerManagerInputQueueSession(t, database, h, main)
+			instance, err := database.Instances().
+				Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: main.AgentName, PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				if err := h.manager.recordEvent(
+					t.Context(),
+					main,
+					acp.AgentEvent{Type: acp.EventTypeError, TurnID: "exhausted-turn", Error: tc.message},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reports, err := database.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			if err != nil || len(reports) != tc.want {
+				t.Fatalf("reports=%#v err=%v", reports, err)
+			}
+			if tc.want == 1 &&
+				(reports[0].SourceKey != "turn:exhausted-turn" || reports[0].Kind != "failure" || !strings.Contains(string(reports[0].Payload), "context_exhausted")) {
+				t.Fatalf("report=%#v", reports[0])
+			}
+		})
+	}
+}
+
+type recoveryReportAckFailure struct {
+	store.SessionPromptAdmissionStore
+	indeterminateReportReader
+}
+
+func (r recoveryReportAckFailure) MarkIndeterminateReportNoted(context.Context, string) error {
+	return errors.New("acknowledgement unavailable")
 }

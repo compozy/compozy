@@ -67,10 +67,15 @@ func (r *instanceMainRotator) Rotate(ctx context.Context, instance agentinstance
 	if err != nil {
 		return r.rotationFailed(ctx, instance, candidate, "publication_failed", err)
 	}
+	instance.MainSessionID = candidate
+	if r.changed != nil {
+		r.changed(instance)
+	}
 	return r.Cleanup(ctx, instance)
 }
 
 func (r *instanceMainRotator) rotationFailed(ctx context.Context, instance agentinstance.Instance, candidate, reason string, cause error) error {
+	r.deferRotationRetry(instance.MainSessionID)
 	cleanupCtx := context.WithoutCancel(ctx)
 	if candidate != "" {
 		cause = errors.Join(cause, r.sessions.Stop(cleanupCtx, candidate))
@@ -79,6 +84,6 @@ func (r *instanceMainRotator) rotationFailed(ctx context.Context, instance agent
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	_, err = r.reports.AppendReport(cleanupCtx, instance.ID, agentinstance.ReportInput{SourceKey: "rotation:failed:" + instance.MainSessionID + ":" + candidate, Kind: "rotation_failed", Payload: payload})
+	_, err = r.reports.AppendReport(cleanupCtx, instance.ID, agentinstance.ReportInput{SourceKey: "rotation:failed:" + instance.MainSessionID, Kind: "rotation_failed", Payload: payload})
 	return errors.Join(cause, err)
 }

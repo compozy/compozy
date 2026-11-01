@@ -685,6 +685,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 	})
 	for _, tc := range []struct{ name, actor, status, resolution string }{
+		{"Should persist native deadline cancellation as expiry", "timeout", store.PendingInteractionStatusTimedOut, "canceled"},
 		{"Should persist system cancellation without restart", "system", store.PendingInteractionStatusCanceled, "canceled"},
 		{"Should persist early provider expiry without restart", "provider", store.PendingInteractionStatusTimedOut, "expired-by-provider"},
 	} {

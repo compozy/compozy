@@ -41,7 +41,7 @@ func (q *Queries) FailPromptReports(ctx context.Context, admissionID string) err
 }
 
 const getAgentInstanceReportBySource = `-- name: GetAgentInstanceReportBySource :one
-SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports WHERE source_key = ? AND instance_id = ?
+SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at, recovery_noted FROM agent_instance_reports WHERE source_key = ? AND instance_id = ?
 `
 
 type GetAgentInstanceReportBySourceParams struct {
@@ -65,6 +65,7 @@ func (q *Queries) GetAgentInstanceReportBySource(ctx context.Context, arg GetAge
 		&i.EventSeq,
 		&i.CreatedAt,
 		&i.DeliveredAt,
+		&i.RecoveryNoted,
 	)
 	return i, err
 }
@@ -98,7 +99,7 @@ func (q *Queries) InsertAgentInstanceReport(ctx context.Context, arg InsertAgent
 }
 
 const listAgentInstanceReports = `-- name: ListAgentInstanceReports :many
-SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports
+SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at, recovery_noted FROM agent_instance_reports
 WHERE instance_id = ?1
 AND (?2 = '' OR state = ?2)
 AND (created_at > ?3 OR (created_at = ?3 AND id > ?4))
@@ -141,6 +142,7 @@ func (q *Queries) ListAgentInstanceReports(ctx context.Context, arg ListAgentIns
 			&i.EventSeq,
 			&i.CreatedAt,
 			&i.DeliveredAt,
+			&i.RecoveryNoted,
 		); err != nil {
 			return nil, err
 		}
@@ -158,7 +160,7 @@ func (q *Queries) ListAgentInstanceReports(ctx context.Context, arg ListAgentIns
 const listIndeterminatePromptReports = `-- name: ListIndeterminatePromptReports :many
 SELECT r.id, r.created_at, a.session_id, a.turn_id FROM agent_instance_reports r
 JOIN session_prompt_admissions a ON a.id = r.prompt_admission_id
-WHERE r.state = 'indeterminate' AND r.id > ?1
+WHERE r.state = 'indeterminate' AND r.recovery_noted = 0 AND r.id > ?1
 ORDER BY r.id LIMIT 100
 `
 
@@ -198,7 +200,7 @@ func (q *Queries) ListIndeterminatePromptReports(ctx context.Context, afterID st
 }
 
 const listPromptReports = `-- name: ListPromptReports :many
-SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports WHERE prompt_admission_id = ?1
+SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at, recovery_noted FROM agent_instance_reports WHERE prompt_admission_id = ?1
 ORDER BY created_at, id
 `
 
@@ -224,6 +226,7 @@ func (q *Queries) ListPromptReports(ctx context.Context, admissionID string) ([]
 			&i.EventSeq,
 			&i.CreatedAt,
 			&i.DeliveredAt,
+			&i.RecoveryNoted,
 		); err != nil {
 			return nil, err
 		}
@@ -239,7 +242,7 @@ func (q *Queries) ListPromptReports(ctx context.Context, admissionID string) ([]
 }
 
 const listUnpublishedAgentInstanceReports = `-- name: ListUnpublishedAgentInstanceReports :many
-SELECT r.id, r.instance_id, r.source_key, r.kind, r.payload, r.fingerprint, r.state, r.prompt_admission_id, r.event_session_id, r.event_seq, r.created_at, r.delivered_at, i.main_session_id FROM agent_instance_reports r
+SELECT r.id, r.instance_id, r.source_key, r.kind, r.payload, r.fingerprint, r.state, r.prompt_admission_id, r.event_session_id, r.event_seq, r.created_at, r.delivered_at, r.recovery_noted, i.main_session_id FROM agent_instance_reports r
 JOIN agent_instances i ON i.id = r.instance_id
 WHERE r.id > ?1 AND i.main_session_id IS NOT NULL
 AND (r.event_session_id = '' OR (r.state = 'pending' AND r.event_session_id <> i.main_session_id))
@@ -264,6 +267,7 @@ type ListUnpublishedAgentInstanceReportsRow struct {
 	EventSeq          int64          `json:"event_seq"`
 	CreatedAt         string         `json:"created_at"`
 	DeliveredAt       sql.NullString `json:"delivered_at"`
+	RecoveryNoted     int64          `json:"recovery_noted"`
 	MainSessionID     sql.NullString `json:"main_session_id"`
 }
 
@@ -289,6 +293,7 @@ func (q *Queries) ListUnpublishedAgentInstanceReports(ctx context.Context, arg L
 			&i.EventSeq,
 			&i.CreatedAt,
 			&i.DeliveredAt,
+			&i.RecoveryNoted,
 			&i.MainSessionID,
 		); err != nil {
 			return nil, err
@@ -318,6 +323,15 @@ type MarkAgentInstanceReportPublishedParams struct {
 
 func (q *Queries) MarkAgentInstanceReportPublished(ctx context.Context, arg MarkAgentInstanceReportPublishedParams) error {
 	_, err := q.db.ExecContext(ctx, markAgentInstanceReportPublished, arg.SessionID, arg.EventSeq, arg.ID)
+	return err
+}
+
+const markIndeterminateReportNoted = `-- name: MarkIndeterminateReportNoted :exec
+UPDATE agent_instance_reports SET recovery_noted = 1 WHERE id = ? AND state = 'indeterminate'
+`
+
+func (q *Queries) MarkIndeterminateReportNoted(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, markIndeterminateReportNoted, id)
 	return err
 }
 
@@ -384,4 +398,26 @@ type ReservePromptReportsParams struct {
 func (q *Queries) ReservePromptReports(ctx context.Context, arg ReservePromptReportsParams) error {
 	_, err := q.db.ExecContext(ctx, reservePromptReports, arg.AdmissionID, arg.SessionID)
 	return err
+}
+
+const sweepTerminalInstanceReports = `-- name: SweepTerminalInstanceReports :execrows
+DELETE FROM agent_instance_reports WHERE id IN (
+ SELECT r.id FROM agent_instance_reports r
+ WHERE r.state IN ('delivered', 'indeterminate')
+ AND COALESCE(r.delivered_at, r.created_at) < ?1
+ ORDER BY COALESCE(r.delivered_at, r.created_at), r.id LIMIT ?2
+)
+`
+
+type SweepTerminalInstanceReportsParams struct {
+	Cutoff     sql.NullString `json:"cutoff"`
+	BatchLimit int64          `json:"batch_limit"`
+}
+
+func (q *Queries) SweepTerminalInstanceReports(ctx context.Context, arg SweepTerminalInstanceReportsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, sweepTerminalInstanceReports, arg.Cutoff, arg.BatchLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

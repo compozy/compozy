@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -35,19 +36,25 @@ type instanceRotationStarter interface {
 }
 
 type instanceMainRotator struct {
-	changed   func(agentinstance.Instance)
-	starter   instanceRotationStarter
-	reports   agentinstance.ReportStore
-	now       func() time.Time
-	sessions  instanceRotationSessions
-	store     instanceRotationStore
-	monitors  instanceRotationMonitors
-	threshold float64
+	retryMu    sync.Mutex
+	retryAfter map[string]time.Time
+	retryDelay time.Duration
+	changed    func(agentinstance.Instance)
+	starter    instanceRotationStarter
+	reports    agentinstance.ReportStore
+	now        func() time.Time
+	sessions   instanceRotationSessions
+	store      instanceRotationStore
+	monitors   instanceRotationMonitors
+	threshold  float64
 }
 
 func (r *instanceMainRotator) Eligible(ctx context.Context, instance agentinstance.Instance) (decision agentinstance.RotationDecision, err error) {
 	decision = agentinstance.RotationDecision{Publication: agentinstance.RotationPublication{InstanceID: instance.ID, PredecessorID: instance.MainSessionID}}
 	if instance.State != "active" || instance.ArchivedAt != nil || instance.MainSessionID == "" {
+		return decision, nil
+	}
+	if r.rotationRetryPending(instance.MainSessionID) {
 		return decision, nil
 	}
 	count, err := r.store.RotationAdmissionCount(ctx, instance.MainSessionID)
@@ -101,4 +108,29 @@ func (r *instanceMainRotator) Cleanup(ctx context.Context, instance agentinstanc
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func (r *instanceMainRotator) rotationRetryPending(id string) bool {
+	r.retryMu.Lock()
+	defer r.retryMu.Unlock()
+	until, found := r.retryAfter[id]
+	if found && r.now().Before(until) {
+		return true
+	}
+	delete(r.retryAfter, id)
+	return false
+}
+func (r *instanceMainRotator) deferRotationRetry(id string) {
+	r.retryMu.Lock()
+	defer r.retryMu.Unlock()
+	now := r.now()
+	for key, until := range r.retryAfter {
+		if !now.Before(until) {
+			delete(r.retryAfter, key)
+		}
+	}
+	if r.retryAfter == nil {
+		r.retryAfter = make(map[string]time.Time)
+	}
+	r.retryAfter[id] = now.Add(r.retryDelay)
 }

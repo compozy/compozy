@@ -2766,7 +2766,7 @@ func TestInstanceSupersededAdmission(t *testing.T) {
 			t.Fatalf("replay = %#v, %v", replay, err)
 		}
 		_, created, err = db.ClaimSessionPromptAdmission(t.Context(), promptAdmissionRequest(workspace, main, "after-rotation", now.Add(time.Second)))
-		if !errors.Is(err, store.ErrSessionSuperseded) || created {
+		if !errors.Is(err, store.ErrSessionSuperseded) || !strings.Contains(err.Error(), successor) || created {
 			t.Fatalf("superseded admission = %v, %v", created, err)
 		}
 		if _, err := db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", main, instance.ID); err != nil {
@@ -2780,7 +2780,7 @@ func TestInstanceSupersededAdmission(t *testing.T) {
 }
 
 func TestInstanceRotationPublication(t *testing.T) {
-	for _, scenario := range []string{"publish", "stale pointer", "new admission", "busy predecessor", "busy successor", "pending interaction", "live descendant", "pending child delivery", "open child wake", "armed reply watch", "fired reply watch"} {
+	for _, scenario := range []string{"publish", "indeterminate admission", "stale pointer", "new admission", "busy predecessor", "busy successor", "pending interaction", "live descendant", "pending child delivery", "open child wake", "armed reply watch", "fired reply watch"} {
 		t.Run("Should fence rotation publication for "+scenario, func(t *testing.T) {
 			t.Parallel()
 			db := openTestGlobalDB(t)
@@ -2800,6 +2800,13 @@ func TestInstanceRotationPublication(t *testing.T) {
 			}
 			req := agentinstance.RotationPublication{InstanceID: instance.ID, PredecessorID: main, SuccessorID: next, AdmissionCount: count}
 			switch scenario {
+			case "indeterminate admission":
+				admission, _, claimErr := db.ClaimSessionPromptAdmission(t.Context(), promptAdmissionRequest(workspace, main, "uncertain", time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)))
+				if claimErr != nil {
+					t.Fatal(claimErr)
+				}
+				_, err = db.DB().ExecContext(t.Context(), "UPDATE session_prompt_admissions SET state='indeterminate' WHERE id=?", admission.ID)
+				req.AdmissionCount++
 			case "stale pointer":
 				_, err = db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", next, instance.ID)
 			case "new admission":
@@ -2837,10 +2844,10 @@ func TestInstanceRotationPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			err = repo.PublishRotation(t.Context(), req)
-			if scenario == "publish" && err != nil {
+			if (scenario == "publish" || scenario == "indeterminate admission") && err != nil {
 				t.Fatal(err)
 			}
-			if scenario != "publish" && !errors.Is(err, agentinstance.ErrRotationChanged) {
+			if (scenario != "publish" && scenario != "indeterminate admission") && !errors.Is(err, agentinstance.ErrRotationChanged) {
 				t.Fatalf("publication = %v", err)
 			}
 			got, err := repo.Get(t.Context(), instance.ID)
@@ -2848,13 +2855,13 @@ func TestInstanceRotationPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := main
-			if scenario == "publish" || scenario == "stale pointer" {
+			if (scenario == "publish" || scenario == "indeterminate admission") || scenario == "stale pointer" {
 				want = next
 			}
 			if got.MainSessionID != want {
 				t.Fatalf("pointer = %s, want %s", got.MainSessionID, want)
 			}
-			if scenario != "publish" {
+			if scenario != "publish" && scenario != "indeterminate admission" {
 				var stamped sql.NullString
 				if err := db.DB().QueryRowContext(t.Context(), "SELECT instance_id FROM sessions WHERE id=?", next).Scan(&stamped); err != nil {
 					t.Fatal(err)
