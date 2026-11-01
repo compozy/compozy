@@ -115,6 +115,10 @@ type StartOpts struct {
 	// skills, hooks, and instruction files; other providers ignore it. Tool and
 	// hosted-MCP denial come from the verdict-only runtime mode, not this flag.
 	InputOnly bool
+	// ShellWaitGuard marks a session that can call compozy__terminal_exec and
+	// compozy__monitor_create, so a provider hook may refuse a foreground shell
+	// wait and redirect it. It stays false when policy withholds either tool.
+	ShellWaitGuard bool
 
 	launchIdentity *preparedLaunchIdentity
 }

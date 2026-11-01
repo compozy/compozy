@@ -7,6 +7,7 @@ import (
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
+	"github.com/compozy/compozy/internal/shellwait"
 	"github.com/spf13/cobra"
 )
 
@@ -15,8 +16,21 @@ func newInternalCommand() *cobra.Command {
 		Use:    "__internal",
 		Hidden: true,
 	}
-	cmd.AddCommand(newInternalExtensionProviderCommand())
+	cmd.AddCommand(newInternalExtensionProviderCommand(), newInternalShellWaitHookCommand())
 	return cmd
+}
+
+// newInternalShellWaitHookCommand answers a provider PreToolUse hook. It always
+// exits zero: hooks fail open, and the deny decision travels on stdout.
+func newInternalShellWaitHookCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:    shellwait.HookCommandName,
+		Args:   cobra.NoArgs,
+		Hidden: true,
+		Run: func(cmd *cobra.Command, _ []string) {
+			shellwait.RunHook(cmd.InOrStdin(), cmd.OutOrStdout())
+		},
+	}
 }
 
 func newInternalExtensionProviderCommand() *cobra.Command {

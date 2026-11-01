@@ -326,7 +326,9 @@ func hostedToolMeta(descriptor tools.Descriptor) sdkmcp.Meta {
 		"anthropic/searchHint": hostedSearchHint(descriptor),
 	}
 	switch descriptor.ID {
-	case tools.ToolIDToolList, tools.ToolIDToolSearch, tools.ToolIDToolInfo:
+	// The wait path stays loaded so a monitor is never costlier than a shell loop.
+	case tools.ToolIDToolList, tools.ToolIDToolSearch, tools.ToolIDToolInfo,
+		tools.ToolIDTerminalExec, tools.ToolIDMonitorCreate:
 		fields["anthropic/alwaysLoad"] = true
 	}
 	return fields

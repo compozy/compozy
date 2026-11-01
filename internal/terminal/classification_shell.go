@@ -159,6 +159,12 @@ type wrapperOptionSpec struct {
 	assignments      bool
 }
 
+// UnwrapCommandArgv removes leading sudo, doas, and env wrappers. It reports
+// false when the wrapped command cannot be determined.
+func UnwrapCommandArgv(argv []string) ([]string, bool) {
+	return unwrapCommandArgv(argv)
+}
+
 func unwrapCommandArgv(argv []string) ([]string, bool) {
 	effective := argv
 	for len(effective) > 0 {

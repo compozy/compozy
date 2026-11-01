@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -19,7 +20,7 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 
 		h := newHarness(t)
 		session := &Session{}
-		gateway := newProviderNativeToolGateway(h.manager, session, RuntimeModeVerdictOnly)
+		gateway := newProviderNativeToolGateway(h.manager, session, RuntimeModeVerdictOnly, false)
 		_, err := gateway.Intercept(testutil.Context(t), acp.ToolExecutionRequest{
 			ToolID:   "Read",
 			ReadOnly: true,
@@ -71,7 +72,7 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 			}
 		})
 
-		gateway := newProviderNativeToolGateway(h.manager, session, "")
+		gateway := newProviderNativeToolGateway(h.manager, session, "", false)
 		if gateway == nil {
 			t.Fatal("newProviderNativeToolGateway() = nil, want gateway")
 		}
@@ -85,6 +86,40 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 		})
 		if !errors.Is(err, acp.ErrPermissionDenied) {
 			t.Fatalf("Intercept() error = %v, want ErrPermissionDenied", err)
+		}
+	})
+
+	t.Run("Should refuse a shell wait only for a session that can redirect it", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("Stop() error = %v", err)
+			}
+		})
+		watch := acp.ToolExecutionRequest{
+			ToolID:  "Run gh",
+			Execute: true,
+			Input:   json.RawMessage(`{"command":["bash","-lc","gh pr checks 1 --watch"]}`),
+		}
+
+		guarded := newProviderNativeToolGateway(h.manager, session, "", true)
+		_, err := guarded.Intercept(testutil.Context(t), watch)
+		if !errors.Is(err, acp.ErrPermissionDenied) || !strings.Contains(err.Error(), "compozy__monitor_create") {
+			t.Fatalf("guarded Intercept() error = %v, want a denial naming the monitor", err)
+		}
+
+		short := watch
+		short.Input = json.RawMessage(`{"command":["bash","-lc","git status"]}`)
+		if _, err := guarded.Intercept(testutil.Context(t), short); err != nil {
+			t.Fatalf("guarded Intercept(short) error = %v", err)
+		}
+
+		unguarded := newProviderNativeToolGateway(h.manager, session, "", false)
+		if _, err := unguarded.Intercept(testutil.Context(t), watch); err != nil {
+			t.Fatalf("unguarded Intercept() error = %v, want the wait allowed", err)
 		}
 	})
 }

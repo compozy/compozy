@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/shellwait"
 )
 
 // RuntimeModeVerdictOnly disables provider-native tools for isolated verdict sessions.
@@ -17,6 +18,9 @@ type providerNativeToolGateway struct {
 	manager     *Manager
 	session     *Session
 	runtimeMode string
+	// shellWaitGuard refuses foreground shell waits at the execution boundary, which
+	// is the only enforcement point for providers without a pre-tool hook.
+	shellWaitGuard bool
 }
 
 var _ acp.ToolExecutionGateway = (*providerNativeToolGateway)(nil)
@@ -25,14 +29,16 @@ func newProviderNativeToolGateway(
 	manager *Manager,
 	session *Session,
 	runtimeMode string,
+	shellWaitGuard bool,
 ) acp.ToolExecutionGateway {
 	if manager == nil || session == nil {
 		return nil
 	}
 	return &providerNativeToolGateway{
-		manager:     manager,
-		session:     session,
-		runtimeMode: strings.TrimSpace(runtimeMode),
+		manager:        manager,
+		session:        session,
+		runtimeMode:    strings.TrimSpace(runtimeMode),
+		shellWaitGuard: shellWaitGuard,
 	}
 }
 
@@ -48,6 +54,15 @@ func (g *providerNativeToolGateway) Intercept(
 			"%w: provider-native tools are disabled for verdict-only sessions",
 			acp.ErrPermissionDenied,
 		)
+	}
+	if g.shellWaitGuard && req.Execute {
+		if finding, found := shellwait.DetectToolInput(req.Input); found {
+			return acp.ToolExecutionRequest{}, fmt.Errorf(
+				"%w: %s",
+				acp.ErrPermissionDenied,
+				shellwait.DenyReason(finding),
+			)
+		}
 	}
 
 	dispatchCtx := hookDispatchContext(ctx, g.manager, g.session)

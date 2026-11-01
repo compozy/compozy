@@ -174,6 +174,35 @@ func concreteDelegationTools(
 	return tools, nil
 }
 
+// sessionCanRedirectShellWaits reports whether the session can call both tools a
+// shell-wait redirect names. Any doubt keeps the guard off: refusing a wait with
+// no replacement would leave the session no way to wait at all.
+func (m *Manager) sessionCanRedirectShellWaits(s *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {
+	if s == nil || m.hostedMCP == nil || !resolved.SessionMCP ||
+		resolved.Harness == compozyconfig.ProviderHarnessPiACP ||
+		strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
+		return false
+	}
+	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
+	if IsInternalSpawnRole(lineage.SpawnRole) {
+		return false
+	}
+	allowed, err := concreteDelegationTools(resolved, m.toolsetCatalog, m.toolUniverse)
+	if err != nil {
+		return false
+	}
+	narrowed := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy).Tools
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTerminalExec, toolspkg.ToolIDMonitorCreate} {
+		if !slices.Contains(allowed, id.String()) {
+			return false
+		}
+		if len(narrowed) > 0 && !slices.Contains(narrowed, id.String()) {
+			return false
+		}
+	}
+	return true
+}
+
 func normalizeAllowedToolsOverride(values []string) ([]string, bool, error) {
 	if len(values) == 0 {
 		return nil, false, nil

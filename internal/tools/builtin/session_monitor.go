@@ -16,12 +16,14 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 		toolspkg.ToolIDMonitorCreate,
 		"monitor_create",
 		"Monitor Create",
-		"Register a daemon-owned monitor that wakes this session with a new turn when the condition fires: "+
-			"kind=terminal watches a terminal_id from compozy__terminal_exec (still_running) or compozy__terminal_open "+
-			"until it exits or its output matches a pattern; kind=timer fires once after delay_seconds. Use it "+
-			"instead of provider-internal background tasks, Monitor, ScheduleWakeup, sleep loops, or polling — those "+
-			"cannot wake a CompozyOS session. After registering, keep working on steps that do not depend on it; end "+
-			"your turn only when every remaining step waits on a registered monitor or subagent. The wake arrives as a "+
+		"Register a daemon-owned monitor that wakes this session with a new turn when the condition fires. Use it "+
+			"for every wait on external work, inside or outside your turn: CI, deploys, builds, polling remote state, "+
+			"or a delay. kind=terminal watches a terminal_id from compozy__terminal_exec (still_running) or "+
+			"compozy__terminal_open until it exits or its output matches a pattern; kind=timer fires once after "+
+			"delay_seconds. Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
+			"provider-internal background tasks, Monitor, and ScheduleWakeup — those cannot wake a CompozyOS session. "+
+			"After registering, keep working on steps that do not depend on it; end your turn only when every "+
+			"remaining step waits on a registered monitor or subagent. The wake arrives as a "+
 			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn.",
 		monitorCreateInputSchema,
 		toolspkg.RiskMutating,
@@ -32,6 +34,9 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 		[]string{sessionsSessionsKey, monitorKeyword, wakeKeyword},
 		[]string{
 			"monitor background command",
+			"wait for CI",
+			"watch pr checks",
+			"wait for deploy",
 			"wake me when done",
 			"watch terminal",
 			"schedule wakeup",

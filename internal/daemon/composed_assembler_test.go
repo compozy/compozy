@@ -804,7 +804,8 @@ func TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance(t *testing.T) {
 		t.Parallel()
 		envelope := renderCompozyRuntimeEnvelope(session.StartupPromptContext{SessionID: "sess-1"})
 		for _, want := range []string{
-			"register `compozy__monitor_create` on the returned terminal or as a timer",
+			"call `compozy__monitor_create` with `kind: \"terminal\"` on the returned `terminal_id`",
+			"call `compozy__monitor_create` with `kind: \"timer\"`",
 			"End your turn only when every remaining step is blocked on a registered monitor or subagent",
 			"otherwise keep working until the requested outcome is delivered",
 		} {
@@ -814,6 +815,23 @@ func TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance(t *testing.T) {
 		}
 		if strings.Contains(envelope, "then end your turn") {
 			t.Fatalf("runtime envelope still ends the turn unconditionally: %q", envelope)
+		}
+	})
+
+	t.Run("Should cover every wait on external work, inside or outside the turn", func(t *testing.T) {
+		t.Parallel()
+		envelope := renderCompozyRuntimeEnvelope(session.StartupPromptContext{SessionID: "sess-1"})
+		for _, want := range []string{
+			"Never wait on external work from a shell or a provider-internal task, inside or outside your turn",
+			"CI, deploys, builds",
+			"`gh pr checks --watch`",
+			"polling loops",
+			"executable in `command`, the rest in `args`",
+			"If policy withholds these tools from this session, a shell wait stays allowed",
+		} {
+			if !strings.Contains(envelope, want) {
+				t.Fatalf("runtime envelope = %q, want %q", envelope, want)
+			}
 		}
 	})
 }

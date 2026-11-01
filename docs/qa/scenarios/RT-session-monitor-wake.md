@@ -27,6 +27,7 @@ story: As an operator I ask an agent to run something slow and report back, and 
 7. **Claude provider tools.** In a Claude session, Monitor, ScheduleWakeup, and CronCreate/CronDelete/CronList are absent; a Bash or PowerShell call with `run_in_background: true` is denied with guidance to use `compozy__terminal_exec` + `compozy__monitor_create`; a background Agent subagent still runs and returns inside its turn.
 8. **Operator visibility and cancel.** Register a 10-minute timer monitor and let the turn end. The session row's mark reads `monitoring` (amber radar), not `done`; the composer shows "Monitors, 1 active". Open the popover: the row shows the description and "Timer · fires in 10m". Click × : the row disappears, the button goes away, the list row returns to `done`, and no wake turn ever starts. `GET …/monitors` then reports the monitor as `canceled`.
 9. **Other profile and All profiles lens (#956).** With two profiles, give a session in the non-default profile an active monitor. Switch to All projects and the All profiles lens, open that session, and open the composer monitor popover: it lists the monitor instead of "Couldn't load monitors.". The list request carries `all_profiles=true`. Click × : the cancel request carries `profile=<owner>`, returns 200, and the button goes away. Without either selector the HTTP list still returns 404 for that session, and `all_profiles=true` on cancel returns 400. If the session itself is gone, the popover reads "This session is no longer available." and offers no retry.
+10. **Shell-wait redirect (#1122).** In a Claude session, ask for `gh pr checks <n> --watch`, `timeout 570 gh pr checks <n> --watch`, a `for … sleep 20` polling loop, and `/bin/sleep 6`. Each Bash call is denied before it runs and the reason names `compozy__terminal_exec` with the exact `command` and `args` plus `compozy__monitor_create` (`kind: "timer"` for the delay). `sleep 1`, `git log`, `gh pr checks <n>`, and `git commit -m "use gh run watch"` run. The redirected path works end to end: `terminal_exec` returns `still_running`, `monitor_create` registers on it, the turn ends, and a `monitor` wake arrives on exit. A session whose agent denies `compozy__monitor_create` or `compozy__terminal_exec` keeps a working `sleep 6`.
 
 Sessions Kanban regression (pending integrated re-walk): open a monitor immediately before the turn
 settles, without waiting for a supervision sweep. Read the session over CLI and HTTP: expect
@@ -41,3 +42,9 @@ QA impact 2026-10-30 (issue #1065): the runtime envelope, the `compozy__monitor_
 end the turn unconditionally after registering a monitor. They end it only when every remaining step
 waits on a registered monitor or subagent, and otherwise keep working until the requested outcome is
 delivered. Owning automated evidence: `TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance`.
+
+QA impact 2026-10-31 (issue #1122): the runtime envelope covers every wait on external work, inside or
+outside the turn; a shell-wait guard refuses foreground waits with the exact replacement call when the
+session can call `compozy__terminal_exec` and `compozy__monitor_create`; both tools are always loaded on
+Claude. Owning automated evidence: `internal/shellwait` tables, `TestSessionCanRedirectShellWaits`, and
+step 10.
