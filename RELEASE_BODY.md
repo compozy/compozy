@@ -1,26 +1,42 @@
-## 0.4.7 - 2026-10-31
+## 0.4.8 - 2026-11-01
 
 ### Bug Fixes
 
-- Preserve clarify line breaks and make the clarification dock collapsible (#1062)
-- Support User-owned session lifecycle actions in global scope (#1060)
-- Verify Claude hosted MCP readiness before startup succeeds (#1066)
-- Show only the title for open terminals, without a running mark (#1073)
-- Flag child sessions that stop without delivering and make end-turn guidance conditional (#1069)
-- Keep forked and continued sessions visible when hiding child sessions (#1077)
-- Reuse stdio MCP server processes across discovery, status, and calls (#1081)
-- Resolve MCP OAuth credentials from the declaring scope (#1080)
-- Keep failed worktree creations visible and roll them back in order (#1082)
-- Verify interrupted worktree checkouts under the lock and by branch (#1084)
-- Report the Later count on the active facets read
-- Keep the facets Later total optional in the API contract
-- Label inherited MCP auth in listings and hold unreadable workspaces
+- Keep the accent ink on the menubar Updating pill (#1089)
+- Restore the usage tray before the bell and hold its slot while loading (#1090)
+- Ellipsize long session titles in session message card headers (#1099)
+- Remove the Skip to content link that appeared on window reactivation (#1096)
+- Hide empty projects in project grouping behind a Show empty projects option (#1091)
+- Authorize explicit cross-workspace session replies (#1103)
+- Let operators resume and take over spawned sessions after the parent stops (#1098)
+- Decode each Later reason character reference once and only when complete
+- Keep shelf card edges inside the horizontal scroller (#1116)
+- Move the message trail right and add sidebar tonal hierarchy (#1115)
+- Clear the window when its open session is archived (#1111)
+- Store only clean text in generated session titles (#1125)
+- Make the spawn reaper's parent-stop reap atomic and conditional (#1123)
+- Let sessions call OAuth-authenticated extension MCP servers (#1117)
+- Address merge train review findings on stops, titles, and MCP lookup
+- Close shell-wait guard gaps found in review
+- Satisfy gocritic in the PowerShell option check
+- Keep the explicit owner wording in the MCP ambiguity error
+- Format the MCP ambiguity error for golines
+- Keep exit-plan reads from emitting worktree.status_refreshed (#1121)
 
 ### Features
 
-- Archive a project from the top-bar project submenu (#1061)
-- Zoom the Mermaid fullscreen viewer with Ctrl/Cmd+wheel, pinch, and keys at the cursor (#1059)
-- Replace the folder browser with a directory picker input and centre onboarding step numbers (#1064)
-- Open terminals in a project's managed worktree (#1067)
-- Add a Waiting board column and let every Kanban column collapse (#1079)
-- Park sessions in Later with an optional reason and return date (#1083)
+- Rich-text reason and date picker in the Move to Later dialog (#1093)
+- Group session processes into trees (#1106)
+- Hide child sessions on the Kanban board by default (#1124)
+- Apply runtime selection changes to the live session immediately (#1108)
+- Redirect foreground shell waits to Compozy monitors (#1127)
+- Make session monitors durable across daemon restarts and trace their lifecycle (#1129)
+
+### Refactoring
+
+- Replace the in-repo prototype gallery with @compozy/proto (#1092)
+- Align @compozy/ui with the bnui contract (#1126)
+
+### Testing
+
+- Cover captured-only AfterStop cleanup and lead-only Stop all for process trees
