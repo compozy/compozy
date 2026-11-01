@@ -3750,3 +3750,7 @@ func (s *stubClient) ChangeSessionWorktree(ctx context.Context, id, ref, expecte
 	}
 	return s.changeSessionWorktreeFn(ctx, id, ref, expected)
 }
+
+func (s *stubClient) AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error) {
+	return nil, errors.New("unexpected AgentMemory call")
+}

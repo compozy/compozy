@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
@@ -168,6 +169,18 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	var mutationErr error
+	if h.AgentMemory != nil {
+		origin := resolved.Entry.MemoryOrigin
+		if origin == "" {
+			origin = "user"
+			if resolved.Entry.Origin == contract.AgentOriginWorkspace {
+				origin = "workspace-" + resolved.OperationWorkspace
+			}
+		}
+		if err := h.AgentMemory.Retire(agentmemory.Key{ProfileID: profileScope.ProfileID, Origin: origin, Agent: name}, startedAt); err != nil {
+			mutationErr = errors.Join(mutationErr, fmt.Errorf("api: retire deleted agent memory: %w", err))
+		}
+	}
 	syncStartedAt := time.Now()
 	if syncErr := h.AgentDefinitionSync.Sync(c.Request.Context()); syncErr != nil {
 		mutationErr = errors.Join(mutationErr, fmt.Errorf("api: sync deleted agent definition: %w", syncErr))

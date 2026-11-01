@@ -4,10 +4,31 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strings"
 )
+
+// DeleteAutomationTrigger Delete one automation trigger
+func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutomationTriggerParams) error {
+	path := "/api/automation/triggers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteExtensionSecretParams carries the path, query, and header parameters.
+type DeleteExtensionSecretParams struct {
+	Name      string  `url:"name"`
+	EnvName   string  `url:"env_name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
 
 // DeleteExtensionSecret Remove one extension environment secret binding
 func (c *Client) DeleteExtensionSecret(ctx context.Context, params DeleteExtensionSecretParams) error {
@@ -409,38 +430,6 @@ func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspa
 
 // DeliverGlobalWebhookParams carries the path, query, and header parameters.
 type DeliverGlobalWebhookParams struct {
-	Endpoint                  string  `url:"endpoint"`
-	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
-	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
-	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
-	Profile                   *string `url:"profile"`
-}
-
-// DeliverGlobalWebhook Deliver one global automation webhook
-func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
-	path := "/api/webhooks/global/{endpoint}"
-	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
-	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
-	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WebhookDeliveryResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
-type DeliverWorkspaceWebhookParams struct {
-	WorkspaceID               string  `url:"workspace_id"`
 	Endpoint                  string  `url:"endpoint"`
 	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
 	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`

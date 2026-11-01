@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// GetAgentHeartbeatParams carries the path, query, and header parameters.
+type GetAgentHeartbeatParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetAgentHeartbeat Inspect the resolved Heartbeat policy for an agent definition
+func (c *Client) GetAgentHeartbeat(ctx context.Context, params GetAgentHeartbeatParams) (*HeartbeatPolicyPayload, error) {
+	path := "/api/agents/{name}/heartbeat"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatPolicyPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetAgentHeartbeatStatusParams carries the path, query, and header parameters.
 type GetAgentHeartbeatStatusParams struct {
 	Name                    string  `url:"name"`
@@ -88,6 +116,34 @@ func (c *Client) GetAgentMe(ctx context.Context, params GetAgentMeParams) (*Agen
 	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
 	var out AgentMeResponse
 	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentMemoryParams carries the path, query, and header parameters.
+type GetAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// GetAgentMemory Inspect agent memory (experimental) Experimental: pin the exact SDK version.
+func (c *Client) GetAgentMemory(ctx context.Context, params GetAgentMemoryParams) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -376,72 +432,4 @@ type GetExtensionLogsParams struct {
 	Follow      *string `url:"follow"`
 	After       *string `url:"after"`
 	StreamEpoch *string `url:"stream_epoch"`
-}
-
-// GetExtensionLogs Read or follow redacted extension logs
-func (c *Client) GetExtensionLogs(ctx context.Context, params GetExtensionLogsParams) (*ExtensionLogsResponse, error) {
-	path := "/api/extensions/{name}/logs"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Follow != nil {
-		query.Set("follow", *params.Follow)
-	}
-	if params.After != nil {
-		query.Set("after", *params.After)
-	}
-	if params.StreamEpoch != nil {
-		query.Set("stream_epoch", *params.StreamEpoch)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionLogsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionProvenanceParams carries the path, query, and header parameters.
-type GetExtensionProvenanceParams struct {
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetExtensionProvenance Get extension provenance and trust evidence
-func (c *Client) GetExtensionProvenance(ctx context.Context, params GetExtensionProvenanceParams) (*ExtensionProvenanceResponse, error) {
-	path := "/api/extensions/{name}/provenance"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionProvenanceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGatewayAudit Audit the current gateway security posture
-func (c *Client) GetGatewayAudit(ctx context.Context) (*GatewayAuditPayload, error) {
-	path := "/api/gateway/audit"
-	var out GatewayAuditPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

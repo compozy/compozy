@@ -72,6 +72,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		MarketplaceCatalog:           cfg.marketplaceCatalog,
 		AgentContextService:          cfg.agentContext,
 		SoulAuthoring:                cfg.soulAuthoring,
+		AgentMemory:                  cfg.agentMemory,
 		SoulHistoryPurger:            cfg.soulHistoryPurger,
 		SoulRefresher:                cfg.soulRefresher,
 		HeartbeatAuthoring:           cfg.heartbeatAuthor,

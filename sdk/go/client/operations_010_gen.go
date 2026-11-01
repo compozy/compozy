@@ -11,6 +11,86 @@ import (
 	"strings"
 )
 
+// GetLoopInputDefault Get one scoped Loop input default
+func (c *Client) GetLoopInputDefault(ctx context.Context, params GetLoopInputDefaultParams) (*LoopInputDefaultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopInputDefaultResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopInputDefaultsParams carries the path, query, and header parameters.
+type GetLoopInputDefaultsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+	Scope       string `url:"scope"`
+}
+
+// GetLoopInputDefaults Get one scoped Loop input-default table
+func (c *Client) GetLoopInputDefaults(ctx context.Context, params GetLoopInputDefaultsParams) (*LoopInputDefaultsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopInputDefaultsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRequestParams carries the path, query, and header parameters.
+type GetLoopRequestParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Generation  int     `url:"generation"`
+	ItemIndex   *int    `url:"item_index"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetLoopRequest Get one Loop human request
+func (c *Client) GetLoopRequest(ctx context.Context, params GetLoopRequestParams) (*LoopRequestPayload, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/request"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
+	query := url.Values{}
+	query.Set("generation", strconv.Itoa(params.Generation))
+	if params.ItemIndex != nil {
+		query.Set("item_index", strconv.Itoa(*params.ItemIndex))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRequestPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetLoopRunParams carries the path, query, and header parameters.
 type GetLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -364,72 +444,4 @@ func (f GetProfileSelectionsFrame) AsProfileSelection() (*ProfileSelection, erro
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetProfileSelections Read profile selections
-func (c *Client) GetProfileSelections(ctx context.Context, params GetProfileSelectionsParams) (*GetProfileSelectionsFrame, error) {
-	path := "/api/profiles/selection"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GetProfileSelectionsFrame
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderParams carries the path, query, and header parameters.
-type GetProviderParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// GetProvider Get one provider and declared auth status
-func (c *Client) GetProvider(ctx context.Context, params GetProviderParams) (*ProviderSummaryPayload, error) {
-	path := "/api/providers/{provider_id}"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderSummaryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderModelStatus List provider model catalog source status across providers
-func (c *Client) GetProviderModelStatus(ctx context.Context) (*ProviderModelStatusResponse, error) {
-	path := "/api/model-catalog/sources/status"
-	var out ProviderModelStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderModelStatusByProviderParams carries the path, query, and header parameters.
-type GetProviderModelStatusByProviderParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// GetProviderModelStatusByProvider List provider model catalog source status for one provider
-func (c *Client) GetProviderModelStatusByProvider(ctx context.Context, params GetProviderModelStatusByProviderParams) (*ProviderModelStatusResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/status"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderUsageParams carries the path, query, and header parameters.
-type GetProviderUsageParams struct {
-	ProviderID string  `url:"provider_id"`
-	Profile    *string `url:"profile"`
 }

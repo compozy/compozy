@@ -382,3 +382,33 @@ func requireDecisionReason(t *testing.T, decision EffectiveToolDecision, want Re
 	}
 	t.Fatalf("decision reasons = %#v, want %q", decision.ReasonCodes, want)
 }
+
+func TestAgentMemoryPermissionCeiling(t *testing.T) {
+	for _, mode := range []PermissionMode{PermissionModeApproveReads, PermissionModeDenyAll} {
+		t.Run("Should retain "+string(mode)+" authority for own memory writes", func(t *testing.T) {
+			t.Parallel()
+			for _, id := range []ToolID{ToolIDAgentMemoryAdd, ToolIDAgentMemoryReplace, ToolIDAgentMemoryRemove} {
+				descriptor := validDescriptor()
+				descriptor.ID = id
+				descriptor.ReadOnly = false
+				descriptor.Risk = RiskMutating
+				inputs := DefaultPolicyInputs()
+				inputs.SystemPermissionMode = mode
+				evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{id})
+				if err != nil {
+					t.Fatal(err)
+				}
+				decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if mode == PermissionModeApproveReads && (!decision.Callable || decision.ApprovalRequired) {
+					t.Fatalf("unexpected approval: %+v", decision)
+				}
+				if mode == PermissionModeDenyAll && !decision.ApprovalRequired {
+					t.Fatalf("deny-all bypassed: %+v", decision)
+				}
+			}
+		})
+	}
+}

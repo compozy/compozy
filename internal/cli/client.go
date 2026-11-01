@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -81,6 +82,7 @@ type DaemonClient interface {
 	DeleteAgent(ctx context.Context, name string, workspace string) (contract.DeleteAgentResponse, error)
 	DuplicateAgent(ctx context.Context, name string, request contract.DuplicateAgentRequest) (AgentRecord, error)
 	RolesClient
+	AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error)
 	GetAgentSoul(ctx context.Context, name string, query AgentQuery) (AgentSoulRecord, error)
 	ValidateAgentSoul(ctx context.Context, name string, request AgentSoulValidateRequest) (AgentSoulRecord, error)
 	PutAgentSoul(ctx context.Context, name string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error)

@@ -1,6 +1,7 @@
 package udsapi
 
 import (
+	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"time"
 
@@ -62,6 +63,7 @@ type handlerConfig struct {
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
 	soulAuthoring         core.SoulAuthoringService
+	agentMemory           *agentmemory.Store
 	soulHistoryPurger     core.SoulHistoryPurger
 	soulRefresher         core.SoulRefresher
 	heartbeatAuthor       core.HeartbeatAuthoringService

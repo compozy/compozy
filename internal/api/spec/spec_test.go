@@ -5176,3 +5176,31 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 	}
 	catalogs(baseline)
 }
+
+func TestAgentMemoryOpenAPI(t *testing.T) {
+	t.Run("Should expose experimental memory operations on both transports", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, operation := range agentMemoryOperations() {
+			rendered := operationFor(t, doc, operation.Path, operation.Method)
+			if rendered.Extensions["x-stability"] != "experimental" {
+				t.Fatalf("missing stability for %s", operation.OperationID)
+			}
+			if !slices.Contains(operation.Transports, TransportHTTP) || !slices.Contains(operation.Transports, TransportUDS) {
+				t.Fatalf("missing transport for %s", operation.OperationID)
+			}
+			if operation.AppAccess != AppAccessDenied {
+				t.Fatalf("unexpected app authority for %s", operation.OperationID)
+			}
+		}
+		document := jsonResponseSchema(t, operationFor(t, doc, "/api/agents/{name}/memory", "GET"), 200)
+		assertRequired(t, document, "content", "digest", "budget")
+		budget := document.Properties["budget"].Value
+		assertRequired(t, budget, "lines", "max_lines", "bytes", "max_bytes")
+		search := jsonResponseSchema(t, operationFor(t, doc, "/api/agents/{name}/memory/search", "POST"), 200)
+		assertRequired(t, search, "results")
+	})
+}

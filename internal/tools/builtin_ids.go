@@ -396,3 +396,10 @@ const (
 	ToolIDProviderUsageRefresh ToolID    = "compozy__provider_usage_refresh"
 	ToolsetIDProviderUsage     ToolsetID = "compozy__provider_usage"
 )
+
+const (
+	ToolIDAgentMemoryAdd     ToolID = "compozy__agent_memory_add"
+	ToolIDAgentMemoryReplace ToolID = "compozy__agent_memory_replace"
+	ToolIDAgentMemoryRemove  ToolID = "compozy__agent_memory_remove"
+	ToolIDAgentMemorySearch  ToolID = "compozy__agent_memory_search"
+)

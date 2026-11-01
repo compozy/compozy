@@ -346,7 +346,7 @@ func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision
 	case PermissionModeApproveReads:
 		// Session lineage and terminal scope authorize terminal input without a
 		// second permission handoff; deny-all still asks for every tool call.
-		if d.ID == ToolIDTerminalWrite || isReadOnlyAutoApprovable(d) {
+		if d.ID == ToolIDTerminalWrite || isOwnAgentMemoryWrite(d) || isReadOnlyAutoApprovable(d) {
 			return
 		}
 		requireApproval(decision, e.inputs.ApprovalAvailable)
@@ -426,4 +426,16 @@ func appendDecisionReason(decision *EffectiveToolDecision, reason ReasonCode) {
 		return
 	}
 	decision.ReasonCodes = append(decision.ReasonCodes, reason)
+}
+
+func isOwnAgentMemoryWrite(d Descriptor) bool {
+	if d.Source.Kind != SourceBuiltin || d.Risk != RiskMutating || d.Destructive || d.OpenWorld || d.RequiresInteraction {
+		return false
+	}
+	switch d.ID {
+	case ToolIDAgentMemoryAdd, ToolIDAgentMemoryReplace, ToolIDAgentMemoryRemove:
+		return true
+	default:
+		return false
+	}
 }

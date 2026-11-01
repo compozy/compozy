@@ -7,6 +7,104 @@ import (
 	"time"
 )
 
+// CmdPaletteUsageRequest is a daemon API value.
+type CmdPaletteUsageRequest struct {
+	Workspace string    `json:"workspace"`
+	CommandID CommandID `json:"command_id"`
+	Query     string    `json:"query"`
+}
+
+// CmdPaletteViewEnvelope is a daemon API value.
+type CmdPaletteViewEnvelope struct {
+	ProfileLens ProfileLens `json:"profile_lens"`
+	ViewID      string      `json:"view_id"`
+	Title       string      `json:"title"`
+	Kind        ViewKind    `json:"kind"`
+	Revision    string      `json:"revision"`
+	StreamEpoch string      `json:"stream_epoch"`
+	Payload     ViewPayload `json:"payload"`
+}
+
+// CmdPaletteViewPatch is a daemon API value.
+type CmdPaletteViewPatch struct {
+	Sequence    int64        `json:"sequence"`
+	StreamEpoch string       `json:"stream_epoch"`
+	Patch       *ViewPatch   `json:"patch,omitzero"`
+	Payload     *ViewPayload `json:"payload,omitzero"`
+	Revision    string       `json:"revision"`
+	Reset       bool         `json:"reset,omitzero"`
+}
+
+// CmdPaletteViewSessionAccepted is a daemon API value.
+type CmdPaletteViewSessionAccepted struct {
+	Accepted bool `json:"accepted"`
+}
+
+// CmdPaletteViewSessionClosed is a daemon API value.
+type CmdPaletteViewSessionClosed struct {
+	Closed bool `json:"closed"`
+}
+
+// CmdPaletteViewSessionEventRequest is a daemon API value.
+type CmdPaletteViewSessionEventRequest struct {
+	Handler      string        `json:"handler"`
+	Args         []any         `json:"args,omitempty"`
+	Revision     string        `json:"revision"`
+	Seq          int64         `json:"seq"`
+	AckEffects   []string      `json:"ack_effects,omitempty"`
+	EffectResult *EffectResult `json:"effect_result,omitzero"`
+}
+
+// CmdPaletteViewSessionOpenRequest is a daemon API value.
+type CmdPaletteViewSessionOpenRequest struct {
+	Workspace string         `json:"workspace"`
+	Args      map[string]any `json:"args,omitempty"`
+}
+
+// CmdPaletteViewSessionOpenResponse is a daemon API value.
+type CmdPaletteViewSessionOpenResponse struct {
+	ProfileLens ProfileLens `json:"profile_lens"`
+	ViewSession string      `json:"view_session"`
+	StreamToken string      `json:"stream_token"`
+	FirstFrame  ViewFrame   `json:"first_frame"`
+}
+
+// CommandFlag is a daemon API value.
+type CommandFlag struct {
+	Name       string          `json:"name"`
+	Field      string          `json:"field"`
+	Type       CommandFlagType `json:"type"`
+	Repeatable bool            `json:"repeatable"`
+	Required   bool            `json:"required"`
+	Nullable   bool            `json:"nullable"`
+	Enum       []string        `json:"enum,omitempty"`
+	Default    json.RawMessage `json:"default,omitempty"`
+	Minimum    *float64        `json:"minimum,omitempty"`
+	Maximum    *float64        `json:"maximum,omitempty"`
+}
+
+// CommandFlagType is a daemon API value.
+type CommandFlagType string
+
+const (
+	CommandFlagTypeString  CommandFlagType = "string"
+	CommandFlagTypeBoolean CommandFlagType = "boolean"
+	CommandFlagTypeInteger CommandFlagType = "integer"
+	CommandFlagTypeNumber  CommandFlagType = "number"
+)
+
+// CommandID is a daemon API value.
+type CommandID string
+
+// CompleteTaskRunRequest is a daemon API value.
+type CompleteTaskRunRequest struct {
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
+}
+
+// ConcurrencyPolicy is a daemon API value.
+type ConcurrencyPolicy string
+
 // ConfigApplyRecordPayload is a daemon API value.
 type ConfigApplyRecordPayload struct {
 	ID                string                  `json:"id"`
@@ -347,99 +445,4 @@ type CreateWorktreeRequest struct {
 	BaseRef        string `json:"base_ref,omitempty"`
 	ExistingBranch string `json:"existing_branch,omitempty"`
 	Path           string `json:"path,omitempty"`
-}
-
-// CriterionType is a daemon API value.
-type CriterionType string
-
-// CursorPagePayload is a daemon API value.
-type CursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Limit      int    `json:"limit"`
-}
-
-// DaemonIdentityPayload is a daemon API value.
-type DaemonIdentityPayload struct {
-	PID         int       `json:"pid"`
-	StartedAt   time.Time `json:"started_at"`
-	HTTPHost    string    `json:"http_host"`
-	HTTPPort    int       `json:"http_port"`
-	UserHomeDir string    `json:"user_home_dir"`
-	Version     string    `json:"version"`
-}
-
-// DaemonStatusPayload is a daemon API value.
-type DaemonStatusPayload struct {
-	Status         string                `json:"status"`
-	PID            int                   `json:"pid"`
-	StartedAt      time.Time             `json:"started_at"`
-	Socket         string                `json:"socket"`
-	HTTPHost       string                `json:"http_host"`
-	HTTPPort       int                   `json:"http_port"`
-	UserHomeDir    string                `json:"user_home_dir"`
-	ActiveSessions int                   `json:"active_sessions"`
-	TotalSessions  int                   `json:"total_sessions"`
-	Version        string                `json:"version,omitempty"`
-	MinAppVersion  string                `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload `json:"gateway,omitzero"`
-	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
-}
-
-// DeleteAgentResponse is a daemon API value.
-type DeleteAgentResponse struct {
-	Name             string      `json:"name"`
-	Origin           AgentOrigin `json:"origin"`
-	UnshadowedOrigin AgentOrigin `json:"unshadowed_origin,omitempty"`
-}
-
-// DeleteLoopInputDefaultResponse is a daemon API value.
-type DeleteLoopInputDefaultResponse struct {
-	LoopName string                 `json:"loop_name"`
-	Key      string                 `json:"key"`
-	Scope    LoopInputDefaultsScope `json:"scope"`
-	Deleted  bool                   `json:"deleted"`
-}
-
-// DeleteProfilePlan is a daemon API value.
-type DeleteProfilePlan struct {
-	Revision          string                `json:"revision"`
-	Removed           ProfileRemovalSummary `json:"removed"`
-	SelectionsToSweep int                   `json:"selections_to_sweep"`
-	ApprovalBlockers  []string              `json:"approval_blockers"`
-}
-
-// DeleteProfileResponse is a daemon API value.
-type DeleteProfileResponse struct {
-	Deleted bool                  `json:"deleted"`
-	Removed ProfileRemovalSummary `json:"removed"`
-}
-
-// DeleteResourceRequest is a daemon API value.
-type DeleteResourceRequest struct {
-	ExpectedVersion int64 `json:"expected_version"`
-}
-
-// DependencyKind is a daemon API value.
-type DependencyKind string
-
-// DesktopID is a daemon API value.
-type DesktopID string
-
-// DesktopTransition is a daemon API value.
-type DesktopTransition string
-
-// DetailBody is a daemon API value.
-type DetailBody struct {
-	IsLoading bool        `json:"is_loading,omitempty"`
-	Markdown  string      `json:"markdown,omitempty"`
-	Metadata  []MetaField `json:"metadata,omitempty"`
-	Actions   []RowAction `json:"actions,omitempty"`
-}
-
-// DevLinkExtensionRequest is a daemon API value.
-type DevLinkExtensionRequest struct {
-	OriginPath           string `json:"origin_path"`
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }

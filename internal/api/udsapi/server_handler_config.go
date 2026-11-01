@@ -47,6 +47,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		marketplaceCatalog:    s.marketplaceCatalog,
 		agentContext:          s.agentContext,
 		soulAuthoring:         s.soulAuthoring,
+		agentMemory:           s.agentMemory,
 		soulHistoryPurger:     s.soulHistoryPurger,
 		soulRefresher:         s.soulRefresher,
 		heartbeatAuthor:       s.heartbeatAuthor,

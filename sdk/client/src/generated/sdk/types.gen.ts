@@ -284,6 +284,83 @@ export type AgentMeResponse = {
   me: AgentMePayload;
 };
 
+export type AgentMemoryAddRequest = {
+  text: string;
+  until?: string;
+};
+
+export type AgentMemoryBudget = {
+  bytes: number;
+  lines: number;
+  max_bytes: number;
+  max_lines: number;
+};
+
+export type AgentMemoryDocument = {
+  budget: AgentMemoryBudget;
+  content: string;
+  digest: string;
+};
+
+export type AgentMemoryHistoryResponse = {
+  revisions: Array<AgentMemoryRevision>;
+};
+
+export type AgentMemoryRemoveRequest = {
+  match: string;
+};
+
+export type AgentMemoryRemoveResponse = {
+  digest: string;
+  removed: number;
+};
+
+export type AgentMemoryReplaceRequest = {
+  match: string;
+  text: string;
+};
+
+export type AgentMemoryRevision = {
+  digest: string;
+  id: string;
+};
+
+export type AgentMemoryRollbackRequest = {
+  revision: string;
+};
+
+export type AgentMemorySearchRequest = {
+  include_sessions?: boolean;
+  query: string;
+};
+
+export type AgentMemorySearchResponse = {
+  results: Array<AgentMemorySearchResult>;
+};
+
+export type AgentMemorySearchResult = {
+  file?: string;
+  line?: number;
+  score?: number;
+  session_id?: string;
+  source: string;
+  text: string;
+};
+
+export type AgentMemoryValidateRequest = {
+  content: string;
+};
+
+export type AgentMemoryValidateResponse = {
+  diagnostics: Array<string>;
+  valid: boolean;
+};
+
+export type AgentMemoryWriteRequest = {
+  content: string;
+  expected_digest: string;
+};
+
 export type AgentNotifyRequest = {
   body?: string;
   title: string;
@@ -14717,6 +14794,637 @@ export type WakeAgentHeartbeatResponses = {
 
 export type WakeAgentHeartbeatResponse =
   WakeAgentHeartbeatResponses[keyof WakeAgentHeartbeatResponses];
+
+export type GetAgentMemoryData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory";
+};
+
+export type GetAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentMemoryError = GetAgentMemoryErrors[keyof GetAgentMemoryErrors];
+
+export type GetAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type GetAgentMemoryResponse = GetAgentMemoryResponses[keyof GetAgentMemoryResponses];
+
+export type PutAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryWriteRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory";
+};
+
+export type PutAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PutAgentMemoryError = PutAgentMemoryErrors[keyof PutAgentMemoryErrors];
+
+export type PutAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type PutAgentMemoryResponse = PutAgentMemoryResponses[keyof PutAgentMemoryResponses];
+
+export type RemoveAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryRemoveRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/entries";
+};
+
+export type RemoveAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveAgentMemoryError = RemoveAgentMemoryErrors[keyof RemoveAgentMemoryErrors];
+
+export type RemoveAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryRemoveResponse;
+};
+
+export type RemoveAgentMemoryResponse =
+  RemoveAgentMemoryResponses[keyof RemoveAgentMemoryResponses];
+
+export type ReplaceAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryReplaceRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/entries";
+};
+
+export type ReplaceAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ReplaceAgentMemoryError = ReplaceAgentMemoryErrors[keyof ReplaceAgentMemoryErrors];
+
+export type ReplaceAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type ReplaceAgentMemoryResponse =
+  ReplaceAgentMemoryResponses[keyof ReplaceAgentMemoryResponses];
+
+export type AddAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryAddRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/entries";
+};
+
+export type AddAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AddAgentMemoryError = AddAgentMemoryErrors[keyof AddAgentMemoryErrors];
+
+export type AddAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type AddAgentMemoryResponse = AddAgentMemoryResponses[keyof AddAgentMemoryResponses];
+
+export type ListAgentMemoryHistoryData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/history";
+};
+
+export type ListAgentMemoryHistoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentMemoryHistoryError =
+  ListAgentMemoryHistoryErrors[keyof ListAgentMemoryHistoryErrors];
+
+export type ListAgentMemoryHistoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryHistoryResponse;
+};
+
+export type ListAgentMemoryHistoryResponse =
+  ListAgentMemoryHistoryResponses[keyof ListAgentMemoryHistoryResponses];
+
+export type RollbackAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryRollbackRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/rollback";
+};
+
+export type RollbackAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RollbackAgentMemoryError = RollbackAgentMemoryErrors[keyof RollbackAgentMemoryErrors];
+
+export type RollbackAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type RollbackAgentMemoryResponse =
+  RollbackAgentMemoryResponses[keyof RollbackAgentMemoryResponses];
+
+export type SearchAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemorySearchRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/search";
+};
+
+export type SearchAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type SearchAgentMemoryError = SearchAgentMemoryErrors[keyof SearchAgentMemoryErrors];
+
+export type SearchAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemorySearchResponse;
+};
+
+export type SearchAgentMemoryResponse =
+  SearchAgentMemoryResponses[keyof SearchAgentMemoryResponses];
+
+export type ValidateAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryValidateRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/validate";
+};
+
+export type ValidateAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ValidateAgentMemoryError = ValidateAgentMemoryErrors[keyof ValidateAgentMemoryErrors];
+
+export type ValidateAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryValidateResponse;
+};
+
+export type ValidateAgentMemoryResponse =
+  ValidateAgentMemoryResponses[keyof ValidateAgentMemoryResponses];
 
 export type DeleteAgentSoulData = {
   /**

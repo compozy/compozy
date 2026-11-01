@@ -7,6 +7,101 @@ import (
 	"time"
 )
 
+// CriterionType is a daemon API value.
+type CriterionType string
+
+// CursorPagePayload is a daemon API value.
+type CursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Limit      int    `json:"limit"`
+}
+
+// DaemonIdentityPayload is a daemon API value.
+type DaemonIdentityPayload struct {
+	PID         int       `json:"pid"`
+	StartedAt   time.Time `json:"started_at"`
+	HTTPHost    string    `json:"http_host"`
+	HTTPPort    int       `json:"http_port"`
+	UserHomeDir string    `json:"user_home_dir"`
+	Version     string    `json:"version"`
+}
+
+// DaemonStatusPayload is a daemon API value.
+type DaemonStatusPayload struct {
+	Status         string                `json:"status"`
+	PID            int                   `json:"pid"`
+	StartedAt      time.Time             `json:"started_at"`
+	Socket         string                `json:"socket"`
+	HTTPHost       string                `json:"http_host"`
+	HTTPPort       int                   `json:"http_port"`
+	UserHomeDir    string                `json:"user_home_dir"`
+	ActiveSessions int                   `json:"active_sessions"`
+	TotalSessions  int                   `json:"total_sessions"`
+	Version        string                `json:"version,omitempty"`
+	MinAppVersion  string                `json:"min_app_version"`
+	Gateway        *GatewayStatusPayload `json:"gateway,omitzero"`
+	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
+}
+
+// DeleteAgentResponse is a daemon API value.
+type DeleteAgentResponse struct {
+	Name             string      `json:"name"`
+	Origin           AgentOrigin `json:"origin"`
+	UnshadowedOrigin AgentOrigin `json:"unshadowed_origin,omitempty"`
+}
+
+// DeleteLoopInputDefaultResponse is a daemon API value.
+type DeleteLoopInputDefaultResponse struct {
+	LoopName string                 `json:"loop_name"`
+	Key      string                 `json:"key"`
+	Scope    LoopInputDefaultsScope `json:"scope"`
+	Deleted  bool                   `json:"deleted"`
+}
+
+// DeleteProfilePlan is a daemon API value.
+type DeleteProfilePlan struct {
+	Revision          string                `json:"revision"`
+	Removed           ProfileRemovalSummary `json:"removed"`
+	SelectionsToSweep int                   `json:"selections_to_sweep"`
+	ApprovalBlockers  []string              `json:"approval_blockers"`
+}
+
+// DeleteProfileResponse is a daemon API value.
+type DeleteProfileResponse struct {
+	Deleted bool                  `json:"deleted"`
+	Removed ProfileRemovalSummary `json:"removed"`
+}
+
+// DeleteResourceRequest is a daemon API value.
+type DeleteResourceRequest struct {
+	ExpectedVersion int64 `json:"expected_version"`
+}
+
+// DependencyKind is a daemon API value.
+type DependencyKind string
+
+// DesktopID is a daemon API value.
+type DesktopID string
+
+// DesktopTransition is a daemon API value.
+type DesktopTransition string
+
+// DetailBody is a daemon API value.
+type DetailBody struct {
+	IsLoading bool        `json:"is_loading,omitempty"`
+	Markdown  string      `json:"markdown,omitempty"`
+	Metadata  []MetaField `json:"metadata,omitempty"`
+	Actions   []RowAction `json:"actions,omitempty"`
+}
+
+// DevLinkExtensionRequest is a daemon API value.
+type DevLinkExtensionRequest struct {
+	OriginPath           string `json:"origin_path"`
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
 // Diagnostic is a daemon API value.
 type Diagnostic struct {
 	Code    string `json:"code"`
@@ -350,99 +445,4 @@ type ExtensionLogPayload struct {
 	Message        string    `json:"message"`
 	GenerationHash string    `json:"generation_hash,omitempty"`
 	StreamEpoch    string    `json:"stream_epoch"`
-}
-
-// ExtensionLogsResponse is a daemon API value.
-type ExtensionLogsResponse struct {
-	Logs        []ExtensionLogPayload `json:"logs"`
-	StreamEpoch string                `json:"stream_epoch"`
-}
-
-// ExtensionPayload is a daemon API value.
-type ExtensionPayload struct {
-	Description                 string                            `json:"description,omitempty"`
-	InstallationProfile         string                            `json:"installation_profile,omitempty"`
-	Layout                      string                            `json:"layout,omitempty"`
-	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
-	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
-	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
-	Contents                    ExtensionContentsPayload          `json:"contents"`
-	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
-	Name                        string                            `json:"name"`
-	Profile                     string                            `json:"profile"`
-	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
-	Version                     string                            `json:"version"`
-	Type                        string                            `json:"type"`
-	Format                      string                            `json:"format"`
-	Source                      string                            `json:"source"`
-	Enabled                     bool                              `json:"enabled"`
-	State                       string                            `json:"state"`
-	Capabilities                []string                          `json:"capabilities,omitempty"`
-	Permissions                 []string                          `json:"permissions,omitempty"`
-	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
-	MissingEnv                  []string                          `json:"missing_env,omitempty"`
-	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
-	GatewayRequirementDigest    string                            `json:"gateway_requirement_digest,omitempty"`
-	GatewayConfirmationRequired bool                              `json:"gateway_confirmation_required"`
-	PID                         int                               `json:"pid,omitzero"`
-	UptimeSeconds               int64                             `json:"uptime_seconds,omitzero"`
-	Health                      string                            `json:"health,omitempty"`
-	HealthMessage               string                            `json:"health_message,omitempty"`
-	LastError                   string                            `json:"last_error,omitempty"`
-	FailureCode                 string                            `json:"failure_code,omitempty"`
-	ConsecutiveFailures         int                               `json:"consecutive_failures"`
-	RestartBackoffMS            int64                             `json:"restart_backoff_ms"`
-	GenerationHash              string                            `json:"generation_hash,omitempty"`
-	Dev                         bool                              `json:"dev,omitzero"`
-	OverridesPublished          bool                              `json:"overrides_published,omitzero"`
-	OriginPath                  string                            `json:"origin_path,omitempty"`
-	UpdateAvailable             bool                              `json:"update_available"`
-	RemoteVersion               string                            `json:"remote_version,omitempty"`
-	DigestMatched               bool                              `json:"digest_matched"`
-	DaemonRunning               bool                              `json:"daemon_running"`
-	Provenance                  *ExtensionProvenancePayload       `json:"provenance,omitzero"`
-	Marketplace                 *MarketplaceListingPayload        `json:"marketplace,omitzero"`
-	Trust                       *ExtensionTrustReportPayload      `json:"trust,omitzero"`
-	Diagnostics                 []DiagnosticItem                  `json:"diagnostics,omitempty"`
-	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
-	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
-	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
-}
-
-// ExtensionPlacementPayload is a daemon API value.
-type ExtensionPlacementPayload struct {
-	Kind         string `json:"kind"`
-	Resource     string `json:"resource"`
-	Profile      string `json:"profile,omitempty"`
-	Dormant      bool   `json:"dormant"`
-	CreateAction string `json:"create_action,omitempty"`
-}
-
-// ExtensionProvenancePayload is a daemon API value.
-type ExtensionProvenancePayload struct {
-	SourceName          string                       `json:"source_name,omitempty"`
-	SourceRef           string                       `json:"source_ref,omitempty"`
-	EntryID             string                       `json:"entry_id,omitempty"`
-	ResolvedRef         string                       `json:"resolved_ref,omitempty"`
-	Layout              string                       `json:"layout,omitempty"`
-	Slug                string                       `json:"slug,omitempty"`
-	CatalogEntryID      string                       `json:"catalog_entry_id,omitempty"`
-	InstalledFrom       string                       `json:"installed_from"`
-	SourceURL           string                       `json:"source_url,omitempty"`
-	ChecksumSHA256      string                       `json:"checksum_sha256"`
-	ArchiveDigestSHA256 string                       `json:"archive_digest_sha256,omitempty"`
-	DigestMatched       bool                         `json:"digest_matched"`
-	ChecksumVerified    bool                         `json:"checksum_verified"`
-	RegistryTier        string                       `json:"registry_tier"`
-	Permissions         []string                     `json:"permissions,omitempty"`
-	InstalledAt         time.Time                    `json:"installed_at"`
-	InstalledBy         string                       `json:"installed_by"`
-	AllowUnverified     bool                         `json:"allow_unverified"`
-	Warnings            []DiagnosticItem             `json:"warnings,omitempty"`
-	Trust               *ExtensionTrustReportPayload `json:"trust,omitzero"`
-}
-
-// ExtensionProvenanceResponse is a daemon API value.
-type ExtensionProvenanceResponse struct {
-	Provenance ExtensionProvenancePayload `json:"provenance"`
 }

@@ -23,6 +23,7 @@ import (
 
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
@@ -16012,4 +16013,55 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAgentMemoryNativeTools(t *testing.T) {
+	t.Run("Should mutate only the calling stays-on agent memory through the registry", func(t *testing.T) {
+		t.Parallel()
+		memory := agentmemory.NewStore(t.TempDir())
+		catalog := newResourceCatalog(cloneAgentDef)
+		agent := compozyconfig.AgentDef{Name: "coder", Kind: compozyconfig.AgentKindStaysOn}
+		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: "coder", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
+		workspace := nativeTestWorkspaceServiceWithRoot(t, t.TempDir())
+		workspace.ResolveForProfileFn = func(ctx context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspace.ResolveFn(ctx, ref)
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{AgentMemory: memory, AgentCatalog: agentCatalogDependency(catalog), Sessions: nativeTestSessionManager("ws-1"), Workspaces: workspace, WorkspaceResolver: workspace}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-memory", AgentName: "coder", WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}
+		for _, item := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{toolspkg.ToolIDAgentMemoryAdd, `{"text":"remember previews"}`},
+			{toolspkg.ToolIDAgentMemoryReplace, `{"match":"previews","text":"deployments"}`},
+			{toolspkg.ToolIDAgentMemorySearch, `{"query":"deployments"}`},
+			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"deployments"}`},
+		} {
+			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if item.id == toolspkg.ToolIDAgentMemorySearch && !strings.Contains(string(result.Structured), "remember deployments") {
+				t.Fatalf("search lost note: %s", result.Structured)
+			}
+			if item.id == toolspkg.ToolIDAgentMemoryRemove && !strings.Contains(string(result.Structured), `"removed":1`) {
+				t.Fatalf("wrong removal count: %s", result.Structured)
+			}
+		}
+		doc, err := memory.Read(agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: "coder"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc.Content != "" {
+			t.Fatalf("remove left notes: %s", doc.Content)
+		}
+		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"leak","agent":"other"}`)}); err == nil {
+			t.Fatal("accepted target override")
+		}
+		agent.Kind = compozyconfig.AgentKindOnDemand
+		catalog.Replace(2, []resources.Record[compozyconfig.AgentDef]{{ID: "coder", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
+		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"refuse"}`)}); err == nil || !strings.Contains(err.Error(), "agent_not_stays_on") {
+			t.Fatalf("on-demand result: %v", err)
+		}
+	})
 }

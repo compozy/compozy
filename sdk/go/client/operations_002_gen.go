@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
+func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/archive"
+	query := url.Values{}
+	if params.Processes != nil {
+		query.Set("processes", *params.Processes)
+	}
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	if params.Stop != nil {
+		query.Set("stop", strconv.FormatBool(*params.Stop))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ArchiveTaskParams carries the path, query, and header parameters.
 type ArchiveTaskParams struct {
 	ID      string  `url:"id"`
@@ -418,29 +443,4 @@ type CancelSubagentParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SubagentID  string  `url:"subagent_id"`
 	Profile     *string `url:"profile"`
-}
-
-// CancelSubagent Cancel a delegated subagent
-func (c *Client) CancelSubagent(ctx context.Context, params CancelSubagentParams, body SubagentCancelRequest) (*SubagentCancelPayload, error) {
-	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SubagentCancelPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelTaskParams carries the path, query, and header parameters.
-type CancelTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

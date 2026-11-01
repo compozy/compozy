@@ -7,6 +7,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding, 32)
 	addNativeToolBindings(bindings, n.agentInstanceBindings())
 	addNativeToolBindings(bindings, n.subagentToolBindings())
+	addNativeToolBindings(bindings, n.agentMemoryToolBindings())
 	addNativeToolBindings(bindings, n.registryToolBindings(availability.registry))
 	addNativeToolBindings(bindings, n.profileToolBindings(availability.profiles))
 	addNativeToolBindings(bindings, n.cmdPaletteToolBindings(availability.cmdPalette))

@@ -144,6 +144,58 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__agent_memory_add",
+    "native_name": "agent_memory_add",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bced810840df517a97ad5c47d60cf1c9ca11adba00d18845c640d2ab0cbf261b",
+    "output_schema_digest": "267fe4e9d894c7f8113ba5f4a77fcd6584ca6abe323f083f4b583b048cd021b2"
+  },
+  {
+    "tool_id": "compozy__agent_memory_remove",
+    "native_name": "agent_memory_remove",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c614a321230dd3022918b419e27e72c3fdc25ab64f8c31f8edd15dc9dd4c4d5a",
+    "output_schema_digest": "f52ed1d91efe7147fe1bc9908152c1db7cc190f29f0b7a3d486209a800ef1354"
+  },
+  {
+    "tool_id": "compozy__agent_memory_replace",
+    "native_name": "agent_memory_replace",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e6f4ef51b88acee292c95ca4ea8d01c28f1c8e8fd24a93e029e778351c0a426c",
+    "output_schema_digest": "f1b20460ee170ae0127943182b2f0a015b7de7eb0932c567f2b8f987070ad3a3"
+  },
+  {
+    "tool_id": "compozy__agent_memory_search",
+    "native_name": "agent_memory_search",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e9aaa85040ff44004f8da92e33b7f07177c918e7c5ddac771ee6b588be80a690",
+    "output_schema_digest": "6dd78a37482fb38dafc6e01818a12a149376d9456fae0d630cb58717220e4b6d"
+  },
+  {
     "tool_id": "compozy__automation_jobs_create",
     "native_name": "automation_jobs_create",
     "toolsets": [

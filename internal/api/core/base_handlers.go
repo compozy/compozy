@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"os"
 	"strings"
@@ -83,6 +84,7 @@ type BaseHandlerConfig struct {
 	ProviderACPProbe            func(context.Context, acp.SessionInspectionRequest) error
 	AgentContextService         AgentContextService
 	SoulAuthoring               SoulAuthoringService
+	AgentMemory                 *agentmemory.Store
 	SoulHistoryPurger           SoulHistoryPurger
 	SoulRefresher               SoulRefresher
 	HeartbeatAuthoring          HeartbeatAuthoringService
@@ -172,6 +174,7 @@ type BaseHandlers struct {
 	ProviderACPProbe             func(context.Context, acp.SessionInspectionRequest) error
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
+	AgentMemory                  *agentmemory.Store
 	SoulHistoryPurger            SoulHistoryPurger
 	SoulRefresher                SoulRefresher
 	HeartbeatAuthoring           HeartbeatAuthoringService
@@ -385,6 +388,7 @@ func (h *BaseHandlers) applyAuthoredContextConfig(cfg *BaseHandlerConfig) {
 		return
 	}
 	h.SoulAuthoring = cfg.SoulAuthoring
+	h.AgentMemory = cfg.AgentMemory
 	h.SoulRefresher = cfg.SoulRefresher
 	h.HeartbeatAuthoring = cfg.HeartbeatAuthoring
 	h.HeartbeatStatus = cfg.HeartbeatStatus

@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -566,6 +570,97 @@ func TestSessionAuthoredContextCommands(t *testing.T) {
 		usage := sessionCmd.UsageString()
 		if strings.Contains(usage, "heartbeat") {
 			t.Fatalf("session help contains forbidden heartbeat command:\n%s", usage)
+		}
+	})
+}
+
+type memoryHTTPClient struct {
+	*stubClient
+	transport *daemonClient
+}
+
+var _ DaemonClient = (*memoryHTTPClient)(nil)
+
+func (c *memoryHTTPClient) AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error) {
+	return c.transport.AgentMemory(ctx, name, query, operation, body)
+}
+
+func TestAgentMemoryCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, suffix, body string
+		args                       []string
+	}{
+		{"inspect", "GET", "", "", []string{"inspect", "triage"}},
+		{"add", "POST", "/entries", "remember", []string{"add", "triage", "remember", "--until", "2026-12-01"}},
+		{"replace", "PATCH", "/entries", "replacement", []string{"replace", "triage", "match", "replacement"}},
+		{"remove", "DELETE", "/entries", "match", []string{"remove", "triage", "match"}},
+		{"search", "POST", "/search", "preview", []string{"search", "triage", "preview", "--include-sessions"}},
+		{"history", "GET", "/history", "", []string{"history", "triage"}},
+		{"rollback", "POST", "/rollback", "revision-one", []string{"rollback", "triage", "revision-one"}},
+		{"write", "PUT", "", "digest-one", []string{"write", "triage", "--expected-digest", "digest-one"}},
+		{"validate", "POST", "/validate", "note body", []string{"validate", "triage"}},
+	} {
+		t.Run("Should send "+tc.name+" through the daemon client", func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != tc.method || r.URL.Path != "/api/agents/triage/memory"+tc.suffix || r.URL.Query().Get("workspace") != "checkout-api" {
+					t.Errorf("unexpected request %s %s", r.Method, r.URL)
+				}
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Error(err)
+				}
+				if tc.body != "" && !strings.Contains(string(body), tc.body) {
+					t.Errorf("unexpected body %s", body)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if _, err := io.WriteString(w, `{"content":"note body","digest":"digest-one","budget":{"lines":1,"max_lines":200,"bytes":9,"max_bytes":24576}}`); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			transport := &daemonClient{target: LocalClientTarget("/tmp/compozy-memory.sock"), httpClient: &http.Client{Timeout: defaultUnixSocketClientTimeout, Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				target, err := url.Parse(server.URL)
+				if err != nil {
+					return nil, err
+				}
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})}}
+			stub := &stubClient{}
+			withWorkspaceResolution(stub)
+			deps := newTestDeps(t, &memoryHTTPClient{stubClient: stub, transport: transport})
+			args := append([]string{"agent", "memory"}, tc.args...)
+			if tc.name == "write" || tc.name == "validate" {
+				path := filepath.Join(t.TempDir(), "MEMORY.md")
+				if err := os.WriteFile(path, []byte("note body"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				args = append(args, "--file", path)
+			}
+			args = append(args, "--workspace", "checkout-api", "--json")
+			output, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output, `"digest":"digest-one"`) && !strings.Contains(output, `"digest": "digest-one"`) {
+				t.Fatalf("unexpected output %s", output)
+			}
+		})
+	}
+}
+
+func TestAgentMemoryWriteConflictGuard(t *testing.T) {
+	t.Run("Should require an inspected digest before replacing memory", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "MEMORY.md")
+		if err := os.WriteFile(path, []byte("edited notes"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		deps := newWorkspaceTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(t, deps, "agent", "memory", "write", "triage", "--file", path, "--workspace", "checkout-api")
+		if err == nil || !strings.Contains(err.Error(), "--expected-digest is required") {
+			t.Fatalf("unexpected error %v", err)
 		}
 	})
 }

@@ -19,6 +19,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, sessionNavigationOperations()...)
 	ops = append(ops, attentionNotificationOperations()...)
 	ops = append(ops, authoredContextOperations()...)
+	ops = append(ops, agentMemoryOperations()...)
 	ops = append(ops, append(loopsOperations(), goalOperations()...)...)
 	ops = applyLoopAutomationContract(ops)
 	ops = append(ops, modelCatalogOperations()...)

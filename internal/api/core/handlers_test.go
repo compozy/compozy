@@ -23,6 +23,7 @@ import (
 	loggerpkg "github.com/compozy/compozy/internal/logger"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -4363,6 +4364,12 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		heartbeatPurger := &recordingHeartbeatHistoryPurger{}
 		fixture.Handlers.SoulHistoryPurger = soulPurger
 		fixture.Handlers.HeartbeatHistoryPurger = heartbeatPurger
+		memoryHome := t.TempDir()
+		fixture.Handlers.AgentMemory = agentmemory.NewStore(memoryHome)
+		memoryKey := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "workspace-ws-registry", Agent: "coder"}
+		if _, err := fixture.Handlers.AgentMemory.Add(memoryKey, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), "ws-registry", "old agent note", ""); err != nil {
+			t.Fatal(err)
+		}
 		resp := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
@@ -4384,6 +4391,10 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		if heartbeatPurger.workspaceID != "ws-registry" || heartbeatPurger.sourcePath != workspacePath {
 			t.Fatalf("heartbeat purge = %#v", heartbeatPurger)
+		}
+		reopened, err := agentmemory.NewStore(memoryHome).Read(memoryKey)
+		if err != nil || reopened.Content != "" {
+			t.Fatalf("retired memory after reopen: %+v, %v", reopened, err)
 		}
 		repeat := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
 		if repeat.Code != http.StatusNotFound {

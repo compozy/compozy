@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/compozy/compozy/internal/agentmemory"
 	"io/fs"
 	"log/slog"
 	"time"
@@ -72,6 +73,7 @@ type handlerConfig struct {
 	coordinatorRole       core.CoordinatorRoleResolver
 	roles                 core.RolesStatusProvider
 	soulAuthoring         core.SoulAuthoringService
+	agentMemory           *agentmemory.Store
 	soulHistoryPurger     core.SoulHistoryPurger
 	soulRefresher         core.SoulRefresher
 	heartbeatAuthor       core.HeartbeatAuthoringService
@@ -202,6 +204,7 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 	return &core.BaseHandlerConfig{
 		SoulAuthoring:          cfg.soulAuthoring,
+		AgentMemory:            cfg.agentMemory,
 		SoulHistoryPurger:      cfg.soulHistoryPurger,
 		SoulRefresher:          cfg.soulRefresher,
 		HeartbeatAuthoring:     cfg.heartbeatAuthor,

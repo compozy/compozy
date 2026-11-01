@@ -9,6 +9,38 @@ import (
 	"strings"
 )
 
+// CreateAgentInstance Create a stays-on agent instance
+func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAppToken Create an app token and reveal its bearer secret once Experimental: pin the exact SDK version.
+func (c *Client) CreateAppToken(ctx context.Context, body CreateAppTokenRequest) (*AppTokenIssuedResponse, error) {
+	path := "/api/app-tokens"
+	var out AppTokenIssuedResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAutomationJobParams carries the path, query, and header parameters.
+type CreateAutomationJobParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateAutomationJob Create an automation job
 func (c *Client) CreateAutomationJob(ctx context.Context, params CreateAutomationJobParams, body CreateJobRequest) (*JobResponse, error) {
 	path := "/api/automation/jobs"
@@ -413,26 +445,4 @@ func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomatio
 type DeleteAutomationTriggerParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// DeleteAutomationTrigger Delete one automation trigger
-func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutomationTriggerParams) error {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteExtensionSecretParams carries the path, query, and header parameters.
-type DeleteExtensionSecretParams struct {
-	Name      string  `url:"name"`
-	EnvName   string  `url:"env_name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

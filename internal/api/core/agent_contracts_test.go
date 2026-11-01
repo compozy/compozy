@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -361,6 +362,40 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 				t.Fatalf("page has_more = %v", page.Page.HasMore)
 			}
 			cursor = page.Page.NextCursor
+		}
+	})
+}
+
+func TestAgentMemoryRoutes(t *testing.T) {
+	t.Run("Should persist notes through shared routes and reject stale edits", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.AgentMemory = agentmemory.NewStore(t.TempDir())
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+			return []core.AgentCatalogEntry{{Def: compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}, MemoryOrigin: "user"}, {Def: compozyconfig.AgentDef{Name: "ordinary"}, MemoryOrigin: "user"}}, nil
+		}}
+		fixture.Handlers.RegisterAgentMemoryRoutes(fixture.Engine.Group("/agents"))
+		for _, tc := range []struct {
+			method, path, body string
+			status             int
+			contains           string
+		}{
+			{"GET", "/agents/triage/memory", "", 200, "max_lines"},
+			{"POST", "/agents/triage/memory/entries", `{"text":"preview deploys"}`, 200, "preview deploys"},
+			{"GET", "/agents/triage/memory", "", 200, "preview deploys"},
+			{"PUT", "/agents/triage/memory", `{"content":"stale","expected_digest":"old"}`, 409, "agent_memory_conflict"},
+			{"POST", "/agents/triage/memory/search", `{"query":"preview"}`, 200, "preview deploys"},
+			{"PATCH", "/agents/triage/memory/entries", `{"match":"preview","text":"production"}`, 200, "production deploys"},
+			{"GET", "/agents/triage/memory/history", "", 200, "revisions"},
+			{"POST", "/agents/triage/memory/validate", `{"content":"valid"}`, 200, `"valid":true`},
+			{"DELETE", "/agents/triage/memory/entries", `{"match":"production"}`, 200, `"removed":1`},
+			{"GET", "/agents/ordinary/memory", "", 422, "agent_not_stays_on"},
+			{"GET", "/agents/missing/memory", "", 404, "error"},
+		} {
+			response := testutil.PerformRequest(t, fixture.Engine, tc.method, tc.path, []byte(tc.body))
+			if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.contains) {
+				t.Fatalf("%s %s: status %d body %s", tc.method, tc.path, response.Code, response.Body.String())
+			}
 		}
 	})
 }

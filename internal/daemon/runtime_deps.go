@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"time"
 
@@ -68,6 +69,7 @@ type RuntimeDeps struct {
 	MarketplaceCatalog  core.MarketplaceCatalogService
 	AgentContext        *situation.Service
 	SoulAuthoring       core.SoulAuthoringService
+	AgentMemory         *agentmemory.Store
 	SoulHistoryPurger   core.SoulHistoryPurger
 	SoulRefresher       core.SoulRefresher
 	HeartbeatAuthor     core.HeartbeatAuthoringService

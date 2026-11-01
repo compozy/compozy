@@ -10,6 +10,38 @@ import (
 	"strings"
 )
 
+// DeliverGlobalWebhook Deliver one global automation webhook
+func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
+	path := "/api/webhooks/global/{endpoint}"
+	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
+	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
+	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WebhookDeliveryResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
+type DeliverWorkspaceWebhookParams struct {
+	WorkspaceID               string  `url:"workspace_id"`
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
 // DeliverWorkspaceWebhook Deliver one workspace-scoped automation webhook
 func (c *Client) DeliverWorkspaceWebhook(ctx context.Context, params DeliverWorkspaceWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
 	path := "/api/webhooks/workspaces/{workspace_id}/{endpoint}"
@@ -413,37 +445,4 @@ func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams
 		return nil, err
 	}
 	return &out, nil
-}
-
-// EnsureAgentInstanceMainParams carries the path, query, and header parameters.
-type EnsureAgentInstanceMainParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// EnsureAgentInstanceMain Ensure the main session exists
-func (c *Client) EnsureAgentInstanceMain(ctx context.Context, params EnsureAgentInstanceMainParams) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances/{id}/ensure-main"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExchangeSettingsMCPAuthParams carries the path, query, and header parameters.
-type ExchangeSettingsMCPAuthParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
 }

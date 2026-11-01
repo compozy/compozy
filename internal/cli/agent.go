@@ -69,6 +69,7 @@ func newAgentCommand(deps commandDeps) *cobra.Command {
 		newAgentListCommand(deps),
 		newAgentInfoCommand(deps),
 		newAgentSoulCommand(deps),
+		newAgentMemoryCommand(deps),
 		newAgentHeartbeatCommand(deps),
 	}
 	for _, command := range commands {

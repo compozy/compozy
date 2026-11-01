@@ -16,6 +16,7 @@ func (d *Daemon) nativeToolsDeps(
 	agentCatalog := nativeAgentCatalogDependency(state)
 	deps := daemonNativeToolsDeps{
 		AgentInstances:      func() *core.AgentInstanceAPI { return state.agentInstances },
+		AgentMemory:         state.agentMemory,
 		WorkspaceAccess:     state.accessPolicy,
 		Subagents:           func() session.SubagentService { return state.subagents },
 		Logger:              state.logger,

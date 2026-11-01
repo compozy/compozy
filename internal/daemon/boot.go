@@ -31,6 +31,7 @@ import (
 
 	"github.com/compozy/compozy/internal/resources"
 
+	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 
@@ -117,6 +118,7 @@ type bootState struct {
 	hookBindings          hookBindingPublisher
 	resourceKernel        *resources.Kernel
 	resourceCodecs        *resources.CodecRegistry
+	agentMemory           *agentmemory.Store
 	agentCatalog          *resourceCatalog[compozyconfig.AgentDef]
 	roleResolver          *roleResolver
 	soulCatalog           *resourceCatalog[soul.ResourceSpec]
@@ -307,8 +309,10 @@ func (d *Daemon) bootHarnessPromptRuntime(
 		WithHarnessSkillInjectionLogger(state.logger),
 	)
 	state.harnessRecorder = newHarnessLifecycleRecorder(state.logger, d.now)
+	state.agentMemory = agentmemory.NewStore(d.homePaths.HomeDir)
 	state.promptAssembler = NewComposedAssembler(
 		WithSectionSelector(NewSectionSelector(state.harnessResolver, state.harnessRecorder)),
+		WithPromptSectionDescriptors(agentMemoryPromptDescriptor(state.agentMemory, state.agentCatalog)),
 		WithPromptSectionDescriptors(
 			defaultStartupPromptSectionDescriptorsFromProviders(
 				appendProviders,

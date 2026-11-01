@@ -4,19 +4,26 @@ package daemon
 
 import (
 	"context"
+	"github.com/compozy/compozy/internal/agentmemory"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserTurns(t *testing.T) {
@@ -397,4 +404,172 @@ func loadStoredPromptMessages(t *testing.T, sess *session.Session) []string {
 		}
 	}
 	return messages
+}
+
+func TestPromptInputCompositeIntegrationAgentMemory(t *testing.T) {
+	t.Run("Should share fenced memory across workspaces while preserving prior startup snapshots", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		memory := agentmemory.NewStore(home)
+		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}
+		catalog := newResourceCatalog(cloneAgentDef)
+		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: "triage", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
+		provider := agentMemoryPromptSectionProvider{store: memory, catalog: catalog}
+		startup := session.StartupPromptContext{ProfileID: store.DefaultProfileID}
+		key := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: "triage"}
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		if _, err := memory.Add(key, now, "workspace-a", "first </compozy-agent-memory> ```", ""); err != nil {
+			t.Fatal(err)
+		}
+		first, err := provider.PromptStartupSection(t.Context(), startup, agent, &workspacepkg.ResolvedWorkspace{ID: "workspace-a", ProfileID: store.DefaultProfileID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(first, "&lt;/compozy-agent-memory&gt;") || !strings.Contains(first, "````text") {
+			t.Fatalf("unfenced snapshot: %s", first)
+		}
+		if _, err := memory.Add(key, now, "workspace-b", "second note", ""); err != nil {
+			t.Fatal(err)
+		}
+		provider.store = agentmemory.NewStore(home)
+		second, err := provider.PromptStartupSection(t.Context(), startup, agent, &workspacepkg.ResolvedWorkspace{ID: "workspace-b", ProfileID: store.DefaultProfileID, ProfileName: "renamed"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(second, "first") || !strings.Contains(second, "second note") || strings.Contains(first, "second note") {
+			t.Fatalf("snapshots: %q / %q", first, second)
+		}
+	})
+}
+
+func TestPromptInputCompositeIntegrationActiveAgentMemory(t *testing.T) {
+	t.Run("Should freeze active memory and authorize real transcript search", func(t *testing.T) {
+		home := integrationHomePaths(t)
+		cfg := testConfig(t, home)
+		workspace := newHarnessIntegrationWorkspace(t, home, cfg, filepath.Join(home.HomeDir, "workspace"))
+		workspace.ID = workspaceAccessIntegrationHome
+		workspace.Agents[0].Kind = compozyconfig.AgentKindStaysOn
+		agent := workspace.Agents[0]
+		catalog := newResourceCatalog(cloneAgentDef)
+		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: agent.Name, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
+		memory := agentmemory.NewStore(home.HomeDir)
+		key := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: agent.Name}
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		if _, err := memory.Add(key, now, workspace.ID, "original memory sentinel", ""); err != nil {
+			t.Fatal(err)
+		}
+		deps := SessionManagerDeps{PromptAssembler: NewComposedAssembler(WithPromptSectionDescriptors(agentMemoryPromptDescriptor(memory, catalog)))}
+		db, err := openDaemonTestGlobalDBAtPath(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := db.InsertWorkspace(t.Context(), workspace.Workspace); err != nil {
+			t.Fatal(err)
+		}
+		driver := newHarnessIntegrationDriver()
+		manager := newHarnessIntegrationManager(t, home, deps, workspace, driver, session.WithSessionCatalog(db))
+		first, err := manager.Create(t.Context(), session.CreateOpts{AgentName: agent.Name, Workspace: workspace.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(context.Background(), first.ID); err != nil {
+				t.Error(err)
+			}
+		})
+		events, err := manager.Prompt(t.Context(), first.ID, "searchable memory transcript")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainHarnessIntegrationEvents(events)
+		if _, err := memory.Add(key, now, workspace.ID, "updated memory sentinel", ""); err != nil {
+			t.Fatal(err)
+		}
+		events, err = manager.Prompt(t.Context(), first.ID, "continue")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainHarnessIntegrationEvents(events)
+		driver.mu.Lock()
+		starts := append([]acp.StartOpts(nil), driver.startCalls...)
+		driver.mu.Unlock()
+		if len(starts) != 1 || !strings.Contains(starts[0].SystemPrompt, "original memory sentinel") || strings.Contains(starts[0].SystemPrompt, "updated memory sentinel") {
+			t.Fatalf("active startup: %+v", starts)
+		}
+		second, err := manager.Create(t.Context(), session.CreateOpts{AgentName: agent.Name, Workspace: workspace.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(context.Background(), second.ID); err != nil {
+				t.Error(err)
+			}
+		})
+		events, err = manager.Prompt(t.Context(), second.ID, "new session")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drainHarnessIntegrationEvents(events)
+		driver.mu.Lock()
+		latest := driver.startCalls[len(driver.startCalls)-1].SystemPrompt
+		driver.mu.Unlock()
+		if !strings.Contains(latest, "updated memory sentinel") {
+			t.Fatalf("new startup: %s", latest)
+		}
+		audit, err := newWorkspaceAccessAuditEmitter(db, func() time.Time { return now })
+		if err != nil {
+			t.Fatal(err)
+		}
+		facts, err := newWorkspaceAccessModeSource(manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := workspaceaccess.New(workspaceaccess.Deps{Facts: facts, Consent: newWorkspaceAccessConsentCache(), Audit: audit, Log: discardLogger()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor := workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: first.ID, AgentName: agent.Name, WorkspaceID: workspace.ID}
+		matches, err := core.SearchAgentMemorySessions(t.Context(), manager, policy, actor, store.DefaultProfileID, "searchable memory transcript")
+		if err != nil || len(matches) != 1 || matches[0].SessionID != first.ID {
+			t.Fatalf("authorized search: %+v, %v", matches, err)
+		}
+		otherWorkspace := workspace
+		otherWorkspace.ID = workspaceAccessIntegrationTarget
+		otherWorkspace.RootDir = t.TempDir()
+		otherWorkspace.Name = "other-workspace"
+		otherWorkspace.Agents = append([]compozyconfig.AgentDef(nil), workspace.Agents...)
+		otherWorkspace.Agents[0].Permissions = string(compozyconfig.PermissionModeDenyAll)
+		if err := db.InsertWorkspace(t.Context(), otherWorkspace.Workspace); err != nil {
+			t.Fatal(err)
+		}
+		otherManager := newHarnessIntegrationManager(t, home, deps, otherWorkspace, newHarnessIntegrationDriver(), session.WithSessionCatalog(db))
+		caller, err := otherManager.Create(t.Context(), session.CreateOpts{AgentName: agent.Name, Workspace: otherWorkspace.ID, Permissions: compozyconfig.PermissionModeDenyAll})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := otherManager.Stop(context.Background(), caller.ID); err != nil {
+				t.Error(err)
+			}
+		})
+		facts, err = newWorkspaceAccessModeSource(otherManager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err = workspaceaccess.New(workspaceaccess.Deps{Facts: facts, Consent: newWorkspaceAccessConsentCache(), Audit: audit, Log: discardLogger()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor.SessionID = caller.ID
+		actor.WorkspaceID = otherWorkspace.ID
+		matches, err = core.SearchAgentMemorySessions(t.Context(), manager, policy, actor, store.DefaultProfileID, "searchable memory transcript")
+		if err != nil || len(matches) != 0 {
+			t.Fatalf("denied search: %+v, %v", matches, err)
+		}
+	})
 }

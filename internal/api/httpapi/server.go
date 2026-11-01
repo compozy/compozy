@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"fmt"
+	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"sync"
 	"time"
@@ -88,6 +89,7 @@ type Server struct {
 	coordinatorRole       core.CoordinatorRoleResolver
 	roles                 core.RolesStatusProvider
 	soulAuthoring         core.SoulAuthoringService
+	agentMemory           *agentmemory.Store
 	soulHistoryPurger     core.SoulHistoryPurger
 	soulRefresher         core.SoulRefresher
 	heartbeatAuthor       core.HeartbeatAuthoringService

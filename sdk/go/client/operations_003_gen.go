@@ -10,6 +10,31 @@ import (
 	"strings"
 )
 
+// CancelSubagent Cancel a delegated subagent
+func (c *Client) CancelSubagent(ctx context.Context, params CancelSubagentParams, body SubagentCancelRequest) (*SubagentCancelPayload, error) {
+	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SubagentCancelPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelTaskParams carries the path, query, and header parameters.
+type CancelTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // CancelTask Cancel one task tree
 func (c *Client) CancelTask(ctx context.Context, params CancelTaskParams, body CancelTaskRequest) (*TaskResponse, error) {
 	path := "/api/tasks/{id}/cancel"
@@ -409,37 +434,5 @@ func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body
 
 // CreateAgentInstanceParams carries the path, query, and header parameters.
 type CreateAgentInstanceParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateAgentInstance Create a stays-on agent instance
-func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAppToken Create an app token and reveal its bearer secret once Experimental: pin the exact SDK version.
-func (c *Client) CreateAppToken(ctx context.Context, body CreateAppTokenRequest) (*AppTokenIssuedResponse, error) {
-	path := "/api/app-tokens"
-	var out AppTokenIssuedResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAutomationJobParams carries the path, query, and header parameters.
-type CreateAutomationJobParams struct {
 	Profile *string `url:"profile"`
 }

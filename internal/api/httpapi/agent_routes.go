@@ -34,6 +34,7 @@ func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	instances.DELETE("/:id", handlers.ArchiveAgentInstance)
 
 	agents := api.Group("/agents")
+	handlers.RegisterAgentMemoryRoutes(agents)
 	agents.GET("", handlers.ListAgents)
 	agents.GET("/catalog", handlers.ListAgentCatalog)
 	agents.GET("/aggregate", handlers.ListAgentAggregate)

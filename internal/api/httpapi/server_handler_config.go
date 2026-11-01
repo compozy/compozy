@@ -64,6 +64,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		coordinatorRole:       s.coordinatorRole,
 		roles:                 s.roles,
 		soulAuthoring:         s.soulAuthoring,
+		agentMemory:           s.agentMemory,
 		soulHistoryPurger:     s.soulHistoryPurger,
 		soulRefresher:         s.soulRefresher,
 		heartbeatAuthor:       s.heartbeatAuthor,

@@ -1245,6 +1245,10 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: toolspkg.ToolIDAgentInstanceReports, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstanceResume, risk: toolspkg.RiskMutating},
 
+		{id: toolspkg.ToolIDAgentMemoryAdd, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentMemoryReplace, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentMemoryRemove, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentMemorySearch, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDProviderUsageList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDProviderUsageRefresh, risk: toolspkg.RiskMutating, openWorld: true},
 		{id: toolspkg.ToolIDSubagentCapabilities, risk: toolspkg.RiskRead, readOnly: true},

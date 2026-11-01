@@ -9,6 +9,39 @@ import (
 	"strings"
 )
 
+// EnsureAgentInstanceMainParams carries the path, query, and header parameters.
+type EnsureAgentInstanceMainParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// EnsureAgentInstanceMain Ensure the main session exists
+func (c *Client) EnsureAgentInstanceMain(ctx context.Context, params EnsureAgentInstanceMainParams) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/{id}/ensure-main"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExchangeSettingsMCPAuthParams carries the path, query, and header parameters.
+type ExchangeSettingsMCPAuthParams struct {
+	Name        string  `url:"name"`
+	Scope       string  `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
 // ExchangeSettingsMCPAuth Complete daemon-mediated OAuth for one MCP server
 func (c *Client) ExchangeSettingsMCPAuth(ctx context.Context, params ExchangeSettingsMCPAuthParams, body SettingsMCPAuthExchangeRequest) (*SettingsMCPAuthStatusPayload, error) {
 	path := "/api/settings/mcp-servers/{name}/auth/exchange"
@@ -409,34 +442,6 @@ func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefi
 		path += "?" + query.Encode()
 	}
 	var out AgentSoulPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentHeartbeatParams carries the path, query, and header parameters.
-type GetAgentHeartbeatParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// GetAgentHeartbeat Inspect the resolved Heartbeat policy for an agent definition
-func (c *Client) GetAgentHeartbeat(ctx context.Context, params GetAgentHeartbeatParams) (*HeartbeatPolicyPayload, error) {
-	path := "/api/agents/{name}/heartbeat"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatPolicyPayload
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

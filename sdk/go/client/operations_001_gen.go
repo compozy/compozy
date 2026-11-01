@@ -67,6 +67,34 @@ func (c *Client) AcknowledgeAttentionNotifications(ctx context.Context, params A
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
 }
 
+// AddAgentMemoryParams carries the path, query, and header parameters.
+type AddAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// AddAgentMemory Add a dated memory entry (experimental) Experimental: pin the exact SDK version.
+func (c *Client) AddAgentMemory(ctx context.Context, params AddAgentMemoryParams, body AgentMemoryAddRequest) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory/entries"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AddMarketplaceSourceParams carries the path, query, and header parameters.
 type AddMarketplaceSourceParams struct {
 	DryRun *bool `url:"dry_run"`
@@ -417,29 +445,4 @@ type ArchiveSessionParams struct {
 	SessionID   string  `url:"session_id"`
 	Stop        *bool   `url:"stop"`
 	Profile     *string `url:"profile"`
-}
-
-// ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
-func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/archive"
-	query := url.Values{}
-	if params.Processes != nil {
-		query.Set("processes", *params.Processes)
-	}
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	if params.Stop != nil {
-		query.Set("stop", strconv.FormatBool(*params.Stop))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

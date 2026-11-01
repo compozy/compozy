@@ -16,6 +16,9 @@ import type {
   AcknowledgeAttentionNotificationsData,
   AcknowledgeAttentionNotificationsErrors,
   AcknowledgeAttentionNotificationsResponses,
+  AddAgentMemoryData,
+  AddAgentMemoryErrors,
+  AddAgentMemoryResponses,
   AddMarketplaceSourceData,
   AddMarketplaceSourceErrors,
   AddMarketplaceSourceResponses,
@@ -416,6 +419,9 @@ import type {
   GetAgentInstanceResponses,
   GetAgentMeData,
   GetAgentMeErrors,
+  GetAgentMemoryData,
+  GetAgentMemoryErrors,
+  GetAgentMemoryResponses,
   GetAgentMeResponses,
   GetAgentResponses,
   GetAgentSoulData,
@@ -759,6 +765,9 @@ import type {
   ListAgentInstancesData,
   ListAgentInstancesErrors,
   ListAgentInstancesResponses,
+  ListAgentMemoryHistoryData,
+  ListAgentMemoryHistoryErrors,
+  ListAgentMemoryHistoryResponses,
   ListAgentsAggregateData,
   ListAgentsAggregateErrors,
   ListAgentsAggregateResponses,
@@ -1077,6 +1086,9 @@ import type {
   PutAgentHeartbeatData,
   PutAgentHeartbeatErrors,
   PutAgentHeartbeatResponses,
+  PutAgentMemoryData,
+  PutAgentMemoryErrors,
+  PutAgentMemoryResponses,
   PutAgentSoulData,
   PutAgentSoulErrors,
   PutAgentSoulResponses,
@@ -1179,6 +1191,9 @@ import type {
   ReloadSettingsData,
   ReloadSettingsErrors,
   ReloadSettingsResponses,
+  RemoveAgentMemoryData,
+  RemoveAgentMemoryErrors,
+  RemoveAgentMemoryResponses,
   RemoveDiscoveredWorktreeData,
   RemoveDiscoveredWorktreeErrors,
   RemoveDiscoveredWorktreeResponses,
@@ -1224,6 +1239,9 @@ import type {
   RepairSessionData,
   RepairSessionErrors,
   RepairSessionResponses,
+  ReplaceAgentMemoryData,
+  ReplaceAgentMemoryErrors,
+  ReplaceAgentMemoryResponses,
   ReplaceSessionInputData,
   ReplaceSessionInputErrors,
   ReplaceSessionInputResponses,
@@ -1293,6 +1311,9 @@ import type {
   RollbackAgentHeartbeatData,
   RollbackAgentHeartbeatErrors,
   RollbackAgentHeartbeatResponses,
+  RollbackAgentMemoryData,
+  RollbackAgentMemoryErrors,
+  RollbackAgentMemoryResponses,
   RollbackAgentSoulData,
   RollbackAgentSoulErrors,
   RollbackAgentSoulResponses,
@@ -1302,6 +1323,9 @@ import type {
   RunWorktreeExitActionData,
   RunWorktreeExitActionErrors,
   RunWorktreeExitActionResponses,
+  SearchAgentMemoryData,
+  SearchAgentMemoryErrors,
+  SearchAgentMemoryResponses,
   SearchGlobalSessionTranscriptData,
   SearchGlobalSessionTranscriptErrors,
   SearchGlobalSessionTranscriptResponses,
@@ -1485,6 +1509,9 @@ import type {
   ValidateAgentHeartbeatData,
   ValidateAgentHeartbeatErrors,
   ValidateAgentHeartbeatResponses,
+  ValidateAgentMemoryData,
+  ValidateAgentMemoryErrors,
+  ValidateAgentMemoryResponses,
   ValidateAgentSoulData,
   ValidateAgentSoulErrors,
   ValidateAgentSoulResponses,
@@ -2072,6 +2099,219 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agents/{name}/heartbeat/wake",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Inspect agent memory (experimental)
+   *
+   * @stability experimental
+   */
+  public getAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentMemoryData, ThrowOnError>
+  ): RequestResult<GetAgentMemoryResponses, GetAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentMemoryResponses,
+      GetAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace memory with a digest check (experimental)
+   *
+   * @stability experimental
+   */
+  public putAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<PutAgentMemoryData, ThrowOnError>
+  ): RequestResult<PutAgentMemoryResponses, PutAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutAgentMemoryResponses,
+      PutAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove matching memory entries (experimental)
+   *
+   * @stability experimental
+   */
+  public removeAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<RemoveAgentMemoryData, ThrowOnError>
+  ): RequestResult<RemoveAgentMemoryResponses, RemoveAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveAgentMemoryResponses,
+      RemoveAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/entries",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Replace matching memory text (experimental)
+   *
+   * @stability experimental
+   */
+  public replaceAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<ReplaceAgentMemoryData, ThrowOnError>
+  ): RequestResult<ReplaceAgentMemoryResponses, ReplaceAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      ReplaceAgentMemoryResponses,
+      ReplaceAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/entries",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Add a dated memory entry (experimental)
+   *
+   * @stability experimental
+   */
+  public addAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<AddAgentMemoryData, ThrowOnError>
+  ): RequestResult<AddAgentMemoryResponses, AddAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AddAgentMemoryResponses,
+      AddAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/entries",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List the last fifty memory revisions (experimental)
+   *
+   * @stability experimental
+   */
+  public listAgentMemoryHistory<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentMemoryHistoryData, ThrowOnError>
+  ): RequestResult<
+    ListAgentMemoryHistoryResponses,
+    ListAgentMemoryHistoryErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentMemoryHistoryResponses,
+      ListAgentMemoryHistoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/history",
+      ...options,
+    });
+  }
+
+  /**
+   * Restore a memory revision (experimental)
+   *
+   * @stability experimental
+   */
+  public rollbackAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<RollbackAgentMemoryData, ThrowOnError>
+  ): RequestResult<RollbackAgentMemoryResponses, RollbackAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RollbackAgentMemoryResponses,
+      RollbackAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/rollback",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Search agent notes and accessible sessions (experimental)
+   *
+   * @stability experimental
+   */
+  public searchAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<SearchAgentMemoryData, ThrowOnError>
+  ): RequestResult<SearchAgentMemoryResponses, SearchAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      SearchAgentMemoryResponses,
+      SearchAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/search",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Validate proposed memory content (experimental)
+   *
+   * @stability experimental
+   */
+  public validateAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<ValidateAgentMemoryData, ThrowOnError>
+  ): RequestResult<ValidateAgentMemoryResponses, ValidateAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ValidateAgentMemoryResponses,
+      ValidateAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/validate",
       ...options,
       headers: {
         "Content-Type": "application/json",

@@ -106,8 +106,15 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		if workspaceScoped {
 			origin = contract.AgentOriginWorkspace
 		}
+		memoryOrigin := "user"
+		if workspaceScoped {
+			memoryOrigin = "workspace-" + workspaceID
+		}
+		if record.Owner.Kind.Normalize() == extensionResourceOwnerKind {
+			memoryOrigin = "extension-" + record.Owner.ID
+		}
 		merged[name] = rankedEntry{entry: core.AgentCatalogEntry{
-			Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
+			MemoryOrigin: memoryOrigin, Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
 			PackageOwned: record.Owner.Kind.Normalize() == extensionResourceOwnerKind,
 		}, rank: rank, key: sortKey}
 	}
