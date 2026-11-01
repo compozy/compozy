@@ -69,7 +69,8 @@ func mcpSourceResource(
 	}
 	if selected.ambiguous {
 		return source, false, fmt.Errorf(
-			"daemon: multiple MCP definitions address %q; an explicit owner selects between owners", name,
+			"daemon: multiple MCP definitions address %q; select an owner when they come from different owners, "+
+				"or rename duplicate declarations within one owner", name,
 		)
 	}
 	source.ResourceID = selected.record.ID

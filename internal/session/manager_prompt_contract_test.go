@@ -1599,6 +1599,11 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 				output: "[Checkout retries](https://example.com) fix",
 				want:   "Checkout retries fix",
 			},
+			{
+				name:   "Markdown link with parentheses in its destination",
+				output: "[Checkout retries](https://example.com/a_(draft)_v2) fix",
+				want:   "Checkout retries fix",
+			},
 			{name: "Markdown image only", output: "![](https://example.com/a.png)", want: ""},
 			{name: "quoted notice", output: "\"Notice: be brief\"", want: ""},
 			{name: "quoted notice inside a list item", output: "\"- Notice: be brief\"", want: ""},

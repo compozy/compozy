@@ -35,8 +35,9 @@ var (
 			`|[\p{L}\p{N}](\*\*\p{Lu})` +
 			`|(?:[\p{Ll}\p{N}]|[.!?]\s+)((?:Notice|Note|Reminder|Warning|Disclaimer)\s*:)`,
 	)
-	// automaticTitleLink matches a Markdown link or image and captures its text.
-	automaticTitleLink = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
+	// automaticTitleLink matches a Markdown link or image and captures its text. Its
+	// destination may hold one level of balanced parentheses.
+	automaticTitleLink = regexp.MustCompile(`!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)`)
 	// automaticTitleFence matches an opening or closing code fence line.
 	automaticTitleFence = regexp.MustCompile("^(?:`{3,}|~{3,})[\\w+-]*$")
 )

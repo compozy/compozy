@@ -199,7 +199,10 @@ func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
 	}
-	run.notifyCommitted()
+	// A guarded run that found the session already finalizing decided nothing.
+	if run.guard == nil || run.stopCommitted {
+		run.notifyCommitted()
+	}
 	close(run.ready)
 	if stopped {
 		run.outcome.FinalState, run.outcome.Verified = StateStopped, true

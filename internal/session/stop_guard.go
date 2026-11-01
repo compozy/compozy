@@ -98,8 +98,14 @@ func (m *Manager) commitStopIntent(
 	if current != session {
 		return false, nil, errStopDeclined
 	}
-	if err := run.guard(ctx, session.Info()); err != nil {
+	info := session.Info()
+	if err := run.guard(ctx, info); err != nil {
 		return false, nil, err
+	}
+	// A claimed run that finds the session stopping retries a stop whose persistence
+	// failed. That stop already ran its callback, so this one must not repeat it.
+	if info.State == StateStopping {
+		run.onCommitted = nil
 	}
 	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
 	run.stopCommitted = err == nil

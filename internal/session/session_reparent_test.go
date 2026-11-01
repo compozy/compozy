@@ -881,8 +881,8 @@ func TestStopIfParentStopped(t *testing.T) {
 			return payload, nil
 		}
 		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, nil)
-		if err != nil || outcome == ParentStopCommitted {
-			t.Fatalf("StopIfParentStopped() = %v, %v; want no commit", outcome, err)
+		if err != nil || outcome != ParentStopSuperseded {
+			t.Fatalf("StopIfParentStopped() = %v, %v; want quietly superseded", outcome, err)
 		}
 		if err := <-joined; err != nil {
 			t.Fatalf("Stop() after a declined stop error = %v", err)
@@ -993,6 +993,34 @@ func TestStopIfParentStopped(t *testing.T) {
 		if !errors.Is(err, errCatalogStateRefused) || outcome != ParentStopCommitted || commits != 1 {
 			t.Fatalf("StopIfParentStopped() = %v, %v, commits %d; want a committed stop with its error",
 				outcome, err, commits)
+		}
+
+		outcome, err = h.manager.StopIfParentStopped(testutil.Context(t), worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopEnded || commits != 1 {
+			t.Fatalf("StopIfParentStopped(retry) = %v, %v, commits %d; want it ended without new effects",
+				outcome, err, commits)
+		}
+		if got := readMeta(t, worker.MetaPath()).State; got != string(StateStopped) {
+			t.Fatalf("child state after retry = %q, want stopped", got)
+		}
+	})
+
+	t.Run("Should run no effects for a child already finalizing", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+
+		h.manager.mu.Lock()
+		h.manager.finalizing[worker.ID] = &sessionFinalization{done: closedSignalChan()}
+		h.manager.mu.Unlock()
+		commits := 0
+		outcome, err := h.manager.StopIfParentStopped(testutil.Context(t), worker.ID, detail, func() { commits++ })
+		h.manager.mu.Lock()
+		delete(h.manager.finalizing, worker.ID)
+		h.manager.mu.Unlock()
+		if err != nil || outcome != ParentStopEnded || commits != 0 {
+			t.Fatalf("StopIfParentStopped() = %v, %v, commits %d; want ended without effects", outcome, err, commits)
 		}
 	})
 
