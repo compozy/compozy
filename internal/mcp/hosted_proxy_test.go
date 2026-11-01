@@ -372,6 +372,30 @@ func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T)
 				t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
 			}
 
+			proxyClient.emitProjection(
+				t,
+				HostedProjectionResponse{Tools: []tools.ToolView{initial, updated}, Digest: "added"},
+			)
+			select {
+			case <-changed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for additive discovery notification")
+			}
+			list, err = session.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatalf("ListTools(added): %v", err)
+			}
+			if got, want := sdkToolNames(
+				list.Tools,
+			), []string{
+				"compozy__hosted_echo",
+				"compozy__hosted_other",
+			}; !slices.Equal(
+				got,
+				want,
+			) {
+				t.Fatalf("additive tools=%#v, want %#v", got, want)
+			}
 			proxyClient.emitProjection(t, HostedProjectionResponse{
 				Tools:  []tools.ToolView{updated},
 				Digest: "updated",
@@ -457,7 +481,10 @@ func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T)
 				t.Fatalf("session.Close() error = %v", err)
 			}
 			select {
-			case <-errCh:
+			case runErr := <-errCh:
+				if !isExpectedStdioServerTermination(runErr) && !errors.Is(runErr, io.ErrClosedPipe) {
+					t.Fatalf("RunHostedProxy() error = %v", runErr)
+				}
 			case <-time.After(2 * time.Second):
 				t.Fatal("timed out waiting for hosted proxy shutdown")
 			}
@@ -613,6 +640,10 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		}
 		if err := decode(&listed); err != nil {
 			t.Fatal(err)
+		}
+
+		if len(listed.Error) > 0 && string(listed.Error) != "null" {
+			t.Fatalf("late tools/list error = %s", listed.Error)
 		}
 		if len(listed.Result.Tools) != 1 || listed.Result.Tools[0].Name != "mcp__late__echo" {
 			t.Fatalf("late tools = %#v", listed.Result.Tools)

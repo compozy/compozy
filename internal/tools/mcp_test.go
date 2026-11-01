@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1377,6 +1378,12 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			}
 			if len(next) != 2 {
 				t.Fatalf("fresh tools=%d, want 2", len(next))
+			}
+			if !slices.ContainsFunc(
+				next,
+				func(view ToolView) bool { return view.Descriptor.ID == "mcp__probe__late" },
+			) {
+				t.Fatalf("refreshed tools = %#v, want mcp__probe__late", next)
 			}
 		})
 	}
