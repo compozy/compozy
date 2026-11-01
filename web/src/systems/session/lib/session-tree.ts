@@ -128,14 +128,21 @@ export async function readSessionChoiceTargets(
   };
 }
 
-/** The daemon re-reads the tree, so a child that left it since the read stays unarchived. */
+/**
+ * The children this archive took. The daemon re-reads the tree, so a child that left it since
+ * stays active; one already archived was not this request's. An unreadable child counts as
+ * archived: the archive succeeded, and a stale window is the worse outcome.
+ */
 export async function readArchivedDescendants(
   queryClient: QueryClient,
   descendants: readonly SessionPayload[]
 ): Promise<SessionPayload[]> {
-  if (descendants.length === 0) return [];
-  const { sessions } = await readCurrentSessions(queryClient, descendants, true);
-  return sessions.filter(session => session.archived_at);
+  const candidates = descendants.filter(child => !child.archived_at);
+  if (candidates.length === 0) return [];
+  const { sessions } = await readCurrentSessions(queryClient, candidates, true);
+  const stayed = new Set<string>();
+  for (const child of sessions) if (!child.archived_at) stayed.add(child.id);
+  return candidates.filter(child => !stayed.has(child.id));
 }
 
 export function sessionChildrenChoice(

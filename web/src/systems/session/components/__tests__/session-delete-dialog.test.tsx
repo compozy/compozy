@@ -277,6 +277,29 @@ describe("SessionDeleteDialog child sessions", () => {
     expect(onIncludedChange).toHaveBeenCalledWith(true);
   });
 
+  it("asks about included children's processes again on a retry", () => {
+    const onConfirm = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        results={[{ id: "parent", status: "failed", error: "Session is locked" }]}
+        isDeleting={false}
+        childSessions={{
+          count: 1,
+          included: true,
+          includedProcessCount: 1,
+          pending: false,
+          onIncludedChange: vi.fn(),
+        }}
+        onConfirm={onConfirm}
+        onOpenChange={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByTestId("delete-dialog-keep-processes"));
+    expect(onConfirm).toHaveBeenCalledWith("keep");
+  });
+
   it("holds the confirm while an included tree is still being read", () => {
     render(
       <SessionDeleteDialog

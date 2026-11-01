@@ -1160,7 +1160,9 @@ describe("session actions", () => {
       const stayed = { ...createdSession, id: "sess-stayed" };
       vi.mocked(listSessionDescendants).mockResolvedValue([child, stayed]);
       vi.mocked(fetchSessionById).mockImplementation(async (id: string) =>
-        id === child.id ? { ...child, archived_at: "2026-11-01T00:00:00Z" } : createdSession
+        id === child.id
+          ? { ...child, archived_at: "2026-11-01T00:00:00Z" }
+          : { ...createdSession, id }
       );
       const onArchiveSuccess = vi.fn();
       const { result } = renderHook(() => useSessionLifecycleActions({ onArchiveSuccess }), {
