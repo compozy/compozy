@@ -238,6 +238,7 @@ export const OverviewZeroSessions: Story = {
           const agent = agentFixtures.find(entry => entry.name === storyAgentNames.compliance)!;
           if (name && name !== agent.name) {
             return HttpResponse.json({
+              next_cursor: "",
               agents: [],
               facets: { active: 0, categories: [], idle: 0, total: 0 },
               page: { has_more: false, limit: 1, total: 0 },
@@ -245,6 +246,7 @@ export const OverviewZeroSessions: Story = {
             });
           }
           return HttpResponse.json({
+            next_cursor: "",
             agents: [
               {
                 agent,
@@ -370,6 +372,7 @@ export const MetricsLoading: Story = {
         compozyApiMock.get("/api/agents/catalog", async () => {
           await delay("infinite");
           return HttpResponse.json({
+            next_cursor: "",
             agents: [],
             facets: { active: 0, categories: [], idle: 0, total: 0 },
             page: { has_more: false, limit: 1, total: 0 },

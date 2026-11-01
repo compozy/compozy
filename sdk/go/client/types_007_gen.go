@@ -2,10 +2,29 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// GoalSnapshot is a daemon API value.
+type GoalSnapshot struct {
+	RunID           string              `json:"run_id"`
+	NodeID          string              `json:"node_id"`
+	Objective       string              `json:"objective"`
+	OriginSessionID string              `json:"origin_session_id"`
+	BoundSessionID  string              `json:"bound_session_id"`
+	Status          GoalStatus          `json:"status"`
+	RunStatus       LoopRunStatus       `json:"run_status"`
+	Cause           *GoalReasonCode     `json:"cause"`
+	TurnsUsed       int                 `json:"turns_used"`
+	TurnLimit       int                 `json:"turn_limit"`
+	Live            bool                `json:"live"`
+	PauseRequested  bool                `json:"pause_requested,omitzero"`
+	ContractSummary string              `json:"contract_summary"`
+	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
+	Context         GoalContextSnapshot `json:"context"`
+}
+
+// GoalSnapshotChangeCause is a daemon API value.
+type GoalSnapshotChangeCause string
 
 // GoalSnapshotChangedPayload is a daemon API value.
 type GoalSnapshotChangedPayload struct {
@@ -97,6 +116,17 @@ type GridTile struct {
 
 // GroupID is a daemon API value.
 type GroupID string
+
+// GroupedAgentCatalogItemPayload is a daemon API value.
+type GroupedAgentCatalogItemPayload struct {
+	Name             string       `json:"name"`
+	Label            string       `json:"label"`
+	Kind             string       `json:"kind"`
+	DefinitionDigest string       `json:"definition_digest"`
+	Scopes           []string     `json:"scopes"`
+	Active           int          `json:"active"`
+	Agent            AgentPayload `json:"agent"`
+}
 
 // HarvestSpec is a daemon API value.
 type HarvestSpec struct {
@@ -416,30 +446,3 @@ type HookMatcher struct {
 
 // HookMode is a daemon API value.
 type HookMode string
-
-// HookRunPayload is a daemon API value.
-type HookRunPayload struct {
-	HookName      string          `json:"hook_name"`
-	Event         string          `json:"event"`
-	Source        string          `json:"source"`
-	Mode          string          `json:"mode"`
-	DurationMS    int64           `json:"duration_ms"`
-	Outcome       string          `json:"outcome"`
-	DispatchDepth int             `json:"dispatch_depth"`
-	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
-	Error         string          `json:"error,omitempty"`
-	Required      bool            `json:"required,omitzero"`
-	RecordedAt    time.Time       `json:"recorded_at"`
-}
-
-// HookRunsResponse is a daemon API value.
-type HookRunsResponse struct {
-	Runs []HookRunPayload `json:"runs"`
-}
-
-// Image is a daemon API value.
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}

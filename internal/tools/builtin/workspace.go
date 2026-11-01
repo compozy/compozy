@@ -157,6 +157,10 @@ var agentCreateInputSchema = `{
 		"tools":{"type":"array","items":{"type":"string"}},
 		"toolsets":{"type":"array","items":{"type":"string"}},
 		"deny_tools":{"type":"array","items":{"type":"string"}},
+		"display_name":{"type":"string"},
+ "description":{"type":"string"},
+ "kind":{"type":"string","enum":["on_demand","stays_on"]},
+ "appearance":{"type":"object","additionalProperties":true},
 		"category_path":{"type":"array","items":{"type":"string"}},
 		"disabled_skills":{"type":"array","items":{"type":"string"}},
 		"fallback_chain":{"type":"array","items":` + agentFallbackRouteInputSchema + `}

@@ -7,8 +7,15 @@ import (
 	"time"
 )
 
+// DslTerminalState is a daemon API value.
+type DslTerminalState string
+
 // DuplicateAgentOverrides is a daemon API value.
 type DuplicateAgentOverrides struct {
+	DisplayName     *string                             `json:"display_name,omitempty"`
+	Description     *string                             `json:"description,omitempty"`
+	Kind            string                              `json:"kind,omitempty"`
+	Appearance      map[string]any                      `json:"appearance,omitempty"`
 	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
 	Provider        string                              `json:"provider,omitempty"`
 	Command         string                              `json:"command,omitempty"`
@@ -30,6 +37,7 @@ type DuplicateAgentOverrides struct {
 
 // DuplicateAgentRequest is a daemon API value.
 type DuplicateAgentRequest struct {
+	Kind      string                   `json:"kind,omitempty"`
 	Name      string                   `json:"name"`
 	Scope     AgentCreateScope         `json:"scope,omitempty"`
 	Workspace string                   `json:"workspace,omitempty"`
@@ -435,15 +443,3 @@ type FSEntryPayload struct {
 	Path  string `json:"path"`
 	IsDir bool   `json:"is_dir"`
 }
-
-// FailTaskRunRequest is a daemon API value.
-type FailTaskRunRequest struct {
-	Error    string          `json:"error"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// FailureKind is a daemon API value.
-type FailureKind string
-
-// FailureReasonCode is a daemon API value.
-type FailureReasonCode string

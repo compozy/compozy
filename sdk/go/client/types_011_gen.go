@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// MarketplaceSourceSummary is a daemon API value.
+type MarketplaceSourceSummary struct {
+	Name       string     `json:"name"`
+	Kind       string     `json:"kind"`
+	State      string     `json:"state"`
+	Count      int        `json:"count"`
+	LastReadAt *time.Time `json:"last_read_at,omitempty"`
+}
+
+// MarketplaceSourcesResponse is a daemon API value.
+type MarketplaceSourcesResponse struct {
+	Sources []MarketplaceSourcePayload `json:"sources"`
+}
+
 // Mergeable is a daemon API value.
 type Mergeable string
 
@@ -433,18 +447,4 @@ type OverviewPulsePayload struct {
 	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
 	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitzero"`
 	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitzero"`
-}
-
-// OverviewSystemPayload is a daemon API value.
-type OverviewSystemPayload struct {
-	HookRunsToday     int `json:"hook_runs_today"`
-	HookFailuresToday int `json:"hook_failures_today"`
-	RetentionDays     int `json:"retention_days"`
-}
-
-// OverviewTodayPayload is a daemon API value.
-type OverviewTodayPayload struct {
-	RunsCompleted int `json:"runs_completed"`
-	RunsFailed    int `json:"runs_failed"`
-	TasksClosed   int `json:"tasks_closed"`
 }

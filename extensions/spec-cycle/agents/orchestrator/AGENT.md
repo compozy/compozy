@@ -1,5 +1,8 @@
 ---
 name: orchestrator
+display_name: Orchestrator
+description: Conducts spec delivery through bounded implementation workers.
+kind: stays_on
 category_path: [CompozyOS]
 ---
 

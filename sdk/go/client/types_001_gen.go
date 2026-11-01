@@ -114,17 +114,20 @@ type AgentCatalogFacetsPayload struct {
 
 // AgentCatalogItemPayload is a daemon API value.
 type AgentCatalogItemPayload struct {
+	Scopes   []string                    `json:"scopes,omitempty"`
 	Agent    AgentPayload                `json:"agent"`
 	Sessions *AgentSessionMetricsPayload `json:"sessions,omitzero"`
 }
 
 // AgentCatalogResponse is a daemon API value.
 type AgentCatalogResponse struct {
-	Diagnostics       []DiagnosticItem          `json:"diagnostics,omitempty"`
-	Agents            []AgentCatalogItemPayload `json:"agents"`
-	Page              CountedCursorPagePayload  `json:"page"`
-	Facets            AgentCatalogFacetsPayload `json:"facets"`
-	SessionsAvailable bool                      `json:"sessions_available"`
+	Items             []GroupedAgentCatalogItemPayload `json:"items,omitempty"`
+	NextCursor        string                           `json:"next_cursor"`
+	Diagnostics       []DiagnosticItem                 `json:"diagnostics,omitempty"`
+	Agents            []AgentCatalogItemPayload        `json:"agents"`
+	Page              CountedCursorPagePayload         `json:"page"`
+	Facets            AgentCatalogFacetsPayload        `json:"facets"`
+	SessionsAvailable bool                             `json:"sessions_available"`
 }
 
 // AgentContextPayload is a daemon API value.
@@ -274,31 +277,37 @@ type AgentOrigin string
 
 // AgentPayload is a daemon API value.
 type AgentPayload struct {
-	SessionEnv       map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Name             string                              `json:"name"`
-	Provider         string                              `json:"provider"`
-	Command          string                              `json:"command,omitempty"`
-	Model            string                              `json:"model,omitempty"`
-	ReasoningEffort  Effort                              `json:"reasoning_effort,omitempty"`
-	Speed            Speed                               `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools            []string                            `json:"tools,omitempty"`
-	Toolsets         []string                            `json:"toolsets,omitempty"`
-	DenyTools        []string                            `json:"deny_tools,omitempty"`
-	WorkspaceAccess  string                              `json:"workspace_access,omitempty"`
-	Permissions      string                              `json:"permissions,omitempty"`
-	CategoryPath     []string                            `json:"category_path,omitempty"`
-	MCPServers       []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
-	Origin           AgentOrigin                         `json:"origin"`
-	WorkspaceID      string                              `json:"workspace_id,omitempty"`
-	Layer            string                              `json:"layer,omitempty"`
-	Shadows          []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
-	Skills           *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	FallbackChain    []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
-	DefinitionDigest string                              `json:"definition_digest"`
-	Prompt           string                              `json:"prompt"`
-	Diagnostics      []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
-	EffectiveRuntime *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
+	DisplayName        string                              `json:"display_name,omitempty"`
+	Description        string                              `json:"description,omitempty"`
+	Kind               string                              `json:"kind,omitempty"`
+	Appearance         map[string]any                      `json:"appearance,omitempty"`
+	Label              string                              `json:"label"`
+	ResolvedAppearance map[string]any                      `json:"resolved_appearance"`
+	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name               string                              `json:"name"`
+	Provider           string                              `json:"provider"`
+	Command            string                              `json:"command,omitempty"`
+	Model              string                              `json:"model,omitempty"`
+	ReasoningEffort    Effort                              `json:"reasoning_effort,omitempty"`
+	Speed              Speed                               `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools              []string                            `json:"tools,omitempty"`
+	Toolsets           []string                            `json:"toolsets,omitempty"`
+	DenyTools          []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
+	Permissions        string                              `json:"permissions,omitempty"`
+	CategoryPath       []string                            `json:"category_path,omitempty"`
+	MCPServers         []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
+	Origin             AgentOrigin                         `json:"origin"`
+	WorkspaceID        string                              `json:"workspace_id,omitempty"`
+	Layer              string                              `json:"layer,omitempty"`
+	Shadows            []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
+	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain      []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
+	DefinitionDigest   string                              `json:"definition_digest"`
+	Prompt             string                              `json:"prompt"`
+	Diagnostics        []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
+	EffectiveRuntime   *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
 }
 
 // AgentProbeHealthPayload is a daemon API value.

@@ -66,32 +66,49 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 			Message:   digestErr.Error(),
 		})
 	}
+	appearance, appearanceErr := agent.ResolveAppearance()
+	if appearanceErr != nil {
+		diagnostics = append(
+			diagnostics,
+			contract.AgentDiagnosticPayload{
+				Path:      agent.SourcePath,
+				ErrorKind: "agent_appearance_invalid",
+				Message:   appearanceErr.Error(),
+			},
+		)
+	}
 	disabledSkills := append([]string(nil), agent.Skills.Disabled...)
 	return contract.AgentPayload{
-		Name:             agent.Name,
-		Provider:         agent.Provider,
-		Command:          agent.Command,
-		SessionEnv:       SessionEnvToPayload(agent.SessionEnv),
-		Model:            agent.Model,
-		ReasoningEffort:  contract.ReasoningEffort(agent.ReasoningEffort),
-		Speed:            agent.SpeedValue(),
-		ACPOptions:       agentACPOptionsToContract(agent.ACPOptionsValue()),
-		Tools:            append([]string(nil), agent.Tools...),
-		Toolsets:         append([]string(nil), agent.Toolsets...),
-		DenyTools:        append([]string(nil), agent.DenyTools...),
-		WorkspaceAccess:  agent.WorkspaceAccess,
-		Permissions:      agent.Permissions,
-		CategoryPath:     append([]string(nil), agent.CategoryPath...),
-		MCPServers:       mcpServers,
-		Origin:           entry.Origin,
-		WorkspaceID:      entry.WorkspaceID,
-		Layer:            agent.SourceLayer,
-		Shadows:          shadows,
-		Skills:           &contract.CreateAgentSkillsConfig{Disabled: disabledSkills},
-		FallbackChain:    agentFallbackChainToContract(agent.FallbackChain),
-		DefinitionDigest: digest,
-		Prompt:           agent.Prompt,
-		Diagnostics:      diagnostics,
+		Name:               agent.Name,
+		DisplayName:        agent.DisplayName,
+		Description:        agent.Description,
+		Kind:               agent.EffectiveKind(),
+		Label:              agent.Label(),
+		Appearance:         compozyconfig.CloneAgentAppearance(agent.Appearance),
+		ResolvedAppearance: appearance,
+		Provider:           agent.Provider,
+		Command:            agent.Command,
+		SessionEnv:         SessionEnvToPayload(agent.SessionEnv),
+		Model:              agent.Model,
+		ReasoningEffort:    contract.ReasoningEffort(agent.ReasoningEffort),
+		Speed:              agent.SpeedValue(),
+		ACPOptions:         agentACPOptionsToContract(agent.ACPOptionsValue()),
+		Tools:              append([]string(nil), agent.Tools...),
+		Toolsets:           append([]string(nil), agent.Toolsets...),
+		DenyTools:          append([]string(nil), agent.DenyTools...),
+		WorkspaceAccess:    agent.WorkspaceAccess,
+		Permissions:        agent.Permissions,
+		CategoryPath:       append([]string(nil), agent.CategoryPath...),
+		MCPServers:         mcpServers,
+		Origin:             entry.Origin,
+		WorkspaceID:        entry.WorkspaceID,
+		Layer:              agent.SourceLayer,
+		Shadows:            shadows,
+		Skills:             &contract.CreateAgentSkillsConfig{Disabled: disabledSkills},
+		FallbackChain:      agentFallbackChainToContract(agent.FallbackChain),
+		DefinitionDigest:   digest,
+		Prompt:             agent.Prompt,
+		Diagnostics:        diagnostics,
 	}
 }
 
@@ -102,7 +119,7 @@ func AgentPayloadFromEntryWithConfig(
 	cfg *compozyconfig.Config,
 ) contract.AgentPayload {
 	payload := AgentPayloadFromEntry(entry)
-	if cfg == nil || len(payload.Diagnostics) > 0 {
+	if cfg == nil || payload.DefinitionDigest == "" {
 		return payload
 	}
 	resolved, err := cfg.ResolveAgent(entry.Def)
@@ -178,12 +195,18 @@ func AgentPayloadFromDiagnostic(
 	diagnostic workspacepkg.AgentDiagnostic,
 	workspaceID ...string,
 ) contract.AgentPayload {
+	fallback := compozyconfig.AgentDef{Name: diagnostic.Name}
+	appearance, appearanceErr := fallback.ResolveAppearance()
+	if appearanceErr != nil {
+		diagnostic.Message += ": " + appearanceErr.Error()
+	}
 	resolvedWorkspaceID := ""
 	if len(workspaceID) > 0 {
 		resolvedWorkspaceID = workspaceID[0]
 	}
 	return contract.AgentPayload{
-		Name:        diagnostic.Name,
+		Name:  diagnostic.Name,
+		Label: fallback.Label(), Kind: fallback.EffectiveKind(), ResolvedAppearance: appearance,
 		Provider:    "",
 		Origin:      contract.AgentOriginWorkspace,
 		WorkspaceID: resolvedWorkspaceID,

@@ -6207,3 +6207,79 @@ func (s *laterHandlerSessionManager) ResumeFromLater(
 	info.State = session.StateStopped
 	return info, nil
 }
+
+func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve identity through PUT and reject kind mutation", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentDefinitionSync = &recordingAgentDefinitionSync{}
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "triage", compozyconfig.AgentDefinitionFileName)
+		initial, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{
+				Name:        "triage",
+				Provider:    "codex",
+				Prompt:      "Triage.",
+				DisplayName: "Triage Lead",
+				Description: "Watches issues",
+				Kind:        "stays_on",
+				Appearance:  map[string]any{"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#123456"},
+			},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := compozyconfig.AgentDefinitionDigest(initial)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := contract.UpdateAgentRequest{
+			ExpectedDigest: digest,
+			Agent:          contract.CreateAgentPayload{Name: "triage", Provider: "codex", Prompt: "Updated."},
+		}
+		resp := performRequest(t, fixture.Engine, http.MethodPut, "/agents/triage", mustJSON(t, request))
+		if resp.Code != http.StatusOK {
+			t.Fatalf("PUT: %d %s", resp.Code, resp.Body.String())
+		}
+		var updated contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &updated)
+		if updated.Agent.Label != "Triage Lead" || updated.Agent.Kind != "stays_on" ||
+			updated.Agent.Appearance["emoji"] != "🦊" {
+			t.Fatalf("PUT identity: %#v", updated.Agent)
+		}
+		request.ExpectedDigest = updated.Agent.DefinitionDigest
+		request.Agent.Kind = "on_demand"
+		resp = performRequest(t, fixture.Engine, http.MethodPut, "/agents/triage", mustJSON(t, request))
+		var failure contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &failure)
+		if resp.Code != http.StatusConflict || failure.Code != "agent_kind_immutable" {
+			t.Fatalf("kind mutation: %d %#v", resp.Code, failure)
+		}
+		stored, err := compozyconfig.LoadAgentDefFile(path)
+		if err != nil || stored.Kind != "stays_on" || stored.Description != "Watches issues" {
+			t.Fatalf("stored identity: %#v %v", stored, err)
+		}
+		resp = performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/triage/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{Name: "triage-lite", Kind: "on_demand"}),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("duplicate: %d %s", resp.Code, resp.Body.String())
+		}
+		var copied contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &copied)
+		if copied.Agent.Kind != "on_demand" || copied.Agent.Label != "Triage Lead copy" {
+			t.Fatalf("copy: %#v", copied.Agent)
+		}
+	})
+}

@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// LoopRequestProvenance is a daemon API value.
+type LoopRequestProvenance struct {
+	ActorKind  string    `json:"actor_kind"`
+	ActorID    string    `json:"actor_id"`
+	AnsweredAt time.Time `json:"answered_at"`
+}
+
+// LoopRequestsResponse is a daemon API value.
+type LoopRequestsResponse struct {
+	Items      []LoopRequestPayload  `json:"items"`
+	Aggregates LoopRequestAggregates `json:"aggregates"`
+	NextCursor string                `json:"next_cursor"`
+}
+
 // LoopResolvedLifecycleConfig is a daemon API value.
 type LoopResolvedLifecycleConfig struct {
 	RetryMaxAttempts       int               `json:"retry_max_attempts"`
@@ -431,18 +445,4 @@ type MarketplaceSourcePreviewPayload struct {
 // MarketplaceSourceResponse is a daemon API value.
 type MarketplaceSourceResponse struct {
 	Source MarketplaceSourcePayload `json:"source"`
-}
-
-// MarketplaceSourceSummary is a daemon API value.
-type MarketplaceSourceSummary struct {
-	Name       string     `json:"name"`
-	Kind       string     `json:"kind"`
-	State      string     `json:"state"`
-	Count      int        `json:"count"`
-	LastReadAt *time.Time `json:"last_read_at,omitempty"`
-}
-
-// MarketplaceSourcesResponse is a daemon API value.
-type MarketplaceSourcesResponse struct {
-	Sources []MarketplaceSourcePayload `json:"sources"`
 }

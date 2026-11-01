@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// ProviderSummaryPayload is a daemon API value.
+type ProviderSummaryPayload struct {
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	Name             string                                    `json:"name"`
+	DisplayName      string                                    `json:"display_name,omitempty"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
+	Default          bool                                      `json:"default"`
+	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
+}
+
 // ProviderUsageAccount is a daemon API value.
 type ProviderUsageAccount struct {
 	Label string `json:"label"`
@@ -435,12 +445,3 @@ type ResourceScope struct {
 
 // ResourceScopeKind is a daemon API value.
 type ResourceScopeKind string
-
-// ResourceSource is a daemon API value.
-type ResourceSource struct {
-	Kind ResourceSourceKind `json:"kind"`
-	ID   string             `json:"id"`
-}
-
-// ResourceSourceKind is a daemon API value.
-type ResourceSourceKind string

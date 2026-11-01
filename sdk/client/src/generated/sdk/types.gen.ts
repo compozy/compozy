@@ -93,6 +93,7 @@ export type AgentCatalogFacetsPayload = {
 
 export type AgentCatalogItemPayload = {
   agent: AgentPayload;
+  scopes?: Array<string>;
   sessions?: AgentSessionMetricsPayload | null;
 };
 
@@ -100,6 +101,8 @@ export type AgentCatalogResponse = {
   agents: Array<AgentCatalogItemPayload>;
   diagnostics?: Array<DiagnosticItem>;
   facets: AgentCatalogFacetsPayload;
+  items?: Array<GroupedAgentCatalogItemPayload>;
+  next_cursor: string;
   page: CountedCursorPagePayload;
   sessions_available: boolean;
 };
@@ -236,13 +239,20 @@ export type AgentNotifyResponse = {
 
 export type AgentPayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
   category_path?: Array<string>;
   command?: string;
   definition_digest: string;
   deny_tools?: Array<string>;
+  description?: string;
   diagnostics?: Array<AgentDiagnosticPayload>;
+  display_name?: string;
   effective_runtime?: AgentEffectiveRuntimePayload | null;
   fallback_chain?: Array<RoleFallbackStatus>;
+  kind?: string;
+  label: string;
   layer?: string;
   mcp_servers?: Array<AgentMCPServerJSON>;
   model?: string;
@@ -252,6 +262,9 @@ export type AgentPayload = {
   prompt: string;
   provider: string;
   reasoning_effort?: string;
+  resolved_appearance: {
+    [key: string]: unknown;
+  };
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -1311,16 +1324,26 @@ export type CountedCursorPagePayload = {
 
 export type CreateAgentPayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
   fallback_chain?: Array<AgentFallbackRoutePayload>;
+  kind?: "on_demand" | "stays_on";
+  label?: string;
   model?: string;
   name: string;
   permissions?: "deny-all" | "approve-reads" | "approve-all";
   prompt: string;
   provider?: string;
   reasoning_effort?: string;
+  resolved_appearance?: {
+    [key: string]: unknown;
+  };
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -1610,11 +1633,17 @@ export type DrainStatusResponse = {
 
 export type DuplicateAgentOverrides = {
   acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
   category_path?: Array<string>;
   clear_acp_options?: boolean;
   clear_speed?: boolean;
   command?: string;
   deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
+  kind?: string;
   model?: string;
   permissions?: "deny-all" | "approve-reads" | "approve-all";
   prompt?: string;
@@ -1631,6 +1660,7 @@ export type DuplicateAgentOverrides = {
 };
 
 export type DuplicateAgentRequest = {
+  kind?: "on_demand" | "stays_on";
   name: string;
   overrides?: DuplicateAgentOverrides | null;
   scope?: "workspace" | "global";
@@ -2879,6 +2909,16 @@ export type GridTile = {
     [key: string]: string;
   };
   title: string;
+};
+
+export type GroupedAgentCatalogItemPayload = {
+  active: number;
+  agent: AgentPayload;
+  definition_digest: string;
+  kind: string;
+  label: string;
+  name: string;
+  scopes: Array<string>;
 };
 
 export type HeartbeatActorPayload = {
@@ -13194,11 +13234,15 @@ export type ListAgentsAggregateData = {
      */
     workspace_ids?: Array<string>;
     /**
+     * Group identical scoped definitions
+     */
+    group?: "agent";
+    /**
      * Exact agent name
      */
     name?: string;
     /**
-     * Case-insensitive agent name or category search
+     * Case-insensitive agent name, label or category search
      */
     q?: string;
     /**
@@ -13269,11 +13313,15 @@ export type ListAgentCatalogData = {
      */
     workspace?: string;
     /**
+     * Group identical scoped definitions
+     */
+    group?: "agent";
+    /**
      * Exact agent name
      */
     name?: string;
     /**
-     * Case-insensitive agent name or category search
+     * Case-insensitive agent name, label or category search
      */
     q?: string;
     /**

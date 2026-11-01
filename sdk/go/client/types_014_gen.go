@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ResourceSource is a daemon API value.
+type ResourceSource struct {
+	Kind ResourceSourceKind `json:"kind"`
+	ID   string             `json:"id"`
+}
+
+// ResourceSourceKind is a daemon API value.
+type ResourceSourceKind string
+
 // ResourcesResponse is a daemon API value.
 type ResourcesResponse struct {
 	Records []ResourceRecordPayload `json:"records"`

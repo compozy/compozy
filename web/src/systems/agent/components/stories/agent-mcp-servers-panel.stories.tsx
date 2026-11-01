@@ -25,6 +25,15 @@ type Story = StoryObj<typeof meta>;
 export const Empty: Story = {
   args: {
     agent: {
+      label: "Coder",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "coder",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "coder",
       provider: "claude",
       prompt: "x",
@@ -43,6 +52,15 @@ export const Empty: Story = {
 export const WithServers: Story = {
   args: {
     agent: {
+      label: "Coder",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "coder",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "coder",
       provider: "claude",
       prompt: "x",

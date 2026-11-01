@@ -57,3 +57,15 @@ func TestAgentPayloadCategoryPath(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentIdentityPayload(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose authored and resolved identity separately", func(t *testing.T) {
+		t.Parallel()
+		payload := core.AgentPayloadFromDef(compozyconfig.AgentDef{Name: "code-reviewer", Prompt: "Review."})
+		if payload.Label != "Code Reviewer" || payload.Kind != "on_demand" || payload.Appearance != nil ||
+			payload.ResolvedAppearance["seed"] != "code-reviewer" {
+			t.Fatalf("identity: %#v", payload)
+		}
+	})
+}

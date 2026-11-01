@@ -92,23 +92,29 @@ type CountedCursorPagePayload struct {
 
 // CreateAgentPayload is a daemon API value.
 type CreateAgentPayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Name            string                              `json:"name"`
-	Provider        string                              `json:"provider,omitempty"`
-	Command         string                              `json:"command,omitempty"`
-	Model           string                              `json:"model,omitempty"`
-	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools           []string                            `json:"tools,omitempty"`
-	Toolsets        []string                            `json:"toolsets,omitempty"`
-	DenyTools       []string                            `json:"deny_tools,omitempty"`
-	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
-	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath    []string                            `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	FallbackChain   []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
-	Prompt          string                              `json:"prompt"`
+	DisplayName        *string                             `json:"display_name,omitempty"`
+	Description        *string                             `json:"description,omitempty"`
+	Kind               string                              `json:"kind,omitempty"`
+	Appearance         map[string]any                      `json:"appearance,omitempty"`
+	Label              string                              `json:"label,omitempty"`
+	ResolvedAppearance map[string]any                      `json:"resolved_appearance,omitempty"`
+	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name               string                              `json:"name"`
+	Provider           string                              `json:"provider,omitempty"`
+	Command            string                              `json:"command,omitempty"`
+	Model              string                              `json:"model,omitempty"`
+	ReasoningEffort    Effort                              `json:"reasoning_effort,omitempty"`
+	Speed              Speed                               `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools              []string                            `json:"tools,omitempty"`
+	Toolsets           []string                            `json:"toolsets,omitempty"`
+	DenyTools          []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
+	Permissions        SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath       []string                            `json:"category_path,omitempty"`
+	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain      []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
+	Prompt             string                              `json:"prompt"`
 }
 
 // CreateAgentRequest is a daemon API value.
@@ -442,6 +448,3 @@ type DrainStatusResponse struct {
 	SessionExecutionSettled    bool       `json:"session_execution_settled"`
 	SafeToStop                 bool       `json:"safe_to_stop"`
 }
-
-// DslTerminalState is a daemon API value.
-type DslTerminalState string

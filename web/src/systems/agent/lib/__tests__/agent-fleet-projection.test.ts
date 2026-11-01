@@ -20,6 +20,15 @@ import { hasActiveAgentFleetFilters, validateAgentsFleetSearch } from "../agent-
 
 function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): AgentPayload {
   return {
+    label: overrides.name,
+    kind: "on_demand",
+    resolved_appearance: {
+      version: 1,
+      avatar: "generated",
+      seed: overrides.name,
+      generation: 1,
+      color: "#7c5cff",
+    },
     provider: "claude",
     prompt: "test",
     origin: "global",

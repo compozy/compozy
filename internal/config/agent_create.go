@@ -23,6 +23,11 @@ var (
 
 // AgentDefinitionDraft captures the simple AGENT.md fields supported by authoring surfaces.
 type AgentDefinitionDraft struct {
+	DisplayName string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
+	Description string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
+
 	WorkspaceAccess string
 	Name            string
 	Provider        string
@@ -51,6 +56,22 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 		return AgentDef{}, fmt.Errorf("config: agent definition path is required")
 	}
 
+	if overwrite {
+		current, err := LoadAgentDefFile(normalizedPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return AgentDef{}, err
+		}
+		if err == nil && current.EffectiveKind() != (AgentDef{Kind: draft.Kind}).EffectiveKind() {
+			return AgentDef{}, ErrAgentKindImmutable
+		}
+		if !EqualAgentAppearance(current.Appearance, draft.Appearance) {
+			if err := ValidateAgentAppearance(draft.Appearance); err != nil {
+				return AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
+			}
+		}
+	} else if err := ValidateAgentAppearance(draft.Appearance); err != nil {
+		return AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
+	}
 	contents, agent, err := RenderAgentDefinition(draft)
 	if err != nil {
 		return AgentDef{}, err
@@ -80,7 +101,13 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
 	}
 	agent := AgentDef{
-		Name:            agentName,
+		Name: agentName,
+		DisplayName: strings.TrimSpace(
+			draft.DisplayName,
+		),
+		Description:     draft.Description,
+		Kind:            draft.Kind,
+		Appearance:      CloneAgentAppearance(draft.Appearance),
 		Provider:        strings.TrimSpace(draft.Provider),
 		Command:         strings.TrimSpace(draft.Command),
 		SessionEnv:      MergeSessionEnv(nil, draft.SessionEnv),
@@ -136,7 +163,13 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 	canonical := canonicalAgentDefinition(CloneAgentDef(agent))
 	return AgentDefinitionDraft{
-		Name:            canonical.Name,
+		Name: canonical.Name,
+		DisplayName: strings.TrimSpace(
+			canonical.DisplayName,
+		),
+		Description:     canonical.Description,
+		Kind:            canonical.Kind,
+		Appearance:      CloneAgentAppearance(canonical.Appearance),
 		Provider:        canonical.Provider,
 		Command:         canonical.Command,
 		SessionEnv:      MergeSessionEnv(nil, canonical.SessionEnv),

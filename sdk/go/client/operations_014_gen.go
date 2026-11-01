@@ -364,6 +364,7 @@ func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body T
 // ListAgentCatalogParams carries the path, query, and header parameters.
 type ListAgentCatalogParams struct {
 	Workspace *string `url:"workspace"`
+	Group     *string `url:"group"`
 	Name      *string `url:"name"`
 	Q         *string `url:"q"`
 	Category  *string `url:"category"`
@@ -379,6 +380,9 @@ func (c *Client) ListAgentCatalog(ctx context.Context, params ListAgentCatalogPa
 	query := url.Values{}
 	if params.Workspace != nil {
 		query.Set("workspace", *params.Workspace)
+	}
+	if params.Group != nil {
+		query.Set("group", *params.Group)
 	}
 	if params.Name != nil {
 		query.Set("name", *params.Name)
@@ -418,31 +422,4 @@ type ListAgentHeartbeatHistoryParams struct {
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
 	Profile     *string `url:"profile"`
-}
-
-// ListAgentHeartbeatHistory List managed HEARTBEAT.md authoring revisions
-func (c *Client) ListAgentHeartbeatHistory(ctx context.Context, params ListAgentHeartbeatHistoryParams) (*HeartbeatHistoryResponse, error) {
-	path := "/api/agents/{name}/heartbeat/history"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

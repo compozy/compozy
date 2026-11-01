@@ -9,6 +9,42 @@ import (
 	"strings"
 )
 
+// ListAutomationSuggestionsAggregate List consent-first automation suggestions for one workspace
+func (c *Client) ListAutomationSuggestionsAggregate(ctx context.Context, params ListAutomationSuggestionsAggregateParams) (*AutomationSuggestionsResponse, error) {
+	path := "/api/automation/suggestions"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AutomationSuggestionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAutomationTriggerRunsParams carries the path, query, and header parameters.
+type ListAutomationTriggerRunsParams struct {
+	ID          string  `url:"id"`
+	Status      *string `url:"status"`
+	Since       *string `url:"since"`
+	Until       *string `url:"until"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListAutomationTriggerRuns List run history for one automation trigger
 func (c *Client) ListAutomationTriggerRuns(ctx context.Context, params ListAutomationTriggerRunsParams) (*RunsResponse, error) {
 	path := "/api/automation/triggers/{id}/runs"
@@ -392,25 +428,4 @@ func (c *Client) ListGoalTurns(ctx context.Context, params ListGoalTurnsParams) 
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListLogsParams carries the path, query, and header parameters.
-type ListLogsParams struct {
-	WorkspaceID *string `url:"workspace_id"`
-	SessionID   *string `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
-	Type        *string `url:"type"`
-	Run         *string `url:"run"`
-	Actor       *string `url:"actor"`
-	ActorKind   *string `url:"actor_kind"`
-	ActorID     *string `url:"actor_id"`
-	Provider    *string `url:"provider"`
-	Outcome     *string `url:"outcome"`
-	Component   *string `url:"component"`
-	ErrorOnly   *bool   `url:"error_only"`
-	AfterSeq    *int    `url:"after_seq"`
-	Since       *string `url:"since"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

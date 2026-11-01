@@ -19,6 +19,15 @@ vi.mock("@/systems/status", () => ({
 
 const agents: AgentPayload[] = [
   {
+    label: "Claude Agent",
+    kind: "on_demand",
+    resolved_appearance: {
+      version: 1,
+      avatar: "generated",
+      seed: "claude-agent",
+      generation: 1,
+      color: "#7c5cff",
+    },
     name: "claude-agent",
     provider: "claude",
     prompt: "help",
@@ -27,6 +36,15 @@ const agents: AgentPayload[] = [
     definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
   },
   {
+    label: "Codex Agent",
+    kind: "on_demand",
+    resolved_appearance: {
+      version: 1,
+      avatar: "generated",
+      seed: "codex-agent",
+      generation: 1,
+      color: "#7c5cff",
+    },
     name: "codex-agent",
     provider: "codex",
     prompt: "code",

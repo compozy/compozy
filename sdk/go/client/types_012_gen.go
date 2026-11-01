@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// OverviewSystemPayload is a daemon API value.
+type OverviewSystemPayload struct {
+	HookRunsToday     int `json:"hook_runs_today"`
+	HookFailuresToday int `json:"hook_failures_today"`
+	RetentionDays     int `json:"retention_days"`
+}
+
+// OverviewTodayPayload is a daemon API value.
+type OverviewTodayPayload struct {
+	RunsCompleted int `json:"runs_completed"`
+	RunsFailed    int `json:"runs_failed"`
+	TasksClosed   int `json:"tasks_closed"`
+}
+
 // OverviewUsageDayPayload is a daemon API value.
 type OverviewUsageDayPayload struct {
 	Date   string `json:"date"`
@@ -432,14 +446,4 @@ type ProviderStatusPayload struct {
 	StatusCommand string                         `json:"status_command,omitempty"`
 	Login         ProviderLoginDescriptorPayload `json:"login"`
 	LastProbeAt   *time.Time                     `json:"last_probe_at,omitempty"`
-}
-
-// ProviderSummaryPayload is a daemon API value.
-type ProviderSummaryPayload struct {
-	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	Name             string                                    `json:"name"`
-	DisplayName      string                                    `json:"display_name,omitempty"`
-	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
-	Default          bool                                      `json:"default"`
-	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
 }

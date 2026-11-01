@@ -11,6 +11,9 @@ import (
 
 // Validate ensures the parsed agent definition is usable.
 func (a AgentDef) Validate() error {
+	if err := a.ValidateIdentity(); err != nil {
+		return err
+	}
 	if a.WorkspaceAccess != "" && a.WorkspaceAccess != "unrestricted" {
 		return fmt.Errorf("agent.workspace_access must be absent or unrestricted")
 	}

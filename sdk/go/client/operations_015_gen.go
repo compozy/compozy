@@ -9,6 +9,33 @@ import (
 	"strings"
 )
 
+// ListAgentHeartbeatHistory List managed HEARTBEAT.md authoring revisions
+func (c *Client) ListAgentHeartbeatHistory(ctx context.Context, params ListAgentHeartbeatHistoryParams) (*HeartbeatHistoryResponse, error) {
+	path := "/api/agents/{name}/heartbeat/history"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatHistoryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAgentSoulHistoryParams carries the path, query, and header parameters.
 type ListAgentSoulHistoryParams struct {
 	Name        string  `url:"name"`
@@ -75,6 +102,7 @@ func (c *Client) ListAgents(ctx context.Context, params ListAgentsParams) (*Agen
 type ListAgentsAggregateParams struct {
 	AllWorkspaces *bool     `url:"all_workspaces"`
 	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Group         *string   `url:"group"`
 	Name          *string   `url:"name"`
 	Q             *string   `url:"q"`
 	Category      *string   `url:"category"`
@@ -95,6 +123,9 @@ func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggre
 		for _, value := range *params.WorkspaceIds {
 			query.Add("workspace_ids", value)
 		}
+	}
+	if params.Group != nil {
+		query.Set("group", *params.Group)
 	}
 	if params.Name != nil {
 		query.Set("name", *params.Name)
@@ -400,40 +431,4 @@ type ListAutomationSuggestionsAggregateParams struct {
 	AllWorkspaces *bool     `url:"all_workspaces"`
 	WorkspaceIds  *[]string `url:"workspace_ids"`
 	Status        *string   `url:"status"`
-}
-
-// ListAutomationSuggestionsAggregate List consent-first automation suggestions for one workspace
-func (c *Client) ListAutomationSuggestionsAggregate(ctx context.Context, params ListAutomationSuggestionsAggregateParams) (*AutomationSuggestionsResponse, error) {
-	path := "/api/automation/suggestions"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AutomationSuggestionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationTriggerRunsParams carries the path, query, and header parameters.
-type ListAutomationTriggerRunsParams struct {
-	ID          string  `url:"id"`
-	Status      *string `url:"status"`
-	Since       *string `url:"since"`
-	Until       *string `url:"until"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

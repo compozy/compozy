@@ -7232,12 +7232,15 @@ export interface components {
     };
     AgentCatalogItemPayload: {
       agent: components["schemas"]["AgentPayload"];
+      scopes?: string[];
       sessions?: components["schemas"]["AgentSessionMetricsPayload"] | null;
     };
     AgentCatalogResponse: {
       agents: components["schemas"]["AgentCatalogItemPayload"][];
       diagnostics?: components["schemas"]["DiagnosticItem"][];
       facets: components["schemas"]["AgentCatalogFacetsPayload"];
+      items?: components["schemas"]["GroupedAgentCatalogItemPayload"][];
+      next_cursor: string;
       page: components["schemas"]["CountedCursorPagePayload"];
       sessions_available: boolean;
     };
@@ -7360,13 +7363,20 @@ export interface components {
     };
     AgentPayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      appearance?: {
+        [key: string]: unknown;
+      };
       category_path?: string[];
       command?: string;
       definition_digest: string;
       deny_tools?: string[];
+      description?: string;
       diagnostics?: components["schemas"]["AgentDiagnosticPayload"][];
+      display_name?: string;
       effective_runtime?: components["schemas"]["AgentEffectiveRuntimePayload"] | null;
       fallback_chain?: components["schemas"]["RoleFallbackStatus"][];
+      kind?: string;
+      label: string;
       layer?: string;
       mcp_servers?: components["schemas"]["AgentMCPServerJSON"][];
       model?: string;
@@ -7377,6 +7387,9 @@ export interface components {
       prompt: string;
       provider: string;
       reasoning_effort?: string;
+      resolved_appearance: {
+        [key: string]: unknown;
+      };
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -8451,10 +8464,18 @@ export interface components {
     };
     CreateAgentPayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      appearance?: {
+        [key: string]: unknown;
+      };
       category_path?: string[];
       command?: string;
       deny_tools?: string[];
+      description?: string | null;
+      display_name?: string | null;
       fallback_chain?: components["schemas"]["AgentFallbackRoutePayload"][];
+      /** @enum {string} */
+      kind?: "on_demand" | "stays_on";
+      label?: string;
       model?: string;
       name: string;
       /** @enum {string} */
@@ -8462,6 +8483,9 @@ export interface components {
       prompt: string;
       provider?: string;
       reasoning_effort?: string;
+      resolved_appearance?: {
+        [key: string]: unknown;
+      };
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -8738,11 +8762,17 @@ export interface components {
     };
     DuplicateAgentOverrides: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      appearance?: {
+        [key: string]: unknown;
+      };
       category_path?: string[];
       clear_acp_options?: boolean;
       clear_speed?: boolean;
       command?: string;
       deny_tools?: string[];
+      description?: string | null;
+      display_name?: string | null;
+      kind?: string;
       model?: string;
       /** @enum {string} */
       permissions?: "deny-all" | "approve-reads" | "approve-all";
@@ -8760,6 +8790,8 @@ export interface components {
       workspace_access?: string;
     };
     DuplicateAgentRequest: {
+      /** @enum {string} */
+      kind?: "on_demand" | "stays_on";
       name: string;
       overrides?: components["schemas"]["DuplicateAgentOverrides"] | null;
       /** @enum {string} */
@@ -10024,6 +10056,15 @@ export interface components {
         [key: string]: string;
       };
       title: string;
+    };
+    GroupedAgentCatalogItemPayload: {
+      active: number;
+      agent: components["schemas"]["AgentPayload"];
+      definition_digest: string;
+      kind: string;
+      label: string;
+      name: string;
+      scopes: string[];
     };
     HeartbeatActorPayload: {
       /** @enum {string} */
@@ -21474,9 +21515,11 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Repeatable project IDs or @user; requires all_workspaces=true */
         workspace_ids?: string[];
+        /** @description Group identical scoped definitions */
+        group?: "agent";
         /** @description Exact agent name */
         name?: string;
-        /** @description Case-insensitive agent name or category search */
+        /** @description Case-insensitive agent name, label or category search */
         q?: string;
         /** @description Exact category path joined by slash separators */
         category?: string;
@@ -21556,9 +21599,11 @@ export interface operations {
       query?: {
         /** @description Workspace id, name, or path; omit for Global definitions and cross-workspace session metrics */
         workspace?: string;
+        /** @description Group identical scoped definitions */
+        group?: "agent";
         /** @description Exact agent name */
         name?: string;
-        /** @description Case-insensitive agent name or category search */
+        /** @description Case-insensitive agent name, label or category search */
         q?: string;
         /** @description Exact category path joined by slash separators */
         category?: string;

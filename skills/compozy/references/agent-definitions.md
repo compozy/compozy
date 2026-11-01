@@ -256,3 +256,18 @@ Claude's default `claude auth status` JSON is supported directly: only a valid
 native login. Invalid or missing verdicts remain unknown and error classifications
 retain precedence. Structured status output retains only the verdict, excluding
 account and organization details from probe responses and diagnostics.
+
+## Identity and kind
+
+Create supports `display_name` (80 characters), `description` (280), `kind` (`on_demand` by default or `stays_on`),
+and an open `appearance` object. `compozy__agent_create` accepts these fields; agent reads include `label`,
+`kind`, authored `appearance`, and `resolved_appearance`. The label falls back to the humanized slug.
+A generated appearance uses `{version:1, avatar:"generated", seed:<slug>, generation:1, color:"#7c5cff"}`.
+Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color.
+Unsupported saved appearance falls back with a diagnostic and survives unrelated edits.
+
+Kind is fixed at creation. Use `compozy agent duplicate <source> <name> --kind on_demand` to choose another kind.
+Changing it through update returns `agent_kind_immutable`. PUT preserves omitted identity fields and ignores
+`label` and `resolved_appearance`. `GET /api/agents/catalog?group=agent` groups identical slug and digest
+across authorized scopes, with `items`, `scopes`, `active`, and `next_cursor`; label search uses `q`.
+Extension AGENT.md files use the same keys; installing an extension never creates an instance.

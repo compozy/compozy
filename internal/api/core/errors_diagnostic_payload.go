@@ -20,6 +20,17 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	for code, target := range map[string]error{
+		"agent_kind_immutable":       compozyconfig.ErrAgentKindImmutable,
+		"agent_kind_invalid":         compozyconfig.ErrAgentKindInvalid,
+		"agent_display_name_invalid": compozyconfig.ErrAgentDisplayNameInvalid,
+		"agent_description_invalid":  compozyconfig.ErrAgentDescriptionInvalid,
+		"agent_appearance_invalid":   compozyconfig.ErrAgentAppearanceInvalid,
+	} {
+		if errors.Is(err, target) {
+			payload.Code = code
+		}
+	}
 	if busy, ok := errors.AsType[*workspace.BusyError](err); ok {
 		payload.Code = "workspace_busy"
 		for _, blocker := range busy.Blockers {

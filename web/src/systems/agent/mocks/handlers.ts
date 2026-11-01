@@ -75,6 +75,7 @@ export function agentCatalogMockResponse(
   ].sort((left, right) => left.localeCompare(right));
 
   return {
+    next_cursor: "",
     agents: pageAgents.map(agent => ({
       agent,
       ...(sessionsAvailable

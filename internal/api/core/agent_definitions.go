@@ -13,7 +13,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/soul"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -275,6 +274,27 @@ func updateAgentDraft(
 	if err != nil {
 		return compozyconfig.AgentDefinitionDraft{}, err
 	}
+	if payload.DisplayName == nil {
+		draft.DisplayName = currentDraft.DisplayName
+	}
+	if payload.Description == nil {
+		draft.Description = currentDraft.Description
+	}
+	if payload.Kind == "" {
+		draft.Kind = currentDraft.Kind
+	}
+	if (compozyconfig.AgentDef{Kind: draft.Kind}).EffectiveKind() != current.EffectiveKind() {
+		return compozyconfig.AgentDefinitionDraft{}, compozyconfig.ErrAgentKindImmutable
+	}
+	if payload.Appearance == nil {
+		draft.Appearance = currentDraft.Appearance
+	}
+	// Structural comparison permits unchanged future appearance blocks to round-trip.
+	if !compozyconfig.EqualAgentAppearance(draft.Appearance, currentDraft.Appearance) {
+		if err := compozyconfig.ValidateAgentAppearance(draft.Appearance); err != nil {
+			return compozyconfig.AgentDefinitionDraft{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+		}
+	}
 	draft.MCPServers = currentDraft.MCPServers
 	draft.Hooks = currentDraft.Hooks
 	return draft, nil
@@ -289,10 +309,18 @@ func duplicateAgentDraft(
 		return compozyconfig.AgentDefinitionDraft{}, err
 	}
 	draft.Name = compozyconfig.NormalizeAgentName(req.Name)
+	label := []rune(source.Label())
+	draft.DisplayName = string(label[:min(len(label), 75)]) + " copy"
+	if req.Kind != "" {
+		draft.Kind = req.Kind
+	}
 	if req.Overrides == nil {
 		return draft, nil
 	}
 	overrides := req.Overrides
+	if err := applyDuplicateAgentIdentity(&draft, overrides); err != nil {
+		return compozyconfig.AgentDefinitionDraft{}, err
+	}
 	if overrides.SessionEnv != nil {
 		draft.SessionEnv = sessionEnvFromPayload(overrides.SessionEnv)
 	}
@@ -447,26 +475,4 @@ func (h *BaseHandlers) logAgentMutationFailure(
 		"outcome", "error",
 		"error", err,
 	)
-}
-
-func statusForAgentDefinitionError(err error) int {
-	switch {
-	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, errAgentDefinitionInvalid),
-		errors.Is(err, errCreateAgentRequestInvalid),
-		errors.Is(err, compozyconfig.ErrInvalidAgentDefinition):
-		return http.StatusBadRequest
-	case errors.Is(err, errAgentDefinitionConflict),
-		errors.Is(err, compozyconfig.ErrAgentDefinitionExists):
-		return http.StatusConflict
-	case errors.Is(err, compozyconfig.ErrAgentDefinitionNotFound),
-		errors.Is(err, workspacepkg.ErrAgentNotAvailable),
-		errors.Is(err, os.ErrNotExist):
-		return http.StatusNotFound
-	case errors.Is(err, errAgentDefinitionSyncUnavailable):
-		return http.StatusServiceUnavailable
-	default:
-		return StatusForWorkspaceError(err)
-	}
 }

@@ -1075,3 +1075,23 @@ func TestAgentDefinitionDaemonErrors(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentIdentityFlags(t *testing.T) {
+	t.Parallel()
+	t.Run("Should send explicit identity and emoji appearance flags", func(t *testing.T) {
+		t.Parallel()
+		cmd := newAgentCreateCommand(commandDeps{})
+		if err := cmd.ParseFlags(
+			[]string{"--display-name", "Triage Lead", "--kind", "stays_on", "--appearance-emoji", "🦊"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		f := agentDefinitionFlags{displayName: "Triage Lead", kind: "stays_on", emoji: "🦊"}
+		p := contract.CreateAgentPayload{Name: "triage"}
+		applyAgentIdentityFlags(cmd, &p, f)
+		if p.DisplayName == nil || *p.DisplayName != "Triage Lead" || p.Kind != "stays_on" ||
+			p.Appearance["avatar"] != "emoji" {
+			t.Fatalf("identity flags: %#v", p)
+		}
+	})
+}

@@ -1488,6 +1488,7 @@ export type {
   GridBody,
   GridSection,
   GridTile,
+  GroupedAgentCatalogItemPayload,
   HeartbeatActorPayload,
   HeartbeatAgentTaskRunData,
   HeartbeatAgentTaskRunError,

@@ -58,9 +58,19 @@ func editAgentDefFileInDirectory(
 		return AgentDef{}, err
 	}
 	originalAgentName := agent.Name
+	originalKind := agent.EffectiveKind()
+	originalAppearance := CloneAgentAppearance(agent.Appearance)
 
 	if err := mutate(&agent); err != nil {
 		return AgentDef{}, err
+	}
+	if agent.EffectiveKind() != originalKind {
+		return AgentDef{}, ErrAgentKindImmutable
+	}
+	if !EqualAgentAppearance(originalAppearance, agent.Appearance) {
+		if err := ValidateAgentAppearance(agent.Appearance); err != nil {
+			return AgentDef{}, err
+		}
 	}
 	agent.Name = NormalizeAgentName(agent.Name)
 	agent.Skills = normalizeAgentSkillsConfig(agent.Skills)
@@ -96,8 +106,14 @@ func agentDefFromParsedFile(
 	parsed parsedAgentDef,
 ) (AgentDef, error) {
 	agent := AgentDef{
-		SessionEnv:      MergeSessionEnv(nil, parsed.SessionEnv),
-		Name:            NormalizeAgentName(parsed.Name),
+		SessionEnv: MergeSessionEnv(nil, parsed.SessionEnv),
+		Name:       NormalizeAgentName(parsed.Name),
+		DisplayName: strings.TrimSpace(
+			parsed.DisplayName,
+		),
+		Description:     parsed.Description,
+		Kind:            parsed.Kind,
+		Appearance:      CloneAgentAppearance(parsed.Appearance),
 		Provider:        strings.TrimSpace(parsed.Provider),
 		Command:         strings.TrimSpace(parsed.Command),
 		Model:           strings.TrimSpace(parsed.Model),
@@ -138,6 +154,10 @@ func agentDefFromParsedFile(
 func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.SessionEnv = MergeSessionEnv(nil, agent.SessionEnv)
 	parsed.Name = agent.Name
+	parsed.DisplayName = strings.TrimSpace(agent.DisplayName)
+	parsed.Description = agent.Description
+	parsed.Kind = agent.Kind
+	parsed.Appearance = CloneAgentAppearance(agent.Appearance)
 	parsed.Provider = strings.TrimSpace(agent.Provider)
 	parsed.Command = strings.TrimSpace(agent.Command)
 	parsed.Model = strings.TrimSpace(agent.Model)

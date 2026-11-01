@@ -293,6 +293,12 @@
           "agent": {
             "$ref": "#/components/schemas/AgentPayload"
           },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "sessions": {
             "oneOf": [
               {
@@ -329,6 +335,15 @@
           "facets": {
             "$ref": "#/components/schemas/AgentCatalogFacetsPayload"
           },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GroupedAgentCatalogItemPayload"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          },
           "page": {
             "$ref": "#/components/schemas/CountedCursorPagePayload"
           },
@@ -339,6 +354,7 @@
         "required": [
           "agents",
           "facets",
+          "next_cursor",
           "page",
           "sessions_available"
         ],
@@ -783,6 +799,10 @@
             },
             "type": "array"
           },
+          "appearance": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -801,11 +821,17 @@
             },
             "type": "array"
           },
+          "description": {
+            "type": "string"
+          },
           "diagnostics": {
             "items": {
               "$ref": "#/components/schemas/AgentDiagnosticPayload"
             },
             "type": "array"
+          },
+          "display_name": {
+            "type": "string"
           },
           "effective_runtime": {
             "oneOf": [
@@ -825,6 +851,12 @@
               "$ref": "#/components/schemas/RoleFallbackStatus"
             },
             "type": "array"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
           },
           "layer": {
             "type": "string"
@@ -859,6 +891,10 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "resolved_appearance": {
+            "additionalProperties": {},
+            "type": "object"
           },
           "session_env": {
             "additionalProperties": {
@@ -913,10 +949,12 @@
         },
         "required": [
           "definition_digest",
+          "label",
           "name",
           "origin",
           "prompt",
-          "provider"
+          "provider",
+          "resolved_appearance"
         ],
         "type": "object"
       },
@@ -4913,6 +4951,10 @@
             },
             "type": "array"
           },
+          "appearance": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -4928,11 +4970,31 @@
             },
             "type": "array"
           },
+          "description": {
+            "maxLength": 280,
+            "nullable": true,
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 80,
+            "nullable": true,
+            "type": "string"
+          },
           "fallback_chain": {
             "items": {
               "$ref": "#/components/schemas/AgentFallbackRoutePayload"
             },
             "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "on_demand",
+              "stays_on"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
           },
           "model": {
             "type": "string"
@@ -4958,6 +5020,10 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "resolved_appearance": {
+            "additionalProperties": {},
+            "type": "object"
           },
           "session_env": {
             "additionalProperties": {
@@ -6085,6 +6151,10 @@
             },
             "type": "array"
           },
+          "appearance": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "category_path": {
             "items": {
               "type": "string"
@@ -6105,6 +6175,17 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
           },
           "model": {
             "type": "string"
@@ -6172,6 +6253,13 @@
       },
       "DuplicateAgentRequest": {
         "properties": {
+          "kind": {
+            "enum": [
+              "on_demand",
+              "stays_on"
+            ],
+            "type": "string"
+          },
           "name": {
             "maxLength": 106,
             "pattern": "^[a-z][a-z0-9_-]{0,105}$",
@@ -10457,6 +10545,44 @@
           "id",
           "image",
           "title"
+        ],
+        "type": "object"
+      },
+      "GroupedAgentCatalogItemPayload": {
+        "properties": {
+          "active": {
+            "type": "integer"
+          },
+          "agent": {
+            "$ref": "#/components/schemas/AgentPayload"
+          },
+          "definition_digest": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "active",
+          "agent",
+          "definition_digest",
+          "kind",
+          "label",
+          "name",
+          "scopes"
         ],
         "type": "object"
       },
@@ -47334,6 +47460,17 @@
             }
           },
           {
+            "description": "Group identical scoped definitions",
+            "in": "query",
+            "name": "group",
+            "schema": {
+              "enum": [
+                "agent"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Exact agent name",
             "in": "query",
             "name": "name",
@@ -47342,7 +47479,7 @@
             }
           },
           {
-            "description": "Case-insensitive agent name or category search",
+            "description": "Case-insensitive agent name, label or category search",
             "in": "query",
             "name": "q",
             "schema": {
@@ -47481,6 +47618,17 @@
             }
           },
           {
+            "description": "Group identical scoped definitions",
+            "in": "query",
+            "name": "group",
+            "schema": {
+              "enum": [
+                "agent"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Exact agent name",
             "in": "query",
             "name": "name",
@@ -47489,7 +47637,7 @@
             }
           },
           {
-            "description": "Case-insensitive agent name or category search",
+            "description": "Case-insensitive agent name, label or category search",
             "in": "query",
             "name": "q",
             "schema": {

@@ -373,6 +373,15 @@ describe("useAgentCreateDialog", () => {
   it("Should openForDuplicate with prefilled draft and hard-reset on openDialog", () => {
     const { result } = renderAgentCreateDialog();
     const source = {
+      label: "Release Captain",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "release-captain",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "release-captain",
       provider: "codex",
       prompt: "Own release readiness.",
@@ -411,6 +420,15 @@ describe("useAgentCreateDialog", () => {
     setProfileView({ kind: "profile", profile: "open-design" });
     const { result } = renderAgentCreateDialog();
     const source = {
+      label: "Release Captain",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "release-captain",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "release-captain",
       provider: "codex",
       prompt: "Own release readiness.",

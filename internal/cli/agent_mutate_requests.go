@@ -14,6 +14,9 @@ import (
 )
 
 type agentDefinitionFlags struct {
+	displayName, description, kind, avatar, seed, color, icon, emoji string
+	generation                                                       int
+
 	provider        string
 	command         string
 	model           string
@@ -39,6 +42,7 @@ type agentDefinitionReadClient interface {
 }
 
 func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
+	addAgentIdentityFlags(cmd, flags)
 	cmd.Flags().StringVar(&flags.provider, cliProviderKey, "", "Provider name for sessions using this agent")
 	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
@@ -125,6 +129,7 @@ func createAgentRequestFromFlags(
 			Prompt:          prompt,
 		},
 	}
+	applyAgentIdentityFlags(cmd, &request.Agent, flags)
 	if err := applyAgentFallbackChainFlags(cmd, &request.Agent, flags); err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
@@ -142,6 +147,22 @@ func updateAgentRequestFromFlags(
 	name, err := normalizePublicAgentName(name)
 	if err != nil {
 		return contract.UpdateAgentRequest{}, err
+	}
+	if cmd.Flags().Changed("kind") {
+		current, err := client.GetAgent(cmd.Context(), name, AgentQuery{Workspace: workspace})
+		if err != nil {
+			return contract.UpdateAgentRequest{}, err
+		}
+		kind := current.Kind
+		if kind == "" {
+			kind = compozyconfig.AgentKindOnDemand
+		}
+		if flags.kind != kind {
+			return contract.UpdateAgentRequest{}, fmt.Errorf(
+				"agent_kind_immutable: %w",
+				compozyconfig.ErrAgentKindImmutable,
+			)
+		}
 	}
 	expectedDigest = strings.TrimSpace(expectedDigest)
 	if expectedDigest == "" {
@@ -197,6 +218,7 @@ func duplicateAgentRequestFromFlags(
 	}
 	return contract.DuplicateAgentRequest{
 		Name:      name,
+		Kind:      flags.kind,
 		Scope:     createScope,
 		Workspace: workspace,
 		Overrides: overrides,
@@ -205,7 +227,13 @@ func duplicateAgentRequestFromFlags(
 
 func createAgentPayloadFromRecord(agent AgentRecord) contract.CreateAgentPayload {
 	return contract.CreateAgentPayload{
-		Name:            agent.Name,
+		Name: agent.Name,
+		DisplayName: new(
+			agent.DisplayName,
+		),
+		Description:     new(agent.Description),
+		Kind:            agent.Kind,
+		Appearance:      compozyconfig.CloneAgentAppearance(agent.Appearance),
 		Provider:        agent.Provider,
 		Command:         agent.Command,
 		SessionEnv:      maps.Clone(agent.SessionEnv),
@@ -244,6 +272,7 @@ func applyAgentDefinitionOverrides(
 	payload *contract.CreateAgentPayload,
 	flags agentDefinitionFlags,
 ) error {
+	applyAgentIdentityFlags(cmd, payload, flags)
 	if cmd.Flags().Changed(cliProviderKey) {
 		oldProvider := compozyconfig.CanonicalProviderName(payload.Provider)
 		payload.Provider = strings.TrimSpace(flags.provider)
@@ -315,7 +344,7 @@ func duplicateAgentOverridesFromFlags(
 	if err := applyAgentDefinitionOverrides(cmd, &payload, flags); err != nil {
 		return nil, err
 	}
-	changed := false
+	changed := agentIdentityFlagsChanged(cmd)
 	for _, name := range []string{
 		cliProviderKey, agentCommandKey, agentModelKey, agentReasoningEffortKey,
 		agentSpeedField, runtimeACPOptionFlag, runtimeACPToggleFlag,
@@ -328,6 +357,10 @@ func duplicateAgentOverridesFromFlags(
 		return nil, nil
 	}
 	return &contract.DuplicateAgentOverrides{
+		DisplayName:     payload.DisplayName,
+		Description:     payload.Description,
+		Kind:            payload.Kind,
+		Appearance:      payload.Appearance,
 		Provider:        payload.Provider,
 		Command:         payload.Command,
 		Model:           payload.Model,

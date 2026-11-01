@@ -57,6 +57,15 @@ describe("storybook msw helpers", () => {
       compozyApiMock.get("/api/agents/{name}", () =>
         HttpResponse.json({
           agent: {
+            label: "Fraud Ops Agent",
+            kind: "on_demand",
+            resolved_appearance: {
+              version: 1,
+              avatar: "generated",
+              seed: "fraud-ops-agent",
+              generation: 1,
+              color: "#7c5cff",
+            },
             name: "fraud-ops-agent",
             provider: "claude",
             prompt: "triage",

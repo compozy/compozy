@@ -5,6 +5,15 @@ import { AgentMcpServersPanel } from "../agent-mcp-servers-panel";
 import type { AgentPayload } from "../../types";
 
 const agentWithMcp: AgentPayload = {
+  label: "Coder",
+  kind: "on_demand",
+  resolved_appearance: {
+    version: 1,
+    avatar: "generated",
+    seed: "coder",
+    generation: 1,
+    color: "#7c5cff",
+  },
   name: "coder",
   provider: "claude",
   prompt: "x",
@@ -41,6 +50,15 @@ describe("AgentMcpServersPanel", () => {
     render(
       <AgentMcpServersPanel
         agent={{
+          label: "Coder",
+          kind: "on_demand",
+          resolved_appearance: {
+            version: 1,
+            avatar: "generated",
+            seed: "coder",
+            generation: 1,
+            color: "#7c5cff",
+          },
           name: "coder",
           provider: "claude",
           prompt: "x",

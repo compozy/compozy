@@ -3221,6 +3221,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addAgentIdentitySchemas(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
@@ -5063,4 +5064,115 @@ func addSessionProcessPolicyParameters(t *testing.T, baseline map[string]any) {
 			},
 		}, operation["parameters"].([]any)...)
 	}
+}
+
+func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	catalog := baseline["paths"].(map[string]any)["/api/agents/catalog"].(map[string]any)["get"].(map[string]any)
+	parameters := catalog["parameters"].([]any)
+	for i, raw := range parameters {
+		parameter := raw.(map[string]any)
+		if parameter["name"] == "q" {
+			parameter["description"] = "Case-insensitive agent name, label or category search"
+		}
+		if parameter["name"] == "name" {
+			catalog["parameters"] = slices.Insert[[]any, any](parameters, i, map[string]any{"name": "group", "in": "query", "description": "Group identical scoped definitions", "schema": map[string]any{"type": "string", "enum": []any{"agent"}}})
+			break
+		}
+	}
+
+	var agentSchema map[string]any
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			props, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if props["category_path"] != nil && props["prompt"] != nil && props["provider"] != nil {
+				text := func() map[string]any { return map[string]any{"type": "string"} }
+				open := func() map[string]any {
+					return map[string]any{"type": "object", "additionalProperties": map[string]any{}}
+				}
+				props["display_name"] = text()
+				props["description"] = text()
+				props["kind"] = text()
+				props["appearance"] = open()
+				if props["definition_digest"] != nil {
+					props["label"] = text()
+					props["resolved_appearance"] = open()
+					node["required"] = append(node["required"].([]any), "label", "resolved_appearance")
+					slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+					agentSchema = node
+				} else {
+					props["display_name"].(map[string]any)["nullable"] = true
+					props["description"].(map[string]any)["nullable"] = true
+					if props["name"] != nil {
+						props["display_name"].(map[string]any)["maxLength"] = float64(80)
+						props["description"].(map[string]any)["maxLength"] = float64(280)
+						props["kind"].(map[string]any)["enum"] = []any{"on_demand", "stays_on"}
+						props["label"] = text()
+						props["resolved_appearance"] = open()
+					}
+				}
+			}
+			if props["overrides"] != nil && props["name"] != nil && props["scope"] != nil {
+				props["kind"] = map[string]any{"type": "string", "enum": []any{"on_demand", "stays_on"}}
+			}
+			if props["agent"] != nil && props["sessions"] != nil {
+				props["scopes"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			}
+		}
+	}
+	walk(baseline)
+	if agentSchema == nil {
+		t.Fatal("approved agent identity addition: no agent schema")
+	}
+	var catalogs func(any)
+	catalogs = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				catalogs(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				catalogs(child)
+			}
+			props, ok := node["properties"].(map[string]any)
+			if !ok || props["agents"] == nil || props["sessions_available"] == nil {
+				return
+			}
+			props["next_cursor"] = map[string]any{"type": "string"}
+			node["required"] = append(node["required"].([]any), "next_cursor")
+			slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+			props["items"] = map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type":     "object",
+					"required": []any{"active", "agent", "definition_digest", "kind", "label", "name", "scopes"},
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+						"label":             map[string]any{"type": "string"},
+						"kind":              map[string]any{"type": "string"},
+						"definition_digest": map[string]any{"type": "string"},
+						"scopes":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"active":            map[string]any{"type": "integer"},
+						"agent":             agentSchema,
+					},
+				},
+			}
+		}
+	}
+	catalogs(baseline)
 }

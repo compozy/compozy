@@ -19,6 +19,8 @@ type UpdateAgentRequest struct {
 
 // DuplicateAgentRequest clones the effective route agent definition.
 type DuplicateAgentRequest struct {
+	Kind string `json:"kind,omitempty"`
+
 	Name      string                   `json:"name"`
 	Scope     AgentCreateScope         `json:"scope,omitempty"`
 	Workspace string                   `json:"workspace,omitempty"`
@@ -27,6 +29,11 @@ type DuplicateAgentRequest struct {
 
 // DuplicateAgentOverrides captures caller-editable fields applied to a clone.
 type DuplicateAgentOverrides struct {
+	DisplayName *string        `json:"display_name,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"`
+
 	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
 	Provider        string                              `json:"provider,omitempty"`
 	Command         string                              `json:"command,omitempty"`
@@ -93,6 +100,14 @@ type AgentDefinitionShadowPayload struct {
 
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
+	DisplayName string         `json:"display_name,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"`
+
+	Label              string         `json:"label"`
+	ResolvedAppearance map[string]any `json:"resolved_appearance"`
+
 	SessionEnv       map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
 	Name             string                              `json:"name"`
 	Provider         string                              `json:"provider"`

@@ -24,6 +24,7 @@ const (
 var errAgentCatalogQueryInvalid = errors.New("api: agent catalog query is invalid")
 
 type agentCatalogQuery struct {
+	Group     string
 	Workspace string
 	Name      string
 	Search    string
@@ -34,6 +35,7 @@ type agentCatalogQuery struct {
 }
 
 type agentCatalogFingerprint struct {
+	Group       string `json:"group"`
 	WorkspaceID string `json:"workspace_id"`
 	Name        string `json:"name"`
 	Search      string `json:"q"`
@@ -47,6 +49,13 @@ type agentCatalogCursor struct {
 
 // ListAgentCatalog returns a scoped fleet page with exact session metrics.
 func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
+	if c.Query("group") == "agent" && agentWorkspaceRef(c) == "" {
+		if !h.requireAggregateSurface(c) {
+			return
+		}
+		h.listAgentAggregate(c, WorkspaceBreadth{AllWorkspaces: true})
+		return
+	}
 	if c.Query("all_workspaces") != "" || len(c.QueryArray("workspace_ids")) > 0 {
 		h.respondAggregateBreadthError(c, invalidWorkspaceBreadth("use /api/agents/aggregate"))
 		return
@@ -94,6 +103,7 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	projectGroupedAgentCatalog(&response, query)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -119,6 +129,9 @@ func (h *BaseHandlers) agentCatalogSessionMetrics(
 }
 
 func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
+	if group := c.Query("group"); group != "" && group != "agent" {
+		return agentCatalogQuery{}, fmt.Errorf("%w: group must be agent", errAgentCatalogQueryInvalid)
+	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return agentCatalogQuery{}, fmt.Errorf("%w: %w", errAgentCatalogQueryInvalid, err)
@@ -142,6 +155,7 @@ func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
 		)
 	}
 	return agentCatalogQuery{
+		Group:     c.Query("group"),
 		Workspace: workspace,
 		Name:      strings.TrimSpace(c.Query("name")),
 		Search:    strings.ToLower(strings.TrimSpace(c.Query("q"))),
@@ -160,6 +174,7 @@ func buildAgentCatalogResponse(
 	sessionsAvailable bool,
 ) (contract.AgentCatalogResponse, error) {
 	fingerprint, err := listcursor.Fingerprint(agentCatalogFingerprint{
+		Group:       query.Group,
 		WorkspaceID: workspaceID,
 		Name:        query.Name,
 		Search:      query.Search,
@@ -279,6 +294,7 @@ func agentMatchesCatalogQuery(
 	}
 	if query.Search != "" {
 		matched := strings.Contains(strings.ToLower(agent.Name), query.Search) ||
+			strings.Contains(strings.ToLower(agent.Label), query.Search) ||
 			strings.Contains(strings.ToLower(category), query.Search)
 		if !matched {
 			return false

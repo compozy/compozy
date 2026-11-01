@@ -18,10 +18,26 @@ func setAgentNameSchema(schema *openapi3.Schema, property string, pattern string
 
 func customizeCreateAgentPayloadSchema(schema *openapi3.Schema) {
 	setAgentNameSchema(schema, "name", compozyconfig.AgentNamePattern)
+	if kind := schema.Properties["kind"]; kind != nil && kind.Value != nil {
+		kind.Value.Enum = []any{"on_demand", "stays_on"}
+	}
+	for key, limit := range map[string]uint64{"display_name": 80, "description": 280} {
+		if field := schema.Properties[key]; field != nil && field.Value != nil {
+			field.Value.MaxLength = new(limit)
+		}
+	}
 }
 
 func customizeDuplicateAgentRequestSchema(schema *openapi3.Schema) {
 	setAgentNameSchema(schema, "name", compozyconfig.AgentNamePattern)
+	if kind := schema.Properties["kind"]; kind != nil && kind.Value != nil {
+		kind.Value.Enum = []any{"on_demand", "stays_on"}
+	}
+	for key, limit := range map[string]uint64{"display_name": 80, "description": 280} {
+		if field := schema.Properties[key]; field != nil && field.Value != nil {
+			field.Value.MaxLength = new(limit)
+		}
+	}
 }
 
 func customizeAgentSpawnRequestSchema(schema *openapi3.Schema) {

@@ -96,6 +96,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
   workspace: primaryWorkspaceFixture,
   agents: [
     {
+      label: storyAgentNames.cto,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.cto,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.cto,
       provider: "claude",
       prompt:
@@ -105,6 +114,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.cfo,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.cfo,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.cfo,
       provider: "claude",
       prompt: "Track launch GMV, burn, reserve exposure, and finance approvals in real time.",
@@ -113,6 +131,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.product,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.product,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.product,
       provider: "gemini",
       prompt:
@@ -122,6 +149,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.frontend,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.frontend,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.frontend,
       provider: "codex",
       prompt:
@@ -131,6 +167,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.marketing,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.marketing,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.marketing,
       provider: "gemini",
       prompt:
@@ -140,6 +185,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.copywriter,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.copywriter,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.copywriter,
       provider: "claude",
       prompt:
@@ -149,6 +203,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.support,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.support,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.support,
       provider: "claude",
       prompt:
@@ -158,6 +221,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.fraud,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.fraud,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.fraud,
       provider: "claude",
       prompt:
@@ -167,6 +239,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.compliance,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.compliance,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.compliance,
       provider: "qwen-code",
       prompt:
@@ -176,6 +257,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.release,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.release,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.release,
       provider: "codex",
       prompt:
@@ -185,6 +275,15 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
     },
     {
+      label: storyAgentNames.platform,
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: storyAgentNames.platform,
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: storyAgentNames.platform,
       provider: "codex",
       prompt:

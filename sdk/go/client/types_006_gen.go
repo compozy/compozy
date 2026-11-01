@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// FailTaskRunRequest is a daemon API value.
+type FailTaskRunRequest struct {
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// FailureKind is a daemon API value.
+type FailureKind string
+
+// FailureReasonCode is a daemon API value.
+type FailureReasonCode string
+
 // FanOutTaskRunsRequest is a daemon API value.
 type FanOutTaskRunsRequest struct {
 	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
@@ -426,25 +438,3 @@ type GoalPromptMeta struct {
 
 // GoalReasonCode is a daemon API value.
 type GoalReasonCode string
-
-// GoalSnapshot is a daemon API value.
-type GoalSnapshot struct {
-	RunID           string              `json:"run_id"`
-	NodeID          string              `json:"node_id"`
-	Objective       string              `json:"objective"`
-	OriginSessionID string              `json:"origin_session_id"`
-	BoundSessionID  string              `json:"bound_session_id"`
-	Status          GoalStatus          `json:"status"`
-	RunStatus       LoopRunStatus       `json:"run_status"`
-	Cause           *GoalReasonCode     `json:"cause"`
-	TurnsUsed       int                 `json:"turns_used"`
-	TurnLimit       int                 `json:"turn_limit"`
-	Live            bool                `json:"live"`
-	PauseRequested  bool                `json:"pause_requested,omitzero"`
-	ContractSummary string              `json:"contract_summary"`
-	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
-	Context         GoalContextSnapshot `json:"context"`
-}
-
-// GoalSnapshotChangeCause is a daemon API value.
-type GoalSnapshotChangeCause string

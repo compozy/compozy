@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// HookRunPayload is a daemon API value.
+type HookRunPayload struct {
+	HookName      string          `json:"hook_name"`
+	Event         string          `json:"event"`
+	Source        string          `json:"source"`
+	Mode          string          `json:"mode"`
+	DurationMS    int64           `json:"duration_ms"`
+	Outcome       string          `json:"outcome"`
+	DispatchDepth int             `json:"dispatch_depth"`
+	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
+	Error         string          `json:"error,omitempty"`
+	Required      bool            `json:"required,omitzero"`
+	RecordedAt    time.Time       `json:"recorded_at"`
+}
+
+// HookRunsResponse is a daemon API value.
+type HookRunsResponse struct {
+	Runs []HookRunPayload `json:"runs"`
+}
+
+// Image is a daemon API value.
+type Image struct {
+	URL   string `json:"url,omitempty"`
+	Token string `json:"token,omitempty"`
+	Emoji string `json:"emoji,omitempty"`
+}
+
 // Input is a daemon API value.
 type Input struct {
 	Type        InputType `json:"type"`
@@ -416,26 +443,4 @@ type LoopEffectiveConfig struct {
 type LoopEmitSpec struct {
 	Kind    string         `json:"kind"`
 	Payload map[string]any `json:"payload,omitempty"`
-}
-
-// LoopEnvironment is a daemon API value.
-type LoopEnvironment struct {
-	Mode        LoopEnvironmentMode `json:"mode"`
-	WorktreeRef string              `json:"worktree_ref,omitempty"`
-	Directory   string              `json:"directory,omitempty"`
-}
-
-// LoopEnvironmentMode is a daemon API value.
-type LoopEnvironmentMode string
-
-// LoopForkRef is a daemon API value.
-type LoopForkRef struct {
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
-}
-
-// LoopGateBlockingIssuePayload is a daemon API value.
-type LoopGateBlockingIssuePayload struct {
-	ID   string `json:"id"`
-	Note string `json:"note"`
 }
