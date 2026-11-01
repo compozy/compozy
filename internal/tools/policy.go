@@ -41,10 +41,12 @@ const (
 	ExternalDefaultEnabled ExternalDefault = "enabled"
 )
 
-// SourceGrant grants policy to one descriptor source owner.
+// SourceGrant grants policy to one descriptor source owner. A ResourceID narrows the grant to that
+// exact resource, because distinct servers can normalize to the same owner.
 type SourceGrant struct {
-	Kind  SourceKind `json:"kind"`
-	Owner string     `json:"owner"`
+	Kind       SourceKind `json:"kind"`
+	Owner      string     `json:"owner"`
+	ResourceID string     `json:"resource_id,omitempty"`
 }
 
 // ParseSourceGrant parses kind:owner source policy entries.
@@ -80,6 +82,9 @@ func (g SourceGrant) Validate(field string) error {
 
 // Match reports whether the grant covers the descriptor source.
 func (g SourceGrant) Match(source SourceRef) bool {
+	if g.ResourceID != "" {
+		return g.Kind == source.Kind && g.ResourceID == source.ResourceID
+	}
 	return g.Kind == source.Kind && g.Owner == source.Owner
 }
 

@@ -115,7 +115,7 @@ func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, erro
 	if err != nil {
 		return nil, fmt.Errorf("tools: list mcp sources: %w", err)
 	}
-	sources = mcpSourcesForScope(sources, scope)
+	sources = MCPSourcesForScope(sources, scope)
 	if p.reliability != nil {
 		p.reliability.retainActiveSources(scope, sources)
 	}
@@ -133,7 +133,8 @@ func (p *MCPProvider) List(ctx context.Context, scope Scope) ([]Descriptor, erro
 	return descriptors, nil
 }
 
-func mcpSourcesForScope(sources []SourceRef, scope Scope) []SourceRef {
+// MCPSourcesForScope selects the sources one scope projects, keeping the most specific definition per server.
+func MCPSourcesForScope(sources []SourceRef, scope Scope) []SourceRef {
 	profileID := strings.TrimSpace(scope.ProfileID)
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
 	bestRank := make(map[string]int)

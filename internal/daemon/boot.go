@@ -126,6 +126,7 @@ type bootState struct {
 	extensionInputs       extensioninput.Store
 	extensionMCP          extensionmcp.Store
 	mcpAuthGeneration     *mcpauth.MutationGeneration
+	mcpAuthStatus         toolspkg.MCPAuthStatusProvider
 	mcpRuntimeHealth      *mcppkg.RuntimeHealthRegistry
 	mcpStdioPool          *mcppkg.StdioSessionPool
 	toolProjectionEpoch   *mcppkg.ProjectionEpoch

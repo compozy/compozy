@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -621,6 +622,265 @@ func TestDaemonMCPServerResolverProjectsRemoteHeaderBindings(t *testing.T) {
 				t.Fatalf("resolved stdio server = %#v, want no projected remote headers", stdio.Server)
 			}
 		})
+	})
+}
+
+func TestMCPSourceResourceFindsExtensionServersByName(t *testing.T) {
+	t.Parallel()
+
+	server := compozyconfig.MCPServer{Name: "linear", Transport: compozyconfig.MCPServerTransportHTTP,
+		URL: "https://example.com/mcp"}
+	extensionRecord := func(id, extension string) resources.Record[compozyconfig.MCPServer] {
+		return resources.Record[compozyconfig.MCPServer]{
+			ID: id, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: server, Owner: *extensionOwner(extension),
+		}
+	}
+	lookup := func(t *testing.T, state *bootState) (mcpauth.Target, error) {
+		t.Helper()
+		resolved, err := resolveDaemonMCPServer(t.Context(), state, toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, RawServerName: "linear",
+		}, "")
+		return resolved.Target, err
+	}
+	catalogOf := func(records ...resources.Record[compozyconfig.MCPServer]) *resourceCatalog[compozyconfig.MCPServer] {
+		catalog := newResourceCatalog(cloneDaemonMCPServer)
+		catalog.Replace(1, records)
+		return catalog
+	}
+
+	// Invariant: native diagnostics find an extension server by name, and never shadow the operator's own.
+	// Owner: daemon MCP resolver; canonical suite: mcp_server_resolver_test.go.
+	t.Run("Should resolve the only extension definition without an owner", func(t *testing.T) {
+		t.Parallel()
+		target, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(extensionRecord("ext", "linear"))})
+		if err != nil || target.Owner != "extension:linear" {
+			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+	})
+	t.Run("Should prefer a server declared in provider config over an extension", func(t *testing.T) {
+		t.Parallel()
+		state := &bootState{mcpServerCatalog: catalogOf(extensionRecord("ext", "linear"))}
+		state.cfg.Providers = map[string]compozyconfig.ProviderConfig{
+			"claude": {MCPServers: []compozyconfig.MCPServer{server}},
+		}
+		target, err := lookup(t, state)
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+	})
+	t.Run("Should require an owner when two extensions declare the name", func(t *testing.T) {
+		t.Parallel()
+		_, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(
+			extensionRecord("ext-a", "linear-a"), extensionRecord("ext-b", "linear-b"),
+		)})
+		if err == nil || !strings.Contains(err.Error(), "explicit owner") {
+			t.Fatalf("ambiguous lookup error = %v", err)
+		}
+	})
+	t.Run("Should keep answering with the manual server when extensions tie", func(t *testing.T) {
+		t.Parallel()
+		manual := resources.Record[compozyconfig.MCPServer]{
+			ID: "manual", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: server,
+		}
+		target, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(
+			extensionRecord("ext-a", "linear-a"), extensionRecord("ext-b", "linear-b"), manual,
+		)})
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+		state := &bootState{mcpServerCatalog: catalogOf(
+			extensionRecord("ext-a", "linear-a"), extensionRecord("ext-b", "linear-b"),
+		)}
+		state.cfg.MCPServers = []compozyconfig.MCPServer{server}
+		target, err = lookup(t, state)
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("config lookup = %#v, %v", target, err)
+		}
+	})
+	t.Run("Should not let an unreadable extension record block the manual server", func(t *testing.T) {
+		t.Parallel()
+		broken := extensionRecord("ext", "linear")
+		broken.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "invalid"}
+		manual := resources.Record[compozyconfig.MCPServer]{
+			ID: "manual", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: server,
+		}
+		target, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(broken, manual)})
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+		if _, err = lookup(t, &bootState{mcpServerCatalog: catalogOf(broken)}); err == nil ||
+			!strings.Contains(err.Error(), "workspace-profile") {
+			t.Fatalf("lookup without a manual server error = %v", err)
+		}
+	})
+	t.Run("Should not resolve an extension enabled for another profile", func(t *testing.T) {
+		t.Parallel()
+		record := extensionRecord("ext", "linear")
+		record.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-other"}
+		_, err := resolveDaemonMCPServer(t.Context(), &bootState{mcpServerCatalog: catalogOf(record)},
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "linear", ProfileID: "profile-mine"}, "")
+		if err == nil || !strings.Contains(err.Error(), "is unavailable") {
+			t.Fatalf("name lookup crossed the profile boundary: %v", err)
+		}
+	})
+}
+
+type mcpGrantAuthStatus struct {
+	status map[string]toolspkg.MCPAuthStatus
+	err    error
+}
+
+func (s mcpGrantAuthStatus) Status(
+	_ context.Context, source toolspkg.SourceRef, _ string,
+) (toolspkg.MCPAuthStatus, error) {
+	return s.status[source.ResourceID], s.err
+}
+
+func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
+	t.Parallel()
+
+	db := openDaemonTestGlobalDB(t)
+	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db),
+		profilepkg.WithHomePaths(testHomePaths(t)), profilepkg.WithLogger(discardLogger()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	open, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "open"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := profiles.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	openScope := resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: open.ID}
+	otherScope := resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: other.ID}
+	named := func(name string, oauth bool) compozyconfig.MCPServer {
+		server := compozyconfig.MCPServer{
+			Name: name, Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://example.com/mcp",
+		}
+		if oauth {
+			server.Auth = compozyconfig.MCPAuthConfig{Registration: compozyconfig.MCPAuthRegistrationAuto}
+		}
+		return server
+	}
+	catalog := newResourceCatalog(cloneDaemonMCPServer)
+	catalog.Replace(1, []resources.Record[compozyconfig.MCPServer]{
+		{ID: "ext", Scope: openScope, Owner: *extensionOwner("lab"), Spec: named("lab-mcp", true)},
+		{ID: "plain", Scope: openScope, Owner: *extensionOwner("plain"), Spec: named("plain", false)},
+		{ID: "manual", Scope: openScope, Spec: named("manual", true)},
+		{ID: "foreign", Scope: otherScope, Owner: *extensionOwner("foreign"), Spec: named("foreign", true)},
+		{ID: "logged-out", Scope: openScope, Owner: *extensionOwner("logged"), Spec: named("logged-out", true)},
+	})
+	present := toolspkg.MCPAuthStatus{Status: "expired", TokenPresent: true}
+	authed := mcpGrantAuthStatus{status: map[string]toolspkg.MCPAuthStatus{
+		"ext": present, "plain": present, "manual": present, "foreign": present,
+		"logged-out": {Status: "needs_login"},
+	}}
+	state := func(status toolspkg.MCPAuthStatusProvider) *bootState {
+		return &bootState{mcpServerCatalog: catalog, mcpAuthStatus: status, profiles: profiles}
+	}
+	scope := toolspkg.Scope{ProfileID: open.ID}
+	descriptor := toolspkg.Descriptor{
+		ID: "mcp__lab_mcp__echo", Visibility: toolspkg.VisibilityModel, Risk: toolspkg.RiskOpenWorld,
+		Backend:     toolspkg.BackendRef{Kind: toolspkg.BackendMCP, MCPServer: "lab_mcp", MCPTool: "echo"},
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+		Source: toolspkg.SourceRef{
+			Kind: toolspkg.SourceMCP, Owner: "lab_mcp", RawServerName: "lab-mcp", RawToolName: "echo",
+			ResourceID: "ext",
+		},
+	}
+
+	// Invariant: only a credential the operator holds for a projected extension server grants its
+	// source, so external_default keeps denying everything else and other profiles stay isolated.
+	// Owner: daemon MCP source grants; canonical suite: mcp_server_resolver_test.go.
+	t.Run("Should grant only the authenticated extension server the scope projects", func(t *testing.T) {
+		t.Parallel()
+		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(), state(authed), scope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "lab-mcp", ResourceID: "ext"}}
+		if !slices.Equal(grants, want) {
+			t.Fatalf("grants = %#v, want %#v", grants, want)
+		}
+	})
+	t.Run("Should not fail policy when one catalog record cannot be enumerated", func(t *testing.T) {
+		t.Parallel()
+		broken := newResourceCatalog(cloneDaemonMCPServer)
+		broken.Replace(1, []resources.Record[compozyconfig.MCPServer]{{
+			ID:    "broken",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "invalid"},
+			Owner: *extensionOwner("lab"), Spec: named("broken", true),
+		}})
+		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(),
+			&bootState{mcpServerCatalog: broken, mcpAuthStatus: authed}, scope)
+		if err != nil || len(grants) != 0 {
+			t.Fatalf("grants = %#v, %v", grants, err)
+		}
+	})
+	t.Run("Should grant nothing when the credential status cannot be read", func(t *testing.T) {
+		t.Parallel()
+		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(),
+			state(mcpGrantAuthStatus{err: errors.New("store unavailable")}), scope)
+		if err != nil || len(grants) != 0 {
+			t.Fatalf("grants = %#v, %v", grants, err)
+		}
+	})
+	t.Run("Should make the login the only thing that lifts the disabled external default", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.Config{
+			Tools:       compozyconfig.ToolsConfig{Enabled: true},
+			Permissions: compozyconfig.PermissionsConfig{Mode: compozyconfig.PermissionModeApproveAll},
+		}
+		for _, tc := range []struct {
+			name     string
+			grants   nativeToolPolicyMCPSourceGrants
+			callable bool
+		}{
+			{name: "without login", grants: func(context.Context, toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
+				return nil, nil
+			}},
+			{name: "with login", callable: true, grants: func(
+				ctx context.Context, scope toolspkg.Scope,
+			) ([]toolspkg.SourceGrant, error) {
+				return operatorAuthorizedMCPSourceGrants(ctx, state(authed), scope)
+			}},
+		} {
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg, MCPSourceGrants: tc.grants,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs, err := resolver.Resolve(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+				inputs, toolspkg.ToolsetCatalog{}, []toolspkg.ToolID{descriptor.ID},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := evaluator.Evaluate(t.Context(), scope, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable != tc.callable {
+				t.Fatalf("%s: decision = %#v, want callable %t", tc.name, decision, tc.callable)
+			}
+			twin := descriptor
+			twin.Source.RawServerName, twin.Source.ResourceID = "lab_mcp", "ext-twin"
+			decision, err = evaluator.Evaluate(t.Context(), scope, twin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable {
+				t.Fatalf("%s: a login reached another server sharing the owner: %#v", tc.name, decision)
+			}
+		}
 	})
 }
 
