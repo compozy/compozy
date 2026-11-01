@@ -119,8 +119,9 @@ func (p *AgentProcess) interceptCreateTerminalRequest(
 	}
 
 	patched, err := p.interceptProviderNativeTool(ctx, ToolExecutionRequest{
-		ToolID: providerNativeToolIDBash,
-		Input:  input,
+		ToolID:  providerNativeToolIDBash,
+		Input:   input,
+		Execute: true,
 	})
 	if err != nil {
 		return acpsdk.CreateTerminalRequest{}, err

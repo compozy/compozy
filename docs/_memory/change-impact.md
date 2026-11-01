@@ -4875,3 +4875,15 @@ The shared worktree dialog accepts the existing UI primitive finalFocus policy. 
 HTTP/UDS, hooks, extensions, config, persisted data, workspace isolation and the official
 CompozyOS skill are unchanged. Web QA: RT-worktree-web-create-adopt and the existing
 real-Git mixed-removal E2E on menubar/overview surfaces.
+
+## Shell-wait guard — 2026-10-31
+
+Owner: issue #1122, branch `feat/monitor-over-shell-waits`. Native tools: `terminal_exec` and
+`monitor_create` descriptions change and both gain `anthropic/alwaysLoad`; IDs and schemas stay.
+Extensibility: the hidden `compozy __internal shell-wait-hook` verb is internal and undocumented;
+extension `tool.pre_call` hooks are unchanged, and a guard denial precedes them. Config and data: no
+key, DTO, route, or schema change, so there is no migration. Provider behavior changes for agents only:
+foreground waits are refused when the session can call both tools, and input-only, verdict-only, Pi,
+and policy-narrowed sessions are unaffected. Workspace isolation is unchanged. Official skill and Web
+docs: `skills/compozy/references/{terminal,native-tools}.md` and `sessions/monitors.mdx`. QA:
+RT-session-monitor-wake step 10.

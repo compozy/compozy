@@ -233,6 +233,27 @@ func TestApplyHostedToolsAddsAnthropicMetadata(t *testing.T) {
 			t.Fatalf("tool_search alwaysLoad = %#v, want true", got)
 		}
 	})
+
+	t.Run("Should keep the wait path loaded", func(t *testing.T) {
+		t.Parallel()
+
+		mcpServer := newHostedProxyTestServer()
+		applyHostedTools(mcpServer, &hostedProxyClientStub{}, "bind-1", []tools.ToolView{
+			hostedToolView(tools.ToolIDTerminalExec),
+			hostedToolView(tools.ToolIDMonitorCreate),
+		})
+
+		registered := listHostedProxyTools(t, mcpServer)
+		for _, id := range []tools.ToolID{tools.ToolIDTerminalExec, tools.ToolIDMonitorCreate} {
+			tool, ok := registered[id.String()]
+			if !ok {
+				t.Fatalf("registered tools = %#v, want %s", registered, id)
+			}
+			if got := tool.Meta["anthropic/alwaysLoad"]; got != true {
+				t.Fatalf("%s alwaysLoad = %#v, want true", id, got)
+			}
+		}
+	})
 }
 
 func TestReconcileHostedTools(t *testing.T) {

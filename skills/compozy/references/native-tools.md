@@ -158,7 +158,9 @@ send per second, including sends suppressed by a workspace mute. CLI fallback: `
 
 Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compozy__monitor_list`,
 `compozy__monitor_cancel`. A monitor is a daemon-owned watch that wakes the bound session with a new
-turn when it fires, which is the only way background work can resume you after your turn ends.
+turn when it fires, which is the only way background work can resume you after your turn ends. Use one
+for every wait on external work, inside or outside your turn; `terminal.md` describes the shell-wait
+guard that refuses `gh pr checks --watch`, long `sleep`, and polling loops.
 Provider-internal background shells, monitors, scheduled wakeups, and "I will report back" promises
 cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
@@ -673,8 +675,8 @@ Toolset `compozy__terminal` contains `compozy__terminal_exec`, `compozy__termina
 `compozy__terminal_write`, `compozy__terminal_read`, `compozy__terminal_wait`,
 `compozy__terminal_signal`, `compozy__terminal_close`, `compozy__terminal_list`,
 and `compozy__terminal_request_input`. Resolve each descriptor before calling it. Read `terminal.md`
-for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules. For a
-command that outlives the turn, pair `terminal_exec` with `compozy__monitor_create`.
+for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules. To wait
+on a command, inside or outside the turn, pair `terminal_exec` with `compozy__monitor_create`.
 
 ## Command And Skill Tools
 

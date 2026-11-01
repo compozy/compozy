@@ -102,12 +102,32 @@ only terminals the task authorizes you to close. `close` is idempotent: closing 
 terminal succeeds and reports the recorded exit, while `signal` and `write` on an ended terminal
 still fail with `terminal_exited`.
 
-When a command outlives your turn (a build, a deploy, a release workflow), do not poll it and do not
-use a provider-internal background task or monitor: they cannot wake a CompozyOS session. Run it with
-`exec`; when the result reports `still_running`, register `compozy__monitor_create` with
-`kind="terminal"` on the returned `terminal_id` (`until="exit"`, or `until="match"` for a log line)
-and keep working on steps that do not depend on it. End your turn only when every remaining step waits
-on a registered monitor or subagent; the daemon wakes this session when the monitor fires.
+Never wait on external work from a shell, inside or outside your turn. That covers CI, deploys, builds,
+release workflows, polling remote state, and delays. `gh pr checks --watch`, `gh run watch`, `sleep`,
+and `while`, `until`, or `for` polling loops keep the turn busy where CompozyOS cannot supervise them,
+and provider-internal background tasks and monitors cannot wake a CompozyOS session. Run the command with
+`exec`, with the executable in `command` and the rest in `args`:
+
+```json
+{ "command": "gh", "args": ["pr", "checks", "123", "--watch"] }
+```
+
+When the result reports `still_running`, register `compozy__monitor_create` with `kind="terminal"` on
+the returned `terminal_id` (`until="exit"`, or `until="match"` for a log line) and keep working on steps
+that do not depend on it. For a plain delay, use `kind="timer"` instead. End your turn only when every
+remaining step waits on a registered monitor or subagent; the daemon wakes this session when the
+monitor fires. If the exit code matters, read it from the wake's status line.
+
+Shell-wait guard. When a session can call both `terminal_exec` and `monitor_create`, CompozyOS refuses
+these waits in provider shells and the refusal names the exact replacement call. It refuses `gh pr
+checks --watch`, `gh run watch`, `watch`, `tail -f`, a `sleep` of 5 seconds or more, and polling loops,
+including behind `timeout`, `env`, `nohup`, `bash -c`, or an absolute path such as `/bin/sleep`. A
+shorter `sleep`, `gh pr checks` without `--watch`, and text that only mentions these commands stay
+allowed. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell. Other providers are
+checked when they ask permission for a shell command or create an ACP terminal, so a provider running
+with approvals off, such as Codex under `approve-all`, relies on the runtime guidance alone and its
+refusal may not carry the reason. When policy withholds either tool there is no guard and a shell wait
+stays allowed. The guard fails open: any hook failure lets the command run.
 
 Processes opened by an agent inherit the originating session and agent identity for managed CLI
 commands. `exec` environment overrides cannot replace that identity. A persistent terminal keeps its

@@ -16,10 +16,38 @@ agent's "I'll report back when it finishes" never came back and the session sat 
 
 Monitors are owned by the CompozyOS daemon instead, so the wake always reaches the session:
 
-- every agent is told to use monitors for work that outlives its turn;
+- every agent is told to use monitors for any wait on outside work, such as CI, deploys, or builds,
+  whether or not it outlives the turn;
 - for Claude Code sessions, CompozyOS turns off the Monitor, ScheduleWakeup, and Cron tools and
   refuses background shell commands (Bash and PowerShell), because their results could never reach you. Background
   subagents keep working: their results return inside the turn that started them.
+
+### Shell waits are redirected
+
+An agent that waits inside its own shell keeps the turn busy, so the session looks stuck and
+CompozyOS can't supervise the wait. When a session can use monitors, CompozyOS refuses these commands
+and tells the agent the exact call to make instead:
+
+| Refused                                                  | The agent is told to                                 |
+| -------------------------------------------------------- | ---------------------------------------------------- |
+| `gh pr checks --watch`, `gh run watch`, `watch`, `tail -f` | run it in a terminal and put a monitor on it         |
+| `while`, `until`, or `for` loops that `sleep` to poll    | run the loop in a terminal and put a monitor on it   |
+| `sleep` for 5 seconds or more                            | set a timer monitor                                  |
+
+Shorter sleeps, `gh pr checks` without `--watch`, and text that only mentions these commands still
+run. The check also sees through `timeout`, `env`, `bash -c`, and paths such as `/bin/sleep`.
+
+What each provider gets:
+
+- **Claude Code:** a hook refuses the command before it runs.
+- **Codex and other ACP providers:** the command is refused when the provider asks for permission to
+  run it or opens a terminal through CompozyOS. With approvals off (`approve-all`) there is no such
+  step, so the agent has only its instructions. The refusal may also reach the agent without the
+  suggested call.
+- **Sessions without the monitor or terminal tools:** nothing is refused, because a shell wait is the
+  only wait they have.
+
+If the check itself fails, the command runs.
 
 ## What a monitor can watch
 

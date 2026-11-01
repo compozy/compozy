@@ -110,12 +110,18 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 				"CLI/API commands, and `tool_id` inputs.\n\n",
 		)
 		builder.WriteString(
-			"Background work that outlives your turn must wake you through Compozy. Provider-internal " +
-				"background tasks, monitors, scheduled wakeups, and \"I will report when it finishes\" promises " +
-				"cannot start a Compozy turn, so their results never reach the user. Run long commands with " +
-				"`compozy__terminal_exec` and register `compozy__monitor_create` on the returned terminal or as a " +
-				"timer; Compozy wakes this session when the monitor fires. End your turn only when every remaining " +
-				"step is blocked on a registered monitor or subagent; otherwise keep working until the requested " +
+			"Never wait on external work from a shell or a provider-internal task, inside or outside your turn. " +
+				"This covers CI, deploys, builds, release workflows, polling remote state, and any delay: " +
+				"`gh pr checks --watch`, `gh run watch`, `sleep`, and `while`, `until`, or `for` polling loops keep the " +
+				"turn busy where Compozy cannot supervise them, and provider-internal background tasks, monitors, " +
+				"scheduled wakeups, and \"I will report when it finishes\" promises cannot start a Compozy turn, so " +
+				"their results never reach the user. Instead, run the command with `compozy__terminal_exec` " +
+				"(executable in `command`, the rest in `args`); if the result reports `still_running`, call " +
+				"`compozy__monitor_create` with `kind: \"terminal\"` on the returned `terminal_id`. For a plain delay, " +
+				"call `compozy__monitor_create` with `kind: \"timer\"`. Compozy wakes this session when the monitor " +
+				"fires. If policy withholds these tools from this session, a shell wait stays allowed. End your turn " +
+				"only when every remaining step is blocked on a registered monitor or subagent; otherwise keep " +
+				"working until the requested " +
 				"outcome is delivered.\n\n",
 		)
 	}
