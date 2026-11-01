@@ -3895,4 +3895,30 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 			t.Fatalf("unknown message admitted = %v, %v; want false", other, err)
 		}
 	})
+
+	t.Run("Should not report a canceled synthetic input as admitted", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		now := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+		entry, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "monitor-wake-canceled", SessionID: sessionID, MessageID: "monitor:mon-cccccccccccc", Priority: 1,
+			OwnerKind: store.SessionInputOwnerSynthetic, Text: "wake", TurnID: "monitor-turn",
+			Mode: store.SessionInputQueueModeQueue, Delivery: store.SessionInputDeliveryAfterTurn,
+			QueueCap: 3, Now: now,
+			SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+				RunID: "monitor:mon-cccccccccccc", Metadata: []byte(`{"kind":"monitor","reason":"monitor_exit"}`),
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.CancelSessionInput(t.Context(), sessionID, entry.ID, now.Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		admitted, err := db.SyntheticSessionInputAdmitted(t.Context(), sessionID, "monitor:mon-cccccccccccc")
+		if err != nil || admitted {
+			t.Fatalf("canceled admitted = %v, %v; want false so the wake can be admitted again", admitted, err)
+		}
+	})
 }

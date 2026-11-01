@@ -37,16 +37,20 @@ func (s *Service) Recover(ctx context.Context) error {
 		return fmt.Errorf("monitor: load durable monitors: %w", err)
 	}
 	touched := make(map[string]struct{})
+	restored := make(map[string]struct{})
 	verdicts := make(map[string]error)
 	for _, record := range records {
 		item := entryFromRecord(record)
 		if !item.occupies() {
-			s.restoreHistory(item)
+			if s.restoreHistory(item) {
+				restored[item.state.SessionID] = struct{}{}
+			}
 			continue
 		}
 		touched[item.state.SessionID] = struct{}{}
 		s.recoverOne(ctx, item, verdicts)
 	}
+	s.capRestoredHistory(restored)
 	s.pruneStore()
 	for sessionID := range touched {
 		s.notify(sessionID)
@@ -65,14 +69,26 @@ func entryFromRecord(record Record) *entry {
 	}
 }
 
-// restoreHistory keeps interrupted and delivered outcomes inspectable until retention ends.
-func (s *Service) restoreHistory(item *entry) {
+// restoreHistory keeps interrupted and delivered outcomes inspectable until retention ends and
+// reports whether the entry was restored.
+func (s *Service) restoreHistory(item *entry) bool {
 	if item.state.Status == StatusCanceled || s.now().Sub(item.state.FiredAt) > finishedRetention {
-		return
+		return false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bucketLocked(item.state.SessionID)[item.state.ID] = item
+	return true
+}
+
+// capRestoredHistory applies the per-session history cap to every session restored from the store.
+func (s *Service) capRestoredHistory(sessions map[string]struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	for sessionID := range sessions {
+		s.pruneSessionLocked(sessionID, now)
+	}
 }
 
 func (s *Service) bucketLocked(sessionID string) map[string]*entry {
@@ -85,19 +101,58 @@ func (s *Service) bucketLocked(sessionID string) map[string]*entry {
 }
 
 func (s *Service) recoverOne(ctx context.Context, item *entry, verdicts map[string]error) {
-	err := s.ownerVerdict(ctx, item, verdicts)
+	if !s.applyOwnerOutcome(item, s.ownerVerdict(ctx, item, verdicts)) {
+		s.wg.Go(func() { s.retryOwnerResume(item) })
+	}
+}
+
+// applyOwnerOutcome acts on a definitive owner outcome and reports false for a transient failure,
+// which leaves the durable row untouched so it can be retried (and found again by the next boot).
+func (s *Service) applyOwnerOutcome(item *entry, err error) bool {
 	switch {
 	case err == nil:
 		s.rearm(item)
 	case errors.Is(err, ErrOwnerStopped), errors.Is(err, ErrSessionGone):
 		s.closeRecovered(item, StatusCanceled, ReasonSessionStopped)
 	default:
-		reason := "resume_failed"
-		if ineligible, ok := errors.AsType[*OwnerIneligibleError](err); ok {
-			reason = ineligible.Reason
+		ineligible, ok := errors.AsType[*OwnerIneligibleError](err)
+		if !ok {
+			return false
 		}
-		s.closeRecovered(item, StatusInterrupted, ReasonOwnerPrefix+reason)
+		s.closeRecovered(item, StatusInterrupted, ReasonOwnerPrefix+ineligible.Reason)
 	}
+	return true
+}
+
+// Transient owner-resume failures (a store read, a provider hiccup) are retried with backoff before
+// the monitor is recorded as interrupted, so one bad moment at boot does not drop a wake.
+const (
+	ownerResumeRetries    = 5
+	ownerResumeBackoff    = 2 * time.Second
+	ownerResumeBackoffMax = 30 * time.Second
+)
+
+func (s *Service) retryOwnerResume(item *entry) {
+	backoff := ownerResumeBackoff
+	for range ownerResumeRetries {
+		timer := time.NewTimer(backoff)
+		select {
+		case <-s.ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		backoff = min(backoff*2, ownerResumeBackoffMax)
+		ctx, cancel := context.WithTimeout(s.ctx, storeTimeout*6)
+		err := s.owners.Resume(ctx, item.state.SessionID, item.binding)
+		cancel()
+		if s.applyOwnerOutcome(item, err) {
+			s.notify(item.state.SessionID)
+			return
+		}
+	}
+	s.closeRecovered(item, StatusInterrupted, ReasonOwnerPrefix+"resume_failed")
+	s.notify(item.state.SessionID)
 }
 
 // ownerVerdict resumes each distinct owner binding once per recovery.
@@ -120,12 +175,12 @@ func (s *Service) closeRecovered(item *entry, status Status, reason string) {
 	item.state.Reason = reason
 	item.state.FiredAt = s.now()
 	s.logLifecycle("monitor."+string(status), item.state, reason)
-	record := item.recordLocked()
+	record := s.decideLocked(item)
 	if status != StatusCanceled {
 		s.bucketLocked(item.state.SessionID)[item.state.ID] = item
 	}
 	s.mu.Unlock()
-	s.save(record)
+	_ = s.persistDecision(item, record, saveRetries)
 }
 
 func (s *Service) rearm(item *entry) {
@@ -152,7 +207,12 @@ func (s *Service) rearm(item *entry) {
 
 func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
 	if mon.Status == StatusDelivering {
-		s.deliver(ctx, Notification{
+		defer func() {
+			if ctx.Err() != nil {
+				s.logInterrupted(item)
+			}
+		}()
+		s.deliver(ctx, item, Notification{
 			Monitor: mon,
 			Outcome: Outcome{Reason: mon.Reason, ExitCode: mon.ExitCode, OutputLost: mon.Kind == KindTerminal},
 		})

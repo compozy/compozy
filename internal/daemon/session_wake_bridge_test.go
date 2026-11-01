@@ -262,13 +262,14 @@ func validSessionWakeEvent() session.SpawnWakeEvent {
 }
 
 type monitorWakeManagerStub struct {
-	status     *session.Info
-	statusErr  error
-	enqueueErr error
-	admitted   bool
-	calls      int
-	id         string
-	opts       session.SyntheticPromptOpts
+	status      *session.Info
+	statusErr   error
+	enqueueErr  error
+	admitted    bool
+	admittedErr error
+	calls       int
+	id          string
+	opts        session.SyntheticPromptOpts
 }
 
 func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.Info, error) {
@@ -276,7 +277,7 @@ func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.In
 }
 
 func (stub *monitorWakeManagerStub) SyntheticWakeAdmitted(context.Context, string, string) (bool, error) {
-	return stub.admitted, nil
+	return stub.admitted, stub.admittedErr
 }
 
 func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
@@ -336,6 +337,19 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}
 		if manager.calls != 0 {
 			t.Fatalf("enqueue calls = %d, want none for an already admitted wake", manager.calls)
+		}
+	})
+
+	t.Run("Should not enqueue when the wake ledger cannot be read", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{
+			status:      &session.Info{ID: "sess-1", State: session.StateActive},
+			admittedErr: errors.New("ledger unavailable"),
+		}
+		err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
+		if err == nil || errors.Is(err, monitorpkg.ErrSessionGone) || manager.calls != 0 {
+			t.Fatalf("WakeSession() error = %v calls = %d, want a transient error and no enqueue", err, manager.calls)
 		}
 	})
 

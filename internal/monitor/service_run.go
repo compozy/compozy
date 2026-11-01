@@ -18,17 +18,17 @@ func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Sp
 	if !ok {
 		return
 	}
-	state, record, ok := s.markFired(created.ID, created.SessionID, outcome)
+	state, record, ok := s.markFired(item, outcome)
 	if !ok {
 		return
 	}
 	s.notify(created.SessionID)
 	// The fired outcome is durable before the wake is admitted, so a restart re-delivers this exact
 	// outcome under the stable message id instead of regenerating a different one.
-	if !s.persistFired(ctx, record) {
+	if !s.persistFired(ctx, item, record) {
 		return
 	}
-	s.deliver(ctx, Notification{Monitor: state, Outcome: outcome})
+	s.deliver(ctx, item, Notification{Monitor: state, Outcome: outcome})
 }
 
 // logInterrupted records a watch that stopped without settling because the daemon is stopping or
@@ -66,25 +66,25 @@ func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (
 // deliver admits the wake, retrying transient refusals with capped backoff
 // inside deliveryRetryWindow. The waker's message id is stable per monitor, so
 // a retry after an ambiguous failure cannot queue a second wake.
-func (s *Service) deliver(ctx context.Context, notification Notification) {
+func (s *Service) deliver(ctx context.Context, item *entry, notification Notification) {
 	mon := notification.Monitor
 	deadline := s.now().Add(deliveryRetryWindow)
 	backoff := deliveryRetryInitial
 	for {
 		err := s.waker.WakeSession(ctx, notification)
 		if err == nil {
-			s.settle(mon.SessionID, mon.ID, StatusFired, "")
+			s.settle(item, StatusFired, "")
 			return
 		}
 		if ctx.Err() != nil {
 			return
 		}
 		if errors.Is(err, ErrSessionGone) {
-			s.settle(mon.SessionID, mon.ID, StatusUndelivered, causeSessionGone)
+			s.settle(item, StatusUndelivered, causeSessionGone)
 			return
 		}
 		if !s.now().Add(backoff).Before(deadline) {
-			s.settle(mon.SessionID, mon.ID, StatusUndelivered, causeRetryExhausted)
+			s.settle(item, StatusUndelivered, causeRetryExhausted)
 			return
 		}
 		s.logLifecycle("monitor.wake_deferred", mon, "admission_retry")
@@ -101,10 +101,9 @@ func (s *Service) deliver(ctx context.Context, notification Notification) {
 
 // markFired records the outcome and moves the monitor to delivering; it still
 // holds its cap slots until the wake is admitted or abandoned.
-func (s *Service) markFired(id, sessionID string, outcome Outcome) (Monitor, Record, bool) {
+func (s *Service) markFired(item *entry, outcome Outcome) (Monitor, Record, bool) {
 	s.mu.Lock()
-	item, ok := s.sessions[sessionID][id]
-	if !ok || item.state.Status != StatusActive {
+	if item.state.Status != StatusActive {
 		s.mu.Unlock()
 		return Monitor{}, Record{}, false
 	}
@@ -113,22 +112,23 @@ func (s *Service) markFired(id, sessionID string, outcome Outcome) (Monitor, Rec
 	item.state.Reason = outcome.Reason
 	item.state.ExitCode = outcome.ExitCode
 	s.logLifecycle("monitor.fired", item.state, outcome.Reason)
-	state, record := item.state, item.recordLocked()
+	state, record := item.state, s.decideLocked(item)
 	s.mu.Unlock()
 	return state, record, true
 }
 
 // persistFired writes the fired outcome with the delivery backoff and reports whether the wake may
 // proceed. A store that stays unavailable for the whole retry window leaves the monitor undelivered
-// rather than waking from an outcome a restart could not reproduce.
-func (s *Service) persistFired(ctx context.Context, record Record) bool {
+// (and queues that decision for the background retry) rather than waking from an outcome a restart
+// could not reproduce.
+func (s *Service) persistFired(ctx context.Context, item *entry, record Record) bool {
 	if s.store == nil {
 		return true
 	}
 	deadline := s.now().Add(deliveryRetryWindow)
 	backoff := deliveryRetryInitial
 	for {
-		err := s.saveNow(record)
+		err := s.persistDecision(item, record, 1)
 		if err == nil {
 			return true
 		}
@@ -136,7 +136,7 @@ func (s *Service) persistFired(ctx context.Context, record Record) bool {
 			return false
 		}
 		if !s.now().Add(backoff).Before(deadline) {
-			s.settle(record.Monitor.SessionID, record.Monitor.ID, StatusUndelivered, causePersistUnavailable)
+			s.settle(item, StatusUndelivered, causePersistUnavailable)
 			return false
 		}
 		s.logLifecycle("monitor.wake_deferred", record.Monitor, "admission_retry")
@@ -151,22 +151,27 @@ func (s *Service) persistFired(ctx context.Context, record Record) bool {
 	}
 }
 
-func (s *Service) settle(sessionID, id string, status Status, cause string) {
+// settle records the end of a delivering monitor on the entry itself, so a wake admitted after its
+// owner was suspended is still recorded. The durable row follows through the decision queue.
+func (s *Service) settle(item *entry, status Status, cause string) {
 	s.mu.Lock()
-	item, ok := s.sessions[sessionID][id]
-	if !ok || item.state.Status != StatusDelivering {
+	if item.state.Status != StatusDelivering {
 		s.mu.Unlock()
 		return
 	}
 	s.finishLocked(item, status, s.now())
+	if status == StatusFired {
+		item.admitted = true
+	}
 	event := "monitor.wake_queued"
 	if status == StatusUndelivered {
 		event = "monitor.wake_failed"
 	}
 	s.logLifecycleCause(event, item.state, item.state.Reason, cause)
-	record := item.recordLocked()
+	record := s.decideLocked(item)
+	sessionID := item.state.SessionID
 	s.pruneSessionLocked(sessionID, s.now())
 	s.mu.Unlock()
-	s.save(record)
+	_ = s.persistDecision(item, record, 1)
 	s.notify(sessionID)
 }

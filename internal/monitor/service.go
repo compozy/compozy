@@ -97,6 +97,8 @@ type Service struct {
 	wg     sync.WaitGroup
 
 	mu          sync.Mutex
+	pending     map[string]*entry
+	retryKick   chan struct{}
 	stopped     bool
 	sessions    map[string]map[string]*entry
 	occupied    int
@@ -114,8 +116,11 @@ type entry struct {
 	profileID   string
 	binding     string
 	version     int64
-	// unsaved marks a cancellation whose durable write failed; Cancel retries it.
-	unsaved bool
+	// decided is the version of the latest terminal decision (cancel, fired, undelivered) and saved is
+	// the highest version known durable; the decision is unconfirmed while saved < decided.
+	decided, saved int64
+	// released marks cap slots already returned (a suspended owner); admitted marks a wake the queue accepted.
+	released, admitted bool
 }
 
 // occupies reports whether the monitor still holds a slot in the active caps.
@@ -141,12 +146,17 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 		cancel:      cancel,
 		sessions:    make(map[string]map[string]*entry),
 		perTerminal: make(map[string]int),
+		pending:     make(map[string]*entry),
+		retryKick:   make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(service)
 	}
 	service.logs = newLogQueue()
 	service.wg.Go(service.dispatchLogs)
+	if service.store != nil {
+		service.wg.Go(service.retryDurable)
+	}
 	if service.observer != nil {
 		service.notices = newNoticeQueue()
 		service.wg.Go(service.dispatchNotices)
@@ -303,6 +313,8 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	s.stopped = true
 	s.mu.Unlock()
+	// Decisions whose write failed would otherwise be lost with the retry goroutine.
+	s.flushDurable(ctx)
 	s.cancel()
 	done := make(chan struct{})
 	go func() {
@@ -368,6 +380,7 @@ func (s *Service) insertLocked(item *entry) {
 
 // releaseLocked returns an occupying monitor's slots to the active caps.
 func (s *Service) releaseLocked(item *entry) {
+	item.released = true
 	s.occupied--
 	if item.terminalKey != "" {
 		if s.perTerminal[item.terminalKey]--; s.perTerminal[item.terminalKey] <= 0 {
@@ -378,7 +391,7 @@ func (s *Service) releaseLocked(item *entry) {
 
 // finishLocked moves an occupying monitor to a terminal status and releases its cap slots.
 func (s *Service) finishLocked(item *entry, status Status, at time.Time) {
-	if item.occupies() {
+	if item.occupies() && !item.released {
 		s.releaseLocked(item)
 	}
 	item.state.Status = status

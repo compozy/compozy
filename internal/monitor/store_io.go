@@ -62,25 +62,116 @@ func (s *Service) pruneStore() {
 	}
 }
 
-// saveRetries and saveRetryBackoff bound the retries of a write that must not be lost.
+// saveRetries and saveRetryBackoff bound the immediate retries of a write that must not be lost.
 const (
 	saveRetries      = 3
 	saveRetryBackoff = 100 * time.Millisecond
+	// durableRetryInterval spaces the background retries of unconfirmed decisions.
+	durableRetryInterval = 5 * time.Second
 )
 
-// saveRetrying persists a decision that nothing can retry later (a stopped owner's cancellation).
-func (s *Service) saveRetrying(record Record) {
-	if s.store == nil {
-		return
-	}
+// decideLocked snapshots the entry as a terminal decision that must reach the store.
+func (s *Service) decideLocked(item *entry) Record {
+	record := item.recordLocked()
+	item.decided = record.Version
+	return record
+}
+
+// persistDecision writes a terminal decision (cancel, fired outcome, undelivered). Confirmation is
+// monotonic: the decision is durable once any write at or above its version landed, whatever order
+// overlapping writes finish in. A decision that is still unconfirmed is queued for background retries
+// and a final flush at shutdown, so it never depends on a later caller to land.
+func (s *Service) persistDecision(item *entry, record Record, attempts int) error {
 	var err error
-	for attempt := range saveRetries {
+	for attempt := range max(attempts, 1) {
 		if err = s.saveNow(record); err == nil {
+			break
+		}
+		if attempt+1 < attempts {
+			time.Sleep(saveRetryBackoff << attempt)
+		}
+	}
+	s.mu.Lock()
+	if err == nil && record.Version > item.saved {
+		item.saved = record.Version
+	}
+	unconfirmed := item.saved < item.decided
+	if unconfirmed {
+		s.pending[item.state.ID] = item
+	} else {
+		delete(s.pending, item.state.ID)
+	}
+	s.mu.Unlock()
+	if unconfirmed {
+		s.kickRetry()
+		if err != nil {
+			s.logger.Log(s.ctx, slog.LevelError, "monitor.persist_failed",
+				"event", "monitor.persist_failed", "monitor_id", record.Monitor.ID,
+				"session_id", record.Monitor.SessionID, "status", record.Monitor.Status)
+		}
+	}
+	return err
+}
+
+// confirmed reports whether the entry's latest terminal decision is durable.
+func (s *Service) confirmed(item *entry) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return item.saved >= item.decided
+}
+
+func (s *Service) kickRetry() {
+	select {
+	case s.retryKick <- struct{}{}:
+	default:
+	}
+}
+
+// retryDurable keeps retrying unconfirmed decisions until each lands or the service stops.
+func (s *Service) retryDurable() {
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-s.retryKick:
+		}
+		for s.flushPending() > 0 {
+			timer := time.NewTimer(durableRetryInterval)
+			select {
+			case <-s.ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+		}
+	}
+}
+
+// flushPending rewrites every unconfirmed decision once and returns how many remain.
+func (s *Service) flushPending() int {
+	s.mu.Lock()
+	items := make([]*entry, 0, len(s.pending))
+	for _, item := range s.pending {
+		items = append(items, item)
+	}
+	s.mu.Unlock()
+	for _, item := range items {
+		s.mu.Lock()
+		record := s.decideLocked(item)
+		s.mu.Unlock()
+		_ = s.persistDecision(item, record, 1)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
+}
+
+// flushDurable is the shutdown flush: it retries unconfirmed decisions a few times within ctx.
+func (s *Service) flushDurable(ctx context.Context) {
+	for attempt := range saveRetries {
+		if s.flushPending() == 0 || ctx.Err() != nil {
 			return
 		}
 		time.Sleep(saveRetryBackoff << attempt)
 	}
-	s.logger.Log(s.ctx, slog.LevelError, "monitor.persist_failed",
-		"event", "monitor.persist_failed", "monitor_id", record.Monitor.ID,
-		"session_id", record.Monitor.SessionID, "status", record.Monitor.Status, "final", true)
 }

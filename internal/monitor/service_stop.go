@@ -4,7 +4,10 @@ import (
 	"fmt"
 )
 
-// Cancel stops one active or delivering monitor owned by sessionID without waking the session.
+// Cancel stops one active or delivering monitor owned by sessionID without waking the session. The
+// monitor is canceled in memory at once and can no longer wake; the call reports an error until the
+// cancellation is durable, and the service keeps retrying the write in the background, so a failed
+// write never depends on a later caller.
 func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	s.mu.Lock()
 	item, ok := s.sessions[sessionID][id]
@@ -14,11 +17,11 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	}
 	if !item.occupies() {
 		state := item.state
-		if !item.unsaved {
+		if item.saved >= item.decided {
 			s.mu.Unlock()
 			return state, nil
 		}
-		record := item.recordLocked()
+		record := s.decideLocked(item)
 		s.mu.Unlock()
 		return state, s.confirmCancel(item, record)
 	}
@@ -26,23 +29,14 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	s.logLifecycle("monitor.canceled", item.state, "requested")
 	item.cancel()
 	s.pruneSessionLocked(sessionID, s.now())
-	// Until the write is confirmed a concurrent Cancel must retry it, not report success.
-	item.unsaved = true
-	state, record := item.state, item.recordLocked()
+	state, record := item.state, s.decideLocked(item)
 	s.mu.Unlock()
 	s.notify(sessionID)
 	return state, s.confirmCancel(item, record)
 }
 
-// confirmCancel makes a cancellation durable. The monitor is already canceled in memory and can no
-// longer wake, but until the write lands a restart would restore it as active, so a failure is
-// reported to the caller and the next Cancel retries the write.
 func (s *Service) confirmCancel(item *entry, record Record) error {
-	err := s.saveNow(record)
-	s.mu.Lock()
-	item.unsaved = err != nil
-	s.mu.Unlock()
-	if err != nil {
+	if err := s.persistDecision(item, record, 1); err != nil && !s.confirmed(item) {
 		return fmt.Errorf("monitor: persist cancellation: %w", err)
 	}
 	return nil
@@ -62,21 +56,27 @@ func (s *Service) cancelSession(sessionID string) int {
 	s.mu.Lock()
 	canceled := 0
 	now := s.now()
-	var records []Record
+	type decision struct {
+		item   *entry
+		record Record
+	}
+	var decisions []decision
 	for _, item := range s.sessions[sessionID] {
 		if item.occupies() {
 			s.finishLocked(item, StatusCanceled, now)
 			item.state.Reason = ReasonSessionStopped
 			s.logLifecycle("monitor.canceled", item.state, ReasonSessionStopped)
 			item.cancel()
-			records = append(records, item.recordLocked())
+			decisions = append(decisions, decision{item, s.decideLocked(item)})
 			canceled++
 		}
 	}
 	delete(s.sessions, sessionID)
 	s.mu.Unlock()
-	for _, record := range records {
-		s.saveRetrying(record)
+	for _, d := range decisions {
+		// The bucket is gone, so the pending queue (retried in the background and flushed at shutdown)
+		// is what keeps a failed write from reviving the monitor after a restart.
+		_ = s.persistDecision(d.item, d.record, saveRetries)
 	}
 	return canceled
 }
@@ -88,21 +88,16 @@ func (s *Service) cancelSession(sessionID string) int {
 func (s *Service) SuspendSession(sessionID string) int {
 	s.mu.Lock()
 	suspended := 0
-	var records []Record
 	for _, item := range s.sessions[sessionID] {
 		if !item.occupies() {
 			continue
 		}
 		item.cancel()
 		s.releaseLocked(item)
-		records = append(records, item.recordLocked())
 		suspended++
 	}
 	delete(s.sessions, sessionID)
 	s.mu.Unlock()
-	for _, record := range records {
-		s.save(record)
-	}
 	if suspended > 0 {
 		s.notify(sessionID)
 	}

@@ -23,11 +23,17 @@ type lifecycleEntry struct {
 // destination never stalls a monitor path that holds the service lock. Entries keep
 // their order; once the dispatcher has drained and closed, callers emit directly.
 type logQueue struct {
-	mu     sync.Mutex
-	items  []lifecycleEntry
-	closed bool
-	ready  chan struct{}
+	mu      sync.Mutex
+	items   []lifecycleEntry
+	dropped int
+	closed  bool
+	ready   chan struct{}
 }
+
+// maxQueuedLifecycleEntries bounds the backlog behind a stalled log destination. Past it, info-level
+// entries are counted and dropped (never emitted synchronously under a service lock); warnings and
+// errors are rare and still queue.
+const maxQueuedLifecycleEntries = 1024
 
 func newLogQueue() *logQueue { return &logQueue{ready: make(chan struct{}, 1)} }
 
@@ -37,6 +43,11 @@ func (q *logQueue) push(entry lifecycleEntry) bool {
 	if q.closed {
 		q.mu.Unlock()
 		return false
+	}
+	if len(q.items) >= maxQueuedLifecycleEntries && entry.level < slog.LevelWarn {
+		q.dropped++
+		q.mu.Unlock()
+		return true
 	}
 	q.items = append(q.items, entry)
 	q.mu.Unlock()
@@ -63,6 +74,22 @@ func (q *logQueue) pop(closeWhenEmpty bool) (lifecycleEntry, bool) {
 	return entry, true
 }
 
+// takeDropped returns and clears the number of entries dropped while the queue was full.
+func (q *logQueue) takeDropped() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	dropped := q.dropped
+	q.dropped = 0
+	return dropped
+}
+
+func (s *Service) emitDropped() {
+	if dropped := s.logs.takeDropped(); dropped > 0 {
+		s.logger.Log(context.WithoutCancel(s.ctx), slog.LevelWarn, "monitor.log_dropped",
+			"event", "monitor.log_dropped", "dropped", dropped)
+	}
+}
+
 func (s *Service) dispatchLogs() {
 	for {
 		select {
@@ -70,6 +97,7 @@ func (s *Service) dispatchLogs() {
 			for {
 				entry, ok := s.logs.pop(true)
 				if !ok {
+					s.emitDropped()
 					return
 				}
 				s.emit(entry)
@@ -83,6 +111,7 @@ func (s *Service) dispatchLogs() {
 			}
 			s.emit(entry)
 		}
+		s.emitDropped()
 	}
 }
 

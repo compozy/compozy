@@ -1201,3 +1201,299 @@ func TestServiceLifecycleLoggingOfFailureAndInterruption(t *testing.T) {
 		})
 	})
 }
+
+func TestServiceUnconfirmedDecisionsReachTheStore(t *testing.T) {
+	t.Run("Should land a failed cancellation in the background without a second Cancel", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			service := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+			created, err := service.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			if _, err := service.Cancel("sess-r", created.ID); err == nil {
+				t.Fatal("Cancel() error = nil, want the unconfirmed write reported")
+			}
+			store.setFail(false)
+			time.Sleep(durableRetryInterval + time.Second)
+			synctest.Wait()
+			if store.status(created.ID) != StatusCanceled {
+				t.Fatalf("durable status = %s, want canceled by the background retry", store.status(created.ID))
+			}
+		})
+	})
+
+	t.Run("Should flush unconfirmed decisions at shutdown", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			service := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+			created, err := service.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			service.CancelSession("sess-r")
+			if store.status(created.ID) != StatusActive {
+				t.Fatalf("durable status = %s, want the stale active row while the store is down", store.status(created.ID))
+			}
+			store.setFail(false)
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if store.status(created.ID) != StatusCanceled {
+				t.Fatalf("durable status = %s, want the stop cancellation flushed at shutdown", store.status(created.ID))
+			}
+		})
+	})
+
+	t.Run("Should keep an undelivered outcome from being re-armed after a store outage", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			waker := &recordingWaker{}
+			first := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			time.Sleep(time.Minute + deliveryRetryWindow + time.Minute)
+			synctest.Wait()
+			store.setFail(false)
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if store.status(created.ID) != StatusUndelivered {
+				t.Fatalf("durable status = %s, want undelivered after the outage", store.status(created.ID))
+			}
+			second := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("undelivered monitor woke after restart: %+v", got)
+			}
+		})
+	})
+
+	t.Run("Should treat a cancellation as confirmed once any write at or above its version landed", func(t *testing.T) {
+		store := &toggleStore{memoryStore: newMemoryStore()}
+		service := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+		item := &entry{state: Monitor{ID: "mon-aaaaaaaaaaaa", SessionID: "s"}, decided: 3}
+		if err := service.persistDecision(item, Record{Monitor: item.state, Version: 3}, 1); err != nil {
+			t.Fatal(err)
+		}
+		store.setFail(true)
+		_ = service.persistDecision(item, Record{Monitor: item.state, Version: 2}, 1)
+		if !service.confirmed(item) {
+			t.Fatal("a stale write failing after the decision landed must not flip it back to unconfirmed")
+		}
+	})
+}
+
+func TestServiceRecoveryRetriesTransientOwnerFailures(t *testing.T) {
+	t.Run("Should rearm the monitor once a transient owner failure clears", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			owners := &flakyOwners{failures: 2}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(5 * time.Minute)
+			synctest.Wait()
+			got := waker.notifications()
+			if len(got) != 1 || got[0].Monitor.ID != created.ID || store.status(created.ID) != StatusFired {
+				t.Fatalf("notifications = %+v status = %s, want one wake after the owner recovered", got, store.status(created.ID))
+			}
+		})
+	})
+
+	t.Run("Should record interrupted only after the retries are exhausted", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			owners := &flakyOwners{failures: 1000}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if store.status(created.ID) != StatusActive {
+				t.Fatalf("durable status = %s, want the row untouched while the owner is retried", store.status(created.ID))
+			}
+			time.Sleep(10 * time.Minute)
+			synctest.Wait()
+			if store.status(created.ID) != StatusInterrupted || len(waker.notifications()) != 0 {
+				t.Fatalf("status = %s wakes = %d, want interrupted without a wake", store.status(created.ID), len(waker.notifications()))
+			}
+		})
+	})
+}
+
+// flakyOwners fails Resume with a transient error for the first `failures` calls.
+type flakyOwners struct {
+	mu       sync.Mutex
+	failures int
+}
+
+func (o *flakyOwners) Binding(context.Context, string) (string, error) { return "binding-1", nil }
+
+func (o *flakyOwners) Resume(context.Context, string, string) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.failures > 0 {
+		o.failures--
+		return errors.New("read session meta: database is locked")
+	}
+	return nil
+}
+
+func TestServiceRecoveryCapsRestoredHistory(t *testing.T) {
+	t.Run("Should apply the per-session history cap to restored finished monitors", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := newMemoryStore()
+			now := time.Now()
+			for i := range retainedFinishedPerSession + 8 {
+				id := fmt.Sprintf("mon-%012d", i)
+				store.records[id] = Record{
+					Monitor: Monitor{
+						ID: id, SessionID: "sess-r", Kind: KindTimer, Description: "done", Status: StatusFired,
+						CreatedAt: now, DeadlineAt: now.Add(time.Minute), FiredAt: now.Add(time.Duration(i) * time.Second),
+					},
+					WorkspaceID: "ws-1", Version: 3,
+				}
+			}
+			service := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+			if err := service.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			service.mu.Lock()
+			restored := len(service.sessions["sess-r"])
+			service.mu.Unlock()
+			if restored > retainedFinishedPerSession {
+				t.Fatalf("restored history = %d, want at most %d", restored, retainedFinishedPerSession)
+			}
+		})
+	})
+}
+
+func TestServiceLogQueueIsBounded(t *testing.T) {
+	t.Run("Should drop info entries past the bound without blocking or emitting inline", func(t *testing.T) {
+		queue := newLogQueue()
+		for range maxQueuedLifecycleEntries + 10 {
+			if !queue.push(lifecycleEntry{level: slog.LevelInfo, event: "monitor.reused"}) {
+				t.Fatal("push() = false for an open queue, want a silent drop instead")
+			}
+		}
+		if got := len(queue.items); got != maxQueuedLifecycleEntries {
+			t.Fatalf("queued = %d, want %d", got, maxQueuedLifecycleEntries)
+		}
+		if !queue.push(lifecycleEntry{level: slog.LevelWarn, event: "monitor.wake_failed"}) {
+			t.Fatal("push() = false for a warning")
+		}
+		if queue.takeDropped() != 10 {
+			t.Fatal("dropped count did not record the 10 discarded entries")
+		}
+		if got := len(queue.items); got != maxQueuedLifecycleEntries+1 {
+			t.Fatalf("queued = %d, want the warning kept past the bound", got)
+		}
+	})
+}
+
+// gatedWaker admits a wake only after release is closed, ignoring ctx like an in-flight enqueue.
+type gatedWaker struct {
+	release chan struct{}
+	started chan struct{}
+}
+
+func (w *gatedWaker) WakeSession(context.Context, Notification) error {
+	w.started <- struct{}{}
+	<-w.release
+	return nil
+}
+
+func TestServiceInterruptionLogging(t *testing.T) {
+	t.Run("Should not report an admitted wake as interrupted when its owner was suspended mid-delivery", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			var output bytes.Buffer
+			store := newMemoryStore()
+			waker := &gatedWaker{release: make(chan struct{}), started: make(chan struct{}, 1)}
+			service, err := NewService(t.Context(), nil, waker, WithStore(store),
+				WithLogger(slog.New(slog.NewJSONHandler(&output, nil))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			created, err := service.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Minute + time.Second)
+			<-waker.started
+			service.SuspendSession("sess-r")
+			close(waker.release)
+			synctest.Wait()
+			if err := service.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(output.String(), "monitor.interrupted") || store.status(created.ID) != StatusFired {
+				t.Fatalf("status = %s log:\n%s\nwant fired and no interrupted entry", store.status(created.ID), output.String())
+			}
+		})
+	})
+
+	t.Run("Should report a recovered delivery that a later shutdown interrupts", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			var output bytes.Buffer
+			store := newMemoryStore()
+			first := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			record := store.records[created.ID]
+			record.Monitor.Status, record.Monitor.Reason, record.Monitor.FiredAt = StatusDelivering, ReasonTimerElapsed, time.Now()
+			record.Version++
+			store.records[created.ID] = record
+			waker := &recordingWaker{errs: []error{errors.New("queue full"), errors.New("queue full")}}
+			second, err := NewService(t.Context(), nil, waker, WithStore(store), WithOwners(&fakeOwners{}),
+				WithLogger(slog.New(slog.NewJSONHandler(&output, nil))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			if err := second.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output.String(), "monitor.interrupted") {
+				t.Fatalf("log missing monitor.interrupted for the recovered delivery:\n%s", output.String())
+			}
+		})
+	})
+}
