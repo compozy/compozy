@@ -95,6 +95,15 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	return errors.Join(reloadErr, s.syncExtensionConsumers(ctx))
 }
 
+func (s *daemonExtensionService) reloadExtensions(ctx context.Context, names ...string) error {
+	if runtime, ok := s.runtime.(interface {
+		ReloadForExtensions(context.Context, []string) error
+	}); ok {
+		return errors.Join(runtime.ReloadForExtensions(ctx, names), s.syncExtensionConsumers(ctx))
+	}
+	return s.reload(ctx)
+}
+
 func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {
 	const waitError = "daemon: wait for extension consumer sync: %w"
 	if err := ctx.Err(); err != nil {

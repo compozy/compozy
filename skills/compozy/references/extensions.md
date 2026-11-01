@@ -163,6 +163,16 @@ warning; if quarantine also fails, removal fails and the instance remains instal
 
 ## Install Trust
 
+Bundled upgrades migrate superseded registrations such as `dev-cycle` to `spec-cycle`, preserving
+compatible installation scopes and profile enablement. Conflicting enablement or untranslatable
+inputs and credentials retain the old registration; inspect `compozy doctor` and migrate that state
+before using its suggested removal command. The bundled-name translation expires in v0.6.0.
+
+One extension's startup failure remains visible in status without aborting another package's
+mutation. If a previous failed install left a package with no scoped installations, an operator
+can recover it with `compozy extension remove <name> --global`, then reinstall. Workspace agents
+cannot remove an orphaned global package through that recovery path.
+
 Install takes one closed source union — `curated`, `marketplace`, `github`, `git`, or `local_path` — plus a required
 `ref` and optional `version`, `asset`, and `allow_unverified`. `compozy extension install <source>`
 owns the shorthand: a filesystem path (`./`, `../`, or absolute) becomes `local_path`,

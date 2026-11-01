@@ -26,7 +26,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	return m.startLocked(ctx)
 }
 
-func (m *Manager) startLocked(ctx context.Context) error {
+func (m *Manager) startLocked(ctx context.Context, targets ...string) error {
 	if err := m.prepareStart(ctx); err != nil {
 		return err
 	}
@@ -69,7 +69,9 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	var errs []error
 	for infoIndex := range infos {
 		if err := m.startInstalledPackage(ctx, &infos[infoIndex]); err != nil {
-			errs = append(errs, err)
+			if len(targets) == 0 || slices.Contains(targets, infos[infoIndex].Name) {
+				errs = append(errs, err)
+			}
 		}
 	}
 
@@ -82,7 +84,7 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		}
 	}
 
-	return errors.Join(errs...)
+	return errors.Join(ctx.Err(), errors.Join(errs...))
 }
 
 func (m *Manager) prepareStart(ctx context.Context) error {
@@ -247,6 +249,11 @@ func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtensi
 
 // Reload restarts the manager from the current registry state as one lifecycle operation.
 func (m *Manager) Reload(ctx context.Context) error {
+	return m.ReloadForExtensions(ctx, nil)
+}
+
+// ReloadForExtensions retains unrelated activation failures in status without aborting the selected mutation.
+func (m *Manager) ReloadForExtensions(ctx context.Context, names []string) error {
 	if ctx == nil {
 		return ErrContextRequired
 	}
@@ -257,6 +264,6 @@ func (m *Manager) Reload(ctx context.Context) error {
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
 	stopErr := m.stopLocked(ctx)
-	startErr := m.startLocked(ctx)
+	startErr := m.startLocked(ctx, names...)
 	return errors.Join(stopErr, startErr)
 }

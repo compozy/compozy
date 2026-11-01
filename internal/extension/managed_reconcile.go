@@ -72,7 +72,7 @@ func ReconcileManagedExtensionArtifacts(
 		case isManagedInstallBackupName(name):
 			base, _, _ := strings.Cut(name, managedInstallBackupMarker)
 			backups[base] = append(backups[base], path)
-		case owners[name] == nil:
+		case owners[name] == nil && SupersededBundledSuccessor(name) == "":
 			if err := removeReconcilePath(path); err != nil {
 				return err
 			}

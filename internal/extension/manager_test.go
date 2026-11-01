@@ -1052,55 +1052,68 @@ func TestManagerWorkspaceScopedResourceSessionBindsOwningWorkspace(t *testing.T)
 func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 	t.Parallel()
 
-	withDaemonVersion(t, "0.5.0")
-	env := newRegistryTestEnv(t)
+	t.Run("Should preserve failures while reloading a healthy extension", func(t *testing.T) {
+		t.Parallel()
 
-	badFixture := createManagerTestExtension(t, managerTestManifest("ext-bad", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{"tool.provider"},
-		permissions:  []string{"sessions/list"},
-	}), nil)
-	installManagerFixture(t, env.registry, badFixture, SourceUser, true)
-	writeFile(t, filepath.Join(badFixture.dir, manifestTOMLFileName), "not = [valid")
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
 
-	goodFixture := createManagerTestExtension(t, managerTestManifest("ext-good", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{"tool.provider"},
-		permissions:  []string{"sessions/list"},
-		withHooks:    true,
-	}), nil)
-	installManagerFixture(t, env.registry, goodFixture, SourceUser, true)
+		badFixture := createManagerTestExtension(t, managerTestManifest("ext-bad", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"sessions/list"},
+		}), nil)
+		installManagerFixture(t, env.registry, badFixture, SourceUser, true)
+		writeFile(t, filepath.Join(badFixture.dir, manifestTOMLFileName), "not = [valid")
 
-	launcher := &fakeLauncher{queue: []*fakeProcess{newFakeProcess(202)}}
-	manager := NewManager(
-		env.registry,
-		withProcessLauncher(launcher.launch),
-		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
-	)
+		goodFixture := createManagerTestExtension(t, managerTestManifest("ext-good", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"sessions/list"},
+			withHooks:    true,
+		}), nil)
+		installManagerFixture(t, env.registry, goodFixture, SourceUser, true)
 
-	err := manager.Start(testutil.Context(t))
-	if err == nil {
-		t.Fatal("Start() error = nil, want joined parse failure")
-	}
-	if !strings.Contains(err.Error(), `extension "ext-bad" parse`) {
-		t.Fatalf("Start() error = %v, want parse phase detail for ext-bad", err)
-	}
-	t.Cleanup(func() {
-		if stopErr := manager.Stop(testutil.Context(t)); stopErr != nil {
-			t.Fatalf("Stop() cleanup error = %v", stopErr)
+		launcher := &fakeLauncher{queue: []*fakeProcess{newFakeProcess(202)}}
+		manager := NewManager(
+			env.registry,
+			withProcessLauncher(launcher.launch),
+			withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+		)
+
+		err := manager.Start(testutil.Context(t))
+		if err == nil {
+			t.Fatal("Start() error = nil, want joined parse failure")
 		}
-	})
+		if !strings.Contains(err.Error(), `extension "ext-bad" parse`) {
+			t.Fatalf("Start() error = %v, want parse phase detail for ext-bad", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := manager.Stop(testutil.Context(t)); stopErr != nil {
+				t.Fatalf("Stop() cleanup error = %v", stopErr)
+			}
+		})
 
-	if got := launcher.launchCount(); got != 1 {
-		t.Fatalf("launch count = %d, want 1 for ext-good only", got)
-	}
-	good, err := manager.Get("ext-good")
-	if err != nil {
-		t.Fatalf("Get(ext-good) error = %v", err)
-	}
-	if !good.Status.Active {
-		t.Fatalf("Get(ext-good).Status.Active = false, want true")
-	}
+		if got := launcher.launchCount(); got != 1 {
+			t.Fatalf("launch count = %d, want 1 for ext-good only", got)
+		}
+		launcher.queue = append(launcher.queue, newFakeProcess(303))
+		if err := manager.ReloadForExtensions(t.Context(), []string{"ext-good"}); err != nil {
+			t.Fatalf("unrelated parse failure blocked reload: %v", err)
+		}
+		bad, err := manager.Get("ext-bad")
+		if err != nil || bad.Status.LastError == "" {
+			t.Fatalf("unrelated failure must remain visible: %#v, %v", bad, err)
+		}
+		good, err := manager.Get("ext-good")
+		if err != nil {
+			t.Fatalf("Get(ext-good) error = %v", err)
+		}
+		if !good.Status.Active {
+			t.Fatalf("Get(ext-good).Status.Active = false, want true")
+		}
+
+	})
 }
 
 func TestManagerStartRejectsIncompatibleManifest(t *testing.T) {

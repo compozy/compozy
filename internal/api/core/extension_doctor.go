@@ -35,6 +35,25 @@ func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract
 	for index := range extensions {
 		extension := &extensions[index]
 		name := strings.TrimSpace(extension.Name)
+		if successor := extensionpkg.SupersededBundledSuccessor(
+			name,
+		); successor != "" &&
+			extension.Source == "bundled" {
+			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
+				ID:       "doctor.extension." + name + ".superseded",
+				Code:     contract.CodeExtensionRuntimeUnavailable,
+				Category: contract.CategoryExtension,
+				Title:    "Bundled extension is superseded",
+				Message: fmt.Sprintf(
+					"Extension %q was replaced by %q. Automatic migration retained state that needs operator review. Migrate inputs and scoped state before removal.",
+					name,
+					successor,
+				),
+				Severity:      contract.SeverityWarn,
+				DataFreshness: contract.FreshnessLive,
+			}, diagnostics.WithSuggestedCommand("compozy extension remove "+name+" --global")))
+		}
+
 		failureCode := strings.TrimSpace(extension.FailureCode)
 		if extension.ConsecutiveFailures >= extensionpkg.DefaultRestartFailureThreshold {
 			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{

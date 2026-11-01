@@ -44,6 +44,7 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 						ConsecutiveFailures: extensionpkg.DefaultRestartFailureThreshold,
 						RestartBackoffMS:    8000,
 					},
+					{Name: "dev-cycle", Source: "bundled"},
 					{Name: "missing-env", MissingEnv: []string{"API_TOKEN"}},
 					{Name: "stale-dev", Dev: true, FailureCode: "missing_origin", OriginPath: doctorOriginCanary},
 				}, nil
@@ -84,11 +85,16 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 				item.SuggestedCommand != "compozy extension secrets set missing-env --env API_TOKEN" {
 				t.Fatalf("missing-env suggested command = %q, want exact secrets set command", item.SuggestedCommand)
 			}
+			if item.ID == "doctor.extension.dev-cycle.superseded" &&
+				item.SuggestedCommand != "compozy extension remove dev-cycle --global" {
+				t.Fatalf("superseded remediation = %q", item.SuggestedCommand)
+			}
 			if item.ID == "doctor.extension.stale-dev.stale_dev_origin" {
 				staleOriginItem = &payload.Items[index]
 			}
 		}
 		want := []string{
+			"doctor.extension.dev-cycle.superseded",
 			"doctor.extension.crashy.crash_loop",
 			"doctor.extension.missing-env.missing_env",
 			"doctor.extension.stale-dev.stale_dev_origin",

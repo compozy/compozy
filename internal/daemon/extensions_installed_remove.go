@@ -32,6 +32,13 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 	if profileID == "" {
 		profileID = store.DefaultProfileID
 	}
+	attachments, err := s.registry.Installations(ctx, name)
+	if err != nil {
+		return contract.ManagedExtensionRemovePayload{}, err
+	}
+	if len(attachments) == 0 && actor.Scope.Operator && workspaceID == "" {
+		return s.removeManagedExtensionLocked(ctx, name, actor, extensionpkg.GlobalInstanceKey(name))
+	}
 	selected, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
 		ProfileID: profileID, WorkspaceID: workspaceID,
 	})
@@ -41,10 +48,6 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 	if !actor.Scope.Operator && (selected.Scope.ProfileID != profileID ||
 		selected.Scope.WorkspaceID != actor.Scope.WorkspaceID) {
 		return contract.ManagedExtensionRemovePayload{}, extensionpkg.ErrExtensionWorkspaceDenied
-	}
-	attachments, err := s.registry.Installations(ctx, name)
-	if err != nil {
-		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	key := extensionpkg.InstanceKey{
 		Name:        name,
@@ -83,7 +86,7 @@ func (s *daemonExtensionService) detachInstalledExtension(
 	if err := s.registry.DetachInstallation(ctx, name, scope); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
-	if err := s.reload(ctx); err != nil {
+	if err := s.reloadExtensions(ctx, name); err != nil {
 		return contract.ManagedExtensionRemovePayload{}, s.rollbackInstalledDetach(
 			ctx,
 			name,
@@ -150,7 +153,7 @@ func (s *daemonExtensionService) rollbackInstalledDetach(
 	if err := s.registry.RestoreRemovalState(rollbackCtx, name, snapshot); err != nil {
 		return errors.Join(cause, err)
 	}
-	if err := s.reload(rollbackCtx); err != nil {
+	if err := s.reloadExtensions(rollbackCtx, name); err != nil {
 		return errors.Join(cause, err)
 	}
 	return errors.Join(cause, s.rollbackExtensionMCPAllocations(rollbackCtx, allocations))

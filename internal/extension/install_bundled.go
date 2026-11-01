@@ -59,9 +59,18 @@ func InstallBundledExtension(
 		return fmt.Errorf("%s: compute embedded checksum: %w", name, err)
 	}
 
+	fresh := false
+	defer func() {
+		if err == nil {
+			if migrationErr := registry.MigrateSupersededBundled(registryContext(), name, fresh); migrationErr != nil {
+				slog.Warn("bundled extension migration requires attention", "error", migrationErr)
+			}
+		}
+	}()
 	existing, err := registry.Get(name)
 	switch {
 	case errors.Is(err, ErrExtensionNotFound):
+		fresh = true
 		if err := InstallLocalManaged(
 			homePaths,
 			registry,

@@ -117,7 +117,7 @@ func (s *daemonExtensionService) commitPreparedInstall(
 			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 	}
-	if err := s.reload(ctx); err != nil {
+	if err := s.reloadExtensions(ctx, prepared.name); err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	var err error
@@ -272,7 +272,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.registry,
 		s.marketplaceSourceLoader(),
 		domainReq,
-		s.reload,
+		func(ctx context.Context) error { return s.reloadExtensions(ctx, names...) },
 	)
 	payloads, finalizeErr := s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
 	return payloads, errors.Join(
@@ -318,7 +318,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 			} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 				return err
 			}
-			return s.reload(reloadCtx)
+			return s.reloadExtensions(reloadCtx, name)
 		},
 		func(ctx context.Context) error {
 			if s.mcpAllocations == nil {
@@ -370,7 +370,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 		)
 	}
 
-	if err := s.reload(rollbackCtx); err != nil {
+	if err := s.reloadExtensions(rollbackCtx, trimmedName); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload after extension install rollback: %w", err))
 	}
 
@@ -420,7 +420,7 @@ func (s *daemonExtensionService) Enable(
 		if enableErr := s.registry.Enable(name); enableErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
 		}
-		if reloadErr := s.reload(ctx); reloadErr != nil {
+		if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
 		}
 		item, statusErr := s.Status(ctx, name)
@@ -464,7 +464,7 @@ func (s *daemonExtensionService) Disable(
 		if disableErr := s.registry.Disable(name); disableErr != nil {
 			return disableErr
 		}
-		if reloadErr := s.reload(ctx); reloadErr != nil {
+		if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
 		}
 		s.evictExtensionMCPHealth(name, "")

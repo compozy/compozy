@@ -106,7 +106,7 @@ func (s *daemonExtensionService) applyProfileEnablement(
 	if err := s.registry.SetEnabledForProfile(name, profileID, enabled); err != nil {
 		return err
 	}
-	if err := s.reload(ctx); err != nil {
+	if err := s.reloadExtensions(ctx, name); err != nil {
 		return s.rollbackProfileEnablement(ctx, name, profileID, previous, err)
 	}
 	if err := s.recordExtensionEnablementChanged(
@@ -172,7 +172,7 @@ func (s *daemonExtensionService) rollbackProfileEnablement(
 	if err := s.registry.SetEnabledForProfile(name, profileID, previous); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore extension enablement: %w", err))
 	}
-	if err := s.reload(rollbackCtx); err != nil {
+	if err := s.reloadExtensions(rollbackCtx, name); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload restored extension enablement: %w", err))
 	}
 	return errors.Join(operationErr, rollbackErr)
