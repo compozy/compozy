@@ -678,14 +678,34 @@ func TestMCPSourceResourceFindsExtensionServersByName(t *testing.T) {
 			t.Fatalf("ambiguous lookup error = %v", err)
 		}
 	})
+	t.Run("Should keep answering with the manual server when extensions tie", func(t *testing.T) {
+		t.Parallel()
+		manual := resources.Record[compozyconfig.MCPServer]{
+			ID: "manual", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: server,
+		}
+		target, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(
+			extensionRecord("ext-a", "linear-a"), extensionRecord("ext-b", "linear-b"), manual,
+		)})
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+		state := &bootState{mcpServerCatalog: catalogOf(
+			extensionRecord("ext-a", "linear-a"), extensionRecord("ext-b", "linear-b"),
+		)}
+		state.cfg.MCPServers = []compozyconfig.MCPServer{server}
+		target, err = lookup(t, state)
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("config lookup = %#v, %v", target, err)
+		}
+	})
 	t.Run("Should not resolve an extension enabled for another profile", func(t *testing.T) {
 		t.Parallel()
 		record := extensionRecord("ext", "linear")
 		record.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-other"}
 		_, err := resolveDaemonMCPServer(t.Context(), &bootState{mcpServerCatalog: catalogOf(record)},
 			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, RawServerName: "linear", ProfileID: "profile-mine"}, "")
-		if err == nil {
-			t.Fatal("name lookup crossed the profile boundary")
+		if err == nil || !strings.Contains(err.Error(), "is unavailable") {
+			t.Fatalf("name lookup crossed the profile boundary: %v", err)
 		}
 	})
 }
@@ -752,6 +772,7 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object"}`),
 		Source: toolspkg.SourceRef{
 			Kind: toolspkg.SourceMCP, Owner: "lab_mcp", RawServerName: "lab-mcp", RawToolName: "echo",
+			ResourceID: "ext",
 		},
 	}
 
@@ -764,9 +785,23 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "lab_mcp"}}
+		want := []toolspkg.SourceGrant{{Kind: toolspkg.SourceMCP, Owner: "lab-mcp", ResourceID: "ext"}}
 		if !slices.Equal(grants, want) {
 			t.Fatalf("grants = %#v, want %#v", grants, want)
+		}
+	})
+	t.Run("Should not fail policy when one catalog record cannot be enumerated", func(t *testing.T) {
+		t.Parallel()
+		broken := newResourceCatalog(cloneDaemonMCPServer)
+		broken.Replace(1, []resources.Record[compozyconfig.MCPServer]{{
+			ID:    "broken",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "invalid"},
+			Owner: *extensionOwner("lab"), Spec: named("broken", true),
+		}})
+		grants, err := operatorAuthorizedMCPSourceGrants(t.Context(),
+			&bootState{mcpServerCatalog: broken, mcpAuthStatus: authed}, scope)
+		if err != nil || len(grants) != 0 {
+			t.Fatalf("grants = %#v, %v", grants, err)
 		}
 	})
 	t.Run("Should grant nothing when the credential status cannot be read", func(t *testing.T) {
@@ -819,6 +854,15 @@ func TestOperatorAuthorizedMCPSourceGrants(t *testing.T) {
 			}
 			if decision.Callable != tc.callable {
 				t.Fatalf("%s: decision = %#v, want callable %t", tc.name, decision, tc.callable)
+			}
+			twin := descriptor
+			twin.Source.RawServerName, twin.Source.ResourceID = "lab_mcp", "ext-twin"
+			decision, err = evaluator.Evaluate(t.Context(), scope, twin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable {
+				t.Fatalf("%s: a login reached another server sharing the owner: %#v", tc.name, decision)
 			}
 		}
 	})

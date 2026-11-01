@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -215,12 +216,7 @@ func grantTrustedExtensionSource(
 }
 
 func sourceGrantExists(grants []toolspkg.SourceGrant, target toolspkg.SourceGrant) bool {
-	for _, grant := range grants {
-		if grant.Kind == target.Kind && grant.Owner == target.Owner {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(grants, target)
 }
 
 func applyLoopExtensionOwnerGrant(

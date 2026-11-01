@@ -444,15 +444,6 @@ func canonicalMCPSegment(field string, raw string) (string, error) {
 	}
 }
 
-// MCPSourceOwner returns the canonical descriptor owner derived from one raw server name.
-func MCPSourceOwner(rawServer string) (string, error) {
-	id, err := Canonicalize(rawServer, "tool")
-	if err != nil {
-		return "", err
-	}
-	return mcpOwnerFromID(id)
-}
-
 func mcpOwnerFromID(id ToolID) (string, error) {
 	segments, err := id.Segments()
 	if err != nil {

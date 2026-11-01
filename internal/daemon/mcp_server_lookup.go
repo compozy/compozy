@@ -48,9 +48,7 @@ func mcpSourceResource(
 		if definitionOwner == mcpDefinitionOwnerManual {
 			selection = &manual
 		}
-		if err := selection.consider(record, rank, name); err != nil {
-			return source, false, err
-		}
+		selection.consider(record, rank)
 	}
 	selected := manual
 	// An unqualified name means the operator's own server first; extensions answer only when none exists.
@@ -60,28 +58,31 @@ func mcpSourceResource(
 	if selected.rank == 0 {
 		return source, false, nil
 	}
+	if selected.ambiguous {
+		return source, false, fmt.Errorf("daemon: multiple MCP definitions address %q; pass an explicit owner", name)
+	}
 	source.ResourceID = selected.record.ID
 	source.ResourceVersion = fmt.Sprint(selected.record.Version)
 	source.RawServerName = selected.record.Spec.EffectiveRuntimeName()
 	return source, true, nil
 }
 
+// mcpSourceSelection tracks the best candidate of one owner class. A tie stays a flag so it only
+// fails the lookup when this class is the one that answers.
 type mcpSourceSelection struct {
-	record resources.Record[compozyconfig.MCPServer]
-	rank   int
+	record    resources.Record[compozyconfig.MCPServer]
+	rank      int
+	ambiguous bool
 }
 
-func (s *mcpSourceSelection) consider(
-	record resources.Record[compozyconfig.MCPServer], rank int, name string,
-) error {
-	if rank == 0 || rank < s.rank {
-		return nil
+func (s *mcpSourceSelection) consider(record resources.Record[compozyconfig.MCPServer], rank int) {
+	switch {
+	case rank == 0 || rank < s.rank:
+	case rank == s.rank:
+		s.ambiguous = true
+	default:
+		s.record, s.rank, s.ambiguous = record, rank, false
 	}
-	if rank == s.rank {
-		return fmt.Errorf("daemon: multiple MCP definitions address %q; pass an explicit owner", name)
-	}
-	s.record, s.rank = record, rank
-	return nil
 }
 
 func daemonConfigDeclaresMCPServer(state *bootState, name string) bool {

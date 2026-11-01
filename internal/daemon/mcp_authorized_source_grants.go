@@ -8,8 +8,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-// operatorAuthorizedMCPSourceGrants turns one completed OAuth login into an allow grant for the
-// extension server that scope actually projects. tools.policy.external_default stays the default
+// operatorAuthorizedMCPSourceGrants turns one completed OAuth login into an allow grant bound to
+// the exact extension resource that scope projects, never to a normalized server name. tools.policy.external_default stays the default
 // for every other source; only a credential bound to the current definition counts as consent, so
 // logout, a changed definition, and a disabled extension each withdraw the grant. A status failure
 // grants nothing, which keeps the deny-by-default outcome.
@@ -23,7 +23,9 @@ func operatorAuthorizedMCPSourceGrants(
 	}
 	sources, err := daemonMCPSources(ctx, state)
 	if err != nil {
-		return nil, err
+		// Grants only add access, so one unreadable record must not stop policy for native tools.
+		logMCPSourceGrantSkipped(ctx, state, toolspkg.SourceRef{}, err)
+		return nil, nil
 	}
 	var grants []toolspkg.SourceGrant
 	for _, source := range toolspkg.MCPSourcesForScope(sources, scope) {
@@ -46,12 +48,9 @@ func operatorAuthorizedMCPSourceGrants(
 		if !status.TokenPresent {
 			continue
 		}
-		owner, err := toolspkg.MCPSourceOwner(source.RawServerName)
-		if err != nil {
-			logMCPSourceGrantSkipped(ctx, state, source, err)
-			continue
-		}
-		grants = append(grants, toolspkg.SourceGrant{Kind: toolspkg.SourceMCP, Owner: owner})
+		grants = append(grants, toolspkg.SourceGrant{
+			Kind: toolspkg.SourceMCP, Owner: source.Owner, ResourceID: source.ResourceID,
+		})
 	}
 	return grants, nil
 }
