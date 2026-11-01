@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitFork } from "lucide-react";
+import { GitFork } from "@compozy/ui/icons";
 
 import { ConfirmDialog, Label, RadioCard, Textarea } from "@compozy/ui";
 
@@ -142,7 +142,7 @@ function LoopForkDialogForm({
       onOpenChange={onOpenChange}
       open
       title="Fork from here"
-      tone="accent"
+      tone="brand"
       body={
         blocked ? null : (
           <>
@@ -194,7 +194,7 @@ function LoopForkDialogForm({
             ) : null}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="loop-fork-reason">
-                Reason <span className="text-muted">optional</span>
+                Reason <span className="text-muted-foreground">optional</span>
               </Label>
               <Textarea
                 data-testid="loop-fork-reason"

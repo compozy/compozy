@@ -1,4 +1,4 @@
-import { Check, Eye } from "lucide-react";
+import { Check, Eye } from "@compozy/ui/icons";
 
 import {
   Alert,
@@ -57,7 +57,7 @@ export function AutomationFormErrorAlert({ error }: { error: string | null | und
   if (!error) return null;
   return (
     <div className="shrink-0 px-5 pb-4">
-      <Alert data-testid="automation-form-error" role="alert" variant="danger">
+      <Alert data-testid="automation-form-error" role="alert" variant="destructive">
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     </div>
@@ -140,7 +140,7 @@ function AutomationDestinationNote({
   const text = mode === "edit" ? <>Saves to {place}.</> : <>Creates in {place}.</>;
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
-      <span className="text-form-hint text-muted" data-testid="automation-destination">
+      <span className="text-form-hint text-muted-foreground" data-testid="automation-destination">
         {text}
       </span>
       {profileDestination ? <ProfileDestinationChip profile={profileDestination} /> : null}

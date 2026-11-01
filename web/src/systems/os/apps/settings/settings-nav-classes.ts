@@ -7,5 +7,5 @@ export const SETTINGS_NAV_ITEM_CLASS =
 
 /** The row's tone: the open section is selected, the rest recede. */
 export function settingsNavItemTone(isActive: boolean): string {
-  return isActive ? "bg-selected text-fg" : "text-muted";
+  return isActive ? "bg-selected text-fg" : "text-muted-foreground";
 }

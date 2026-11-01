@@ -20,7 +20,7 @@ func (p *MCPProvider) ProjectionGeneration(ctx context.Context, scope Scope) (st
 	if err != nil {
 		return "", false
 	}
-	sources = mcpSourcesForScope(sources, scope)
+	sources = MCPSourcesForScope(sources, scope)
 	if len(sources) == 0 {
 		return "0", true
 	}

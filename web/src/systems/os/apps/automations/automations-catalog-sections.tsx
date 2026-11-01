@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Alert, AlertDescription, AlertTitle, ListingToolbar, buttonVariants } from "@compozy/ui";

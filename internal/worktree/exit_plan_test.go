@@ -48,6 +48,49 @@ func TestExitPlan(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refresh status for the plan without announcing it on the stream", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryWorktreeStore()
+		item := Worktree{
+			ID: "wt-quiet", WorkspaceID: "ws-a", Name: "quiet",
+			Branch: "feature/quiet", Path: "/repo/quiet", State: StateReady,
+		}
+		if err := store.Insert(t.Context(), item); err != nil {
+			t.Fatalf("seed worktree: %v", err)
+		}
+		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+			switch strings.Join(call.args, " ") {
+			case "status --porcelain=v2 --branch -z":
+				return gitResponse{stdout: []byte("# branch.oid abc\x00# branch.head feature/quiet\x00" +
+					"# branch.upstream origin/feature/quiet\x00# branch.ab +1 -0\x001 M. N... a.txt\x00")}
+			case "diff --numstat -z", "diff --cached --numstat -z":
+				return gitResponse{stdout: []byte("1\t0\ta.txt\x00")}
+			default:
+				return gitResponse{}
+			}
+		}}
+		events := &recordingEventSink{}
+		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithEvents(events))
+
+		plan, err := service.ExitPlan(t.Context(), item.WorkspaceID, item.Name)
+		if err != nil {
+			t.Fatalf("ExitPlan() error = %v", err)
+		}
+		if plan.WorktreeID != item.ID {
+			t.Fatalf("plan worktree = %q, want %q", plan.WorktreeID, item.ID)
+		}
+		persisted, err := store.GetStatus(t.Context(), item.WorkspaceID, item.ID)
+		if err != nil || persisted == nil || persisted.RefreshedAt == nil || valueOrZero(persisted.DirtyFiles) != 1 {
+			t.Fatalf("persisted status = %#v, %v, want the plan's fresh status cached", persisted, err)
+		}
+		if got := events.count(EventStatusRefreshed); got != 0 {
+			t.Fatalf("status refreshed events = %d, want none: the Web ladder rereads the plan on that frame", got)
+		}
+		if commit := exitActionRow(t, plan.Actions, ExitActionCommit); !commit.Enabled {
+			t.Fatalf("commit row = %#v, want enabled: the plan must come from the freshly read dirty status", commit)
+		}
+	})
+
 	forge := &ForgeCapabilities{Provider: "github", OpenActionLabel: "Open PR", ViewActionLabel: "View PR"}
 	openState, prNumber := "open", 42
 	cases := []struct {

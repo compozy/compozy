@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ListChecks } from "lucide-react";
+import { ListChecks } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { UIProvider, useTopbarSlot } from "@compozy/ui";

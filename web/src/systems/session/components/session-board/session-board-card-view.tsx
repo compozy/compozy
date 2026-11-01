@@ -10,7 +10,7 @@ import {
   ListTree,
   type LucideIcon,
   PencilLine,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentProps, MouseEvent } from "react";
 
 import {
@@ -192,7 +192,7 @@ export function SessionBoardCardView({
             "line-clamp-2 min-w-0",
             SESSION_BOARD_CARD_TITLE_TYPE,
             untitled && "font-normal text-subtle",
-            archived && "text-muted"
+            archived && "text-muted-foreground"
           )}
         >
           {title}
@@ -230,7 +230,7 @@ function SessionBoardCardMetaRow({
         data-testid={`session-board-card-meta-${sessionId}`}
       >
         {meta.workspaceName !== null ? (
-          <span className="min-w-0 truncate font-sans text-eyebrow tracking-eyebrow text-muted">
+          <span className="min-w-0 truncate font-sans text-eyebrow tracking-eyebrow text-muted-foreground">
             {meta.workspaceName}
           </span>
         ) : null}
@@ -320,13 +320,15 @@ function SessionBoardCardFooter({
         ) : (
           mark
         )}
-        <span className="min-w-0 truncate font-medium text-muted">{session.agent_name}</span>
+        <span className="min-w-0 truncate font-medium text-muted-foreground">
+          {session.agent_name}
+        </span>
       </span>
       {rollup ? <SessionBoardCardRollupMark rollup={rollup} sessionId={session.id} /> : null}
       {lineage ? <SessionBoardCardLineageMark lineage={lineage} sessionId={session.id} /> : null}
       {waiting ? (
         <span
-          className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-muted"
+          className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-muted-foreground"
           data-testid={`session-board-card-waiting-${session.id}`}
         >
           <StateGlyph size="sm" state={waiting.glyph} />
@@ -335,7 +337,7 @@ function SessionBoardCardFooter({
       ) : null}
       {draft ? (
         <span
-          className="flex shrink-0 items-center gap-1 text-muted"
+          className="flex shrink-0 items-center gap-1 text-muted-foreground"
           data-testid={`session-board-card-draft-${session.id}`}
         >
           <PencilLine aria-hidden="true" className="size-3 text-subtle" />
@@ -363,7 +365,7 @@ function SessionBoardCardRollupMark({
       <TooltipTrigger
         render={
           <span
-            className="relative z-10 inline-flex shrink-0 items-center gap-1 text-muted tabular-nums"
+            className="relative z-10 inline-flex shrink-0 items-center gap-1 text-muted-foreground tabular-nums"
             data-needs-you={rollup.needsYou ? "true" : undefined}
             data-testid={`session-board-card-children-${sessionId}`}
           />
@@ -371,7 +373,7 @@ function SessionBoardCardRollupMark({
       >
         <ListTree aria-hidden="true" className="size-3 text-subtle" />
         {rollup.total}
-        {rollup.needsYou ? <Pill.Dot className="ml-px" tone="accent" /> : null}
+        {rollup.needsYou ? <Pill.Dot className="ml-px" tone="brand" /> : null}
       </TooltipTrigger>
       <TooltipContent className="flex-col items-stretch gap-0">
         <div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, PauseCircle, PlayCircle, RotateCw } from "lucide-react";
+import { AlertCircle, PauseCircle, PlayCircle, RotateCw } from "@compozy/ui/icons";
 
 import { Button, ConfirmDialog, Empty } from "@compozy/ui";
 

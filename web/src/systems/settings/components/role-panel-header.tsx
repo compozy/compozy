@@ -1,4 +1,4 @@
-import { ChevronRight, TriangleAlert } from "lucide-react";
+import { ChevronRight, TriangleAlert } from "@compozy/ui/icons";
 
 import { cn, CollapsibleTrigger, Skeleton, SkeletonText, Switch } from "@compozy/ui";
 
@@ -47,7 +47,7 @@ export function RolePanelHeader({
         />
         <span className={TEXT_STACK_CLASS}>
           <span className="text-body font-medium text-fg">{vm.label}</span>
-          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-form-label text-muted">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-form-label text-muted-foreground">
             <span>{vm.description}</span>
             <span aria-hidden="true" className="text-faint">
               ·

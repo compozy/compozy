@@ -9,7 +9,7 @@ import {
   type TopbarSlotStore,
 } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ function InsertionCaret() {
       role="presentation"
       aria-hidden="true"
       data-slot="os-window-deck-insertion"
-      className="pointer-events-none h-deck-tab w-0.5 shrink-0 self-end rounded-full bg-accent"
+      className="pointer-events-none h-deck-tab w-0.5 shrink-0 self-end rounded-full bg-brand"
     />
   );
 }

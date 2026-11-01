@@ -1,15 +1,16 @@
 "use client";
 
+import { Button } from "@compozy/ui";
+import { GithubLogo } from "@compozy/ui/logos";
+import { Star } from "lucide-react";
+import Link from "next/link";
+
 import {
-  Button,
   GithubStars,
   GithubStarsIcon,
   GithubStarsNumber,
   GithubStarsParticles,
-} from "@compozy/ui";
-import { GithubLogo } from "@compozy/ui/logos";
-import { Star } from "lucide-react";
-import Link from "next/link";
+} from "@/components/site/github-stars";
 
 const GITHUB_REPO_URL = "https://github.com/compozy/compozy";
 
@@ -27,7 +28,7 @@ export function GitHubStarButton() {
           />
         }
         variant="outline"
-        className="gap-2 rounded-full border-line text-muted hover:bg-hover hover:text-fg"
+        className="gap-2 rounded-full border-line text-muted-foreground hover:bg-hover hover:text-fg"
       >
         <GithubLogo aria-hidden className="size-4" />
         <span>Star on GitHub</span>

@@ -75,7 +75,7 @@ function TaskWorkItemRow({
       />
     ) : null,
     taskHasApprovalPending(task) ? (
-      <Pill data-testid={`task-card-approval-${task.id}`} key="approval" size="sm" tone="accent">
+      <Pill data-testid={`task-card-approval-${task.id}`} key="approval" size="sm" tone="brand">
         {taskApprovalStateLabel(task.approval_state)}
       </Pill>
     ) : null,
@@ -108,7 +108,7 @@ function TaskWorkItemRow({
     ) : null,
     meta.failedRunError ? (
       <span
-        className="min-w-0 truncate text-danger"
+        className="min-w-0 truncate text-destructive"
         data-testid={`task-card-error-${task.id}`}
         key="error"
         title={meta.failedRunError}

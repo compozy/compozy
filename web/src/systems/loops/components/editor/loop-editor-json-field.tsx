@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 
 import { FieldError, Textarea } from "@compozy/ui";
 

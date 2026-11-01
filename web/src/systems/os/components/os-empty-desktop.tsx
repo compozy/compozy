@@ -100,7 +100,7 @@ export function OsEmptyDesktopView({
         />
         <p
           role="status"
-          className="flex min-h-5 items-center gap-1.5 px-4 text-eyebrow text-muted"
+          className="flex min-h-5 items-center gap-1.5 px-4 text-eyebrow text-muted-foreground"
           data-testid="os-desk-status"
         >
           {starting ? (

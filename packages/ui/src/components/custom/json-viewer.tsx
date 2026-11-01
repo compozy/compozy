@@ -52,11 +52,11 @@ function tokenize(text: string): RenderEntry[] {
 }
 
 const KIND_CLASS: Record<RenderEntry["kind"], string> = {
-  key: "text-accent",
+  key: "text-brand",
   string: "text-success",
   number: "text-info",
   boolean: "text-warning",
-  null: "text-muted",
+  null: "text-muted-foreground",
   punct: "text-subtle",
 };
 
@@ -72,7 +72,7 @@ function JsonViewer({ value, indent = 2, className, ...props }: JsonViewerProps)
     <pre
       data-slot="json-viewer"
       className={cn(
-        "overflow-x-auto rounded border border-line bg-code-bg px-3 py-2 font-mono text-code-block text-fg",
+        "overflow-x-auto rounded-md border border-line bg-code-bg px-3 py-2 font-mono text-code-block text-fg",
         className
       )}
       {...props}

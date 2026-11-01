@@ -57,32 +57,32 @@ export function WindowManagerSnapMap({
         ref={mapRef}
       >
         <span
-          className="pointer-events-none absolute inset-y-0 left-0 bg-accent-tint"
+          className="pointer-events-none absolute inset-y-0 left-0 bg-brand-tint"
           style={{ width: band }}
         />
         <span
-          className="pointer-events-none absolute inset-y-0 right-0 bg-accent-tint"
+          className="pointer-events-none absolute inset-y-0 right-0 bg-brand-tint"
           style={{ width: band }}
         />
         <span
-          className="pointer-events-none absolute top-0 bg-accent-tint"
+          className="pointer-events-none absolute top-0 bg-brand-tint"
           style={{ left: band, right: band, height: bandY }}
         />
         <span
-          className="pointer-events-none absolute bottom-0 bg-accent-tint"
+          className="pointer-events-none absolute bottom-0 bg-brand-tint"
           style={{ left: band, right: band, height: bandY }}
         />
         {(["left", "right"] as const).map(x =>
           (["top", "bottom"] as const).map(y => (
             <span
-              className="pointer-events-none absolute bg-accent-tint-strong"
+              className="pointer-events-none absolute bg-brand-tint-strong"
               key={`${x}-${y}`}
               style={{ [x]: 0, [y]: 0, width: corner, height: cornerY }}
             />
           ))
         )}
         <span
-          className="pointer-events-none absolute rounded-xxs border border-dashed border-accent-dim"
+          className="pointer-events-none absolute rounded-xxs border border-dashed border-brand-dim"
           style={{ left: inset, right: inset, top: insetY, bottom: insetY }}
         />
 
@@ -174,9 +174,9 @@ function SnapGrip({
         aria-hidden="true"
         className={cn(
           "rounded-pill bg-line-focus transition-colors duration-base ease-out",
-          "group-hover/grip:bg-accent group-focus-visible/grip:bg-accent",
+          "group-hover/grip:bg-brand group-focus-visible/grip:bg-brand",
           axis === "x" ? "h-6.5 w-0.5" : "h-0.5 w-6.5",
-          drag.dragging && "bg-accent"
+          drag.dragging && "bg-brand"
         )}
       />
     </div>
@@ -202,7 +202,7 @@ function CentreZone({
         aria-label={label}
         className={cn(
           "eyebrow absolute z-7 left-1/2 flex h-5 -translate-x-1/2 items-center rounded-xs border px-2",
-          "border-line-strong bg-surface-2 text-muted transition-colors duration-base ease-out",
+          "border-line-strong bg-surface-2 text-muted-foreground transition-colors duration-base ease-out",
           "hover:bg-selected hover:text-fg",
           "focus-visible:outline-none focus-visible:shadow-focus-ring",
           value === "zoom" && "border-line-strong bg-selected text-fg",

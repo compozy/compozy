@@ -1,4 +1,4 @@
-import { Clock, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
+import { Clock, MessageCircleQuestion, RotateCcw, X } from "@compozy/ui/icons";
 
 import { Receipt } from "@compozy/ui";
 

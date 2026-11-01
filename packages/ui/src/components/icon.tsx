@@ -1,7 +1,6 @@
 "use client";
 
-import type { LucideIcon, LucideProps } from "lucide-react";
-
+import type { LucideIcon, LucideProps } from "../icons";
 import { ICON_STROKE_WIDTH } from "../lib/icon-stroke";
 import { cn } from "../lib/utils";
 

@@ -1,4 +1,4 @@
-import { Lock, type LucideIcon } from "lucide-react";
+import { Lock, type LucideIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { RadioCard, cn } from "@compozy/ui";

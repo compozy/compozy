@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@compozy/ui/icons";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@compozy/ui";
@@ -65,7 +65,7 @@ export function PaletteConfirmation({
             </p>
           </div>
         ) : confirmation.body ? (
-          <p className="text-small-body text-muted" id="os-palette-confirm-body">
+          <p className="text-small-body text-muted-foreground" id="os-palette-confirm-body">
             {confirmation.body}
           </p>
         ) : (

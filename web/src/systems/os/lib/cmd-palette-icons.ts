@@ -60,7 +60,7 @@ import {
   XSquare,
   Zap,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 /**
  * Lucide tokens the daemon serves on command descriptors → the glyph that

@@ -96,10 +96,10 @@ describe("subagentCardLines (UT-W05)", () => {
   it("Should show the error's first line in danger when failed", () => {
     expect(
       subagentCardLines(subagent({ status: "failed", error: "3 of 41 specs failed\nstack…" }))
-    ).toEqual({ lineTwo: "3 of 41 specs failed", lineTwoTone: "danger" });
+    ).toEqual({ lineTwo: "3 of 41 specs failed", lineTwoTone: "destructive" });
     expect(subagentCardLines(subagent({ status: "failed" }))).toEqual({
       lineTwo: "",
-      lineTwoTone: "danger",
+      lineTwoTone: "destructive",
     });
   });
 });

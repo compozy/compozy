@@ -37,7 +37,7 @@ export const Distribution: Story = {
       segments={[
         { value: 12, tone: "success" },
         { value: 4, tone: "warning" },
-        { value: 2, tone: "danger" },
+        { value: 2, tone: "destructive" },
       ]}
     />
   ),
@@ -53,7 +53,7 @@ export const PartialCapacity: Story = {
       ariaLabel="Provider quota"
       total={100}
       segments={[
-        { value: 60, tone: "accent" },
+        { value: 60, tone: "brand" },
         { value: 12, tone: "info" },
       ]}
     />

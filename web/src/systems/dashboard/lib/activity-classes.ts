@@ -18,7 +18,7 @@ export function isQuietActivityEvent(event: Pick<HomeActivityEvent, "type" | "ou
   return QUIET_TYPE_PREFIXES.some(prefix => event.type.startsWith(prefix));
 }
 
-export type HomeActivityTone = "neutral" | "success" | "warning" | "danger";
+export type HomeActivityTone = "neutral" | "success" | "warning" | "destructive";
 
 export function homeActivityTone(event: Pick<HomeActivityEvent, "outcome">): HomeActivityTone {
   switch (event.outcome) {
@@ -27,7 +27,7 @@ export function homeActivityTone(event: Pick<HomeActivityEvent, "outcome">): Hom
     case "warning":
       return "warning";
     case "failure":
-      return "danger";
+      return "destructive";
     default:
       return "neutral";
   }

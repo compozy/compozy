@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { BoxesIcon, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { BoxesIcon, Wrench } from "../../../icons";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../button";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "../../item";

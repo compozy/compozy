@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { cn, Disclosure, Empty, Eyebrow } from "@compozy/ui";
 
@@ -160,7 +160,7 @@ export function TasksDashboardView({
       />
 
       <div className={TOTALS_CLASS} data-testid="tasks-dashboard-totals">
-        <Eyebrow className="text-muted">
+        <Eyebrow className="text-muted-foreground">
           {dashboard.totals.tasks_total} tasks · {dashboard.totals.runs_total} runs
         </Eyebrow>
       </div>

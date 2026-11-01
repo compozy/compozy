@@ -1,4 +1,4 @@
-import { Pencil, Save, Settings2, Trash2 } from "lucide-react";
+import { Pencil, Save, Settings2, Trash2 } from "@compozy/ui/icons";
 import { ViewTransition, type ReactNode } from "react";
 
 import {
@@ -233,7 +233,7 @@ function ProviderDetailNotices({
 }) {
   if (error) {
     return (
-      <Alert data-testid="provider-detail-error" variant="danger">
+      <Alert data-testid="provider-detail-error" variant="destructive">
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );

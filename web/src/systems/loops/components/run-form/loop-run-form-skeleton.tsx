@@ -1,4 +1,4 @@
-import { FolderGit2, Gauge, TextCursorInput } from "lucide-react";
+import { FolderGit2, Gauge, TextCursorInput } from "@compozy/ui/icons";
 
 import { PageContent, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 

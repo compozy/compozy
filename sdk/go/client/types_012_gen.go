@@ -412,6 +412,9 @@ type ProviderModelStatusResponse struct {
 // ProviderRecommendedAction is a daemon API value.
 type ProviderRecommendedAction string
 
+// ProviderRuntimeLiveApply is a daemon API value.
+type ProviderRuntimeLiveApply string
+
 // ProviderRuntimeStrategy is a daemon API value.
 type ProviderRuntimeStrategy string
 
@@ -439,10 +442,4 @@ type ProviderSummaryPayload struct {
 	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
 	Default          bool                                      `json:"default"`
 	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
-}
-
-// ProviderUsageAccount is a daemon API value.
-type ProviderUsageAccount struct {
-	Label string `json:"label"`
-	Plan  string `json:"plan"`
 }

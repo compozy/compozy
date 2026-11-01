@@ -178,9 +178,9 @@ describe("buildRunUsage", () => {
       45 * 60
     );
     const byKey = new Map(rows.map(row => [row.key, row]));
-    expect(byKey.get("time")?.tone).toBe("danger");
+    expect(byKey.get("time")?.tone).toBe("destructive");
     expect(byKey.get("tokens")?.tone).toBe("warn");
-    expect(byKey.get("rounds")?.tone).toBe("danger");
+    expect(byKey.get("rounds")?.tone).toBe("destructive");
     expect(byKey.get("cost")?.tone).toBe("neutral");
   });
 });

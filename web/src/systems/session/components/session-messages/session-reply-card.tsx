@@ -1,4 +1,4 @@
-import { Scissors } from "lucide-react";
+import { Scissors } from "@compozy/ui/icons";
 
 import type { SessionReplyOutcome } from "@/systems/session/lib/session-message-payload";
 import { Button, cn } from "@compozy/ui";
@@ -59,7 +59,7 @@ function replyBody(outcome: SessionReplyOutcome, text: string): ReplyBody {
 
 function bodyTone(outcome: SessionReplyOutcome, body: ReplyBody): SessionMessageBodyTone {
   if (body.kind === "fixed") return "quiet";
-  return outcome === "failed" ? "danger" : "default";
+  return outcome === "failed" ? "destructive" : "default";
 }
 
 /**
@@ -97,7 +97,7 @@ export function SessionReplyCard({
           <span
             className={cn(
               "shrink-0 text-transcript-caption",
-              outcome === "failed" ? "text-danger" : "text-subtle"
+              outcome === "failed" ? "text-destructive" : "text-subtle"
             )}
             data-testid="session-reply-outcome"
           >

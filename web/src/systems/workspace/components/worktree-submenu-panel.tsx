@@ -3,7 +3,7 @@ import {
   type WorktreeRemovalBatch,
 } from "../hooks/use-worktree-removal-selection";
 import { WorktreeSelectionToolbar } from "./worktree-selection-toolbar";
-import { Copy, Ellipsis, Eraser, FileSearch, Plus, Trash2 } from "lucide-react";
+import { Copy, Ellipsis, Eraser, FileSearch, Plus, Trash2 } from "@compozy/ui/icons";
 
 import {
   DropdownMenu,
@@ -363,7 +363,7 @@ export function WorktreeSubmenuPanel({
       <>
         {hasListRows && !selection.enabled ? <MenubarSeparator /> : null}
         <MenubarItem
-          className={cn(FOOTER_ROW_CLASS, "text-muted")}
+          className={cn(FOOTER_ROW_CLASS, "text-muted-foreground")}
           data-testid={`${testIdPrefix}-worktree-create-${workspaceId}`}
           onClick={() => {
             onCreateWorktree();
@@ -382,7 +382,7 @@ export function WorktreeSubmenuPanel({
           data-testid={`${testIdPrefix}-worktree-create-${workspaceId}`}
           className={cn(
             FOOTER_ROW_CLASS,
-            "flex w-full items-center gap-2 rounded-md px-2 text-small-body text-muted hover:bg-surface-2"
+            "flex w-full items-center gap-2 rounded-md px-2 text-small-body text-muted-foreground hover:bg-surface-2"
           )}
           onClick={() => {
             onCreateWorktree();

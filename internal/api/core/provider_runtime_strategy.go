@@ -27,3 +27,18 @@ func providerRuntimeStrategy(
 		return contract.ProviderRuntimeStrategySessionConfig
 	}
 }
+
+func providerRuntimeLiveApply(providerID string, runtimeProvider string) contract.ProviderRuntimeLiveApply {
+	effectiveProvider := strings.TrimSpace(runtimeProvider)
+	if effectiveProvider == "" {
+		effectiveProvider = strings.TrimSpace(providerID)
+	}
+	switch session.RuntimeLiveApplyForProvider(effectiveProvider) {
+	case acp.RuntimeLiveApplyNextStep:
+		return contract.ProviderRuntimeLiveApplyNextStep
+	case acp.RuntimeLiveApplyNextTurn:
+		return contract.ProviderRuntimeLiveApplyNextTurn
+	default:
+		return ""
+	}
+}

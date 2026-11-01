@@ -1,4 +1,4 @@
-import { Bot, Repeat2, SquareCheck } from "lucide-react";
+import { Bot, Repeat2, SquareCheck } from "@compozy/ui/icons";
 
 import type { AutomationFormModel } from "../../../hooks/use-automation-form";
 import type { AutomationFormDraft } from "../../../lib/automation-form-draft";

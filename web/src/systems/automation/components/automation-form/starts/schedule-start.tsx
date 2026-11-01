@@ -1,4 +1,4 @@
-import { CalendarCheck, Repeat, Timer } from "lucide-react";
+import { CalendarCheck, Repeat, Timer } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -138,7 +138,7 @@ function RepeatsBuilder({ expr, form }: { expr: string; form: AutomationFormMode
       </div>
       <div
         className={cn(
-          "flex flex-wrap items-center gap-2.5 text-small-body text-muted",
+          "flex flex-wrap items-center gap-2.5 text-small-body text-muted-foreground",
           !builderApplies && "opacity-50"
         )}
         data-testid="automation-schedule-days-row"

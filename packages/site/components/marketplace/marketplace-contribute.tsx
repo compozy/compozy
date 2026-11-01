@@ -14,7 +14,7 @@ export function MarketplaceContribute() {
         <h2 id="contribute" className="text-lg font-semibold tracking-[-0.01em] text-fg">
           Add an entry to the catalog
         </h2>
-        <p className="mt-2 text-small-body leading-relaxed text-muted">
+        <p className="mt-2 text-small-body leading-relaxed text-muted-foreground">
           The catalog is a set of JSON feeds in the CompozyOS repository. Package your artifact with{" "}
           <code>compozy-catalog package</code>, validate it with{" "}
           <code>compozy-catalog validate</code>, and open a pull request against{" "}
@@ -26,7 +26,7 @@ export function MarketplaceContribute() {
         href={CONTRIBUTION_GUIDE_URL}
         target="_blank"
         rel="noreferrer noopener"
-        className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-line px-4 py-2 text-small-body font-medium text-fg transition-colors hover:border-accent/35 hover:text-accent"
+        className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-line px-4 py-2 text-small-body font-medium text-fg transition-colors hover:border-brand/35 hover:text-brand"
       >
         <GitPullRequest aria-hidden className="size-4" />
         Read the contribution guide

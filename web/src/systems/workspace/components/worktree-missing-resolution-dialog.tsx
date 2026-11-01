@@ -1,4 +1,4 @@
-import { Archive, FolderX, History, RotateCcw } from "lucide-react";
+import { Archive, FolderX, History, RotateCcw } from "@compozy/ui/icons";
 
 import {
   Alert,
@@ -92,7 +92,7 @@ export function WorktreeMissingResolutionDialog({
           </MetadataList>
 
           {refusal || error ? (
-            <Alert variant="danger" data-testid="worktree-missing-refusal">
+            <Alert variant="destructive" data-testid="worktree-missing-refusal">
               <AlertDescription>{refusal?.message ?? error}</AlertDescription>
             </Alert>
           ) : null}

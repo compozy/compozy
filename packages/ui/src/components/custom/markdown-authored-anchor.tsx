@@ -1,6 +1,6 @@
 import type * as React from "react";
-import { Globe } from "lucide-react";
 
+import { Globe } from "../../icons";
 import { cn } from "../../lib/utils";
 
 const EXTERNAL_HREF = /^(?:https?:\/\/|mailto:)/iu;

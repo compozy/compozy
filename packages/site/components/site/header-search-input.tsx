@@ -7,7 +7,8 @@ import type { ComponentProps } from "react";
 
 import { useSiteSearch } from "@/components/site/hooks/use-site-search";
 
-const SITE_KBD_CLASS = "rounded-sm border border-line bg-canvas-soft text-muted inset-ring-0";
+const SITE_KBD_CLASS =
+  "rounded-sm border border-line bg-canvas-soft text-muted-foreground inset-ring-0";
 
 type HeaderSearchInputProps = Omit<ComponentProps<"form">, "onSubmit"> & {
   hideIfDisabled?: boolean;
@@ -15,7 +16,7 @@ type HeaderSearchInputProps = Omit<ComponentProps<"form">, "onSubmit"> & {
 
 const searchInputClasses = [
   "min-w-0 flex-1 bg-transparent text-sm text-fg outline-none",
-  "placeholder:text-muted focus-visible:outline-none",
+  "placeholder:text-muted-foreground focus-visible:outline-none",
 ];
 
 const keyboardHintClasses = ["ms-auto hidden items-center gap-0.5 text-subtle", "xl:inline-flex"];
@@ -36,7 +37,7 @@ export function HeaderSearchInput({ className, hideIfDisabled, ...props }: Heade
       role="search"
       aria-label="Site search"
       className={cn(
-        "inline-flex h-9 items-center gap-2 rounded-full border border-line bg-canvas-soft px-2.5 text-muted transition-colors hover:bg-hover focus-within:shadow-focus-ring focus-within:text-fg",
+        "inline-flex h-9 items-center gap-2 rounded-full border border-line bg-canvas-soft px-2.5 text-muted-foreground transition-colors hover:bg-hover focus-within:shadow-focus-ring focus-within:text-fg",
         className
       )}
       onSubmit={event => {

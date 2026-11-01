@@ -38,7 +38,7 @@ export function SessionInspectorOriginSection({ session }: { session: SessionPay
         ) : null}
         {routeFailure ? (
           <PropertyRow data-testid="ledger-route-failure" label="Route" valueTitle={routeFailure}>
-            <span className="truncate text-danger">{routeFailure}</span>
+            <span className="truncate text-destructive">{routeFailure}</span>
           </PropertyRow>
         ) : null}
       </div>

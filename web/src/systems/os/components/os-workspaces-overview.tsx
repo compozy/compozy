@@ -1,6 +1,6 @@
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { useEffect, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, cn } from "@compozy/ui";
 
@@ -284,7 +284,7 @@ function OsWorkspacesStage({
       >
         <DialogTitle className="sr-only">Projects</DialogTitle>
         <DialogDescription
-          className="mb-3.5 text-center text-form-label text-muted"
+          className="mb-3.5 text-center text-form-label text-muted-foreground"
           data-testid="os-workspaces-subtitle"
         >
           {subtitleFor(tree.length)}
@@ -298,7 +298,7 @@ function OsWorkspacesStage({
               "bg-popover text-center shadow-pop"
             )}
           >
-            <p className="max-w-workspaces-empty-copy text-small-body text-muted">
+            <p className="max-w-workspaces-empty-copy text-small-body text-muted-foreground">
               No project folders yet. Sessions run in User until you add one.
             </p>
             {/* The one primary on this surface — there is nothing to switch to. */}

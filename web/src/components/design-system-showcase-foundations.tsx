@@ -26,7 +26,7 @@ export function FoundationsTokenSection() {
             <header className="flex items-end justify-between gap-4">
               <div>
                 <h3 className="text-item-title font-medium text-fg">{group.label}</h3>
-                <p className="mt-0.5 text-small-body text-muted">{group.caption}</p>
+                <p className="mt-0.5 text-small-body text-muted-foreground">{group.caption}</p>
               </div>
               <Eyebrow className="text-subtle">{group.swatches.length} tokens</Eyebrow>
             </header>
@@ -55,10 +55,12 @@ function TokenCard({ swatch }: { swatch: TokenSwatch }) {
       <TokenPreview swatch={swatch} value={value} />
       <div className="flex flex-col gap-0.5">
         <Eyebrow className="text-subtle">{swatch.token}</Eyebrow>
-        <span data-slot="token-value" className="font-mono text-eyebrow text-muted">
+        <span data-slot="token-value" className="font-mono text-eyebrow text-muted-foreground">
           {value}
         </span>
-        {swatch.role ? <span className="text-eyebrow text-muted">{swatch.role}</span> : null}
+        {swatch.role ? (
+          <span className="text-eyebrow text-muted-foreground">{swatch.role}</span>
+        ) : null}
       </div>
     </article>
   );
@@ -81,7 +83,7 @@ function TokenPreview({ swatch, value }: { swatch: TokenSwatch; value: string })
         className="flex h-14 w-full items-center justify-center bg-surface-2"
         style={{ borderRadius: `var(${swatch.token})` }}
       >
-        <span className="font-mono text-eyebrow text-muted">{value}</span>
+        <span className="font-mono text-eyebrow text-muted-foreground">{value}</span>
       </div>
     );
   }
@@ -90,7 +92,7 @@ function TokenPreview({ swatch, value }: { swatch: TokenSwatch; value: string })
       aria-hidden="true"
       className="flex h-14 w-full items-center justify-center rounded-md bg-surface-2"
     >
-      <Eyebrow className="text-muted">{value}</Eyebrow>
+      <Eyebrow className="text-muted-foreground">{value}</Eyebrow>
     </div>
   );
 }
@@ -110,7 +112,7 @@ export function TypographySection() {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-heading font-medium tracking-tight">Runtime sessions overview</p>
-            <p className="text-body text-muted">
+            <p className="text-body text-muted-foreground">
               Body · Inter 14.5px at 425, −0.01em. The default reading text; quiet secondary copy
               uses muted, never a dimmed body.
             </p>
@@ -124,7 +126,7 @@ export function TypographySection() {
             <CardTitle>Mono & wordmark</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <Eyebrow className="text-muted">Eyebrow · Inter 12/500/-0.005em</Eyebrow>
+            <Eyebrow className="text-muted-foreground">Eyebrow · Inter 12/500/-0.005em</Eyebrow>
             <p className="font-mono text-meta text-fg">compozy · run_id_01hq8… · Geist Mono</p>
             <div className="flex items-center gap-3">
               <span className="font-wordmark text-display-2xl leading-none tracking-tight text-fg">

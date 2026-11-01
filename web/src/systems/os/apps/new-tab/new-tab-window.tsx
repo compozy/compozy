@@ -19,7 +19,7 @@ export function NewTabWindow({ windowId }: { windowId: string }) {
     )
   );
   useTopbarSlot({
-    crumb: <span className="text-muted">New tab</span>,
+    crumb: <span className="text-muted-foreground">New tab</span>,
   });
 
   return (

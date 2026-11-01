@@ -87,7 +87,7 @@ export function PaletteArgDropdown({
         aria-invalid={field.error !== "" ? true : undefined}
         autoComplete="off"
         autoFocus={focused}
-        className={cn(className, field.error !== "" && "border-danger")}
+        className={cn(className, field.error !== "" && "border-destructive")}
         data-testid={`os-palette-arg-${field.name}`}
         id={`os-palette-arg-${field.name}`}
         placeholder={field.placeholder}

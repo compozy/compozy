@@ -1,6 +1,6 @@
 import type * as React from "react";
-import { Bot, type LucideIcon } from "lucide-react";
 
+import { Bot, type LucideIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import {
   providerKindIconRegistry,
@@ -9,7 +9,7 @@ import {
 } from "./kind-icon-registry";
 
 /** `well` sets the glyph on the 26 px mint identity plate (brand-spec rule 3). */
-type KindIconTone = "default" | "muted" | "accent" | "well";
+type KindIconTone = "default" | "muted" | "brand" | "well";
 type KindIconSize = "xs" | "sm" | "md";
 type DataAttributes = {
   [key: `data-${string}`]: string | undefined;
@@ -38,7 +38,7 @@ interface KindIconProps<K extends string = string>
 const KIND_ICON_TONE: Record<KindIconTone, string> = {
   default: "text-fg",
   muted: "text-subtle",
-  accent: "text-accent",
+  brand: "text-brand",
   well: "size-6.5 rounded-icon-well bg-well text-well-ink",
 };
 
@@ -83,7 +83,7 @@ function KindIconGlyph({ className, entry, fallback }: KindIconGlyphPropsForEntr
   }
 
   const Icon = entry?.fallback ?? fallback;
-  return <Icon aria-hidden="true" className={className} />;
+  return <Icon aria-hidden="true" className={className} data-slot="kind-icon-fallback" />;
 }
 
 function KindIcon<K extends string = string>({

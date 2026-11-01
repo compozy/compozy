@@ -1,4 +1,4 @@
-import { GitBranch } from "lucide-react";
+import { GitBranch } from "@compozy/ui/icons";
 
 import { PillGroup, type PillGroupItem } from "@compozy/ui";
 

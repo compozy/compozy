@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { ChevronDown, History, PlugZap, TriangleAlert } from "lucide-react";
+import { ChevronDown, History, PlugZap, TriangleAlert } from "@compozy/ui/icons";
 
 import { Link } from "@tanstack/react-router";
 
@@ -57,12 +57,12 @@ interface LoopRunStoryProps {
 // Colour at rest is noise: only beats that need a person (accent), warn or fail
 // keep their signal ring. Parked beats (retry, pause, wait) stay calm.
 const TONE_RING = {
-  neutral: "ring-line text-muted",
-  accent: "ring-accent text-accent",
-  success: "ring-line text-muted",
+  neutral: "ring-line text-muted-foreground",
+  brand: "ring-brand text-brand",
+  success: "ring-line text-muted-foreground",
   warning: "ring-warning text-warning",
-  danger: "ring-danger text-danger",
-  info: "ring-line text-muted",
+  destructive: "ring-destructive text-destructive",
+  info: "ring-line text-muted-foreground",
 } as const;
 
 function LoopRunStoryBeat({ beat }: { beat: LoopStoryBeat }) {
@@ -167,7 +167,7 @@ function LoopRunStoryStatusPill({
   // fact and outranks a reconnect, exactly as it does on the runs roster.
   if (isError) {
     return (
-      <Pill data-testid="loop-run-story-degraded" tone="danger">
+      <Pill data-testid="loop-run-story-degraded" tone="destructive">
         <TriangleAlert aria-hidden="true" className="size-3" />
         Couldn't load
       </Pill>
@@ -208,7 +208,7 @@ function LoopRunStoryEmpty({ isError, isLoading }: { isError: boolean; isLoading
   const state = isError ? "error" : "empty";
   return (
     <p
-      className={cn("py-2 text-small-body", isError ? "text-danger" : "text-muted")}
+      className={cn("py-2 text-small-body", isError ? "text-destructive" : "text-muted-foreground")}
       data-state={state}
       data-testid="loop-run-story-empty"
     >

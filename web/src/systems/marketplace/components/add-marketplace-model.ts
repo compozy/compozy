@@ -10,7 +10,7 @@ export interface AddMarketplaceDraft {
 }
 
 export interface AddMarketplaceFailure {
-  tone: "danger" | "warning";
+  tone: "destructive" | "warning";
   code: string | null;
   title: string;
   description?: string;
@@ -66,7 +66,7 @@ export function describeMarketplaceFailure(
   fallback: string
 ): AddMarketplaceFailure {
   const base: AddMarketplaceFailure = {
-    tone: "danger",
+    tone: "destructive",
     code: null,
     title: fallback,
     field: null,

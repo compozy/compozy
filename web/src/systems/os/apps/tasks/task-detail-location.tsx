@@ -1,4 +1,4 @@
-import { AlertCircle, ClipboardList } from "lucide-react";
+import { AlertCircle, ClipboardList } from "@compozy/ui/icons";
 import { useDeferredValue, ViewTransition } from "react";
 
 import {

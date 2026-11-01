@@ -88,7 +88,7 @@ function SettingsSourceBadge({
       </Pill>
       {shadowed && shadowed.length > 0 ? (
         <span
-          className="flex flex-wrap items-center gap-1 text-badge font-medium text-muted"
+          className="flex flex-wrap items-center gap-1 text-badge font-medium text-muted-foreground"
           data-testid={testId ? `${testId}-shadowed` : undefined}
         >
           <span>replaces</span>

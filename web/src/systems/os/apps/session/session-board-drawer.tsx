@@ -7,7 +7,7 @@ import {
   Maximize2,
   XIcon,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 
 import {
@@ -274,7 +274,7 @@ function SessionBoardDrawerParentCrumb({
     <span className="flex min-w-0 items-center gap-1" data-testid="session-board-drawer-parent">
       <button
         aria-label={`Open parent session ${title}`}
-        className="min-w-0 truncate rounded-xs text-small-body text-muted transition-colors duration-fast hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="min-w-0 truncate rounded-xs text-small-body text-muted-foreground transition-colors duration-fast hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
         onClick={() =>
           onOpen({
             sessionId: parent.id,

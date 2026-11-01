@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Activity, AlertTriangle, CircleAlert, Sparkles } from "lucide-react";
 
+import { Activity, AlertTriangle, CircleAlert, Sparkles } from "../../icons";
 import { Icon } from "../icon";
 
 const meta: Meta<typeof Icon> = {
@@ -27,19 +27,19 @@ export const SizeRamp: Story = {
     <div className="flex items-end gap-4 text-fg-strong">
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="xs" />
-        <span className="text-micro text-muted">xs · 11</span>
+        <span className="text-micro text-muted-foreground">xs · 11</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="sm" />
-        <span className="text-micro text-muted">sm · 12</span>
+        <span className="text-micro text-muted-foreground">sm · 12</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} />
-        <span className="text-micro text-muted">default · 14</span>
+        <span className="text-micro text-muted-foreground">default · 14</span>
       </div>
       <div className="flex flex-col items-center gap-2">
         <Icon as={Sparkles} size="lg" />
-        <span className="text-micro text-muted">lg · 16</span>
+        <span className="text-micro text-muted-foreground">lg · 16</span>
       </div>
     </div>
   ),
@@ -50,9 +50,9 @@ export const Tones: Story = {
   args: { as: Sparkles },
   render: () => (
     <div className="flex items-center gap-4">
-      <Icon as={Activity} className="text-accent" />
+      <Icon as={Activity} className="text-brand" />
       <Icon as={AlertTriangle} className="text-warning" />
-      <Icon as={CircleAlert} className="text-danger" />
+      <Icon as={CircleAlert} className="text-destructive" />
       <Icon as={Sparkles} className="text-success" />
     </div>
   ),

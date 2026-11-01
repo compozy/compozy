@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import * as React from "react";
 import { DayPicker, getDefaultClassNames, type DayButton } from "react-day-picker";
 
+import { ChevronDown, ChevronLeft, ChevronRight } from "../icons";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { buttonVariants } from "./button-variants";

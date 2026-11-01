@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Bot } from "@compozy/ui/icons";
 import { type FormEvent } from "react";
 
 import {
@@ -119,7 +119,7 @@ function AgentCreateDialog({
         <form className="contents" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col">
             {submitError || visibleErrors.scope ? (
-              <Alert className="mb-4" data-testid="agent-create-submit-error" variant="danger">
+              <Alert className="mb-4" data-testid="agent-create-submit-error" variant="destructive">
                 <AlertDescription>{submitError ?? visibleErrors.scope}</AlertDescription>
               </Alert>
             ) : null}

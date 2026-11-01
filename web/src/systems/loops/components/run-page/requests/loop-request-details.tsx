@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { ChevronRight, ScrollText } from "lucide-react";
+import { ChevronRight, ScrollText } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -108,7 +108,7 @@ function FullContextFetch({
   return (
     <div className={cn(hasPreview && "mt-2.5")}>
       {error ? (
-        <p className="mb-2 text-small-body text-danger" role="alert">
+        <p className="mb-2 text-small-body text-destructive" role="alert">
           {error}
         </p>
       ) : null}
@@ -148,6 +148,8 @@ function ContextBody({ block }: { block: LoopRequestContextBlock }) {
     );
   }
   return (
-    <p className="mt-1.5 max-w-[62ch] text-small-body leading-relaxed text-muted">{block.text}</p>
+    <p className="mt-1.5 max-w-[62ch] text-small-body leading-relaxed text-muted-foreground">
+      {block.text}
+    </p>
   );
 }

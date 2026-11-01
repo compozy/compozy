@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 export type UserFeedbackTone = "error" | "info" | "success" | "warning";
 

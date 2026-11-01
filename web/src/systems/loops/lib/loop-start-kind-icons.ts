@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import {
   CalendarClock,
   Globe,
@@ -9,7 +9,7 @@ import {
   Webhook,
   Wrench,
   Zap,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 /**
  * Closed `start[]` vocabulary from `loop-bindings.ts`:

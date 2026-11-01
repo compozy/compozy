@@ -1,4 +1,4 @@
-import { Plus, Users2 } from "lucide-react";
+import { Plus, Users2 } from "@compozy/ui/icons";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 

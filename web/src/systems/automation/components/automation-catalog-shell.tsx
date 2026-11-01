@@ -1,4 +1,4 @@
-import { AlertCircle, Zap } from "lucide-react";
+import { AlertCircle, Zap } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyState } from "@/components/catalog-empty-state";

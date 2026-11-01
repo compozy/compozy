@@ -1,6 +1,6 @@
 import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";

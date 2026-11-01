@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Button, Pill, SkeletonRegion, SkeletonText, Spinner } from "@compozy/ui";
@@ -130,7 +130,7 @@ function UpdateFailureGroup({
         label="CompozyOS"
         control={
           <>
-            <Pill form="plain" tone={failed ? "danger" : "warning"}>
+            <Pill form="plain" tone={failed ? "destructive" : "warning"}>
               <Pill.Dot />
               {failed ? "Check failed" : "Unavailable"}
             </Pill>
@@ -361,7 +361,7 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
       action={
         <>
           {refreshError ? (
-            <Pill form="plain" tone="danger">
+            <Pill form="plain" tone="destructive">
               <Pill.Dot />
               Refresh failed
             </Pill>
@@ -397,14 +397,14 @@ export function GeneralUpdateSection(props: GeneralUpdateSectionProps) {
       {actions.error ? (
         <SettingRow
           data-testid="settings-page-general-update-action-error"
-          description={<span className="text-danger">{actions.error}</span>}
+          description={<span className="text-destructive">{actions.error}</span>}
           label="The update couldn't start"
         />
       ) : null}
       {product.lastError ? (
         <SettingRow
           data-testid="settings-page-general-update-last-error"
-          description={<span className="text-danger">{product.lastError}</span>}
+          description={<span className="text-destructive">{product.lastError}</span>}
           label="What went wrong"
         />
       ) : null}

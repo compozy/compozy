@@ -5,7 +5,7 @@
 // `edit=options` deep link opens the editor once and leaves the URL.
 // Owning layer: useAutomationDetailPage, which binds the panel to TanStack Query and routing.
 import { act, renderHook } from "@testing-library/react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,6 +21,11 @@ import {
   rerunDeliveryTrigger,
 } from "@/systems/automation/mocks/detail-fixtures";
 
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
+
 const state = vi.hoisted(() => ({
   activeWorkspaceId: "ws_checkout_api" as string | null,
   navigate: vi.fn(),
@@ -35,7 +40,6 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => state.navigate }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/systems/os/hooks/use-window-live-data-enabled", () => ({
   useCurrentWindowLiveDataEnabled: () => true,
 }));

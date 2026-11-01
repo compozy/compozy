@@ -1,9 +1,9 @@
 "use client";
 
 import { useEditorState, type Editor } from "@tiptap/react";
-import { Bold, Code, Italic, Link2, List, ListOrdered, Strikethrough } from "lucide-react";
 import * as React from "react";
 
+import { Bold, Code, Italic, Link2, List, ListOrdered, Strikethrough } from "../../icons";
 import { Button } from "../button";
 import { Input } from "../input";
 import { Popover, PopoverContent, PopoverTrigger } from "../popover";

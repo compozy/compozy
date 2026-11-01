@@ -1,4 +1,4 @@
-import { CornerDownRight } from "lucide-react";
+import { CornerDownRight } from "@compozy/ui/icons";
 
 import { SkeletonText, StateGlyph } from "@compozy/ui";
 
@@ -26,7 +26,7 @@ export function LoopDagChildLine({ runId }: { runId: string }) {
     : `Child run ${summary.loopName}: ${loopStatusLabel(summary.status)}`;
   return (
     <span
-      className="flex min-w-0 items-center gap-1.5 text-form-hint text-muted"
+      className="flex min-w-0 items-center gap-1.5 text-form-hint text-muted-foreground"
       data-testid="loop-dag-child-line"
       title={spoken}
     >

@@ -1,5 +1,5 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
-import { List, PanelRight } from "lucide-react";
+import { List, PanelRight } from "@compozy/ui/icons";
 
 const PANELS = {
   sidebar: { label: "sessions sidebar", testId: "session-sidebar-toggle", Glyph: List },

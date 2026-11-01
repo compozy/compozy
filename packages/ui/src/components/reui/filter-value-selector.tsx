@@ -117,7 +117,7 @@ function SelectOptionsMenuContent<T = unknown>({
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {allFilteredOptions.length === 0 ? (
-              <div className="py-2 text-center text-small-body text-muted">
+              <div className="py-2 text-center text-small-body text-muted-foreground">
                 {context.i18n.noResultsFound}
               </div>
             ) : null}

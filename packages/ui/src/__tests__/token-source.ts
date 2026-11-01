@@ -5,6 +5,10 @@ import { join } from "node:path";
 export const TOKENS_CSS = readFileSync(join(__dirname, "..", "tokens.css"), "utf8");
 export const TOKENS_LIGHT_CSS = readFileSync(join(__dirname, "..", "tokens-light.css"), "utf8");
 export const TOKENS_RUNTIME_CSS = readFileSync(join(__dirname, "..", "tokens-runtime.css"), "utf8");
+export const TERMINAL_TOKENS_CSS = readFileSync(
+  join(__dirname, "..", "terminal-tokens.css"),
+  "utf8"
+);
 
 export type Theme = "dark" | "light";
 export const THEMES: readonly Theme[] = ["dark", "light"];

@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Bot } from "@compozy/ui/icons";
 
 import { Field, FieldError, FieldLabel, FormSection, Textarea } from "@compozy/ui";
 

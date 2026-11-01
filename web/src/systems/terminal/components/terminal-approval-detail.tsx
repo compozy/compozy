@@ -1,4 +1,4 @@
-import { Folder, SquareTerminal, TriangleAlert } from "lucide-react";
+import { Folder, SquareTerminal, TriangleAlert } from "@compozy/ui/icons";
 
 import { CodeBlock, cn, MonoId } from "@compozy/ui";
 
@@ -58,7 +58,7 @@ function TerminalExecApprovalDetail({
     <div className="flex min-w-0 flex-col gap-2" data-testid="terminal-approval-detail">
       {danger ? (
         <span
-          className="flex items-center gap-1.5 font-semibold text-danger text-transcript-meta"
+          className="flex items-center gap-1.5 font-semibold text-destructive text-transcript-meta"
           data-testid="terminal-approval-irreversible"
         >
           <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
@@ -67,7 +67,7 @@ function TerminalExecApprovalDetail({
       ) : null}
       <CodeBlock
         caption=""
-        className={cn(danger && "border-transparent bg-danger-tint shadow-danger-inset")}
+        className={cn(danger && "border-transparent bg-destructive-tint shadow-destructive-inset")}
         code={detail.command}
         copyLabel="Copy command"
         data-testid="terminal-approval-command"

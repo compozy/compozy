@@ -1,4 +1,4 @@
-import { FolderPlus } from "lucide-react";
+import { FolderPlus } from "@compozy/ui/icons";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button, Pill } from "@compozy/ui";
@@ -40,9 +40,9 @@ export const Comfortable: Story = {
   args: {},
   render: () => (
     <OptionCard size="comfortable" data-testid="option-card-comfortable">
-      <OptionCard.Header eyebrow="Folder" right={<Pill tone="accent">PATH</Pill>} />
+      <OptionCard.Header eyebrow="Folder" right={<Pill tone="brand">PATH</Pill>} />
       <OptionCard.Body>
-        <OptionCard.Icon tone="accent">
+        <OptionCard.Icon tone="brand">
           <FolderPlus className="size-4" />
         </OptionCard.Icon>
         <OptionCard.Content>

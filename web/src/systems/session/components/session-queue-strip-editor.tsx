@@ -1,4 +1,4 @@
-import { ListPlus } from "lucide-react";
+import { ListPlus } from "@compozy/ui/icons";
 import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
 import { cn } from "@/lib/utils";

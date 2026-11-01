@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import {
   AlertCircle,
   ArrowRight,
@@ -13,7 +13,7 @@ import {
   RotateCcw,
   SkipForward,
   SquareCheck,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button, Empty, SkeletonRegion, StateGlyph, Time, cn } from "@compozy/ui";
@@ -126,7 +126,7 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
           <StateGlyph state={view.glyph} />
           <span className="truncate">{view.statusLabel}</span>
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted">
+        <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted-foreground">
           {view.project ? (
             <WorkspaceBadge
               className="max-w-[40%] shrink"
@@ -166,7 +166,7 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
           <p
             className={cn(
               "text-small-body leading-relaxed",
-              line.tone === "danger" ? "text-danger" : "text-muted"
+              line.tone === "destructive" ? "text-destructive" : "text-muted-foreground"
             )}
             data-tone={line.tone}
             key={line.id}

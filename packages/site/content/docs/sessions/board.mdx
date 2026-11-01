@@ -233,13 +233,16 @@ A forked or continued session is not a child: it is a new top-level session that
 as provenance. Its card shows the fork or continue glyph and the source's title instead of `↳`, and
 the source's child count does not include it.
 
-1. Select **Hide child sessions** in the board header.
+**Hide child sessions** is on by default in a new window: child sessions (spawned workers, sessions
+created with a parent, subagents and recovery sessions) stay out of the columns and the counts, and
+their parent's count shows them. Forked and continued sessions stay on the board.
 
-   **Expected:** every child session (spawned workers, sessions created with a parent, subagents and
-   recovery sessions) leaves the columns, and the column counts drop to match. Forked and continued
-   sessions stay. The choice is remembered for this window.
+1. Select **Hide child sessions** in the board header to turn it off.
 
-2. Select it again to bring them back.
+   **Expected:** every child session joins the columns, and the column counts rise to match. The
+   choice is remembered for this window.
+
+2. Select it again to hide them.
 
 ## Load more and the Archive bar
 

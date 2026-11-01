@@ -1,4 +1,4 @@
-import { ArrowUpFromLine, FileDiff, FileX } from "lucide-react";
+import { ArrowUpFromLine, FileDiff, FileX } from "@compozy/ui/icons";
 
 import { Icon, cn } from "@compozy/ui";
 

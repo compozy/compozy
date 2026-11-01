@@ -27,7 +27,7 @@ export function GatewayIngressStatus({
 }: GatewayIngressStatusProps) {
   if (!ingress) {
     return (
-      <p className="text-form-label text-muted" data-testid={testId}>
+      <p className="text-form-label text-muted-foreground" data-testid={testId}>
         Public webhooks are off, so {subject} has no webhook address. <GatewaySettingsLink />
       </p>
     );
@@ -42,19 +42,21 @@ export function GatewayIngressStatus({
         {/* The detail is already visible beside the chip, so it is not repeated
             as screen-reader-only text. */}
         <GatewayStatusChip label={copy.label} tone={copy.tone} />
-        <span className="text-form-label text-muted">{copy.detail}</span>
+        <span className="text-form-label text-muted-foreground">{copy.detail}</span>
       </div>
       {url ? (
         <MonoId copy copyLabel="Copy webhook address" preserveCase value={url} />
       ) : (
-        <p className="text-form-label text-muted">
+        <p className="text-form-label text-muted-foreground">
           {ingress.enable_path?.trim()
             ? "No verified public address is published yet. "
             : "No verified public address is published yet, so there is no webhook address to hand out."}
           {ingress.enable_path?.trim() ? <GatewaySettingsLink /> : null}
         </p>
       )}
-      {url ? <p className="text-form-label text-muted">{DELIVERY_DURABILITY_NOTE}</p> : null}
+      {url ? (
+        <p className="text-form-label text-muted-foreground">{DELIVERY_DURABILITY_NOTE}</p>
+      ) : null}
     </div>
   );
 }

@@ -20,18 +20,18 @@ export type SeamGestureHandlers = {
 /**
  * Seam grammar (shell-rail prototype `.seam`): a 9px hit strip centred on the
  * boundary whose 1px `line` hairline is the only divider between flush panes;
- * hover, drag and keyboard focus widen it to 2px `accent`.
+ * hover, drag and keyboard focus widen it to 2px `brand`.
  */
 const SEAM_CLASS_BASE = cn(
   "absolute touch-none outline-none",
   "before:absolute before:bg-line before:transition-colors before:duration-fast",
-  "hover:before:bg-accent focus-visible:before:bg-accent"
+  "hover:before:bg-brand focus-visible:before:bg-brand"
 );
 
 function seamClassName(vertical: boolean, dragging: boolean): string {
   return cn(
     SEAM_CLASS_BASE,
-    dragging && "before:bg-accent",
+    dragging && "before:bg-brand",
     vertical
       ? [
           "cursor-col-resize before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2",

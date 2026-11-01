@@ -1,4 +1,4 @@
-import { Bot, ChevronRight, CornerDownRight } from "lucide-react";
+import { Bot, ChevronRight, CornerDownRight } from "@compozy/ui/icons";
 
 import {
   Icon,
@@ -152,7 +152,7 @@ export function SessionListBranchToggle({
 }
 
 const INDICATOR =
-  "inline-flex h-5 shrink-0 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-muted tabular-nums outline-none transition-colors duration-fast ease-out hover:text-fg focus-visible:shadow-focus-ring motion-reduce:transition-none";
+  "inline-flex h-5 shrink-0 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-subtle tabular-nums outline-none transition-colors duration-fast ease-out hover:text-fg focus-visible:shadow-focus-ring motion-reduce:transition-none";
 
 function IndicatorBody({ indicator }: { indicator: Indicator }) {
   return (

@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
+import { ChevronLeft, MoreHorizontal } from "../../icons";
 import { Popover, PopoverContent, PopoverTrigger } from "../popover";
 import { KindIcon } from "./kind-icon";
 
@@ -198,7 +198,7 @@ function TopbarIdentityGlyph({
         data-slot="topbar-glyph"
         data-presentation="state"
         aria-hidden="true"
-        className="inline-flex shrink-0 items-center justify-center text-accent"
+        className="inline-flex shrink-0 items-center justify-center text-brand"
       >
         {mark}
       </span>

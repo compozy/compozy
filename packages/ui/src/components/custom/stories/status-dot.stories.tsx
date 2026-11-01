@@ -34,7 +34,7 @@ export const InboxVocabulary: Story = {
         <Eyebrow>Needs review</Eyebrow>
       </div>
       <div className="flex items-center gap-2">
-        <StatusDot tone="danger" variant="solid" label="Blocked" />
+        <StatusDot tone="destructive" variant="solid" label="Blocked" />
         <Eyebrow>Blocked</Eyebrow>
       </div>
       <div className="flex items-center gap-2">
@@ -42,7 +42,7 @@ export const InboxVocabulary: Story = {
         <Eyebrow>Stuck</Eyebrow>
       </div>
       <div className="flex items-center gap-2">
-        <StatusDot tone="accent" variant="solid" label="Mentions" />
+        <StatusDot tone="brand" variant="solid" label="Mentions" />
         <Eyebrow>Mentions</Eyebrow>
       </div>
       <div className="flex items-center gap-2">
@@ -59,16 +59,16 @@ export const InboxVocabulary: Story = {
 
 /** Size — default (6 px) vs sm (5 px). */
 export const Sizes: Story = {
-  args: { tone: "accent" },
+  args: { tone: "brand" },
   render: () => (
     <div className="flex items-center gap-4">
-      <StatusDot tone="accent" />
-      <StatusDot tone="accent" size="sm" />
+      <StatusDot tone="brand" />
+      <StatusDot tone="brand" size="sm" />
     </div>
   ),
 };
 
 /** Bare dot — no aria-label; aria-hidden defaults to true. */
 export const Decorative: Story = {
-  args: { tone: "danger" },
+  args: { tone: "destructive" },
 };

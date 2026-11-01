@@ -52,14 +52,14 @@ describe("loopNodeCardRows", () => {
         key: "on_error",
         label: "on_error",
         value: "route → quarantine_path",
-        danger: true,
+        destructive: true,
       },
     ]);
     expect(
       loopNodeCardRows(
         raw({ id: "run", class: "action", kind: "run-agent", on_error: { allow_fail: true } })
       )
-    ).toEqual([{ key: "on_error", label: "on_error", value: "allow_fail", danger: true }]);
+    ).toEqual([{ key: "on_error", label: "on_error", value: "allow_fail", destructive: true }]);
   });
 
   it("Should summarize wait mode, expect.required, and expiry from declared params", () => {

@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@compozy/ui/icons";
 import { useState, type ComponentProps } from "react";
 
 import { Button, ConfirmDialog, DialogTrigger, Spinner } from "@compozy/ui";
@@ -74,7 +74,7 @@ export function TaskDeleteAction({
       onOpenChange={setOpen}
       open={open}
       title="Delete task?"
-      tone="danger"
+      tone="destructive"
     >
       {hideTrigger ? null : (
         <DialogTrigger

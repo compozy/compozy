@@ -55,12 +55,12 @@ function MarketplaceDetailLede({ data }: MarketplaceDetailLedeProps) {
           </div>
         ) : null}
         {description ? (
-          <p className="mt-2.5 max-w-prose text-small-body leading-relaxed text-muted">
+          <p className="mt-2.5 max-w-prose text-small-body leading-relaxed text-muted-foreground">
             {description}
           </p>
         ) : null}
         {blocked ? (
-          <p className="mt-2 text-form-hint text-danger">
+          <p className="mt-2 text-form-hint text-destructive">
             Blocked by extensions policy.
             <Link className="ml-1 underline underline-offset-3" to="/settings/extensions">
               Settings › Extensions

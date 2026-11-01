@@ -41,7 +41,7 @@ export function ExtensionsSettingsPage() {
           content: (
             <span>
               Sources{" "}
-              <span className="font-medium text-muted">
+              <span className="font-medium text-muted-foreground">
                 {enabledSources.length ? enabledSources.join(", ") : "none"}
               </span>
             </span>

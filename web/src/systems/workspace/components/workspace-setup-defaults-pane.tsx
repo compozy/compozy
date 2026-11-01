@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -43,7 +43,7 @@ function CollectionStateMessage<T>({
 }) {
   if (collection.state === "error") {
     return (
-      <p className="text-form-hint text-danger" data-testid={`${testId}-error`} role="alert">
+      <p className="text-form-hint text-destructive" data-testid={`${testId}-error`} role="alert">
         {error}: {collection.message}
       </p>
     );

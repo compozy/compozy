@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@compozy/ui/icons";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import { Button, ConfirmDialog, DialogTrigger } from "@compozy/ui";
@@ -75,7 +75,7 @@ export function AutomationDeleteAction({
       }}
       open={open}
       title="Delete automation?"
-      tone="danger"
+      tone="destructive"
     >
       {hideTrigger ? null : (
         <DialogTrigger

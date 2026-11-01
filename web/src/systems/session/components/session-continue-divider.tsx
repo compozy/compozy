@@ -1,4 +1,4 @@
-import { ArrowRightLeft, GitFork } from "lucide-react";
+import { ArrowRightLeft, GitFork } from "@compozy/ui/icons";
 
 import { Button, Empty, Separator } from "@compozy/ui";
 
@@ -44,7 +44,9 @@ export function SessionContinueDivider({ origin, onOpenSource }: SessionContinue
             {words}
           </Button>
         ) : (
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-muted">{words}</span>
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground">
+            {words}
+          </span>
         )
       }
       labelClassName="flex min-w-0 normal-case tracking-normal"

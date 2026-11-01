@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { GitFork } from "lucide-react";
+import { GitFork } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import type { LoopForkLink } from "../../types";
@@ -40,7 +40,7 @@ function LineageRow({ generation, lead, runId, testId }: LineageRowProps) {
       >
         {runId}
       </Link>
-      <span className="text-small-body text-muted">{`· round ${generation}`}</span>
+      <span className="text-small-body text-muted-foreground">{`· round ${generation}`}</span>
     </li>
   );
 }

@@ -1,5 +1,5 @@
 import { Button, Empty, toast } from "@compozy/ui";
-import { AlertCircle, FolderOpen, TerminalSquare } from "lucide-react";
+import { AlertCircle, FolderOpen, TerminalSquare } from "@compozy/ui/icons";
 
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {

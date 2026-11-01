@@ -114,7 +114,7 @@ export function SessionContextTurnsSkeleton() {
         {TURN_ROW_KEYS.map(key => (
           <li
             key={key}
-            className="grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1.75 text-form-label text-muted"
+            className="grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1.75 text-form-label text-muted-foreground"
           >
             <span className="font-mono text-mono-id">
               <SkeletonText className="w-12" />

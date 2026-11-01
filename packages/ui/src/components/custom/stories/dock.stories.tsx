@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronUpIcon, Database, SquareTerminal } from "lucide-react";
 
+import { ChevronUpIcon, Database, SquareTerminal } from "../../../icons";
 import { Button } from "../../button";
 import { Dock } from "../dock";
 import { KindIcon } from "../kind-icon";
@@ -34,7 +34,7 @@ export const Permission: Story = {
         </Dock.Head>
         <Dock.Pre>bun run db:migrate --name plans_v2</Dock.Pre>
         <Dock.Actions>
-          <span className="mr-auto inline-flex items-center gap-2 text-small-body text-muted">
+          <span className="mr-auto inline-flex items-center gap-2 text-small-body text-muted-foreground">
             <Database aria-hidden="true" className="size-3.75" />
             Writes to the local database
           </span>
@@ -132,7 +132,7 @@ export const StatusLines: Story = {
           <Dock.Eyebrow>Question</Dock.Eyebrow>
           <Dock.Title>Where should the marker stories live?</Dock.Title>
         </Dock.Head>
-        <Dock.Status tone="danger">Could not send the answer — try again.</Dock.Status>
+        <Dock.Status tone="destructive">Could not send the answer — try again.</Dock.Status>
       </Dock>
     </div>
   ),

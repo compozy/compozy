@@ -43,7 +43,7 @@ export function GatewaySettingsPage() {
             <span data-testid="gateway-local-only">This computer only</span>
           ) : (
             <span data-testid="gateway-reachable">
-              <span className="font-medium text-muted">
+              <span className="font-medium text-muted-foreground">
                 {view.page.status?.addresses.length ?? 0}
               </span>{" "}
               verified addresses
@@ -54,7 +54,9 @@ export function GatewaySettingsPage() {
           key: "devices",
           content: (
             <span>
-              <span className="font-medium text-muted">{view.page.activeDevices.length}</span>{" "}
+              <span className="font-medium text-muted-foreground">
+                {view.page.activeDevices.length}
+              </span>{" "}
               paired devices
             </span>
           ),

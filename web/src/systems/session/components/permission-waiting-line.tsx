@@ -28,7 +28,7 @@ export function PermissionWaitingLine({ permission, askedAt }: PermissionWaiting
         {lead.command ? (
           <>
             {" "}
-            <code className="font-mono text-muted">{lead.command}</code>
+            <code className="font-mono text-muted-foreground">{lead.command}</code>
           </>
         ) : null}
         {askedAt ? (

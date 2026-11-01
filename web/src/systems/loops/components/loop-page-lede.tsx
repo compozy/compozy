@@ -9,7 +9,7 @@ const LEDE_FRAME_CLASS = "flex flex-col gap-2 border-b border-line pt-4 pb-5";
 const LEDE_HEADING_CLASS = "text-detail-h1 font-medium tracking-detail-h1 text-fg-strong";
 const LEDE_META_CLASS =
   "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-small-body text-subtle";
-const LEDE_BODY_CLASS = "max-w-prose text-small-body text-muted";
+const LEDE_BODY_CLASS = "max-w-prose text-small-body text-muted-foreground";
 
 interface LoopPageLedeProps {
   name: string;
@@ -66,7 +66,7 @@ function LoopPageLedeHeading({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <h1 className={LEDE_HEADING_CLASS}>
-        {prefix ? <span className="text-muted">{prefix} </span> : null}
+        {prefix ? <span className="text-muted-foreground">{prefix} </span> : null}
         {name}
       </h1>
       {children}

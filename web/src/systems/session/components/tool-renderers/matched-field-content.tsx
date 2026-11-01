@@ -33,7 +33,7 @@ export function MatchedToolFieldContent({
     >
       <Eyebrow className="text-subtle">{FIELD_LABELS[field]}</Eyebrow>
       <DetailPayload
-        className={field === "error" ? "text-danger" : "text-subtle"}
+        className={field === "error" ? "text-destructive" : "text-subtle"}
         defaultExpanded
         downloadName={`${message.toolName ?? "tool"}-${field}.txt`}
         text={text}

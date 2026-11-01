@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// ResourcesResponse is a daemon API value.
+type ResourcesResponse struct {
+	Records []ResourceRecordPayload `json:"records"`
+}
+
 // RespondLoopRequest is a daemon API value.
 type RespondLoopRequest struct {
 	Generation int             `json:"generation"`
@@ -429,18 +434,4 @@ type RunUsage struct {
 	CostUSD       float64 `json:"cost_usd,omitzero"`
 	BudgetUsedPct float64 `json:"budget_used_pct,omitzero"`
 	Duration      string  `json:"duration,omitempty"`
-}
-
-// RunWorktreeExitActionRequest is a daemon API value.
-type RunWorktreeExitActionRequest struct {
-	DeliveryID    string             `json:"delivery_id,omitempty"`
-	ExpectedHead  string             `json:"expected_head,omitempty"`
-	IncludePaths  []string           `json:"include_paths,omitempty"`
-	ExpectedScope string             `json:"expected_scope,omitempty"`
-	Action        WorktreeExitAction `json:"action"`
-	Message       string             `json:"message,omitempty"`
-	Title         string             `json:"title,omitempty"`
-	Body          string             `json:"body,omitempty"`
-	Draft         bool               `json:"draft,omitzero"`
-	Base          string             `json:"base,omitempty"`
 }

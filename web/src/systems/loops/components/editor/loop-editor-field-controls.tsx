@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 import type { ChangeEvent } from "react";
 
 import {
@@ -287,7 +287,7 @@ export function LoopEditorNumberField({
       </div>
       {over ? (
         <p
-          className="flex items-center gap-1.5 text-form-hint text-danger"
+          className="flex items-center gap-1.5 text-form-hint text-destructive"
           data-testid={`loop-field-${field.key}-ceiling`}
         >
           <AlertTriangle aria-hidden="true" className="size-3" />

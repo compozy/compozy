@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ListFilter } from "lucide-react";
 import { useState } from "react";
 
+import { ListFilter } from "../../../icons";
 import { Button } from "../../button";
 import { ListingToolbar, type ListingViewMode } from "../listing-toolbar";
 

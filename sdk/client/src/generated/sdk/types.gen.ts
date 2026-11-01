@@ -6945,6 +6945,7 @@ export type SessionProviderOptionPayload = {
   harness?: string;
   home_policy?: string;
   name: string;
+  runtime_live_apply?: "next_step" | "next_turn";
   runtime_provider?: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
 };

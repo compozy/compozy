@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -350,6 +352,33 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	if got, want := request.ModeID, "bypassPermissions"; got != want {
 		t.Fatalf("set-mode mode id = %q, want %q", got, want)
 	}
+}
+
+func TestProviderNativePermissionRequestMarksShellExecution(t *testing.T) {
+	t.Parallel()
+	title := "Run gh pr checks 1 --watch"
+	permissionRequest := func(kind acpsdk.ToolKind) acpsdk.RequestPermissionRequest {
+		return acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{Title: &title, Kind: &kind}}
+	}
+
+	t.Run("Should mark an execute permission whatever its provider title", func(t *testing.T) {
+		t.Parallel()
+		request, handled, err := decodeProviderNativePermissionRequest(permissionRequest(acpsdk.ToolKindExecute))
+		if err != nil || !handled || !request.Execute {
+			t.Fatalf("decode = %+v, %v, %v, want a handled execute request", request, handled, err)
+		}
+		if clone := cloneToolExecutionRequest(request); !clone.Execute {
+			t.Fatalf("clone = %+v, want Execute preserved", clone)
+		}
+	})
+
+	t.Run("Should leave a file permission unmarked", func(t *testing.T) {
+		t.Parallel()
+		request, _, err := decodeProviderNativePermissionRequest(permissionRequest(acpsdk.ToolKindRead))
+		if err != nil || request.Execute {
+			t.Fatalf("decode = %+v, %v, want an unmarked read", request, err)
+		}
+	})
 }
 
 func TestStartWithToolGatewayPreservesPermissiveSessionMode(t *testing.T) {
@@ -2256,6 +2285,80 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		}
 		if _, ok := claudeBackgroundShellDenyHook("darwin")["shell"]; ok {
 			t.Fatal("POSIX hook must use the default shell")
+		}
+	})
+
+	t.Run("Should add the shell-wait guard only when the session can redirect", func(t *testing.T) {
+		t.Parallel()
+		if got := claudePreToolUseHooks(StartOpts{}); len(got) != 1 {
+			t.Fatalf("unguarded hooks = %#v, want only the background deny", got)
+		}
+		hooks := claudePreToolUseHooks(StartOpts{ShellWaitGuard: true})
+		if len(hooks) != 2 {
+			t.Fatalf("guarded hooks = %#v, want the background deny and the wait guard", hooks)
+		}
+		guard, ok := hooks[1].(map[string]any)
+		if !ok || !strings.Contains(guard["command"].(string), "__internal shell-wait-hook") {
+			t.Fatalf("guard hook = %#v, want the hidden compozy verb", hooks[1])
+		}
+		if meta := claudeCodeSessionMeta(StartOpts{
+			Command: claudeBridge, InputOnly: true, ShellWaitGuard: true,
+		}); strings.Contains(fmt.Sprint(meta), "shell-wait-hook") {
+			t.Fatalf("input-only meta = %#v, want no hooks", meta)
+		}
+	})
+
+	t.Run("Should give Windows a shell-wait hook that does not need Git Bash", func(t *testing.T) {
+		t.Parallel()
+		hook := claudeShellWaitDenyHook("windows")
+		command, _ := hook["command"].(string)
+		if hook["shell"] != "powershell" || !strings.Contains(command, "[Console]::In.ReadToEnd()") ||
+			!strings.Contains(command, "$env:COMPOZY_BIN") {
+			t.Fatalf("windows hook = %#v, want a PowerShell hook calling the daemon binary", hook)
+		}
+	})
+
+	t.Run("Should run the POSIX shell-wait hook cheaply and fail open", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("POSIX hook")
+		}
+		dir := t.TempDir()
+		marker := filepath.Join(dir, "called")
+		compozy := filepath.Join(dir, "compozy")
+		script := "#!/bin/sh\ncat > '" + marker + "'\nprintf 'decision'\n"
+		if err := os.WriteFile(compozy, []byte(script), 0o700); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		command, _ := claudeShellWaitDenyHook(runtime.GOOS)["command"].(string)
+		run := func(bin string, input string) string {
+			t.Helper()
+			cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c", command)
+			cmd.Env = []string{"COMPOZY_BIN=" + bin, "PATH=/usr/bin:/bin"}
+			cmd.Stdin = strings.NewReader(input)
+			output, err := cmd.Output()
+			if err != nil {
+				t.Fatalf("hook error = %v, want exit 0", err)
+			}
+			return string(output)
+		}
+
+		if output := run(compozy, `{"tool_input":{"command":"git status"}}`); output != "" {
+			t.Fatalf("output = %q, want silence", output)
+		}
+		if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("binary ran for a command with no wait words: %v", err)
+		}
+		input := `{"tool_input":{"command":"echo \"sleep\" 'x' \\n"}}`
+		if output := run(compozy, input); output != "decision" {
+			t.Fatalf("output = %q, want the binary's decision", output)
+		}
+		forwarded, err := os.ReadFile(marker)
+		if err != nil || string(forwarded) != input {
+			t.Fatalf("forwarded = %q, %v, want %q", forwarded, err, input)
+		}
+		if output := run(filepath.Join(dir, "missing"), `{"tool_input":{"command":"sleep 60"}}`); output != "" {
+			t.Fatalf("missing binary output = %q, want silence", output)
 		}
 	})
 

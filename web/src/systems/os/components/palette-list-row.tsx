@@ -12,11 +12,13 @@ export function PaletteListRow({ row }: { row: CmdPaletteViewRow }) {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="truncate text-small-body leading-none font-medium text-fg">{row.title}</div>
         {row.subtitle ? (
-          <div className="truncate text-eyebrow leading-snug text-muted">{row.subtitle}</div>
+          <div className="truncate text-eyebrow leading-snug text-muted-foreground">
+            {row.subtitle}
+          </div>
         ) : null}
       </div>
       {row.accessories?.map(accessory => (
-        <span key={accessory} className="shrink-0 text-small-body text-muted">
+        <span key={accessory} className="shrink-0 text-small-body text-muted-foreground">
           {accessory}
         </span>
       ))}

@@ -34,6 +34,7 @@ type runtimeBindingSnapshot struct {
 	startupManifest        acp.StartupManifest
 	nativeToolsUnavailable bool
 	runtimeRelease         *runtimeRelease
+	configUnverified       bool
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -71,6 +72,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		startupManifest:        acp.CloneStartupManifest(s.startupManifest),
 		nativeToolsUnavailable: s.nativeToolsUnavailable,
 		runtimeRelease:         s.runtimeRelease,
+		configUnverified:       s.runtimeConfigUnverified,
 	}
 }
 
@@ -90,6 +92,7 @@ func (s *Session) beginRuntimeTransition(
 	s.RuntimeStatus = status
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
 	s.RuntimeRecovery = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
@@ -146,6 +149,8 @@ func (s *Session) completeRuntimeTransitionLocked(
 	s.RuntimeStatus = RuntimeStatusReady
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
+	s.runtimeConfigUnverified = false
 	s.RuntimeRecovery = nil
 	if proc != nil && proc != previous {
 		s.RuntimeGeneration++
@@ -235,6 +240,8 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.RuntimeStatus = snapshot.status
 	s.RuntimeTransition = snapshot.transition
 	s.RuntimeFailure = strings.TrimSpace(failure)
+	s.runtimeFailureFromLiveApply = false
+	s.runtimeConfigUnverified = snapshot.configUnverified
 	s.RuntimeGeneration = snapshot.generation
 	s.RuntimeRecovery = store.CloneSessionRuntimeRecovery(snapshot.recovery)
 	s.ACPSessionID = snapshot.acpSessionID

@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertTriangleIcon, CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
-import { toast } from "sonner";
+import { toast } from "../sonner-toast";
 
+import { AlertTriangleIcon, CheckIcon, CopyIcon } from "../../icons";
 import type { CodeBlockThemeMode } from "../../lib/code-theme";
 import type { HighlightedCodeToken } from "../../lib/shiki-highlighter";
 import { cn } from "../../lib/utils";
@@ -213,7 +213,7 @@ function CodeBlock({
           copiedLabel={copiedLabel}
           copyFailedLabel={copyFailedLabel}
           className={cn(
-            "absolute text-subtle hover:text-fg data-[copied=true]:text-success data-[copy-state=failed]:text-danger data-[copy-state=failed]:hover:text-danger",
+            "absolute text-subtle hover:text-fg data-[copied=true]:text-success data-[copy-state=failed]:text-destructive data-[copy-state=failed]:hover:text-destructive",
             density === "compact" ? "top-1.5 right-1.5" : "top-2 right-2"
           )}
         />
@@ -323,11 +323,11 @@ function CopyIconButton({
       className={className}
     >
       {copyState === "copied" ? (
-        <CheckIcon className="size-3" />
+        <CheckIcon className="size-3" data-slot="copy-success-icon" />
       ) : copyState === "failed" ? (
-        <AlertTriangleIcon className="size-3" />
+        <AlertTriangleIcon className="size-3" data-slot="copy-failed-icon" />
       ) : (
-        <CopyIcon className="size-3" />
+        <CopyIcon className="size-3" data-slot="copy-idle-icon" />
       )}
     </Button>
   );

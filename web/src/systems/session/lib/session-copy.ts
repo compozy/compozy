@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 type SessionCopyKind = "Session ID" | "Session IDs" | "Title";
 

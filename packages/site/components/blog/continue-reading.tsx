@@ -17,11 +17,11 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
       <div className="mx-auto max-w-site-layout-width">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Eyebrow className="text-muted tracking-badge!">Continue reading</Eyebrow>
+            <Eyebrow className="text-muted-foreground tracking-badge!">Continue reading</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
             <span className="font-sans text-small-body text-subtle">Picked for this post</span>
           </div>
-          <Link href="/blog" className="text-small-body text-muted">
+          <Link href="/blog" className="text-small-body text-muted-foreground">
             All posts →
           </Link>
         </div>
@@ -43,11 +43,11 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
                 className="group rounded-xl border border-line bg-canvas p-5"
               >
                 <div className="flex items-center gap-2.5">
-                  <Eyebrow className="text-accent">{categoryLabel(post.category)}</Eyebrow>
+                  <Eyebrow className="text-brand">{categoryLabel(post.category)}</Eyebrow>
                   <BulletDivider />
                   <DateStamp date={post.date} format="compact" />
                 </div>
-                <h3 className="mt-4 font-sans text-lg font-medium leading-tight tracking-tight text-fg group-hover:text-accent">
+                <h3 className="mt-4 font-sans text-lg font-medium leading-tight tracking-tight text-fg group-hover:text-brand">
                   <Link href={post.permalink}>{post.title}</Link>
                 </h3>
                 <div className="mt-5 flex items-center justify-between">
@@ -58,7 +58,7 @@ export function ContinueReading({ posts }: ContinueReadingProps) {
                   <Link
                     href={post.permalink}
                     aria-label={`Read ${post.title}`}
-                    className="text-accent"
+                    className="text-brand"
                   >
                     <ArrowUpRight size={14} aria-hidden />
                   </Link>

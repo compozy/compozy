@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/compozy/compozy/internal/providerexec"
+	"github.com/compozy/compozy/internal/shellwait"
 )
 
 // claudeDaemonOwnedBackgroundTools are Claude Code tools whose completion wakes
@@ -41,20 +42,54 @@ const claudeBackgroundShellMatcher = "Bash|PowerShell"
 // background shells alone; the input is the PreToolUse JSON on stdin. Windows
 // gets a PowerShell hook so it does not depend on Git Bash.
 func claudeBackgroundShellDenyHook(goos string) map[string]any {
+	return claudeShellHook(
+		goos,
+		`grep -Eq '"run_in_background"[[:space:]]*:[[:space:]]*true' && `+
+			`printf '%s\n' '`+claudeBackgroundShellDenyOutput+`'; exit 0`,
+		`$hookInput = [Console]::In.ReadToEnd(); `+
+			`if ($hookInput -match '"run_in_background"\s*:\s*true') { `+
+			`Write-Output '`+claudeBackgroundShellDenyOutput+`' }; exit 0`,
+	)
+}
+
+// claudeShellHook selects the hook body for the platform shell.
+func claudeShellHook(goos string, posixCommand string, powerShellCommand string) map[string]any {
 	if goos == "windows" {
-		return map[string]any{
-			"type":  claudeHookTypeCommand,
-			"shell": "powershell",
-			"command": `$hookInput = [Console]::In.ReadToEnd(); ` +
-				`if ($hookInput -match '"run_in_background"\s*:\s*true') { ` +
-				`Write-Output '` + claudeBackgroundShellDenyOutput + `' }; exit 0`,
-		}
+		return map[string]any{"type": claudeHookTypeCommand, "shell": "powershell", "command": powerShellCommand}
 	}
-	return map[string]any{
-		"type": claudeHookTypeCommand,
-		"command": `grep -Eq '"run_in_background"[[:space:]]*:[[:space:]]*true' && ` +
-			`printf '%s\n' '` + claudeBackgroundShellDenyOutput + `'; exit 0`,
+	return map[string]any{"type": claudeHookTypeCommand, "command": posixCommand}
+}
+
+// claudeShellWaitHookTimeoutSeconds bounds the guard; a hook that times out
+// lets the command run.
+const claudeShellWaitHookTimeoutSeconds = 5
+
+// claudeShellWaitDenyHook redirects a foreground wait to a daemon-owned monitor.
+// A shell-builtin prefilter keeps ordinary commands free of a process spawn;
+// only input that mentions a wait reaches the compozy binary, which parses the
+// command. A missing binary or any other failure lets the command run.
+func claudeShellWaitDenyHook(goos string) map[string]any {
+	verb := "__internal " + shellwait.HookCommandName
+	hook := claudeShellHook(
+		goos,
+		`input=$(cat); case "$input" in *sleep*|*Sleep*|*watch*|*tail*) `+
+			`printf '%s' "$input" | "${COMPOZY_BIN:-compozy}" `+verb+` 2>/dev/null;; esac; exit 0`,
+		`$hookInput = [Console]::In.ReadToEnd(); `+
+			`if ($hookInput -match 'sleep|watch|tail' -and $env:COMPOZY_BIN) { `+
+			`$hookInput | & $env:COMPOZY_BIN `+verb+` }; exit 0`,
+	)
+	hook["timeout"] = claudeShellWaitHookTimeoutSeconds
+	return hook
+}
+
+// claudePreToolUseHooks always refuses background shells. The wait guard joins
+// only when the session can actually call the tools its redirect names.
+func claudePreToolUseHooks(opts StartOpts) []any {
+	hooks := []any{claudeBackgroundShellDenyHook(runtime.GOOS)}
+	if opts.ShellWaitGuard {
+		hooks = append(hooks, claudeShellWaitDenyHook(runtime.GOOS))
 	}
+	return hooks
 }
 
 // claudeCodeSessionMeta returns the claude-agent-acp `_meta.claudeCode` for
@@ -80,7 +115,7 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 					"hooks": map[string]any{
 						"PreToolUse": []any{map[string]any{
 							"matcher": claudeBackgroundShellMatcher,
-							"hooks":   []any{claudeBackgroundShellDenyHook(runtime.GOOS)},
+							"hooks":   claudePreToolUseHooks(opts),
 						}},
 					},
 				},

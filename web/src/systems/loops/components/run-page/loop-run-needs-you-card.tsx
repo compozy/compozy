@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Bell, Check, PenLine, ShieldAlert, X } from "lucide-react";
+import { Bell, Check, PenLine, ShieldAlert, X } from "@compozy/ui/icons";
 
 import { Button, cn, Eyebrow, formatRelativeTime, StateGlyph } from "@compozy/ui";
 
@@ -150,7 +150,7 @@ export function LoopRunNeedsYouCard({
                   {node.label} was set aside
                 </div>
                 <p
-                  className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted"
+                  className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted-foreground"
                   data-testid={`loop-run-needs-quarantine-detail-${rowKey}`}
                 >
                   {quarantineDetail(attempts, runEnded)}
@@ -229,7 +229,7 @@ function LoopRunApprovalDecision({
         <div className="text-ws-name font-medium text-fg-strong">
           {request?.title ?? "Approve to continue this run?"}
         </div>
-        <p className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted">
+        <p className="mt-1 max-w-[62ch] text-small-body leading-relaxed text-muted-foreground">
           {request?.prompt ??
             "This run is waiting for your approval. Approving lets it continue; rejecting ends the run."}
         </p>

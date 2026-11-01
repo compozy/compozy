@@ -44,7 +44,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
       forceMount
       aria-busy={pending === true ? true : undefined}
       aria-describedby={command.available ? undefined : reasonId}
-      className={cn(paletteRowClass, !command.available && "text-muted")}
+      className={cn(paletteRowClass, !command.available && "text-muted-foreground")}
       data-palette-row={command.id}
       data-testid={`os-palette-command-${command.id}`}
       key={command.id}
@@ -55,7 +55,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
         aria-hidden="true"
         className={cn(
           "flex size-4 shrink-0 items-center justify-center",
-          command.available ? "text-muted" : "text-faint"
+          command.available ? "text-muted-foreground" : "text-faint"
         )}
       >
         {emoji ? (
@@ -71,7 +71,7 @@ export function OsPaletteCommandRow({ command, pending, onSelect }: OsPaletteCom
       </span>
       <span className="min-w-0 truncate leading-none">
         {command.title}
-        {command.alias ? <span className="text-muted"> ({command.alias})</span> : null}
+        {command.alias ? <span className="text-muted-foreground"> ({command.alias})</span> : null}
       </span>
       {extension ? (
         <Pill className="shrink-0" size="xs" tone="neutral">

@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@compozy/ui/icons";
 import { createElement } from "react";
 
 import { fanOutSummary, nodeClassLabel, routeSummary } from "../../lib/loop-graph";
@@ -67,7 +67,7 @@ function DagNode({ node }: { node: LoopGraphNode }) {
         {classIcon
           ? createElement(classIcon, {
               "aria-hidden": true,
-              className: "size-3.5 shrink-0 text-muted",
+              className: "size-3.5 shrink-0 text-muted-foreground",
             })
           : null}
         <span

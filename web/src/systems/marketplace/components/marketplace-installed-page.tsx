@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "lucide-react";
+import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "@compozy/ui/icons";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   Button,
@@ -9,6 +8,7 @@ import {
   ListingPage,
   Spinner,
   StatusDot,
+  toast,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -325,7 +325,7 @@ function MarketplaceUpdatesLine({
 
   return (
     <div
-      className="-mx-1 flex min-h-8 items-center gap-2 px-1 text-eyebrow text-muted"
+      className="-mx-1 flex min-h-8 items-center gap-2 px-1 text-eyebrow text-muted-foreground"
       data-testid="marketplace-updates-line"
     >
       <StatusDot aria-hidden="true" size="sm" tone="faint" />

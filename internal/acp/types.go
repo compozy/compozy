@@ -67,6 +67,17 @@ const (
 	RuntimeApplicationProviderManaged RuntimeApplicationStrategy = "provider_managed"
 )
 
+// RuntimeLiveApplication identifies when a provider honors a session_config change sent
+// while its process is live.
+type RuntimeLiveApplication string
+
+const (
+	// RuntimeLiveApplyNextStep means the running turn uses the change from the agent's next model step.
+	RuntimeLiveApplyNextStep RuntimeLiveApplication = "next_step"
+	// RuntimeLiveApplyNextTurn means the provider stores the change and honors it from its next turn.
+	RuntimeLiveApplyNextTurn RuntimeLiveApplication = "next_turn"
+)
+
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
 	AgentName            string
@@ -104,6 +115,10 @@ type StartOpts struct {
 	// skills, hooks, and instruction files; other providers ignore it. Tool and
 	// hosted-MCP denial come from the verdict-only runtime mode, not this flag.
 	InputOnly bool
+	// ShellWaitGuard marks a session that can call compozy__terminal_exec and
+	// compozy__monitor_create, so a provider hook may refuse a foreground shell
+	// wait and redirect it. It stays false when policy withholds either tool.
+	ShellWaitGuard bool
 
 	launchIdentity *preparedLaunchIdentity
 }

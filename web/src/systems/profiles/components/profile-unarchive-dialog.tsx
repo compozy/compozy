@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArchiveRestore, Clock } from "lucide-react";
+import { ArchiveRestore, Clock } from "@compozy/ui/icons";
 
 import { ConfirmDialog, Switch } from "@compozy/ui";
 
@@ -90,7 +90,7 @@ function ReactivationList({
               />
             </div>
             {rowError ? (
-              <p className="mt-1 text-eyebrow text-danger" role="alert">
+              <p className="mt-1 text-eyebrow text-destructive" role="alert">
                 {rowError}
               </p>
             ) : null}

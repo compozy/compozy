@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Search, X } from "lucide-react";
+import { Plus, RefreshCw, Search, X } from "@compozy/ui/icons";
 import type { ComponentProps, KeyboardEventHandler, ReactNode, RefObject } from "react";
 
 import { cn } from "@compozy/ui";

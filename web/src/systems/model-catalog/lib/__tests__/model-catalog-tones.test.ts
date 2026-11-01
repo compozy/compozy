@@ -12,7 +12,7 @@ describe("model-catalog tones", () => {
   it.each([
     ["available_live", "success", "live"],
     ["available_stale", "warning", "stale"],
-    ["unavailable_live", "danger", "unavailable"],
+    ["unavailable_live", "destructive", "unavailable"],
     ["unavailable_stale", "warning", "stale · unavailable"],
     ["unknown", "neutral", "unknown"],
   ] as const)("Should map availability %s to %s and %s", (state, tone, label) => {
@@ -24,7 +24,7 @@ describe("model-catalog tones", () => {
     ["idle", "neutral"],
     ["refreshing", "info"],
     ["succeeded", "success"],
-    ["failed", "danger"],
+    ["failed", "destructive"],
     ["new-state", "neutral"],
   ] as const)("Should map refresh state %s to %s", (state, tone) => {
     expect(modelRefreshStateTone(state)).toBe(tone);
@@ -32,7 +32,7 @@ describe("model-catalog tones", () => {
 
   it.each([
     ["healthy", "success"],
-    ["unhealthy", "danger"],
+    ["unhealthy", "destructive"],
     ["unknown", "neutral"],
     [undefined, "neutral"],
   ] as const)("Should map provider health %s to %s", (health, tone) => {
@@ -41,7 +41,7 @@ describe("model-catalog tones", () => {
 
   it.each([
     ["active", "success"],
-    ["error", "danger"],
+    ["error", "destructive"],
     ["registered", "info"],
     ["enabled", "warning"],
     ["unknown", "neutral"],

@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -67,7 +67,9 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
             ready={ready}
             tone={state.tone}
           />
-          {state.hint ? <p className="text-small-body text-muted">{state.hint}</p> : null}
+          {state.hint ? (
+            <p className="text-small-body text-muted-foreground">{state.hint}</p>
+          ) : null}
         </div>
         <MetadataList>
           <MetadataListRow label="Sign-in">{providerAuthSummary(provider)}</MetadataListRow>
@@ -371,7 +373,7 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
 
   return (
     <div className="flex flex-col gap-2.5" data-testid="inspect-catalog">
-      {queryError ? <p className="text-form-hint text-danger">{queryError}</p> : null}
+      {queryError ? <p className="text-form-hint text-destructive">{queryError}</p> : null}
       {sources.length === 0 && !queryError ? (
         <Empty
           data-testid="inspect-catalog-empty"
@@ -387,7 +389,7 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
         </ul>
       )}
       {refreshError ? (
-        <p className="text-form-hint text-danger" data-testid="inspect-catalog-refresh-error">
+        <p className="text-form-hint text-destructive" data-testid="inspect-catalog-refresh-error">
           {refreshError}
         </p>
       ) : null}
@@ -440,7 +442,9 @@ function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
           </Pill>
           {source.stale ? <Pill tone="warning">Out of date</Pill> : null}
         </span>
-        <span className="text-form-hint text-muted tabular-nums">{source.row_count} models</span>
+        <span className="text-form-hint text-muted-foreground tabular-nums">
+          {source.row_count} models
+        </span>
       </div>
     </li>
   );

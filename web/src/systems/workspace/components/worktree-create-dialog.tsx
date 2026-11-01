@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, FolderGit2 } from "lucide-react";
+import { ArrowRight, ChevronDown, FolderGit2 } from "@compozy/ui/icons";
 import { useState, type ComponentProps } from "react";
 
 import {
@@ -156,7 +156,7 @@ export function WorktreeCreateDialog({
 
             {model.cancelError ? (
               <p
-                className="mt-2 text-form-hint text-danger"
+                className="mt-2 text-form-hint text-destructive"
                 data-testid="worktree-create-cancel-error"
               >
                 {model.cancelError}
@@ -164,7 +164,10 @@ export function WorktreeCreateDialog({
             ) : null}
 
             {model.materializationError ? (
-              <p className="mt-2 text-form-hint text-danger" data-testid="worktree-create-error">
+              <p
+                className="mt-2 text-form-hint text-destructive"
+                data-testid="worktree-create-error"
+              >
                 {model.materializationError}
               </p>
             ) : null}

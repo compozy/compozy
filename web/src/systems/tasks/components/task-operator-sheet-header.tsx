@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { KindIcon, SheetDescription, SheetHeader, SheetTitle } from "@compozy/ui";

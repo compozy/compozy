@@ -4,6 +4,20 @@ package client
 
 import "time"
 
+// RunWorktreeExitActionRequest is a daemon API value.
+type RunWorktreeExitActionRequest struct {
+	DeliveryID    string             `json:"delivery_id,omitempty"`
+	ExpectedHead  string             `json:"expected_head,omitempty"`
+	IncludePaths  []string           `json:"include_paths,omitempty"`
+	ExpectedScope string             `json:"expected_scope,omitempty"`
+	Action        WorktreeExitAction `json:"action"`
+	Message       string             `json:"message,omitempty"`
+	Title         string             `json:"title,omitempty"`
+	Body          string             `json:"body,omitempty"`
+	Draft         bool               `json:"draft,omitzero"`
+	Base          string             `json:"base,omitempty"`
+}
+
 // RunsResponse is a daemon API value.
 type RunsResponse struct {
 	Page *CursorPagePayload `json:"page,omitempty"`
@@ -434,12 +448,3 @@ type SessionCommandsChangedPayload struct {
 	SessionID string `json:"session_id"`
 	Revision  string `json:"revision"`
 }
-
-// SessionCommandsResponse is a daemon API value.
-type SessionCommandsResponse struct {
-	Commands []SessionCommandPayload `json:"commands"`
-	Revision string                  `json:"revision"`
-}
-
-// SessionCompactRequest is a daemon API value.
-type SessionCompactRequest struct{}

@@ -1,5 +1,5 @@
 import { useDeferredValue, ViewTransition, type ReactNode } from "react";
-import { Activity, AlertCircle } from "lucide-react";
+import { Activity, AlertCircle } from "@compozy/ui/icons";
 
 import { useNavigate } from "@tanstack/react-router";
 

@@ -31,7 +31,7 @@ function GroupSignal({ group }: { group: SessionListGroupSpec }) {
   if (group.needsYou > 0) {
     return (
       <StatusDot
-        tone="accent"
+        tone="brand"
         size="sm"
         label={`${group.needsYou} need${group.needsYou === 1 ? "s" : ""} you`}
         data-slot="session-group-needs-you"
@@ -53,7 +53,15 @@ function GroupSignal({ group }: { group: SessionListGroupSpec }) {
 
 /** A group's identity: the project badge, or the profile owner tag. */
 export function SessionListGroupIdentity({ group }: { group: SessionListGroupSpec }) {
-  if (group.badge) return <WorkspaceBadge identity={group.badge} variant="chrome" />;
+  if (group.badge) {
+    return (
+      <WorkspaceBadge
+        identity={group.badge}
+        variant="chrome"
+        className={cn("font-medium", group.badge.kind !== "unknown" && "text-fg")}
+      />
+    );
+  }
   if (group.owner) return <ProfileOwnerTag owner={group.owner} />;
   return null;
 }
@@ -113,7 +121,7 @@ export function SessionListGroupHeader({
             <span
               aria-hidden="true"
               className={cn(
-                "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-accent",
+                "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-brand",
                 arrange.dropEdge === "before" ? "-top-px" : "-bottom-px"
               )}
             />
@@ -129,6 +137,7 @@ export function SessionListGroupHeader({
           <SessionListCreateMenu
             variant="quiet"
             size="icon-xs"
+            className="text-subtle"
             label={{ session: `New session in ${name}`, menu: `New session or folder in ${name}` }}
             onNewSession={() =>
               onNewSession({
@@ -150,7 +159,7 @@ export function SessionListGroupHeader({
         destination={
           folder.project || folder.profile ? (
             <p
-              className="flex flex-wrap items-baseline gap-x-1 text-small-body text-muted"
+              className="flex flex-wrap items-baseline gap-x-1 text-small-body text-muted-foreground"
               data-testid={`${testId}-folder-destination`}
             >
               In

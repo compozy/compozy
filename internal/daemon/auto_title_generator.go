@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -128,9 +129,9 @@ func (g *forkedAutoTitleGenerator) Generate(
 	if err != nil {
 		return "", err
 	}
-	title = parseAutoTitleOutput(output)
+	title = session.CleanAutomaticSessionTitle(output)
 	if title == "" {
-		return "", errors.New("daemon: automatic title output is empty")
+		return "", errors.New("daemon: automatic title output has no usable title")
 	}
 	return title, nil
 }
@@ -257,6 +258,10 @@ Do not modify files, run commands, or include markdown or commentary.
 
 func collectAutoTitleOutput(ctx context.Context, events <-chan acp.AgentEvent) (string, error) {
 	var output strings.Builder
+	// Providers can send several messages in one turn. A separate message starts
+	// a new line so its text cannot glue onto the title.
+	separate := false
+	messageID := ""
 	for {
 		select {
 		case <-ctx.Done():
@@ -267,10 +272,17 @@ func collectAutoTitleOutput(ctx context.Context, events <-chan acp.AgentEvent) (
 			}
 			switch event.Type {
 			case acp.EventTypeAgentMessage:
+				nextID := autoTitleMessageIdentity(event.Raw)
+				if separate || nextID != messageID {
+					event.Text = "\n" + event.Text
+				}
+				separate, messageID = false, nextID
 				if output.Len()+len(event.Text) > autoTitleMaxOutputBytes {
 					return "", errors.New("daemon: automatic title output exceeds byte limit")
 				}
 				output.WriteString(event.Text)
+			case acp.EventTypeThought, acp.EventTypeToolCall, acp.EventTypeToolResult:
+				separate = output.Len() > 0
 			case acp.EventTypeError:
 				agentErr := fmt.Errorf(
 					"daemon: automatic title agent error: %s", strings.TrimSpace(event.Error),
@@ -286,14 +298,13 @@ func collectAutoTitleOutput(ctx context.Context, events <-chan acp.AgentEvent) (
 	}
 }
 
-func parseAutoTitleOutput(output string) string {
-	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
-		candidate := strings.TrimSpace(line)
-		candidate = strings.TrimPrefix(candidate, "Title:")
-		candidate = strings.Trim(strings.TrimSpace(candidate), "`\"' ")
-		if candidate != "" {
-			return candidate
-		}
+// autoTitleMessageIdentity reads the optional ACP message id of a text chunk.
+func autoTitleMessageIdentity(raw json.RawMessage) string {
+	var chunk struct {
+		MessageID string `json:"messageId"`
 	}
-	return ""
+	if len(raw) == 0 || json.Unmarshal(raw, &chunk) != nil {
+		return ""
+	}
+	return chunk.MessageID
 }

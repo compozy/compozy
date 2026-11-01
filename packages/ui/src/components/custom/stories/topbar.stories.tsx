@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { LayoutDashboard, ListChecks } from "lucide-react";
 
+import { LayoutDashboard, ListChecks } from "../../../icons";
 import { Button } from "../../button";
 import { ListingToolbar } from "../listing-toolbar";
 import { RouteNav } from "../route-nav";
@@ -53,7 +53,7 @@ export const LeadingContext: Story = {
   render: () => (
     <TopbarSlotProvider>
       <Topbar
-        leading={<span className="text-body text-muted">checkout-api</span>}
+        leading={<span className="text-body text-muted-foreground">checkout-api</span>}
         glyph={<LayoutDashboard />}
         title="Dashboard"
       />

@@ -27,7 +27,7 @@ export function MarketplaceCatalogSection() {
               {extensionEntries.length}
             </span>
           </h2>
-          <p className="mt-3 text-small-body leading-relaxed text-muted">
+          <p className="mt-3 text-small-body leading-relaxed text-muted-foreground">
             Packages that add MCP servers, skills, loops, agents, and Host API actions to the
             runtime. Every artifact ships with a SHA-256 digest and a provenance tier, and a package
             that needs configuration declares its inputs up front.
@@ -36,7 +36,7 @@ export function MarketplaceCatalogSection() {
 
         <div>
           <Eyebrow className="text-subtle">Plugin marketplaces</Eyebrow>
-          <p className="mt-2 text-small-body leading-relaxed text-muted">
+          <p className="mt-2 text-small-body leading-relaxed text-muted-foreground">
             Marketplaces from other agent clients that a daemon can enable as catalog sources. This
             build ships {marketplacePresets.length} presets; their plugins list in the runtime, not
             here.
@@ -45,7 +45,7 @@ export function MarketplaceCatalogSection() {
             {marketplacePresets.map(preset => (
               <li
                 key={preset.name}
-                className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-small-body text-muted"
+                className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-small-body text-muted-foreground"
               >
                 <code className="font-mono text-fg">{preset.name}</code>
                 <Pill size="xs" form="hollow">

@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
+import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {
@@ -30,6 +30,7 @@ export function useSessionWindowController(windowId: string) {
     liveTailEnabled: liveTailEnabled && !deletedByOperator && !deletionPending,
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
+  const archivedWhileOpen = useSessionArchivedWhileOpen(sessionId, resolution);
   const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
@@ -38,15 +39,17 @@ export function useSessionWindowController(windowId: string) {
     sessionId,
     presenceEnabled && !deletionPending && sessionPresenceAllowed(resolution, deletedLocally)
   );
-  // A document's project lens cannot remove a valid shared window. Only a
-  // confirmed missing session, or one this client deleted, retires it; scope mismatches
-  // render a local notice.
-  useRetireMissingSessionWindow(
+  // A document's project lens cannot remove a valid shared window. Only a confirmed
+  // missing session, one this client deleted, or one archived while open retires it;
+  // scope mismatches render a local notice.
+  useRetireSessionWindow(
     windowId,
-    sessionId !== null && !deletionPending && deletedLocally,
+    sessionId,
+    sessionId !== null && !deletionPending && (deletedLocally || archivedWhileOpen),
     // The list's delete already retired this window; if that retarget was refused, retire it
-    // again here without announcing an operator-deleted session as missing.
-    !deletedByOperator
+    // again here without announcing an operator-deleted session as missing. An archived
+    // session is not missing either.
+    !deletedByOperator && !archivedWhileOpen
   );
 
   return {
@@ -79,11 +82,35 @@ function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLoca
   return !resolution.crossesWorkspace && resolution.foreign.status !== "loading";
 }
 
-function useRetireMissingSessionWindow(windowId: string, retire: boolean, announce: boolean) {
+/**
+ * True once the session this window showed unarchived turns archived, from any surface: the
+ * catalog stream rereads the detail for a CLI or native-tool archive too. Only the transition
+ * counts, so an archived session opened on purpose stays. A read in flight proves nothing: the
+ * cache of a session archived earlier still says unarchived until its refetch lands.
+ */
+function useSessionArchivedWhileOpen(
+  sessionId: string | null,
+  { shownSession, isFetching }: Pick<SessionWindowResolution, "shownSession" | "isFetching">
+): boolean {
+  const [seenUnarchivedId, setSeenUnarchivedId] = useState<string | null>(null);
+  const shown = shownSession?.id === sessionId ? shownSession : undefined;
+  const seenUnarchived = shown?.archived_at === null && !isFetching;
+  const next = seenUnarchived || seenUnarchivedId === sessionId ? sessionId : null;
+  if (next !== seenUnarchivedId) setSeenUnarchivedId(next);
+  return next !== null && shown !== undefined && shown.archived_at !== null;
+}
+
+function useRetireSessionWindow(
+  windowId: string,
+  sessionId: string | null,
+  retire: boolean,
+  announce: boolean
+) {
   const { coordinator } = useOsShell();
   useEffect(() => {
-    if (!retire) return;
+    if (!retire || sessionId === null) return;
     if (announce) toast.error("Session not found");
-    void coordinator.userRetireSession(windowId);
-  }, [announce, coordinator, retire, windowId]);
+    // `sessionId` trails the route by a render: the window may already hold the next session.
+    void coordinator.userRetireSession(windowId, sessionId);
+  }, [announce, coordinator, retire, sessionId, windowId]);
 }

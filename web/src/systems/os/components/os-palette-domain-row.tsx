@@ -19,7 +19,7 @@ export function OsPaletteDomainRow({ row }: { row: OsPaletteDomainRow }) {
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="truncate text-small-body leading-none font-medium text-fg">{row.label}</div>
         {row.detail || row.workspaceLabel ? (
-          <div className="truncate text-eyebrow leading-snug text-muted">
+          <div className="truncate text-eyebrow leading-snug text-muted-foreground">
             {[row.detail, row.workspaceLabel].filter(Boolean).join(" · ")}
           </div>
         ) : null}

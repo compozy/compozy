@@ -110,7 +110,7 @@ describe("settingsRestartPresentation", () => {
       state: { operationId: "op_failed", status: "failed", failureReason: "helper spawn failed" },
       expected: {
         phase: "failed",
-        tone: "danger",
+        tone: "destructive",
         title: "Restart failed",
         role: "alert",
         dismissLabel: "Dismiss",

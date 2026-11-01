@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Bell, Check, CircleAlert } from "lucide-react";
+import { Bell, Check, CircleAlert } from "@compozy/ui/icons";
 
 import { Button, cn, Empty, Eyebrow, Icon, SkeletonRegion } from "@compozy/ui";
 
@@ -164,7 +164,7 @@ function BellNotices({
   return (
     <>
       {error ? (
-        <p role="alert" className="px-2 py-2 text-small-body text-danger">
+        <p role="alert" className="px-2 py-2 text-small-body text-destructive">
           {error}
         </p>
       ) : null}

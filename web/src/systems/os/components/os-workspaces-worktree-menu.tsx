@@ -4,7 +4,7 @@ import {
   type WorktreeRemovalBatch,
 } from "@/systems/workspace";
 import { useState, type KeyboardEvent } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 
@@ -99,7 +99,7 @@ export function OsWorkspacesWorktreeMenu({
         tabIndex={focusedRowKey === WORKSPACES_MENU_CREATE_KEY ? 0 : -1}
         className={cn(
           "mt-2 inline-flex h-button-sm items-center gap-1.5 rounded-md border border-dashed border-line-strong px-3",
-          "text-form-label font-medium whitespace-nowrap text-muted",
+          "text-form-label font-medium whitespace-nowrap text-muted-foreground",
           "transition-colors duration-base ease-out",
           "hover:bg-surface-2 hover:text-fg-strong",
           "focus-visible:bg-surface-2 focus-visible:text-fg-strong focus-visible:outline-none",
@@ -314,7 +314,7 @@ function WorktreeCreationFooter({
             <Plus aria-hidden="true" className="size-3.5 justify-self-center text-subtle" />
             <b
               className={cn(
-                "truncate text-small-body font-normal text-muted",
+                "truncate text-small-body font-normal text-muted-foreground",
                 "group-hover/wsov-foot:text-fg-strong",
                 focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "text-fg-strong"
               )}

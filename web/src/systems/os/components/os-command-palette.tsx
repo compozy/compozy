@@ -235,7 +235,7 @@ export function PaletteApprovalDialog({
       footNote={`Profile: ${approval.profile}`}
       note={model.loading ? <ApprovalNoteSkeleton /> : model.message}
       error={model.error}
-      tone={destructive && model.canDecide ? "danger" : "neutral"}
+      tone={destructive && model.canDecide ? "destructive" : "neutral"}
       confirmLabel="Approve"
       confirmButtonProps={{ disabled: !model.canDecide }}
       cancelLabel={model.canDecide ? "Deny" : "Close"}

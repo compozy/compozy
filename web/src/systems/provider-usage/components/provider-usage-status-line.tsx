@@ -46,7 +46,9 @@ export function ProviderUsageStatusLine({
         {dot && status.tone ? (
           <StatusDot tone={status.tone} variant={status.dotVariant} size="sm" />
         ) : null}
-        <span className="min-w-0 flex-1 text-meta text-pretty text-muted">{status.text}</span>
+        <span className="min-w-0 flex-1 text-meta text-pretty text-muted-foreground">
+          {status.text}
+        </span>
         {action ? (
           <Button
             variant="outline"

@@ -6,7 +6,7 @@ import {
   UploadIcon,
   WrenchIcon,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import {
   DropdownMenuContent,

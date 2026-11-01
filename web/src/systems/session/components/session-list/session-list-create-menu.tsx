@@ -1,4 +1,4 @@
-import { FolderPlus, MessageSquarePlus, Plus } from "lucide-react";
+import { FolderPlus, MessageSquarePlus, Plus } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Icon,
+  cn,
 } from "@compozy/ui";
 
 export interface SessionListCreateMenuProps {
@@ -19,6 +20,7 @@ export interface SessionListCreateMenuProps {
   label?: { session: string; menu: string };
   variant?: "secondary" | "quiet";
   size?: "icon-sm" | "icon-xs";
+  className?: string;
   /** `<id>-new-session` / `<id>-new` / `<id>-new-folder`. */
   testId: string;
 }
@@ -38,6 +40,7 @@ export function SessionListCreateMenu({
   label = DEFAULT_LABEL,
   variant = "secondary",
   size = "icon-sm",
+  className,
   testId,
 }: SessionListCreateMenuProps) {
   if (!onNewFolder && !newFolderUnavailable) {
@@ -46,7 +49,7 @@ export function SessionListCreateMenu({
         type="button"
         variant={variant}
         size={size}
-        className="shrink-0"
+        className={cn("shrink-0", className)}
         aria-label={label.session}
         data-testid={`${testId}-new-session`}
         onClick={onNewSession}
@@ -60,7 +63,14 @@ export function SessionListCreateMenu({
       <DropdownMenuTrigger
         aria-label={label.menu}
         data-testid={`${testId}-new`}
-        render={<Button type="button" variant={variant} size={size} className="shrink-0" />}
+        render={
+          <Button
+            type="button"
+            variant={variant}
+            size={size}
+            className={cn("shrink-0", className)}
+          />
+        }
       >
         <Icon as={Plus} size="sm" />
       </DropdownMenuTrigger>

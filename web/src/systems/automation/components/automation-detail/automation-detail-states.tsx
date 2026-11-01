@@ -1,4 +1,4 @@
-import { AlertCircle, FolderLock, Search } from "lucide-react";
+import { AlertCircle, FolderLock, Search } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { Button, Empty, PAGE_CONTENT_GUTTER, cn } from "@compozy/ui";

@@ -14,7 +14,7 @@ export function RoleEffectiveHint({ effective, emptyLabel }: RoleEffectiveHintPr
   }
   return (
     <span className="mt-0.5 block text-form-hint text-subtle">
-      Effective <span className="font-mono text-muted">{effective}</span>
+      Effective <span className="font-mono text-muted-foreground">{effective}</span>
     </span>
   );
 }

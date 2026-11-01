@@ -1,4 +1,4 @@
-import { FilesIcon } from "lucide-react";
+import { FilesIcon } from "@compozy/ui/icons";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow, MonoId } from "@compozy/ui";
 
@@ -27,7 +27,7 @@ export function WorktreeScopeBlock({ scope }: WorktreeScopeBlockProps) {
       data-truncated={scope.untracked_truncated ? "" : undefined}
     >
       <header
-        className="flex min-h-7.5 items-center gap-2 border-b border-line-soft px-3 text-small-body font-medium text-fg [&_svg]:size-3.5 [&_svg]:text-muted"
+        className="flex min-h-7.5 items-center gap-2 border-b border-line-soft px-3 text-small-body font-medium text-fg [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
         data-slot="worktree-scope-head"
       >
         <FilesIcon aria-hidden="true" />

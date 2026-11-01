@@ -24,6 +24,9 @@ type ToolExecutionRequest struct {
 	ToolID   string
 	ReadOnly bool
 	Input    json.RawMessage
+	// Execute marks a permission request for a shell command, whose title
+	// differs per provider and may never read Bash.
+	Execute bool
 }
 
 // ToolExecutionGateway authoritatively intercepts provider-native tool calls
@@ -64,6 +67,7 @@ func cloneToolExecutionRequest(req ToolExecutionRequest) ToolExecutionRequest {
 		ToolID:   strings.TrimSpace(req.ToolID),
 		ReadOnly: req.ReadOnly,
 		Input:    CloneRawMessage(req.Input),
+		Execute:  req.Execute,
 	}
 }
 
@@ -120,6 +124,7 @@ func decodeProviderNativePermissionRequest(
 		ToolID:   toolID,
 		ReadOnly: providerNativePermissionReadOnly(request),
 		Input:    input,
+		Execute:  request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindExecute,
 	}, true, nil
 }
 

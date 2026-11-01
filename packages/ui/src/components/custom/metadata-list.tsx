@@ -79,7 +79,7 @@ function MetadataListValue({ className, ...props }: MetadataListValueProps) {
   return (
     <dd
       data-slot="metadata-list-value"
-      className={cn("min-w-0 text-small-body text-muted", className)}
+      className={cn("min-w-0 text-small-body text-muted-foreground", className)}
       {...props}
     />
   );

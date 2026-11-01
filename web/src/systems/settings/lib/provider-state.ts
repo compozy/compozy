@@ -99,7 +99,7 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
       };
     case "auth-unavailable":
       return {
-        tone: "danger",
+        tone: "destructive",
         label,
         display: "Sign-in unavailable",
         hint: provider.auth_status?.message?.trim() || "CompozyOS couldn't check the sign-in.",

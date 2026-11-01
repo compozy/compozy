@@ -73,11 +73,11 @@ describe("Dock", () => {
     const { container, rerender } = render(<Dock.Status>Sending answer…</Dock.Status>);
     let status = container.querySelector<HTMLElement>('[data-slot="dock-status"]');
     expect(status).toHaveAttribute("data-tone", "neutral");
-    expect(status?.className).not.toContain("text-danger");
+    expect(status?.className).not.toContain("text-destructive");
 
-    rerender(<Dock.Status tone="danger">Could not send the answer.</Dock.Status>);
+    rerender(<Dock.Status tone="destructive">Could not send the answer.</Dock.Status>);
     status = container.querySelector<HTMLElement>('[data-slot="dock-status"]');
-    expect(status).toHaveAttribute("data-tone", "danger");
-    expect(status?.className).toContain("text-danger");
+    expect(status).toHaveAttribute("data-tone", "destructive");
+    expect(status?.className).toContain("text-destructive");
   });
 });

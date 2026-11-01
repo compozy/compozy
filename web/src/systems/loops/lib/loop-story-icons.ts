@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import {
   Ban,
   Bell,
@@ -24,7 +24,7 @@ import {
   VolumeOff,
   X,
   ZapOff,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 /**
  * The story's glyph vocabulary, one fixed icon per concept across the domain

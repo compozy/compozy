@@ -22,7 +22,7 @@ const RUN_STATUS_TONE: Record<RunCardStatus, PillTone> = {
   in_progress: "info",
   needs_attention: "warning",
   completed: "success",
-  failed: "danger",
+  failed: "destructive",
   canceled: "neutral",
 };
 
@@ -35,7 +35,7 @@ const RUN_STATUS_LABEL: Record<RunCardStatus, string> = {
   canceled: "Canceled",
 };
 
-export type RunCardWarningTone = "warning" | "danger";
+export type RunCardWarningTone = "warning" | "destructive";
 
 export interface RunCardWarning {
   tone: RunCardWarningTone;
@@ -89,19 +89,22 @@ function RunCard({
     >
       <header
         data-slot="run-card-pills"
-        className="flex flex-wrap items-center gap-2 text-form-label text-muted"
+        className="flex flex-wrap items-center gap-2 text-form-label text-muted-foreground"
       >
         <Pill data-slot="run-card-status" tone={tone}>
           {statusLabel}
         </Pill>
         <MonoId data-slot="run-card-id" value={runId} />
         {sessionInfo ? (
-          <span data-slot="run-card-session-info" className="min-w-0 truncate text-muted">
+          <span
+            data-slot="run-card-session-info"
+            className="min-w-0 truncate text-muted-foreground"
+          >
             {sessionInfo}
           </span>
         ) : null}
         {typeof attempt === "number" ? (
-          <span data-slot="run-card-attempt" className="text-muted tabular-nums">
+          <span data-slot="run-card-attempt" className="text-muted-foreground tabular-nums">
             attempt {attempt}
           </span>
         ) : null}
@@ -149,7 +152,10 @@ function RunCardStat({
 }) {
   return (
     <div data-slot={`run-card-${slot}`} className="flex min-w-0 flex-col gap-1">
-      <span data-slot={`run-card-${slot}-label`} className="text-form-label font-medium text-muted">
+      <span
+        data-slot={`run-card-${slot}-label`}
+        className="text-form-label font-medium text-muted-foreground"
+      >
         {label}
       </span>
       <span

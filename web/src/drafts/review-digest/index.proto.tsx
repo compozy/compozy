@@ -3,7 +3,7 @@
  * on a human decision. Free markup is allowed here; once the direction is approved it becomes a
  * view in `systems/session` and this slug moves there as a spec prototype.
  */
-import { CheckIcon, GitPullRequestIcon, XIcon } from "lucide-react";
+import { CheckIcon, GitPullRequestIcon, XIcon } from "@compozy/ui/icons";
 
 import { Button, Card, CardContent, Eyebrow, Pill } from "@compozy/ui";
 
@@ -23,7 +23,7 @@ type Waiting = {
   number: number;
   title: string;
   verdict: string;
-  tone: "success" | "danger" | "neutral";
+  tone: "success" | "destructive" | "neutral";
 };
 
 const waiting: Waiting[] = [
@@ -37,7 +37,7 @@ const waiting: Waiting[] = [
     number: 932,
     title: "Board column SQL expression",
     verdict: "2 checks failing",
-    tone: "danger",
+    tone: "destructive",
   },
   {
     number: 919,
@@ -49,7 +49,7 @@ const waiting: Waiting[] = [
 
 const actionLabel: Record<Waiting["tone"], string> = {
   success: "Merge",
-  danger: "Fix checks",
+  destructive: "Fix checks",
   neutral: "Review",
 };
 
@@ -63,7 +63,7 @@ function Row({ item }: { item: Waiting }) {
       </span>
       <Pill tone={item.tone}>
         {item.tone === "success" ? <CheckIcon aria-hidden="true" /> : null}
-        {item.tone === "danger" ? <XIcon aria-hidden="true" /> : null}
+        {item.tone === "destructive" ? <XIcon aria-hidden="true" /> : null}
         {item.verdict}
       </Pill>
       <Button size="sm" variant={item.tone === "success" ? "primary" : "secondary"}>
@@ -99,7 +99,7 @@ export default function ReviewDigestDraft({ state }: PrototypeProps) {
               ))}
             </ul>
           ) : (
-            <p className="text-small-body text-muted">
+            <p className="text-small-body text-muted-foreground">
               No pull request is waiting on you. New reviews show up here as agents open them.
             </p>
           )}

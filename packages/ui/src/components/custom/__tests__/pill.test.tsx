@@ -32,7 +32,7 @@ describe("Pill", () => {
     expect(pill).toHaveAttribute("data-size", "sm");
   });
 
-  it.each<PillTone>(["accent", "success", "warning", "danger", "info"])(
+  it.each<PillTone>(["brand", "success", "warning", "destructive", "info"])(
     "Should expose data-tone for tone=%s",
     tone => {
       render(<Pill tone={tone}>x</Pill>);
@@ -61,14 +61,14 @@ describe("Pill", () => {
     );
     const pill = screen.getByText("Running");
     expect(pill).toHaveAttribute("data-form", "plain");
-    expect(pill).toHaveClass("bg-transparent", "text-muted", "px-0");
+    expect(pill).toHaveClass("bg-transparent", "text-muted-foreground", "px-0");
     expect(pill.className).not.toMatch(/\bbg-success-tint\b|\btext-success\b/);
     expect(pill.querySelector('[data-slot="pill-dot"]')).toHaveAttribute("data-tone", "success");
   });
 
   it("Should expose data-solid when solid is true", () => {
     render(
-      <Pill tone="accent" solid>
+      <Pill tone="brand" solid>
         NEW
       </Pill>
     );
@@ -146,7 +146,7 @@ describe("Pill", () => {
     const link = screen.getByRole("link", { name: /open task/i });
     expect(link).toHaveAttribute("href", "/tasks/task-1");
     expect(link).toHaveAttribute("data-slot", "pill");
-    expect(link).toHaveAttribute("data-tone", "accent");
+    expect(link).toHaveAttribute("data-tone", "brand");
     expect(link).not.toHaveAttribute("data-mono");
     await user.click(link);
     expect(handle).toHaveBeenCalledTimes(1);
@@ -160,16 +160,16 @@ describe("Pill.Dot", () => {
     expect(dot).not.toBeNull();
     expect(dot?.getAttribute("data-tone")).toBe("neutral");
     expect(dot?.getAttribute("data-size")).toBe("md");
-    expect(dot?.className).toContain("bg-muted");
+    expect(dot?.className).toContain("bg-muted-foreground");
     expect(dot?.style.backgroundColor).toBe("");
     expect(dot?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it.each<DotExpectation>([
-    { tone: "accent", className: "bg-accent" },
+    { tone: "brand", className: "bg-brand" },
     { tone: "success", className: "bg-success" },
     { tone: "warning", className: "bg-warning" },
-    { tone: "danger", className: "bg-danger" },
+    { tone: "destructive", className: "bg-destructive" },
     { tone: "info", className: "bg-info" },
   ])("Should map tone %s to the semantic color utility", ({ tone, className }) => {
     const { container } = render(<Pill.Dot tone={tone} />);
@@ -257,7 +257,7 @@ describe("Pill.Count", () => {
     expect(badge).toHaveTextContent("3");
     expect(badge).toHaveAttribute("data-size", "count");
     expect(badge).toHaveAttribute("data-solid", "true");
-    expect(badge).toHaveAttribute("data-tone", "accent");
+    expect(badge).toHaveAttribute("data-tone", "brand");
   });
 
   it("Should cap counts above max", () => {

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Folder, FolderOutput } from "lucide-react";
+import { ArrowDown, ArrowUp, Folder, FolderOutput } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -137,7 +137,7 @@ export function SessionListProjectFolders({
         data-drop={dnd.indicator?.kind === "root" ? "into" : undefined}
         className={cn(
           "flex flex-col gap-1 rounded-md transition-colors",
-          dnd.indicator?.kind === "root" && "bg-accent-tint ring-1 ring-accent ring-inset"
+          dnd.indicator?.kind === "root" && "bg-brand-tint ring-1 ring-brand ring-inset"
         )}
       >
         {tree.root.map(group => render(group, null))}
@@ -147,7 +147,9 @@ export function SessionListProjectFolders({
           </p>
         ) : null}
         {tree.root.length === 0 && tree.folders.length === 0 ? (
-          <p className="px-3 py-8 text-center text-small-body text-muted">{emptyMessage}</p>
+          <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
+            {emptyMessage}
+          </p>
         ) : null}
       </div>
     </div>

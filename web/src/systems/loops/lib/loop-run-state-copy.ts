@@ -91,7 +91,7 @@ const LOOP_ROSTER_STATE_TONES = {
   canceled: "neutral",
   not_taken: "neutral",
   // The single live accent on the page.
-  running: "accent",
+  running: "brand",
   // Parked on something — warning family, each carrying its own word.
   retrying: "warning",
   waiting: "warning",
@@ -102,8 +102,8 @@ const LOOP_ROSTER_STATE_TONES = {
   partial: "warning",
   succeeded: "success",
   // Danger is reserved for these two on the page; the bell owns the rest.
-  failed: "danger",
-  quarantined: "danger",
+  failed: "destructive",
+  quarantined: "destructive",
 } as const satisfies Record<LoopRosterState, PillTone>;
 
 /**

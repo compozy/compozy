@@ -30,7 +30,7 @@
   /* The byte well's palette, resolved by TerminalView through getComputedStyle.
      The well sits on the pane surface (canvas) and follows the theme (D5):
      its light values live in tokens-light.css.
-     ANSI 1–3 and 9–11 follow the danger, success, and warning lanes. ANSI 8 is
+     ANSI 1–3 and 9–11 follow the destructive, success, and warning lanes. ANSI 8 is
      deliberately dim for terminal output and is not a UI-copy colour. */
   --terminal-bg: #1a1a1a;
   --terminal-fg: #dcdcdc;

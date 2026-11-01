@@ -208,9 +208,9 @@ function OsWindowMergeTarget() {
     <div
       aria-hidden="true"
       data-slot="os-window-merge-target"
-      className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-window-head items-center justify-center border border-accent bg-accent-tint"
+      className="pointer-events-none absolute inset-x-0 top-0 z-50 flex h-window-head items-center justify-center border border-brand bg-brand-tint"
     >
-      <Pill tone="accent" solid size="sm">
+      <Pill tone="brand" solid size="sm">
         Group as tabs
       </Pill>
     </div>

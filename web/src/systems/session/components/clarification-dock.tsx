@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, MessageCircleQuestion } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageCircleQuestion } from "@compozy/ui/icons";
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import {
@@ -198,7 +198,7 @@ export function ClarificationDock({
         </Dock.Status>
       ) : null}
       {dock.errorMessage ? (
-        <Dock.Status tone="danger" role="alert" data-testid="clarification-dock-error">
+        <Dock.Status tone="destructive" role="alert" data-testid="clarification-dock-error">
           {dock.errorMessage}
         </Dock.Status>
       ) : null}

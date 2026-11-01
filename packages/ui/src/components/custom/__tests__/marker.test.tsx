@@ -1,13 +1,13 @@
 import { render } from "@testing-library/react";
-import { AlertTriangleIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { AlertTriangleIcon } from "../../../icons";
 import { Marker, MarkerMeta } from "../marker";
 
 describe("Marker", () => {
   it("Should carry tone on the glyph only — the sentence stays neutral", () => {
     const { container } = render(
-      <Marker tone="danger" icon={<AlertTriangleIcon />}>
+      <Marker tone="destructive" icon={<AlertTriangleIcon />}>
         <b>Provider request failed</b> — the runtime is retrying.
       </Marker>
     );
@@ -15,9 +15,9 @@ describe("Marker", () => {
     const icon = container.querySelector<HTMLElement>('[data-slot="marker-icon"]');
     const body = container.querySelector<HTMLElement>('[data-slot="marker-body"]');
 
-    expect(marker).toHaveAttribute("data-tone", "danger");
-    expect(icon?.className).toContain("text-danger");
-    expect(body?.className).not.toContain("text-danger");
+    expect(marker).toHaveAttribute("data-tone", "destructive");
+    expect(icon?.className).toContain("text-destructive");
+    expect(body?.className).not.toContain("text-destructive");
   });
 
   it("Should render without an icon and default to the neutral tone", () => {

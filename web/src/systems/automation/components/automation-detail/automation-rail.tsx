@@ -1,4 +1,4 @@
-import { CalendarClock, Globe, Hash, Info, KeyRound, Search, ShieldCheck } from "lucide-react";
+import { CalendarClock, Globe, Hash, Info, KeyRound, Search, ShieldCheck } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { Button, MonoId, PropertyRow, StatusDot, Time, cn } from "@compozy/ui";
@@ -92,11 +92,11 @@ function PublicLinkSections({ trigger }: { trigger: AutomationTrigger }) {
         <PropertyRow label="Status" valueTitle={copy.detail}>
           <StatusDot
             size="sm"
-            tone={broken ? "danger" : reachability === "live" ? "success" : "faint"}
+            tone={broken ? "destructive" : reachability === "live" ? "success" : "faint"}
           />
           <span
-            className={broken ? "text-danger" : undefined}
-            data-tone={broken ? "danger" : "neutral"}
+            className={broken ? "text-destructive" : undefined}
+            data-tone={broken ? "destructive" : "neutral"}
           >
             {copy.label}
           </span>

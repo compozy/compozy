@@ -67,7 +67,7 @@ export function HeroVisual({ className }: HeroVisualProps) {
         className="absolute -inset-[8%] rounded-window blur-3xl"
         style={{
           background:
-            "radial-gradient(58% 55% at 24% 80%, var(--color-accent-dim), transparent 72%)",
+            "radial-gradient(58% 55% at 24% 80%, var(--color-brand-dim), transparent 72%)",
         }}
       />
       <div

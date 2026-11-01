@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
-import { Repeat2, SquareCheck } from "lucide-react";
+import { Repeat2, SquareCheck } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";
@@ -21,7 +21,7 @@ function TargetChip({ children, className, ...props }: TargetChipProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-5.5 shrink-0 items-center justify-center rounded-md bg-surface-2 font-mono text-badge font-semibold text-muted",
+        "flex size-5.5 shrink-0 items-center justify-center rounded-md bg-surface-2 font-mono text-badge font-semibold text-muted-foreground",
         className
       )}
       {...props}
@@ -63,7 +63,7 @@ function PromptPreview({ prompt, templated }: { prompt: string; templated: boole
       {open || overflowing ? (
         <button
           aria-expanded={open}
-          className="mt-1.5 self-start rounded-xs text-form-label font-medium text-muted transition-colors duration-base ease-out hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
+          className="mt-1.5 self-start rounded-xs text-form-label font-medium text-muted-foreground transition-colors duration-base ease-out hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none"
           data-testid="automation-prompt-toggle"
           onClick={() => setOpen(previous => !previous)}
           type="button"
@@ -142,7 +142,7 @@ function TaskDoes({ job }: { job: AutomationJob }) {
           {owner ? (
             <>
               {OWNER_KIND_WORDS[owner.kind]}{" "}
-              <span className="font-mono text-mono-id text-muted">{owner.ref}</span>
+              <span className="font-mono text-mono-id text-muted-foreground">{owner.ref}</span>
             </>
           ) : (
             "Unassigned"

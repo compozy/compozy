@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { cn, Eyebrow, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
@@ -12,7 +12,7 @@ import type {
 const AVAILABILITY_TONE: Record<GroupAvailability["tone"], string> = {
   success: "text-success",
   warning: "text-warning",
-  danger: "text-danger",
+  destructive: "text-destructive",
 };
 
 const GROUP_HEAD_CLASS = "flex items-center gap-1.5 bg-popover px-2 pt-[7px] pb-[3px]";
@@ -139,7 +139,7 @@ function CustomModelButton({
       type="button"
       data-testid="runtime-selector-custom"
       disabled={listModel.exactEntry && !listModel.customCommit}
-      className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:text-fg focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted"
+      className="mx-1 mt-1 mb-0.5 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-line-strong px-2 py-1.5 text-left text-small-body text-muted-foreground outline-none transition-colors hover:bg-surface-2 hover:text-fg focus-visible:text-fg focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line-strong disabled:hover:text-muted-foreground"
       onClick={() => {
         if (listModel.customCommit) onCustomCommit(listModel.customCommit);
         else onStartExactEntry();

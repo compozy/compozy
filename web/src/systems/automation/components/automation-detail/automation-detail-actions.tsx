@@ -1,5 +1,4 @@
-import { Copy, FileCode, Pencil, Play, Search, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { Copy, FileCode, Pencil, Play, Search, Trash2 } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -8,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  toast,
   TopbarOverflowIcon,
 } from "@compozy/ui";
 

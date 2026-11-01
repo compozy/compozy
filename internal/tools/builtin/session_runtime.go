@@ -11,7 +11,9 @@ func sessionRuntimeSetDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionRuntimeSet,
 		"session_runtime_set",
 		"Session Runtime Set",
-		"Select the default runtime for future prompts without starting or reconfiguring the session.",
+		"Select the default runtime for future prompts. An active session whose provider accepts session config "+
+			"applies same-provider model, reasoning, and speed changes to its live process immediately, "+
+			"including mid-turn; provider changes wait for the next prompt. Never starts a stopped session.",
 		sessionRuntimeSetInputSchema,
 		toolspkg.RiskMutating,
 		false,

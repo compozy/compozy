@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { ChevronRight } from "../../icons";
 import { LinkedRecordTable } from "../custom/linked-record-table";
 import { Pill } from "../custom/pill";
 
@@ -68,14 +68,14 @@ export const Many: Story = {
         {records.map(record => (
           <LinkedRecordTable.Row key={record.id}>
             <LinkedRecordTable.Cell className="w-8 pl-4">
-              <Pill.Dot tone="accent" />
+              <Pill.Dot tone="brand" />
             </LinkedRecordTable.Cell>
             <LinkedRecordTable.Cell>
               <LinkedRecordTable.Title>
                 <span>{record.title}</span>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Pill mono>{record.id}</Pill>
-                  <Pill tone="accent">running</Pill>
+                  <Pill tone="brand">running</Pill>
                 </div>
               </LinkedRecordTable.Title>
             </LinkedRecordTable.Cell>
@@ -100,7 +100,7 @@ export const Empty: Story = {
     <LinkedRecordTable
       label="Runs"
       className="max-w-3xl"
-      empty={<p className="text-small-body text-muted">No runs yet.</p>}
+      empty={<p className="text-small-body text-muted-foreground">No runs yet.</p>}
     />
   ),
 };

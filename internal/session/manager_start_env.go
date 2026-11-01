@@ -38,6 +38,7 @@ func (m *Manager) sessionStartOpts(
 	case cursorRuntimeProvider:
 		launchModelID = strings.TrimSpace(s.transportModel)
 	}
+	shellWaitGuard := m.sessionCanRedirectShellWaits(s, resolved)
 	opts := acp.StartOpts{
 		AgentName:         resolved.Name,
 		CompozySessionID:  s.sessionID,
@@ -58,7 +59,8 @@ func (m *Manager) sessionStartOpts(
 		ACPOptions:        acp.CloneSessionConfigOptionSelections(s.acpOptions),
 		ResumeSessionID:   s.acpSessionID,
 		InputOnly:         IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
-		ToolGateway:       newProviderNativeToolGateway(m, session, s.runtimeMode),
+		ShellWaitGuard:    shellWaitGuard,
+		ToolGateway:       newProviderNativeToolGateway(m, session, s.runtimeMode, shellWaitGuard),
 		ActivateMCPServers: m.sessionMCPServerActivator(
 			s.sessionID,
 			mcpServers,

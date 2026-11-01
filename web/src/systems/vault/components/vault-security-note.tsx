@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Lock } from "@compozy/ui/icons";
 
 /** The line above the secrets: what the vault keeps and what it never shows again. */
 export function VaultSecurityNote() {

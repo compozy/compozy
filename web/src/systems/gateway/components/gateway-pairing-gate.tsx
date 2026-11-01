@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type FormEvent } from "react";
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "@compozy/ui/icons";
 
 import { Button, Empty, Field, FieldLabel, Input, Logo } from "@compozy/ui";
 
@@ -99,7 +99,7 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
             </Field>
             {redeem.error ? (
               <p
-                className="text-form-label text-danger"
+                className="text-form-label text-destructive"
                 data-testid="gateway-pairing-gate-error"
                 role="alert"
               >

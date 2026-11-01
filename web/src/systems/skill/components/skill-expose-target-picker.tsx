@@ -69,7 +69,7 @@ export function SkillExposeTargetPicker({
   if (error !== null) {
     return (
       <div className="flex flex-wrap items-center gap-2" data-testid={`${TEST_ID}-error`}>
-        <p className="text-form-hint text-danger" role="alert">
+        <p className="text-form-hint text-destructive" role="alert">
           {error}
         </p>
         {onRetry ? (

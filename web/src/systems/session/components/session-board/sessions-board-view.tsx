@@ -103,7 +103,7 @@ function SessionsBoardLanes({
   if (board.lanes === null || board.lanes.length === 0) {
     return (
       <p
-        className="px-3 py-8 text-center text-small-body text-muted"
+        className="px-3 py-8 text-center text-small-body text-muted-foreground"
         data-testid="sessions-board-lanes-empty"
       >
         No sessions yet.

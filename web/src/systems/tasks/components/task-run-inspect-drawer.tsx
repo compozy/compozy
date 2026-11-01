@@ -92,12 +92,12 @@ function TaskRunInspectBody({
   }
   if (errorMessage) {
     return (
-      <p className="text-small-body text-danger" role="alert">
+      <p className="text-small-body text-destructive" role="alert">
         {errorMessage}
       </p>
     );
   }
-  return <p className="text-small-body text-muted">No inspect snapshot is available.</p>;
+  return <p className="text-small-body text-muted-foreground">No inspect snapshot is available.</p>;
 }
 
 function TaskRunInspectSnapshot({
@@ -125,7 +125,7 @@ function TaskRunInspectSnapshot({
         <MetadataTile label="Claim token" value={claimHash ? `sha256 · ${claimHash}` : "—"} />
         <MetadataTile label="Idempotency key" value={idempotencyKey ?? "—"} />
       </div>
-      <p className="mt-4 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="mt-4 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted-foreground">
         The agent keeps this run reserved while it keeps checking in. If it stops, CompozyOS flags
         the run so it can be tried again.
       </p>

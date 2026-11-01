@@ -235,10 +235,10 @@ export function useSessionBoardDrawer({
           ? requested.candidates
           : successorCandidates(boardRef.current, session.id)
       );
-      // Archive and Later close the drawer here; a delete retires this window's session, which closes
-      // the drawer with it — possibly already, in which case focus moves now.
+      // Later closes the drawer here; an archive or delete retires this window's session, which
+      // closes the drawer with it — possibly already, in which case focus moves now.
       if (!openRef.current) landFocus();
-      else if (action !== "delete") close();
+      else if (action === "later") close();
     },
     /** The card verbs, remembering where focus lands should they remove the drawer's session. */
     withLanding: (actions: SessionLifecycleActionHandlers): SessionLifecycleActionHandlers => {

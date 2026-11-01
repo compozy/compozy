@@ -14,7 +14,7 @@
  * entry, exactly like `TASK_STATUS_TONE` in `@/lib/status-tone`.
  *
  * Signal grammar follows the shell-rail brand (`StateGlyph` canonical
- * mapping): needs-you reads as the accent-orange attention dot, a failure as
+ * mapping): needs-you reads as the brand-orange attention dot, a failure as
  * the danger ring, work in flight as the mint running ring, and resting states
  * as neutral marks. The word tone agrees with the glyph. Where two badges share
  * a glyph (the needs-you trio, the failure trio, idle/unknown) the entry
@@ -72,7 +72,7 @@ export const SESSION_BADGE_SIGNAL = {
   // honest about what it cannot prove, so its word names that.
   "needs-attention": {
     state: "attention",
-    tone: "accent",
+    tone: "brand",
     speaks: true,
     label: "needs-attention",
     displayLabel: "Needs attention",
@@ -80,7 +80,7 @@ export const SESSION_BADGE_SIGNAL = {
   },
   "waiting-for-input": {
     state: "attention",
-    tone: "accent",
+    tone: "brand",
     speaks: true,
     label: "waiting-for-input",
     displayLabel: "Needs your answer",
@@ -88,7 +88,7 @@ export const SESSION_BADGE_SIGNAL = {
   },
   "waiting-for-auth": {
     state: "attention",
-    tone: "accent",
+    tone: "brand",
     speaks: true,
     label: "waiting-for-auth",
     displayLabel: "Needs sign-in",
@@ -96,7 +96,7 @@ export const SESSION_BADGE_SIGNAL = {
   },
   failed: {
     state: "failed",
-    tone: "danger",
+    tone: "destructive",
     speaks: true,
     label: "failed",
     displayLabel: "Failed",
@@ -140,7 +140,7 @@ export const SESSION_BADGE_SIGNAL = {
   },
   hung: {
     state: "failed",
-    tone: "danger",
+    tone: "destructive",
     speaks: true,
     label: "hung",
     displayLabel: "Stuck",
@@ -148,7 +148,7 @@ export const SESSION_BADGE_SIGNAL = {
   },
   unhealthy: {
     state: "failed",
-    tone: "danger",
+    tone: "destructive",
     speaks: true,
     label: "unhealthy",
     displayLabel: "Having trouble",

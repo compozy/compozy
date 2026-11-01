@@ -69,7 +69,7 @@ export function SessionDecisionDock({
   if (clarifications.error) {
     return (
       <Dock role="region" aria-label="Decision status" data-testid="session-decision-dock-error">
-        <Dock.Status className="mt-0" role="alert" tone="danger">
+        <Dock.Status className="mt-0" role="alert" tone="destructive">
           Couldn’t load pending questions.
         </Dock.Status>
       </Dock>

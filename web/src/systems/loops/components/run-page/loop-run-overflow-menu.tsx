@@ -1,4 +1,4 @@
-import { Ellipsis, Info, Workflow } from "lucide-react";
+import { Ellipsis, Info, Workflow } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import {

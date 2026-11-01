@@ -27,14 +27,14 @@ export default async function BlogIndexPage() {
       <section className="border-b border-line px-4 pt-14 pb-14">
         <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
-            <Eyebrow className="text-accent">BLOG</Eyebrow>
+            <Eyebrow className="text-brand">BLOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
-            <Eyebrow className="text-muted">Field notes from CompozyOS</Eyebrow>
+            <Eyebrow className="text-muted-foreground">Field notes from CompozyOS</Eyebrow>
           </div>
           <h1 className="mt-6 max-w-[20ch] font-display text-site-blog-title font-normal leading-none tracking-tight text-fg">
             Practical engineering for working with AI agents.
           </h1>
-          <p className="mt-6 max-w-[58ch] text-lg leading-7 text-muted">
+          <p className="mt-6 max-w-[58ch] text-lg leading-7 text-muted-foreground">
             Experiments, guides, and reusable tools for reviewing agent work, recovering interrupted
             tasks, and building automation you can inspect.
           </p>
@@ -51,10 +51,10 @@ export default async function BlogIndexPage() {
             <span className="mx-1 inline-block h-4 w-px bg-line" />
             <Link
               href="/blog/feed.xml"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-small-body text-muted hover:text-fg"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-sans text-small-body text-muted-foreground hover:text-fg"
             >
               <Rss size={12} aria-hidden />
-              <Eyebrow className="text-muted">RSS</Eyebrow>
+              <Eyebrow className="text-muted-foreground">RSS</Eyebrow>
             </Link>
           </div>
         </div>
@@ -72,9 +72,9 @@ export default async function BlogIndexPage() {
         <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-baseline justify-between">
             <div className="flex items-center gap-3">
-              <Eyebrow className="text-muted tracking-badge!">LATEST</Eyebrow>
+              <Eyebrow className="text-muted-foreground tracking-badge!">LATEST</Eyebrow>
               <span className="inline-block h-px w-9 bg-line" />
-              <span className="text-small-body text-muted">Newest first</span>
+              <span className="text-small-body text-muted-foreground">Newest first</span>
             </div>
           </div>
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">

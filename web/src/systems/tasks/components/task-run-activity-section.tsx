@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { Activity } from "@compozy/ui/icons";
 
 import { Empty, LiveBadge, Section, SkeletonRegion, Timeline } from "@compozy/ui";
 
@@ -40,7 +40,7 @@ export function TaskRunActivitySection({
           <TaskTimelineSkeleton events={3} />
         </SkeletonRegion>
       ) : errorMessage ? (
-        <p className="text-small-body text-danger" role="alert">
+        <p className="text-small-body text-destructive" role="alert">
           {errorMessage}
         </p>
       ) : (

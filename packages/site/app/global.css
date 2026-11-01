@@ -41,6 +41,8 @@
   --tracking-body: -0.006em;
   --radius-md: 10px;
   --radius-lg: 14px;
+  /* Compact rows and inline chips hold the 8px corner the bare `rounded` gave them. */
+  --radius-site-row: 8px;
   --height-button-default: 30px;
   /* The hero's floating product window. The shared tokens retired the window
      radius and shadow with the flat shell; the site keeps them for its mock. */
@@ -57,10 +59,10 @@
   --text-code-block: 0.78125rem;
   --text-code-block--line-height: 1.5;
   /* The product's primary action is inverted (near-white on dark); the site
-     keeps its accent-orange CTA. */
-  --color-primary: var(--color-accent);
-  --color-primary-hover: var(--color-accent-hover);
-  --color-primary-foreground: var(--color-accent-ink);
+     keeps its brand-orange CTA. */
+  --color-primary: var(--color-brand);
+  --color-primary-hover: var(--color-brand-hover);
+  --color-primary-foreground: var(--color-brand-ink);
   --font-sans: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: var(--font-playfair), "Playfair Display", serif;
   --font-mono:
@@ -147,15 +149,15 @@
   --color-line-focus: rgba(255, 255, 255, 0.14);
   --color-fg: #eeedeb;
   --color-fg-strong: #f7f6f4;
-  --color-muted: #a4a29e;
+  --color-muted-foreground: #a4a29e;
   --color-subtle: oklch(0.663 0.004 75);
   --color-faint: oklch(0.638 0.003 75);
   --color-success: #5fbf85;
   --color-success-tint: rgba(95, 191, 133, 0.08);
   --color-warning: #d6a647;
   --color-warning-tint: rgba(214, 166, 71, 0.08);
-  --color-danger: #e0635a;
-  --color-danger-tint: rgba(224, 99, 90, 0.09);
+  --color-destructive: #e0635a;
+  --color-destructive-tint: rgba(224, 99, 90, 0.09);
   --color-popover: var(--color-canvas-soft);
   /* The shared --hover steps to surface-2; the site keeps its row glaze. */
   --color-hover: rgba(255, 255, 255, 0.045);
@@ -165,8 +167,8 @@
   --color-selected: var(--color-elevated);
   --color-sunken: var(--color-rail);
   --color-code-bg: var(--color-canvas-soft);
-  --color-fg-2: color-mix(in srgb, var(--color-muted) 60%, var(--color-fg));
-  --color-fg-3: color-mix(in srgb, var(--color-fg) 70%, var(--color-muted));
+  --color-fg-2: color-mix(in srgb, var(--color-muted-foreground) 60%, var(--color-fg));
+  --color-fg-3: color-mix(in srgb, var(--color-fg) 70%, var(--color-muted-foreground));
   --color-well: color-mix(in srgb, var(--color-success) 14%, var(--color-canvas));
   /* The site's surfaces stay flat: cards had no lift, popups a hairline. */
   --theme-shadow-card: none;
@@ -193,8 +195,8 @@
   --site-doc-sidebar-section-label-tracking: 0.09em;
   --site-doc-sidebar-section-label-color: color-mix(
     in srgb,
-    var(--color-accent) 65%,
-    var(--color-muted)
+    var(--color-brand) 65%,
+    var(--color-muted-foreground)
   );
   --site-doc-sidebar-group-gap: 0.4375rem;
   --site-doc-sidebar-group-label-tracking: 0.08em;
@@ -266,26 +268,26 @@
   --color-fd-background: var(--color-canvas);
   --color-fd-foreground: var(--color-fg);
   --color-fd-muted: var(--color-canvas-soft);
-  --color-fd-muted-foreground: var(--color-muted);
+  --color-fd-muted-foreground: var(--color-muted-foreground);
   --color-fd-popover: var(--color-elevated);
   --color-fd-popover-foreground: var(--color-fg);
   --color-fd-card: var(--color-canvas-soft);
   --color-fd-card-foreground: var(--color-fg);
   --color-fd-border: var(--color-line);
-  --color-fd-primary: var(--color-accent);
+  --color-fd-primary: var(--color-brand);
   --color-fd-primary-foreground: #ffffff;
   --color-fd-secondary: var(--color-canvas-soft);
   --color-fd-secondary-foreground: var(--color-fg);
   --color-fd-accent: var(--color-elevated);
   --color-fd-accent-foreground: var(--color-fg);
-  --color-fd-ring: var(--color-accent);
+  --color-fd-ring: var(--color-brand);
   --color-fd-info: var(--color-info);
   --color-fd-warning: var(--color-warning);
-  --color-fd-error: var(--color-danger);
+  --color-fd-error: var(--color-destructive);
   --color-fd-success: var(--color-success);
-  --color-fd-idea: var(--color-accent);
-  --color-fd-diff-remove: var(--color-danger-tint);
-  --color-fd-diff-remove-symbol: var(--color-danger);
+  --color-fd-idea: var(--color-brand);
+  --color-fd-diff-remove: var(--color-destructive-tint);
+  --color-fd-diff-remove-symbol: var(--color-destructive);
   --color-fd-diff-add: var(--color-success-tint);
   --color-fd-diff-add-symbol: var(--color-success);
 }
@@ -300,7 +302,7 @@ body:has(.site-home) .bg-fd-secondary\/50.p-3 {
 .dark #nd-sidebar {
   --color-fd-muted: var(--color-canvas-soft);
   --color-fd-secondary: var(--color-canvas-soft);
-  --color-fd-muted-foreground: var(--color-muted);
+  --color-fd-muted-foreground: var(--color-muted-foreground);
 }
 
 body {
@@ -332,7 +334,7 @@ a {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--color-brand) 28%, transparent);
   color: var(--color-fg);
 }
 
@@ -344,8 +346,8 @@ a {
 }
 
 #nd-sidebar [data-active="true"] {
-  background: var(--color-accent-tint);
-  color: var(--color-accent);
+  background: var(--color-brand-tint);
+  color: var(--color-brand);
 }
 
 #nd-sidebar .docs-sb-item[data-active="true"]::before {
@@ -356,7 +358,7 @@ a {
   bottom: var(--site-doc-sidebar-marker-inset);
   width: 2px;
   border-radius: 1px;
-  background: var(--color-accent);
+  background: var(--color-brand);
 }
 
 #nd-sidebar .docs-sb-kids .docs-sb-item[data-active="true"]::before {
@@ -420,7 +422,7 @@ a {
 #nd-toc [aria-current="true"],
 #nd-toc [data-active="true"],
 #nd-toc a:hover {
-  color: var(--color-accent);
+  color: var(--color-brand);
 }
 
 a p.text-fd-muted-foreground.truncate {

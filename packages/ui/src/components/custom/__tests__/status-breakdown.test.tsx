@@ -9,7 +9,7 @@ describe("StatusBreakdown", () => {
       <StatusBreakdown
         items={[
           { label: "Running", value: 5, tone: "success" },
-          { label: "Failed", value: 1, tone: "danger" },
+          { label: "Failed", value: 1, tone: "destructive" },
         ]}
       />
     );

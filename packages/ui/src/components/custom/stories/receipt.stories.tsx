@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CheckIcon, MessageCircleQuestionIcon, XIcon } from "lucide-react";
 
+import { CheckIcon, MessageCircleQuestionIcon, XIcon } from "../../../icons";
 import { Receipt } from "../receipt";
 
 const meta: Meta<typeof Receipt> = {

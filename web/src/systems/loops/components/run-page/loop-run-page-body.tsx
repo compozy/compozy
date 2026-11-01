@@ -1,7 +1,7 @@
 import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
-import { Search } from "lucide-react";
+import { Search } from "@compozy/ui/icons";
 
 import { Button, SkeletonRegion } from "@compozy/ui";
 

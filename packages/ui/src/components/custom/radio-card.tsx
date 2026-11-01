@@ -28,10 +28,12 @@ function radioCardIconWellClass(size: RadioCardIconWellSize, selected: boolean):
   if (size === "lg") {
     return cn(
       "size-7 rounded-sm bg-surface-2",
-      selected ? "text-fg-strong shadow-inset-strong" : "text-muted shadow-hairline-inset"
+      selected
+        ? "text-fg-strong shadow-inset-strong"
+        : "text-muted-foreground shadow-hairline-inset"
     );
   }
-  return cn("size-5", selected ? "text-fg-strong" : "text-muted");
+  return cn("size-5", selected ? "text-fg-strong" : "text-muted-foreground");
 }
 
 function RadioCardIconWell({
@@ -62,7 +64,7 @@ function RadioCardIconWell({
  * Single radio choice rendered as a card.:
  * - resting state: `--canvas-soft` surface, no border (flat-depth).
  * - selected state: `--selected` background + `box-shadow: 0 0 0 1px var(--color-line-strong) inset`.
- *   No accent border, no `--accent-tint` fill — accent stays reserved for true CTAs.
+ *   No accent border, no `--color-brand-tint` fill — accent stays reserved for true CTAs.
  */
 function RadioCard({
   selected,
@@ -126,7 +128,7 @@ function RadioCard({
         ) : null}
       </div>
       {description ? (
-        <p data-slot="radio-card-description" className="text-form-label text-muted">
+        <p data-slot="radio-card-description" className="text-form-label text-muted-foreground">
           {description}
         </p>
       ) : null}

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Repeat2 } from "lucide-react";
 import { useState } from "react";
 
+import { Repeat2 } from "../../../icons";
 import { Button } from "../../button";
 import { ListingPage } from "../listing-page";
 import { ListingRow } from "../listing-row";

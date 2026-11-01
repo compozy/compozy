@@ -6,7 +6,7 @@ export const CHART_TOOLTIP_CONTENT_STYLE: React.CSSProperties = {
   border: "1px solid var(--color-line)",
   borderRadius: "var(--radius-md)",
   boxShadow: "var(--shadow-pop)",
-  color: "var(--color-muted)",
+  color: "var(--color-muted-foreground)",
   fontFamily: "var(--font-mono)",
   fontSize: "var(--text-micro)",
   padding: "var(--space-chart-tooltip-y) var(--space-chart-tooltip-x)",

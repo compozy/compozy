@@ -54,3 +54,5 @@ must not claim provider-managed effort. Failed discovery must preserve prior row
 refresh. Keep distinct exact model versions and account/profile/workspace scope unchanged.
 
 QA 2026-09-16, issue #655: Rendered full/recent/favorite Fable selection, valid/invalid effort switching, rapid-input persistence, and narrow viewport passed. Next-prompt provider acknowledgement remains blocked. The installed adapter independently confirmed the account Fable usage limit; a later application attempt also reported native authentication resolution failure. No selected intent was reported as applied. See the current report for public rendered evidence and the remaining recovery steps.
+
+QA impact 2026-10-31, #1107: the session composer selector now applies same-provider changes to the live session and shows an apply note derived from the provider's runtime_live_apply capability; see RT-session-runtime-live-apply. Flag only.

@@ -1,4 +1,4 @@
-import { Plug, Settings2 } from "lucide-react";
+import { Plug, Settings2 } from "@compozy/ui/icons";
 
 import { Button, Disclosure, PropertyRow } from "@compozy/ui";
 

@@ -195,12 +195,17 @@ function SecretFieldPresence({
       data-slot="secret-field-presence"
       data-testid={scopedTestId(testIdPrefix, "presence")}
     >
-      <span aria-hidden="true" className="font-mono text-mono-id tracking-normal text-muted">
+      <span
+        aria-hidden="true"
+        className="font-mono text-mono-id tracking-normal text-muted-foreground"
+      >
         ••••••••
       </span>
       <span className="sr-only">Value stored and hidden</span>
       {presenceLabel ? (
-        <span className="min-w-0 truncate text-form-hint text-muted">{presenceLabel}</span>
+        <span className="min-w-0 truncate text-form-hint text-muted-foreground">
+          {presenceLabel}
+        </span>
       ) : null}
       {rotated ? (
         <Pill size="xs" tone="success">

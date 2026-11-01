@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 
-import { ConfirmDialog } from "@compozy/ui";
+import { ConfirmDialog, toast } from "@compozy/ui";
 
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -88,7 +87,7 @@ export function useAgentDeleteFlow({
   const confirmDialog = (
     <ConfirmDialog
       open={open && Boolean(agent)}
-      tone="danger"
+      tone="destructive"
       title="Delete agent"
       description={description}
       error={error}

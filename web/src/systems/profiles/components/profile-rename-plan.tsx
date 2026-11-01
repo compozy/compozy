@@ -1,4 +1,4 @@
-import { ArrowRight, CircleSlash, HardDrive, Moon } from "lucide-react";
+import { ArrowRight, CircleSlash, HardDrive, Moon } from "@compozy/ui/icons";
 
 import { Checkbox, cn, Skeleton, SkeletonText } from "@compozy/ui";
 
@@ -24,8 +24,8 @@ function Tier({ title, tag, children }: { title: string; tag: string; children: 
   );
 }
 
-const ROW_CLASS = "flex min-h-7 items-center gap-2 text-small-body text-muted";
-const CODE_CLASS = "rounded-xs bg-sunken px-1 py-px font-mono text-micro text-muted";
+const ROW_CLASS = "flex min-h-7 items-center gap-2 text-small-body text-muted-foreground";
+const CODE_CLASS = "rounded-xs bg-sunken px-1 py-px font-mono text-micro text-muted-foreground";
 
 /**
  * What a rename will do, grouped by who decides.

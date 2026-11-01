@@ -67,7 +67,7 @@ function WorktreeDetailReady({
 function WorktreeDetailError({ model }: { model: WorktreeDetailModel }) {
   return (
     <div className="flex flex-col gap-3 px-5 py-4">
-      <Alert variant="danger">
+      <Alert variant="destructive">
         <AlertDescription>
           {model.error || "Worktree details could not be loaded."}
         </AlertDescription>

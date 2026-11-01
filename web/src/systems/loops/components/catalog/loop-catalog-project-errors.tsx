@@ -1,4 +1,4 @@
-import { RotateCcw, TriangleAlert } from "lucide-react";
+import { RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
@@ -35,7 +35,7 @@ export function LoopCatalogProjectErrors({
           data-workspace-id={error.workspaceId}
           key={error.workspaceId}
           role="alert"
-          variant="danger"
+          variant="destructive"
         >
           <TriangleAlert aria-hidden="true" />
           <AlertDescription title={error.message}>Couldn't load {error.label}</AlertDescription>
@@ -48,7 +48,7 @@ export function LoopCatalogProjectErrors({
         </Alert>
       ))}
       {truncated ? (
-        <p className="text-caption text-muted" data-testid="loop-catalog-truncated">
+        <p className="text-caption text-muted-foreground" data-testid="loop-catalog-truncated">
           Showing the first 2,000 definitions
         </p>
       ) : null}

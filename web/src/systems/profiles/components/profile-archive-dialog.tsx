@@ -1,4 +1,4 @@
-import { Archive, Clock, TriangleAlert } from "lucide-react";
+import { Archive, Clock, TriangleAlert } from "@compozy/ui/icons";
 
 import { ConfirmDialog } from "@compozy/ui";
 

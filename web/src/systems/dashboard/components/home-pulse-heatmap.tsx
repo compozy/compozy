@@ -49,7 +49,7 @@ export function HomePulseHeatmap({
     <Section
       data-slot="home-pulse"
       label={label}
-      right={<span className="text-eyebrow text-muted">Last 14 days</span>}
+      right={<span className="text-eyebrow text-muted-foreground">Last 14 days</span>}
     >
       <Panel bodyClassName="p-0">
         <div className="overflow-x-auto px-4 pt-4 pb-1.5">

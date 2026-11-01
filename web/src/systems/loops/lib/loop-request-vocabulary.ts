@@ -43,7 +43,7 @@ export interface LoopSignal {
 export const LOOP_REQUEST_STATE_SIGNAL: Record<LoopRequestState, LoopSignal> = {
   pending: { tone: "warning", glyph: "attention", word: "pending" },
   answered: { tone: "info", glyph: "done", word: "answered" },
-  expired: { tone: "danger", glyph: "stopped", word: "expired" },
+  expired: { tone: "destructive", glyph: "stopped", word: "expired" },
   canceled: { tone: "neutral", glyph: "stopped", word: "canceled" },
 };
 
@@ -54,7 +54,7 @@ export const LOOP_REQUEST_NEAR_EXPIRY_SIGNAL: LoopSignal = {
 };
 
 export const LOOP_DIFF_CHANGE_TONE: Record<LoopDiffChange, PillTone> = {
-  changed: "accent",
+  changed: "brand",
   rerun: "info",
   skipped: "neutral",
   carried: "neutral",

@@ -1,4 +1,4 @@
-import { Cable, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Cable, Plus, RotateCcw, Trash2 } from "@compozy/ui/icons";
 import { useId } from "react";
 
 import {
@@ -95,9 +95,9 @@ export function MCPOverrideEditor({
         <EntityDialogHeader
           description={
             <>
-              Provided by the <b className="font-medium text-muted">{ownerName}</b> extension.
-              Values here are stored as an override on top of the package; the package itself never
-              changes.
+              Provided by the <b className="font-medium text-muted-foreground">{ownerName}</b>{" "}
+              extension. Values here are stored as an override on top of the package; the package
+              itself never changes.
             </>
           }
           eyebrow="System · MCP server"
@@ -121,7 +121,11 @@ export function MCPOverrideEditor({
           />
 
           {saveError ? (
-            <Alert data-testid="settings-mcp-override-editor-error" role="alert" variant="danger">
+            <Alert
+              data-testid="settings-mcp-override-editor-error"
+              role="alert"
+              variant="destructive"
+            >
               <AlertDescription>{saveError}</AlertDescription>
             </Alert>
           ) : null}
@@ -245,7 +249,7 @@ function MCPOverridePairsEditor({
                 </Button>
               </div>
               {rowError ? (
-                <p className="mt-1 text-caption text-danger" id={errorId} role="alert">
+                <p className="mt-1 text-caption text-destructive" id={errorId} role="alert">
                   {rowError}
                 </p>
               ) : null}
@@ -339,7 +343,11 @@ function MCPOverrideFields({
               value={draft.url}
             />
             {errors.url ? (
-              <p className="mt-1.5 text-caption text-danger" id={`${urlId}-error`} role="alert">
+              <p
+                className="mt-1.5 text-caption text-destructive"
+                id={`${urlId}-error`}
+                role="alert"
+              >
                 {errors.url}
               </p>
             ) : null}

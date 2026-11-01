@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
-import { CheckIcon, XIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { CheckIcon, XIcon } from "../../../icons";
 import { Receipt } from "../receipt";
 
 describe("Receipt", () => {
@@ -33,7 +33,7 @@ describe("Receipt", () => {
       "rejected"
     );
     expect(container.querySelector<HTMLElement>('[data-slot="receipt-icon"]')?.className).toContain(
-      "text-danger"
+      "text-destructive"
     );
   });
 

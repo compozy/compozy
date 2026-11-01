@@ -1,18 +1,18 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import * as React from "react";
 
+import { ChevronRight } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";
 
-export type CatalogEmptyTone = "accent" | "info" | "warning" | "neutral";
+export type CatalogEmptyTone = "brand" | "info" | "warning" | "neutral";
 
 const TONE_CLASS: Record<CatalogEmptyTone, string> = {
-  accent: "bg-accent-tint text-accent",
+  brand: "bg-brand-tint text-brand",
   info: "bg-info-tint text-info",
   warning: "bg-warning-tint text-warning",
-  neutral: "bg-surface-2 text-muted",
+  neutral: "bg-surface-2 text-muted-foreground",
 };
 
 export interface CatalogEmptyDisclosureRowProps extends Omit<
@@ -77,7 +77,7 @@ export function CatalogEmptyDisclosureRow({
             <ChevronRight
               aria-hidden="true"
               className={cn(
-                "mt-1 size-3 text-muted transition-transform duration-base ease-out",
+                "mt-1 size-3 text-muted-foreground transition-transform duration-base ease-out",
                 "motion-reduce:transition-none",
                 "group-data-panel-open/collapsible-trigger:rotate-90"
               )}
@@ -100,7 +100,9 @@ export function CatalogEmptyDisclosureRow({
                   <span className="flex min-w-0 max-w-full overflow-hidden">{pill}</span>
                 ) : null}
               </span>
-              <span className="mt-0.5 line-clamp-1 text-small-body text-muted">{description}</span>
+              <span className="mt-0.5 line-clamp-1 text-small-body text-muted-foreground">
+                {description}
+              </span>
             </span>
           </CollapsibleTrigger>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 pb-3 pl-16 @lg/catalog-row:pb-0 @lg/catalog-row:pl-0">

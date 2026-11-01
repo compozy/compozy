@@ -40,7 +40,7 @@ function TabBarItem({
       tabIndex={tabStop ? 0 : -1}
       disabled={disabled}
       className={cn(
-        "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted",
+        "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted-foreground",
         "transition-[background-color,color,box-shadow] duration-base ease-spring",
         "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
         item.active && "bg-rail-selected text-fg hover:bg-rail-selected"
@@ -67,7 +67,7 @@ function TabBarItem({
           state === "closed" ? "opacity-0" : "opacity-100",
           state === "minimized"
             ? "size-1.25 border border-subtle bg-transparent"
-            : cn("size-1", item.active ? "bg-fg" : "bg-muted")
+            : cn("size-1", item.active ? "bg-fg" : "bg-muted-foreground")
         )}
       />
     </button>

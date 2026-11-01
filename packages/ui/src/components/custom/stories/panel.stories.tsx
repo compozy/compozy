@@ -25,7 +25,7 @@ export const Default: Story = {
   args: {
     title: "Queue health",
     meta: "last 14 days",
-    children: <p className="text-small-body text-muted">Panel body content.</p>,
+    children: <p className="text-small-body text-muted-foreground">Panel body content.</p>,
   },
 };
 
@@ -40,7 +40,7 @@ export const WithRightAction: Story = {
         </Button>
       }
     >
-      <p className="text-small-body text-muted">Run rows render here.</p>
+      <p className="text-small-body text-muted-foreground">Run rows render here.</p>
     </Panel>
   ),
 };
@@ -51,7 +51,7 @@ export const HeadlessRows: Story = {
       {["Deploy docs site", "Competitor research", "Overnight writer session"].map(row => (
         <div
           key={row}
-          className="flex items-center gap-2 border-t border-line-soft px-4 py-3 text-small-body text-muted first:border-t-0"
+          className="flex items-center gap-2 border-t border-line-soft px-4 py-3 text-small-body text-muted-foreground first:border-t-0"
         >
           <Pill.Dot tone="warning" />
           {row}
@@ -73,8 +73,8 @@ export const WithFoot: Story = {
           </Button>
         }
       >
-        <div className="px-4 py-3 text-small-body text-muted">Peers online · 2</div>
-        <div className="border-t border-line-soft px-4 py-3 text-small-body text-muted">
+        <div className="px-4 py-3 text-small-body text-muted-foreground">Peers online · 2</div>
+        <div className="border-t border-line-soft px-4 py-3 text-small-body text-muted-foreground">
           Open work · 3
         </div>
       </Panel>

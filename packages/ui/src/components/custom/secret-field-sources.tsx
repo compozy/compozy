@@ -1,8 +1,8 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import * as React from "react";
 
+import { Plus } from "../../icons";
 import { DIALOG_TOUCH_TARGET_CLASS } from "../../lib/dialog-shell";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
@@ -87,8 +87,8 @@ function SecretFieldCreateForm({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Eyebrow className="text-muted">Create inline</Eyebrow>
-      <code className="break-all font-mono text-form-hint text-muted">{create.ref}</code>
+      <Eyebrow className="text-muted-foreground">Create inline</Eyebrow>
+      <code className="break-all font-mono text-form-hint text-muted-foreground">{create.ref}</code>
       <Input
         aria-label={create.valueLabel ?? `New stored value for ${fieldLabel}`}
         autoComplete="new-password"
@@ -98,7 +98,7 @@ function SecretFieldCreateForm({
         value={create.value}
       />
       {create.error ? (
-        <p className="text-small-body text-danger" role="alert">
+        <p className="text-small-body text-destructive" role="alert">
           {create.error}
         </p>
       ) : null}
@@ -166,7 +166,7 @@ function SecretFieldSourceList({
       {binding.sources.map(source => (
         <RadioCard
           badge={
-            <Pill mono size="xs" tone={source.present ? "success" : "danger"}>
+            <Pill mono size="xs" tone={source.present ? "success" : "destructive"}>
               {source.present ? "present" : "missing"}
             </Pill>
           }
@@ -204,7 +204,7 @@ function SecretFieldSourcePicker({
   return (
     <>
       <div className="flex items-center gap-2">
-        <Eyebrow className="text-muted">Choose existing secret</Eyebrow>
+        <Eyebrow className="text-muted-foreground">Choose existing secret</Eyebrow>
         {binding.namespaceLabel ? (
           <Pill className="ml-auto" mono size="xs">
             {binding.namespaceLabel}
@@ -212,7 +212,7 @@ function SecretFieldSourcePicker({
         ) : null}
       </div>
       {isEmpty ? (
-        <p className="text-small-body text-muted">
+        <p className="text-small-body text-muted-foreground">
           {binding.emptyLabel ?? "No stored secrets yet."}
         </p>
       ) : null}
@@ -220,7 +220,7 @@ function SecretFieldSourcePicker({
         <SecretFieldSourceList binding={binding} fieldLabel={fieldLabel} />
       ) : null}
       <div className="flex items-center gap-2">
-        <p className="mr-auto text-form-hint text-muted">Values stay hidden.</p>
+        <p className="mr-auto text-form-hint text-muted-foreground">Values stay hidden.</p>
         {create ? (
           <Button
             onClick={() => create.onOpenChange(true)}
@@ -255,7 +255,10 @@ function SecretFieldSources({
       data-testid={testId}
     >
       {binding.loading ? (
-        <div className="flex items-center gap-2 text-small-body text-muted" role="status">
+        <div
+          className="flex items-center gap-2 text-small-body text-muted-foreground"
+          role="status"
+        >
           <Spinner aria-hidden="true" className="size-3" />
           Loading stored references
         </div>

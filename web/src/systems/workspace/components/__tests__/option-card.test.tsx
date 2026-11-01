@@ -1,4 +1,4 @@
-import { FolderPlus } from "lucide-react";
+import { FolderPlus } from "@compozy/ui/icons";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -10,9 +10,9 @@ import { OptionCard } from "../option-card";
 function renderCard(action?: React.ReactNode) {
   return render(
     <OptionCard size="comfortable" data-testid="option-card-root">
-      <OptionCard.Header eyebrow="Folder" right={<Pill tone="accent">PATH</Pill>} />
+      <OptionCard.Header eyebrow="Folder" right={<Pill tone="brand">PATH</Pill>} />
       <OptionCard.Body>
-        <OptionCard.Icon tone="accent" data-testid="option-card-icon">
+        <OptionCard.Icon tone="brand" data-testid="option-card-icon">
           <FolderPlus className="size-4" />
         </OptionCard.Icon>
         <OptionCard.Content>
@@ -36,7 +36,7 @@ describe("OptionCard", () => {
     expect(root.dataset.size).toBe("comfortable");
     expect(screen.getByText("Folder")).toBeInTheDocument();
     expect(screen.getByText("PATH")).toBeInTheDocument();
-    expect(screen.getByTestId("option-card-icon").dataset.tone).toBe("accent");
+    expect(screen.getByTestId("option-card-icon").dataset.tone).toBe("brand");
     expect(screen.getByTestId("option-card-meta").textContent).toBe("/Users/pedro/Dev");
   });
 

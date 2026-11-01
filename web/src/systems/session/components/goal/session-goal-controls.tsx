@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { CheckCircle2, Pause, Play, Square, X } from "lucide-react";
+import { CheckCircle2, Pause, Play, Square, X } from "@compozy/ui/icons";
 
 import {
   Button,

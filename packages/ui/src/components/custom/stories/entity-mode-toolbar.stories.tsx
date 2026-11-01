@@ -48,11 +48,11 @@ function Harness({
         testIdPrefix="entity"
         trailing={
           withTrailing ? (
-            <span className="font-mono text-form-label text-muted">overlay draft</span>
+            <span className="font-mono text-form-label text-muted-foreground">overlay draft</span>
           ) : undefined
         }
       />
-      <div className="px-6 py-5 text-small-body text-muted">
+      <div className="px-6 py-5 text-small-body text-muted-foreground">
         {mode === "simple" ? "Common path only." : "Common path plus advanced disclosure."}
       </div>
     </Frame>

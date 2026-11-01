@@ -1,4 +1,4 @@
-import { TextCursorInput } from "lucide-react";
+import { TextCursorInput } from "@compozy/ui/icons";
 
 import type { LoopInputSchema } from "../../types";
 import { LoopRailSection } from "../loop-rail-section";
@@ -44,7 +44,7 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
                     {loopInputLabel(name, field)}
                   </span>
                   {field?.required ? (
-                    <span className="font-semibold text-muted" aria-label="required">
+                    <span className="font-semibold text-muted-foreground" aria-label="required">
                       *
                     </span>
                   ) : null}

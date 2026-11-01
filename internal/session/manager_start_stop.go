@@ -13,7 +13,7 @@ import (
 var errStartupCanceledByStop = errors.New("session: startup canceled")
 
 func (m *Manager) stopStartingSession(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
-	session, run, handled, err := m.prepareStartingSessionStop(ctx, id, cause, detail)
+	session, run, handled, err := m.prepareStartingSessionStop(ctx, id, cause, detail, nil)
 	if !handled || err != nil {
 		return handled, err
 	}
@@ -47,6 +47,7 @@ func (m *Manager) prepareStartingSessionStop(
 	id string,
 	cause StopCause,
 	detail string,
+	stopRun *sessionStopRun,
 ) (*Session, *sessionStartRun, bool, error) {
 	session, run := m.startingStopTarget(id)
 	if session == nil {
@@ -77,11 +78,13 @@ func (m *Manager) prepareStartingSessionStop(
 		}
 	}
 
-	writeMeta, _, err := session.prepareStop(m.now(), cause, detail)
+	writeMeta, _, err := m.commitStopIntent(ctx, session, cause, detail, stopRun)
 	if err != nil {
 		releaseLaunchCommit()
 		return session, run, true, fmt.Errorf("session: prepare starting stop for %q: %w", id, err)
 	}
+	// The launch settles termination itself once canceled, so effects go first.
+	stopRun.notifyCommitted()
 	if writeMeta {
 		// Bind any prepared creation identity before the catalog leaves Starting.
 		// A canceled launch may have written metadata without committing the catalog.

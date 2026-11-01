@@ -1,4 +1,4 @@
-import { AlertTriangle, Users2 } from "lucide-react";
+import { AlertTriangle, Users2 } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, Button, Empty, Spinner, type ListingViewMode } from "@compozy/ui";
 

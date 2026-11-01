@@ -1,4 +1,4 @@
-import { Gauge } from "lucide-react";
+import { Gauge } from "@compozy/ui/icons";
 
 import { PropertyRow } from "@compozy/ui";
 

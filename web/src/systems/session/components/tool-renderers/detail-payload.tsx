@@ -1,4 +1,4 @@
-import { Download, Maximize2, Scissors } from "lucide-react";
+import { Download, Maximize2, Scissors } from "@compozy/ui/icons";
 import { type ComponentProps, useState } from "react";
 
 import { Button } from "@compozy/ui";

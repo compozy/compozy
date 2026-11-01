@@ -32,7 +32,7 @@ function hasHoistedOverview(item: Folder): boolean {
 }
 
 const ITEM_CLS =
-  "docs-sb-item relative flex h-(--height-sidebar-row) flex-row items-center gap-2 overflow-hidden rounded px-2 text-small-body font-normal text-muted transition-[color,background-color] duration-base ease-out hover:bg-elevated hover:text-fg data-[active=true]:bg-accent-tint data-[active=true]:font-medium data-[active=true]:text-accent [&_svg:not([data-icon])]:size-(--text-small-body) [&_svg:not([data-icon])]:shrink-0 [&_svg:not([data-icon])]:opacity-75 data-[active=true]:[&_svg:not([data-icon])]:opacity-100 [&_svg[data-icon]]:ms-auto [&_svg[data-icon]]:size-3 [&_svg[data-icon]]:shrink-0 [&_svg[data-icon]]:opacity-55";
+  "docs-sb-item relative flex h-(--height-sidebar-row) flex-row items-center gap-2 overflow-hidden rounded-site-row px-2 text-small-body font-normal text-muted-foreground transition-[color,background-color] duration-base ease-out hover:bg-elevated hover:text-fg data-[active=true]:bg-brand-tint data-[active=true]:font-medium data-[active=true]:text-brand [&_svg:not([data-icon])]:size-(--text-small-body) [&_svg:not([data-icon])]:shrink-0 [&_svg:not([data-icon])]:opacity-75 data-[active=true]:[&_svg:not([data-icon])]:opacity-100 [&_svg[data-icon]]:ms-auto [&_svg[data-icon]]:size-3 [&_svg[data-icon]]:shrink-0 [&_svg[data-icon]]:opacity-55";
 
 function SidebarLabel({ name }: { name: ReactNode }) {
   const title = typeof name === "string" ? name : undefined;

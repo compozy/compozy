@@ -7,10 +7,10 @@ const METRIC_PLACEHOLDER = "—";
 const REVIEW_OUTCOME_TONE: Record<TaskRunReviewOutcome, PillTone> = {
   approved: "success",
   rejected: "warning",
-  blocked: "danger",
-  error: "danger",
-  timeout: "danger",
-  invalid_output: "danger",
+  blocked: "destructive",
+  error: "destructive",
+  timeout: "destructive",
+  invalid_output: "destructive",
 };
 
 export function formatTaskRunMetric(value?: number | null): string {

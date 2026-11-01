@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AtSign, Bot, Briefcase, CircleDot, ListFilter, Pin } from "lucide-react";
 import { useState } from "react";
 
+import { AtSign, Bot, Briefcase, CircleDot, ListFilter, Pin } from "../../../icons";
 import { Button } from "../../button";
 import { Filters, FiltersWithSearch, type Filter, type FilterFieldsConfig } from "../filters";
 

@@ -17,7 +17,7 @@ import type { SessionPayload } from "../types";
 export type ForeignProfileSessionState =
   | { status: "disabled" }
   | { status: "loading" }
-  | { status: "found"; session: SessionPayload; owner: ProfileOwner }
+  | { status: "found"; session: SessionPayload; owner: ProfileOwner; isFetching: boolean }
   | { status: "missing" }
   | { status: "error"; error: Error };
 
@@ -43,7 +43,12 @@ export function useForeignProfileSession(
   const query = useQuery(sessionAcrossProfilesOptions(id, active));
   if (!active) return { status: "disabled" };
   if (query.data) {
-    return { status: "found", session: query.data, owner: ownerFromRow(query.data) };
+    return {
+      status: "found",
+      session: query.data,
+      owner: ownerFromRow(query.data),
+      isFetching: query.isFetching,
+    };
   }
   if (query.isPending || query.isFetching) return { status: "loading" };
   if (query.isError) {

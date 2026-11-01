@@ -64,8 +64,9 @@ export function SessionDefaultsGroup({
       data-testid="settings-page-general-session-defaults"
       description={
         <span data-testid="settings-page-general-session-defaults-scope">
-          New sessions in the <span className="font-medium text-muted">{persona.profileName}</span>{" "}
-          profile start with these.
+          New sessions in the{" "}
+          <span className="font-medium text-muted-foreground">{persona.profileName}</span> profile
+          start with these.
         </span>
       }
       title="Session defaults"

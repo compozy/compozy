@@ -1,4 +1,4 @@
-import { CircleSlash } from "lucide-react";
+import { CircleSlash } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 
@@ -65,7 +65,7 @@ export function SessionsBoardColumnsRow({
 export function SessionsBoardLanesFailure({ onRetry }: { onRetry: () => void }) {
   return (
     <div
-      className="flex flex-col items-center justify-center gap-2.5 px-3 py-8 text-center text-small-body text-muted"
+      className="flex flex-col items-center justify-center gap-2.5 px-3 py-8 text-center text-small-body text-muted-foreground"
       data-testid="sessions-board-lanes-error"
       role="alert"
     >

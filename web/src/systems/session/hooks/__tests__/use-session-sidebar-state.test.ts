@@ -236,24 +236,65 @@ describe("useSessionSidebarState", () => {
           createElement(module.WindowScopeContext, { value: scopeId }, children),
       }).result;
     const one = renderView(before, WINDOW_ONE);
-    expect(one.current).toMatchObject({ view: "list", hideChildren: false });
+    expect(one.current).toMatchObject({ view: "list", hideChildren: true });
     act(() => {
       one.current.setView("kanban");
-      one.current.setHideChildren(true);
+      one.current.setHideChildren(false);
     });
     expect(renderView(before, WINDOW_TWO).current).toMatchObject({
       view: "list",
-      hideChildren: false,
+      hideChildren: true,
     });
 
     const after = await loadFreshSidebarState();
     await waitFor(() =>
       expect(renderView(after, WINDOW_ONE).current).toMatchObject({
         view: "kanban",
-        hideChildren: true,
+        hideChildren: false,
       })
     );
-    expect(renderView(after, WINDOW_TWO).current.view).toBe("list");
+    expect(renderView(after, WINDOW_TWO).current).toMatchObject({
+      view: "list",
+      hideChildren: true,
+    });
+  });
+
+  it("Should upgrade stored child filters: a missing key defaults on, a stored value stays, and the shell's never seeds", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: {
+          byScope: {
+            shell: { open: true, hideChildren: false },
+            [WINDOW_ONE]: { open: true, view: "kanban" },
+            [WINDOW_TWO]: { open: true, view: "kanban", hideChildren: false },
+            win_three: { open: true, view: "kanban", hideChildren: true },
+          },
+          partitionByScope: {},
+        },
+        version: 3,
+      })
+    );
+    const upgraded = await loadFreshSidebarState();
+    const renderView = (scopeId: string) =>
+      renderHook(() => upgraded.useSessionWindowViewState(), {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(upgraded.WindowScopeContext, { value: scopeId }, children),
+      }).result;
+
+    await waitFor(() => expect(renderView(WINDOW_ONE).current.view).toBe("kanban"));
+    expect(renderView(WINDOW_ONE).current.hideChildren).toBe(true);
+    expect(renderView(WINDOW_TWO).current.hideChildren).toBe(false);
+    expect(renderView("win_three").current.hideChildren).toBe(true);
+    expect(renderView("win_new").current.hideChildren).toBe(true);
+
+    act(() =>
+      upgraded.sessionSidebarStore.trigger.hideChildrenChanged({
+        scopeId: "shell",
+        hideChildren: false,
+      })
+    );
+    expect(renderView("win_later").current.hideChildren).toBe(true);
   });
 
   it("Should restore a window's board column folds after a reload, never seeding a new window", async () => {
@@ -295,7 +336,7 @@ describe("useSessionSidebarState", () => {
 
     // Another window's unrelated gesture never replaces the width new windows start from.
     const two = renderView(before, WINDOW_TWO);
-    act(() => two.current.setHideChildren(true));
+    act(() => two.current.setHideChildren(false));
     expect(renderView(before, "win_three").current.drawerWidth).toBe(812);
 
     // Each window keeps its own width once it chose one.

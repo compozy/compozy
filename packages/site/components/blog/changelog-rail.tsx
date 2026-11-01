@@ -18,7 +18,7 @@ export function ChangelogRail({ releases }: ChangelogRailProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="inline-block size-1.5 rounded-full bg-success" />
-          <Eyebrow className="text-muted tracking-badge!">Changelog</Eyebrow>
+          <Eyebrow className="text-muted-foreground tracking-badge!">Changelog</Eyebrow>
         </div>
         <Link href="/changelog" className="text-xs text-subtle hover:text-fg">
           all versions →

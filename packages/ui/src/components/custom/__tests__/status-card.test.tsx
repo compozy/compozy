@@ -36,7 +36,7 @@ describe("StatusCard", () => {
     expect(action).toHaveFocus();
   });
 
-  it.each(["success", "warning", "danger", "info", "neutral"] as const)(
+  it.each(["success", "warning", "destructive", "info", "neutral"] as const)(
     "Should propagate %s tone to the status dot",
     tone => {
       render(

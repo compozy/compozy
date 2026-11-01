@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// SettingsProviderUsageUpdateRequest is a daemon API value.
+type SettingsProviderUsageUpdateRequest struct {
+	Config SettingsProviderUsagePayload `json:"config"`
+}
+
 // SettingsProviderWritePayload is a daemon API value.
 type SettingsProviderWritePayload struct {
 	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
@@ -439,12 +444,4 @@ type SettingsWindowFocusPolicy string
 type SettingsWindowManagerBindingPayload struct {
 	TopCenter    SettingsWindowBindingAction `json:"top_center"`
 	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
-}
-
-// SettingsWindowManagerCommandPayload is a daemon API value.
-type SettingsWindowManagerCommandPayload struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Section string `json:"section"`
-	Source  string `json:"source"`
 }

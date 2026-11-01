@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 /** Copies the absolute checkout path with one failure contract across workspace menus. */
 export function copyWorktreePath(path: string): void {

@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 
-import { sessionBadgeWordClass } from "../../lib/session-badge-classes";
+import { sessionBadgeSignal } from "../../lib/session-badge";
+import { SESSION_TONE_WORD_CLASS } from "../../lib/session-badge-classes";
 import type { RowMeta } from "../../lib/session-row-meta";
 import type { SessionPayload } from "../../types";
 
@@ -10,6 +11,10 @@ import type { SessionPayload } from "../../types";
  * separator lives inside the neighbour that gives way first, so a collapsed part
  * never leaves a stray `·`. The words repeat the target's accessible name, so the
  * line itself stays out of the a11y tree.
+ *
+ * Tone runs title (the row's `fg`) > attention word > agent > notes and the
+ * row's counts, chevron and time. `muted`, `subtle` and `faint` are one value in
+ * the light theme, so the agent and a neutral word take the steps above them.
  */
 export function SessionListRowWho({
   session,
@@ -18,6 +23,7 @@ export function SessionListRowWho({
   session: Pick<SessionPayload, "agent_name" | "badge">;
   meta: Pick<RowMeta, "attention" | "notes">;
 }) {
+  const { tone } = sessionBadgeSignal(session.badge);
   const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
   if (session.agent_name) parts.push({ key: "agent", kind: "agent", text: session.agent_name });
   meta.attention.forEach((text, index) =>
@@ -36,11 +42,12 @@ export function SessionListRowWho({
             aria-hidden="true"
             className={cn(
               "min-w-0 truncate",
-              part.kind === "agent" && "shrink-[100] font-medium text-muted",
-              part.kind === "attention" && "shrink",
+              part.kind === "agent" && "shrink-[100] text-fg-2",
+              part.kind === "attention" && "shrink text-fg-3",
               part.kind === "attention" &&
                 index === firstAttention(parts) &&
-                sessionBadgeWordClass(session.badge),
+                tone !== "neutral" &&
+                SESSION_TONE_WORD_CLASS[tone],
               part.kind === "note" && "shrink-[10000]"
             )}
           >

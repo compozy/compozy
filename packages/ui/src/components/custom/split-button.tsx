@@ -1,6 +1,6 @@
-import { ChevronDownIcon } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
 
+import { ChevronDownIcon } from "../../icons";
 import { Button } from "../button";
 import { ButtonGroup } from "../button-group";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../dropdown-menu";

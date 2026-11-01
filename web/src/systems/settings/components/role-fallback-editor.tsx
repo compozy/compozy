@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "@compozy/ui/icons";
 
 import { Button, cn } from "@compozy/ui";
 
@@ -64,7 +64,7 @@ export function RoleFallbackEditor({
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-body font-medium text-fg">Fallback chain</span>
-          <span className="text-form-label text-muted">
+          <span className="text-form-label text-muted-foreground">
             Ordered routes tried before session acceptance when the primary fails.
           </span>
         </div>
@@ -133,7 +133,7 @@ export function RoleFallbackEditor({
                   </Button>
                 </div>
                 {error ? (
-                  <span className="pl-6 text-form-hint text-danger" role="alert">
+                  <span className="pl-6 text-form-hint text-destructive" role="alert">
                     {error}
                   </span>
                 ) : null}

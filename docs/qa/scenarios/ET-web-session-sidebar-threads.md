@@ -173,3 +173,14 @@ single project; after it, the mark changed within 1s in both. `compozy session r
 `session prompt` from the CLI, focused window: the mark changed within 1s in All projects and in a
 single project. Owning suites: `session read invalidation` in `query-options.test.ts` and the
 catalog-rows cases in `session-chat-runtime-provider.test.tsx`. Verdict for this leg: pass.
+
+QA impact 2026-10-31 (#1112): the sessions sidebar reads as a tonal hierarchy. A project header's
+name is primary (`fg`, medium) while its count and `+` recede to `subtle`/`faint` and keep their
+hover and focus ink. In a row: title (`fg`) > a neutral status word (`fg-3`; semantic attention words
+keep their colors) > agent (`fg-2`) > counts, chevron and time (`subtle`). `muted`, `subtle` and
+`faint` share one value in the light theme, which is why the agent and the neutral word step above
+them. The message trail moved to the transcript's right edge: ticks grow leftward, previews open
+toward the content, and the gutter keeps text clear of the ticks. Rendered evidence:
+`systems/session/routes/AgentSession` → `LongSidebarWithTrail`, light and dark. Walk: with two or
+more sent messages, hover and keyboard through the trail with a right panel open and with the
+scroll-to-bottom pill visible, and confirm nothing overlaps. Live walk pending; CI is the gate.

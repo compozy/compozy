@@ -5,7 +5,7 @@ export interface HomeSystemTile {
   label: string;
   value: string;
   detail?: string;
-  tone?: "success" | "warning" | "danger";
+  tone?: "success" | "warning" | "destructive";
 }
 
 export interface HomeSystemModel {

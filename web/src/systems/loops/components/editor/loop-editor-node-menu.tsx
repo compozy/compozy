@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ClipboardPaste, Copy, CopyPlus, Pencil, Trash2 } from "lucide-react";
+import { ClipboardPaste, Copy, CopyPlus, Pencil, Trash2 } from "@compozy/ui/icons";
 
 import {
   ContextMenu,

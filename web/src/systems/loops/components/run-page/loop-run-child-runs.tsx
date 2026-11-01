@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { ComponentProps } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button, SkeletonText, StateGlyph, cn } from "@compozy/ui";
@@ -106,7 +106,7 @@ function LoopRunChildRunRow({ child, inputs, depth }: LoopRunChildRunRowProps) {
         </Link>
         {inputs ? (
           <span
-            className="min-w-0 truncate text-form-hint text-muted"
+            className="min-w-0 truncate text-form-hint text-muted-foreground"
             data-testid="loop-run-child-run-inputs"
             title={inputs.title}
           >
@@ -118,7 +118,7 @@ function LoopRunChildRunRow({ child, inputs, depth }: LoopRunChildRunRowProps) {
         <LoopRunChildRunStatus {...read} />
       </span>
       <span
-        className="flex min-w-0 items-center gap-1.5 text-form-hint text-muted"
+        className="flex min-w-0 items-center gap-1.5 text-form-hint text-muted-foreground"
         data-testid="loop-run-child-run-step"
       >
         <LoopRunChildRunStep {...read} />
@@ -179,7 +179,7 @@ function LoopRunChildRunList({ childRuns, depth, id }: LoopRunChildRunListProps)
       </ul>
       {hidden > 0 ? (
         <Button
-          className="-ml-2.5 mt-1 text-muted hover:text-fg"
+          className="-ml-2.5 mt-1 text-muted-foreground hover:text-fg"
           data-testid="loop-run-child-runs-more"
           onClick={() => setShowAll(true)}
           size="sm"
@@ -226,7 +226,7 @@ export function LoopRunChildRuns({
       <Button
         aria-controls={open ? listId : undefined}
         aria-expanded={open}
-        className="-ml-2 text-muted hover:text-fg"
+        className="-ml-2 text-muted-foreground hover:text-fg"
         data-testid="loop-run-child-runs-toggle"
         onClick={() => setOpen(value => !value)}
         size="sm"

@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import { CollapsibleTrigger, Empty, Eyebrow, cn, type EmptyProps } from "@compozy/ui";
 
 /** One rail section: internal rhythm only; the rail body owns the gap between sections. */
@@ -56,7 +56,7 @@ export function SessionInspectorDisclosureHead({
       />
       <span className="text-form-label font-medium">{children}</span>
       {meta ? (
-        <span className="ml-auto truncate font-mono text-mono-id tabular-nums text-muted">
+        <span className="ml-auto truncate font-mono text-mono-id tabular-nums text-muted-foreground">
           {meta}
         </span>
       ) : null}

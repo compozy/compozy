@@ -9,11 +9,11 @@ export function FinalCta() {
     <SectionFrame background="surface" padY="lg" className="border-b border-line">
       <div className="grid gap-8 rounded-diagram border border-line bg-canvas px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
-          <Eyebrow className="text-accent">CompozyOS</Eyebrow>
+          <Eyebrow className="text-brand">CompozyOS</Eyebrow>
           <h2 className="mt-4 max-w-[18ch] font-display text-site-cta-title leading-none font-normal tracking-tight text-fg">
             Install CompozyOS. Put agents to work continuously.
           </h2>
-          <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted">
+          <p className="mt-5 max-w-[52ch] text-sm leading-7 text-muted-foreground">
             One complete environment, batteries included: loops, triggers, permissions, approvals,
             and history. No scripts or orchestration frameworks to maintain.
           </p>
@@ -38,7 +38,7 @@ export function FinalCta() {
             href={baseOptions.githubUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 inline-flex items-center gap-2 text-muted transition-colors hover:text-accent"
+            className="mt-1 inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-brand"
           >
             <Star aria-hidden className="size-3" />
             <Eyebrow>Star on GitHub</Eyebrow>

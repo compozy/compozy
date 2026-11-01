@@ -314,7 +314,7 @@
   }
 
   /* ---------- interactive demo window ---------- */
-  const demo = { mode: "list", current: "s2", hideChildren: false, doneCollapsed: false, archiveOpen: false, doneLoaded: 5, menuOpen: false, busy: null, chipOverride: null, toast: null };
+  const demo = { mode: "list", current: "s2", hideChildren: true, doneCollapsed: false, archiveOpen: false, doneLoaded: 5, menuOpen: false, busy: null, chipOverride: null, toast: null };
   const PRESETS = {
     live: null,
     nobranch: { branch: "" },

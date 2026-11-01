@@ -38,9 +38,9 @@ function inlineSaveMessage({
 }
 
 function inlineSaveMessageClass(error: string | null, warnings: string[]): string {
-  if (error) return "text-eyebrow text-danger";
+  if (error) return "text-eyebrow text-destructive";
   if (warnings.length > 0) return "text-eyebrow text-warning";
-  return "text-eyebrow text-muted";
+  return "text-eyebrow text-muted-foreground";
 }
 
 function InlineSaveMessage({ testIdPrefix, ...state }: InlineSaveState & { testIdPrefix: string }) {

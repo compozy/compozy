@@ -1,4 +1,4 @@
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2 } from "@compozy/ui/icons";
 
 import { Button, FormSection } from "@compozy/ui";
 
@@ -20,15 +20,17 @@ export function AgentSettingsDangerSection({
   const scopeLabel = agent.origin === "workspace" ? "this project" : "all projects";
   return (
     <FormSection
-      data-testid="agent-settings-danger"
+      data-testid="agent-settings-destructive"
       icon={AlertTriangle}
       title="Delete agent"
       description={`Permanently remove ${agent.name} from ${scopeLabel}.`}
-      className="border-danger/30"
+      className="border-destructive/30"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
         <div className="min-w-0">
-          <p className="text-small-body text-muted">Past sessions stay. This can't be undone.</p>
+          <p className="text-small-body text-muted-foreground">
+            Past sessions stay. This can't be undone.
+          </p>
         </div>
         <Button
           type="button"

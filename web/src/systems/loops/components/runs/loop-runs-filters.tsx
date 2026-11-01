@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ListFilter } from "lucide-react";
+import { ListFilter } from "@compozy/ui/icons";
 
 import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
 

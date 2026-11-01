@@ -1,4 +1,4 @@
-import { ChartBar } from "lucide-react";
+import { ChartBar } from "@compozy/ui/icons";
 
 import {
   cn,
@@ -20,10 +20,10 @@ export interface TasksDashboardStatusBreakdownProps {
 
 const TONE_FILL_CLASS: Record<PillTone, string> = {
   neutral: "bg-neutral",
-  accent: "bg-accent",
+  brand: "bg-brand",
   success: "bg-success",
   warning: "bg-warning",
-  danger: "bg-danger",
+  destructive: "bg-destructive",
   info: "bg-info",
 };
 
@@ -36,7 +36,10 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
       data-testid="tasks-dashboard-status-breakdown"
       right={
         total > 0 ? (
-          <Eyebrow className="text-muted" data-testid="tasks-dashboard-status-breakdown-total">
+          <Eyebrow
+            className="text-muted-foreground"
+            data-testid="tasks-dashboard-status-breakdown-total"
+          >
             total {total}
           </Eyebrow>
         ) : undefined
@@ -76,7 +79,7 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
                     {entry.count}
                   </span>
                   <span
-                    className="w-12 shrink-0 text-right font-mono text-eyebrow font-medium tabular-nums text-muted"
+                    className="w-12 shrink-0 text-right font-mono text-eyebrow font-medium tabular-nums text-muted-foreground"
                     data-testid={`tasks-dashboard-status-share-${entry.status}`}
                   >
                     {formatPercent(sharePct)}

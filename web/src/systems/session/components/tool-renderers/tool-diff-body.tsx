@@ -1,5 +1,5 @@
 import { DiffCard, type DiffCardLine } from "@compozy/ui";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import type { AlignedDiffLine } from "../../lib/tool-diff-stat";

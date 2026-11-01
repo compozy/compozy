@@ -1,6 +1,6 @@
 import type * as React from "react";
-import { Loader2Icon } from "lucide-react";
 
+import { Loader2Icon } from "../icons";
 import { cn } from "../lib/utils";
 
 // The standalone default is 16 px, set as `w-4 h-4` rather than `size-4` on

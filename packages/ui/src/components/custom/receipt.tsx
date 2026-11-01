@@ -22,7 +22,7 @@ export interface ReceiptProps extends React.ComponentProps<"div"> {
 const TONE_ICON: Record<ReceiptTone, string> = {
   neutral: "text-faint",
   allowed: "text-success",
-  rejected: "text-danger",
+  rejected: "text-destructive",
 };
 
 /**
@@ -70,8 +70,8 @@ function Receipt({
         className={cn(
           "min-w-0",
           wrap ? "break-words whitespace-pre-line" : "truncate",
-          "[&_b]:font-medium [&_b]:text-muted [&_strong]:font-medium [&_strong]:text-muted",
-          "[&_code]:font-mono [&_code]:text-transcript-body [&_code]:text-muted"
+          "[&_b]:font-medium [&_b]:text-muted-foreground [&_strong]:font-medium [&_strong]:text-muted-foreground",
+          "[&_code]:font-mono [&_code]:text-transcript-body [&_code]:text-muted-foreground"
         )}
       >
         {children}

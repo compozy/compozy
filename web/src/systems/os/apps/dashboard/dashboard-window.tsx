@@ -1,4 +1,4 @@
-import { Home, ServerOff } from "lucide-react";
+import { Home, ServerOff } from "@compozy/ui/icons";
 
 import { ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
 

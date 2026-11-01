@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { CalendarClock, Hash, Info, ShieldCheck } from "lucide-react";
+import { CalendarClock, Hash, Info, ShieldCheck } from "@compozy/ui/icons";
 
 import { cn, PropertyRowSkeleton, Skeleton, SkeletonText } from "@compozy/ui";
 

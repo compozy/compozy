@@ -162,7 +162,7 @@ describe("settingsUpdateTracks", () => {
 
     expect(runtime).toMatchObject({
       status: "failed",
-      tone: "danger",
+      tone: "destructive",
       restoredVersion: "0.5.0",
       lastError: "health check failed after swap",
     });

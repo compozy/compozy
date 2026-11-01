@@ -1,4 +1,4 @@
-import { ChevronDown, FolderOpen, Plus, Store } from "lucide-react";
+import { ChevronDown, FolderOpen, Plus, Store } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -43,19 +43,19 @@ function MarketplaceAddMenu({ onInstall, onAddMarketplace }: MarketplaceAddMenuP
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64" data-testid="marketplace-add-menu">
         <DropdownMenuItem data-testid="marketplace-add-github" onClick={() => onInstall("github")}>
-          <GithubLogo aria-hidden="true" className="size-4 text-muted" />
+          <GithubLogo aria-hidden="true" className="size-4 text-muted-foreground" />
           Install extension from GitHub…
         </DropdownMenuItem>
         <DropdownMenuItem
           data-testid="marketplace-add-local"
           onClick={() => onInstall("local_path")}
         >
-          <FolderOpen aria-hidden="true" className="size-4 text-muted" />
+          <FolderOpen aria-hidden="true" className="size-4 text-muted-foreground" />
           Install extension from a local build…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem data-testid="marketplace-add-marketplace" onClick={onAddMarketplace}>
-          <Store aria-hidden="true" className="size-4 text-muted" />
+          <Store aria-hidden="true" className="size-4 text-muted-foreground" />
           Add plugin marketplace…
         </DropdownMenuItem>
       </DropdownMenuContent>

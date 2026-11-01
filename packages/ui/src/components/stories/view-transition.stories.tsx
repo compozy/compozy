@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { BoxesIcon } from "lucide-react";
 import { startTransition, Suspense, use, useState, ViewTransition } from "react";
 
+import { BoxesIcon } from "../../icons";
 import {
   startTypedTransition,
   VIEW_TRANSITION_CLASS,
@@ -52,11 +52,11 @@ function FadeDemo() {
       <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
         <div className={PANEL}>
           {tab === "overview" ? (
-            <p className="p-4 text-small-body text-muted">
+            <p className="p-4 text-small-body text-muted-foreground">
               Overview: the panel cross-fades as its content changes inside a transition.
             </p>
           ) : (
-            <ul className="flex flex-col gap-1 p-4 text-small-body text-muted">
+            <ul className="flex flex-col gap-1 p-4 text-small-body text-muted-foreground">
               <li>Activity: session started</li>
               <li>Activity: tool call approved</li>
               <li>Activity: session finished</li>
@@ -86,7 +86,9 @@ function DrillDemo() {
       >
         {view === "list" ? (
           <div className="flex flex-col items-start gap-3 p-4">
-            <p className="text-small-body text-muted">A list. Opening a row drills in.</p>
+            <p className="text-small-body text-muted-foreground">
+              A list. Opening a row drills in.
+            </p>
             <Button
               size="sm"
               type="button"
@@ -99,7 +101,9 @@ function DrillDemo() {
           </div>
         ) : (
           <div className="flex flex-col items-start gap-3 p-4">
-            <p className="text-small-body text-muted">The detail. Going back drills out.</p>
+            <p className="text-small-body text-muted-foreground">
+              The detail. Going back drills out.
+            </p>
             <Button
               size="sm"
               type="button"

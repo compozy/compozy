@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Button, ConfirmDialog, Pill, SkeletonRegion } from "@compozy/ui";
 
@@ -61,7 +61,7 @@ export function SettingsMarketplaceSourcesSection({
         </SkeletonRegion>
       ) : query.isError ? (
         <div
-          className="flex min-h-11 flex-wrap items-center gap-2 px-3 py-2 text-form-hint text-danger"
+          className="flex min-h-11 flex-wrap items-center gap-2 px-3 py-2 text-form-hint text-destructive"
           data-testid={`${TEST_ID}-error`}
           role="alert"
         >
@@ -101,7 +101,7 @@ export function SettingsMarketplaceSourcesSection({
         }}
         open={actions.removing !== null}
         title={actions.removing ? `Remove ${actions.removing}?` : "Remove marketplace"}
-        tone="danger"
+        tone="destructive"
       />
     </SettingsGroup>
   );

@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 
 export function SettingsRuntimeUnavailable({
   slug,
@@ -9,7 +9,7 @@ export function SettingsRuntimeUnavailable({
 }) {
   return (
     <div
-      className="flex items-start gap-2.5 rounded-md bg-warning-tint px-3.5 py-3 text-form-label leading-normal text-muted"
+      className="flex items-start gap-2.5 rounded-md bg-warning-tint px-3.5 py-3 text-form-label leading-normal text-muted-foreground"
       data-testid={`settings-page-${slug}-runtime-unavailable`}
       role="status"
     >

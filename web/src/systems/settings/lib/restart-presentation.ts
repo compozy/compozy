@@ -14,7 +14,7 @@ export interface SettingsRestartViewState {
 }
 
 export type SettingsRestartPhase = "required" | "polling" | "successful" | "failed";
-export type SettingsRestartTone = "warning" | "info" | "success" | "danger";
+export type SettingsRestartTone = "warning" | "info" | "success" | "destructive";
 
 export interface SettingsRestartPresentation {
   phase: SettingsRestartPhase;
@@ -46,7 +46,7 @@ export function settingsRestartPresentation(
   if (isFailedRestart(state.status)) {
     return {
       phase: "failed",
-      tone: "danger",
+      tone: "destructive",
       title: "Restart failed",
       body:
         state.failureReason?.trim() ||

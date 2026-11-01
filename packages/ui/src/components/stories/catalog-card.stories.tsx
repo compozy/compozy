@@ -1,6 +1,6 @@
-import { AlertCircle, Download, Wrench } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { AlertCircle, Download, Wrench } from "../../icons";
 import { Button } from "../button";
 import { CatalogCard } from "../custom/catalog-card";
 import { Pill } from "../custom/pill";
@@ -133,7 +133,7 @@ export const Error: Story = {
   render: () => (
     <CatalogCard className="max-w-sm" data-testid="catalog-card-error">
       <div className="flex items-start gap-3">
-        <CatalogCard.Logo tone="danger">
+        <CatalogCard.Logo tone="destructive">
           <AlertCircle className="size-4" />
         </CatalogCard.Logo>
         <div className="flex min-w-0 flex-1 flex-col gap-1">

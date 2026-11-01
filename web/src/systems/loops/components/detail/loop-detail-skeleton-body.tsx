@@ -6,7 +6,7 @@ import {
   TextCursorInput,
   Workflow,
   Zap,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 

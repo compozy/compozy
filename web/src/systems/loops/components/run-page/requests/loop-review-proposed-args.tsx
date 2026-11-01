@@ -1,4 +1,4 @@
-import { Minus, Pencil } from "lucide-react";
+import { Minus, Pencil } from "@compozy/ui/icons";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@compozy/ui";
 
@@ -34,7 +34,7 @@ export function LoopReviewProposedArgs({ proposed, edited }: LoopReviewProposedA
         <TableBody>
           {rows.map(row => (
             <TableRow className="border-line-soft hover:bg-transparent" key={row.name}>
-              <TableCell className="px-3 py-2 align-top font-mono text-mono-id whitespace-nowrap text-muted">
+              <TableCell className="px-3 py-2 align-top font-mono text-mono-id whitespace-nowrap text-muted-foreground">
                 {row.name}
               </TableCell>
               <TableCell className="px-3 py-2 align-top font-mono text-mono-id break-all text-fg">
@@ -55,7 +55,7 @@ export function LoopReviewProposedArgs({ proposed, edited }: LoopReviewProposedA
 
 function EditedCell({ row }: { row: ProposedArgRow }) {
   if (row.change === "removed") return <ArgTag change="removed" />;
-  if (row.change === "carried") return <span className="text-muted">{row.edited}</span>;
+  if (row.change === "carried") return <span className="text-muted-foreground">{row.edited}</span>;
   return (
     <span className="flex flex-wrap items-center gap-1.5">
       <span className="text-fg-strong">{row.edited}</span>
@@ -67,7 +67,7 @@ function EditedCell({ row }: { row: ProposedArgRow }) {
 function ArgTag({ change }: { change: ProposedArgRow["change"] }) {
   if (change === "removed") {
     return (
-      <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-danger">
+      <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-destructive">
         <Minus aria-hidden="true" className="size-2.5" />
         removed
       </span>
@@ -75,14 +75,14 @@ function ArgTag({ change }: { change: ProposedArgRow["change"] }) {
   }
   if (change === "added") {
     return (
-      <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-accent">
+      <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-brand">
         <Pencil aria-hidden="true" className="size-2.5" />
         added
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-accent">
+    <span className="inline-flex items-center gap-1 font-sans text-form-hint font-medium text-brand">
       <Pencil aria-hidden="true" className="size-2.5" />
       changed
     </span>

@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, ViewTransition } from "react";
-import { Bot } from "lucide-react";
+import { Bot } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -113,7 +113,9 @@ export function AgentSettingsLocation({
                   className={cn(
                     "rounded-md px-3 py-2 text-left text-small-body font-medium tracking-tight transition-colors duration-base ease-out",
                     "w-auto shrink-0 md:w-full",
-                    isActive ? "bg-selected text-fg" : "text-muted hover:bg-hover hover:text-fg"
+                    isActive
+                      ? "bg-selected text-fg"
+                      : "text-muted-foreground hover:bg-hover hover:text-fg"
                   )}
                 >
                   <span className="whitespace-nowrap md:truncate">{SECTION_LABELS[section]}</span>
@@ -155,7 +157,10 @@ export function AgentSettingsLocation({
 
         <DialogFooter variant="ruled" className="shrink-0 sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="text-small-body text-muted" data-testid="agent-settings-footer-note">
+            <p
+              className="text-small-body text-muted-foreground"
+              data-testid="agent-settings-footer-note"
+            >
               Changes apply to new sessions only.
             </p>
             {page.dirty ? (

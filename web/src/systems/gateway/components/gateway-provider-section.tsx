@@ -8,7 +8,7 @@ import {
   ListingRowSkeleton,
   SkeletonRegion,
 } from "@compozy/ui";
-import { Radio } from "lucide-react";
+import { Radio } from "@compozy/ui/icons";
 
 import { TIER_LABEL } from "../lib/gateway-copy";
 import type { GatewayProviderCandidate, GatewayProviderModel } from "../lib/gateway-provider-model";
@@ -55,7 +55,7 @@ export function GatewayProviderSection({
       ) : null}
       {actionError ? (
         <div className="px-4 py-3">
-          <Alert data-testid="gateway-provider-error" variant="danger">
+          <Alert data-testid="gateway-provider-error" variant="destructive">
             <AlertTitle>That provider change was not applied</AlertTitle>
             <AlertDescription>{actionError}</AlertDescription>
           </Alert>

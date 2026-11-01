@@ -7,7 +7,7 @@ import {
   ScrollText,
   Shield,
   Stethoscope,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { MonoId } from "@compozy/ui";
 
@@ -247,7 +247,7 @@ function MarketplaceExtensionAccessRow({
       {icon}
       <div className="min-w-0">
         <p className="text-body font-medium text-fg">{title}</p>
-        <p className="mt-0.5 max-w-prose text-form-label leading-relaxed text-muted">
+        <p className="mt-0.5 max-w-prose text-form-label leading-relaxed text-muted-foreground">
           {description}
         </p>
         {values.length ? (

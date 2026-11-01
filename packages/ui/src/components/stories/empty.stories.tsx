@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { InboxIcon, PlusIcon, SearchIcon } from "lucide-react";
 
+import { InboxIcon, PlusIcon, SearchIcon } from "../../icons";
 import { Button } from "../button";
 import { Empty } from "../empty";
 
@@ -178,7 +178,7 @@ export const FillRemaining: Story = {
   parameters: { layout: "fullscreen" },
   render: () => (
     <div className="flex h-screen w-full flex-col">
-      <div className="shrink-0 border-b border-line px-9 py-4 text-sm text-muted">
+      <div className="shrink-0 border-b border-line px-9 py-4 text-sm text-muted-foreground">
         Page head + toolbar
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-9 pb-20 pt-7">

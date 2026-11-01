@@ -1,4 +1,4 @@
-import { Archive, ChevronRight, CircleSlash, Bookmark, type LucideIcon } from "lucide-react";
+import { Archive, ChevronRight, CircleSlash, Bookmark, type LucideIcon } from "@compozy/ui/icons";
 import { use, useId, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
@@ -126,7 +126,7 @@ export function SessionsBoardShelfBar({
       </button>
       {open ? (
         <div
-          className="flex items-start gap-2 overflow-x-auto px-4 pb-4"
+          className="flex items-start gap-2 overflow-x-auto px-4 pt-1 pb-4"
           data-testid={`${testId}-body`}
           id={bodyId}
         >

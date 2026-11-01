@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { MessagesSquare, Plus } from "lucide-react";
+import { MessagesSquare, Plus } from "@compozy/ui/icons";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
@@ -39,7 +39,7 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
   const view = useSessionWindowViewState();
 
   useTopbarSlot({
-    crumb: <span className="text-muted">Sessions</span>,
+    crumb: <span className="text-muted-foreground">Sessions</span>,
     overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
     actions: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
   });

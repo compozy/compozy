@@ -29,6 +29,7 @@ const (
 	MarkerProviderFailure        = "transcript_marker.provider_failure"
 	MarkerMCPAuthRequired        = "transcript_marker.mcp_auth_required"
 	MarkerFileMutationUnverified = "transcript_marker.file_mutation_unverified"
+	MarkerRuntimeChanged         = "transcript_marker.runtime_changed"
 
 	maxMarkerSummaryBytes = 2048
 )
@@ -182,7 +183,8 @@ func validMarkerKind(kind string) bool {
 		MarkerPostStop,
 		MarkerProviderFailure,
 		MarkerMCPAuthRequired,
-		MarkerFileMutationUnverified:
+		MarkerFileMutationUnverified,
+		MarkerRuntimeChanged:
 		return true
 	default:
 		return false

@@ -30,7 +30,7 @@ export function SubagentRuntimeMeta({
         </span>
       ) : null}
       {agent ? (
-        <span aria-hidden="true" className="min-w-0 shrink-[10000] truncate text-muted">
+        <span aria-hidden="true" className="min-w-0 shrink-[10000] truncate text-muted-foreground">
           {model || effort ? "· " : ""}
           {agent}
         </span>

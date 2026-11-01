@@ -1,7 +1,7 @@
 import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
 import { SubagentRuntimeMeta } from "./subagent-runtime-meta";
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
-import { ChevronRight, GitBranch } from "lucide-react";
+import { ChevronRight, GitBranch } from "@compozy/ui/icons";
 
 import { HoverCard, HoverCardContent, HoverCardTrigger, Icon, cn } from "@compozy/ui";
 
@@ -44,8 +44,8 @@ export interface SubagentCardProps {
 }
 
 const LINE_TWO_TONE: Record<SubagentLineTwoTone, string> = {
-  default: "text-muted",
-  danger: "text-danger",
+  default: "text-muted-foreground",
+  destructive: "text-destructive",
 };
 
 const CARD_FRAME = {
@@ -119,7 +119,7 @@ function SubagentCardMain({ subagent, settled }: { subagent: SubagentView; settl
         <span
           className={cn(
             "min-w-0 truncate text-transcript-meta font-medium",
-            settled ? "text-muted" : "text-fg-strong"
+            settled ? "text-muted-foreground" : "text-fg-strong"
           )}
         >
           {subagent.title}
@@ -271,8 +271,9 @@ export function SubagentCard({
             <Icon
               as={ChevronRight}
               aria-hidden="true"
+              data-slot="subagent-card-chevron"
               className={cn(
-                "text-faint transition-[color,rotate] duration-base ease-out group-hover/subagent-card:text-muted motion-reduce:transition-none",
+                "text-faint transition-[color,rotate] duration-base ease-out group-hover/subagent-card:text-muted-foreground motion-reduce:transition-none",
                 chevron === "open" && "rotate-90"
               )}
             />

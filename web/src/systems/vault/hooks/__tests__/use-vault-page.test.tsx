@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
   },
   vaultFilter: vi.fn(),
   allSecretsRefetch: vi.fn(),
-  toast: Object.assign(vi.fn(), { success: vi.fn() }),
+  toast: { message: vi.fn(), success: vi.fn() },
 }));
 
 vi.mock("@compozy/ui", async importOriginal => ({

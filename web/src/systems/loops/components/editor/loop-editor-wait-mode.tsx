@@ -32,7 +32,7 @@ export function LoopEditorWaitMode({
     <div>
       <span className="mb-1.5 flex items-center gap-1.5 text-form-label font-medium text-fg-strong">
         {field.label}
-        <span className="text-accent-strong" title="required">
+        <span className="text-brand-strong" title="required">
           *
         </span>
       </span>

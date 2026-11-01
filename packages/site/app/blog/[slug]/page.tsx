@@ -116,9 +116,9 @@ export default async function BlogPostPage({ params }: PageProps) {
               <span>Back to blog</span>
             </Link>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Eyebrow className="text-accent">BLOG</Eyebrow>
+              <Eyebrow className="text-brand">BLOG</Eyebrow>
               <BulletDivider />
-              <Eyebrow className="text-muted">{categoryLabel(post.category)}</Eyebrow>
+              <Eyebrow className="text-muted-foreground">{categoryLabel(post.category)}</Eyebrow>
               <BulletDivider />
               <DateStamp date={post.date} />
               <BulletDivider />
@@ -130,7 +130,7 @@ export default async function BlogPostPage({ params }: PageProps) {
             <h1 className="mt-7 font-display text-site-article-title font-normal leading-none tracking-tight text-fg">
               {post.title}
             </h1>
-            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-muted">
+            <p className="mt-6 max-w-[58ch] text-site-lead leading-normal text-muted-foreground">
               {post.description}
             </p>
             <div className="mt-9 flex items-center justify-between gap-4">

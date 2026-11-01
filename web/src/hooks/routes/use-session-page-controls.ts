@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import {

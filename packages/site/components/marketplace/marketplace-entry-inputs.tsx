@@ -40,7 +40,7 @@ export function MarketplaceEntryInputs({ inputs }: { inputs: readonly ExtensionI
                       {bindingLabel(input.binding)}
                     </span>
                   </TableCell>
-                  <TableCell className="align-top whitespace-normal text-muted">
+                  <TableCell className="align-top whitespace-normal text-muted-foreground">
                     {input.prompt}
                   </TableCell>
                   <TableCell className="align-top whitespace-normal">
@@ -50,10 +50,10 @@ export function MarketplaceEntryInputs({ inputs }: { inputs: readonly ExtensionI
                         Secret
                       </Pill>
                     ) : (
-                      <span className="text-muted">{INPUT_TYPE_LABELS[input.type]}</span>
+                      <span className="text-muted-foreground">{INPUT_TYPE_LABELS[input.type]}</span>
                     )}
                   </TableCell>
-                  <TableCell className="align-top whitespace-normal text-muted">
+                  <TableCell className="align-top whitespace-normal text-muted-foreground">
                     {input.required ? "Required" : "Optional"}
                   </TableCell>
                   {hasDefaults ? (
@@ -79,7 +79,7 @@ export function MarketplaceEntryInputs({ inputs }: { inputs: readonly ExtensionI
         URL query parameter shown under its id. See{" "}
         <Link
           href="/docs/extensions/install#supply-package-inputs"
-          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
+          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
         >
           Supply package inputs
         </Link>

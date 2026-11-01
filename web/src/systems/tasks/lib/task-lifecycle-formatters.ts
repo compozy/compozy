@@ -138,12 +138,12 @@ const TASK_LIFECYCLE_PHASE_TONES: Record<TaskLifecyclePhase, PillTone> = {
   awaiting_approval: "info",
   ready_to_start: "neutral",
   queued: "neutral",
-  running: "accent",
+  running: "brand",
   needs_attention: "warning",
   completed: "neutral",
-  failed: "danger",
-  canceled: "danger",
-  blocked: "danger",
+  failed: "destructive",
+  canceled: "destructive",
+  blocked: "destructive",
 };
 
 export function taskLifecyclePhaseTone(phase: TaskLifecyclePhase): PillTone {

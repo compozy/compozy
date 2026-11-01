@@ -1,4 +1,4 @@
-import { RotateCcw, Save, SlidersHorizontal } from "lucide-react";
+import { RotateCcw, Save, SlidersHorizontal } from "@compozy/ui/icons";
 
 import { Button, EntityDialogFooter, EntityDialogHeader } from "@compozy/ui";
 

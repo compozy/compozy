@@ -1,4 +1,4 @@
-import { Radio } from "lucide-react";
+import { Radio } from "@compozy/ui/icons";
 
 import { Eyebrow } from "@compozy/ui";
 

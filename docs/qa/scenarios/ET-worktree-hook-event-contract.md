@@ -20,3 +20,9 @@ QA impact: Task 01 adds the hook family and canonical event registry. The walk m
 per-run creation, removal, adoption, setup failure, creation cancellation, status refresh, safe
 branch reclamation, and every exit-action terminal path, then reconnect and prove replay has no gap,
 duplicate, foreign-workspace frame, or raw planted secret.
+
+Quiet exit-plan read (2026-10-31): `GET .../worktrees/{id}/exit` refreshes and persists the cached
+status without emitting `worktree.status_refreshed`; status refreshes such as
+`GET .../status?refresh=true`, the CLI refresh, finished turns, and settled actions emit it. The walk must read the exit plan several times against a live
+per-worktree stream and see no new frame, and a session page bound to a worktree must hold a steady
+request rate instead of refetching the plan on its own frames.

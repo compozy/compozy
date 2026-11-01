@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Play } from "@compozy/ui/icons";
 import { type FormEvent, useLayoutEffect, useRef } from "react";
 
 import {
@@ -150,7 +150,7 @@ function SessionCreateDialog({
 
             {submitError ? (
               <FieldError
-                className="mt-4 text-form-hint text-danger"
+                className="mt-4 text-form-hint text-destructive"
                 data-testid="session-create-submit-error"
               >
                 {submitError}

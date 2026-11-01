@@ -14,9 +14,8 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { formatAbsoluteTime } from "@compozy/ui";
+import { formatAbsoluteTime, toast } from "@compozy/ui";
 import { useState } from "react";
-import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";

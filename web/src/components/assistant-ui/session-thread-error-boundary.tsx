@@ -49,8 +49,8 @@ export class SessionThreadErrorBoundary extends Component<
         data-testid="session-thread-error-boundary"
       >
         <div className="max-w-md text-center">
-          <Eyebrow className="text-danger">Thread render failed</Eyebrow>
-          <p className="mt-2 text-small-body text-muted">
+          <Eyebrow className="text-destructive">Thread render failed</Eyebrow>
+          <p className="mt-2 text-small-body text-muted-foreground">
             {error.message.trim().length > 0
               ? error.message
               : "The transcript could not be rendered."}

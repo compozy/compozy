@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 import { useSelector, useStore } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import type { SessionComposerInputHandle } from "../session-composer-lexical-plugins";
 import { sessionComposerSyncLogic } from "./session-composer-sync-store";

@@ -171,9 +171,9 @@ export function useAttentionNotifier({
   // The bell is the review surface; overlapping ephemeral notices must not block it.
   useEffect(() => {
     if (!bellOpen) return;
-    for (const notification of toast.getToasts()) {
-      if (/^(needs-you|finished|agent|attention-overflow):/.test(String(notification.id))) {
-        toast.dismiss(notification.id);
+    for (const id of toast.activeIds()) {
+      if (/^(needs-you|finished|agent|attention-overflow):/.test(String(id))) {
+        toast.dismiss(id);
       }
     }
   }, [bellOpen]);

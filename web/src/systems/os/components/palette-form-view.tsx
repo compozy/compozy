@@ -84,10 +84,10 @@ export function PaletteFormView({
               }
             )}
             {field.type === "dropdown" && field.options?.length === 0 && field.empty_hint ? (
-              <p className="text-small-body text-muted">{field.empty_hint}</p>
+              <p className="text-small-body text-muted-foreground">{field.empty_hint}</p>
             ) : null}
             {error ? (
-              <p className="text-small-body text-danger" role="alert">
+              <p className="text-small-body text-destructive" role="alert">
                 {error}
               </p>
             ) : null}
@@ -95,7 +95,11 @@ export function PaletteFormView({
         );
       })}
       {submitError ? (
-        <p className="text-small-body text-danger" role="alert" data-testid="palette-form-error">
+        <p
+          className="text-small-body text-destructive"
+          role="alert"
+          data-testid="palette-form-error"
+        >
           {submitError}
         </p>
       ) : null}

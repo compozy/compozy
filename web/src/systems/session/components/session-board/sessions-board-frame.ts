@@ -58,7 +58,7 @@ export const SESSIONS_BOARD_LANE_COUNT = "text-small-body text-subtle tabular-nu
 /** The Later and Archive bars under the board: each one's ruled frame and the 41 px row inside it. */
 export const SESSIONS_BOARD_SHELF_FRAME = "shrink-0 border-t border-line bg-canvas";
 export const SESSIONS_BOARD_SHELF_BAR =
-  "flex h-tabs-list w-full items-center gap-2 px-4 text-small-body text-muted";
+  "flex h-tabs-list w-full items-center gap-2 px-4 text-small-body text-muted-foreground";
 
 /** The board's own frame: the canvas, and the scroller the columns or lanes sit in. */
 export const SESSIONS_BOARD_FRAME = "flex min-h-0 min-w-0 flex-1 flex-col bg-canvas";

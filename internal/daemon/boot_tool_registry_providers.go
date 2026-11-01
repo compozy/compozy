@@ -32,6 +32,7 @@ func (d *Daemon) bootToolProviders(
 		return nil, fmt.Errorf("daemon: create mcp tool provider: %w", err)
 	}
 	mcpAuth = mcpAuthProvider
+	state.mcpAuthStatus = mcpAuthProvider
 	if mcpProvider != nil {
 		state.mcpToolProvider = mcpProvider
 		providers = append(providers, mcpProvider)

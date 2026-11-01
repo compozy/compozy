@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -165,6 +166,86 @@ func TestAllowedToolsOverridePolicyHelpers(t *testing.T) {
 		ids, err := concreteDelegationTools(resolved, catalog, []toolspkg.ToolID{toolspkg.ToolIDTaskRead})
 		if err != nil || len(ids) != 0 {
 			t.Fatalf("concreteDelegationTools() = %#v, %v", ids, err)
+		}
+	})
+}
+
+func TestSessionCanRedirectShellWaits(t *testing.T) {
+	t.Parallel()
+	catalog, err := toolspkg.NewToolsetCatalog(toolspkg.Toolset{
+		ID:    toolspkg.ToolsetIDSessions,
+		Tools: []string{toolspkg.ToolIDMonitorCreate.String()},
+	})
+	if err != nil {
+		t.Fatalf("NewToolsetCatalog() error = %v", err)
+	}
+	universe := []toolspkg.ToolID{toolspkg.ToolIDTerminalExec, toolspkg.ToolIDMonitorCreate}
+	both := []string{toolspkg.ToolIDTerminalExec.String(), toolspkg.ToolIDMonitorCreate.String()}
+
+	cases := map[string]struct {
+		spec     sessionStartSpec
+		resolved compozyconfig.ResolvedAgent
+		want     bool
+	}{
+		"Should guard an unrestricted agent": {
+			resolved: compozyconfig.ResolvedAgent{SessionMCP: true},
+			want:     true,
+		},
+		"Should guard an allowlist naming both tools": {
+			resolved: compozyconfig.ResolvedAgent{SessionMCP: true, ToolPolicyEnforced: true, Tools: both},
+			want:     true,
+		},
+		"Should skip an agent denied the monitor": {
+			resolved: compozyconfig.ResolvedAgent{
+				SessionMCP: true,
+				DenyTools:  []string{toolspkg.ToolIDMonitorCreate.String()},
+			},
+		},
+		"Should skip an allowlist without the terminal": {
+			resolved: compozyconfig.ResolvedAgent{
+				SessionMCP: true,
+				Toolsets:   []string{toolspkg.ToolsetIDSessions.String()},
+			},
+		},
+		"Should skip a spawned child narrowed below the wait tools": {
+			spec: sessionStartSpec{sessionID: "child", lineage: &store.SessionLineage{
+				ParentSessionID: "parent", RootSessionID: "parent", SpawnDepth: 1,
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: both[:1]},
+			}},
+			resolved: compozyconfig.ResolvedAgent{SessionMCP: true},
+		},
+		"Should skip a provider without session MCP": {
+			resolved: compozyconfig.ResolvedAgent{},
+		},
+		"Should skip the Pi harness": {
+			resolved: compozyconfig.ResolvedAgent{SessionMCP: true, Harness: compozyconfig.ProviderHarnessPiACP},
+		},
+		"Should skip a verdict-only session": {
+			spec:     sessionStartSpec{runtimeMode: RuntimeModeVerdictOnly},
+			resolved: compozyconfig.ResolvedAgent{SessionMCP: true},
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			manager := &Manager{
+				hostedMCP:      &recordingHostedMCPLauncher{},
+				toolsetCatalog: catalog,
+				toolUniverse:   universe,
+			}
+			spec := tc.spec
+			if got := manager.sessionCanRedirectShellWaits(&spec, tc.resolved); got != tc.want {
+				t.Fatalf("sessionCanRedirectShellWaits() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("Should skip a session without a hosted MCP launcher", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{toolsetCatalog: catalog, toolUniverse: universe}
+		resolved := compozyconfig.ResolvedAgent{SessionMCP: true}
+		if manager.sessionCanRedirectShellWaits(&sessionStartSpec{}, resolved) {
+			t.Fatal("sessionCanRedirectShellWaits() = true, want false")
 		}
 	})
 }

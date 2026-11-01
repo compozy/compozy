@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AlertTriangleIcon, InfoIcon, RefreshCwIcon, TargetIcon } from "lucide-react";
 
+import { AlertTriangleIcon, InfoIcon, RefreshCwIcon, TargetIcon } from "../../../icons";
 import { Marker, MarkerMeta } from "../marker";
 
 const meta: Meta<typeof Marker> = {
@@ -44,7 +44,7 @@ export const Tones: Story = {
       <Marker tone="warning" icon={<AlertTriangleIcon />}>
         <b>Context 41% full</b> — no compaction needed yet.
       </Marker>
-      <Marker tone="danger" icon={<AlertTriangleIcon />}>
+      <Marker tone="destructive" icon={<AlertTriangleIcon />}>
         <b>Provider request failed</b> — the runtime is retrying.
       </Marker>
     </div>

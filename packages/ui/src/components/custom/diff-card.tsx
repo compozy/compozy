@@ -27,7 +27,7 @@ const LINE_TONE: Record<
   { row: string; bar: string; sign: string; mark: string }
 > = {
   add: { row: "bg-success-tint", bar: "bg-success", sign: "text-success", mark: "+" },
-  del: { row: "bg-danger-tint", bar: "bg-danger", sign: "text-danger", mark: "−" },
+  del: { row: "bg-destructive-tint", bar: "bg-destructive", sign: "text-destructive", mark: "−" },
   context: { row: "", bar: "", sign: "text-faint", mark: " " },
 };
 
@@ -63,7 +63,7 @@ export function DiffCard({
           className="flex min-w-0 items-center gap-2 border-b border-line-soft px-2.5 py-1.5"
         >
           {path ? (
-            <span className="min-w-0 flex-1 truncate font-mono text-transcript-caption font-medium text-muted">
+            <span className="min-w-0 flex-1 truncate font-mono text-transcript-caption font-medium text-muted-foreground">
               {path}
             </span>
           ) : (
@@ -75,7 +75,7 @@ export function DiffCard({
               className="flex shrink-0 items-center gap-1.5 font-mono text-transcript-caption font-medium tabular-nums"
             >
               <span className="text-success">+{additions ?? 0}</span>
-              <span className="text-danger">−{deletions ?? 0}</span>
+              <span className="text-destructive">−{deletions ?? 0}</span>
             </span>
           ) : null}
         </div>
@@ -109,7 +109,7 @@ export function DiffCard({
                 <span
                   className={cn(
                     "font-mono text-transcript-caption leading-[18px] whitespace-pre",
-                    line.kind === "context" ? "text-subtle" : "text-muted"
+                    line.kind === "context" ? "text-subtle" : "text-muted-foreground"
                   )}
                 >
                   {line.text.length > 0 ? line.text : " "}

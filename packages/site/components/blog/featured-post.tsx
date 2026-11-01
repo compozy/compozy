@@ -25,18 +25,20 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
     >
       <div className="order-2 lg:order-1">
         <div className="flex flex-wrap items-center gap-3">
-          <MonoBadge tone="accent">FEATURED</MonoBadge>
+          <MonoBadge tone="brand">FEATURED</MonoBadge>
           <BulletDivider />
-          <Eyebrow className="text-muted">{categoryLabel(post.category)}</Eyebrow>
+          <Eyebrow className="text-muted-foreground">{categoryLabel(post.category)}</Eyebrow>
           <BulletDivider />
           <DateStamp date={post.date} />
         </div>
         <h2 className="mt-6 max-w-[20ch] font-display text-site-feature-title font-normal leading-none tracking-tight text-fg">
-          <Link href={post.permalink} className="transition-colors hover:text-accent">
+          <Link href={post.permalink} className="transition-colors hover:text-brand">
             {post.title}
           </Link>
         </h2>
-        <p className="mt-5 max-w-[54ch] text-base leading-7 text-muted">{post.description}</p>
+        <p className="mt-5 max-w-[54ch] text-base leading-7 text-muted-foreground">
+          {post.description}
+        </p>
         <div className="mt-7 flex flex-wrap items-center gap-4">
           <AuthorMeta handle={post.author} initial={authorInitial} size="sm" />
           <BulletDivider />
@@ -46,7 +48,7 @@ export function FeaturedPost({ post, authorInitial }: FeaturedPostProps) {
           </span>
           <Link
             href={post.permalink}
-            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-accent"
+            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-brand"
           >
             Read post <ArrowUpRight size={14} aria-hidden />
           </Link>

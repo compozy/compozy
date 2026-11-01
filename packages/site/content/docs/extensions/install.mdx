@@ -564,6 +564,10 @@ compozy mcp auth status linear --scope user --owner extension:linear
 compozy mcp auth logout linear --scope user --owner extension:linear
 ```
 
+One login is enough: the server's tools become callable for sessions in that scope, including
+sessions already running, even with `tools.policy.external_default = "disabled"`. Logging out
+withdraws that access.
+
 Use the manifest server name as the positional argument and `extension:<extension-name>` as the owner.
 An allocated runtime name is not a management or authorization alias, even with an explicit owner.
 For a named profile, pass `--profile <name> --scope profile`; for a workspace definition, pass

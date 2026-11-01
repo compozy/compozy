@@ -1,4 +1,4 @@
-import { Folder } from "lucide-react";
+import { Folder } from "@compozy/ui/icons";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 
 import { Button, Pill, Skeleton, cn } from "@compozy/ui";
@@ -60,7 +60,7 @@ export function SessionMessagePartyLabel({
         />
       ) : party.title === null ? (
         <span
-          className="min-w-0 truncate font-medium text-muted"
+          className="min-w-0 truncate font-medium text-muted-foreground"
           data-testid="session-message-party-deleted"
         >
           {DELETED_SESSION_LABEL}
@@ -114,7 +114,10 @@ export function SessionMessageChip({
       tone="neutral"
       size="xs"
       data-testid="session-message-chip"
-      className={cn("[&>svg]:size-2.75 [&>svg]:text-subtle", subtle ? "text-subtle" : "text-muted")}
+      className={cn(
+        "[&>svg]:size-2.75 [&>svg]:text-subtle",
+        subtle ? "text-subtle" : "text-muted-foreground"
+      )}
     >
       {icon}
       {children}
@@ -137,12 +140,12 @@ export function SessionMessageTime({ timestampMs }: { timestampMs: number | null
   );
 }
 
-export type SessionMessageBodyTone = "default" | "quiet" | "danger";
+export type SessionMessageBodyTone = "default" | "quiet" | "destructive";
 
 const BODY_TONE: Record<SessionMessageBodyTone, string> = {
   default: "text-fg",
   quiet: "text-subtle",
-  danger: "text-danger",
+  destructive: "text-destructive",
 };
 
 export interface SessionMessageFrameProps extends Omit<ComponentProps<"article">, "children"> {

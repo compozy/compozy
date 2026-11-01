@@ -1,5 +1,5 @@
 import { createContext, use, type ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
 import { cn, KindIcon, Pill, PropertyRow, type KindIconRegistry } from "@compozy/ui";
@@ -56,7 +56,7 @@ type RouteCardRow = ReturnType<typeof routeCardRows>[number];
  */
 function nodeFrameClassName(hasError: boolean, focused: boolean, selected: boolean): string {
   const held = focused || selected;
-  if (hasError) return cn("ring-danger", focused ? "ring-2" : "ring-1", held && "bg-selected");
+  if (hasError) return cn("ring-destructive", focused ? "ring-2" : "ring-1", held && "bg-selected");
   return held ? "bg-selected" : "hover:ring-1 hover:ring-line-strong";
 }
 
@@ -161,8 +161,8 @@ function LoopEditorNodeHeader({
     >
       <span
         className={cn(
-          "grid size-6 shrink-0 place-items-center rounded bg-surface-2",
-          focused ? "text-fg" : "text-muted"
+          "grid size-6 shrink-0 place-items-center rounded-md bg-surface-2",
+          focused ? "text-fg" : "text-muted-foreground"
         )}
       >
         <KindIcon
@@ -202,7 +202,9 @@ function LoopEditorNodeBody({
         <PropertyRow
           className="min-h-0 gap-2 py-0"
           key={row.key}
-          label={row.danger ? <span className="text-danger/70">{row.label}</span> : row.label}
+          label={
+            row.destructive ? <span className="text-destructive/70">{row.label}</span> : row.label
+          }
           mono
         >
           {row.value}
@@ -281,7 +283,7 @@ function LoopEditorNodeRoutes({
 function LoopEditorNodeErrorBadge() {
   return (
     <span
-      className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-danger text-accent-ink"
+      className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full border-2 border-canvas bg-destructive text-brand-ink"
       data-testid="loop-editor-node-badge"
       aria-label="This step has a problem"
       role="img"

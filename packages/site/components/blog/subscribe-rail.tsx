@@ -8,11 +8,11 @@ export function SubscribeRail() {
       aria-label="Blog subscription links"
       className="rounded-xl border border-line bg-rail p-5"
     >
-      <Eyebrow className="text-accent tracking-badge!">Stay current</Eyebrow>
+      <Eyebrow className="text-brand tracking-badge!">Stay current</Eyebrow>
       <h4 className="mt-3 font-sans text-lg font-medium leading-tight tracking-tight text-fg">
         Follow releases on the wire.
       </h4>
-      <p className="mt-3 text-small-body leading-6 text-muted">
+      <p className="mt-3 text-small-body leading-6 text-muted-foreground">
         Protocol changes, runtime drops, and the occasional engineering note. Pick your channel.
       </p>
       <div className="mt-5 flex flex-col gap-2">

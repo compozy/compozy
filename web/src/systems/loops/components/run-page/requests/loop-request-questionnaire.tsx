@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "@compozy/ui/icons";
 
 import { Button, Eyebrow } from "@compozy/ui";
 

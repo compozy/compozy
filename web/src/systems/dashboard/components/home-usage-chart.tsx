@@ -102,7 +102,9 @@ export function HomeUsageChart({
           />
         )}
         {footnotes.length > 0 ? (
-          <p className="text-eyebrow leading-relaxed text-muted">{footnotes.join(" ")}</p>
+          <p className="text-eyebrow leading-relaxed text-muted-foreground">
+            {footnotes.join(" ")}
+          </p>
         ) : null}
         <HomeAgentShare share={usage.agent_share} />
         {profileAggregate ? (
@@ -135,7 +137,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
     >
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <Eyebrow className="text-subtle">Per-agent share</Eyebrow>
-        <span className="text-eyebrow text-muted">last 30 days</span>
+        <span className="text-eyebrow text-muted-foreground">last 30 days</span>
       </div>
       <div
         aria-label={`Token share by agent: ${label}`}
@@ -152,7 +154,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
           />
         ))}
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-4 text-small-body text-muted">
+      <div className="mt-2.5 flex flex-wrap items-center gap-4 text-small-body text-muted-foreground">
         {share.map((entry, index) => (
           <span className="inline-flex items-center gap-1.5" key={entry.agent_name}>
             <span

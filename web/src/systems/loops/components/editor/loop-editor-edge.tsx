@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -50,7 +50,7 @@ export function LoopEditorEdge({
         markerEnd={markerEnd}
         path={edgePath}
 
-        style={selected === true ? { ...style, stroke: "var(--color-accent-dim)" } : style}
+        style={selected === true ? { ...style, stroke: "var(--color-brand-dim)" } : style}
       />
       {hasOverlay ? (
         <EdgeLabelRenderer>
@@ -64,7 +64,7 @@ export function LoopEditorEdge({
                 className={cn(
                   "max-w-36 truncate rounded-xs border border-line bg-card px-1 py-px",
                   "font-mono text-pill-group-badge",
-                  selected === true ? "text-accent-strong" : "text-subtle"
+                  selected === true ? "text-brand-strong" : "text-subtle"
                 )}
                 data-testid="loop-editor-edge-route-label"
                 title={routeLabel}
@@ -75,7 +75,7 @@ export function LoopEditorEdge({
             {deletable ? (
               <Button
                 aria-label="Delete connection"
-                className="shrink-0 rounded-full border border-line-strong bg-card text-muted hover:border-transparent hover:bg-danger-tint hover:text-danger"
+                className="shrink-0 rounded-full border border-line-strong bg-card text-muted-foreground hover:border-transparent hover:bg-destructive-tint hover:text-destructive"
                 data-testid="loop-editor-edge-delete"
                 onClick={() => onDelete(id)}
                 size="icon-xs"

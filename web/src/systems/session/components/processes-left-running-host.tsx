@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { terminateProcesses, type SessionProcessPayload } from "../adapters/session-processes-api";
 import { sessionKeys } from "../lib/query-keys";

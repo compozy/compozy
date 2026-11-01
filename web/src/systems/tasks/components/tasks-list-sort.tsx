@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown } from "lucide-react";
+import { ArrowUpDown, ChevronDown } from "@compozy/ui/icons";
 
 import {
   Button,

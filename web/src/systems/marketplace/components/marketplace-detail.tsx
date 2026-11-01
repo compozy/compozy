@@ -1,4 +1,4 @@
-import { PackageX } from "lucide-react";
+import { PackageX } from "@compozy/ui/icons";
 
 import { Button, cn, Empty, PAGE_CONTENT_GUTTER } from "@compozy/ui";
 

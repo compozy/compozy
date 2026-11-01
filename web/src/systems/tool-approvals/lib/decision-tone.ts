@@ -9,7 +9,7 @@ import type { ToolApprovalDecision } from "../types";
  */
 const DECISION_TONE: Record<ToolApprovalDecision, PillTone> = {
   allow: "success",
-  reject: "danger",
+  reject: "destructive",
 };
 
 export function toolApprovalDecisionTone(decision: ToolApprovalDecision): PillTone {

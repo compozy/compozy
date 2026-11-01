@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { Bot, Code } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { Bot, Code } from "../../../icons";
 import { KindIcon } from "../kind-icon";
 import { providerKindIconRegistry } from "../kind-icon-registry";
 
@@ -53,7 +53,7 @@ describe("KindIcon", () => {
       <KindIcon
         kind="custom"
         registry={{ custom: Bot }}
-        tone="accent"
+        tone="brand"
         size="md"
         className="custom-class"
         data-testid="icon"
@@ -63,7 +63,7 @@ describe("KindIcon", () => {
     const icon = screen.getByTestId("icon");
     expect(icon.className).toContain("custom-class");
     expect(icon.className).toContain("size-5");
-    expect(icon.className).toContain("text-accent");
+    expect(icon.className).toContain("text-brand");
   });
 
   it("Should render an explicit icon without consulting the registry", () => {

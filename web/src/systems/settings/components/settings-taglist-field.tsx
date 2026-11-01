@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Button, Input, Pill } from "@compozy/ui";

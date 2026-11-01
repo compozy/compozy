@@ -26,7 +26,7 @@ export function GenericContent({ message }: { message: UIMessage }) {
       {hasResult && result ? (
         <ToolCallRow.Output>
           <DetailPayload
-            className={result.error || result.stderr ? "text-danger" : undefined}
+            className={result.error || result.stderr ? "text-destructive" : undefined}
             downloadName={`${message.toolName ?? "tool"}-output.txt`}
             text={formatToolResultText(result)}
           />

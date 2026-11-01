@@ -3,7 +3,7 @@ import type { OnboardingAuthMode } from "../stores/use-onboarding-draft-store";
 /** Id of the footer summary line; fields in error describe themselves through it. */
 export const ONBOARDING_SUMMARY_ID = "onboarding-setup-summary";
 
-export type OnboardingSummaryTone = "neutral" | "danger";
+export type OnboardingSummaryTone = "neutral" | "destructive";
 
 /** What the footer states will be saved when the operator continues. */
 export interface OnboardingSummary {
@@ -71,7 +71,7 @@ function workspacesSummary(workspaces: OnboardingSummaryInput["workspaces"]): On
  */
 export function onboardingSummary(input: OnboardingSummaryInput): OnboardingSummary {
   if (input.error !== null && input.error.trim().length > 0) {
-    return { label: "Needs an answer", value: input.error, tone: "danger" };
+    return { label: "Needs an answer", value: input.error, tone: "destructive" };
   }
   return input.step === 1 ? runtimeSummary(input.runtime) : workspacesSummary(input.workspaces);
 }

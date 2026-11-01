@@ -5,22 +5,17 @@ import {
   AntigravityLogo,
   ClaudeLogo,
   CursorLogo,
-  DiscordLogo,
   GeminiLogo,
   GithubLogo,
-  GoogleChatLogo,
   KimiLogo,
   LinearLogo,
-  MicrosoftTeamsLogo,
   OpenAILogo,
   OpenCodeLogo,
   OpenRouterLogo,
   PiLogo,
   QwenLogo,
   SlackLogo,
-  TelegramLogo,
   VercelLogo,
-  WhatsAppLogo,
   XAILogo,
   ZAILogo,
 } from "../index";
@@ -50,14 +45,9 @@ const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
 ];
 
 const INTEGRATION_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
-  { label: "Discord", Logo: DiscordLogo },
   { label: "GitHub", Logo: GithubLogo },
-  { label: "Google Chat", Logo: GoogleChatLogo },
   { label: "Linear", Logo: LinearLogo },
-  { label: "Microsoft Teams", Logo: MicrosoftTeamsLogo },
   { label: "Slack", Logo: SlackLogo },
-  { label: "Telegram", Logo: TelegramLogo },
-  { label: "WhatsApp", Logo: WhatsAppLogo },
 ];
 
 function LogoSection({
@@ -79,7 +69,7 @@ function LogoSection({
             className="grid min-h-28 place-items-center gap-3 bg-canvas-soft p-4 text-center"
           >
             <Logo aria-label={`${label} logo`} className="size-8 text-fg" />
-            <span className="font-mono text-badge font-medium uppercase tracking-badge text-muted">
+            <span className="font-mono text-badge font-medium uppercase tracking-badge text-muted-foreground">
               {label}
             </span>
           </div>
@@ -96,11 +86,11 @@ function LogoGallery({ group = "all" }: LogoGalleryProps) {
   return (
     <div className="grid w-[min(960px,calc(100vw-2rem))] gap-8 rounded-lg border border-line bg-canvas p-6 text-fg">
       <div className="grid gap-2">
-        <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-accent">
+        <p className="font-mono text-eyebrow font-medium uppercase tracking-badge text-brand">
           Logo registry
         </p>
         <h1 className="text-xl font-medium">Agent and integration logos</h1>
-        <p className="max-w-[62ch] text-sm leading-6 text-muted">
+        <p className="max-w-[62ch] text-sm leading-6 text-muted-foreground">
           Brand SVGs exported by `@compozy/ui/logos` for Compozy site and runtime surfaces.
         </p>
       </div>

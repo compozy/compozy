@@ -44,8 +44,8 @@ const STATE_CLASS: Record<StateGlyphState, string> = {
   delegated: "text-info",
   monitoring: "text-warning",
   done: "text-success",
-  attention: "text-accent",
-  failed: "text-danger",
+  attention: "text-brand",
+  failed: "text-destructive",
   stopped: "text-subtle",
   idle: "text-subtle",
 };

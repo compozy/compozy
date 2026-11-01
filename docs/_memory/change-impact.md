@@ -1,5 +1,76 @@
 # Compozy Change Impact
 
+## `@compozy/ui` → BnUI convergence — `theme-compozy`, contract tokens, single points
+
+**Owning spec:** `.compozy/tasks/ui-bnui-convergence/_spec.md` (2026-10-31). Impact Analysis and
+the delete targets are in Part II, and the decisions are ADR-001 through ADR-006. Implementation
+slices link to this entry and update only the lines they change.
+
+- **Native tools.** No change. No `compozy__*` tool, catalog or digest is involved.
+- **CLI/HTTP/UDS.** No change.
+- **Extensibility and hooks.**
+  - Command palette icon tokens and extension manifest `icon` fields remain Lucide slugs
+    (`internal/cmdpalette`, `internal/extension/manifest_profiles.go`).
+  - The web registry `cmd-palette-icons.ts` only changes its import path.
+  - No hook, skill or MCP surface changes.
+- **Config.** No `config.toml` key changes. The Appearance fonts (`--user-font-*`) keep leading
+  the theme stacks (ADR-006, UT-010, `theme-runtime.test.ts`).
+- **Persisted user state.** Unchanged. Profile icons stay `lucide-static` slugs, validated against
+  `internal/profile/lucide_icons.gen.txt` and rendered from the `lucide-static` sprite.
+- **Workspace isolation.** Not applicable. This is build-time styling and module structure.
+- **Web / Docs / official skill.**
+  - `@compozy/ui` token vocabulary changes, and the change is internal-code hard cut:
+    - `accent*` (orange) → `brand*`, tone and variant keys included;
+    - `danger*` → `destructive*`, tone and variant keys included;
+    - the gray `muted` ink → `muted-foreground` in every form;
+    - bare `rounded` → the named utility of equal radius;
+    - `accent`/`muted`/`secondary` take the contract meanings.
+  - Contract values come from `packages/ui/src/bnui-theme.css`, a copy of BnUI `theme-compozy`.
+  - Icons and toasts are imported only from `@compozy/ui`, and lint enforces it.
+  - `packages/ui/CLAUDE.md`, `DESIGN.md` (via `make codegen`), the design-system lint plugin and
+    the hand-mirrored copies follow the renames. The copies are `packages/launch-video`, the
+    showcase and the mermaid theme.
+  - `desktop/scripts/build-main.ts` resolves the boot values from the new sources and throws on
+    unresolved `var()`.
+  - `packages/site` keeps its appearance through a site override block (business rule 9).
+  - Intentional visible changes (accepted ADRs):
+    - the radius scale (ADR-003);
+    - status emphasis inks (ADR-004): light `destructive`, `success`, `warning` and `info`, and
+      dark `info`.
+  - Affected QA scenarios: `ET-web-light-theme-readability`, `ET-web-theme-toggle-persists`,
+    `ET-web-theme-system-follows-os`, `ET-web-appearance-fonts-sync` and
+    `APP-theme-native-no-flash`.
+  - The official `skills/compozy/` skill is not affected.
+- **Cross-repo.**
+  - BnUI (`reui-blocks`) gains `styles/themes/compozy.css`, the `@bnui/theme-compozy` registry
+    item, parity/contrast/screen evidence, a §7 guide section and `icon-map.json` additions.
+  - BnUI CI owns those checks.
+
+## Worktree exit-plan read storm — 2026-10-31
+
+Owner: `fix/worktree-exit-plan-status-refresh-loop`, PR #1121 (Web request storm on a
+session bound to a worktree). `GET .../worktrees/{id}/exit`
+refreshed the status with the emitting path, the Web ladder rereads the exit plan on
+`worktree.status_refreshed`, and the exit query has no stale window, so every plan
+read scheduled the next one.
+
+- **Public surfaces:** the exit-plan read still refreshes and persists the cached
+  status, and no longer emits `worktree.status_refreshed`. `GET .../status?refresh=true`,
+  the CLI refresh, and settled actions keep emitting it. Event vocabulary, DTOs,
+  OpenAPI, CLI, and UDS routes are unchanged.
+- **Web:** the per-worktree stream coalesces lifecycle and terminal frames into one
+  scope reread per quiet window (150 ms, with a 1 s ceiling so a steady trickle of
+  frames cannot defer it) and pays a pending reread when the connection goes away, so
+  the retained-history replay on first connect costs one reread. Each settled exit-plan
+  read rereads the status key (a cached read that emits nothing), so the status strip
+  follows the status the plan read persisted.
+- **Isolation / persistence / native tools / extensions / hooks / config:** none.
+- **Docs / official skill:** `worktrees/agent-surface.mdx` states which paths emit the
+  frame; `ET-worktree-hook-event-contract` records the quiet read. `skills/compozy/` has
+  no text on this frame.
+- **Validation:** `TestExitPlan` case for the quiet read; `use-worktree-stream` hook
+  suite for coalescing; local before/after request-rate measurement on a bound session.
+
 ## Release 0.4.6 catalog request repair — 2026-10-30
 
 Owner: `fix/release-046-validation`, release PR #1042. The shell reuses the
@@ -4875,3 +4946,17 @@ The shared worktree dialog accepts the existing UI primitive finalFocus policy. 
 HTTP/UDS, hooks, extensions, config, persisted data, workspace isolation and the official
 CompozyOS skill are unchanged. Web QA: RT-worktree-web-create-adopt and the existing
 real-Git mixed-removal E2E on menubar/overview surfaces.
+
+## Shell-wait guard — 2026-10-31
+
+Owner: issue #1122, branch `feat/monitor-over-shell-waits`. Native tools: `terminal_exec` and
+`monitor_create` descriptions change and both gain `anthropic/alwaysLoad`; IDs and schemas stay.
+Extensibility: the hidden `compozy __internal shell-wait-hook` verb is internal and undocumented;
+extension `tool.pre_call` hooks are unchanged, and a guard denial precedes them. Config and data: no
+key, DTO, route, or schema change, so there is no migration. Provider behavior changes for agents only:
+foreground waits are refused when the session can call both tools, and input-only, verdict-only, Pi,
+and policy-narrowed sessions are unaffected. Codex gets prompt guidance only for sandbox-allowed
+commands: they reach neither the permission callback nor ACP terminal/create. Workspace isolation is
+unchanged. Official skill and Web
+docs: `skills/compozy/references/{terminal,native-tools}.md` and `sessions/monitors.mdx`. QA:
+RT-session-monitor-wake step 10.

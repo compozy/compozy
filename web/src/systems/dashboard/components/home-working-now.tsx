@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -65,7 +65,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
           <span className="min-w-0 truncate">{card.subtitle}</span>
         </p>
       </div>
-      <span className="text-meta tabular-nums text-muted">
+      <span className="text-meta tabular-nums text-muted-foreground">
         {formatHomeDurationSeconds(ticked, "clock")}
       </span>
     </div>

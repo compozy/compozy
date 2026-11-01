@@ -1,4 +1,4 @@
-import { Clock3, Radio, Webhook, type LucideIcon } from "lucide-react";
+import { Clock3, Radio, Webhook, type LucideIcon } from "@compozy/ui/icons";
 
 import type { AutomationStart } from "./automation-sentence";
 

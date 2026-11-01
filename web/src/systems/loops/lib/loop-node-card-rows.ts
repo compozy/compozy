@@ -10,7 +10,7 @@ export interface LoopNodeCardRow {
   key: string;
   label: string;
   value: string;
-  danger?: boolean;
+  destructive?: boolean;
 }
 
 const MAX_CARD_ROWS = 4;
@@ -57,9 +57,10 @@ function onErrorRow(raw: RawLoopNode): LoopNodeCardRow | undefined {
   const onError = asRecord(raw.on_error);
   if (!onError) return undefined;
   const route = asString(onError.route);
-  if (route) return { key: "on_error", label: "on_error", value: `route → ${route}`, danger: true };
+  if (route)
+    return { key: "on_error", label: "on_error", value: `route → ${route}`, destructive: true };
   if (onError.allow_fail === true) {
-    return { key: "on_error", label: "on_error", value: "allow_fail", danger: true };
+    return { key: "on_error", label: "on_error", value: "allow_fail", destructive: true };
   }
   return undefined;
 }

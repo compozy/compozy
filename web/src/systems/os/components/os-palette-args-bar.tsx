@@ -43,7 +43,7 @@ function PaletteArgFieldRow({
       />
       {field.error === "" ? null : (
         <span
-          className="text-small-body text-danger"
+          className="text-small-body text-destructive"
           data-testid={`os-palette-arg-error-${field.name}`}
           id={`os-palette-arg-error-${field.name}`}
         >

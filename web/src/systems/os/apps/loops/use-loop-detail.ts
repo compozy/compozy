@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useLoopBindings } from "@/hooks/routes/use-loop-bindings";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";

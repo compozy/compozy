@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "@compozy/ui/icons";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingsEditorDialog } from "../settings-editor-dialog";

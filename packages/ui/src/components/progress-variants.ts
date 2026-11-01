@@ -3,16 +3,16 @@ import { cva } from "class-variance-authority";
 const progressIndicatorVariants = cva("h-full transition-[width] duration-slow ease-out", {
   variants: {
     tone: {
-      accent: "bg-accent",
+      brand: "bg-brand",
       success: "bg-success",
       warning: "bg-warning",
-      danger: "bg-danger",
+      destructive: "bg-destructive",
       info: "bg-info",
       neutral: "bg-neutral",
     },
   },
   defaultVariants: {
-    tone: "accent",
+    tone: "brand",
   },
 });
 

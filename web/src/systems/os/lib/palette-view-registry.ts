@@ -13,7 +13,7 @@
  */
 import type { ReactNode } from "react";
 
-import { Blocks, GitBranch, UsersRound } from "lucide-react";
+import { Blocks, GitBranch, UsersRound } from "@compozy/ui/icons";
 
 import { OS_APP_DESCRIPTORS, type OsAppDescriptor } from "./app-catalog";
 

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
+import { ArrowUpRight, LifeBuoy, RotateCw } from "@compozy/ui/icons";
 
 import {
   Button,

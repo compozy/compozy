@@ -138,7 +138,7 @@ function TaskKanbanCardError({ task }: { task: TaskListItem }) {
   if (!failedError) return null;
   return (
     <p
-      className="min-w-0 truncate text-form-hint text-danger"
+      className="min-w-0 truncate text-form-hint text-destructive"
       data-testid={`tasks-kanban-card-error-${task.id}`}
       title={failedError}
     >
@@ -169,7 +169,7 @@ function TaskKanbanCardFooter({
           ownerKind={ownerAvatarKindFor(task.owner?.kind)}
           size="sm"
         />
-        <span className="min-w-0 truncate text-eyebrow text-muted">{ownerLabel}</span>
+        <span className="min-w-0 truncate text-eyebrow text-muted-foreground">{ownerLabel}</span>
         {profileOwner ? (
           <ProfileOwnerTag
             data-testid={`tasks-kanban-card-profile-${task.id}`}

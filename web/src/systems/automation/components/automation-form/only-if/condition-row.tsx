@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 
 import { Button, FieldError, Input, NativeSelect, NativeSelectOption } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import type { ComponentPropsWithoutRef } from "react";
 
 import { Button, cn, DescriptionCard, Section, Skeleton, SkeletonRegion } from "@compozy/ui";

@@ -64,7 +64,7 @@ function checksSignal(pr: SessionPullRequest): PullRequestSignalPart {
   const { checks } = pr;
   switch (checks.state) {
     case "failing":
-      return { id: "checks", label: `${checks.failed} failing`, tone: "danger", mark: "dot" };
+      return { id: "checks", label: `${checks.failed} failing`, tone: "destructive", mark: "dot" };
     case "pending":
       return { id: "checks", label: `${checks.pending} pending`, tone: null, mark: "spinner" };
     case "passing":
@@ -78,10 +78,10 @@ function checksSignal(pr: SessionPullRequest): PullRequestSignalPart {
 
 function reviewSignal(pr: SessionPullRequest): PullRequestSignalPart | null {
   if (pr.review_decision === "changes_requested") {
-    return { id: "review", label: "Changes requested", tone: "danger", mark: "dot" };
+    return { id: "review", label: "Changes requested", tone: "destructive", mark: "dot" };
   }
   if (pr.mergeable === "conflicting") {
-    return { id: "review", label: "Conflicts", tone: "danger", mark: "dot" };
+    return { id: "review", label: "Conflicts", tone: "destructive", mark: "dot" };
   }
   if (pr.review_decision === "approved") {
     return { id: "review", label: "Approved", tone: null, mark: "none" };
@@ -258,11 +258,11 @@ export function pullRequestPill(
   if (!pr) return null;
   if (pr.state === "merged") return { label: "Merged", tone: "info" };
   if (pr.state === "closed") return { label: "Closed", tone: "neutral" };
-  if (pr.checks.state === "failing") return { label: "Checks failing", tone: "danger" };
+  if (pr.checks.state === "failing") return { label: "Checks failing", tone: "destructive" };
   if (pr.review_decision === "changes_requested") {
-    return { label: "Changes requested", tone: "danger" };
+    return { label: "Changes requested", tone: "destructive" };
   }
-  if (pr.mergeable === "conflicting") return { label: "Conflicts", tone: "danger" };
+  if (pr.mergeable === "conflicting") return { label: "Conflicts", tone: "destructive" };
   if (pullRequestIsReady(pr, lookup)) return { label: "Ready to merge", tone: "success" };
   if (pr.draft === true) return { label: "Draft", tone: "neutral" };
   return null;

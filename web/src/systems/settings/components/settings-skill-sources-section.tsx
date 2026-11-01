@@ -1,4 +1,4 @@
-import { FolderTree } from "lucide-react";
+import { FolderTree } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Button, Empty, MonoId, Pill, Section } from "@compozy/ui";
@@ -50,7 +50,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       }
     >
       {model.readOnly ? (
-        <p className="text-small-body text-muted" data-testid={`${TEST_ID}-read-only`}>
+        <p className="text-small-body text-muted-foreground" data-testid={`${TEST_ID}-read-only`}>
           {model.readOnlyReason === "repository-profile"
             ? "This project uses the active profile's settings and can't be edited here."
             : "Sources are set for you or for a project, not per agent. Here you can only turn skills off."}
@@ -58,7 +58,7 @@ export function SettingsSkillSourcesSection({ model }: SettingsSkillSourcesSecti
       ) : null}
       {(model.saveError ?? model.inheritError) ? (
         <p
-          className="flex flex-wrap items-center gap-1.5 text-small-body text-danger"
+          className="flex flex-wrap items-center gap-1.5 text-small-body text-destructive"
           data-testid={`${TEST_ID}-save-error`}
           role="alert"
         >

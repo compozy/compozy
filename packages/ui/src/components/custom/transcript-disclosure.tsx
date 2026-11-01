@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
+import { ChevronRight } from "../../icons";
 import { cn } from "../../lib/utils";
 
 export interface TranscriptDisclosureProps extends Omit<
@@ -50,7 +50,7 @@ export function TranscriptDisclosure({
           ? "-ml-0.5 inline-flex items-center gap-1 rounded-xs px-1 py-px text-transcript-body text-subtle tabular-nums"
           : "inline-flex min-h-transcript-line w-fit items-center gap-transcript-inline-gap rounded-md px-1 text-left text-small-body text-subtle",
         "transition-colors duration-base ease-out",
-        turn ? "hover:text-fg" : "hover:text-muted",
+        turn ? "hover:text-fg" : "hover:text-muted-foreground",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         className
       )}

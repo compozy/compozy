@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, WifiOff } from "lucide-react";
+import { AlertCircle, WifiOff } from "@compozy/ui/icons";
 
 import { Button, Empty, Spinner } from "@compozy/ui";
 
@@ -30,7 +30,7 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
   const readOnly = useSessionThreadReadOnly();
   return (
     <div className={STATE_PANE_FRAME}>
-      <p className="max-w-md text-center text-small-body text-muted">
+      <p className="max-w-md text-center text-small-body text-muted-foreground">
         {readOnly ? (
           "No messages in this history."
         ) : (

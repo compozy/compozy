@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useInstallMarketplaceExtension } from "../hooks/use-marketplace-actions";
 import type { ExtensionInstallRequest } from "../types";

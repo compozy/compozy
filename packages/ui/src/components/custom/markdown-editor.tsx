@@ -30,7 +30,7 @@ export interface MarkdownEditorProps {
 const CONTENT_CLASS = cn(
   "min-h-24 px-3 py-2 text-small-body text-fg outline-none [overflow-wrap:anywhere]",
   "[&_p]:my-0 [&_p+p]:mt-2 [&_ul]:my-1 [&_ol]:my-1 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:ps-5 [&_ol]:ps-5 [&_li>p]:my-0",
-  "[&_strong]:font-semibold [&_strong]:text-fg-strong [&_s]:text-muted",
+  "[&_strong]:font-semibold [&_strong]:text-fg-strong [&_s]:text-muted-foreground",
   "[&_code]:rounded-xxs [&_code]:bg-surface-2 [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.92em]",
   "[&_a]:text-fg [&_a]:underline [&_a]:decoration-line-strong [&_a]:underline-offset-2",
   "[&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0 [&_.is-editor-empty:first-child]:before:text-subtle [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]"
@@ -81,7 +81,8 @@ export function MarkdownEditor({
     <div
       className={cn(
         "flex w-full min-w-0 flex-col rounded-md border border-line bg-canvas transition-colors hover:border-line-strong focus-within:border-line-strong focus-within:shadow-focus-ring",
-        ariaInvalid && "border-danger hover:border-danger focus-within:border-danger",
+        ariaInvalid &&
+          "border-destructive hover:border-destructive focus-within:border-destructive",
         disabled && "pointer-events-none border-line-soft bg-sunken text-disabled",
         className
       )}

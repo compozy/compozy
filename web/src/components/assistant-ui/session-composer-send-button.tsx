@@ -1,7 +1,7 @@
 import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { use } from "react";
 import { SessionMessageEditContext } from "./session-message-edit-context";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp } from "@compozy/ui/icons";
 
 import { InputGroupButton } from "@compozy/ui";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -23,7 +24,11 @@ type nativeToolPolicyResolverDeps struct {
 	AgentResolver     nativeToolPolicyAgentResolver
 	ExtensionRegistry *extensionpkg.Registry
 	ApprovalAvailable bool
+	MCPSourceGrants   nativeToolPolicyMCPSourceGrants
 }
+
+// nativeToolPolicyMCPSourceGrants lists MCP sources the operator authorized for one resolved scope.
+type nativeToolPolicyMCPSourceGrants func(context.Context, toolspkg.Scope) ([]toolspkg.SourceGrant, error)
 
 type nativeToolPolicySessionReader interface {
 	Status(ctx context.Context, id string) (*session.Info, error)
@@ -45,6 +50,7 @@ type nativeToolPolicyResolver struct {
 	agentResolver     nativeToolPolicyAgentResolver
 	extensionRegistry *extensionpkg.Registry
 	approvalAvailable bool
+	mcpSourceGrants   nativeToolPolicyMCPSourceGrants
 }
 
 var _ toolspkg.PolicyInputResolver = (*nativeToolPolicyResolver)(nil)
@@ -61,6 +67,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 		agentResolver:     deps.AgentResolver,
 		extensionRegistry: deps.ExtensionRegistry,
 		approvalAvailable: deps.ApprovalAvailable,
+		mcpSourceGrants:   deps.MCPSourceGrants,
 	}, nil
 }
 
@@ -76,6 +83,9 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 		}),
 		ExtensionRegistry: extensionRegistryDependency(state.registry),
 		ApprovalAvailable: true,
+		MCPSourceGrants: func(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.SourceGrant, error) {
+			return operatorAuthorizedMCPSourceGrants(ctx, state, scope)
+		},
 	})
 }
 
@@ -108,6 +118,9 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 			return toolspkg.PolicyInputs{}, err
 		}
 	}
+	if err := r.applyMCPSourceGrants(ctx, &inputs, resolvedScope); err != nil {
+		return toolspkg.PolicyInputs{}, err
+	}
 	if err := applyLoopExtensionOwnerGrant(ctx, &inputs, resolvedScope); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
@@ -124,6 +137,26 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		}
 	}
 	return inputs, nil
+}
+
+func (r *nativeToolPolicyResolver) applyMCPSourceGrants(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	scope toolspkg.Scope,
+) error {
+	if r.mcpSourceGrants == nil {
+		return nil
+	}
+	grants, err := r.mcpSourceGrants(ctx, scope)
+	if err != nil {
+		return err
+	}
+	for _, grant := range grants {
+		if !sourceGrantExists(inputs.AllowSources, grant) {
+			inputs.AllowSources = append(inputs.AllowSources, grant)
+		}
+	}
+	return nil
 }
 
 func (r *nativeToolPolicyResolver) applyBundledExtensionTrust(inputs *toolspkg.PolicyInputs) error {
@@ -183,12 +216,7 @@ func grantTrustedExtensionSource(
 }
 
 func sourceGrantExists(grants []toolspkg.SourceGrant, target toolspkg.SourceGrant) bool {
-	for _, grant := range grants {
-		if grant.Kind == target.Kind && grant.Owner == target.Owner {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(grants, target)
 }
 
 func applyLoopExtensionOwnerGrant(

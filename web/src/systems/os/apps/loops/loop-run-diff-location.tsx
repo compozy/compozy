@@ -1,4 +1,4 @@
-import { AlertCircle, GitCompare } from "lucide-react";
+import { AlertCircle, GitCompare } from "@compozy/ui/icons";
 
 import { Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
 

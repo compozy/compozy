@@ -162,7 +162,7 @@ describe("CodeBlock", () => {
       expect(toastMocks.error).toHaveBeenCalledWith("Couldn't copy to clipboard");
     });
     expect(button.getAttribute("aria-label")).toBe("Copy failed");
-    expect(button.querySelector("svg.lucide-triangle-alert")).not.toBeNull();
+    expect(button.querySelector('[data-slot="copy-failed-icon"]')).not.toBeNull();
   });
 
   it("Should expose copy failure when the Clipboard API is unavailable", async () => {
@@ -186,21 +186,21 @@ describe("CodeBlock", () => {
     vi.useFakeTimers();
     const { container } = render(<CodeBlock code="compozy start" />);
     const button = container.querySelector<HTMLButtonElement>('[data-slot="code-block-copy"]')!;
-    expect(button.querySelector("svg.lucide-copy")).not.toBeNull();
-    expect(button.querySelector("svg.lucide-check")).toBeNull();
+    expect(button.querySelector('[data-slot="copy-idle-icon"]')).not.toBeNull();
+    expect(button.querySelector('[data-slot="copy-success-icon"]')).toBeNull();
     await act(async () => {
       fireEvent.click(button);
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(button.getAttribute("data-copied")).toBe("true");
-    expect(button.querySelector("svg.lucide-check")).not.toBeNull();
-    expect(button.querySelector("svg.lucide-copy")).toBeNull();
+    expect(button.querySelector('[data-slot="copy-success-icon"]')).not.toBeNull();
+    expect(button.querySelector('[data-slot="copy-idle-icon"]')).toBeNull();
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
     expect(button.getAttribute("data-copied")).toBeNull();
-    expect(button.querySelector("svg.lucide-copy")).not.toBeNull();
+    expect(button.querySelector('[data-slot="copy-idle-icon"]')).not.toBeNull();
   });
 
   it("Should restart the copy feedback timer when copy is clicked repeatedly", async () => {

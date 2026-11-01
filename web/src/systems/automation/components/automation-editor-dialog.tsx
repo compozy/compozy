@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { Zap } from "@compozy/ui/icons";
 
 import { Dialog, DialogContent, EntityDialogHeader, dialogShellClass } from "@compozy/ui";
 

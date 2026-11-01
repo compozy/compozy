@@ -1,4 +1,4 @@
-import { Code } from "lucide-react";
+import { Code } from "@compozy/ui/icons";
 
 import { JsonViewer } from "@compozy/ui";
 

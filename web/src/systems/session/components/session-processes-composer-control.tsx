@@ -1,4 +1,4 @@
-import { Cpu } from "lucide-react";
+import { Cpu } from "@compozy/ui/icons";
 
 import {
   Button,

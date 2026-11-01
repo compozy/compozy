@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ArrowUpRight, CornerDownRight } from "lucide-react";
+import { ArrowUpRight, CornerDownRight } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -66,7 +66,7 @@ function LoopRosterDurationCell({ row }: { row: LoopRosterRow }) {
         <span
           className={cn(
             "block h-full rounded-pill",
-            row.chip.tone === "danger" ? "bg-danger" : "bg-success"
+            row.chip.tone === "destructive" ? "bg-destructive" : "bg-success"
           )}
           style={{ width: `${Math.round((row.durationRatio ?? 0) * 100)}%` }}
         />

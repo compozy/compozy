@@ -1,4 +1,4 @@
-import { Megaphone } from "lucide-react";
+import { Megaphone } from "@compozy/ui/icons";
 
 import { Button, cn, Icon } from "@compozy/ui";
 

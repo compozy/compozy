@@ -46,14 +46,14 @@ export const Polling: Story = {
     tone: "info",
     busy: true,
     message: "Restarting · stopping",
-    detail: <span className="font-mono text-form-hint text-muted">op_abcdef</span>,
+    detail: <span className="font-mono text-form-hint text-muted-foreground">op_abcdef</span>,
   },
 };
 
 /** Failure — danger tone with a dismiss button. */
 export const Failure: Story = {
   args: {
-    tone: "danger",
+    tone: "destructive",
     message: "Restart failed: helper exited non-zero",
     onDismiss: fn(),
   },

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import type { SessionPermalinkRouteContext } from "./-session-permalink-route";
 import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";

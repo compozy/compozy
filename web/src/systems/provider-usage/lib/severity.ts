@@ -6,7 +6,7 @@ export const PROVIDER_USAGE_WARNING_PERCENT = 80;
 export const PROVIDER_USAGE_EXHAUSTED_PERCENT = 100;
 
 /** `Progress` tones the usage meters use; brand colors never tint a bar. */
-export type ProviderUsageTone = "neutral" | "warning" | "danger";
+export type ProviderUsageTone = "neutral" | "warning" | "destructive";
 
 /** `< 80` neutral, `80–<100` warning, `≥ 100` exhausted (values above 100 included). */
 export function severityForPercent(usedPercent: number): ProviderUsageSeverity {
@@ -18,7 +18,7 @@ export function severityForPercent(usedPercent: number): ProviderUsageSeverity {
 const SEVERITY_TONE: Record<ProviderUsageSeverity, ProviderUsageTone> = {
   neutral: "neutral",
   warning: "warning",
-  exhausted: "danger",
+  exhausted: "destructive",
 };
 
 export function toneForSeverity(severity: ProviderUsageSeverity): ProviderUsageTone {

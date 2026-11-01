@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { createClientId } from "@/lib/client-id";
 import { awaitStoreRequest } from "@/lib/store-request";

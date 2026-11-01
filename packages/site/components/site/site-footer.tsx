@@ -9,9 +9,9 @@ import { siteConfig } from "@/lib/site-config";
 const CURRENT_YEAR = new Date().getFullYear();
 
 const LINK_CLASS =
-  "inline-flex items-center text-sm text-muted transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm";
+  "inline-flex items-center text-sm text-muted-foreground transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:rounded-sm";
 
-const COLUMN_TITLE_CLASS = "eyebrow text-muted";
+const COLUMN_TITLE_CLASS = "eyebrow text-muted-foreground";
 
 function FooterLinkItem({ item }: { item: FooterLink }) {
   if (item.external) {
@@ -55,7 +55,7 @@ export function SiteFooter() {
             <Link href="/" aria-label="CompozyOS home" className="inline-flex w-fit">
               <Logo variant="logo" decorative className="h-8 w-auto" />
             </Link>
-            <p className="max-w-[44ch] text-sm leading-relaxed text-muted">
+            <p className="max-w-[44ch] text-sm leading-relaxed text-muted-foreground">
               {siteConfig.description}
             </p>
             <a
@@ -64,9 +64,9 @@ export function SiteFooter() {
               rel="noreferrer noopener"
               aria-label="CompozyOS on GitHub"
               className={cn(
-                "inline-flex size-9 items-center justify-center rounded-full border border-line text-muted transition-colors",
-                "hover:border-muted hover:text-fg",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                "inline-flex size-9 items-center justify-center rounded-full border border-line text-muted-foreground transition-colors",
+                "hover:border-muted-foreground hover:text-fg",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
               )}
             >
               <GithubLogo aria-hidden className="size-4" />
@@ -93,7 +93,7 @@ export function SiteFooter() {
             className={cn(
               "inline-flex items-center gap-2 text-subtle transition-colors",
               "hover:text-fg",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:rounded-sm"
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:rounded-sm"
             )}
           >
             <Eyebrow>Open source · CompozyOS on GitHub</Eyebrow>

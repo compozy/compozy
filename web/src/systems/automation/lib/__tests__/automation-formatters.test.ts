@@ -129,7 +129,7 @@ describe("automation formatter helpers", () => {
   it("words the row's last-run truth with danger only for failures", () => {
     const at = "2026-10-07T02:00:01Z";
     expect(automationLastRunMeta({ status: "failed", startedAt: at })).toEqual({
-      tone: "danger",
+      tone: "destructive",
       glyph: "fail",
       text: "Last run failed",
       at,

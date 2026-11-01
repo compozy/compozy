@@ -1,6 +1,6 @@
 import { useSelector, useStore } from "@xstate/store-react";
 import { useAui } from "@assistant-ui/react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { sessionBusyInputLogic } from "./session-busy-input-store";
 import type { SessionComposerSubmission } from "./use-session-composer-state";

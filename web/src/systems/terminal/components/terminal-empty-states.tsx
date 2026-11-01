@@ -1,4 +1,4 @@
-import { Moon, RotateCcw, TerminalSquare } from "lucide-react";
+import { Moon, RotateCcw, TerminalSquare } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Button, Empty } from "@compozy/ui";

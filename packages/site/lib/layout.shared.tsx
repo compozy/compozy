@@ -10,8 +10,8 @@ export const baseOptions: BaseLayoutProps = {
         <span className="sr-only">{siteConfig.name} home</span>
         <Logo variant="logo" decorative className="h-8 w-auto" />
         <span aria-hidden className="hidden sm:inline-flex">
-          <Eyebrow className="flex items-center gap-1.5 text-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          <Eyebrow className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand" />
             Beta
           </Eyebrow>
         </span>

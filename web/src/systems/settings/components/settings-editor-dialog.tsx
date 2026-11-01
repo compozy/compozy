@@ -1,5 +1,5 @@
-import { AlertCircle } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -117,7 +117,7 @@ function SettingsEditorDialog({
             data-testid={`settings-${testSlug}-editor-feedback`}
           >
             {error ? (
-              <Alert variant="danger" data-testid={`settings-${testSlug}-editor-error`}>
+              <Alert variant="destructive" data-testid={`settings-${testSlug}-editor-error`}>
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>

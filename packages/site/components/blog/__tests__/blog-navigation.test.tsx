@@ -52,7 +52,7 @@ describe("blog navigation components", () => {
     const filter = screen.getByRole("link", { name: "Runtime (3)" });
     expect(filter.getAttribute("href")).toBe("/blog/categories/runtime");
     expect(filter.getAttribute("aria-current")).toBe("page");
-    expect(filter.getAttribute("class")).toContain("border-accent");
+    expect(filter.getAttribute("class")).toContain("border-brand");
   });
 
   it("keeps post cards and archive rows linked to the public permalink", () => {

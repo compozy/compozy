@@ -1,4 +1,4 @@
-import { Archive, Palette } from "lucide-react";
+import { Archive, Palette } from "@compozy/ui/icons";
 
 import { Button, Pill, Skeleton, SkeletonText } from "@compozy/ui";
 

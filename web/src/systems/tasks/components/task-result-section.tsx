@@ -1,4 +1,4 @@
-import { FileX } from "lucide-react";
+import { FileX } from "@compozy/ui/icons";
 import type { ComponentProps, ReactNode } from "react";
 
 import { Empty, Section } from "@compozy/ui";

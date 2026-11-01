@@ -1,4 +1,4 @@
-import { TextCursorInput } from "lucide-react";
+import { TextCursorInput } from "@compozy/ui/icons";
 
 import { Pill, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@compozy/ui";
 

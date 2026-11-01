@@ -15,7 +15,7 @@ import {
   Sparkles,
   Terminal,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { compactSessionSummary } from "./session-summary";
 import type { SessionToolKind } from "./session-tool-visual-state";

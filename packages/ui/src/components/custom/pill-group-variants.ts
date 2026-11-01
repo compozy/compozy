@@ -6,7 +6,7 @@ const pillGroupSegmentVariants = cva(
     variants: {
       active: {
         true: "bg-surface-2 text-fg",
-        false: "bg-transparent text-muted hover:bg-surface-2 hover:text-fg",
+        false: "bg-transparent text-muted-foreground hover:bg-surface-2 hover:text-fg",
       },
       size: {
         sm: "min-h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x) text-eyebrow",

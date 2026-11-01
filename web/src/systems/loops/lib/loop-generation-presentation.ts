@@ -66,15 +66,15 @@ const VERDICT_OUTCOME_LABELS = {
 
 const VERDICT_OUTCOME_TONES = {
   approved: "success",
-  rejected: "danger",
+  rejected: "destructive",
   awaiting_approval: "warning",
   blocked: "warning",
-  error: "danger",
-  timeout: "danger",
-  invalid_output: "danger",
+  error: "destructive",
+  timeout: "destructive",
+  invalid_output: "destructive",
 } as const satisfies Record<LoopVerdictOutcome, LoopGenerationTone>;
 
-export type LoopGenerationTone = "success" | "danger" | "warning" | "neutral";
+export type LoopGenerationTone = "success" | "destructive" | "warning" | "neutral";
 
 /**
  * What happened to the round, beyond its verdict.

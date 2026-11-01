@@ -1,4 +1,4 @@
-import { Archive } from "lucide-react";
+import { Archive } from "@compozy/ui/icons";
 
 import { Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
 

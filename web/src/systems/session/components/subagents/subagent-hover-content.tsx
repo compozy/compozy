@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { Zap } from "@compozy/ui/icons";
 
 import { Icon, KindIcon, PropertyRow, StateGlyph, Time, cn } from "@compozy/ui";
 
@@ -99,7 +99,7 @@ export function SubagentHoverContent({
       <p className="text-transcript-body font-semibold text-pretty text-fg-strong">
         {subagent.title}
       </p>
-      <div className="flex flex-col gap-1.25 text-transcript-caption text-muted">
+      <div className="flex flex-col gap-1.25 text-transcript-caption text-muted-foreground">
         <div className="flex min-w-0 items-center gap-1.5" data-slot="subagent-hover-runtime">
           <KindIcon kind={subagent.runtime.provider ?? undefined} size="xs" tone="muted" />
           {runtime.model === null ? (
@@ -120,7 +120,7 @@ export function SubagentHoverContent({
           ) : null}
         </div>
         <div
-          className={cn("flex min-w-0 items-center gap-1.5", failed && "text-danger")}
+          className={cn("flex min-w-0 items-center gap-1.5", failed && "text-destructive")}
           data-slot="subagent-hover-status"
         >
           <StateGlyph size="sm" state={display.glyph} still={stale} />
@@ -150,7 +150,7 @@ export function SubagentHoverContent({
         <p
           className={cn(
             "border-t border-line-soft pt-2 text-transcript-caption text-pretty wrap-anywhere text-fg-2",
-            failed && "text-danger"
+            failed && "text-destructive"
           )}
           data-slot="subagent-hover-preview"
         >

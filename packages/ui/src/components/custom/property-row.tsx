@@ -45,7 +45,7 @@ const VALUE_CLASS: Record<PropertyRowVariant, string> = {
 
 const VALUE_VOICE: Record<PropertyRowVariant, { mono: string; plain: string }> = {
   rail: {
-    mono: "font-mono text-mono-id font-normal tabular-nums text-muted",
+    mono: "font-mono text-mono-id font-normal tabular-nums text-muted-foreground",
     plain: "text-form-input text-fg",
   },
   facts: { mono: "font-mono text-mono-id tabular-nums text-fg-2", plain: "text-fg-2" },

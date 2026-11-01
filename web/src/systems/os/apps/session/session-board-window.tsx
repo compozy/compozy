@@ -1,4 +1,4 @@
-import { ListTree, Plus, SquareKanban } from "lucide-react";
+import { ListTree, Plus, SquareKanban } from "@compozy/ui/icons";
 import { lazy, Suspense, type ReactNode } from "react";
 
 import { Button, type TopbarSlotValue } from "@compozy/ui";

@@ -1,12 +1,12 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ListChecks, Trash2 } from "lucide-react";
+import { ListChecks, Trash2 } from "@compozy/ui/icons";
 import { Button, MenubarItem, cn } from "@compozy/ui";
 import type { WorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
 /** One-line action rows keep the nest rhythm beside two-line worktree rows. */
 const FOOTER_ROW_CLASS = "min-h-control-compact";
 /** Select all / Cancel sit beside the count as quiet text-weight actions. */
-const COMPACT_ACTION_CLASS = "min-h-6 w-auto shrink-0 px-2 py-0.5 text-micro text-muted";
+const COMPACT_ACTION_CLASS = "min-h-6 w-auto shrink-0 px-2 py-0.5 text-micro text-muted-foreground";
 
 interface ToolbarAction {
   id: string;
@@ -60,7 +60,7 @@ export function WorktreeSelectionToolbar({
         disabled={action.disabled}
         className={cn(
           rowClassName,
-          action.destructive && "text-danger hover:bg-danger-tint hover:text-danger"
+          action.destructive && "text-destructive hover:bg-destructive-tint hover:text-destructive"
         )}
         onClick={action.run}
       >
@@ -118,7 +118,7 @@ export function WorktreeSelectionToolbar({
             },
         selection.mode
           ? COMPACT_ACTION_CLASS
-          : cn(FOOTER_ROW_CLASS, "w-full basis-full justify-start px-2 text-muted")
+          : cn(FOOTER_ROW_CLASS, "w-full basis-full justify-start px-2 text-muted-foreground")
       )}
       {selection.mode
         ? render(

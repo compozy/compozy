@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { Search } from "@compozy/ui/icons";
 import type { ComponentPropsWithoutRef } from "react";
 
 import {
@@ -108,7 +108,7 @@ export function TaskPropertiesRail({
               <span className="truncate">{ownerName}</span>
             </>
           ) : (
-            <span className="text-muted">Unassigned</span>
+            <span className="text-muted-foreground">Unassigned</span>
           )}
         </PropertyRow>
         {record.parent_task_id ? (

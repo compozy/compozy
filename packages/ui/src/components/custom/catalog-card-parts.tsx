@@ -3,13 +3,13 @@ import * as React from "react";
 import { toneText } from "../../lib/tone";
 import { cn } from "../../lib/utils";
 
-export type CatalogCardTone = "accent" | "neutral" | "success" | "warning" | "danger" | "info";
+export type CatalogCardTone = "brand" | "neutral" | "success" | "warning" | "destructive" | "info";
 
 /** Logo well size for browse and configured-provider surfaces. */
 export type CatalogCardLogoSize = "default" | "lg";
 
 export interface CatalogCardLogoProps extends React.ComponentProps<"span"> {
-  /** Glyph ink. Neutral by default; `accent` is opt-in for needs-you only. */
+  /** Glyph ink. Neutral by default; `brand` is opt-in for needs-you only. */
   tone?: CatalogCardTone;
   size?: CatalogCardLogoSize;
 }
@@ -64,7 +64,7 @@ export function CatalogCardDescription({ className, ...props }: CatalogCardDescr
   return (
     <p
       data-slot="catalog-card-description"
-      className={cn("text-small-body leading-6 text-muted", className)}
+      className={cn("text-small-body leading-6 text-muted-foreground", className)}
       {...props}
     />
   );
@@ -74,7 +74,7 @@ export function CatalogCardMeta({ className, ...props }: CatalogCardMetaProps) {
   return (
     <div
       data-slot="catalog-card-meta"
-      className={cn("eyebrow flex flex-wrap items-center gap-2 text-muted", className)}
+      className={cn("eyebrow flex flex-wrap items-center gap-2 text-muted-foreground", className)}
       {...props}
     />
   );

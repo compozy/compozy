@@ -1,11 +1,11 @@
 "use client";
 
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { XIcon } from "lucide-react";
 import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { AnimatePresence, m, type Variants } from "motion/react";
 import * as React from "react";
 
+import { XIcon } from "../icons";
 import { defaultDialogInitialFocus } from "../lib/dialog-initial-focus";
 import { DIALOG_CLOSE_BUTTON_CLASS } from "../lib/dialog-shell";
 import { MOTION_DURATION_SLOW, MOTION_EASE_IN_OUT, MOTION_EASE_OUT } from "../lib/motion";
@@ -231,7 +231,7 @@ function SheetDescription({ className, ...props }: SheetPrimitive.Description.Pr
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-small-body text-muted", className)}
+      className={cn("text-small-body text-muted-foreground", className)}
       {...props}
     />
   );

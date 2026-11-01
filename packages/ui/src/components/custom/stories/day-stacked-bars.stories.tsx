@@ -36,7 +36,7 @@ export const Outcomes: Story = {
     series: [
       { key: "completed", fill: "var(--color-success)", label: "completed" },
       { key: "canceled", fill: "var(--color-viz-other)", label: "canceled" },
-      { key: "failed", fill: "var(--color-danger)", label: "failed" },
+      { key: "failed", fill: "var(--color-destructive)", label: "failed" },
     ],
   },
 };

@@ -16,7 +16,7 @@ import type { LoopBriefing, LoopBriefingBlocker } from "../types";
 export type LoopBriefingTone = "ok" | "needs_you" | "degraded" | "failed";
 
 /** How loudly the strip sits on the page. Only a failure earns the danger fill. */
-export type LoopBriefingWeight = "calm" | "lead" | "danger";
+export type LoopBriefingWeight = "calm" | "lead" | "destructive";
 
 export interface LoopBriefingBlockerView {
   key: string;
@@ -72,7 +72,7 @@ function briefingGlyph(briefing: LoopBriefing, tone: LoopBriefingTone): StateGly
 }
 
 function briefingWeight(tone: LoopBriefingTone): LoopBriefingWeight {
-  if (tone === "failed") return "danger";
+  if (tone === "failed") return "destructive";
   // Needs-you inks warning-family on the page; danger stays with failure and the
   // attention bell. Two danger vocabularies on one surface would flatten both.
   if (tone === "needs_you" || tone === "degraded") return "lead";

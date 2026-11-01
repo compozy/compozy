@@ -1,4 +1,4 @@
-import { ArrowRightLeft, FolderGit2 } from "lucide-react";
+import { ArrowRightLeft, FolderGit2 } from "@compozy/ui/icons";
 
 import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
@@ -66,7 +66,7 @@ export function OsPaletteEntitySections({
               }}
             >
               {session.owner === undefined ? (
-                <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
+                <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted-foreground" />
               ) : (
                 <ProfileOwnerTag compact owner={session.owner} />
               )}
@@ -97,11 +97,11 @@ export function OsPaletteEntitySections({
               value={`tab:${tab.windowId}`}
               onSelect={() => onGoToTab(tab.windowId)}
             >
-              <ArrowRightLeft className="size-3.5 text-muted" />
+              <ArrowRightLeft className="size-3.5 text-muted-foreground" />
               <span className="min-w-0 truncate leading-none">{tab.label}</span>
               {tab.needsInput ? (
                 <span
-                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-accent px-1 font-mono text-pill-group-badge leading-none font-semibold text-accent-ink"
+                  className="inline-flex h-3.5 min-w-deck-badge shrink-0 items-center justify-center rounded-full bg-brand px-1 font-mono text-pill-group-badge leading-none font-semibold text-brand-ink"
                   data-slot="os-palette-tab-attention"
                 >
                   1
@@ -133,7 +133,7 @@ export function OsPaletteEntitySections({
               value={`worktree:${entry.key}`}
               onSelect={() => onSelectWorktree(entry)}
             >
-              <FolderGit2 className="size-3.5 text-muted" />
+              <FolderGit2 className="size-3.5 text-muted-foreground" />
               <span className="min-w-0 truncate leading-none">{entry.name}</span>
               {entry.worktree ? <ProfileOwnerTag owner={ownerFromRow(entry.worktree)} /> : null}
               <MonoId className="ml-auto" preserveCase size="sm" value={entry.branch} />

@@ -51,7 +51,7 @@ build in `web/dist` never includes prototype or gallery code. Prototypes never t
 - **Component prototypes** live beside the view they render, as
   `web/src/systems/**/<slug>.proto.tsx` or `web/src/components/**/<slug>.proto.tsx`. They contain
   **no intrinsic JSX** (`<div>`, `<button>`…): only components. Layout that a view lacks belongs
-  in the view or in an `@compozy/ui` primitive (`PageContent`, `PageShell`…). `proto check`
+  in the view or in an `@compozy/ui` primitive (`PageContent`…). `proto check`
   reports intrinsic elements as `markup` problems.
 - **Drafts** live in `web/src/drafts/<slug>/index.proto.tsx` and may use free markup with tokens
   and `@compozy/ui`: exploration before a view exists, the successor of `docs/design/opendesign/`

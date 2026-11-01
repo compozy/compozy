@@ -143,34 +143,46 @@ type Session struct {
 	// runtimeRelease marks a runtime the supervisor released while the session was idle.
 	runtimeRelease *runtimeRelease
 	// Claimed finalization owns these fields across persistence retries.
-	stopFinalizationErr        error
-	stopVerifiedOutcome        StopOutcome // Protected by mu.
-	stopStatePending           bool        // Protected by mu.
-	stopTerminalEvent          *acp.AgentEvent
-	stopTerminalRecorded       bool
-	stopTurnID                 string // Protected by mu.
-	stopProcessExitRecorded    bool
-	postStopOnce               sync.Once
-	followUpMode               func() string
-	steerDelivery              store.SteerDeliveryMode
-	mu                         sync.RWMutex
-	persistMu                  sync.Mutex
+	stopFinalizationErr     error
+	stopVerifiedOutcome     StopOutcome // Protected by mu.
+	stopStatePending        bool        // Protected by mu.
+	stopTerminalEvent       *acp.AgentEvent
+	stopTerminalRecorded    bool
+	stopTurnID              string // Protected by mu.
+	stopProcessExitRecorded bool
+	postStopOnce            sync.Once
+	followUpMode            func() string
+	steerDelivery           store.SteerDeliveryMode
+	mu                      sync.RWMutex
+	persistMu               sync.Mutex
+	// runtimeApplySlot serializes live runtime reconfiguration with prompt runtime admission;
+	// a channel so a canceled waiter can leave. Order: slot before persistMu and mu. Protected by mu.
+	runtimeApplySlot           chan struct{}
 	goalStopMu                 sync.Mutex // Orders Goal pause persistence before interrupted setup recovery.
 	conversationRewindReserved bool
 
-	ID                        string
-	ProfileID                 string
-	Name                      string
-	AgentName                 string
-	Provider                  string
-	Model                     string
-	ReasoningEffort           string
-	Speed                     speedpkg.Speed
-	ACPOptions                []acp.SessionConfigOptionSelection
-	SpeedResolution           *speedpkg.Resolution
-	RuntimeStatus             RuntimeStatus
-	RuntimeTransition         RuntimeTransitionStrategy
-	RuntimeFailure            string
+	ID                string
+	ProfileID         string
+	Name              string
+	AgentName         string
+	Provider          string
+	Model             string
+	ReasoningEffort   string
+	Speed             speedpkg.Speed
+	ACPOptions        []acp.SessionConfigOptionSelection
+	SpeedResolution   *speedpkg.Resolution
+	RuntimeStatus     RuntimeStatus
+	RuntimeTransition RuntimeTransitionStrategy
+	RuntimeFailure    string
+	// runtimeFailureFromLiveApply marks RuntimeFailure as a refused live selection apply,
+	// which a newer saved selection supersedes. Protected by mu.
+	runtimeFailureFromLiveApply bool
+	// runtimeConfigUnverified marks a failed live rollback: the provider config may differ
+	// from the effective selection until a configure or replacement succeeds. Protected by mu.
+	runtimeConfigUnverified bool
+	// liveTurnRuntime holds the runtime a running turn still uses after a live change its
+	// provider honors only from the next turn. Protected by mu.
+	liveTurnRuntime           *liveTurnRuntime
 	RuntimeGeneration         int64
 	RuntimeRecovery           *store.SessionRuntimeRecovery
 	SelectedRuntime           *RuntimeSelection

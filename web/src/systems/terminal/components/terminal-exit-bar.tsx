@@ -1,4 +1,4 @@
-import { Scaling } from "lucide-react";
+import { Scaling } from "@compozy/ui/icons";
 
 import { MonoId, Pill, Time } from "@compozy/ui";
 

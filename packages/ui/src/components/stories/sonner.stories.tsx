@@ -37,7 +37,7 @@ export const Variants: Story = {
   render: () => (
     <div className="flex flex-col items-start gap-3">
       <div className="flex gap-2">
-        <Button variant="outline" onClick={() => toast("Event recorded.")}>
+        <Button variant="outline" onClick={() => toast.message("Event recorded.")}>
           Default
         </Button>
         <Button variant="outline" onClick={() => toast.info("Retention sweep scheduled.")}>
@@ -64,7 +64,7 @@ export const WithAction: Story = {
     <div className="flex flex-col items-start gap-3">
       <Button
         onClick={() =>
-          toast("Session archived.", {
+          toast.message("Session archived.", {
             description: "It will be purged in 14 days.",
             action: { label: "Undo", onClick: () => toast.success("Session restored.") },
           })

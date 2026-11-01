@@ -1,6 +1,6 @@
 import type { SetStateAction } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "./use-task-actions";

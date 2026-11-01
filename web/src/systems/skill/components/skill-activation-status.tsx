@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 import * as React from "react";
 
 import { cn, Pill, Section, type PillProps } from "@compozy/ui";
@@ -102,7 +102,7 @@ function SkillActivationSection({ skill }: { skill: SkillPayload }) {
             active={skill.activation.active}
             data-testid="skill-detail-activation-status"
           />
-          <span className="text-small-body text-muted">
+          <span className="text-small-body text-muted-foreground">
             {skill.activation.active
               ? "Activation gates are satisfied in this runtime context."
               : "Activation gates withhold this skill from agent prompts."}

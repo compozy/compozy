@@ -10,7 +10,7 @@ interface ProgressProps extends ProgressPrimitive.Root.Props {
   tone?: VariantProps<typeof progressIndicatorVariants>["tone"];
 }
 
-function Progress({ className, children, value, tone = "accent", ...props }: ProgressProps) {
+function Progress({ className, children, value, tone = "brand", ...props }: ProgressProps) {
   return (
     <ProgressPrimitive.Root
       value={value}
@@ -63,7 +63,7 @@ function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
 function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
   return (
     <ProgressPrimitive.Value
-      className={cn("ml-auto text-small-body text-muted tabular-nums", className)}
+      className={cn("ml-auto text-small-body text-muted-foreground tabular-nums", className)}
       data-slot="progress-value"
       {...props}
     />

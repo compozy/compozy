@@ -6,7 +6,7 @@
 // Owning layer: unit — the domain-search helpers.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Clock3, Radio } from "lucide-react";
+import { Clock3, Radio } from "@compozy/ui/icons";
 import { describe, expect, it } from "vitest";
 
 import type { AutomationView } from "@/systems/automation";

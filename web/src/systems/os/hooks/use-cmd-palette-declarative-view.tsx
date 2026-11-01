@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { Blocks } from "lucide-react";
+import { Blocks } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 

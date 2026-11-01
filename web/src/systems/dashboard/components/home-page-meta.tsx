@@ -34,7 +34,7 @@ export function HomePageMeta({ workspaceName, today, className, ...props }: Home
         <>
           <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
           <span>
-            project <span className="font-medium text-muted">{workspaceName}</span>
+            project <span className="font-medium text-muted-foreground">{workspaceName}</span>
           </span>
         </>
       ) : null}

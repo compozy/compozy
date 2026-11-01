@@ -1,4 +1,4 @@
-import { History, WifiOff } from "lucide-react";
+import { History, WifiOff } from "@compozy/ui/icons";
 
 import { Button, Marker } from "@compozy/ui";
 
@@ -17,7 +17,12 @@ export function SessionTransportFailureNotice() {
   if (transport.phase !== "failed" || transport.failure === null) return null;
   const lostAt = transport.lastLiveAt === null ? "" : formatMessageTimestamp(transport.lastLiveAt);
   return (
-    <Marker role="alert" data-testid="session-transport-failure" tone="danger" icon={<WifiOff />}>
+    <Marker
+      role="alert"
+      data-testid="session-transport-failure"
+      tone="destructive"
+      icon={<WifiOff />}
+    >
       <b>{lostAt ? `Live updates stopped at ${lostAt}` : "Live updates stopped"}</b> — couldn&apos;t
       reconnect after {transport.failure.attempts} tries. What you see is saved up to then.{" "}
       <Button

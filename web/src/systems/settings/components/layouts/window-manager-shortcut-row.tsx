@@ -1,4 +1,4 @@
-import { CircleOff, Plus, RotateCcw, TriangleAlert } from "lucide-react";
+import { CircleOff, Plus, RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import { Button, MonoId, Pill, TableCell, TableRow, cn } from "@compozy/ui";
 
@@ -25,7 +25,7 @@ function RowFlag({ kind, children }: { kind: "unbound" | "dormant"; children: st
     <span
       className={cn(
         "inline-flex items-center gap-1 font-mono text-badge",
-        kind === "unbound" ? "text-danger" : "text-warning"
+        kind === "unbound" ? "text-destructive" : "text-warning"
       )}
     >
       <Glyph aria-hidden="true" className="size-3" />
@@ -36,7 +36,7 @@ function RowFlag({ kind, children }: { kind: "unbound" | "dormant"; children: st
 
 /** Unbound outranks dormant, which outranks shadowed; each tints the row once. */
 function shortcutRowTint(row: ShortcutTableRow): string | undefined {
-  if (row.unbound) return "bg-danger-tint";
+  if (row.unbound) return "bg-destructive-tint";
   if (row.dormantReason !== null || row.shadowedReason !== null) return "bg-warning-tint";
   return undefined;
 }
@@ -80,7 +80,7 @@ function ShortcutBindingCell({
       {row.dormantReason !== null ? (
         <>
           <RowFlag kind="dormant">dormant</RowFlag>
-          <p className="text-form-hint text-muted">{row.dormantReason}</p>
+          <p className="text-form-hint text-muted-foreground">{row.dormantReason}</p>
         </>
       ) : null}
       {row.shadowedReason !== null ? (
@@ -92,7 +92,7 @@ function ShortcutBindingCell({
 
 function ShortcutSource({ row }: { row: ShortcutTableRow }) {
   if (row.source === CORE_SHORTCUT_SOURCE) {
-    return <span className="text-form-label text-muted">{row.sourceLabel}</span>;
+    return <span className="text-form-label text-muted-foreground">{row.sourceLabel}</span>;
   }
   return (
     <Pill className="font-mono" size="xs" tone="info">

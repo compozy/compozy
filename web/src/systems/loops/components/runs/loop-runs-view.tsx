@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { GitBranch, PlugZap, RotateCcw, TriangleAlert } from "lucide-react";
+import { GitBranch, PlugZap, RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import {
   Alert,
@@ -93,7 +93,7 @@ function DegradedNotice({
       data-cause={cause}
       data-testid="loop-runs-degraded"
       role="status"
-      variant={failed ? "danger" : "neutral"}
+      variant={failed ? "destructive" : "neutral"}
     >
       {failed ? <TriangleAlert aria-hidden="true" /> : <PlugZap aria-hidden="true" />}
       <AlertDescription>{body}</AlertDescription>

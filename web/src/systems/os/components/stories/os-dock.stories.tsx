@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search } from "@compozy/ui/icons";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 
@@ -68,7 +68,7 @@ function SessionsBody() {
         </p>
       </header>
       <div className="shrink-0 px-3.5 pb-1.5">
-        <label className="flex h-search items-center gap-2 rounded-md border border-line bg-canvas-soft px-2.5 text-muted">
+        <label className="flex h-search items-center gap-2 rounded-md border border-line bg-canvas-soft px-2.5 text-muted-foreground">
           <Search className="size-3.5 shrink-0" aria-hidden="true" />
           <input
             readOnly
@@ -85,7 +85,7 @@ function SessionsBody() {
               <span
                 className={
                   (row.live
-                    ? "bg-accent"
+                    ? "bg-brand"
                     : row.state === "waiting"
                       ? "bg-warning"
                       : row.state === "done"
@@ -97,7 +97,7 @@ function SessionsBody() {
                 <span className="block truncate text-small-body font-medium text-fg">
                   {row.title}
                 </span>
-                <span className="block truncate text-micro text-muted">
+                <span className="block truncate text-micro text-muted-foreground">
                   <b className="font-semibold text-subtle">{row.agent}</b>
                   <span className="text-faint"> · {row.state}</span>
                 </span>
@@ -108,7 +108,7 @@ function SessionsBody() {
         </ul>
         <button
           type="button"
-          className="flex w-full items-center justify-between px-3.5 py-2.5 text-small-body text-muted hover:bg-hover hover:text-fg"
+          className="flex w-full items-center justify-between px-3.5 py-2.5 text-small-body text-muted-foreground hover:bg-hover hover:text-fg"
         >
           Show all sessions
           <ChevronRight className="size-3.5" aria-hidden="true" />

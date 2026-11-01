@@ -215,26 +215,9 @@ func (m *Manager) releaseResumedParentStopBinding(ctx context.Context, spec *ses
 // rule the spawn reaper applies: the in-memory run when there is one, else the
 // persisted state. A deleted session is not live.
 func (m *Manager) sessionLive(ctx context.Context, id string) (bool, error) {
-	if m.isPending(id) {
-		return true, nil
+	state, _, err := m.sessionStopState(ctx, id)
+	if err != nil {
+		return false, err
 	}
-	state := State("")
-	if session, ok := m.Get(id); ok && session != nil {
-		state = session.Info().State
-	} else {
-		meta, err := m.readSessionMetaReadOnly(ctx, id)
-		if errors.Is(err, ErrSessionNotFound) {
-			return false, nil
-		}
-		if err != nil {
-			return false, err
-		}
-		state = State(meta.State)
-	}
-	switch state {
-	case StateStarting, StateActive, StateStopping:
-		return true, nil
-	default:
-		return false, nil
-	}
+	return liveState(state), nil
 }

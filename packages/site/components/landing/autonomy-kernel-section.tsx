@@ -46,11 +46,11 @@ export function AutonomyKernelSection() {
       <div className="mt-12 grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-12">
         <div className="flex min-w-0 flex-col gap-6">
           <div className="min-w-0 rounded-diagram border border-line bg-canvas-soft p-5 sm:p-7">
-            <Eyebrow className="text-accent">Token-fenced ownership</Eyebrow>
+            <Eyebrow className="text-brand">Token-fenced ownership</Eyebrow>
             <h3 className="mt-3 font-display text-2xl leading-tight tracking-tight text-fg">
               No double-execution, ever.
             </h3>
-            <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-muted">
+            <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
               Only the agent holding the claim token can heartbeat or complete a run. Sessions
               cannot reach into runs they don&apos;t own. Tokens are hashed before they touch the
               event ledger; raw values never leave the daemon.
@@ -61,32 +61,32 @@ export function AutonomyKernelSection() {
 
         <ul className="flex min-w-0 flex-col divide-y divide-line border-y border-line">
           <li className="py-6">
-            <Eyebrow className="text-accent">Lease recovery</Eyebrow>
+            <Eyebrow className="text-brand">Lease recovery</Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-fg">
               Daemon crashes don&apos;t orphan work.
             </h4>
-            <p className="mt-2 text-sm leading-relaxed text-muted">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               Leases expire on a TTL. Runs re-enter the queue automatically. The next idle agent
               picks them up.
             </p>
           </li>
           <li className="py-6">
-            <Eyebrow className="text-accent">One shared queue</Eyebrow>
+            <Eyebrow className="text-brand">One shared queue</Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-fg">
               Operators and agents hit task_runs.
             </h4>
-            <p className="mt-2 text-sm leading-relaxed text-muted">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               <code className="font-mono text-fg">compozy task create</code> (you) and the
               coordinator agent (them) write to the same SQLite table. Same primitives, same audit
               trail.
             </p>
           </li>
           <li className="py-6">
-            <Eyebrow className="text-accent">Permission narrowing</Eyebrow>
+            <Eyebrow className="text-brand">Permission narrowing</Eyebrow>
             <h4 className="mt-2 text-base font-medium leading-snug text-fg">
               Children cannot widen parents.
             </h4>
-            <p className="mt-2 text-sm leading-relaxed text-muted">
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               Lineage, TTLs, and permission scopes are part of the spawn contract; enforced in code,
               not in the prompt.
             </p>
@@ -97,7 +97,7 @@ export function AutonomyKernelSection() {
       <div className="mt-10">
         <Link
           href="/docs/autonomy"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition-colors hover:text-brand-hover"
         >
           Read the autonomy kernel guide
           <ArrowUpRight aria-hidden className="size-4" />

@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 export const TERMINAL_JOURNAL_COPY_FAILED = "Copy failed";
 

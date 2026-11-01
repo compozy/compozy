@@ -6,7 +6,7 @@ import {
   MessageCircleQuestionMark,
   TriangleAlert,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { Icon, Skeleton, SkeletonText, Time } from "@compozy/ui";
 
@@ -21,7 +21,7 @@ function loopIcon(state: "waiting" | "attention"): LucideIcon {
   return state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
 }
 
-const NEEDS_YOU_TONE = "bg-accent-tint text-accent";
+const NEEDS_YOU_TONE = "bg-brand-tint text-brand";
 
 function NonSessionMark({ icon, tone }: { icon: LucideIcon; tone: string }) {
   return (
@@ -155,7 +155,7 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
           <span className="flex flex-col items-end">
             <Time iso={row.openedAt} />
             {row.expiresAt ? (
-              <span className="flex items-center gap-0.5 text-danger">
+              <span className="flex items-center gap-0.5 text-destructive">
                 <Icon as={Clock3} size="sm" />
                 <Time iso={row.expiresAt} />
               </span>

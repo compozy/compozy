@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactElement, ReactNode } from "react";
-import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "@compozy/ui/icons";
 import {
   Button,
   ConfirmDialog,
@@ -256,7 +256,7 @@ function projectActionCopy(action: ProjectAction | null, archived: boolean) {
   if (action === "remove")
     return {
       verb: "Remove",
-      tone: "danger" as const,
+      tone: "destructive" as const,
       description:
         "Stopped session history is deleted and window bindings are removed. Adding this folder again creates a new project ID. Files on disk are untouched.",
     };

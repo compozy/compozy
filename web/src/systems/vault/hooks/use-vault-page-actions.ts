@@ -36,7 +36,7 @@ function useVaultLastActionToast(
     if (!lastAction) return;
     const title = vaultSecretTitle(lastAction.ref);
     if (lastAction.kind === "saved") toast.success(`Saved ${title}`);
-    else toast(`Deleted ${title}`);
+    else toast.message(`Deleted ${title}`);
     pageStore.trigger.lastActionDismissed();
   }, [lastAction, pageStore]);
 }

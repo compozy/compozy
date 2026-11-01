@@ -1,4 +1,4 @@
-import { Archive, Bookmark, Hash, RotateCcw, Square, Trash2, Undo2 } from "lucide-react";
+import { Archive, Bookmark, Hash, RotateCcw, Square, Trash2, Undo2 } from "@compozy/ui/icons";
 
 import {
   ContextMenuGroup,

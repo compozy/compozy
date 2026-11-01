@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { ChevronDown, Gauge } from "lucide-react";
+import { ChevronDown, Gauge } from "@compozy/ui/icons";
 
 import { Button, HelpTip, SkeletonRegion, cn } from "@compozy/ui";
 

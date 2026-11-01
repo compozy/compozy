@@ -92,7 +92,13 @@ function mergeSessionSidebarPreferences(
   }
   const byScope = { ...current.byScope };
   for (const [scopeId, state] of Object.entries(persisted.byScope)) {
-    byScope[scopeId] = normalizedScopeState(state);
+    const scope = normalizedScopeState(state);
+    // The shell's filter was never a choice (`withScopeState`): a `false` stored by the old
+    // default must not reach new windows.
+    byScope[scopeId] =
+      scopeId === SHELL_WORKTREE_SCOPE
+        ? { ...scope, hideChildren: DEFAULT_SCOPE_STATE.hideChildren }
+        : scope;
   }
   const partitionByScope = { ...current.partitionByScope };
   if (isRecord(persisted.partitionByScope)) {
@@ -120,7 +126,7 @@ function withScopeState(
   const shell = {
     ...next,
     view: DEFAULT_SCOPE_STATE.view,
-    hideChildren: false,
+    hideChildren: DEFAULT_SCOPE_STATE.hideChildren,
     collapsedBoardColumns: previousShell?.collapsedBoardColumns ?? {},
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,
@@ -195,11 +201,14 @@ export const sessionSidebarLogic = createStoreLogic({
       if (resolveSessionSidebarScope(context.byScope, event.scopeId).view === event.view) return;
       return withScopeState(context, event.scopeId, state => ({ ...state, view: event.view }));
     },
-    hideChildrenChanged: (context, event: { scopeId: string; hideChildren: boolean }) =>
-      withScopeState(context, event.scopeId, state => ({
+    hideChildrenChanged: (context, event: { scopeId: string; hideChildren: boolean }) => {
+      // The shell entry seeds new windows, and this filter never seeds.
+      if (event.scopeId === SHELL_WORKTREE_SCOPE) return;
+      return withScopeState(context, event.scopeId, state => ({
         ...state,
         hideChildren: event.hideChildren,
-      })),
+      }));
+    },
     boardColumnCollapsedChanged: (
       context,
       event: { scopeId: string; columnId: string; collapsed: boolean }

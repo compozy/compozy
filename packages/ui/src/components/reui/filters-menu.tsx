@@ -111,7 +111,7 @@ function FilterSubmenuContent<T = unknown>({
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {filteredOptions.length === 0 ? (
-              <div className="py-2 text-center text-small-body text-muted">
+              <div className="py-2 text-center text-small-body text-muted-foreground">
                 {i18n.noResultsFound}
               </div>
             ) : (
@@ -183,7 +183,11 @@ function FiltersMenuFieldList<T = unknown>({
   setMenuState,
 }: FiltersMenuFieldListProps<T>) {
   if (filteredFields.length === 0) {
-    return <div className="py-2 text-center text-small-body text-muted">{i18n.noFieldsFound}</div>;
+    return (
+      <div className="py-2 text-center text-small-body text-muted-foreground">
+        {i18n.noFieldsFound}
+      </div>
+    );
   }
 
   return filteredFields.map((field, index) => {

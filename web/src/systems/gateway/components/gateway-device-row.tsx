@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Pencil, Smartphone, Terminal, X } from "lucide-react";
+import { Check, Pencil, Smartphone, Terminal, X } from "@compozy/ui/icons";
 
 import { Button, ConfirmDialog, Input, ListingRow, Pill, Time } from "@compozy/ui";
 
@@ -116,7 +116,7 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
               onOpenChange={setConfirmingRevoke}
               open={confirmingRevoke}
               title={`Revoke ${device.name}?`}
-              tone="danger"
+              tone="destructive"
             />
           </>
         ) : (

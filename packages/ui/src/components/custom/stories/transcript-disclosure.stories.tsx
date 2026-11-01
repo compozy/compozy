@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Brain, Terminal } from "lucide-react";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
+import { Brain, Terminal } from "../../../icons";
 import { TranscriptDisclosure } from "../transcript-disclosure";
 
 const meta: Meta<typeof TranscriptDisclosure> = {
@@ -45,7 +45,7 @@ function Controlled({
       />
       {expanded ? (
         <p
-          className="ml-transcript-detail-indent text-transcript-body text-muted"
+          className="ml-transcript-detail-indent text-transcript-body text-muted-foreground"
           id="story-transcript-body"
         >
           The revealed body belongs to the caller.

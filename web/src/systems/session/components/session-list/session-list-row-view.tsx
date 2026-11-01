@@ -405,7 +405,7 @@ function SessionRowDragFrame({
       className={cn(
         dragging && "opacity-50",
         // Dropping onto the row nests the dragged session under it.
-        dropEdge === "into" && "rounded-md bg-accent-tint ring-1 ring-accent ring-inset",
+        dropEdge === "into" && "rounded-md bg-brand-tint ring-1 ring-brand ring-inset",
         className
       )}
     >
@@ -425,7 +425,7 @@ function SessionRowDropLine({ edge, testId }: { edge: SessionDropPosition; testI
       aria-hidden="true"
       data-testid={testId}
       className={cn(
-        "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-accent",
+        "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-brand",
         edge === "before" ? "-top-px" : "-bottom-px"
       )}
     />

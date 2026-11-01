@@ -51,6 +51,18 @@ CLI, `compozy session archive <id>` still refuses a live session with `409`, and
 `compozy session archive <id> --stop` stops and archives it; HTTP/UDS `?stop=true` and native
 tool `stop: true` behave the same.
 
+## Archiving the open session clears its window (#1110)
+
+Archive the session open in a window from its rail row (Archive, or Stop and archive while it runs):
+the window drops it and shows "No session selected", with no "Session not found" toast, exactly as
+after Delete. Every window showing that session does the same, and so does a bulk archive holding
+it. With the session open, run `compozy session archive <id>` (or `compozy__session_archive`): the
+window clears on the catalog reread, also without a toast. Archive another session: the window and
+its focus stay. Open an archived session from the Archive shelf, including one you just archived in
+this tab: it stays open, read-only; Unarchive there and archive it again from elsewhere and the
+window clears. Move to Later does not clear the window: a parked session stays readable and its
+composer is one way back (RT-session-later).
+
 ## Native error parity — 2026-10-28
 
 Native archival refusals (#1012): a subagent child returns `subagent_archive_follows_parent` through both CLI and native tools. A runtime-detached but lifecycle-active session returns `session_archive_requires_stopped`. After stopping, native archive succeeds. Verify retained state after each refusal.

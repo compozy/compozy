@@ -57,7 +57,7 @@ export function WindowManagerAliasCell({
         }}
       />
       {invalid ? (
-        <p className="text-form-hint text-danger" id={hintId} role="status">
+        <p className="text-form-hint text-destructive" id={hintId} role="status">
           {state.problem === "grammar" ? ALIAS_RULE_HINT : state.problem}
         </p>
       ) : null}

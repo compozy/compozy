@@ -31,7 +31,7 @@ export function TaskSubtasksSection({ items }: { items: readonly TaskChildSummar
       data-testid="tasks-detail-subtasks"
       label="Subtasks"
       right={
-        <span className="text-eyebrow font-medium text-muted">
+        <span className="text-eyebrow font-medium text-muted-foreground">
           {done} of {items.length} done
         </span>
       }

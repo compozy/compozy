@@ -31,7 +31,7 @@ export function GatewayProviderHealthChip({ activation }: GatewayProviderHealthC
       />
       {activation.cause ? (
         <span
-          className="max-w-64 text-right text-eyebrow text-danger"
+          className="max-w-64 text-right text-eyebrow text-destructive"
           data-testid={`gateway-provider-cause-${activation.name}-${tier}`}
         >
           {activation.cause}
@@ -44,7 +44,7 @@ export function GatewayProviderHealthChip({ activation }: GatewayProviderHealthC
 const PROVIDER_HEALTH_COPY = {
   healthy: { label: "Healthy", tone: "success" },
   degraded: { label: "Degraded", tone: "warning" },
-  down: { label: "Down", tone: "danger" },
+  down: { label: "Down", tone: "destructive" },
 } satisfies Record<string, { label: string; tone: GatewaySignalTone }>;
 
 const PROVIDER_OBSERVED_COPY = {

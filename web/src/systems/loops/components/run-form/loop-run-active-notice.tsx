@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Activity, ArrowRight } from "lucide-react";
+import { Activity, ArrowRight } from "@compozy/ui/icons";
 
 import { buttonVariants, cn, formatRelativeTime } from "@compozy/ui";
 

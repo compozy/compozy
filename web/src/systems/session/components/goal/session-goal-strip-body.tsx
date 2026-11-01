@@ -1,4 +1,4 @@
-import { FilePenLine, RefreshCw } from "lucide-react";
+import { FilePenLine, RefreshCw } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@compozy/ui";
@@ -34,7 +34,7 @@ function StripRow({ label, children }: { label: string; children: React.ReactNod
   return (
     <div className="flex gap-2.5 text-transcript-body leading-normal">
       <span className="w-20 shrink-0 pt-px text-transcript-caption text-faint">{label}</span>
-      <span className="min-w-0 whitespace-pre-wrap text-muted [overflow-wrap:anywhere]">
+      <span className="min-w-0 whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
         {children}
       </span>
     </div>
@@ -121,7 +121,7 @@ function PrefillActionRow({
         size="xs"
         data-testid="goal-strip-prefill"
         onClick={() => onPrefillComposer(prefillCommand(affordance))}
-        className="-ml-2 text-muted"
+        className="-ml-2 text-muted-foreground"
       >
         <Icon aria-hidden="true" className="size-3 text-subtle" />
         {replace ? "Draft replacement" : "Draft goal command"}

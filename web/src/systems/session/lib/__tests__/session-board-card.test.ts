@@ -65,7 +65,7 @@ describe("sessionBoardCardStatus (UT-068)", () => {
           returned_from_later_at: "2026-10-30T09:00:00Z",
         })
       )
-    ).toEqual({ label: "Back from Later", tone: "accent" });
+    ).toEqual({ label: "Back from Later", tone: "brand" });
   });
 
   it("Should let a live badge outrank Back from Later", () => {
@@ -75,11 +75,11 @@ describe("sessionBoardCardStatus (UT-068)", () => {
     };
     expect(sessionBoardCardStatus(session({ ...returned, badge: "failed" }))).toEqual({
       label: "Failed",
-      tone: "danger",
+      tone: "destructive",
     });
     expect(sessionBoardCardStatus(session({ ...returned, badge: "waiting-for-auth" }))).toEqual({
       label: "Auth",
-      tone: "accent",
+      tone: "brand",
     });
   });
 
@@ -89,18 +89,18 @@ describe("sessionBoardCardStatus (UT-068)", () => {
       sessionBoardCardStatus(
         session({ badge: "waiting-for-auth", board_column: "needs_you", pull_request: failing })
       )
-    ).toEqual({ label: "Auth", tone: "accent" });
+    ).toEqual({ label: "Auth", tone: "brand" });
     expect(sessionBoardCardStatus(session({ badge: "failed", board_column: "needs_you" }))).toEqual(
-      { label: "Failed", tone: "danger" }
+      { label: "Failed", tone: "destructive" }
     );
     expect(
       sessionBoardCardStatus(session({ badge: "waiting-for-input", board_column: "needs_you" }))
-    ).toEqual({ label: "Input", tone: "accent" });
+    ).toEqual({ label: "Input", tone: "brand" });
     expect(
       sessionBoardCardStatus(
         session({ badge: "needs-attention", board_column: "needs_you", attention: "ended_early" })
       )
-    ).toEqual({ label: "Stopped early", tone: "accent" });
+    ).toEqual({ label: "Stopped early", tone: "brand" });
   });
 
   it("Should map the PR signal by precedence", () => {
@@ -108,7 +108,7 @@ describe("sessionBoardCardStatus (UT-068)", () => {
       sessionBoardCardStatus(
         session({ pull_request: pr({ review_decision: "changes_requested" }) })
       )
-    ).toEqual({ label: "Changes requested", tone: "danger" });
+    ).toEqual({ label: "Changes requested", tone: "destructive" });
     expect(
       sessionBoardCardStatus(
         session({

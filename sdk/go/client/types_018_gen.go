@@ -4,6 +4,26 @@ package client
 
 import "time"
 
+// SessionStopPayload is a daemon API value.
+type SessionStopPayload struct {
+	SessionID    string    `json:"session_id"`
+	Status       string    `json:"status"`
+	State        State     `json:"state"`
+	Verified     bool      `json:"verified"`
+	Escalated    bool      `json:"escalated"`
+	StopCause    string    `json:"stop_cause,omitempty"`
+	Phase        StopPhase `json:"phase,omitempty"`
+	StoppedAfter string    `json:"stopped_after,omitempty"`
+	Attention    string    `json:"attention,omitempty"`
+}
+
+// SessionTranscriptFences is a daemon API value.
+type SessionTranscriptFences struct {
+	Epoch       int64 `json:"epoch"`
+	Generation  int64 `json:"generation"`
+	MaxSequence int64 `json:"max_sequence"`
+}
+
 // SessionTranscriptResponse is a daemon API value.
 type SessionTranscriptResponse struct {
 	Entries            []Entry `json:"entries"`
@@ -427,14 +447,4 @@ type SettingsHooksExtensionsResponse struct {
 	Config          SettingsExtensionsConfigPayload     `json:"config"`
 	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
 	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
-}
-
-// SettingsHooksResponse is a daemon API value.
-type SettingsHooksResponse struct {
-	Collection      SettingsCollectionName     `json:"collection"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Hooks           []SettingsHookItemPayload  `json:"hooks"`
 }

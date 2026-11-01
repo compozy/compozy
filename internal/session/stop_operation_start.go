@@ -12,16 +12,16 @@ func (m *Manager) prepareStartingStopRun(
 	cause StopCause,
 	detail string,
 ) bool {
-	session, start, handled, err := m.prepareStartingSessionStop(ctx, run.session.ID, cause, detail)
+	session, start, handled, err := m.prepareStartingSessionStop(ctx, run.session.ID, cause, detail, run)
 	if !handled {
 		return false
 	}
-	run.prepareErr, run.err = err, err
-	close(run.ready)
 	if err != nil {
-		close(run.done)
+		m.failStopPreparation(run, err)
 		return true
 	}
+	run.notifyCommitted()
+	close(run.ready)
 	m.startTrackedPromptTask(func() {
 		defer close(run.done)
 		started := m.now()

@@ -1,4 +1,4 @@
-import { History } from "lucide-react";
+import { History } from "@compozy/ui/icons";
 
 import { Skeleton, SkeletonText } from "@compozy/ui";
 

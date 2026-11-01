@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { useState } from "react";
+
 import {
   CircleDotIcon,
   CpuIcon,
@@ -8,8 +9,7 @@ import {
   LayersIcon,
   SearchIcon,
   SettingsIcon,
-} from "lucide-react";
-
+} from "../../icons";
 import { resolveCommandSelection } from "../../lib/command-selection";
 import { Kbd, KbdGroup } from "../kbd";
 import {

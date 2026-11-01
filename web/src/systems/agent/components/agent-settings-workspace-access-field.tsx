@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, Field, FieldLabel, RadioCard } from "@compozy/ui";
 
@@ -61,7 +61,7 @@ export function AgentSettingsWorkspaceAccessField({
       </div>
       {!editable ? (
         <p
-          className="text-small-body text-muted"
+          className="text-small-body text-muted-foreground"
           data-testid="agent-settings-workspace-access-readonly"
         >
           {AGENT_WORKSPACE_ACCESS_COPY.readOnlyNote}

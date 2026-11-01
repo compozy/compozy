@@ -72,7 +72,7 @@ export function LoopTargetFields({
           </Alert>
         ) : null}
         {catalog.error && catalog.options.length > 0 ? (
-          <p className="text-form-hint text-danger" role="alert">
+          <p className="text-form-hint text-destructive" role="alert">
             {catalog.error.message}
           </p>
         ) : null}

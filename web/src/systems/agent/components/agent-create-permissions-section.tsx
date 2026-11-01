@@ -1,4 +1,4 @@
-import { Eye, Lock, ShieldCheck, Zap } from "lucide-react";
+import { Eye, Lock, ShieldCheck, Zap } from "@compozy/ui/icons";
 import type { ComponentType } from "react";
 
 import { Alert, AlertDescription, Field, FormSection, RadioCard } from "@compozy/ui";

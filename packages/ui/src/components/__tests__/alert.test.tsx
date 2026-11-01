@@ -18,7 +18,7 @@ describe("Alert", () => {
     expect(alert).toHaveClass("ring-1");
   });
 
-  it("accepts a role override for non-danger tones (e.g. status)", () => {
+  it("accepts a role override for non-destructive tones (e.g. status)", () => {
     render(
       <Alert data-testid="alert" variant="success" role="status">
         <AlertTitle>OK</AlertTitle>

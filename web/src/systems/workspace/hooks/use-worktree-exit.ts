@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 import {
   cancelWorktreeExitAction,
@@ -34,12 +35,30 @@ export function useWorktreeStatus(
   return useQuery(worktreeStatusOptions(workspaceID, worktreeID, options));
 }
 
+/**
+ * A plan read refreshes and persists the worktree status on the daemon without
+ * announcing it on the stream, so the status strip is told here: each plan read
+ * that settles, in success or failure, rereads the status key, which is a cached
+ * read and emits nothing. A plan already cached at mount settled nothing new.
+ */
 export function useWorktreeExitPlan(
   workspaceID: string,
   worktreeID: string,
   options: WorktreeScopeOptions = {}
 ) {
-  return useQuery(worktreeExitPlanOptions(workspaceID, worktreeID, options.enabled ?? true));
+  const queryClient = useQueryClient();
+  const query = useQuery(worktreeExitPlanOptions(workspaceID, worktreeID, options.enabled ?? true));
+  const settledAt = Math.max(query.dataUpdatedAt, query.errorUpdatedAt);
+  const seenSettledAt = useRef(settledAt);
+  useEffect(() => {
+    if (settledAt === seenSettledAt.current) return;
+    seenSettledAt.current = settledAt;
+    void queryClient.invalidateQueries({
+      queryKey: workspaceKeys.worktreeStatus(workspaceID, worktreeID),
+      exact: true,
+    });
+  }, [settledAt, queryClient, workspaceID, worktreeID]);
+  return query;
 }
 
 export function usePrepareWorktreeExitPlan(workspaceID: string, worktreeID: string) {
@@ -91,7 +110,8 @@ export function useRunWorktreeExitAction(workspaceID: string, worktreeID: string
   return useMutation({
     mutationFn: (params: RunWorktreeExitActionParams) =>
       runWorktreeExitAction(workspaceID, worktreeID, params),
-    onSuccess: () => invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID),
+    // A refused action emits no stream frame, so its stale plan is reread here too.
+    onSettled: () => invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID),
   });
 }
 

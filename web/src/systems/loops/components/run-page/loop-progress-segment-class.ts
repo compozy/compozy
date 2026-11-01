@@ -10,9 +10,9 @@ import type { LoopProgressSegment } from "../../lib/loop-run-fanout-band";
  */
 export const LOOP_PROGRESS_SEGMENT_CLASS: Record<LoopProgressSegment, string> = {
   clean: "bg-success",
-  active: "bg-accent-dim",
+  active: "bg-brand-dim",
   parked: "bg-info-tint ring-1 ring-inset ring-info",
-  failed: "bg-danger",
+  failed: "bg-destructive",
   canceled: "bg-surface-2",
   // A branch the route did not take: durable `not_taken` evidence marks it
   // absent from the denominator, so it reads as absence rather than as pending.

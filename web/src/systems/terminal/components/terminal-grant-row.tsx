@@ -1,4 +1,4 @@
-import { Shield } from "lucide-react";
+import { Shield } from "@compozy/ui/icons";
 
 import { Button, ListingRow, MonoId, Time } from "@compozy/ui";
 

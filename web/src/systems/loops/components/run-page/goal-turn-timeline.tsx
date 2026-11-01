@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -26,7 +26,7 @@ export interface GoalTurnTimelineProps extends Omit<ComponentProps<"section">, "
 const RESULT_TONE: Record<string, PillTone> = {
   completed: "success",
   "invalid-result": "warning",
-  failed: "danger",
+  failed: "destructive",
   ambiguous: "warning",
 };
 
@@ -38,7 +38,7 @@ function sentenceCase(value: string): string {
 
 /** Maps reported turn outcomes to semantic tones, retaining neutral styling for unknown outcomes. */
 function resultTone(turn: GoalTurn): PillTone {
-  return turn.result_status === null ? "accent" : (RESULT_TONE[turn.result_status] ?? "neutral");
+  return turn.result_status === null ? "brand" : (RESULT_TONE[turn.result_status] ?? "neutral");
 }
 
 /**
@@ -65,7 +65,7 @@ function TurnFact({ label, children }: { label: string; children: React.ReactNod
       <dt>
         <Eyebrow className="text-faint">{label}</Eyebrow>
       </dt>
-      <dd className="mt-1 min-w-0 text-form-label text-muted">{children}</dd>
+      <dd className="mt-1 min-w-0 text-form-label text-muted-foreground">{children}</dd>
     </div>
   );
 }
@@ -81,13 +81,15 @@ function CriterionOutput({ label, value }: { label: "stdout" | "stderr"; value?:
   if (!value) return null;
   return (
     <div className="mt-2 min-w-0">
-      <Eyebrow className={label === "stderr" ? "text-danger" : "text-faint"}>
+      <Eyebrow className={label === "stderr" ? "text-destructive" : "text-faint"}>
         {STREAM_LABEL[label]}
       </Eyebrow>
       <pre
         className={cn(
           "mt-1 max-h-40 overflow-auto rounded-xs px-2 py-1.5 font-mono text-mono-id whitespace-pre-wrap break-words",
-          label === "stderr" ? "bg-danger-tint text-danger" : "bg-neutral-tint text-muted"
+          label === "stderr"
+            ? "bg-destructive-tint text-destructive"
+            : "bg-neutral-tint text-muted-foreground"
         )}
       >
         {value}
@@ -125,7 +127,10 @@ function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
               {criterion.blocking_issues?.length ? (
                 <ul className="mt-2 space-y-1" aria-label={`${criterion.id} blocking issues`}>
                   {criterion.blocking_issues.map(issue => (
-                    <li key={issue.id} className="flex min-w-0 gap-2 text-form-label text-muted">
+                    <li
+                      key={issue.id}
+                      className="flex min-w-0 gap-2 text-form-label text-muted-foreground"
+                    >
                       <MonoId value={issue.id} className="shrink-0 text-warning" />
                       <span className="min-w-0 text-pretty">{issue.note}</span>
                     </li>
@@ -137,7 +142,7 @@ function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
                   {criterion.warnings.map(warning => (
                     <li key={`${warning.code}:${warning.message}`} className="text-form-label">
                       <MonoId value={warning.code} className="mr-2 text-warning" />
-                      <span className="text-muted">{warning.message}</span>
+                      <span className="text-muted-foreground">{warning.message}</span>
                     </li>
                   ))}
                 </ul>
@@ -151,7 +156,7 @@ function GoalTurnDiagnostics({ turn }: { turn: GoalTurn }) {
           {turn.warnings.map(warning => (
             <li key={`${warning.code}:${warning.message}`} className="text-form-label">
               <MonoId value={warning.code} className="mr-2 text-warning" />
-              <span className="text-muted">{warning.message}</span>
+              <span className="text-muted-foreground">{warning.message}</span>
             </li>
           ))}
         </ul>
@@ -223,7 +228,7 @@ function GoalTurnRow({ turn }: { turn: GoalTurn }) {
                 className="flex min-w-0 gap-2 py-1.5 text-form-label first:pt-0 last:pb-0"
               >
                 <MonoId value={issue.id} className="shrink-0 text-warning" />
-                <span className="min-w-0 text-pretty text-muted">{issue.note}</span>
+                <span className="min-w-0 text-pretty text-muted-foreground">{issue.note}</span>
               </li>
             ))}
           </ul>
@@ -294,7 +299,7 @@ export function GoalTurnTimeline({
           ))}
         </Timeline>
       ) : (
-        <p className="rounded-sm bg-neutral-tint px-3 py-2.5 text-form-label text-muted">
+        <p className="rounded-sm bg-neutral-tint px-3 py-2.5 text-form-label text-muted-foreground">
           No Goal turns yet. The first turn appears after a work prompt is claimed.
         </p>
       )}

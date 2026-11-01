@@ -13,7 +13,7 @@ export function PaletteDetailView({
   if (detail === null) {
     return (
       <aside
-        className="w-64 shrink-0 p-4 text-small-body text-muted"
+        className="w-64 shrink-0 p-4 text-small-body text-muted-foreground"
         data-testid="palette-detail-empty"
       >
         Select an item to inspect it.

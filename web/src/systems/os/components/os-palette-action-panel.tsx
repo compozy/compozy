@@ -50,7 +50,7 @@ function PaletteActionPanelItem({ action, onRun }: PaletteActionPanelItemProps) 
   const emoji = isEmojiIcon(action.icon);
   return (
     <CommandItem
-      className={cn(paletteRowClass, action.destructive && "text-danger")}
+      className={cn(paletteRowClass, action.destructive && "text-destructive")}
       data-palette-action={action.id}
       data-testid={`os-palette-action-${action.id}`}
       forceMount
@@ -63,7 +63,7 @@ function PaletteActionPanelItem({ action, onRun }: PaletteActionPanelItemProps) 
         </span>
       ) : (
         <KindIcon
-          className={cn("size-3.5 shrink-0", action.destructive && "text-danger")}
+          className={cn("size-3.5 shrink-0", action.destructive && "text-destructive")}
           fallback={CMD_PALETTE_ICON_FALLBACK}
           kind={action.icon}
           registry={cmdPaletteIconRegistry}

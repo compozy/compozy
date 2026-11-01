@@ -1,4 +1,4 @@
-import { GitBranchIcon, GitPullRequestIcon } from "lucide-react";
+import { GitBranchIcon, GitPullRequestIcon } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -136,7 +136,7 @@ export function WorktreePrDialog({
           variant="ruled"
         >
           <span
-            className="mr-auto flex min-w-0 items-center gap-1.5 overflow-hidden [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted"
+            className="mr-auto flex min-w-0 items-center gap-1.5 overflow-hidden [&_svg]:size-3 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
             data-slot="worktree-pr-base"
           >
             <GitBranchIcon aria-hidden="true" />

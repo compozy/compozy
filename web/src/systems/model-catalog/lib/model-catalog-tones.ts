@@ -11,7 +11,7 @@ const MODEL_AVAILABILITY_LABELS: Record<string, string> = {
 const MODEL_AVAILABILITY_TONES: Record<string, PillTone> = {
   available_live: "success",
   available_stale: "warning",
-  unavailable_live: "danger",
+  unavailable_live: "destructive",
   unavailable_stale: "warning",
   unknown: "neutral",
 };
@@ -20,17 +20,17 @@ const MODEL_REFRESH_STATE_TONES: Record<string, PillTone> = {
   idle: "neutral",
   refreshing: "info",
   succeeded: "success",
-  failed: "danger",
+  failed: "destructive",
 };
 
 const PROVIDER_HEALTH_TONES: Record<string, PillTone> = {
   healthy: "success",
-  unhealthy: "danger",
+  unhealthy: "destructive",
 };
 
 const PROVIDER_STATE_TONES: Record<string, PillTone> = {
   active: "success",
-  error: "danger",
+  error: "destructive",
   registered: "info",
   enabled: "warning",
 };

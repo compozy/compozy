@@ -1,4 +1,4 @@
-import { RefreshCw, TriangleAlert, Unplug } from "lucide-react";
+import { RefreshCw, TriangleAlert, Unplug } from "@compozy/ui/icons";
 
 import { Button, Spinner } from "@compozy/ui";
 
@@ -14,7 +14,7 @@ export function OsPaletteProgramBand({
   if (phase === "busy") {
     return (
       <div
-        className="flex items-center gap-2 bg-surface-muted px-4 py-2 text-small-body text-muted"
+        className="flex items-center gap-2 bg-surface-muted px-4 py-2 text-small-body text-muted-foreground"
         data-program-band="busy"
         role="status"
       >
@@ -57,12 +57,12 @@ export function OsPaletteProgramFailure({
     >
       <Icon
         aria-hidden="true"
-        className={broken ? "mb-2 size-5 text-muted" : "mb-2 size-5 text-warning"}
+        className={broken ? "mb-2 size-5 text-muted-foreground" : "mb-2 size-5 text-warning"}
       />
       <strong className="font-medium text-fg">
         {broken ? "This view stopped working" : "This view isn't available"}
       </strong>
-      <span className="text-muted">{source}</span>
+      <span className="text-muted-foreground">{source}</span>
       {broken ? (
         <span className="text-faint">Close and reopen the palette to try again</span>
       ) : null}

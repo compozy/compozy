@@ -1,12 +1,9 @@
 import { Profiler } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@compozy/ui";
-
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+import { toast, UIProvider } from "@compozy/ui";
 
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
@@ -14,6 +11,11 @@ import { SubagentComposerControl } from "../subagent-composer-control";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
 import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 // Suite: subagent presentational components.
 // Invariant: rendered copy, roles and controls of the card, hover card, divider, banner, chip,
@@ -142,8 +144,12 @@ describe("SubagentCard", () => {
       "done"
     );
     expect(status(done)).toHaveTextContent("Done1m 05s");
-    expect(within(done as HTMLElement).getByText("Finished one")).toHaveClass("text-muted");
-    expect(within(running as HTMLElement).getByText("Running one")).not.toHaveClass("text-muted");
+    expect(within(done as HTMLElement).getByText("Finished one")).toHaveClass(
+      "text-muted-foreground"
+    );
+    expect(within(running as HTMLElement).getByText("Running one")).not.toHaveClass(
+      "text-muted-foreground"
+    );
     // The provider avatar no longer carries a status dot on subagent rows.
     expect(
       document.querySelector('[data-slot="subagent-avatar"] [data-slot="status-dot"]')
@@ -155,14 +161,16 @@ describe("SubagentCard", () => {
       <SubagentCard subagent={subagent({ origin: "provider_native", child_session_id: null })} />
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(container.querySelector(".lucide-chevron-right")).toBeNull();
+    expect(container.querySelector('[data-slot="subagent-card-chevron"]')).toBeNull();
   });
 
   it("Should render the bot glyph for an unknown provider (UT-W05)", () => {
     const { container } = renderUI(
       <SubagentCard subagent={subagent({ runtime: { ...NO_RUNTIME, provider: "mystery" } })} />
     );
-    expect(container.querySelector('[data-kind="mystery"] .lucide-bot')).not.toBeNull();
+    expect(
+      container.querySelector('[data-kind="mystery"] [data-slot="kind-icon-fallback"]')
+    ).not.toBeNull();
   });
 
   it("Should tick elapsed from started_at on the shared ticker without re-rendering React (UT-W06)", () => {
@@ -365,10 +373,7 @@ describe("SubagentComposerControl (issue #766)", () => {
     expect(trigger).toHaveTextContent("3");
     // The live count widens it into the padded tool pill at the same height (#826).
     expect(trigger).toHaveAttribute("data-size", "tool");
-    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute(
-      "data-tone",
-      "accent"
-    );
+    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute("data-tone", "brand");
     rerender(
       <TestUI>
         <SubagentComposerControl subagents={rows} counts={counts(2, 6)} />

@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { Settings } from "@compozy/ui/icons";
 
 import { Icon, ThemeToggle, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
