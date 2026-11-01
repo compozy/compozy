@@ -1372,10 +1372,11 @@ func TestLocalLauncherNPXPreparation(t *testing.T) {
 		spec := LaunchSpec{ResolvedExecutable: runner, Args: []string{"-y", "custom"}, Cwd: root, Env: os.Environ()}
 		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 		defer cancel()
+		args, _ := npxPrepareArgs(spec.Args)
 		if err := launcher.runNPXPreparation(
 			ctx,
 			spec,
-			npxPrepareArgs(spec.Args),
+			args,
 		); !errors.Is(
 			err,
 			context.DeadlineExceeded,

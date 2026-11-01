@@ -4,8 +4,12 @@ package acp
 
 import (
 	"context"
+	shellquote "github.com/kballard/go-shellquote"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -309,5 +313,57 @@ func TestACPIntegrationNPXColdCache(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("real ACP initialize completed in %s", time.Since(started))
+	})
+}
+
+// Invariant: a local binary need not share the name of its supplying npm package.
+// Owner: local launcher; canonical real npm integration suite.
+func TestACPIntegrationNPXLocalBinary(t *testing.T) {
+	t.Run("Should launch a differently named local package binary without resolution", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix executable fixture; subprocess code is cross-built for Windows")
+		}
+		npx, err := exec.LookPath("npx")
+		if err != nil {
+			t.Skip("npx is unavailable")
+		}
+		root := t.TempDir()
+		binDir := filepath.Join(root, "node_modules", ".bin")
+		packageDir := filepath.Join(root, "node_modules", "different-package")
+		if err := os.MkdirAll(binDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(packageDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(packageDir, "package.json"),
+			[]byte(`{"name":"different-package","bin":{"my-adapter":"adapter"}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		adapter := filepath.Join(packageDir, "adapter")
+		if err := os.WriteFile(adapter, []byte("#!/bin/sh\nprintf local-adapter-ok\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(adapter, filepath.Join(binDir, "my-adapter")); err != nil {
+			t.Fatal(err)
+		}
+		for _, flags := range [][]string{{"--no-install"}, {"--offline", "-y"}} {
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+			args := append(flags, "my-adapter")
+			handle, err := launcher.Launch(t.Context(), LaunchSpec{
+				Command: shellquote.Join(append([]string{npx}, args...)...), Cwd: root,
+				Env: []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root,
+					"npm_config_cache=" + filepath.Join(root, "cache")},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			output, readErr := io.ReadAll(handle.Stdout())
+			waitErr := handle.Wait()
+			if readErr != nil || waitErr != nil || string(output) != "local-adapter-ok" {
+				t.Fatalf("local launch = %q, read %v, wait %v", output, readErr, waitErr)
+			}
+		}
 	})
 }

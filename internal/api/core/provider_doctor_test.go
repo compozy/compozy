@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"net/http"
@@ -108,5 +109,47 @@ func TestDoctorNPXStartupFailure(t *testing.T) {
 			}
 		}
 		t.Fatalf("missing adapter diagnostic: %#v", payload.Items)
+	})
+}
+
+// Invariant: session inventory failure cannot replace valid provider readiness diagnostics.
+// Owner: doctor HTTP composition; canonical provider doctor suite.
+func TestDoctorProviderSurvivesSessionInventoryFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain provider diagnostics alongside the adapter probe error", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"public": {
+			Command: "public-provider acp", AuthMode: compozyconfig.ProviderAuthModeNone,
+			NoneSecurity: compozyconfig.ProviderNoneSecurityPublicReadonly,
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Config: cfg, Observer: apitestutil.StubObserver{},
+			Sessions: apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return nil, errors.New("session inventory unavailable")
+			}},
+		})
+		router := gin.New()
+		router.GET("/doctor", handlers.GetDoctor)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+			"/doctor?only=provider", http.NoBody))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+		}
+		var payload contract.DoctorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		var providerReady, inventoryFailed bool
+		for _, item := range payload.Items {
+			providerReady = providerReady || item.ID == "doctor.provider.public" &&
+				item.Code == contract.CodeProviderAuthenticated
+			inventoryFailed = inventoryFailed || item.Code == contract.CodeProbeFailed &&
+				strings.Contains(item.Message, "session inventory unavailable")
+		}
+		if !providerReady || !inventoryFailed {
+			t.Fatalf("missing independent diagnostics: %#v", payload.Items)
+		}
 	})
 }

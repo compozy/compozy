@@ -25,26 +25,32 @@ func isNPX(command string) bool {
 }
 
 // A no-op call resolves packages without starting the adapter or its ACP deadline.
-func npxPrepareArgs(args []string) []string {
+func npxPrepareArgs(args []string) ([]string, string) {
+	var positional string
 	var flags []string
 	hasPackage := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		if arg == "--no-install" || arg == "--no" || arg == "--yes=false" {
+			return nil, ""
+		}
 		if arg == "--" {
 			if !hasPackage && i+1 < len(args) {
-				flags = append(flags, "--package="+args[i+1])
+				positional = args[i+1]
+				flags = append(flags, "--package="+positional)
 			}
 			break
 		}
 		if !strings.HasPrefix(arg, "-") {
 			if !hasPackage {
+				positional = arg
 				flags = append(flags, "--package="+arg)
 			}
 			break
 		}
 		if arg == "-c" || arg == "--call" || strings.HasPrefix(arg, "--call=") {
 			if !hasPackage {
-				return nil
+				return nil, ""
 			}
 			break
 		}
@@ -76,18 +82,35 @@ func npxPrepareArgs(args []string) []string {
 				"--workspace":
 				i++
 				if i >= len(args) {
-					return nil
+					return nil, ""
 				}
 				flags = append(flags, args[i])
 			default:
-				return nil
+				return nil, ""
 			}
 		}
 	}
 	if len(flags) == 0 {
-		return nil
+		return nil, ""
 	}
-	return append(flags, "--call", "exit 0")
+	return append(flags, "--call", "exit 0"), positional
+}
+
+func npxLocalBinary(name string, spec LaunchSpec) bool {
+	if name == "" || strings.ContainsAny(name, "@/\\") {
+		return false
+	}
+	for dir := spec.Cwd; dir != ""; dir = filepath.Dir(dir) {
+		candidate := filepath.Join(dir, "node_modules", ".bin", name)
+		if _, err := subprocess.ResolveExecutable(candidate, spec.Env, spec.Cwd); err == nil {
+			return true
+		}
+		if filepath.Dir(dir) == dir {
+			break
+		}
+	}
+	_, err := subprocess.ResolveExecutable(name, spec.Env, spec.Cwd)
+	return err == nil
 }
 
 // NPXStartupDiagnostic recovers preparation guidance from the persisted failure boundary.
@@ -106,8 +129,8 @@ func (l *localLauncher) prepareNPX(ctx context.Context, spec LaunchSpec) error {
 	if !isNPX(spec.ResolvedExecutable) {
 		return nil
 	}
-	args := npxPrepareArgs(spec.Args)
-	if args == nil {
+	args, positional := npxPrepareArgs(spec.Args)
+	if args == nil || npxLocalBinary(positional, spec) {
 		return nil
 	}
 	prepareCtx, cancel := context.WithTimeout(ctx, defaultNPXPrepareTimeout)

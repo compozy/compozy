@@ -33,8 +33,15 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 			if err != nil {
 				return nil, err
 			}
-			adapters, err := h.adapterStartupDiagnostics(ctx)
-			return append(providerDiagnosticItems(providers), adapters...), err
+			return providerDiagnosticItems(providers), nil
+		},
+	}); err != nil {
+		return contract.DoctorPayload{}, err
+	}
+	if err := registry.Register(&doctor.ProbeFunc{
+		ProbeID: "runtime.adapter_startups", ProbeCategory: contract.CategoryProvider,
+		RunFunc: func(ctx context.Context, _ *doctor.ProbeEnv) ([]contract.DiagnosticItem, error) {
+			return h.adapterStartupDiagnostics(ctx)
 		},
 	}); err != nil {
 		return contract.DoctorPayload{}, err

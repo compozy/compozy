@@ -316,6 +316,7 @@ budget, including waiting behind another preparation. ACP initialize keeps its
 30-second deadline. The configured command, package version selector, working
 directory, and environment are preserved; `@latest` continues to track releases.
 
+Local binaries and `--no-install` commands retain npm's existing lookup behavior.
 Preparation uses npm's `--package` and `--call` options. Standard positional,
 `--package`/`-p`, and package-plus-`--call` forms are supported. Use `--option=value`
 for additional npm options; unfamiliar separate-value options pass through without
