@@ -242,7 +242,7 @@ func (q *Queries) ListPromptReports(ctx context.Context, admissionID string) ([]
 }
 
 const listRecentAgentInstanceReports = `-- name: ListRecentAgentInstanceReports :many
-SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports
+SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at, recovery_noted FROM agent_instance_reports
 WHERE instance_id = ?1
 ORDER BY created_at DESC, id DESC LIMIT ?2
 `
@@ -274,6 +274,7 @@ func (q *Queries) ListRecentAgentInstanceReports(ctx context.Context, arg ListRe
 			&i.EventSeq,
 			&i.CreatedAt,
 			&i.DeliveredAt,
+			&i.RecoveryNoted,
 		); err != nil {
 			return nil, err
 		}
