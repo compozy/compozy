@@ -93,7 +93,7 @@ function Legend() {
 export function ActivitySection({ data }: { data: ProfileData }) {
   const [days, setDays] = useState("30");
   const window = Number(days);
-  const onDemand = data.agent.kind === "ephemeral";
+  const onDemand = data.agent.kind === "on_demand";
   return (
     <Section
       label="How it's been going"

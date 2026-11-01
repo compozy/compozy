@@ -3,10 +3,10 @@ import { Plus, SearchX } from "lucide-react";
 
 import { Button, Empty, PillGroup, SearchInput, toast } from "@compozy/ui";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import { AgentAppPage } from "../persistent-agents-shared/agent-page";
-import type { DraftAgent } from "../persistent-agents-shared/fixtures";
-import { EditorCard } from "../persistent-agents-shared/rich-controls";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
+import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { EditorCard } from "../stays-on-agents-shared/rich-controls";
 import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
 import { useMemoryEditor, type Filter, type MemoryVariant } from "./hooks/use-memory-editor";
@@ -48,7 +48,7 @@ export function MemoryEditor({ agent, variant }: { agent: DraftAgent; variant: M
   return (
     <AgentAppPage agent={agent} hubState="memory" leaf="Memory" width="max-w-5xl">
       <div className="flex flex-col gap-6 py-2">
-        <EditorHead agent={agent} subtitle="What it remembers everywhere it works" title="Memory">
+        <EditorHead agent={agent} subtitle="What it remembers wherever it works" title="Memory">
           <Button disabled={full || adding} onClick={() => editor.startAdding()} type="button">
             <Plus aria-hidden="true" />
             Add a note

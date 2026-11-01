@@ -2,13 +2,13 @@ import { ConfirmDialog } from "@compozy/ui";
 
 import { definePrototype, protoHref, type PrototypeProps } from "@compozy/proto";
 
-import { goToState } from "../persistent-agents-shared/go-to-state";
-import { LISTED_EPHEMERAL, LISTED_PERSISTENT } from "../persistent-agents-shared/agents-fixtures";
-import { AgentsPage } from "../persistent-agents-shared/agents-page";
-import { ORCHESTRATOR, RELEASE, TRIAGE } from "../persistent-agents-shared/fixtures";
+import { goToState } from "../stays-on-agents-shared/go-to-state";
+import { LISTED_ON_DEMAND, LISTED_STAYS_ON } from "../stays-on-agents-shared/agents-fixtures";
+import { AgentsPage } from "../stays-on-agents-shared/agents-page";
+import { ORCHESTRATOR, RELEASE, TRIAGE } from "../stays-on-agents-shared/fixtures";
 
 import { CreateScreen, type CreateScreenProps } from "./create-screen";
-import { PLACE_EVERYWHERE, PLACE_LATER, TEMPLATES, type Draft } from "./model";
+import { PLACE_GLOBAL, PLACE_LATER, TEMPLATES, type Draft } from "./model";
 
 export const meta = definePrototype({
   title: "Agent create",
@@ -20,7 +20,7 @@ export const meta = definePrototype({
     { id: "filled", label: "Filled · Runs when you ask" },
     { id: "stays-on", label: "Filled · Stays on" },
     { id: "where-search", label: "Where it works · Search 50 projects" },
-    { id: "everywhere", label: "Where it works · Everywhere" },
+    { id: "global", label: "Where it works · Global" },
     { id: "decide-later", label: "Where it works · Decide later" },
     { id: "from-project", label: "From a project's + · Project marked" },
     { id: "avatar-character", label: "Avatar · Character" },
@@ -67,7 +67,7 @@ const FAILED: CreateScreenProps = {
   previewLabel: "Couldn't start",
   readOnly: {
     primary: "Open agent",
-    onPrimary: () => window.location.assign(protoHref("agent-profile", "persistent")),
+    onPrimary: () => window.location.assign(protoHref("agent-profile", "stays-on")),
   },
 };
 
@@ -95,13 +95,13 @@ const SCREENS: Record<string, CreateScreenProps> = {
   filled: { initial: FILLED },
   "stays-on": { initial: TRIAGE_DRAFT },
   "where-search": { initial: TRIAGE_DRAFT, placesOpen: true },
-  everywhere: {
+  global: {
     initial: {
       ...TRIAGE_DRAFT,
       name: RELEASE.label,
       description: RELEASE.description,
       appearance: RELEASE.appearance,
-      place: PLACE_EVERYWHERE,
+      place: PLACE_GLOBAL,
     },
   },
   "decide-later": { initial: { ...TRIAGE_DRAFT, place: PLACE_LATER } },
@@ -129,7 +129,7 @@ export default function AgentCreateDraft({ state }: PrototypeProps) {
   const props = SCREENS[state] ?? SCREENS.empty!;
   return (
     <AgentsPage
-      ephemeral={LISTED_EPHEMERAL}
+      onDemand={LISTED_ON_DEMAND}
       overlay={
         <>
           <CreateScreen key={state} {...props} />
@@ -147,7 +147,7 @@ export default function AgentCreateDraft({ state }: PrototypeProps) {
           ) : null}
         </>
       }
-      persistent={LISTED_PERSISTENT}
+      staysOn={LISTED_STAYS_ON}
     />
   );
 }

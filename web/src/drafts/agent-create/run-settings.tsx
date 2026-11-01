@@ -15,19 +15,19 @@ import {
 import { RuntimeSelector } from "@/systems/runtime/components/runtime-selector";
 
 import {
-  EverywhereMark,
+  GlobalMark,
   LaterMark,
   LimitMeter,
   PlaceList,
   ProjectMark,
-} from "../persistent-agents-shared/add-pickers";
-import { WORKSPACES } from "../persistent-agents-shared/fixtures";
+} from "../stays-on-agents-shared/add-pickers";
+import { WORKSPACES } from "../stays-on-agents-shared/fixtures";
 
 import {
   ACTIVE_LIMIT,
   MODELS,
   MORE_PROJECTS,
-  PLACE_EVERYWHERE,
+  PLACE_GLOBAL,
   PLACE_LATER,
   PROVIDERS,
   placeLabel,
@@ -36,10 +36,10 @@ import {
   type Place,
 } from "./model";
 
-const PLACES = [PLACE_EVERYWHERE, ...WORKSPACES, ...MORE_PROJECTS];
+const PLACES = [PLACE_GLOBAL, ...WORKSPACES, ...MORE_PROJECTS];
 
 function PlaceMark({ place }: { place: Place }) {
-  if (place === PLACE_EVERYWHERE) return <EverywhereMark />;
+  if (place === PLACE_GLOBAL) return <GlobalMark />;
   if (place === PLACE_LATER) return <LaterMark />;
   return <ProjectMark name={place} />;
 }
@@ -142,15 +142,13 @@ export function RunSettings({
       <div aria-labelledby={modeId} className="flex flex-col gap-2" role="radiogroup">
         <Eyebrow id={modeId}>How it works</Eyebrow>
         <RadioCard
-          description="Ephemeral. Starts when you open a session."
           icon={Clock3}
           iconWellSize="lg"
           onSelect={() => onMode("on-demand")}
           selected={draft.mode === "on-demand"}
-          title="Runs when you ask"
+          title="On demand, runs when you ask"
         />
         <RadioCard
-          description="Persistent. Keeps watching and checks in."
           icon={Eye}
           iconWellSize="lg"
           onSelect={() => onMode("stays-on")}
@@ -202,7 +200,7 @@ export function RunFacts({ draft, owner }: { draft: Draft; owner?: string }) {
     <ImmutableIdentity
       rows={[
         ...(owner ? [{ label: "Comes from", value: owner }] : []),
-        { label: "How it works", value: stays ? "Stays on" : "Runs when you ask" },
+        { label: "How it works", value: stays ? "Stays on" : "On demand" },
         ...(stays ? [{ label: "Where it works", value: placeLabel(draft.place) }] : []),
         { label: "Model", value: model?.name ?? draft.runtime.model },
       ]}

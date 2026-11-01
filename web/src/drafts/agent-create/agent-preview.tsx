@@ -5,8 +5,8 @@ import { Button, CatalogCard, Pill, StatusDot } from "@compozy/ui";
 
 import { AgentFleetNewSessionButton } from "@/systems/agent/components/agent-fleet-new-session-button";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import type { AgentState } from "../persistent-agents-shared/agent-state";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import type { AgentState } from "../stays-on-agents-shared/agent-state";
 
 import { PLACE_LATER, placeLabel, type Draft } from "./model";
 

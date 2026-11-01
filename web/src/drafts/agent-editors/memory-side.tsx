@@ -11,7 +11,7 @@ import {
   cn,
 } from "@compozy/ui";
 
-import { EditorCard } from "../persistent-agents-shared/rich-controls";
+import { EditorCard } from "../stays-on-agents-shared/rich-controls";
 import { PUT_AWAY, REVISIONS } from "./memory-fixtures";
 
 export type Fullness = "fine" | "almost" | "full";

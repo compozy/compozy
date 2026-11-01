@@ -11,18 +11,18 @@ import {
 
 import { Button, Empty, MarkdownEditor, Switch, toast } from "@compozy/ui";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import { formatClock } from "../persistent-agents-shared/format-clock";
-import { AgentAppPage } from "../persistent-agents-shared/agent-page";
-import type { AgentState } from "../persistent-agents-shared/agent-state";
-import type { DraftAgent } from "../persistent-agents-shared/fixtures";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import { formatClock } from "../stays-on-agents-shared/format-clock";
+import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
+import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
 import {
   DayRangeSlider,
   EditorCard,
   SettingRow,
   StopSlider,
   ToggleRow,
-} from "../persistent-agents-shared/rich-controls";
+} from "../stays-on-agents-shared/rich-controls";
 import { NextCard, RecentCard } from "./checkins-activity";
 import {
   FLOOR,

@@ -21,8 +21,8 @@ import {
   runtimeSelectorStoryProviders,
 } from "@/systems/runtime/components/stories/runtime-selector-story-fixtures";
 
-import { DraftUnsavedPill } from "../persistent-agents-shared/draft-shell";
-import type { DraftAgent } from "../persistent-agents-shared/fixtures";
+import { DraftUnsavedPill } from "../stays-on-agents-shared/draft-shell";
+import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
 import { IdentityEditor } from "./identity-editor";
 import { PlanCard } from "./profile-activity";
 import type { ProfilePanel } from "./profile-setup";

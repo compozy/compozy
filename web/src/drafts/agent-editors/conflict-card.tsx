@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { Button, Eyebrow } from "@compozy/ui";
 
-import { EditorCard } from "../persistent-agents-shared/rich-controls";
+import { EditorCard } from "../stays-on-agents-shared/rich-controls";
 
 function Version({
   name,

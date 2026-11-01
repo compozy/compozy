@@ -4,8 +4,8 @@ import { useState } from "react";
 
 import { Alert, AlertDescription, Button, Empty, SearchInput, Section } from "@compozy/ui";
 
-import { ScopePicker, type ScopePickerProps } from "../persistent-agents-shared/add-pickers";
-import { SCOPE_LABEL, WORKSPACES } from "../persistent-agents-shared/fixtures";
+import { ScopePicker, type ScopePickerProps } from "../stays-on-agents-shared/add-pickers";
+import { SCOPE_LABEL, WORKSPACES } from "../stays-on-agents-shared/fixtures";
 import type { PlaceActions } from "./hooks/use-places";
 import { usePlaces } from "./hooks/use-places";
 import { PlaceCard } from "./place-card";

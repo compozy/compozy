@@ -15,10 +15,10 @@ import {
   type StatusDotTone,
 } from "@compozy/ui";
 
-import { ProjectMark } from "../persistent-agents-shared/add-pickers";
-import type { AgentState } from "../persistent-agents-shared/agent-state";
-import { PAUSE_SHORT } from "../persistent-agents-shared/agents-fixtures";
-import { SCOPE_LABEL } from "../persistent-agents-shared/fixtures";
+import { ProjectMark } from "../stays-on-agents-shared/add-pickers";
+import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import { PAUSE_SHORT } from "../stays-on-agents-shared/agents-fixtures";
+import { SCOPE_LABEL } from "../stays-on-agents-shared/fixtures";
 import { canResume } from "./place-edits";
 import type { ProfilePlace } from "./profile-fixtures";
 

@@ -5,15 +5,15 @@ import type {
   RuntimeSelectorValue,
 } from "@/systems/runtime/components/runtime-selector";
 
-import type { AgentAppearance } from "../persistent-agents-shared/agent-state";
-import { EPHEMERAL_AGENTS, PERSISTENT_AGENTS } from "../persistent-agents-shared/fixtures";
+import type { AgentAppearance } from "../stays-on-agents-shared/agent-state";
+import { ON_DEMAND_AGENTS, STAYS_ON_AGENTS } from "../stays-on-agents-shared/fixtures";
 
 export type AgentMode = "on-demand" | "stays-on";
-/** A project name, `@user` for Everywhere, or `later` for no place yet. */
+/** A project name, `@user` for Global, or `later` for no place yet. */
 export type Place = string;
 
 export const PLACE_LATER = "later";
-export const PLACE_EVERYWHERE = "@user";
+export const PLACE_GLOBAL = "@user";
 export const ACTIVE_LIMIT = 10;
 
 export interface Template {
@@ -97,7 +97,7 @@ export const EMPTY_DRAFT: Draft = {
   runtime: DEFAULT_MODEL,
 };
 
-const TAKEN = new Set([...PERSISTENT_AGENTS, ...EPHEMERAL_AGENTS].map(agent => agent.name));
+const TAKEN = new Set([...STAYS_ON_AGENTS, ...ON_DEMAND_AGENTS].map(agent => agent.name));
 
 export function shortNameFor(name: string) {
   return name
@@ -118,7 +118,7 @@ export function nameIssue(name: string, shortName?: string): NameIssue {
 }
 
 export function placeLabel(place: Place) {
-  if (place === PLACE_EVERYWHERE) return "Everywhere";
+  if (place === PLACE_GLOBAL) return "Global";
   if (place === PLACE_LATER) return "Decide later";
   return place;
 }

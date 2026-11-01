@@ -13,7 +13,7 @@
             "slug": "agent-avatar",
             "status": "resolved",
             "createdAt": "2026-11-01T01:31:35.614Z",
-            "updatedAt": "2026-11-01T01:35:45.986Z",
+            "updatedAt": "2026-11-01T02:50:25.988Z",
             "resolvedAt": "2026-11-01T01:35:45.986Z",
             "context": {
                 "commit": "6da3b271d0872555eed9298d2084b83057118949",
@@ -66,8 +66,8 @@
                 {
                     "id": "adcff47b-b9fc-432d-bfc8-fcdcf29fa844",
                     "at": "2026-11-01T01:35:45.981Z",
-                    "editedAt": null,
-                    "body": "Troquei o círculo por um triângulo âmbar pequeno de cantos arredondados no AgentAvatar (persistent-agents-shared/agent-avatar.tsx), no mesmo canto do ponto de estado. A mudança vale para lista, sidebar, Kanban e relatórios. Conferi needs-you em dark e light, 16 a 56 px. O _uiux.md e a US-004/US-029 ainda dizem accent ring e precisam ser atualizados.",
+                    "editedAt": "2026-11-01T02:50:25.988Z",
+                    "body": "Troquei o círculo por um triângulo âmbar pequeno de cantos arredondados no AgentAvatar (stays-on-agents-shared/agent-avatar.tsx), no mesmo canto do ponto de estado. A mudança vale para lista, sidebar, Kanban e relatórios. Conferi needs-you em dark e light, 16 a 56 px. O _uiux.md e a US-004/US-029 ainda dizem accent ring e precisam ser atualizados.",
                     "author": "agent",
                     "attachments": []
                 }

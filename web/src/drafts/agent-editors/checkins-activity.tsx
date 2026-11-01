@@ -17,7 +17,7 @@ import {
   TimelineEvent,
 } from "@compozy/ui";
 
-import { DayStrip, DayStripKey, EditorCard } from "../persistent-agents-shared/rich-controls";
+import { DayStrip, DayStripKey, EditorCard } from "../stays-on-agents-shared/rich-controls";
 import {
   dayCells,
   type CheckInSettings,

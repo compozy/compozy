@@ -14,7 +14,7 @@ import {
 
 import { ListingRow, Panel } from "@compozy/ui";
 
-import type { DraftAgent } from "../persistent-agents-shared/fixtures";
+import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
 
 export type ProfilePanel = "identity" | "model" | "tools";
 
@@ -72,7 +72,7 @@ export function SetupPanel({
   readOnly?: boolean;
   onOpen: (panel: ProfilePanel) => void;
 }) {
-  const stayOn = agent.kind === "persistent";
+  const staysOn = agent.kind === "stays_on";
   return (
     <Panel
       bodyClassName="p-0"
@@ -101,7 +101,7 @@ export function SetupPanel({
           summary={agent.provider === "codex" ? "GPT 6 Astra" : "Claude Opus 5.5"}
           title="Model"
         />
-        {stayOn ? (
+        {staysOn ? (
           <SetupRow
             icon={Clock}
             locked={readOnly}
@@ -110,7 +110,7 @@ export function SetupPanel({
             title="Check-ins"
           />
         ) : null}
-        {stayOn ? (
+        {staysOn ? (
           <SetupRow
             icon={Brain}
             locked={readOnly}

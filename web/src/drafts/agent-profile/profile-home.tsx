@@ -5,11 +5,11 @@ import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { Alert, AlertDescription, AlertTitle, Button, Empty, Pill, StatusDot } from "@compozy/ui";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import { KindPill } from "../persistent-agents-shared/agent-page";
-import type { AgentState } from "../persistent-agents-shared/agent-state";
-import { PAUSE_PLAIN } from "../persistent-agents-shared/agents-fixtures";
-import { SCOPE_LABEL } from "../persistent-agents-shared/fixtures";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import { KindPill } from "../stays-on-agents-shared/agent-page";
+import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import { PAUSE_PLAIN } from "../stays-on-agents-shared/agents-fixtures";
+import { SCOPE_LABEL } from "../stays-on-agents-shared/fixtures";
 import type { IdentityEditor } from "./identity-editor";
 import { usePlaces } from "./hooks/use-places";
 import { canResume } from "./place-edits";
@@ -23,12 +23,12 @@ import { AddPlace, WorkingNow } from "./where-it-works";
 const ORDER: AgentState[] = ["needs-you", "failed", "working", "paused"];
 
 function overall(data: ProfileData, places: readonly ProfilePlace[]): AgentState {
-  if (data.agent.kind === "ephemeral") return data.agent.active > 0 ? "working" : "idle";
+  if (data.agent.kind === "on_demand") return data.agent.active > 0 ? "working" : "idle";
   return ORDER.find(state => places.some(place => place.state === state)) ?? "idle";
 }
 
 function headline(data: ProfileData, places: readonly ProfilePlace[], state: AgentState) {
-  if (data.agent.kind === "ephemeral") {
+  if (data.agent.kind === "on_demand") {
     return state === "working" ? `${data.agent.active} running now` : "Starts when you ask";
   }
   if (places.length === 0) return "Waiting for its first project";
@@ -54,7 +54,7 @@ function MainAction({
   state: AgentState;
   onResume: () => void;
 }) {
-  if (data.agent.kind === "ephemeral") {
+  if (data.agent.kind === "on_demand") {
     return (
       <Button type="button">
         <MessageSquarePlus aria-hidden="true" />
@@ -66,7 +66,7 @@ function MainAction({
   if (state === "needs-you") {
     return (
       <Button
-        onClick={() => window.location.assign(protoHref("persistent-reports", "proposal"))}
+        onClick={() => window.location.assign(protoHref("stays-on-reports", "proposal"))}
         type="button"
       >
         See what it needs
@@ -186,7 +186,7 @@ export function ProfileHome({
 }) {
   const { places, actions, resumeAll } = usePlaces(data.places);
   const [panel, setPanel] = useState<ProfilePanel | null>(initialPanel);
-  const stayOn = data.agent.kind === "persistent";
+  const staysOn = data.agent.kind === "stays_on";
   return (
     <div className="@container flex flex-col gap-6 pt-2 pb-16">
       <Hero
@@ -205,7 +205,7 @@ export function ProfileHome({
       <Stopped places={places} />
       <div className="grid grid-cols-1 gap-6 @5xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          {stayOn && places.length > 0 ? <WorkingNow actions={actions} places={places} /> : null}
+          {staysOn && places.length > 0 ? <WorkingNow actions={actions} places={places} /> : null}
           {data.fresh ? (
             <FirstDay name={data.agent.label} />
           ) : (

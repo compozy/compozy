@@ -17,8 +17,8 @@ import {
   cn,
 } from "@compozy/ui";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import type { AgentState } from "../persistent-agents-shared/agent-state";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import type { AgentState } from "../stays-on-agents-shared/agent-state";
 
 import { AvatarChooser } from "./avatar-chooser";
 import { TEMPLATES, shortNameFor, type Draft, type NameIssue } from "./model";

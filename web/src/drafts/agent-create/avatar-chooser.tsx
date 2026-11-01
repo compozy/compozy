@@ -23,9 +23,9 @@ import {
   PROFILE_SPRITE_URL,
 } from "@/systems/profiles/lib/profile-identity";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import type { AgentAppearance } from "../persistent-agents-shared/agent-state";
-import { useCanvasTheme } from "../persistent-agents-shared/use-canvas-theme";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import type { AgentAppearance } from "../stays-on-agents-shared/agent-state";
+import { useCanvasTheme } from "../stays-on-agents-shared/use-canvas-theme";
 
 import { useIconCatalog } from "./hooks/use-icon-catalog";
 import { nextSeed } from "./model";

@@ -1,6 +1,6 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { SCOUT, TRIAGE } from "../persistent-agents-shared/fixtures";
+import { SCOUT, TRIAGE } from "../stays-on-agents-shared/fixtures";
 import { CheckInsEditor, type CheckInsVariant } from "./checkins-editor";
 import { MemoryEditor, type MemoryVariant } from "./memory-editor";
 import { WhatItDoesEditor, type WhatItDoesVariant } from "./what-it-does-editor";

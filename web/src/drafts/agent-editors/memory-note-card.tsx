@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Button, DateTimePicker, MarkdownEditor, Pill, cn } from "@compozy/ui";
 
-import { EditorCard } from "../persistent-agents-shared/rich-controls";
+import { EditorCard } from "../stays-on-agents-shared/rich-controls";
 import type { Note } from "./memory-fixtures";
 
 const MAX_NOTE = 1000;

@@ -1,6 +1,6 @@
 /** What the Check-ins page derives: the summary, the next check-in and today's strip. */
-import { formatClock } from "../persistent-agents-shared/format-clock";
-import type { DayCell } from "../persistent-agents-shared/rich-controls";
+import { formatClock } from "../stays-on-agents-shared/format-clock";
+import type { DayCell } from "../stays-on-agents-shared/rich-controls";
 
 export const HOW_OFTEN = [
   { label: "5 min", minutes: 5 },

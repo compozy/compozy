@@ -6,9 +6,9 @@ import { Eyebrow, cn } from "@compozy/ui";
 
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import { AGENT_STATE_LABEL, type AgentState } from "../persistent-agents-shared/agent-state";
-import { RELEASE, SCOUT, TRIAGE } from "../persistent-agents-shared/fixtures";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import { AGENT_STATE_LABEL, type AgentState } from "../stays-on-agents-shared/agent-state";
+import { RELEASE, SCOUT, TRIAGE } from "../stays-on-agents-shared/fixtures";
 
 export const meta = definePrototype({
   title: "Agent avatar",

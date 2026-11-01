@@ -1,12 +1,12 @@
 /** Pause, resume and remove as edits over the given places, so the fixture stays the source. */
-import type { PauseReason } from "../persistent-agents-shared/fixtures";
+import type { PauseReason } from "../stays-on-agents-shared/fixtures";
 import type { ProfilePlace } from "./profile-fixtures";
 
 export type PlaceEdit = "paused" | "resumed" | "removed";
 export type PlaceEdits = Readonly<Record<string, PlaceEdit>>;
 
 export function canResume(reason: PauseReason | undefined) {
-  return reason !== "definition_missing" && reason !== "definition_not_persistent";
+  return reason !== "definition_missing" && reason !== "definition_not_stays_on";
 }
 
 function edited(place: ProfilePlace, edit: PlaceEdit | undefined): ProfilePlace {

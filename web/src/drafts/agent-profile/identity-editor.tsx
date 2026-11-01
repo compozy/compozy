@@ -29,9 +29,9 @@ import {
   PROFILE_SPRITE_URL,
 } from "@/systems/profiles/lib/profile-identity";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import type { DraftAgent } from "../persistent-agents-shared/fixtures";
-import { useCanvasTheme } from "../persistent-agents-shared/use-canvas-theme";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { useCanvasTheme } from "../stays-on-agents-shared/use-canvas-theme";
 import { useIconCatalog } from "./hooks/use-icon-catalog";
 
 type Mode = "generated" | "symbol";
@@ -220,8 +220,7 @@ export function IdentityEditor({
               { label: "Short name", value: agent.name, mono: true },
               {
                 label: "Works",
-                value:
-                  agent.kind === "persistent" ? "Persistent, stays on" : "Ephemeral, on demand",
+                value: agent.kind === "stays_on" ? "Stays on" : "On demand",
               },
             ]}
           />

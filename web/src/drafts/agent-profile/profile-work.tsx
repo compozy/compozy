@@ -7,7 +7,7 @@ import { ListingRow, Panel, Pill, Timeline, TimelineEvent } from "@compozy/ui";
 import type { Finding, ProfileData, WorkItem } from "./profile-fixtures";
 
 function openReport() {
-  window.location.assign(protoHref("persistent-reports", "proposal"));
+  window.location.assign(protoHref("stays-on-reports", "proposal"));
 }
 
 function FindingRow({ finding }: { finding: Finding }) {

@@ -16,8 +16,8 @@ import {
 
 import { protoHref } from "@compozy/proto";
 
-import { goToState } from "../persistent-agents-shared/go-to-state";
-import type { AgentState } from "../persistent-agents-shared/agent-state";
+import { goToState } from "../stays-on-agents-shared/go-to-state";
+import type { AgentState } from "../stays-on-agents-shared/agent-state";
 
 import { AgentPreview } from "./agent-preview";
 import { Advanced, Identity, IdentityRead, Instructions, InstructionsRead } from "./details";
@@ -68,7 +68,7 @@ function Notice({ notice }: { notice: ScreenNotice }) {
 }
 
 function submit(_draft: Draft) {
-  window.location.assign(protoHref("persistent-sessions", "sidebar-rows"));
+  window.location.assign(protoHref("stays-on-sessions", "sidebar-rows"));
 }
 
 export function CreateScreen({

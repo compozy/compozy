@@ -18,10 +18,10 @@ import {
   toast,
 } from "@compozy/ui";
 
-import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import { AgentAppPage } from "../persistent-agents-shared/agent-page";
-import type { DraftAgent } from "../persistent-agents-shared/fixtures";
-import { EditorCard } from "../persistent-agents-shared/rich-controls";
+import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
+import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
+import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { EditorCard } from "../stays-on-agents-shared/rich-controls";
 import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
 import { RawFile } from "./raw-file";
