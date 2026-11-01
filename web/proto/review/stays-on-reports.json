@@ -1,0 +1,299 @@
+{
+    "version": 3,
+    "key": "stays-on-reports",
+    "sequence": 4,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "stays-on-reports-1",
+            "slug": "stays-on-reports",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:29:29.810Z",
+            "updatedAt": "2026-11-01T04:44:02.247Z",
+            "resolvedAt": "2026-11-01T04:44:02.247Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "failure",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section > header",
+                "testId": null,
+                "tag": "header",
+                "text": "Triage Lead compozy",
+                "source": "src/systems/os/components/os-window-frame.tsx:160:9",
+                "sourceChain": [
+                    "src/systems/os/components/os-window-frame.tsx:160:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:194:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:192:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:188:7",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:159:5",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:293:5",
+                    "src/drafts/stays-on-reports/session-views.tsx:115:7",
+                    "src/drafts/stays-on-reports/index.proto.tsx:125:9"
+                ],
+                "rect": {
+                    "x": 61,
+                    "y": 93,
+                    "width": 1335,
+                    "height": 48
+                },
+                "rectNormalized": {
+                    "x": 0.04369627507163324,
+                    "y": 0.1341991341991342,
+                    "width": 0.9563037249283668,
+                    "height": 0.06926406926406926
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "cfb8851a-0bd2-4ab9-81bb-682649c75af1",
+                    "at": "2026-11-01T03:29:30.082Z",
+                    "editedAt": null,
+                    "body": "está faltando informação aqui eu acredito, acho que aqui deveria ter mais ações e opção, além de seguir o padrão do title da session e não fazer algo totalmente diferente, por exemplo, botando o projeto priemiro na esquerda antes do titulo",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "dabfc7be-88d9-4e92-a76a-802c2c7901d0",
+                    "at": "2026-11-01T04:44:02.246Z",
+                    "editedAt": null,
+                    "body": "The main session head now follows the real session title: project first on the left, then the agent, List and Kanban, plus overflow and panel toggles. Checked failure and approval at 1396x693 in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-reports-2",
+            "slug": "stays-on-reports",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:35:23.671Z",
+            "updatedAt": "2026-11-01T04:44:04.251Z",
+            "resolvedAt": "2026-11-01T04:44:04.251Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "approval",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "[data-testid=\"permission-dock\"]",
+                "testId": "permission-dock",
+                "tag": "div",
+                "text": "Permission required",
+                "source": "src/systems/session/components/permission-dock-view.tsx:57:5",
+                "sourceChain": [
+                    "src/systems/session/components/permission-dock-view.tsx:57:5",
+                    "src/drafts/stays-on-reports/session-views.tsx:370:5",
+                    "src/drafts/stays-on-reports/index.proto.tsx:131:29",
+                    "src/drafts/stays-on-agents-shared/transcript.tsx:130:11",
+                    "src/drafts/stays-on-agents-shared/transcript.tsx:129:9",
+                    "src/drafts/stays-on-agents-shared/transcript.tsx:128:7",
+                    "src/drafts/stays-on-agents-shared/transcript.tsx:127:5",
+                    "src/drafts/stays-on-reports/session-views.tsx:129:11"
+                ],
+                "rect": {
+                    "x": 529,
+                    "y": 389,
+                    "width": 720,
+                    "height": 195
+                },
+                "rectNormalized": {
+                    "x": 0.37893982808022925,
+                    "y": 0.5613275613275613,
+                    "width": 0.5157593123209169,
+                    "height": 0.2813852813852814
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "0b04a5e9-2fb9-4ae2-90f2-a12d4b046adf",
+                    "at": "2026-11-01T03:35:23.689Z",
+                    "editedAt": null,
+                    "body": "componente bem ruim, da para trabalhar bem mais ele, e acredito que ja tenha alguma coisa de approval feito que poderia ter reutilizado, o parte aonde está o comand está ruim... enfim ta bem ruim, olhe referencias de bons components",
+                    "author": "reviewer",
+                    "attachments": [
+                        {
+                            "id": "89ff23ae-7534-4953-82dd-b41290963d52",
+                            "name": "CleanShot 2026-11-01 at 12.34.48 AM@2x.png",
+                            "type": "image/png",
+                            "size": 131070,
+                            "width": 1692,
+                            "height": 944,
+                            "uploaderKind": "reviewer"
+                        },
+                        {
+                            "id": "8f2f1314-3d4c-4089-b460-21e3fb1a5ece",
+                            "name": "CleanShot 2026-11-01 at 12.32.02 AM@2x.png",
+                            "type": "image/png",
+                            "size": 164259,
+                            "width": 1452,
+                            "height": 1164,
+                            "uploaderKind": "reviewer"
+                        }
+                    ]
+                },
+                {
+                    "id": "2a4cf981-181d-4f70-a2a5-7ce553e30258",
+                    "at": "2026-11-01T04:44:04.245Z",
+                    "editedAt": null,
+                    "body": "Reworked the production permission dock view and terminal approval detail: who asks, what project, the command in a code block with copy, folder, and clear numbered actions. Session and terminal test suites pass. Checked approval in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-reports-3",
+            "slug": "stays-on-reports",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:35:42.682Z",
+            "updatedAt": "2026-11-01T04:44:06.217Z",
+            "resolvedAt": "2026-11-01T04:44:06.217Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "expired-approval",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "article",
+                "testId": null,
+                "tag": "article",
+                "text": "A request went unanswered",
+                "source": "src/drafts/stays-on-reports/report-entry.tsx:127:5",
+                "sourceChain": [
+                    "src/drafts/stays-on-reports/report-entry.tsx:127:5",
+                    "src/drafts/stays-on-reports/session-views.tsx:236:5",
+                    "src/drafts/stays-on-reports/index.proto.tsx:138:11",
+                    "src/drafts/stays-on-agents-shared/transcript.tsx:44:7",
+                    "src/drafts/stays-on-agents-shared/transcript.tsx:43:5",
+                    "src/drafts/stays-on-reports/session-views.tsx:122:9",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:305:9",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:303:7"
+                ],
+                "rect": {
+                    "x": 529,
+                    "y": 283.546875,
+                    "width": 720,
+                    "height": 166.3125
+                },
+                "rectNormalized": {
+                    "x": 0.37893982808022925,
+                    "y": 0.40915854978354976,
+                    "width": 0.5157593123209169,
+                    "height": 0.2399891774891775
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "6827a83e-5c0a-4c60-9bfa-aa918e423439",
+                    "at": "2026-11-01T03:35:42.697Z",
+                    "editedAt": null,
+                    "body": "mesma coisa aqui",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "5476dd34-71b1-41e8-b62c-f6df393ef199",
+                    "at": "2026-11-01T04:44:06.173Z",
+                    "editedAt": null,
+                    "body": "The expired approval reuses the same command block and adds a Didn't run label and Ask it to try again. Checked expired-approval in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-reports-4",
+            "slug": "stays-on-reports",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:36:55.431Z",
+            "updatedAt": "2026-11-01T04:44:07.735Z",
+            "resolvedAt": "2026-11-01T04:44:07.735Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "audit",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "nav > button:nth-of-type(2)",
+                "testId": null,
+                "tag": "button",
+                "text": "Dashboard",
+                "source": "src/systems/os/components/os-dock.tsx:134:11",
+                "sourceChain": [
+                    "src/systems/os/components/os-dock.tsx:134:11",
+                    "src/systems/os/components/os-dock.tsx:132:7",
+                    "src/systems/os/components/os-dock.tsx:131:5",
+                    "src/systems/os/components/os-dock.tsx:231:11",
+                    "src/systems/os/components/os-dock.tsx:224:7",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:182:7",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:159:5",
+                    "src/drafts/stays-on-reports/activity-page.tsx:316:5"
+                ],
+                "rect": {
+                    "x": 10,
+                    "y": 112,
+                    "width": 40,
+                    "height": 40
+                },
+                "rectNormalized": {
+                    "x": 0.0071633237822349575,
+                    "y": 0.16161616161616163,
+                    "width": 0.02865329512893983,
+                    "height": 0.05772005772005772
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "1c8afffe-227e-4553-b141-e52ccc0efcb0",
+                    "at": "2026-11-01T03:36:55.449Z",
+                    "editedAt": null,
+                    "body": "vamos mudar a ordem para esse ser o prmeiro icone do dock, e também mudar o icone para mostrar que é um dashboard",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "ff5c0d4a-e9d4-43f3-901c-51a178ae039e",
+                    "at": "2026-11-01T04:44:07.733Z",
+                    "editedAt": null,
+                    "body": "Dashboard is now the first dock item with a layout dashboard icon, changed in the real owners (app-catalog, use-desktop-dock, os-dock-icons). The os-dock test passes. Checked audit in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

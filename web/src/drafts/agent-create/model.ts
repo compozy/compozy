@@ -33,17 +33,23 @@ export const TEMPLATES: readonly Template[] = [
     label: "Review code",
     body: "Read each change before it goes in.\n\n- Say what could break, and why\n- Point to the exact place\n- Skip style opinions",
   },
-  {
-    id: "releases",
-    label: "Keep releases moving",
-    body: "Follow the next release until it's out.\n\n- List what's still missing\n- Flag anything that slips\n- Tell me when it's ready",
-  },
-  {
-    id: "summary",
-    label: "Sum up the week",
-    body: "Every Friday, tell me what happened.\n\n- What shipped\n- What's stuck\n- What needs a decision from me",
-  },
 ];
+
+/** What the model is told every time; people only ever see their own words. */
+export const FILL_SYSTEM_PROMPT =
+  "You write instructions for an agent. Use plain words, open with one sentence on its job, then list what it should do. Answer with the instructions only, in Markdown.";
+
+export interface FillRequest {
+  system: string;
+  brief: string;
+  runtime: RuntimeSelectorValue;
+}
+
+/** Stands in for the model's answer: the prototype never calls one. */
+export function writeInstructions({ brief }: FillRequest) {
+  const job = brief.trim().replace(/[.!]$/, "");
+  return `${job.charAt(0).toUpperCase()}${job.slice(1)}.\n\n- Check for anything new when you start\n- Say what changed and why it matters\n- Ask me before doing anything that can't be undone\n- Stay quiet when nothing changed`;
+}
 
 export const PROVIDERS: RuntimeProviderOption[] = [
   { id: "claude", name: "Claude", runtime_provider: "claude", harness: "acp" },
@@ -115,6 +121,15 @@ export function nameIssue(name: string, shortName?: string): NameIssue {
   if (slug === "") return { kind: "no-letters" };
   if (!TAKEN.has(slug)) return null;
   return { kind: "taken", suggestion: `${name.trim()} 2` };
+}
+
+export function providersFor(signedOut?: string) {
+  if (!signedOut) return PROVIDERS;
+  return PROVIDERS.map(provider => ({ ...provider, needs_auth: provider.name === signedOut }));
+}
+
+export function modelLabel(runtime: RuntimeSelectorValue) {
+  return MODELS.find(option => option.id === runtime.model)?.name ?? runtime.model;
 }
 
 export function placeLabel(place: Place) {

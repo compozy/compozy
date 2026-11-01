@@ -1,15 +1,20 @@
 /** The agent's payoff in numbers: how much it did, when, and what it cost. */
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import {
   DayAreaChart,
   DayStackedBars,
+  Eyebrow,
   Panel,
   PillGroup,
   Section,
   StatusBreakdown,
 } from "@compozy/ui";
 
+import {
+  HOME_OUTCOMES_LEGEND_CLASS,
+  HOME_USAGE_HEADLINE_CLASS,
+} from "@/systems/dashboard/components/home-zone-shape";
 import { HomePulseHeatmap } from "@/systems/dashboard/components/home-pulse-heatmap";
 import { ProviderUsageRow } from "@/systems/provider-usage/components/provider-usage-row";
 import { toProviderUsageRow } from "@/systems/provider-usage/lib/view-model";
@@ -31,56 +36,27 @@ const WINDOWS = [
   { value: "30", label: "30 days" },
 ];
 
-function Figure({
-  value,
-  unit,
-  sub,
-  label,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  sub: string;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col justify-end gap-1">
-      <span className="mb-auto text-small-body text-muted">{label}</span>
-      <span className="flex items-baseline gap-1.5">
-        <span className="text-display-2xl font-semibold text-fg-strong tabular-nums">{value}</span>
-        {unit ? <span className="text-small-body text-muted">{unit}</span> : null}
-      </span>
-      <span className="text-eyebrow text-subtle">{sub}</span>
-    </div>
-  );
-}
+/** Lets the first and last date labels sit past the plot's edge. */
+const CHART_CLASS = "min-w-0 [&_.recharts-surface]:overflow-visible";
 
-function ChartCard({
-  figure,
-  chart,
-  foot,
-}: {
-  figure: ReactNode;
-  chart: ReactNode;
-  foot?: ReactNode;
-}) {
+/** The dashboard's chart headline: the number, then what it means on one line. */
+function Headline({ value, note }: { value: string; note: string }) {
   return (
-    <Panel foot={foot}>
-      <div className="grid min-h-36 grid-cols-1 gap-5 @lg:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]">
-        {figure}
-        <div className="min-w-0 [&_.recharts-surface]:overflow-visible">{chart}</div>
-      </div>
-    </Panel>
+    <div className={HOME_USAGE_HEADLINE_CLASS}>
+      <span className="text-kpi-value font-semibold text-fg-strong tabular-nums">{value}</span>
+      <span className="text-small-body text-subtle">{note}</span>
+    </div>
   );
 }
 
 function Legend() {
   return (
-    <div className="flex flex-wrap items-center gap-4 text-eyebrow text-muted">
+    <div className={HOME_OUTCOMES_LEGEND_CLASS}>
       {SERIES.map(entry => (
-        <span className="flex items-center gap-1.5" key={entry.key}>
+        <span className="inline-flex items-center gap-1.5" key={entry.key}>
           <span
             aria-hidden="true"
-            className="size-2 rounded-xxs"
+            className="size-2 rounded-xs"
             style={{ background: entry.fill }}
           />
           {entry.label}
@@ -94,14 +70,16 @@ export function ActivitySection({ data }: { data: ProfileData }) {
   const [days, setDays] = useState("30");
   const window = Number(days);
   const onDemand = data.agent.kind === "on_demand";
+  const { unit, sub, value } = data.headline;
   return (
-    <Section
-      label="How it's been going"
-      right={<PillGroup items={WINDOWS} onChange={setDays} size="sm" value={days} />}
-    >
-      <div className="flex flex-col gap-3">
-        <ChartCard
-          chart={
+    <>
+      <Section
+        label="How it's been going"
+        right={<PillGroup items={WINDOWS} onChange={setDays} size="sm" value={days} />}
+      >
+        <Panel bodyClassName="flex flex-col gap-3">
+          <Headline note={unit ? `${unit} · ${sub}` : sub} value={value} />
+          <div className={CHART_CLASS}>
             <DayStackedBars
               ariaLabel={`${data.agent.label}'s activity, day by day`}
               data={data.days.slice(-window).map(entry => ({ ...entry }))}
@@ -109,41 +87,35 @@ export function ActivitySection({ data }: { data: ProfileData }) {
               series={SERIES}
               withTooltip
             />
-          }
-          figure={
-            <Figure
-              label={onDemand ? "Sessions" : "Reports"}
-              sub={data.headline.sub}
-              unit={data.headline.unit}
-              value={data.headline.value}
-            />
-          }
-          foot={onDemand ? undefined : <Legend />}
-        />
-        <ChartCard
-          chart={
+          </div>
+          {onDemand ? null : <Legend />}
+        </Panel>
+      </Section>
+      <Section
+        label="What it cost"
+        right={<span className="text-eyebrow text-muted">Last {days} days</span>}
+      >
+        <Panel bodyClassName="flex flex-col gap-3">
+          <Headline
+            note={
+              data.usage.cost === "Included"
+                ? `${data.usage.tokens}, in your plan`
+                : `${data.usage.tokens}, estimated`
+            }
+            value={data.usage.cost}
+          />
+          <div className={CHART_CLASS}>
             <DayAreaChart
               ariaLabel={`${data.agent.label}'s usage, day by day`}
               data={data.usage.days.slice(-window)}
-              formatValue={value => `${Math.round(value / 1000)}K tokens`}
+              formatValue={point => `${Math.round(point / 1000)}K tokens`}
               height={132}
               withTooltip
             />
-          }
-          figure={
-            <Figure
-              label="What it cost"
-              sub={
-                data.usage.cost === "Included"
-                  ? `${data.usage.tokens}, in your plan`
-                  : `${data.usage.tokens}, estimated`
-              }
-              value={data.usage.cost}
-            />
-          }
-          foot={
+          </div>
+          <div className="-mx-5 flex flex-col gap-2.5 border-t border-line-soft px-5 pt-3.5">
+            <Eyebrow className="text-subtle">By project</Eyebrow>
             <StatusBreakdown
-              className="flex-1"
               items={data.usageByProject.map(entry => ({
                 id: entry.project,
                 label: entry.project,
@@ -151,10 +123,10 @@ export function ActivitySection({ data }: { data: ProfileData }) {
                 formattedValue: entry.amount,
               }))}
             />
-          }
-        />
-      </div>
-    </Section>
+          </div>
+        </Panel>
+      </Section>
+    </>
   );
 }
 
@@ -171,14 +143,17 @@ export function RhythmSection({ data }: { data: ProfileData }) {
   );
 }
 
+/** The row keeps its own 8px inset, so the body adds what lands it on the panel's 20px edge. */
 export function PlanCard() {
   return (
-    <Panel bodyClassName="p-0" title="Your plan">
-      <ProviderUsageRow
-        isMacHost
-        now={PROVIDER_USAGE_FIXTURE_NOW}
-        row={toProviderUsageRow(claudeOkTarget())}
-      />
-    </Panel>
+    <Section label="Your plan">
+      <Panel bodyClassName="p-3">
+        <ProviderUsageRow
+          isMacHost
+          now={PROVIDER_USAGE_FIXTURE_NOW}
+          row={toProviderUsageRow(claudeOkTarget())}
+        />
+      </Panel>
+    </Section>
   );
 }

@@ -7,7 +7,6 @@ import { Button, Eyebrow, cn, type TopbarSlotValue } from "@compozy/ui";
 import { SessionBoardCardSlot } from "@/systems/session/components/session-board/session-board-card-slot";
 import type { SessionBoardCardProps } from "@/systems/session/components/session-board/session-board-card";
 import { SessionBoardCardView } from "@/systems/session/components/session-board/session-board-card-view";
-import { SessionViewToggle } from "@/systems/session/components/session-board/session-view-toggle";
 import { SessionsBoardColumnsRow } from "@/systems/session/components/session-board/sessions-board-columns-row";
 import {
   SESSIONS_BOARD_FRAME,
@@ -23,6 +22,7 @@ import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 
 import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
 import { DraftShell } from "../stays-on-agents-shared/draft-shell";
+import { DraftViewToggle } from "../stays-on-agents-shared/session-frame";
 import type { DraftInstance } from "../stays-on-agents-shared/fixtures";
 import { StaysOnRow, type StaysOnRowProps } from "../stays-on-agents-shared/stays-on-row";
 import { SPAWNED_BY } from "../stays-on-agents-shared/sessions-fixtures";
@@ -81,8 +81,8 @@ function Lane({
         <WorkspaceBadge identity={{ kind: "project", name: lane.name }} variant="chrome" />
         <span className={SESSIONS_BOARD_LANE_COUNT}>{lane.count}</span>
         <StaysOnRow
+          className="flex-1"
           instances={lane.instances ?? []}
-          layout="band"
           limit={lane.limit ?? 12}
           scopeName={lane.name}
           surface="ring-canvas"
@@ -114,11 +114,10 @@ export function KanbanWindow({
   initialHide?: boolean;
 }) {
   const [hide, setHide] = useState(initialHide);
-  const [view, setView] = useState<"list" | "kanban">("kanban");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ done: true });
   const topbar: TopbarSlotValue = {
     crumb: "Sessions",
-    overflow: <SessionViewToggle onValueChange={setView} value={view} />,
+    overflow: <DraftViewToggle value="kanban" />,
     actions: (
       <>
         <Button
@@ -144,7 +143,6 @@ export function KanbanWindow({
         className="px-1"
         instances={top}
         label={<Eyebrow className="pr-1.5 text-faint">Global</Eyebrow>}
-        layout="band"
         scopeName="Global"
         surface="ring-canvas"
       />

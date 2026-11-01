@@ -1,5 +1,5 @@
 /** The right rail: how it runs, where it works, which model, and the live preview. */
-import { Clock3, Eye } from "lucide-react";
+import { Clock3, Eye, Puzzle } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
 import {
@@ -9,7 +9,9 @@ import {
   CommandSelectTrigger,
   Eyebrow,
   ImmutableIdentity,
+  KindIcon,
   RadioCard,
+  providerKindIconRegistry,
 } from "@compozy/ui";
 
 import { RuntimeSelector } from "@/systems/runtime/components/runtime-selector";
@@ -29,8 +31,9 @@ import {
   MORE_PROJECTS,
   PLACE_GLOBAL,
   PLACE_LATER,
-  PROVIDERS,
+  modelLabel,
   placeLabel,
+  providersFor,
   type AgentMode,
   type Draft,
   type Place,
@@ -176,14 +179,7 @@ export function RunSettings({
           className="w-full justify-start bg-card shadow-card [&>svg:last-child]:ml-auto"
           models={MODELS}
           onChange={onRuntime}
-          providers={
-            signedOut
-              ? PROVIDERS.map(provider => ({
-                  ...provider,
-                  needs_auth: provider.name === signedOut,
-                }))
-              : PROVIDERS
-          }
+          providers={providersFor(signedOut)}
           value={draft.runtime}
         />
         {signedOut ? <SignInNote provider={signedOut} /> : null}
@@ -192,17 +188,71 @@ export function RunSettings({
   );
 }
 
+function Fact({ mark, children }: { mark: ReactNode; children: ReactNode }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {mark}
+      <span className="min-w-0 truncate">{children}</span>
+    </span>
+  );
+}
+
+const FACT_ICON = "size-4 shrink-0 text-muted";
+
 /** The same facts as the choices above, for an agent that can't be changed here. */
 export function RunFacts({ draft, owner }: { draft: Draft; owner?: string }) {
-  const model = MODELS.find(option => option.id === draft.runtime.model);
   const stays = draft.mode === "stays-on";
+  const ModeIcon = stays ? Eye : Clock3;
   return (
     <ImmutableIdentity
+      className="[&>div]:items-center"
       rows={[
-        ...(owner ? [{ label: "Comes from", value: owner }] : []),
-        { label: "How it works", value: stays ? "Stays on" : "On demand" },
-        ...(stays ? [{ label: "Where it works", value: placeLabel(draft.place) }] : []),
-        { label: "Model", value: model?.name ?? draft.runtime.model },
+        ...(owner
+          ? [
+              {
+                label: "Comes from",
+                value: (
+                  <Fact mark={<Puzzle aria-hidden="true" className={FACT_ICON} />}>{owner}</Fact>
+                ),
+              },
+            ]
+          : []),
+        {
+          label: "How it works",
+          value: (
+            <Fact mark={<ModeIcon aria-hidden="true" className={FACT_ICON} />}>
+              {stays ? "Stays on" : "On demand"}
+            </Fact>
+          ),
+        },
+        ...(stays
+          ? [
+              {
+                label: "Where it works",
+                value: (
+                  <Fact mark={<PlaceMark place={draft.place} />}>{placeLabel(draft.place)}</Fact>
+                ),
+              },
+            ]
+          : []),
+        {
+          label: "Model",
+          value: (
+            <Fact
+              mark={
+                <KindIcon
+                  className="shrink-0"
+                  kind={draft.runtime.provider}
+                  registry={providerKindIconRegistry}
+                  size="sm"
+                  tone="default"
+                />
+              }
+            >
+              {modelLabel(draft.runtime)}
+            </Fact>
+          ),
+        },
       ]}
     />
   );

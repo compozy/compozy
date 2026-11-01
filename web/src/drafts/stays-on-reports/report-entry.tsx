@@ -6,7 +6,17 @@
 import { ArrowRight, Check } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, ChoiceKey, ChoiceList, ChoiceRow, Receipt, cn } from "@compozy/ui";
+import {
+  Button,
+  ChoiceKey,
+  ChoiceList,
+  ChoiceRow,
+  CodeBlock,
+  Dock,
+  Pill,
+  Receipt,
+  cn,
+} from "@compozy/ui";
 
 import { goToState } from "../stays-on-agents-shared/go-to-state";
 import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
@@ -141,6 +151,69 @@ export function Notice({
         {actions ? <div className="flex flex-wrap gap-2 pt-0.5">{actions}</div> : null}
       </div>
     </article>
+  );
+}
+
+/**
+ * A request that ended without an answer, in the live approval's anatomy so it reads as the same
+ * thing, settled: who asked, the exact command or file, what came of it, and the way forward.
+ */
+export function SettledAsk({
+  agent,
+  title,
+  session,
+  when,
+  outcome,
+  why,
+  command,
+  file,
+  actions,
+}: {
+  agent: DraftAgent;
+  title: string;
+  /** The session the request came from. */
+  session: string;
+  when: string;
+  outcome: string;
+  why: string;
+  command?: string;
+  file?: string;
+  actions: ReactNode;
+}) {
+  return (
+    <Dock aria-label={title} role="article">
+      <Dock.Head className="flex-nowrap">
+        <AgentAvatar
+          appearance={agent.appearance}
+          label={agent.label}
+          provider={agent.provider}
+          quietIdle
+          size={32}
+          surfaceClassName="ring-card"
+        />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <Dock.Title>{title}</Dock.Title>
+          <span className="truncate text-small-body text-muted">
+            In {session} · {when}
+          </span>
+        </span>
+        <Pill size="sm">{outcome}</Pill>
+      </Dock.Head>
+      {command ? (
+        <CodeBlock
+          caption=""
+          code={command}
+          copyLabel="Copy command"
+          density="compact"
+          language="bash"
+          showPrompt
+          wrapLines
+        />
+      ) : null}
+      {file ? <Dock.Pre>{file}</Dock.Pre> : null}
+      <p className="text-body text-muted">{why}</p>
+      <Dock.Actions className="justify-end border-t border-line pt-3">{actions}</Dock.Actions>
+    </Dock>
   );
 }
 

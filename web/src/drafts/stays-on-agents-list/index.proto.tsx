@@ -11,6 +11,7 @@ import {
   MANY_STAYS_ON,
 } from "../stays-on-agents-shared/agents-fixtures";
 import { AgentsPage } from "../stays-on-agents-shared/agents-page";
+import { STAYS_ON_CROWD } from "./team-crowds";
 
 export const meta = definePrototype({
   title: "Agents list",
@@ -33,11 +34,22 @@ export const meta = definePrototype({
     { id: "add-scope-none", label: "S16 · Nowhere left to add" },
     { id: "add-scope-cap", label: "S16 · At the limit" },
     { id: "add-scope-auth", label: "S16 · Not signed in" },
+    { id: "columns", label: "Two columns · The team" },
+    { id: "columns-many", label: "Two columns · 100 agents, Load more" },
+    { id: "columns-full-stays-on", label: "Two columns · Stays on full, On demand nearly empty" },
+    { id: "columns-full-on-demand", label: "Two columns · On demand full, Stays on nearly empty" },
+    { id: "columns-no-stays-on", label: "Two columns · Nobody stays on yet" },
+    { id: "columns-filtered", label: "Two columns · Search empties one column" },
+    { id: "columns-narrow", label: "Two columns · Narrow window, one column" },
   ],
 });
 
 const TEAM = { onDemand: LISTED_ON_DEMAND, staysOn: LISTED_STAYS_ON };
 const CROWD = { onDemand: MANY_ON_DEMAND, staysOn: MANY_STAYS_ON };
+
+/** Matches Orchestrator and nobody on demand. */
+const STAYS_ON_ONLY_QUERY = "spec task";
+const COLUMNS = { layout: "columns" } as const;
 
 export default function StaysOnAgentsListDraft({ state }: PrototypeProps) {
   switch (state) {
@@ -80,6 +92,28 @@ export default function StaysOnAgentsListDraft({ state }: PrototypeProps) {
       )[state];
       return <AgentsPage {...TEAM} adding={{ agent: "triage", mode }} />;
     }
+    case "columns":
+      return <AgentsPage {...TEAM} {...COLUMNS} />;
+    case "columns-many":
+      return <AgentsPage {...CROWD} {...COLUMNS} />;
+    case "columns-full-stays-on":
+      return (
+        <AgentsPage {...COLUMNS} onDemand={LISTED_ON_DEMAND.slice(0, 1)} staysOn={STAYS_ON_CROWD} />
+      );
+    case "columns-full-on-demand":
+      return (
+        <AgentsPage {...COLUMNS} onDemand={MANY_ON_DEMAND} staysOn={LISTED_STAYS_ON.slice(0, 1)} />
+      );
+    case "columns-no-stays-on":
+      return <AgentsPage {...COLUMNS} onDemand={LISTED_ON_DEMAND} staysOn={[]} />;
+    case "columns-filtered":
+      return <AgentsPage {...TEAM} {...COLUMNS} query={STAYS_ON_ONLY_QUERY} />;
+    case "columns-narrow":
+      return (
+        <div className="mx-auto w-180 max-w-full border-x border-line">
+          <AgentsPage {...CROWD} {...COLUMNS} />
+        </div>
+      );
     default:
       return <AgentsPage {...TEAM} />;
   }

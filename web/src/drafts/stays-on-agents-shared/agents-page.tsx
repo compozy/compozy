@@ -23,7 +23,7 @@ import {
   matchesFocus,
   type TeamFocus,
 } from "../stays-on-agents-list/team-filters";
-import { TeamSection, StaysOnWelcome } from "../stays-on-agents-list/team-section";
+import { StaysOnWelcome, TeamColumns, TeamSection } from "../stays-on-agents-list/team-section";
 import type { ScopePickerProps } from "./add-pickers";
 import { PROJECTS } from "./agents-fixtures";
 import type { AgentState } from "./agent-state";
@@ -68,6 +68,8 @@ export interface AgentsPageProps {
   staysOn: readonly ListedAgent[];
   onDemand: readonly ListedAgent[];
   initialView?: ListingViewMode;
+  /** `columns` is the variation: rows only, Stays on beside On demand, no Rows/Cards toggle. */
+  layout?: "switchable" | "columns";
   query?: string;
   /** Filter chips already on, for review. */
   chips?: readonly Omit<Filter<string>, "id">[];
@@ -82,6 +84,7 @@ export function AgentsPage({
   staysOn,
   onDemand,
   initialView = "cards",
+  layout = "switchable",
   query = "",
   chips: initialChips = [],
   overlay,
@@ -148,7 +151,9 @@ export function AgentsPage({
           {focusItems.length > 1 ? (
             <PillGroup items={focusItems} onChange={setFocus} size="sm" value={focus} />
           ) : null}
-          <ListingToolbar.ViewToggle onChange={setView} value={view} />
+          {layout === "switchable" ? (
+            <ListingToolbar.ViewToggle onChange={setView} value={view} />
+          ) : null}
         </ListingToolbar.Trailing>
       </ListingToolbar>
     ),
@@ -171,6 +176,13 @@ export function AgentsPage({
               title="No agents match"
             />
           </div>
+        ) : layout === "columns" ? (
+          <TeamColumns
+            adding={adding}
+            onDemand={shownOnDemand}
+            staysOn={shownStaysOn}
+            welcome={unfiltered ? <StaysOnWelcome onCreate={create} /> : undefined}
+          />
         ) : (
           <div className="flex flex-col gap-8">
             {shownStaysOn.length > 0 ? (

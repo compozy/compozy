@@ -8,7 +8,15 @@ import { AgentsPage } from "../stays-on-agents-shared/agents-page";
 import { ORCHESTRATOR, RELEASE, TRIAGE } from "../stays-on-agents-shared/fixtures";
 
 import { CreateScreen, type CreateScreenProps } from "./create-screen";
-import { PLACE_GLOBAL, PLACE_LATER, TEMPLATES, type Draft } from "./model";
+import {
+  DEFAULT_MODEL,
+  FILL_SYSTEM_PROMPT,
+  PLACE_GLOBAL,
+  PLACE_LATER,
+  TEMPLATES,
+  writeInstructions,
+  type Draft,
+} from "./model";
 
 export const meta = definePrototype({
   title: "Agent create",
@@ -19,6 +27,10 @@ export const meta = definePrototype({
     { id: "empty", label: "Empty" },
     { id: "filled", label: "Filled · Runs when you ask" },
     { id: "stays-on", label: "Filled · Stays on" },
+    { id: "fill-idle", label: "Fill with AI · Describe it" },
+    { id: "fill-generating", label: "Fill with AI · Writing" },
+    { id: "fill-applied", label: "Fill with AI · Added" },
+    { id: "fill-failed", label: "Fill with AI · Couldn't write" },
     { id: "where-search", label: "Where it works · Search 50 projects" },
     { id: "global", label: "Where it works · Global" },
     { id: "decide-later", label: "Where it works · Decide later" },
@@ -90,10 +102,25 @@ const OWNED: CreateScreenProps = {
   readOnly: { owner: "spec-cycle", primary: "Duplicate", onPrimary: () => goToState("duplicate") },
 };
 
+const FILL_BRIEF = "Watch new issues and tell me which ones need me today";
+
 const SCREENS: Record<string, CreateScreenProps> = {
   empty: {},
   filled: { initial: FILLED },
   "stays-on": { initial: TRIAGE_DRAFT },
+  "fill-idle": { fill: { status: "idle", brief: FILL_BRIEF } },
+  "fill-generating": { fill: { status: "generating", brief: FILL_BRIEF } },
+  "fill-applied": {
+    initial: {
+      instructions: writeInstructions({
+        system: FILL_SYSTEM_PROMPT,
+        brief: FILL_BRIEF,
+        runtime: DEFAULT_MODEL,
+      }),
+    },
+    fill: { status: "applied", brief: FILL_BRIEF },
+  },
+  "fill-failed": { fill: { status: "failed", brief: FILL_BRIEF } },
   "where-search": { initial: TRIAGE_DRAFT, placesOpen: true },
   global: {
     initial: {

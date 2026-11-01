@@ -1,0 +1,213 @@
+{
+    "version": 3,
+    "key": "stays-on-sessions",
+    "sequence": 3,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "stays-on-sessions-1",
+            "slug": "stays-on-sessions",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:37:48.912Z",
+            "updatedAt": "2026-11-01T04:44:09.679Z",
+            "resolvedAt": "2026-11-01T04:44:09.679Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "sidebar-rows",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "aside",
+                "testId": null,
+                "tag": "aside",
+                "text": "Sessions",
+                "source": "src/drafts/stays-on-agents-shared/session-frame.tsx:231:5",
+                "sourceChain": [
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:231:5",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:304:9",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:303:7",
+                    "src/systems/os/components/os-window-frame.tsx:92:5",
+                    "src/systems/os/components/os-window-frame.tsx:184:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:194:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:192:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:188:7"
+                ],
+                "rect": {
+                    "x": 61,
+                    "y": 101,
+                    "width": 320,
+                    "height": 592
+                },
+                "rectNormalized": {
+                    "x": 0.04369627507163324,
+                    "y": 0.14574314574314573,
+                    "width": 0.22922636103151864,
+                    "height": 0.8542568542568543
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "a4d95f5a-5be0-4f20-bb0c-bfdfac8d65d8",
+                    "at": "2026-11-01T03:37:48.950Z",
+                    "editedAt": null,
+                    "body": "aqui está bem diferente do que é o list session mesmo, falta coisas ainda dos componentes reais me parece",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "8c74dabd-6ab2-4608-b34b-f12b0f96dd08",
+                    "at": "2026-11-01T04:44:09.677Z",
+                    "editedAt": null,
+                    "body": "The rail now uses the real list pieces: SessionListToolbar, branch toggles and nested children, totals footer, and row actions and context menu. Checked sidebar-rows at 1396x693 in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-sessions-2",
+            "slug": "stays-on-sessions",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:39:03.879Z",
+            "updatedAt": "2026-11-01T04:44:11.373Z",
+            "resolvedAt": "2026-11-01T04:44:11.373Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "sidebar-crew",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(4) > div:nth-of-type(1) > div:nth-of-type(2) > button",
+                "testId": null,
+                "tag": "button",
+                "text": "Triage Lead needs you Has 2 suggestions for you",
+                "source": "src/drafts/stays-on-agents-shared/stays-on-row.tsx:198:11",
+                "sourceChain": [
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:198:11",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:196:7",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:195:5",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:297:5",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:313:5",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:182:11",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:164:5",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:263:33"
+                ],
+                "rect": {
+                    "x": 75,
+                    "y": 261,
+                    "width": 292,
+                    "height": 51
+                },
+                "rectNormalized": {
+                    "x": 0.053724928366762174,
+                    "y": 0.37662337662337664,
+                    "width": 0.20916905444126074,
+                    "height": 0.0735930735930736
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "f94c3c24-4958-44c4-b6de-ab1a6d07efe8",
+                    "at": "2026-11-01T03:39:03.889Z",
+                    "editedAt": null,
+                    "body": "acho que isso é chamar a atenção demais, está too much, ele deveria só ser ordenado como primeiro e receber o status, não ganhar uma row inteira e com fundo vermelho aida",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "cf104d2a-f4c6-4a35-94c4-d7ad3272b89a",
+                    "at": "2026-11-01T04:44:11.371Z",
+                    "editedAt": null,
+                    "body": "Removed the full needs-you row and its colored background. The agent now sorts first in the avatar row and shows its orange triangle. Checked sidebar-crew and sidebar-two-need-you in dark, and sidebar-crew in light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-sessions-3",
+            "slug": "stays-on-sessions",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:40:14.390Z",
+            "updatedAt": "2026-11-01T04:44:12.530Z",
+            "resolvedAt": "2026-11-01T04:44:12.530Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "kanban-rows",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "header > div > button",
+                "testId": null,
+                "tag": "button",
+                "text": "Triage Lead needs you Has 2 suggestions for you",
+                "source": "src/drafts/stays-on-agents-shared/stays-on-row.tsx:198:11",
+                "sourceChain": [
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:198:11",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:196:7",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:195:5",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:297:5",
+                    "src/drafts/stays-on-agents-shared/stays-on-row.tsx:306:7",
+                    "src/drafts/stays-on-sessions/kanban.tsx:83:9",
+                    "src/drafts/stays-on-sessions/kanban.tsx:80:7",
+                    "src/drafts/stays-on-sessions/kanban.tsx:79:5"
+                ],
+                "rect": {
+                    "x": 1088,
+                    "y": 173.5,
+                    "width": 288,
+                    "height": 51
+                },
+                "rectNormalized": {
+                    "x": 0.7793696275071633,
+                    "y": 0.25036075036075034,
+                    "width": 0.20630372492836677,
+                    "height": 0.0735930735930736
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "99ab6521-0a32-42a3-9ca3-48d6442c4b5c",
+                    "at": "2026-11-01T03:40:14.426Z",
+                    "editedAt": null,
+                    "body": "mesma cosia aqui, too much attention",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "49f70669-22f4-485b-9bee-f45b2706960d",
+                    "at": "2026-11-01T04:44:12.523Z",
+                    "editedAt": null,
+                    "body": "Same change on the Kanban header: no full row, the agent sorts first and shows its triangle. Checked kanban-rows in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

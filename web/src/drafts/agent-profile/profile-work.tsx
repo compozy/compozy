@@ -1,8 +1,14 @@
 /** What the agent has actually done: findings first, then the running log. */
 import { protoHref } from "@compozy/proto";
-import { Check, Search } from "lucide-react";
+import { Check } from "lucide-react";
 
-import { ListingRow, Panel, Pill, Timeline, TimelineEvent } from "@compozy/ui";
+import { Panel, Pill, Section, Timeline, TimelineEvent, cn } from "@compozy/ui";
+
+import {
+  HOME_RUN_ROW_CLASS,
+  HOME_RUN_SUBTITLE_CLASS,
+  HOME_RUN_TITLE_CLASS,
+} from "@/systems/dashboard/components/home-zone-shape";
 
 import type { Finding, ProfileData, WorkItem } from "./profile-fixtures";
 
@@ -12,46 +18,44 @@ function openReport() {
 
 function FindingRow({ finding }: { finding: Finding }) {
   return (
-    <ListingRow>
-      <ListingRow.Link
-        className="text-left"
-        render={<button aria-label={`Open: ${finding.title}`} onClick={openReport} type="button" />}
-      >
-        <ListingRow.Icon>
-          <Search aria-hidden="true" className="size-4" />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          <ListingRow.Name>
-            <ListingRow.Title className="whitespace-normal">{finding.title}</ListingRow.Title>
-          </ListingRow.Name>
-          <ListingRow.Meta>
-            <span className="truncate">
-              {finding.scope} · {finding.when}
-            </span>
-          </ListingRow.Meta>
-        </ListingRow.Main>
-      </ListingRow.Link>
+    <button
+      aria-label={`Open: ${finding.title}`}
+      className={cn(
+        HOME_RUN_ROW_CLASS,
+        "w-full text-left transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none"
+      )}
+      onClick={openReport}
+      type="button"
+    >
+      <span className="min-w-0">
+        <span className={HOME_RUN_TITLE_CLASS}>{finding.title}</span>
+        <span className={HOME_RUN_SUBTITLE_CLASS}>
+          <span className="truncate">
+            {finding.scope} · {finding.when}
+          </span>
+        </span>
+      </span>
       {finding.waiting ? (
-        <ListingRow.Trail>
-          <Pill size="sm" tone="accent">
-            Your call
-          </Pill>
-        </ListingRow.Trail>
+        <Pill size="sm" tone="accent">
+          Your call
+        </Pill>
       ) : null}
-    </ListingRow>
+    </button>
   );
 }
 
 export function FindingsPanel({ data }: { data: ProfileData }) {
   if (data.findings.length === 0) return null;
   return (
-    <Panel bodyClassName="p-0" meta={data.findings.length} title="What it found">
-      <div className="flex flex-col divide-y divide-line-soft">
-        {data.findings.map(finding => (
-          <FindingRow finding={finding} key={finding.id} />
-        ))}
-      </div>
-    </Panel>
+    <Section count={data.findings.length} label="What it found">
+      <Panel bodyClassName="p-0" className="overflow-hidden">
+        <div className="divide-y divide-line-soft">
+          {data.findings.map(finding => (
+            <FindingRow finding={finding} key={finding.id} />
+          ))}
+        </div>
+      </Panel>
+    </Section>
   );
 }
 
@@ -70,12 +74,14 @@ function WorkEvent({ item }: { item: WorkItem }) {
 export function RecentWork({ data }: { data: ProfileData }) {
   if (data.work.length === 0) return null;
   return (
-    <Panel title="Recent work">
-      <Timeline ariaLabel="Recent work" className="gap-3">
-        {data.work.map(item => (
-          <WorkEvent item={item} key={item.id} />
-        ))}
-      </Timeline>
-    </Panel>
+    <Section label="Recent work">
+      <Panel>
+        <Timeline ariaLabel="Recent work" className="gap-3">
+          {data.work.map(item => (
+            <WorkEvent item={item} key={item.id} />
+          ))}
+        </Timeline>
+      </Panel>
+    </Section>
   );
 }

@@ -1,5 +1,5 @@
 /** Where the agent works: the live cards, searchable once there are too many to scan. */
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Alert, AlertDescription, Button, Empty, SearchInput, Section } from "@compozy/ui";
@@ -38,7 +38,13 @@ export function AddPlace({
       provider={provider}
       scopes={mode === "none" ? [] : scopes}
       trigger={
-        <Button size="sm" type="button" variant={primary ? "default" : "quiet"}>
+        <Button
+          // Optical: a link in a section head sits on the head's line and the panel's edge.
+          className={primary ? undefined : "-my-1 -mr-2"}
+          size="sm"
+          type="button"
+          variant={primary ? "default" : "link"}
+        >
           <Plus aria-hidden="true" />
           Add to a project
         </Button>
@@ -75,8 +81,15 @@ export function WorkingNow({
       }
       right={
         !places.some(place => canResume(place.pauseReason)) ? null : more > 0 ? (
-          <Button onClick={() => goToProfile(allState)} size="sm" type="button" variant="quiet">
+          <Button
+            className="-my-1 -mr-2"
+            onClick={() => goToProfile(allState)}
+            size="sm"
+            type="button"
+            variant="link"
+          >
             See all {places.length}
+            <ChevronRight aria-hidden="true" />
           </Button>
         ) : (
           <AddPlace places={places} />

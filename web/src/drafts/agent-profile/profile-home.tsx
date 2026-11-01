@@ -1,18 +1,16 @@
 /** S4: the agent's home. Who it is, what it's doing, and what it has done for you. */
 import { protoHref } from "@compozy/proto";
 import { ArrowRight, MessageSquarePlus, MessagesSquare, Moon, Play } from "lucide-react";
-import { useState, type ComponentProps, type ReactNode } from "react";
+import { useState } from "react";
 
-import { Alert, AlertDescription, AlertTitle, Button, Empty, Pill, StatusDot } from "@compozy/ui";
+import { Alert, AlertDescription, AlertTitle, Button, Empty, Panel, Section } from "@compozy/ui";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import { KindPill } from "../stays-on-agents-shared/agent-page";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";
 import { PAUSE_PLAIN } from "../stays-on-agents-shared/agents-fixtures";
 import { SCOPE_LABEL } from "../stays-on-agents-shared/fixtures";
-import type { IdentityEditor } from "./identity-editor";
 import { usePlaces } from "./hooks/use-places";
 import { canResume } from "./place-edits";
+import { Hero, type HeroEdit } from "./profile-hero";
 import { ActivitySection, PlanCard, RhythmSection } from "./profile-activity";
 import type { ProfileData, ProfilePlace } from "./profile-fixtures";
 import { ProfilePanels } from "./profile-panels";
@@ -56,7 +54,7 @@ function MainAction({
 }) {
   if (data.agent.kind === "on_demand") {
     return (
-      <Button type="button">
+      <Button size="sm" type="button" variant="secondary">
         <MessageSquarePlus aria-hidden="true" />
         New session
       </Button>
@@ -67,6 +65,7 @@ function MainAction({
     return (
       <Button
         onClick={() => window.location.assign(protoHref("stays-on-reports", "proposal"))}
+        size="sm"
         type="button"
       >
         See what it needs
@@ -77,64 +76,17 @@ function MainAction({
   if (state === "paused") {
     if (!places.some(place => canResume(place.pauseReason))) return null;
     return (
-      <Button onClick={onResume} type="button">
+      <Button onClick={onResume} size="sm" type="button" variant="secondary">
         <Play aria-hidden="true" />
         Resume
       </Button>
     );
   }
   return (
-    <Button type="button">
+    <Button size="sm" type="button" variant="secondary">
       <MessagesSquare aria-hidden="true" />
       Open session
     </Button>
-  );
-}
-
-function Hero({
-  data,
-  places,
-  action,
-}: {
-  data: ProfileData;
-  places: readonly ProfilePlace[];
-  action: ReactNode;
-}) {
-  const state = overall(data, places);
-  const live = state === "working" || state === "needs-you";
-  return (
-    <header className="flex flex-wrap items-center gap-6 py-2">
-      <AgentAvatar
-        appearance={data.agent.appearance}
-        label={data.agent.label}
-        provider={data.agent.provider}
-        quietIdle
-        size={112}
-        state={state}
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="min-w-0 text-display-2xl font-semibold text-fg-strong">
-            {data.agent.label}
-          </h1>
-          <KindPill agent={data.agent} />
-          {data.readOnly ? (
-            <Pill form="plain" size="sm">
-              From {data.agent.owner}
-            </Pill>
-          ) : null}
-        </div>
-        <p className="text-body text-muted">{data.agent.description}</p>
-        <p className={`flex items-center gap-2 text-body ${live ? "text-fg" : "text-muted"}`}>
-          <StatusDot
-            size="sm"
-            tone={state === "working" ? "success" : state === "needs-you" ? "accent" : "faint"}
-          />
-          {headline(data, places, state)}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">{action}</div>
-    </header>
   );
 }
 
@@ -163,13 +115,16 @@ function Invalid() {
 
 function FirstDay({ name }: { name: string }) {
   return (
-    <div className="flex items-center justify-center rounded-lg bg-card px-6 py-14 shadow-card">
-      <Empty
-        description="Add it to a project and everything it does, finds and costs will show up here."
-        icon={Moon}
-        title={`${name} hasn't started yet`}
-      />
-    </div>
+    <Section label="How it's been going">
+      <Panel bodyClassName="px-6 py-14">
+        <Empty
+          description="Add it to a project and everything it does, finds and costs will show up here."
+          fill={false}
+          icon={Moon}
+          title={`${name} hasn't started yet`}
+        />
+      </Panel>
+    </Section>
   );
 }
 
@@ -177,33 +132,29 @@ export function ProfileHome({
   data,
   invalid = false,
   panel: initialPanel = null,
-  identity,
+  edit,
 }: {
   data: ProfileData;
   invalid?: boolean;
   panel?: ProfilePanel | null;
-  identity?: Partial<ComponentProps<typeof IdentityEditor>>;
+  edit?: HeroEdit;
 }) {
   const { places, actions, resumeAll } = usePlaces(data.places);
   const [panel, setPanel] = useState<ProfilePanel | null>(initialPanel);
   const staysOn = data.agent.kind === "stays_on";
+  const state = overall(data, places);
   return (
-    <div className="@container flex flex-col gap-6 pt-2 pb-16">
+    <div className="@container flex flex-col gap-6">
       <Hero
-        action={
-          <MainAction
-            data={data}
-            onResume={resumeAll}
-            places={places}
-            state={overall(data, places)}
-          />
-        }
+        action={<MainAction data={data} onResume={resumeAll} places={places} state={state} />}
         data={data}
-        places={places}
+        edit={edit}
+        line={headline(data, places, state)}
+        state={state}
       />
       {invalid ? <Invalid /> : null}
       <Stopped places={places} />
-      <div className="grid grid-cols-1 gap-6 @5xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid grid-cols-1 items-start gap-5 @5xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-6">
           {staysOn && places.length > 0 ? <WorkingNow actions={actions} places={places} /> : null}
           {data.fresh ? (
@@ -215,7 +166,7 @@ export function ProfileHome({
             </>
           )}
         </div>
-        <aside className="flex min-w-0 flex-col gap-4">
+        <aside className="flex min-w-0 flex-col gap-6">
           <FindingsPanel data={data} />
           <RecentWork data={data} />
           {data.fresh ? null : <PlanCard />}
@@ -224,7 +175,6 @@ export function ProfileHome({
       </div>
       <ProfilePanels
         agent={data.agent}
-        identity={identity}
         onClose={() => setPanel(null)}
         panel={panel}
         readOnly={data.readOnly ?? false}

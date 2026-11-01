@@ -29,8 +29,8 @@ import { useCanvasTheme } from "./use-canvas-theme";
 export type DraftApp = "sessions" | "agents" | "dashboard";
 
 const DOCK = [
-  { id: "sessions", name: "Sessions", icon: "sessions" },
   { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+  { id: "sessions", name: "Sessions", icon: "sessions" },
   { id: "terminal", name: "Terminal", icon: "terminal" },
   { id: "agents", name: "Agents", icon: "agents" },
   { id: "tasks", name: "Tasks", icon: "tasks" },
@@ -126,6 +126,8 @@ export interface DraftShellProps {
   /** The window title; `topbar.crumb` overrides it when a route publishes its own leaf. */
   title: ReactNode;
   glyph?: ReactNode;
+  /** Host context before the title, as the real window shows its project. */
+  leading?: ReactNode;
   topbar?: TopbarSlotValue;
   tabs?: readonly DraftTab[];
   activeTabId?: string;
@@ -145,6 +147,7 @@ export function DraftShell({
   app,
   title,
   glyph,
+  leading,
   topbar,
   tabs,
   activeTabId,
@@ -194,6 +197,7 @@ export function DraftShell({
           <OsWindowSurface
             controls={deck ? "deck" : "head"}
             glyph={glyph}
+            leading={leading}
             onTrafficLight={() => undefined}
             title={title}
           >

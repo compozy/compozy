@@ -1,12 +1,21 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
+import { StateGlyph, type TopbarSlotValue } from "@compozy/ui";
+
+import { SessionPullRequestChip } from "@/systems/session/components/session-pull-request-chip";
+import { sessionBadgeSignal } from "@/systems/session/lib/session-badge";
+import { getSessionDisplayTitle } from "@/systems/session/lib/session-display-title";
+import { sessionPullRequestFacts } from "@/systems/session/lib/session-pull-request";
+
 import {
+  DraftStopAction,
   SessionsWindow,
   type RailGroup,
   type SessionRailProps,
 } from "../stays-on-agents-shared/session-frame";
 import {
   ADVOS_ROW,
+  boardSession,
   COMPOZY_ROW,
   CREW,
   CROWDED,
@@ -68,14 +77,15 @@ export const meta = definePrototype({
 const COMPOZY: RailGroup = {
   name: "compozy",
   count: 4,
-  rows: ["s4", "s2", "s9"],
+  rows: ["s1"],
+  threads: { s1: ["s4", "s2", "s9"] },
   instances: COMPOZY_ROW,
   currentRow: "s4",
 };
 const RELOADDEV: RailGroup = {
   name: "reloaddev",
-  count: 2,
-  rows: ["s1"],
+  count: 1,
+  rows: ["s10"],
   instances: RELOADDEV_ROW,
 };
 const ADVOS: RailGroup = { name: "advos", count: 1, rows: ["s14"], instances: ADVOS_ROW };
@@ -181,13 +191,28 @@ const RAILS: Record<string, SessionRailProps> = {
   "sidebar-flat": {
     groups: [],
     top: [...GLOBAL_ROW, ...COMPOZY_ROW],
-    flatRows: ["s4", "s2", "s9", "s1", "s14"],
+    flatRows: ["s4", "s2", "s9", "s1", "s10", "s14"],
     currentRow: "s4",
   },
   "sidebar-spawned": {
-    groups: [{ ...COMPOZY, badges: true }, RELOADDEV, ADVOS],
+    groups: [
+      { ...COMPOZY, badges: true, rows: ["s4", "s2", "s9"], threads: undefined },
+      RELOADDEV,
+      ADVOS,
+    ],
     top: GLOBAL_ROW,
   },
+};
+
+const SHOWN = boardSession("s4");
+
+/** What the real head publishes for this session: state, title, its PR and the stop. */
+const SESSION_HEAD: TopbarSlotValue = {
+  glyph: <StateGlyph size="sm" state={sessionBadgeSignal(SHOWN.badge).state} />,
+  glyphPresentation: "state",
+  crumb: getSessionDisplayTitle(SHOWN),
+  status: <SessionPullRequestChip controllable={false} facts={sessionPullRequestFacts(SHOWN)} />,
+  actions: <DraftStopAction />,
 };
 
 function SessionBody() {
@@ -210,6 +235,7 @@ export default function StaysOnSessionsDraft({ state }: PrototypeProps) {
         overlay={state === "sidebar-toast" ? <NeedsYouToast /> : undefined}
         rail={rail}
         title="Topbar PR chip — web slice"
+        topbar={SESSION_HEAD}
       >
         <SessionBody />
       </SessionsWindow>

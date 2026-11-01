@@ -1,9 +1,9 @@
 /**
  * S10 and S15: the agents who live in a project. They sit on their own, large enough to read a
- * face, most urgent first. Anyone who needs you steps out of the row into a line that says so; the
- * rest open a card on hover or focus, and `+N` opens the whole crew.
+ * face, most urgent first, so anyone who needs you leads the row and shows it on the avatar. Each
+ * opens a card on hover or focus, and `+N` opens the whole crew.
  */
-import { Archive, Bot, ChevronRight, HeartPulse, Pause, Play } from "lucide-react";
+import { Archive, Bot, HeartPulse, Pause, Play } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
@@ -30,7 +30,7 @@ import { openMainSession } from "../stays-on-sessions/open-main";
 import { AgentAvatar } from "./agent-avatar";
 import { AGENT_STATE_LABEL } from "./agent-state";
 import { PAUSE_COPY, SCOPE_LABEL, type DraftInstance } from "./fixtures";
-import { byUrgency, doingOf } from "./sessions-fixtures";
+import { byUrgency } from "./sessions-fixtures";
 
 const AVATAR_PX = 30;
 
@@ -178,60 +178,12 @@ function Seat({
   );
 }
 
-/** The tap on the shoulder: one agent stepped out of the row, saying what it wants. */
-function NeedsYouLine({
-  instance,
-  others,
-  surface,
-  className,
-}: {
-  instance: DraftInstance;
-  others: number;
-  surface: string;
-  className?: string;
-}) {
-  const more = others === 1 ? "1 more needs you" : `${others} more need you`;
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger
-        render={
-          <button
-            className={cn(
-              "group/needs flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg bg-accent-tint py-1.5 pr-2 pl-1.5 text-left outline-none transition-colors duration-base hover:bg-accent-tint-strong focus-visible:shadow-focus-ring motion-reduce:transition-none",
-              className
-            )}
-            onClick={() => openMainSession(instance)}
-            type="button"
-          />
-        }
-      >
-        <Mark instance={instance} size={34} surface={surface} />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body font-medium text-fg-strong">
-            {instance.agent.label} needs you
-          </span>
-          <span className="truncate text-small-body text-muted">
-            {others > 0 ? more : doingOf(instance)}
-          </span>
-        </span>
-        <ChevronRight
-          aria-hidden="true"
-          className="size-4 shrink-0 text-subtle transition-transform duration-base group-hover/needs:translate-x-0.5 motion-reduce:transition-none"
-        />
-      </ContextMenuTrigger>
-      <ContextItems instance={instance} />
-    </ContextMenu>
-  );
-}
-
 export interface StaysOnRowProps {
   instances: readonly DraftInstance[];
   /** Agents seated before the rest move into `+N`. */
   limit?: number;
   label?: ReactNode;
   surface?: string;
-  /** `stack` puts the needs-you line above the row (sidebar); `band` beside it (board header). */
-  layout?: "stack" | "band";
   /** The scope's name, for the crew popover's title. */
   scopeName?: string;
   openMenuFor?: string;
@@ -250,7 +202,6 @@ export function StaysOnRow({
   limit = 6,
   label,
   surface = "ring-sunken",
-  layout = "stack",
   scopeName = "this project",
   openMenuFor,
   focusedId,
@@ -261,13 +212,14 @@ export function StaysOnRow({
 }: StaysOnRowProps) {
   if (instances.length === 0) return null;
   const ordered = byUrgency(instances);
-  const waiting = ordered.filter(item => item.state === "needs-you" && item.id !== currentId);
-  const lead = waiting[0];
-  const seated = ordered.filter(item => item !== lead);
-  const shown = seated.slice(0, limit);
-  const hidden = seated.length - shown.length;
-  const row = (
-    <div aria-label="Stays-on agents" className="flex min-w-0 items-center gap-1" role="toolbar">
+  const shown = ordered.slice(0, limit);
+  const hidden = ordered.length - shown.length;
+  return (
+    <div
+      aria-label="Stays-on agents"
+      className={cn("flex min-w-0 items-center gap-1", className)}
+      role="toolbar"
+    >
       {label}
       {shown.map(instance =>
         instance.id === openMenuFor ? (
@@ -291,28 +243,6 @@ export function StaysOnRow({
           scopeName={scopeName}
         />
       ) : null}
-    </div>
-  );
-  const callout = lead ? (
-    <NeedsYouLine
-      className={layout === "band" ? "w-72 shrink-0" : undefined}
-      instance={lead}
-      others={waiting.length - 1}
-      surface={surface}
-    />
-  ) : null;
-  if (layout === "band") {
-    return (
-      <div className={cn("flex min-w-0 flex-1 items-center justify-between gap-4", className)}>
-        {row}
-        {callout}
-      </div>
-    );
-  }
-  return (
-    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      {callout}
-      {shown.length > 0 ? row : null}
     </div>
   );
 }

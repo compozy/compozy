@@ -20,6 +20,7 @@ import { goToState } from "../stays-on-agents-shared/go-to-state";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";
 
 import { AgentPreview } from "./agent-preview";
+import type { FillPreset } from "./fill-with-ai";
 import { Advanced, Identity, IdentityRead, Instructions, InstructionsRead } from "./details";
 import { EMPTY_DRAFT, PLACE_LATER, nameIssue, type Draft } from "./model";
 import { RunFacts, RunSettings } from "./run-settings";
@@ -44,6 +45,8 @@ export interface CreateScreenProps {
   signedOut?: string;
   previewState?: AgentState;
   previewLabel?: string;
+  /** Opens Fill with AI part-way through, for the states that review it. */
+  fill?: FillPreset;
 }
 
 function outcome(draft: Draft, blocked: boolean) {
@@ -83,6 +86,7 @@ export function CreateScreen({
   signedOut,
   previewState,
   previewLabel,
+  fill,
 }: CreateScreenProps) {
   const [draft, setDraft] = useState<Draft>({ ...EMPTY_DRAFT, ...initial });
   const patch = (next: Partial<Draft>) => setDraft(current => ({ ...current, ...next }));
@@ -102,7 +106,14 @@ export function CreateScreen({
         showCloseButton={false}
         unframed
       >
-        <EntityDialogHeader icon={Bot} onClose={close} title={title} />
+        <EntityDialogHeader
+          description={
+            readOnly ? "See how this agent is set up." : "Give it a name and tell it what to do."
+          }
+          icon={Bot}
+          onClose={close}
+          title={title}
+        />
         <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_23rem] max-[760px]:block max-[760px]:overflow-y-auto">
           <div className="flex min-h-0 flex-col gap-7 overflow-y-auto px-8 py-7">
             {notice ? <Notice notice={notice} /> : null}
@@ -115,7 +126,10 @@ export function CreateScreen({
               <>
                 <Identity avatarOpen={avatarOpen} draft={draft} issue={issue} onChange={patch} />
                 <Instructions
+                  fill={fill}
                   onChange={instructions => patch({ instructions })}
+                  runtime={draft.runtime}
+                  signedOut={signedOut}
                   value={draft.instructions}
                 />
                 <Advanced defaultOpen={advancedOpen} draft={draft} onChange={patch} />

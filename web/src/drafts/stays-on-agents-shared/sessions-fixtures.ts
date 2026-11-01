@@ -7,9 +7,22 @@ import {
   TRIAGE,
   type DraftInstance,
 } from "./fixtures";
+import { sessionBadgeSignal } from "@/systems/session/lib/session-badge";
 import { SESSIONS_BOARD_SESSIONS } from "@/systems/session/mocks/sessions-board-fixtures";
 
 export const BOARD_SESSIONS = Object.values(SESSIONS_BOARD_SESSIONS).flat();
+
+/** What the real list's footer counts: the daemon's facets, here the rows on show. */
+export function railTotals(ids: readonly string[]) {
+  const totals = { needsYou: 0, working: 0, idle: 0 };
+  for (const id of ids) {
+    const { attention, state } = sessionBadgeSignal(boardSession(id).badge);
+    if (attention === "needs-you") totals.needsYou += 1;
+    else if (state === "running") totals.working += 1;
+    else totals.idle += 1;
+  }
+  return totals;
+}
 
 export function boardSession(id: string) {
   const session = BOARD_SESSIONS.find(item => item.id === id);
@@ -107,7 +120,7 @@ export const CREW: readonly DraftInstance[] = [
   },
 ];
 
-/** A second agent asking at once, for the row's "more need you" line. */
+/** A second agent asking at once: both lead the row. */
 export const TWO_NEED_YOU: readonly DraftInstance[] = [
   ...COMPOZY_ROW,
   extra("t-release", RELEASE, "needs-you"),

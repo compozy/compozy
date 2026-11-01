@@ -35,13 +35,16 @@ export interface PermissionDockViewProps {
   permission: PermissionRequest;
   subject: string | null;
   terminalDetail: ReturnType<typeof terminalPermissionDetail>;
-  /** Where the ask came from, when it reached this session from another one. */
+  /** Who asks, in place of the tool's mark, when it reached this session from another one. */
+  asker?: ReactNode;
+  /** Where the ask came from, under the title. */
   origin?: ReactNode;
 }
 
 /** The dock's anatomy from resolved props; `PermissionDock` binds the session and the decision. */
 export function PermissionDockView({
   agentName,
+  asker,
   catalogTitle,
   countLabel,
   decide,
@@ -62,8 +65,10 @@ export function PermissionDockView({
     >
       <PermissionDockHead
         agentName={agentName}
+        asker={asker}
         catalogTitle={catalogTitle}
         countLabel={countLabel}
+        origin={origin}
         permission={permission}
         terminalDetail={terminalDetail}
       />
@@ -72,7 +77,6 @@ export function PermissionDockView({
         subject={subject}
         terminalDetail={terminalDetail}
       />
-      {origin}
       <PermissionDockActions
         decide={decide}
         decisionOptions={decisionOptions}
@@ -91,36 +95,45 @@ export function PermissionDockView({
 
 function PermissionDockHead({
   agentName,
+  asker,
   catalogTitle,
   countLabel,
+  origin,
   permission,
   terminalDetail,
-}: Pick<PermissionDockViewProps, "countLabel" | "permission"> & {
+}: Pick<PermissionDockViewProps, "asker" | "countLabel" | "origin" | "permission"> & {
   agentName: string;
   catalogTitle?: string;
   terminalDetail: ReturnType<typeof terminalPermissionDetail>;
 }) {
   return (
-    <Dock.Head>
-      <KindIcon
-        data-testid="permission-dock-well"
-        icon={
-          terminalDetail
-            ? SquareTerminal
-            : getToolIcon(
-                resolveRegisteredToolName(permission.toolId ?? permission.toolName),
-                permission.toolInput
-              )
-        }
-        tone="well"
-      />
-      <Dock.Title data-testid="permission-dock-title" title={permission.toolId ?? undefined}>
-        {terminalDetail
-          ? terminalAskTitle(terminalDetail, agentName, catalogTitle)
-          : genericAskTitle(permission.toolName, agentName)}
-      </Dock.Title>
+    <Dock.Head className="flex-nowrap">
+      {asker ?? (
+        <KindIcon
+          data-testid="permission-dock-well"
+          icon={
+            terminalDetail
+              ? SquareTerminal
+              : getToolIcon(
+                  resolveRegisteredToolName(permission.toolId ?? permission.toolName),
+                  permission.toolInput
+                )
+          }
+          tone="well"
+        />
+      )}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <Dock.Title data-testid="permission-dock-title" title={permission.toolId ?? undefined}>
+          {terminalDetail
+            ? terminalAskTitle(terminalDetail, agentName, catalogTitle)
+            : genericAskTitle(permission.toolName, agentName)}
+        </Dock.Title>
+        {origin}
+      </span>
       {countLabel ? (
-        <Dock.Count data-testid="permission-dock-count">{countLabel}</Dock.Count>
+        <Dock.Count className="self-start" data-testid="permission-dock-count">
+          {countLabel}
+        </Dock.Count>
       ) : null}
     </Dock.Head>
   );
@@ -176,8 +189,7 @@ function PermissionDockActions({
   const offersRejectAlways = decisionOptions.includes("reject-always");
 
   return (
-    <Dock.Actions>
-      <span className="flex-1" />
+    <Dock.Actions className="justify-end border-t border-line pt-3">
       <PermissionRejectActions
         decide={decide}
         isSubmitting={isSubmitting}

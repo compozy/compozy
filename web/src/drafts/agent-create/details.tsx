@@ -1,6 +1,6 @@
 /** The left column: who the agent is, what it follows, and the one quiet Advanced fold. */
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   Button,
@@ -21,6 +21,7 @@ import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";
 
 import { AvatarChooser } from "./avatar-chooser";
+import { FillWithAi, type FillPreset } from "./fill-with-ai";
 import { TEMPLATES, shortNameFor, type Draft, type NameIssue } from "./model";
 
 const INLINE_FIELD =
@@ -114,12 +115,18 @@ function withTemplate(current: string, body: string) {
 export function Instructions({
   value,
   onChange,
+  runtime,
+  signedOut,
+  fill,
 }: {
   value: string;
   onChange: (next: string) => void;
+  runtime: Draft["runtime"];
+  signedOut?: string;
+  fill?: FillPreset;
 }) {
   return (
-    <Field className="min-h-0 flex-1">
+    <Field className="flex-[1_0_auto]">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <FieldLabel htmlFor="agent-instructions">Instructions</FieldLabel>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -137,6 +144,13 @@ export function Instructions({
               {template.label}
             </Button>
           ))}
+          <FillWithAi
+            onChange={onChange}
+            preset={fill}
+            runtime={runtime}
+            signedOut={signedOut}
+            value={value}
+          />
         </div>
       </div>
       <MarkdownEditor
@@ -174,8 +188,17 @@ export function Advanced({
   onChange: (patch: Partial<Draft>) => void;
 }) {
   const [tools, setTools] = useState<string[]>(TOOLS);
+  const fold = useRef<HTMLDivElement>(null);
   return (
-    <Disclosure defaultOpen={defaultOpen} label="Advanced" size="md">
+    <Disclosure
+      defaultOpen={defaultOpen}
+      label="Advanced"
+      onOpenChange={open => {
+        if (open) requestAnimationFrame(() => fold.current?.scrollIntoView({ block: "nearest" }));
+      }}
+      ref={fold}
+      size="md"
+    >
       <div className="grid grid-cols-2 gap-6 pt-3">
         <Field>
           <FieldLabel htmlFor="agent-short-name">Short name</FieldLabel>

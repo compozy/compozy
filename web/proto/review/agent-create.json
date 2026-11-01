@@ -1,0 +1,289 @@
+{
+    "version": 3,
+    "key": "agent-create",
+    "sequence": 4,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "agent-create-1",
+            "slug": "agent-create",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:01:29.660Z",
+            "updatedAt": "2026-11-01T04:43:52.634Z",
+            "resolvedAt": "2026-11-01T04:43:52.634Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "empty",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(2) > div > div:nth-of-type(3) > div > div",
+                "testId": null,
+                "tag": "div",
+                "text": "Short name Used to mention it in a message. What it can use Files Terminal Sessions Browser",
+                "source": "src/drafts/agent-create/details.tsx:179:7",
+                "sourceChain": [
+                    "src/drafts/agent-create/details.tsx:179:7",
+                    "src/drafts/agent-create/details.tsx:178:5",
+                    "src/drafts/agent-create/create-screen.tsx:121:17",
+                    "src/drafts/agent-create/create-screen.tsx:107:11",
+                    "src/drafts/agent-create/create-screen.tsx:106:9",
+                    "src/drafts/agent-create/create-screen.tsx:100:7",
+                    "src/drafts/agent-create/create-screen.tsx:99:5",
+                    "src/drafts/agent-create/index.proto.tsx:135:11"
+                ],
+                "rect": {
+                    "x": 140,
+                    "y": 500.125,
+                    "width": 748,
+                    "height": 93.875
+                },
+                "rectNormalized": {
+                    "x": 0.10028653295128939,
+                    "y": 0.7216810966810967,
+                    "width": 0.5358166189111748,
+                    "height": 0.13546176046176045
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "a5bf127a-4cea-4e60-aafe-a886e15540e5",
+                    "at": "2026-11-01T03:01:29.699Z",
+                    "editedAt": null,
+                    "body": "ao expandir o advanced o modal não se ajusta e o layout fica quebrado",
+                    "author": "reviewer",
+                    "attachments": [
+                        {
+                            "id": "a71471c8-e80b-409b-aa55-e0480d170044",
+                            "name": "CleanShot 2026-11-01 at 12.01.17 AM@2x.png",
+                            "type": "image/png",
+                            "size": 263073,
+                            "width": 2488,
+                            "height": 1372,
+                            "uploaderKind": "reviewer"
+                        }
+                    ]
+                },
+                {
+                    "id": "3d5e9127-1d2b-4294-a839-0ee006112f77",
+                    "at": "2026-11-01T04:43:52.632Z",
+                    "editedAt": null,
+                    "body": "The Advanced disclosure now lives in the scrolling form column, so opening it scrolls within the dialog and never overlaps the editor. Verified by clicking Advanced at 1396x693 in dark and checking state advanced in light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "agent-create-2",
+            "slug": "agent-create",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:03:15.980Z",
+            "updatedAt": "2026-11-01T04:43:53.654Z",
+            "resolvedAt": "2026-11-01T04:43:53.654Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "empty",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(3) > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "Instructions Start from Watch issues Review code Keep releases moving Sum up the week",
+                "source": "src/drafts/agent-create/details.tsx:123:7",
+                "sourceChain": [
+                    "src/drafts/agent-create/details.tsx:123:7",
+                    "src/drafts/agent-create/details.tsx:122:5",
+                    "src/drafts/agent-create/create-screen.tsx:117:17",
+                    "src/drafts/agent-create/create-screen.tsx:107:11",
+                    "src/drafts/agent-create/create-screen.tsx:106:9",
+                    "src/drafts/agent-create/create-screen.tsx:100:7",
+                    "src/drafts/agent-create/create-screen.tsx:99:5",
+                    "src/drafts/agent-create/index.proto.tsx:135:11"
+                ],
+                "rect": {
+                    "x": 140,
+                    "y": 243,
+                    "width": 748,
+                    "height": 22
+                },
+                "rectNormalized": {
+                    "x": 0.10028653295128939,
+                    "y": 0.35064935064935066,
+                    "width": 0.5358166189111748,
+                    "height": 0.031746031746031744
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "ed2b7be8-2670-44ad-9957-5ea4ea84f4cb",
+                    "at": "2026-11-01T03:03:15.991Z",
+                    "editedAt": "2026-11-01T03:06:30.437Z",
+                    "body": "deixe só o watch issues e review code no start from, e vamos adicioar un um ✨ icone de \"Fill with AI\" que abre um popover com um textbox menor e um runtime selector, que tenha um system prompt embutido nele e que o usuário possa usar pra escolher um modelo para gerar para ele as instructions",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "092b5664-fea2-4e8c-a6b0-ecf632e8fbac",
+                    "at": "2026-11-01T04:43:53.653Z",
+                    "editedAt": null,
+                    "body": "Start from keeps only Watch issues and Review code. Fill with AI is a popover with a small text box and the real RuntimeSelector, covering idle, generating, applied and failed. Clicked through idle, generating and applied at 1396x693 in dark, and checked all four states in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "agent-create-3",
+            "slug": "agent-create",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:04:19.196Z",
+            "updatedAt": "2026-11-01T04:43:54.703Z",
+            "resolvedAt": "2026-11-01T04:43:54.703Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "decide-later",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(3) > div:nth-of-type(1) > div",
+                "testId": null,
+                "tag": "div",
+                "text": "New agent",
+                "source": "src/drafts/agent-create/create-screen.tsx:105:9",
+                "sourceChain": [
+                    "src/drafts/agent-create/create-screen.tsx:105:9",
+                    "src/drafts/agent-create/create-screen.tsx:100:7",
+                    "src/drafts/agent-create/create-screen.tsx:99:5",
+                    "src/drafts/agent-create/index.proto.tsx:135:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:159:5",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:159:5",
+                    "src/drafts/agent-create/index.proto.tsx:131:5"
+                ],
+                "rect": {
+                    "x": 128,
+                    "y": 32,
+                    "width": 1140,
+                    "height": 26
+                },
+                "rectNormalized": {
+                    "x": 0.09169054441260745,
+                    "y": 0.046176046176046176,
+                    "width": 0.8166189111747851,
+                    "height": 0.03751803751803752
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "5f9d1e4d-31bb-4601-931a-4bc53149432e",
+                    "at": "2026-11-01T03:04:19.207Z",
+                    "editedAt": null,
+                    "body": "titulo desalinhado",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "6c3106ff-d105-485a-b382-1c6fb306a516",
+                    "at": "2026-11-01T04:43:54.702Z",
+                    "editedAt": null,
+                    "body": "The header uses EntityDialogHeader with its description line, the same as today's create dialog, so the title sits level with the icon well. Checked at 1396x693 in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "agent-create-4",
+            "slug": "agent-create",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:07:04.941Z",
+            "updatedAt": "2026-11-01T04:43:55.645Z",
+            "resolvedAt": "2026-11-01T04:43:55.645Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "failed-to-start",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "dl",
+                "testId": null,
+                "tag": "dl",
+                "text": "How it works Stays on Where it works compozy Model Claude Opus 5.5",
+                "source": "src/drafts/agent-create/run-settings.tsx:200:5",
+                "sourceChain": [
+                    "src/drafts/agent-create/run-settings.tsx:200:5",
+                    "src/drafts/agent-create/create-screen.tsx:127:15",
+                    "src/drafts/agent-create/create-screen.tsx:125:11",
+                    "src/drafts/agent-create/create-screen.tsx:106:9",
+                    "src/drafts/agent-create/create-screen.tsx:100:7",
+                    "src/drafts/agent-create/create-screen.tsx:99:5",
+                    "src/drafts/agent-create/index.proto.tsx:135:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:159:5"
+                ],
+                "rect": {
+                    "x": 944,
+                    "y": 99,
+                    "width": 320,
+                    "height": 93
+                },
+                "rectNormalized": {
+                    "x": 0.6762177650429799,
+                    "y": 0.14285714285714285,
+                    "width": 0.22922636103151864,
+                    "height": 0.1341991341991342
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "d0ee80d8-45e7-4f9c-81ca-1373c57e3550",
+                    "at": "2026-11-01T03:07:04.953Z",
+                    "editedAt": null,
+                    "body": "pode ter uns icones aqui para ajudar na UI",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "e4697bfc-31bb-41bd-9931-ed5946ac0da5",
+                    "at": "2026-11-01T04:43:55.640Z",
+                    "editedAt": null,
+                    "body": "The summary rows now carry icons for how it works, where it works and the model mark. Checked failed-to-start in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

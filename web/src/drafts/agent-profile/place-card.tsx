@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
   Sparkline,
   StatusDot,
+  Surface,
   cn,
   type StatusDotTone,
 } from "@compozy/ui";
@@ -64,15 +65,18 @@ export function PlaceCard({ place, onToggle, onArchive }: PlaceCardProps) {
   const label = SCOPE_LABEL(place.scope);
   const dot = DOT[place.state];
   return (
-    <article
+    <Surface
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-lg bg-card p-4 shadow-card",
+        "flex min-w-0 flex-col gap-3",
         place.state === "needs-you" && "shadow-inset-strong"
       )}
+      render={<article />}
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <ProjectMark name={label} />
-        <h3 className="min-w-0 flex-1 truncate text-item-title font-medium text-fg">{label}</h3>
+        <h3 className="min-w-0 flex-1 truncate text-item-title font-medium text-fg-strong">
+          {label}
+        </h3>
         <Button
           aria-label={`Open the session in ${label}`}
           size="icon-sm"
@@ -147,6 +151,6 @@ export function PlaceCard({ place, onToggle, onArchive }: PlaceCardProps) {
         open={archiving}
         title={`Remove from ${label}?`}
       />
-    </article>
+    </Surface>
   );
 }

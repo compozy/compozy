@@ -1,9 +1,21 @@
 /** The main session window, with every report, relayed approval and rotation state. */
 import { protoHref } from "@compozy/proto";
-import { Check, History, ShieldQuestion, X } from "lucide-react";
+import { Archive, Bot, Check, HeartPulse, History, Pause, ShieldQuestion, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { Button, Dock, Marker, Pill, Receipt, type TopbarSlotValue } from "@compozy/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Marker,
+  Pill,
+  Receipt,
+  TopbarOverflowIcon,
+  type TopbarSlotValue,
+} from "@compozy/ui";
 
 import { PermissionDockView } from "@/systems/session/components/permission-dock-view";
 import type { PermissionRequest } from "@/systems/session/types";
@@ -12,7 +24,7 @@ import { terminalPermissionDetail } from "@/systems/terminal/lib/terminal-permis
 import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";
 import { CODE_ENGINEER, REVIEWER, TRIAGE } from "../stays-on-agents-shared/fixtures";
-import { SessionsWindow } from "../stays-on-agents-shared/session-frame";
+import { DraftStopAction, SessionsWindow } from "../stays-on-agents-shared/session-frame";
 import {
   AgentTurn,
   DraftComposer,
@@ -21,7 +33,7 @@ import {
   WorkingLine,
 } from "../stays-on-agents-shared/transcript";
 import { CheckTicks } from "../stays-on-sessions/agent-hover-card";
-import { Notice, SessionLink, ShoulderTap, type ProposalChoice } from "./report-entry";
+import { Notice, SessionLink, SettledAsk, ShoulderTap, type ProposalChoice } from "./report-entry";
 import { RAIL } from "./report-rail";
 import {
   SessionConversationProvider,
@@ -48,6 +60,43 @@ function tabs(state: AgentState, pending: number) {
   ];
 }
 
+/** What you can do to the agent itself, from its session. */
+function AgentMenu() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Triage Lead actions"
+        render={<Button size="icon-sm" type="button" variant="quiet" />}
+      >
+        <TopbarOverflowIcon aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-48">
+        <DropdownMenuItem>
+          <Pause aria-hidden="true" />
+          Pause
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => window.location.assign(protoHref("agent-profile", "stays-on"))}
+        >
+          <Bot aria-hidden="true" />
+          Open agent
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => window.location.assign(protoHref("agent-editors", "checkins"))}
+        >
+          <HeartPulse aria-hidden="true" />
+          Check-ins
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem>
+          <Archive aria-hidden="true" />
+          Archive
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function mainHead(state: AgentState): TopbarSlotValue {
   return {
     glyph: (
@@ -61,7 +110,13 @@ function mainHead(state: AgentState): TopbarSlotValue {
     ),
     glyphPresentation: "state",
     crumb: "Triage Lead",
-    status: <Pill size="sm">compozy</Pill>,
+    status: <Pill size="sm">Stays on</Pill>,
+    actions: (
+      <>
+        {state === "working" ? <DraftStopAction /> : null}
+        <AgentMenu />
+      </>
+    ),
   };
 }
 
@@ -177,10 +232,6 @@ function AskButton({ children, prompt }: { children: ReactNode; prompt: string }
   );
 }
 
-function CommandLine({ children }: { children: string }) {
-  return <Dock.Pre className="mt-0">{children}</Dock.Pre>;
-}
-
 export function FailureReport() {
   return (
     <Notice
@@ -233,30 +284,34 @@ export function FailureReport() {
 
 export function ExpiredApproval() {
   return (
-    <Notice
+    <SettledAsk
       actions={
         <AskButton prompt="Try make migrate again, I'm here now.">Ask it to try again</AskButton>
       }
-      agent={TRIAGE}
-      body="Code Engineer asked to run this and nobody answered in 12 hours, so it wasn't allowed."
-      detail={<CommandLine>make migrate</CommandLine>}
-      title="A request went unanswered"
+      agent={CODE_ENGINEER}
+      command="make migrate"
+      outcome="Didn't run"
+      session="Migrate tokens"
+      title="Code Engineer's request went unanswered"
       when="11:30"
+      why="Nobody answered in 12 hours, so it wasn't allowed."
     />
   );
 }
 
 export function ProviderEnded() {
   return (
-    <Notice
+    <SettledAsk
       actions={
         <AskButton prompt="Make that edit again, I'm here now.">Ask it to try again</AskButton>
       }
-      agent={TRIAGE}
-      body="Claude stopped waiting for an answer before you got to it, so the edit didn't happen."
-      detail={<CommandLine>internal/daemon/boot.go</CommandLine>}
-      title="A request ended early"
+      agent={REVIEWER}
+      file="internal/daemon/boot.go"
+      outcome="Didn't happen"
+      session="Read the diff for #931"
+      title="Reviewer's request ended early"
       when="02:14"
+      why="Claude stopped waiting for an answer before you got to it."
     />
   );
 }
@@ -332,13 +387,18 @@ const ASKS = [
   {
     agent: CODE_ENGINEER,
     session: "Migrate tokens",
-    waits: "Waits 11h 42m more",
+    waits: "waits 11h 42m more",
     subject: null,
     permission: {
       requestId: "perm-1",
       toolId: TERMINAL_TOOL,
       toolName: TERMINAL_TOOL,
-      toolInput: { command: "make migrate", cwd: "~/Dev/compozy", risk: "ordinary" },
+      toolInput: {
+        command: "make",
+        args: ["migrate"],
+        cwd: "~/Dev/compozy",
+        risk: "ordinary",
+      },
       action: "execute",
       resource: "",
     } satisfies PermissionRequest,
@@ -347,7 +407,7 @@ const ASKS = [
   {
     agent: REVIEWER,
     session: "Read the diff for #931",
-    waits: "Waits 9h 10m more",
+    waits: "waits 9h 10m more",
     subject: "internal/daemon/boot.go",
     permission: {
       requestId: "perm-2",
@@ -369,7 +429,17 @@ export function ApprovalDock() {
   return (
     <PermissionDockView
       agentName={ask.agent.label}
-      countLabel={`${index + 1}/${ASKS.length}`}
+      asker={
+        <AgentAvatar
+          appearance={ask.agent.appearance}
+          label={ask.agent.label}
+          provider={ask.agent.provider}
+          quietIdle
+          size={32}
+          surfaceClassName="ring-card"
+        />
+      }
+      countLabel={`${index + 1} of ${ASKS.length}`}
       decide={decision => {
         const allowed = decision.startsWith("allow");
         record(
@@ -386,17 +456,9 @@ export function ApprovalDock() {
       decisionOptions={["allow-once", "allow-always", "reject-once"]}
       isSubmitting={false}
       origin={
-        <div className="flex items-center gap-2 text-small-body text-muted">
-          <AgentAvatar
-            appearance={ask.agent.appearance}
-            label={ask.agent.label}
-            quietIdle
-            size={18}
-            surfaceClassName="ring-card"
-          />
-          <span className="min-w-0 truncate">In {ask.session}</span>
-          <Dock.Deadline>{ask.waits}</Dock.Deadline>
-        </div>
+        <span className="truncate text-small-body text-muted">
+          In {ask.session} · {ask.waits}
+        </span>
       }
       permission={ask.permission}
       subject={ask.subject}

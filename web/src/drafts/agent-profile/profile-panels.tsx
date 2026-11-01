@@ -1,5 +1,5 @@
 /** The focused side panels: each edits one thing with the product's own control. */
-import { useState, type ComponentProps } from "react";
+import { useState } from "react";
 
 import {
   Button,
@@ -23,7 +23,6 @@ import {
 
 import { DraftUnsavedPill } from "../stays-on-agents-shared/draft-shell";
 import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
-import { IdentityEditor } from "./identity-editor";
 import { PlanCard } from "./profile-activity";
 import type { ProfilePanel } from "./profile-setup";
 
@@ -99,7 +98,6 @@ function ToolsBody({ readOnly, onDirty }: { readOnly: boolean; onDirty: () => vo
 }
 
 const TITLES: Record<ProfilePanel, string> = {
-  identity: "Name and look",
   model: "Model",
   tools: "What it can use",
 };
@@ -108,16 +106,14 @@ export function ProfilePanels({
   agent,
   panel,
   readOnly,
-  identity,
   onClose,
 }: {
   agent: DraftAgent;
   panel: ProfilePanel | null;
   readOnly: boolean;
-  identity?: Partial<ComponentProps<typeof IdentityEditor>>;
   onClose: () => void;
 }) {
-  const [dirty, setDirty] = useState(Boolean(identity?.popover || identity?.invalid));
+  const [dirty, setDirty] = useState(false);
   const title = panel ? TITLES[panel] : "";
   const close = () => {
     setDirty(false);
@@ -137,10 +133,8 @@ export function ProfilePanels({
         <div className="min-h-0 flex-1 overflow-y-auto px-4">
           {panel === "model" ? (
             <ModelBody agent={agent} onDirty={() => setDirty(true)} readOnly={readOnly} />
-          ) : panel === "tools" ? (
-            <ToolsBody onDirty={() => setDirty(true)} readOnly={readOnly} />
           ) : (
-            <IdentityEditor agent={agent} readOnly={readOnly} {...identity} />
+            <ToolsBody onDirty={() => setDirty(true)} readOnly={readOnly} />
           )}
         </div>
         {readOnly ? null : <PanelFoot dirty={dirty} onClose={close} />}

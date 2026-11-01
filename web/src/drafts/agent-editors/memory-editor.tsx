@@ -11,7 +11,7 @@ import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
 import { useMemoryEditor, type Filter, type MemoryVariant } from "./hooks/use-memory-editor";
 import { FILE_LIMITS, THEIR_NOTE, type Note } from "./memory-fixtures";
-import { NoteCard, NoteComposer } from "./memory-note-card";
+import { NoteBoard, NoteCard, NoteComposer, NotePiles, NoteSheet } from "./memory-note-card";
 import { FullnessCard, HistoryCard, PutAwayCard } from "./memory-side";
 import { RawFile } from "./raw-file";
 import { UnsavedDock } from "./unsaved-dock";
@@ -72,14 +72,16 @@ export function MemoryEditor({ agent, variant }: { agent: DraftAgent; variant: M
         <div className="grid grid-cols-[minmax(0,1fr)_20rem] items-start gap-5">
           <div className="flex min-w-0 flex-col gap-4">
             {adding ? (
-              <EditorCard className="p-4">
-                <NoteComposer
-                  action="Add note"
-                  initial={seed}
-                  onCancel={editor.cancelAdding}
-                  onDone={editor.add}
-                />
-              </EditorCard>
+              <NoteBoard>
+                <NoteSheet>
+                  <NoteComposer
+                    action="Add note"
+                    initial={seed}
+                    onCancel={editor.cancelAdding}
+                    onDone={editor.add}
+                  />
+                </NoteSheet>
+              </NoteBoard>
             ) : null}
             {notes.length === 0 ? (
               adding ? null : (
@@ -123,19 +125,23 @@ export function MemoryEditor({ agent, variant }: { agent: DraftAgent; variant: M
                   <PillGroup items={FILTERS} onChange={editor.setFilter} value={filter} />
                 </div>
                 {shown.length > 0 ? (
-                  <ul className="columns-2 gap-3">
-                    {shown.map(note => (
-                      <NoteCard
-                        key={note.id}
-                        note={note}
-                        onEdit={text => editor.update(note.id, text)}
-                        onRemove={() => editor.remove(note.id)}
-                        pending={
-                          !saved.some(other => other.id === note.id && other.text === note.text)
-                        }
-                      />
-                    ))}
-                  </ul>
+                  <NoteBoard>
+                    <NotePiles
+                      notes={shown}
+                      render={note => (
+                        <NoteCard
+                          agent={agent}
+                          key={note.id}
+                          note={note}
+                          onEdit={text => editor.update(note.id, text)}
+                          onRemove={() => editor.remove(note.id)}
+                          pending={
+                            !saved.some(other => other.id === note.id && other.text === note.text)
+                          }
+                        />
+                      )}
+                    />
+                  </NoteBoard>
                 ) : (
                   <Empty
                     description="Try another word, or show all notes."
