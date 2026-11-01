@@ -3,6 +3,7 @@ package globaldb
 import (
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -192,7 +193,7 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, OwnerBinding: `{"turn_id":""}`, Version: 1,
 		OwnerCheckFailedAt: at.Add(time.Minute),
 	}
-	t.Run("Should round-trip the definition and owner binding across a reopen", func(t *testing.T) {
+	t.Run("Should round-trip the definition, owner binding, and version across a reopen", func(t *testing.T) {
 		if err := db.SaveMonitor(ctx, active); err != nil {
 			t.Fatal(err)
 		}
@@ -205,15 +206,15 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		if err != nil || len(got) != 1 || got[0].Monitor != active.Monitor || got[0].Timeout != time.Hour ||
 			got[0].OwnerBinding != active.OwnerBinding ||
 			!got[0].OwnerCheckFailedAt.Equal(active.OwnerCheckFailedAt) ||
-			got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {
+			got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" || got[0].Version != active.Version {
 			t.Fatalf("LoadMonitors() = %+v, %v; want %+v", got, err, active)
 		}
 	})
-	t.Run("Should apply newer versions and ignore stale ones", func(t *testing.T) {
+	t.Run("Should apply newer versions and ignore stale and equal-version writes", func(t *testing.T) {
 		fired := active
 		fired.Monitor.Status, fired.Monitor.Reason, fired.Monitor.ExitCode = monitor.StatusFired, monitor.ReasonExit, &code
 		fired.Monitor.FiredAt, fired.Version = at.Add(time.Minute), 3
-		// A newer write that clears the owner-check anchor must clear it in the store (the upsert updates the column).
+		// A newer write that clears the owner-check anchor must clear it in the store.
 		fired.OwnerCheckFailedAt = time.Time{}
 		if err := db.SaveMonitor(ctx, fired); err != nil {
 			t.Fatal(err)
@@ -223,25 +224,48 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		if err := db.SaveMonitor(ctx, stale); err != nil {
 			t.Fatal(err)
 		}
+		equal := fired
+		equal.Monitor.Status, equal.Monitor.Reason = monitor.StatusUndelivered, "other"
+		if err := db.SaveMonitor(ctx, equal); err != nil {
+			t.Fatal(err)
+		}
 		got, err := db.LoadMonitors(ctx)
-		if err != nil || len(got) != 1 || got[0].Monitor.Status != monitor.StatusFired ||
+		if err != nil || len(got) != 1 || got[0].Version != 3 || got[0].Monitor.Status != monitor.StatusFired ||
+			got[0].Monitor.Reason != monitor.ReasonExit ||
 			got[0].Monitor.ExitCode == nil || *got[0].Monitor.ExitCode != code ||
 			!got[0].Monitor.FiredAt.Equal(fired.Monitor.FiredAt) || !got[0].OwnerCheckFailedAt.IsZero() {
 			t.Fatalf("LoadMonitors() = %+v, %v; want the version-3 fired row with the anchor cleared", got, err)
 		}
 	})
-	t.Run("Should prune finished monitors past the cutoff and keep occupying ones", func(t *testing.T) {
-		live := active
-		live.Monitor.ID, live.Version = "mon-bbbbbbbbbbbb", 1
-		if err := db.SaveMonitor(ctx, live); err != nil {
-			t.Fatal(err)
+	t.Run("Should prune finished monitors before the cutoff and keep boundary and occupying ones", func(t *testing.T) {
+		cutoff := at.Add(time.Hour)
+		save := func(id string, status monitor.Status, firedAt time.Time) {
+			record := active
+			record.Monitor.ID, record.Monitor.Status, record.Monitor.FiredAt = id, status, firedAt
+			record.Version = 1
+			if err := db.SaveMonitor(ctx, record); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if err := db.PruneFinishedMonitors(ctx, at.Add(time.Hour)); err != nil {
+		save("mon-bbbbbbbbbbbb", monitor.StatusActive, time.Time{})
+		save("mon-cccccccccccc", monitor.StatusDelivering, time.Time{})
+		save("mon-dddddddddddd", monitor.StatusFired, cutoff)
+		save("mon-eeeeeeeeeeee", monitor.StatusCanceled, cutoff.Add(-time.Second))
+		if err := db.PruneFinishedMonitors(ctx, cutoff); err != nil {
 			t.Fatal(err)
 		}
 		got, err := db.LoadMonitors(ctx)
-		if err != nil || len(got) != 1 || got[0].Monitor.ID != live.Monitor.ID {
-			t.Fatalf("LoadMonitors() = %+v, %v; want only the active monitor", got, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for _, record := range got {
+			ids = append(ids, record.Monitor.ID)
+		}
+		want := []string{"mon-bbbbbbbbbbbb", "mon-cccccccccccc", "mon-dddddddddddd"}
+		if !slices.Equal(ids, want) {
+			t.Fatalf("remaining monitors = %v, want %v: finished rows before the cutoff go, the boundary row and "+
+				"occupying rows stay", ids, want)
 		}
 	})
 }
