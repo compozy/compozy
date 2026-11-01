@@ -51,7 +51,7 @@ func (m *Manager) applyAttentionAgentEvent(
 			Title:             title,
 			Payload:           payload,
 			CreatedAt:         event.Timestamp,
-			ExpiresAt:         event.ExpiresAt,
+			ExpiresAt:         event.ExpiresAtValue(),
 		})
 		if errors.Is(err, store.ErrPendingInteractionConflict) {
 			return true, m.refreshPendingInteractions(ctx, target.ID)

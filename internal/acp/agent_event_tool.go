@@ -3,6 +3,7 @@ package acp
 import (
 	"encoding/json"
 	"strings"
+	"time"
 
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
@@ -10,6 +11,7 @@ import (
 )
 
 type agentEventPayload struct {
+	expiresAt          *time.Time
 	parentToolCallID   string
 	providerToolName   string
 	toolStatus         string
@@ -85,7 +87,7 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 }
 
 func (payload *agentEventPayload) hasStructuredFacts() bool {
-	return payload.promptRuntime != nil || payload.availableCommands != nil || payload.delivery != nil ||
+	return payload.expiresAt != nil || payload.promptRuntime != nil || payload.availableCommands != nil || payload.delivery != nil ||
 		payload.goal != nil || payload.origin != nil || len(payload.skillInvocations) > 0 ||
 		len(payload.mentions) > 0 || len(payload.attachments) > 0 || payload.nativeTask != nil
 }
