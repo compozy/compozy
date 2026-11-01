@@ -17,6 +17,7 @@ import (
 	core "github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
@@ -37,14 +38,23 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 			Config:   compozyconfig.DefaultWithHome(homePaths),
 			Observer: apitestutil.StubObserver{},
 			Sessions: apitestutil.StubSessionManager{},
-			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
+			Extensions: extensionServiceStub{supersededFn: func(context.Context) ([]contract.DiagnosticItem, error) {
+				return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
+					ID:            "doctor.extension.dev-cycle.superseded",
+					Category:      contract.CategoryExtension,
+					Code:          contract.CodeExtensionRuntimeUnavailable,
+					Severity:      contract.SeverityWarn,
+					Title:         "Superseded bundled extension",
+					Message:       "Preserve state before scoped removal.",
+					DataFreshness: contract.FreshnessLive,
+				}, diagnostics.WithSuggestedCommand("compozy extension remove dev-cycle --global"))}, nil
+			}, listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 				return []contract.ExtensionPayload{
 					{
 						Name:                "crashy",
 						ConsecutiveFailures: extensionpkg.DefaultRestartFailureThreshold,
 						RestartBackoffMS:    8000,
 					},
-					{Name: "dev-cycle", Source: "bundled"},
 					{Name: "missing-env", MissingEnv: []string{"API_TOKEN"}},
 					{Name: "stale-dev", Dev: true, FailureCode: "missing_origin", OriginPath: doctorOriginCanary},
 				}, nil

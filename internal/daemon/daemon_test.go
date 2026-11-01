@@ -3679,8 +3679,8 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 			true,
 		)
 		manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
-		if err := manager.Start(testutil.Context(t)); err == nil {
-			t.Fatal("expected unrelated extension startup failure")
+		if err := manager.Start(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "missing-provider") {
+			t.Fatalf("expected missing-provider startup failure: %v", err)
 		}
 		t.Cleanup(func() {
 			if err := manager.Stop(testutil.Context(t)); err != nil {
@@ -3724,7 +3724,7 @@ min_compozy_version = "0.0.1"
 			t.Fatalf("unrelated failure blocked healthy install: %v", err)
 		}
 		if _, err := db.DB().
-			Exec(`DELETE FROM extension_installations WHERE extension_name = 'recoverable'`); err != nil {
+			ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = 'recoverable'`); err != nil {
 			t.Fatal(err)
 		}
 		agent, err := taskpkg.DeriveAgentSessionActorContext("agent-orphan", "ws-orphan")

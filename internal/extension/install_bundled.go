@@ -59,18 +59,9 @@ func InstallBundledExtension(
 		return fmt.Errorf("%s: compute embedded checksum: %w", name, err)
 	}
 
-	fresh := false
-	defer func() {
-		if err == nil {
-			if migrationErr := registry.MigrateSupersededBundled(registryContext(), name, fresh); migrationErr != nil {
-				slog.Warn("bundled extension migration requires attention", "error", migrationErr)
-			}
-		}
-	}()
 	existing, err := registry.Get(name)
 	switch {
 	case errors.Is(err, ErrExtensionNotFound):
-		fresh = true
 		if err := InstallLocalManaged(
 			homePaths,
 			registry,
@@ -91,6 +82,12 @@ func InstallBundledExtension(
 		strings.TrimSpace(existing.Version) == manifest.Version:
 		if err := registry.ReconcileBundledProvenance(manifest); err != nil {
 			return fmt.Errorf("%s: reconcile bundled provenance: %w", name, err)
+		}
+		if err := registry.ReconcileSupersededBundled(registryContext(), name); err != nil {
+			if !errors.Is(err, errBundledMigrationRetained) {
+				return err
+			}
+			slog.Warn("bundled extension migration retained state", "extension", name, "error", err)
 		}
 		return nil
 	default:

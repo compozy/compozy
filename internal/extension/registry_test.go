@@ -2271,7 +2271,7 @@ func TestRegistryInstallationScopes(t *testing.T) {
 func TestRegistrySupersededBundledMigration(t *testing.T) {
 	t.Parallel()
 	for _, blocked := range []bool{false, true} {
-		name := "Should transfer enablement and scoped installations without deleting package files"
+		name := "Should transfer enablement and scoped installations atomically with successor enrollment"
 		if blocked {
 			name = "Should preserve incompatible inputs and both registered packages"
 		}
@@ -2284,109 +2284,176 @@ func TestRegistrySupersededBundledMigration(t *testing.T) {
 				store.FormatTimestamp(env.installedAt), store.FormatTimestamp(env.installedAt)); err != nil {
 				t.Fatal(err)
 			}
-
-			for _, name := range []string{"dev-cycle", "spec-cycle"} {
-				dir, manifest, checksum := createRegistryTestExtension(t, name, registryManifestOptions{})
-				scope := InstallationScope{}
-				if name == "dev-cycle" {
-					scope.ProfileID = profileID
-					scope.WorkspaceID = "ws-migration"
-				}
-				if err := env.registry.Install(
-					manifest,
-					dir,
-					checksum,
-					WithInstallSource(SourceBundled),
-					WithInstallScope(scope),
-				); err != nil {
-					t.Fatal(err)
-				}
+			scope := InstallationScope{ProfileID: profileID, WorkspaceID: "ws-migration"}
+			oldDir, oldManifest, oldChecksum := createRegistryTestExtension(t, "dev-cycle", registryManifestOptions{})
+			if err := env.registry.Install(
+				oldManifest,
+				oldDir,
+				oldChecksum,
+				WithInstallSource(SourceBundled),
+				WithInstallScope(scope),
+			); err != nil {
+				t.Fatal(err)
 			}
 			if err := env.registry.SetEnabledForProfile("dev-cycle", profileID, false); err != nil {
 				t.Fatal(err)
 			}
 			if blocked {
-				if _, err := env.registry.DB().
-					Exec(`INSERT INTO extension_inputs (extension, input_id, type, value_json, updated_at) VALUES ('dev-cycle', 'retained', 'string', '"value"', '2026-11-01T00:00:00Z')`); err != nil {
+				if _, err := env.db.ExecContext(
+					t.Context(),
+					`INSERT INTO extension_inputs (extension, input_id, type, value_json, updated_at) VALUES ('dev-cycle', 'retained', 'string', '"value"', '2026-11-01T00:00:00Z')`,
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
-			before, err := env.registry.Get("dev-cycle")
-			if err != nil {
+			dir, manifest, checksum := createRegistryTestExtension(t, "spec-cycle", registryManifestOptions{})
+			if err := env.registry.Install(manifest, dir, checksum, WithInstallSource(SourceBundled)); err != nil {
 				t.Fatal(err)
 			}
-			err = env.registry.MigrateSupersededBundled(t.Context(), "spec-cycle", true)
 			if blocked {
-				if err == nil {
-					t.Fatal("migration should refuse untranslatable inputs")
+				err := env.registry.ReconcileSupersededBundled(t.Context(), "spec-cycle")
+				if !errors.Is(err, errBundledMigrationRetained) ||
+					!strings.Contains(err.Error(), "need operator migration") {
+					t.Fatalf("refusal reason = %v", err)
 				}
+
 				if _, err := env.registry.Get("dev-cycle"); err != nil {
 					t.Fatal(err)
 				}
 				var retained string
-				if err := env.db.QueryRow(`SELECT value_json FROM extension_inputs WHERE extension = 'dev-cycle'`).
+				if err := env.db.QueryRowContext(t.Context(), `SELECT value_json FROM extension_inputs WHERE extension = 'dev-cycle'`).
 					Scan(&retained); err != nil ||
 					retained != `"value"` {
 					t.Fatalf("retained input = %q, %v", retained, err)
 				}
-
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
 			if _, err := env.registry.Get("dev-cycle"); !errors.Is(err, ErrExtensionNotFound) {
-				t.Fatalf("retired registry entry: %v", err)
+				t.Fatalf("retired entry = %v", err)
 			}
 			enabled, err := env.registry.IsEnabledForProfile("spec-cycle", profileID)
 			if err != nil || enabled {
 				t.Fatalf("successor enablement = %v, %v", enabled, err)
 			}
-			if _, err := os.Stat(before.ManifestPath); err != nil {
-				t.Fatalf("old package data must remain: %v", err)
+			if _, err := os.Stat(filepath.Join(oldDir, manifestTOMLFileName)); err != nil {
+				t.Fatalf("retained files: %v", err)
 			}
 			installations, err := env.registry.Installations(t.Context(), "spec-cycle")
-			if err != nil || len(installations) != 1 ||
-				installations[0].Scope != (InstallationScope{ProfileID: profileID, WorkspaceID: "ws-migration"}) {
-				t.Fatalf("installations = %v, %v", installations, err)
+			if err != nil || len(installations) != 1 || installations[0].Scope != scope {
+				t.Fatalf("scopes = %v, %v", installations, err)
 			}
-			if err := env.registry.MigrateSupersededBundled(t.Context(), "spec-cycle", false); err != nil {
+			if err := env.registry.ReconcileSupersededBundled(t.Context(), "spec-cycle"); err != nil {
 				t.Fatal(err)
 			}
 		})
 	}
+	t.Run(
+		"Should roll back successor enrollment if scope transfer cannot commit and retry losslessly",
+		func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			profileID := insertActiveRegistryProfile(t, env, "interrupted-owner")
+			dir, manifest, checksum := createRegistryTestExtension(t, "dev-cycle", registryManifestOptions{})
+			scope := InstallationScope{ProfileID: profileID}
+			if err := env.registry.Install(
+				manifest,
+				dir,
+				checksum,
+				WithInstallSource(SourceBundled),
+				WithInstallScope(scope),
+				WithInstallEnabled(false),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := env.db.ExecContext(
+				t.Context(),
+				`CREATE TRIGGER fail_retirement BEFORE DELETE ON extensions WHEN OLD.name = 'dev-cycle' BEGIN SELECT RAISE(ABORT, 'interrupted retirement'); END`,
+			); err != nil {
+				t.Fatal(err)
+			}
+			nextDir, nextManifest, nextChecksum := createRegistryTestExtension(
+				t,
+				"spec-cycle",
+				registryManifestOptions{},
+			)
+			if err := env.registry.Install(
+				nextManifest,
+				nextDir,
+				nextChecksum,
+				WithInstallSource(SourceBundled),
+			); err == nil ||
+				!strings.Contains(err.Error(), "interrupted retirement") {
+				t.Fatalf("enrollment failure = %v", err)
+			}
+			if _, err := env.registry.Get("spec-cycle"); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("half-enrolled successor: %v", err)
+			}
+			oldScopes, err := env.registry.Installations(t.Context(), "dev-cycle")
+			if err != nil || len(oldScopes) != 1 || oldScopes[0].Scope != scope {
+				t.Fatalf("old scopes changed: %v, %v", oldScopes, err)
+			}
+			if _, err := env.db.ExecContext(t.Context(), `DROP TRIGGER fail_retirement`); err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.Install(
+				nextManifest,
+				nextDir,
+				nextChecksum,
+				WithInstallSource(SourceBundled),
+			); err != nil {
+				t.Fatal(err)
+			}
+			scopes, err := env.registry.Installations(t.Context(), "spec-cycle")
+			if err != nil || len(scopes) != 1 || scopes[0].Scope != scope {
+				t.Fatalf("retried scopes = %v, %v", scopes, err)
+			}
+			enabled, err := env.registry.IsEnabledForProfile("spec-cycle", store.DefaultProfileID)
+			if err != nil || enabled {
+				t.Fatalf("retried enablement = %v, %v", enabled, err)
+			}
+		},
+	)
 }
 
 func TestRegistrySupersededBundledOwnership(t *testing.T) {
 	t.Parallel()
 	for _, userOwned := range []bool{false, true} {
-		name := "Should retain both bundles when effective enablement conflicts"
+		name := "Should retain both bundles when existing effective enablement conflicts"
 		if userOwned {
 			name = "Should leave a user-owned old name untouched"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			env := newRegistryTestEnv(t)
-			for _, name := range []string{"dev-cycle", "spec-cycle"} {
+			// Enroll the successor first so its state is independently owned.
+			for _, name := range []string{"spec-cycle", "dev-cycle"} {
 				dir, manifest, checksum := createRegistryTestExtension(t, name, registryManifestOptions{})
 				source := SourceBundled
 				if userOwned && name == "dev-cycle" {
 					source = SourceUser
 				}
-				if err := env.registry.Install(manifest, dir, checksum, WithInstallSource(source)); err != nil {
+				if err := env.registry.Install(
+					manifest,
+					dir,
+					checksum,
+					WithInstallSource(source),
+					WithInstallScope(InstallationScope{}),
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if err := env.registry.Disable("dev-cycle"); err != nil {
 				t.Fatal(err)
 			}
-			err := env.registry.MigrateSupersededBundled(t.Context(), "spec-cycle", false)
-			if !userOwned && err == nil {
-				t.Fatal("expected conflicting effective enablement")
+			err := env.registry.ReconcileSupersededBundled(t.Context(), "spec-cycle")
+			if !userOwned &&
+				(!errors.Is(err, errBundledMigrationRetained) || !strings.Contains(err.Error(), "conflicting profile enablement")) {
+				t.Fatalf("conflict reason = %v", err)
 			}
 			if userOwned && err != nil {
 				t.Fatal(err)
 			}
+
 			for _, name := range []string{"dev-cycle", "spec-cycle"} {
 				if _, err := env.registry.Get(name); err != nil {
 					t.Fatalf("retained %s: %v", name, err)
@@ -2394,4 +2461,62 @@ func TestRegistrySupersededBundledOwnership(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRegistrySupersededBundledExistingScopes(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should preserve existing successor attachments while transferring distinct predecessor scopes",
+		func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			profileID := insertActiveRegistryProfile(t, env, "existing-scope")
+			shared := InstallationScope{ProfileID: store.DefaultProfileID}
+			extra := InstallationScope{ProfileID: profileID}
+			for _, name := range []string{"spec-cycle", "dev-cycle"} {
+				if name == "dev-cycle" {
+					env.registry.now = func() time.Time { return env.installedAt.Add(time.Hour) }
+				}
+				dir, manifest, checksum := createRegistryTestExtension(t, name, registryManifestOptions{})
+				if err := env.registry.Install(
+					manifest,
+					dir,
+					checksum,
+					WithInstallSource(SourceBundled),
+					WithInstallScope(shared),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := env.registry.Installations(t.Context(), "spec-cycle")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.AttachInstallation(t.Context(), "dev-cycle", extra); err != nil {
+				t.Fatal(err)
+			}
+			if err := env.registry.ReconcileSupersededBundled(t.Context(), "spec-cycle"); err != nil {
+				t.Fatal(err)
+			}
+			after, err := env.registry.Installations(t.Context(), "spec-cycle")
+			if err != nil || len(after) != 2 {
+				t.Fatalf("merged installations = %v, %v", after, err)
+			}
+			foundShared, foundExtra := false, false
+			for _, item := range after {
+				if item.Scope == shared {
+					foundShared = item.CreatedAt.Equal(before[0].CreatedAt)
+				}
+				if item.Scope == extra {
+					foundExtra = item.CreatedAt.Equal(env.installedAt.Add(time.Hour))
+				}
+			}
+			if !foundShared || !foundExtra {
+				t.Fatalf("existing or transferred scope lost: %v", after)
+			}
+			if _, err := env.registry.Get("dev-cycle"); !errors.Is(err, ErrExtensionNotFound) {
+				t.Fatalf("predecessor was not retired: %v", err)
+			}
+		},
+	)
 }

@@ -1101,6 +1101,10 @@ func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 		if err := manager.ReloadForExtensions(t.Context(), []string{"ext-good"}); err != nil {
 			t.Fatalf("unrelated parse failure blocked reload: %v", err)
 		}
+		if got := launcher.launchCount(); got != 2 {
+			t.Fatalf("selected reload launches = %d, want 2", got)
+		}
+
 		bad, err := manager.Get("ext-bad")
 		if err != nil || bad.Status.LastError == "" {
 			t.Fatalf("unrelated failure must remain visible: %#v, %v", bad, err)
@@ -1109,11 +1113,70 @@ func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Get(ext-good) error = %v", err)
 		}
+		if good.Status.PID != 303 {
+			t.Fatalf("selected reload PID = %d, want 303", good.Status.PID)
+		}
 		if !good.Status.Active {
 			t.Fatalf("Get(ext-good).Status.Active = false, want true")
 		}
-
 	})
+}
+
+func TestManagerSelectedReloadStopFailures(t *testing.T) {
+	t.Parallel()
+	for _, selectedFailure := range []bool{false, true} {
+		name := "Should keep an unrelated shutdown failure from aborting the selected reload"
+		if selectedFailure {
+			name = "Should return the selected extension shutdown failure"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			withDaemonVersion(t, "0.5.0")
+			env := newRegistryTestEnv(t)
+			for _, name := range []string{"a-bad-stop", "z-good-stop"} {
+				fixture := createManagerTestExtension(
+					t,
+					managerTestManifest(
+						name,
+						managerManifestOptions{command: "fake-extension", capabilities: []string{"tool.provider"}},
+					),
+					nil,
+				)
+				installManagerFixture(t, env.registry, fixture, SourceUser, true)
+			}
+			stopErr := errors.New("selected shutdown boundary failure")
+			bad := newFakeProcess(101)
+			bad.shutdownFn = func(context.Context) error { bad.close(nil); return stopErr }
+			launcher := &fakeLauncher{
+				queue: []*fakeProcess{bad, newFakeProcess(202), newFakeProcess(303), newFakeProcess(404)},
+			}
+			manager := NewManager(env.registry, withProcessLauncher(launcher.launch))
+			if err := manager.Start(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Stop(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			target := "z-good-stop"
+			if selectedFailure {
+				target = "a-bad-stop"
+			}
+			err := manager.ReloadForExtensions(t.Context(), []string{target})
+			if selectedFailure {
+				if !errors.Is(err, stopErr) {
+					t.Fatalf("selected stop failure = %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("unrelated stop rejected reload: %v", err)
+			}
+			good, err := manager.Get("z-good-stop")
+			if err != nil || !good.Status.Active || good.Status.PID != 404 {
+				t.Fatalf("healthy target was not relaunched: %#v, %v", good, err)
+			}
+		})
+	}
 }
 
 func TestManagerStartRejectsIncompatibleManifest(t *testing.T) {

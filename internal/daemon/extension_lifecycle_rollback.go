@@ -30,6 +30,7 @@ func snapshotGlobalExtensionLifecycle(info *extensionpkg.ExtensionInfo) globalEx
 	}
 }
 
+// Compensation restores only the selected package while unrelated runtime failures remain diagnosable.
 func (s *daemonExtensionService) rollbackGlobalExtensionLifecycle(
 	ctx context.Context,
 	name string,

@@ -38,6 +38,10 @@ func TestExtensionSecrets(t *testing.T) {
 	)
 	t.Run("Should roll back a failed transport batch", testExtensionSecretTransportRollback)
 	t.Run("Should retire global and development bindings by instance", testExtensionSecretBindingRetirement)
+	t.Run(
+		"Should retire orphan bindings across workspaces and restore them on removal failure",
+		testOrphanExtensionSecretRetirement,
+	)
 	t.Run("Should preserve remote header binding parity across HTTP and UDS", testExtensionRemoteHeaderBindingParity)
 }
 
@@ -1284,5 +1288,134 @@ secret_env = { FIRST_KEY = "first", SECOND_KEY = "second" }
 	items, err := harness.service.List(t.Context())
 	if err != nil || len(items) != 0 {
 		t.Fatalf("failed install remained in public inventory: %#v %v", items, err)
+	}
+}
+
+func testOrphanExtensionSecretRetirement(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	const name = "orphan-binding-retirement"
+	harness := newExtensionSecretIntegrationHarness(
+		t,
+		extensionSecretIntegrationHarnessOptions{actorReason: "orphan recovery", allowUnverified: true},
+	)
+	fixture := writeBoundSecretExtensionFixtureWithEnv(t, t.TempDir(), name, []string{"BOUND_SECRET"})
+	request := contract.InstallExtensionRequest{
+		Source:          contract.InstallExtensionSourceLocalPath,
+		Ref:             fixture,
+		AllowUnverified: true,
+	}
+	if _, err := harness.service.Install(t.Context(), request, harness.actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = ?`, name); err != nil {
+		t.Fatal(err)
+	}
+	scopes := []string{"", "ws-orphan-a", "ws-orphan-b"}
+	when := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	for _, workspace := range scopes {
+		ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "BOUND_SECRET")
+		if _, err := harness.vault.PutSecret(
+			t.Context(),
+			ref,
+			extensionpkg.ExtensionEnvBindingKind,
+			"orphan-owned-secret",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.db.ExtensionEnvRepo.PutEnvBinding(t.Context(), extensionpkg.EnvBinding{
+			ExtensionName: name,
+			ProfileID:     store.DefaultProfileID,
+			WorkspaceID:   workspace,
+			EnvName:       "BOUND_SECRET",
+			SecretRef:     ref,
+			Kind:          extensionpkg.ExtensionEnvBindingKind,
+			CreatedAt:     when,
+			UpdatedAt:     when,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := harness.db.ExtensionMCP.Reserve(
+			t.Context(),
+			extensionmcp.Target{
+				Extension:   name,
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: workspace,
+				ServerName:  "orphan-server",
+			},
+			"orphan-server",
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `CREATE TRIGGER fail_orphan_removal BEFORE DELETE ON extension_mcp_overrides BEGIN SELECT RAISE(ABORT, 'orphan retirement failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Remove(
+		t.Context(),
+		name,
+		harness.actor,
+	); err == nil ||
+		!strings.Contains(err.Error(), "orphan retirement failure") {
+		t.Fatalf("remove failure = %v", err)
+	}
+	for _, workspace := range scopes {
+		bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(
+			t.Context(),
+			name,
+			store.DefaultProfileID,
+			workspace,
+		)
+		if err != nil || len(bindings) != 1 {
+			t.Fatalf("restored bindings in %s: %v, %v", workspace, bindings, err)
+		}
+		value, err := harness.vault.ResolveRef(
+			t.Context(),
+			vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "BOUND_SECRET"),
+		)
+		if err != nil || value != "orphan-owned-secret" {
+			t.Fatalf("secret not restored in %s: %v", workspace, err)
+		}
+	}
+	if _, err := harness.db.DB().ExecContext(t.Context(), `DROP TRIGGER fail_orphan_removal`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Remove(t.Context(), name, harness.actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Install(t.Context(), request, harness.actor); err != nil {
+		t.Fatal(err)
+	}
+	for _, workspace := range scopes {
+		bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(
+			t.Context(),
+			name,
+			store.DefaultProfileID,
+			workspace,
+		)
+		if err != nil || len(bindings) != 0 {
+			t.Fatalf("reinstall inherited bindings in %s: %v, %v", workspace, bindings, err)
+		}
+		if _, err := harness.vault.ResolveRef(
+			t.Context(),
+			vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "BOUND_SECRET"),
+		); !errors.Is(
+			err,
+			vault.ErrSecretNotFound,
+		) {
+			t.Fatalf("removed orphan credential in %s: %v", workspace, err)
+		}
+	}
+	records, err := harness.db.ExtensionMCP.ListAll(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if record.Extension == name {
+			t.Fatalf("orphan MCP allocation survived: %s", record.WorkspaceID)
+		}
 	}
 }

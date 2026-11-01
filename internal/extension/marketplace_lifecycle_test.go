@@ -1228,13 +1228,17 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 		source.latestVersion = "2.0.0"
 
 		reloadErr := errors.New("reload rejected update")
+		var reloaded []string
 		_, err = UpdateMarketplaceManaged(
 			t.Context(),
 			homePaths,
 			env.registry,
 			loader,
 			MarketplaceUpdateRequest{
-				Names: []string{"lifecycle-ext"}, PolicyAllowsUnverified: true, AllowUnverified: true,
+				Names:                  []string{"lifecycle-ext"},
+				PolicyAllowsUnverified: true,
+				AllowUnverified:        true,
+				ReloadCandidate:        func(_ context.Context, name string) error { reloaded = append(reloaded, name); return reloadErr },
 			},
 			func(context.Context) error {
 				return reloadErr
@@ -1242,6 +1246,10 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 		)
 		if !errors.Is(err, reloadErr) {
 			t.Fatalf("UpdateMarketplaceManaged(reload failure) error = %v, want reload rejection", err)
+		}
+
+		if !reflect.DeepEqual(reloaded, []string{"lifecycle-ext", "lifecycle-ext"}) {
+			t.Fatalf("candidate and compensating reload targets = %v", reloaded)
 		}
 
 		info, err := env.registry.Get("lifecycle-ext")
@@ -1314,6 +1322,12 @@ func TestMarketplaceLifecycleReportsCommittedBatchUpdatesBeforeLaterFailure(t *t
 					Names:                  selection.names,
 					PolicyAllowsUnverified: true,
 					AllowUnverified:        true,
+					ReloadCandidate: func(_ context.Context, name string) error {
+						if name != "a-good" {
+							return fmt.Errorf("unrelated broken target %q included in reload", name)
+						}
+						return nil
+					},
 				},
 				nil,
 			)

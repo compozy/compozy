@@ -90,6 +90,7 @@ func (s *daemonExtensionService) SetEnablement(
 	return result, nil
 }
 
+// Profile enablement is restored if publishing the selected package or its lifecycle event fails.
 func (s *daemonExtensionService) applyProfileEnablement(
 	ctx context.Context, name, profileID, profileName string, enabled bool, actor taskpkg.ActorContext,
 ) error {
@@ -156,6 +157,7 @@ func (s *daemonExtensionService) bindExtensionEnablementActor(
 	return actor, actor.Validate()
 }
 
+// Compensation preserves the profile cell without depending on another package initialization result.
 func (s *daemonExtensionService) rollbackProfileEnablement(
 	ctx context.Context,
 	name string,

@@ -96,6 +96,7 @@ func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcon
 	return &item
 }
 
+// The candidate reload closure keeps the same target identity during commit and compensation.
 func updateMarketplaceExtension(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
@@ -105,6 +106,10 @@ func updateMarketplaceExtension(
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) (_ MarketplaceUpdateResult, err error) {
+	if req.ReloadCandidate != nil {
+		reload = func(ctx context.Context) error { return req.ReloadCandidate(ctx, info.Name) }
+	}
+
 	slug, registryName, err := marketplaceUpdateMetadata(info)
 	if err != nil {
 		return MarketplaceUpdateResult{}, err

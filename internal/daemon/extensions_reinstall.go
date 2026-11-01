@@ -115,6 +115,7 @@ func (s *daemonExtensionService) configureReinstallAttachment(
 	}
 }
 
+// A failed selected-package reload restores candidate inputs before compensating publication.
 func (s *daemonExtensionService) commitExistingExtensionInputs(
 	ctx context.Context, installed *extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest,
 	update extensionpkg.MarketplaceUpdateRequest, complete extensionpkg.MutationReload,

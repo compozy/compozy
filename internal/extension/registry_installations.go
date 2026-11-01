@@ -184,3 +184,29 @@ func replaceInstallations(ctx context.Context, tx *store.WriteTx, name string, i
 	}
 	return nil
 }
+
+// EnvBindingScopes returns every persisted credential cell, including orphaned and inactive bindings.
+func (r *Registry) EnvBindingScopes(ctx context.Context, name string) ([]InstallationScope, error) {
+	if err := r.checkReady("list extension credential scopes"); err != nil {
+		return nil, err
+	}
+	name, err := normalizeExtensionName(name)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT DISTINCT profile_id, workspace_id FROM extension_env_bindings
+  WHERE extension_name = ? ORDER BY profile_id, workspace_id`, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []InstallationScope
+	for rows.Next() {
+		var scope InstallationScope
+		if err := rows.Scan(&scope.ProfileID, &scope.WorkspaceID); err != nil {
+			return nil, err
+		}
+		result = append(result, scope)
+	}
+	return result, rows.Err()
+}

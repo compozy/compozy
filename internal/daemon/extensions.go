@@ -95,6 +95,7 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 	return errors.Join(reloadErr, s.syncExtensionConsumers(ctx))
 }
 
+// Target failures and consumer synchronization failures abort mutations; unrelated activation failures do not.
 func (s *daemonExtensionService) reloadExtensions(ctx context.Context, names ...string) error {
 	if runtime, ok := s.runtime.(interface {
 		ReloadForExtensions(context.Context, []string) error

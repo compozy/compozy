@@ -46,3 +46,29 @@ with the repository's configured formatters without running a lint lane.
 The current base already deletes a failed install's registry row before its compensating reload.
 The historical orphan reported on 0.4.7 was therefore seeded explicitly for recovery verification;
 this work does not claim the 0.4.8 base recreated that exact half-write.
+
+## Review remediation
+
+Greptile review `5730482462` identified three valid defects on the first candidate. Successor
+enrollment and state transfer now share the registry installation transaction; the regression
+aborts predecessor retirement and verifies no half-enrolled successor exists before a lossless
+retry. Marketplace reload callbacks bind the current candidate name for both commit and rollback.
+Orphan removal enumerates persisted credential cells across profiles/workspaces and retires their
+owned references plus MCP reservations through compensating removal.
+
+The focused `TestExtensionSecrets/Should_retire_orphan...` integration seeds global and two workspace
+credential cells, forces MCP retirement to fail, checks credential restoration, then removes and
+reinstalls the package without inheriting credentials. It passed with `-race`. The existing global
+and development retirement case and seeded-home boot case passed in the same focused integration run.
+
+CodeRabbit review `5730521177` added scoped Doctor commands, shutdown error isolation, and stronger
+coverage. Registry-owned diagnostics now include workspace-only and unattached registrations;
+commands select their actual attachment and profile. Source ownership is tested in the daemon's
+canonical diagnostics suite, while the API suite verifies transport composition. Selected reload
+coverage checks both relaunch PID and isolation of unrelated shutdown errors. Existing-successor
+scope coverage checks preserved shared timestamps and transfer of a distinct attachment.
+
+The first-head lint job reported function length, long lines, missing SQL contexts, and one extra
+blank line. These were repaired with smaller cohesive helpers, context-aware fixture SQL, and
+changed-file formatting. Lifecycle and migration docstrings describe the state-preservation
+boundaries requested by the review warning. No full local lint lane was run.

@@ -13,6 +13,7 @@ import (
 
 const extensionDoctorNameEvidenceKey = "extension_name"
 
+// Doctor combines runtime failures with registry diagnostics for packages absent from global inventory.
 func (h *BaseHandlers) registerExtensionDoctorProbe(registry *doctor.Registry) error {
 	if h.Extensions == nil {
 		return nil
@@ -25,7 +26,17 @@ func (h *BaseHandlers) registerExtensionDoctorProbe(registry *doctor.Registry) e
 			if err != nil {
 				return nil, err
 			}
-			return extensionDiagnosticItems(extensions), nil
+			items := extensionDiagnosticItems(extensions)
+			if source, ok := h.Extensions.(interface {
+				SupersededBundledDiagnostics(context.Context) ([]contract.DiagnosticItem, error)
+			}); ok {
+				extra, err := source.SupersededBundledDiagnostics(ctx)
+				if err != nil {
+					return nil, err
+				}
+				items = append(items, extra...)
+			}
+			return items, nil
 		},
 	})
 }
@@ -35,25 +46,6 @@ func extensionDiagnosticItems(extensions []contract.ExtensionPayload) []contract
 	for index := range extensions {
 		extension := &extensions[index]
 		name := strings.TrimSpace(extension.Name)
-		if successor := extensionpkg.SupersededBundledSuccessor(
-			name,
-		); successor != "" &&
-			extension.Source == "bundled" {
-			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{
-				ID:       "doctor.extension." + name + ".superseded",
-				Code:     contract.CodeExtensionRuntimeUnavailable,
-				Category: contract.CategoryExtension,
-				Title:    "Bundled extension is superseded",
-				Message: fmt.Sprintf(
-					"Extension %q was replaced by %q. Automatic migration retained state that needs operator review. Migrate inputs and scoped state before removal.",
-					name,
-					successor,
-				),
-				Severity:      contract.SeverityWarn,
-				DataFreshness: contract.FreshnessLive,
-			}, diagnostics.WithSuggestedCommand("compozy extension remove "+name+" --global")))
-		}
-
 		failureCode := strings.TrimSpace(extension.FailureCode)
 		if extension.ConsecutiveFailures >= extensionpkg.DefaultRestartFailureThreshold {
 			items = append(items, diagnostics.NewItem(diagnostics.ItemSpec{

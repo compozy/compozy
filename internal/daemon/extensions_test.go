@@ -2783,3 +2783,75 @@ func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
 		t.Fatalf("duplicate attachments: %v, %v", attachments, err)
 	}
 }
+
+func TestSupersededBundledDoctorScopes(t *testing.T) {
+	t.Parallel()
+	// Invariant: remediation targets actual retained attachment scopes and never labels an operator-owned package superseded.
+	// Owner: daemon registry diagnostics. Canonical suite: extensions_test.go.
+	for _, test := range []struct {
+		name   string
+		source extensionpkg.ExtensionSource
+		scope  extensionpkg.InstallationScope
+		orphan bool
+		want   string
+	}{
+		{name: "Should name the global removal command", source: extensionpkg.SourceBundled, want: "compozy extension remove dev-cycle --global"},
+		{name: "Should name the workspace and profile removal command", source: extensionpkg.SourceBundled, scope: extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-retained"}, want: "compozy --profile default extension remove dev-cycle --workspace ws-retained"},
+		{name: "Should diagnose an unattached superseded registration", source: extensionpkg.SourceBundled, orphan: true, want: "compozy extension remove dev-cycle --global"},
+		{name: "Should not label a user-owned old name superseded", source: extensionpkg.SourceUser},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			db := openDaemonTestGlobalDB(t)
+			registry := extensionpkg.NewRegistry(db.DB())
+			dir := installDaemonTestExtension(t, db, "dev-cycle", daemonTestExtensionOptions{}, true)
+			manifest, err := extensionpkg.LoadManifest(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.scope.WorkspaceID != "" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), `INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+     VALUES ('ws-retained', '/ws-retained', 'retained', '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z')`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := registry.Uninstall("dev-cycle"); err != nil {
+				t.Fatal(err)
+			}
+			if err := registry.Install(
+				manifest,
+				dir,
+				checksum,
+				extensionpkg.WithInstallSource(test.source),
+				extensionpkg.WithInstallScope(test.scope),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if test.orphan {
+				if _, err := db.DB().
+					ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = 'dev-cycle'`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			service := &daemonExtensionService{registry: registry}
+			items, err := service.SupersededBundledDiagnostics(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.want == "" {
+				if len(items) != 0 {
+					t.Fatalf("user-owned package diagnostics: %v", items)
+				}
+				return
+			}
+			if len(items) != 1 || items[0].SuggestedCommand != test.want {
+				t.Fatalf("scope remediation = %v, want %s", items, test.want)
+			}
+		})
+	}
+}

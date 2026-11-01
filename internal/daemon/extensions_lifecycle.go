@@ -75,6 +75,7 @@ func (s *daemonExtensionService) Install(
 	return item, err
 }
 
+// A target activation or publication failure compensates its registry, input and managed-file changes.
 func (s *daemonExtensionService) commitPreparedInstall(
 	ctx context.Context,
 	prepared preparedDaemonExtensionInstall,
@@ -226,6 +227,7 @@ func (s *daemonExtensionService) UpdateBatch(
 	return items, err
 }
 
+// Each candidate binds reload to its own package so later broken targets cannot reject an earlier update.
 func (s *daemonExtensionService) updateBatchUnlocked(
 	ctx context.Context,
 	req contract.UpdateExtensionsRequest,
@@ -256,6 +258,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
 		ResolveTrust:           s.marketplaceTrustResolver(),
 		ResolvePlugin:          s.resolveMarketplacePluginOrigin,
+		ReloadCandidate:        func(ctx context.Context, name string) error { return s.reloadExtensions(ctx, name) },
 	}
 	domainReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
@@ -272,7 +275,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.registry,
 		s.marketplaceSourceLoader(),
 		domainReq,
-		func(ctx context.Context) error { return s.reloadExtensions(ctx, names...) },
+		nil,
 	)
 	payloads, finalizeErr := s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
 	return payloads, errors.Join(
@@ -295,10 +298,15 @@ func (s *daemonExtensionService) Remove(
 	return s.removeInstalledExtension(ctx, name, actor, "")
 }
 
+// Credential before-images remain available until package removal and allocation retirement commit.
 func (s *daemonExtensionService) removeManagedExtensionLocked(
-	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey,
+	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey, orphan bool,
 ) (contract.ManagedExtensionRemovePayload, error) {
-	retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
+	retire := s.retireExtensionSecretBindings
+	if orphan {
+		retire = s.retireOrphanSecretBindings
+	}
+	retirement, retireErr := retire(ctx, key)
 	if retireErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, retireErr
 	}
@@ -320,12 +328,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 			}
 			return s.reloadExtensions(reloadCtx, name)
 		},
-		func(ctx context.Context) error {
-			if s.mcpAllocations == nil {
-				return nil
-			}
-			return s.mcpAllocations.DeleteWorkspace(ctx, name, key.WorkspaceID)
-		},
+		func(ctx context.Context) error { return s.deleteRemovedExtensionMCPAllocations(ctx, name, key, orphan) },
 	)
 	if removeErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
@@ -342,6 +345,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
 
+// Durable compensation proceeds before reload and does not depend on unrelated provider initialization.
 func (s *daemonExtensionService) rollbackFailedInstall(
 	ctx context.Context,
 	name string,
@@ -377,6 +381,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 	return errors.Join(installErr, rollbackErr)
 }
 
+// Enablement is committed only after the selected package and its lifecycle evidence publish.
 func (s *daemonExtensionService) Enable(
 	ctx context.Context,
 	name string,
@@ -443,6 +448,7 @@ func (s *daemonExtensionService) Enable(
 	return result, err
 }
 
+// Disabling a package does not require unrelated packages to initialize successfully.
 func (s *daemonExtensionService) Disable(
 	ctx context.Context,
 	name string,

@@ -25,6 +25,7 @@ func (s *daemonExtensionService) removeInstalledExtension(
 	return item, err
 }
 
+// Missing attachments authorize orphan recovery only with explicit operator-global intent.
 func (s *daemonExtensionService) removeInstalledExtensionLocked(
 	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
 ) (contract.ManagedExtensionRemovePayload, error) {
@@ -37,7 +38,7 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	if len(attachments) == 0 && actor.Scope.Operator && workspaceID == "" {
-		return s.removeManagedExtensionLocked(ctx, name, actor, extensionpkg.GlobalInstanceKey(name))
+		return s.removeManagedExtensionLocked(ctx, name, actor, extensionpkg.GlobalInstanceKey(name), true)
 	}
 	selected, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
 		ProfileID: profileID, WorkspaceID: workspaceID,
@@ -55,11 +56,12 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 		WorkspaceID: selected.Scope.WorkspaceID,
 	}
 	if len(attachments) == 1 {
-		return s.removeManagedExtensionLocked(ctx, name, actor, key)
+		return s.removeManagedExtensionLocked(ctx, name, actor, key, false)
 	}
 	return s.detachInstalledExtension(ctx, name, actor, selected.Scope)
 }
 
+// Detaching one scope keeps the shared package and compensates failed publication.
 func (s *daemonExtensionService) detachInstalledExtension(
 	ctx context.Context, name string, actor taskpkg.ActorContext, scope extensionpkg.InstallationScope,
 ) (contract.ManagedExtensionRemovePayload, error) {
@@ -144,6 +146,7 @@ func (s *daemonExtensionService) retireDetachedMCPAllocations(
 	return s.mcpAllocations.RetireTargets(ctx, retired, summary)
 }
 
+// Attachment restoration precedes runtime publication and MCP allocation restoration.
 func (s *daemonExtensionService) rollbackInstalledDetach(
 	ctx context.Context, name string, snapshot extensionpkg.RemovalState,
 	allocations *extensionMCPAllocationSnapshot, cause error,
@@ -157,4 +160,30 @@ func (s *daemonExtensionService) rollbackInstalledDetach(
 		return errors.Join(cause, err)
 	}
 	return errors.Join(cause, s.rollbackExtensionMCPAllocations(rollbackCtx, allocations))
+}
+
+// Orphan removal retires all package reservations atomically rather than only the global cell.
+func (s *daemonExtensionService) deleteRemovedExtensionMCPAllocations(
+	ctx context.Context,
+	name string,
+	key extensionpkg.InstanceKey,
+	orphan bool,
+) error {
+	if s.mcpAllocations == nil {
+		return nil
+	}
+	if !orphan {
+		return s.mcpAllocations.DeleteWorkspace(ctx, name, key.WorkspaceID)
+	}
+	records, err := s.mcpAllocations.ListAll(ctx)
+	if err != nil {
+		return err
+	}
+	var targets []extensionmcp.Target
+	for _, record := range records {
+		if record.Extension == name {
+			targets = append(targets, record.Target)
+		}
+	}
+	return s.mcpAllocations.DeleteTargets(ctx, targets)
 }

@@ -17,6 +17,7 @@ type extensionSecretRetirement struct {
 	ownedSecretSnapshots []extensionSecretSnapshot
 }
 
+// Development and attached-instance removal retire credentials only in the selected workspace.
 func (s *daemonExtensionService) retireExtensionSecretBindings(
 	ctx context.Context,
 	key extensionpkg.InstanceKey,
@@ -31,9 +32,40 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 	if err != nil {
 		return nil, err
 	}
-	bindings := make([]extensionpkg.EnvBinding, 0)
+	scopes := make([]extensionpkg.InstallationScope, 0, len(profileIDs))
 	for _, profileID := range profileIDs {
-		profileBindings, listErr := s.envBindings.ListEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
+		scopes = append(scopes, extensionpkg.InstallationScope{ProfileID: profileID, WorkspaceID: key.WorkspaceID})
+	}
+	return s.retireExtensionBindingScopes(ctx, key.Name, scopes)
+}
+
+// An orphan has no installation rows, so credential ownership must come from persisted binding cells.
+func (s *daemonExtensionService) retireOrphanSecretBindings(
+	ctx context.Context,
+	key extensionpkg.InstanceKey,
+) (*extensionSecretRetirement, error) {
+	scopes, err := s.registry.EnvBindingScopes(ctx, key.Name)
+	if err != nil {
+		return nil, err
+	}
+	return s.retireExtensionBindingScopes(ctx, key.Name, scopes)
+}
+
+// Reference counts are captured across all retiring cells before any owned secret is collected.
+func (s *daemonExtensionService) retireExtensionBindingScopes(
+	ctx context.Context,
+	name string,
+	scopes []extensionpkg.InstallationScope,
+) (*extensionSecretRetirement, error) {
+	if s.envBindings == nil && s.secretVault == nil {
+		return &extensionSecretRetirement{}, nil
+	}
+	if s.envBindings == nil || s.secretVault == nil {
+		return nil, errors.New("daemon: extension secret storage is incomplete")
+	}
+	bindings := make([]extensionpkg.EnvBinding, 0)
+	for _, scope := range scopes {
+		profileBindings, listErr := s.envBindings.ListEnvBindings(ctx, name, scope.ProfileID, scope.WorkspaceID)
 		if listErr != nil {
 			return nil, fmt.Errorf("daemon: snapshot retiring extension bindings: %w", listErr)
 		}
@@ -66,10 +98,10 @@ func (s *daemonExtensionService) retireExtensionSecretBindings(
 		}
 		retirement.ownedSecretSnapshots = append(retirement.ownedSecretSnapshots, snapshot)
 	}
-	for _, profileID := range profileIDs {
-		if err := s.envBindings.DeleteEnvBindings(ctx, key.Name, profileID, key.WorkspaceID); err != nil {
+	for _, scope := range scopes {
+		if err := s.envBindings.DeleteEnvBindings(ctx, name, scope.ProfileID, scope.WorkspaceID); err != nil {
 			return nil, errors.Join(
-				fmt.Errorf("daemon: retire extension bindings for profile %q: %w", profileID, err),
+				fmt.Errorf("daemon: retire extension bindings for profile %q: %w", scope.ProfileID, err),
 				retirement.rollback(ctx, s),
 			)
 		}
