@@ -1060,7 +1060,9 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 		archivedAt := fixedTestNow.Add(time.Minute)
 		var stopRequests []bool
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			archiveSessionFn: func(_ context.Context, id string, stop bool, _ bool, _ contract.SessionProcessPolicy) (SessionRecord, error) {
+			archiveSessionFn: func(
+				_ context.Context, id string, stop bool, _ bool, _ contract.SessionProcessPolicy,
+			) (SessionRecord, error) {
 				stopRequests = append(stopRequests, stop)
 				return SessionRecord{
 					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
@@ -5471,7 +5473,9 @@ func TestSessionLifecycleProcessPolicy(t *testing.T) {
 						got, called = p, true
 						return SessionStopRecord{Verified: true, State: session.StateStopped}, nil
 					},
-					archiveSessionFn: func(_ context.Context, _ string, _ bool, _ bool, p contract.SessionProcessPolicy) (SessionRecord, error) {
+					archiveSessionFn: func(
+						_ context.Context, _ string, _ bool, _ bool, p contract.SessionProcessPolicy,
+					) (SessionRecord, error) {
 						got, called = p, true
 						return record, nil
 					},

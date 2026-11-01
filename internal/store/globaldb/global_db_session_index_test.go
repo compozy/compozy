@@ -2560,7 +2560,8 @@ func TestGlobalDBSessionTree(t *testing.T) {
 		}
 		if _, err := db.ArchiveSessionTree(ctx, workspace, parent); !errors.Is(err, store.ErrSessionArchiveRequiresStopped) {
 			t.Fatalf("live member = %v", err)
-		} else if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](err); !ok || live.SessionID != "grandchild" {
+		} else if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](err); !ok ||
+			live.SessionID != "grandchild" {
 			t.Fatalf("live member = %#v, want grandchild", live)
 		}
 		for _, id := range []string{parent, "child", "grandchild"} {

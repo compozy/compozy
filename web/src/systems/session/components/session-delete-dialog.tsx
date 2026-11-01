@@ -60,7 +60,7 @@ export function SessionDeleteDialog({
   }
   const session = sessions?.[0] ?? singleSession;
   if (!session) return null;
-  const failure = results?.find((result) => result.id === session.id && result.status === "failed");
+  const failure = results?.find(result => result.id === session.id && result.status === "failed");
   const retrying = failure !== undefined && !isDeleting;
   const processCount =
     sessionRunningProcesses(session) + (childSessions?.includedProcessCount ?? 0);
@@ -69,7 +69,7 @@ export function SessionDeleteDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={(nextOpen) => {
+      onOpenChange={nextOpen => {
         if (isDeleting && !nextOpen) return;
         onOpenChange(nextOpen);
       }}

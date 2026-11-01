@@ -6,10 +6,10 @@ import type { SessionPayload } from "../types";
 
 /** Keeps an open delete confirmation's child sessions current from the daemon. */
 export function useSessionDeleteTrees(
-  sessions: readonly SessionPayload[] | undefined,
+  sessions: readonly SessionPayload[] | undefined
 ): SessionTrees {
   const reads = useQueries({
-    queries: (sessions ?? []).map((session) => ({
+    queries: (sessions ?? []).map(session => ({
       ...sessionDescendantsOptions(session),
       refetchOnMount: "always" as const,
     })),

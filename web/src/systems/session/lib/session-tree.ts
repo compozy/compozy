@@ -34,9 +34,9 @@ export interface SessionChildrenScope {
 export function sessionChildrenScope(
   action: SessionTreeAction,
   targets: readonly Pick<SessionPayload, "id">[],
-  trees: SessionTrees,
+  trees: SessionTrees
 ): SessionChildrenScope {
-  const targetIds = new Set(targets.map((target) => target.id));
+  const targetIds = new Set(targets.map(target => target.id));
   const members = new Map<string, SessionPayload>();
   const covered = new Set<string>();
   for (const target of targets) {
@@ -60,23 +60,23 @@ export function sessionChildrenScope(
 /** Targets whose tree another target includes run last, so their root can cover them. */
 export function sessionTreeBatchOrder<T extends Pick<SessionPayload, "id">>(
   targets: readonly T[],
-  coveredBy: ReadonlyMap<string, string>,
+  coveredBy: ReadonlyMap<string, string>
 ): T[] {
   return [
-    ...targets.filter((target) => !coveredBy.has(target.id)),
-    ...targets.filter((target) => coveredBy.has(target.id)),
+    ...targets.filter(target => !coveredBy.has(target.id)),
+    ...targets.filter(target => coveredBy.has(target.id)),
   ];
 }
 
 /** A failed read offers no children, so the verb keeps its single-session meaning. */
 export async function readSessionTrees(
   queryClient: QueryClient,
-  sessions: readonly SessionPayload[],
+  sessions: readonly SessionPayload[]
 ): Promise<SessionTrees> {
   const reads = await Promise.allSettled(
-    sessions.map((session) =>
-      queryClient.fetchQuery({ ...sessionDescendantsOptions(session), staleTime: 0 }),
-    ),
+    sessions.map(session =>
+      queryClient.fetchQuery({ ...sessionDescendantsOptions(session), staleTime: 0 })
+    )
   );
   const trees = new Map<string, readonly SessionPayload[]>();
   reads.forEach((read, index) => {
@@ -88,7 +88,7 @@ export async function readSessionTrees(
 export function sessionChildrenChoice(
   scope: SessionChildrenScope,
   included: boolean,
-  onIncludedChange: (included: boolean) => void,
+  onIncludedChange: (included: boolean) => void
 ): SessionChildrenChoice | undefined {
   if (scope.members.length === 0) return undefined;
   return {

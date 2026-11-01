@@ -51,13 +51,13 @@ export function SessionDeleteDialogSet({
   onRetry,
 }: SessionDeleteDialogSetProps) {
   const count = sessions.length;
-  const failed = results.filter((result) => result.status === "failed").length;
-  const deleted = results.filter((result) => result.status === "done").length;
+  const failed = results.filter(result => result.status === "failed").length;
+  const deleted = results.filter(result => result.status === "done").length;
   const partial = !isDeleting && failed > 0;
   const active = sessionSelectionCounts(sessions, []).stoppable;
-  const progressIndex = results.findIndex((result) => result.status === "running");
+  const progressIndex = results.findIndex(result => result.status === "running");
   const note = sessionDeleteNote(isDeleting, partial, active);
-  const resultsById = new Map(results.map((result) => [result.id, result]));
+  const resultsById = new Map(results.map(result => [result.id, result]));
   const processCount =
     sessionsRunningProcesses(sessions) + (childSessions?.includedProcessCount ?? 0);
   const processChoice =
@@ -65,7 +65,7 @@ export function SessionDeleteDialogSet({
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
+      onOpenChange={next => {
         if (!isDeleting || next) onOpenChange(next);
       }}
     >
@@ -103,7 +103,7 @@ export function SessionDeleteDialogSet({
           className="min-h-0 space-y-4 overflow-y-auto"
         >
           <ul className="overflow-hidden rounded-lg bg-sunken py-1">
-            {sessions.slice(0, 5).map((session) => (
+            {sessions.slice(0, 5).map(session => (
               <SessionDeleteResultRow
                 key={session.id}
                 session={session}
@@ -161,7 +161,7 @@ function SessionDeleteResultRow({
       data-testid={`delete-dialog-row-${session.id}`}
       className={cn(
         "grid grid-cols-[12px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 px-3 py-1.5 text-form",
-        className,
+        className
       )}
       {...props}
     >
@@ -205,7 +205,7 @@ function SessionDeleteOverflowErrors({
   sessions: readonly SessionPayload[];
   resultsById: ReadonlyMap<string, SessionBatchResult>;
 }) {
-  return sessions.map((session) => {
+  return sessions.map(session => {
     const result = resultsById.get(session.id);
     if (result?.status !== "failed") return null;
     return (

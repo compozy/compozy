@@ -14,7 +14,7 @@ import type { SessionLifecycleAction } from "./session-lifecycle-types";
 export function archiveTarget(
   session: SessionPayload,
   processes?: SessionProcessPolicy,
-  trees?: SessionTrees,
+  trees?: SessionTrees
 ) {
   return {
     ...session,
@@ -38,6 +38,6 @@ export function reportActionError(action: SessionLifecycleAction, error: unknown
 
 /** Report all successful deletes once, when the result dialog closes. */
 export function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
-  const count = results.filter((result) => result.status === "done").length;
+  const count = results.filter(result => result.status === "done").length;
   if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }

@@ -54,7 +54,7 @@ const sessionArchiveInputSchema = `{
 		},
 		"with_children":{
 			"type":"boolean",
-			"description":"Also archive child sessions, recursively. With stop, a failed stop archives nothing. Refused when the tree contains the calling session."
+			"description":"Also archive child sessions, recursively; a tree containing the caller is refused."
 		}
 	},
 	"additionalProperties":false

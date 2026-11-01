@@ -1087,9 +1087,12 @@ describe("session actions", () => {
       expect(result.current.deleteDialog.childSessions).toBeUndefined();
       act(() => result.current.deleteDialog.onConfirm());
       await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
-      expect(vi.mocked(deleteSession).mock.calls.map(call => call[1]).sort()).toEqual(
-        [child.id, createdSession.id].sort()
-      );
+      expect(
+        vi
+          .mocked(deleteSession)
+          .mock.calls.map(call => call[1])
+          .sort()
+      ).toEqual([child.id, createdSession.id].sort());
     });
 
     it("deletes a tree once when the opt-in covers a selected child", async () => {

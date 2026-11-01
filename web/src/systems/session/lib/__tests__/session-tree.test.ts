@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionPayload } from "../../types";
-import { sessionChildrenChoice, sessionChildrenScope, sessionTreeBatchOrder } from "../session-tree";
+import {
+  sessionChildrenChoice,
+  sessionChildrenScope,
+  sessionTreeBatchOrder,
+} from "../session-tree";
 
 const row = (id: string, patch: Partial<SessionPayload> = {}): SessionPayload =>
   ({ ...primarySessionFixture, id, archived_at: null, ...patch }) as SessionPayload;
