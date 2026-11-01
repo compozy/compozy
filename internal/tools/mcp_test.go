@@ -1271,10 +1271,18 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			t.Parallel()
 			descriptors := make([]MCPToolDescriptor, 114)
 			for i := range descriptors {
-				descriptors[i] = MCPToolDescriptor{RawName: fmt.Sprintf("tool%d", i), ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)}
+				descriptors[i] = MCPToolDescriptor{
+					RawName:     fmt.Sprintf("tool%d", i),
+					ReadOnly:    true,
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+				}
 			}
 			executor := newFakeMCPExecutor(descriptors)
-			provider := newTestMCPProvider(t, executor, []SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}})
+			provider := newTestMCPProvider(
+				t,
+				executor,
+				[]SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}},
+			)
 			inputs := DefaultPolicyInputs()
 			inputs.SystemPermissionMode = PermissionModeApproveAll
 			inputs.TrustedSources = []SourceGrant{{Kind: SourceMCP, Owner: "probe"}}
@@ -1305,7 +1313,10 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			afterAuthCalls := len(executor.listedSources) - calls
 			executor.mu.Unlock()
 			if afterAuthCalls > 2 {
-				t.Fatalf("upstream discovery calls after auth withdrawal = %d, want bounded batch discovery", afterAuthCalls)
+				t.Fatalf(
+					"upstream discovery calls after auth withdrawal = %d, want bounded batch discovery",
+					afterAuthCalls,
+				)
 			}
 			if operator {
 				if len(views) != 114 {
@@ -1328,5 +1339,46 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 				t.Fatal("auth withdrawal retained hosted tools")
 			}
 		})
+		t.Run(name+" and observe newly discovered tools", func(t *testing.T) {
+			t.Parallel()
+			executor := newFakeMCPExecutor(
+				[]MCPToolDescriptor{
+					{RawName: "early", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
+				},
+			)
+			provider := newTestMCPProvider(
+				t,
+				executor,
+				[]SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}},
+			)
+			inputs := DefaultPolicyInputs()
+			inputs.TrustedSources = []SourceGrant{{Kind: SourceMCP, Owner: "probe"}}
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope := Scope{Operator: operator, SessionID: "probe"}
+			first, err := registry.List(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(first) != 1 {
+				t.Fatalf("initial tools=%d, want 1", len(first))
+			}
+			executor.mu.Lock()
+			executor.tools = append(
+				executor.tools,
+				MCPToolDescriptor{RawName: "late", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
+			)
+			executor.mu.Unlock()
+			next, err := registry.List(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(next) != 2 {
+				t.Fatalf("fresh tools=%d, want 2", len(next))
+			}
+		})
+
 	}
 }

@@ -103,7 +103,13 @@ func (r *RuntimeRegistry) viewFor(
 	return r.viewForAvailability(ctx, scope, evaluator, entry, r.availabilityFor(ctx, scope, entry))
 }
 
-func (r *RuntimeRegistry) viewForAvailability(ctx context.Context, scope Scope, evaluator PolicyEvaluator, entry *registryEntry, availability Availability) (ToolView, error) {
+func (r *RuntimeRegistry) viewForAvailability(
+	ctx context.Context,
+	scope Scope,
+	evaluator PolicyEvaluator,
+	entry *registryEntry,
+	availability Availability,
+) (ToolView, error) {
 	decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
 	if err != nil {
 		return ToolView{}, err

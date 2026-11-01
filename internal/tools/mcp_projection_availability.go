@@ -30,7 +30,13 @@ func (p *MCPProvider) ProjectionAvailability(ctx context.Context, scope Scope, i
 		key := sourceKey(source)
 		availability, found := sources[key]
 		if !found {
-			handle := &mcpHandle{descriptor: descriptor, exec: p.exec, auth: p.auth, scope: scope, reliability: p.reliability}
+			handle := &mcpHandle{
+				descriptor:  descriptor,
+				exec:        p.exec,
+				auth:        p.auth,
+				scope:       scope,
+				reliability: p.reliability,
+			}
 			availability = handle.Availability(ctx, scope)
 			sources[key] = availability
 		}

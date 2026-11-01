@@ -282,167 +282,190 @@ func TestReconcileHostedTools(t *testing.T) {
 
 func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T) {
 	t.Parallel()
-	t.Run("Should notify and refresh the list after late discovery without repeating unchanged updates", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should notify and refresh the list after late discovery without repeating unchanged updates",
+		func(t *testing.T) {
+			t.Parallel()
 
-		initial := hostedToolView("compozy__hosted_echo")
-		updated := hostedToolView("compozy__hosted_other")
-		proxyClient := newHostedProxyClientStub(HostedBindResponse{
-			BindID: "bind-1",
-			Scope:  tools.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
-			Tools:  []tools.ToolView{initial},
-			Digest: "initial",
-		})
-		proxyClient.callResult = HostedCallResponse{
-			Result: tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "called"}}},
-		}
-
-		serverReader, clientWriter := io.Pipe()
-		clientReader, serverWriter := io.Pipe()
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-
-		errCh := make(chan error, 1)
-		go func() {
-			errCh <- RunHostedProxy(ctx, proxyClient, HostedProxyOptions{
-				SessionID: "sess-1",
-				Nonce:     "nonce-1",
-				Stdin:     serverReader,
-				Stdout:    serverWriter,
-				Stderr:    io.Discard,
-				Version:   "test",
+			initial := hostedToolView("compozy__hosted_echo")
+			updated := hostedToolView("compozy__hosted_other")
+			proxyClient := newHostedProxyClientStub(HostedBindResponse{
+				BindID: "bind-1",
+				Scope:  tools.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
+				Tools:  []tools.ToolView{initial},
+				Digest: "initial",
 			})
-		}()
-
-		changed := make(chan struct{}, 16)
-		mcpClient := sdkmcp.NewClient(
-			&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"},
-			&sdkmcp.ClientOptions{
-				Capabilities:           &sdkmcp.ClientCapabilities{},
-				ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) { changed <- struct{}{} },
-			},
-		)
-		session, err := mcpClient.Connect(
-			ctx,
-			&sdkmcp.IOTransport{
-				Reader: io.NopCloser(clientReader),
-				Writer: nopWriteCloser{Writer: clientWriter},
-			},
-			nil,
-		)
-		if err != nil {
-			t.Fatalf("Connect() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := session.Close(); closeErr != nil {
-				t.Errorf("session.Close() error = %v", closeErr)
+			proxyClient.callResult = HostedCallResponse{
+				Result: tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "called"}}},
 			}
-		})
 
-		if caps := session.InitializeResult().Capabilities.Tools; caps == nil || !caps.ListChanged {
-			t.Fatal("want listChanged advertised")
-		}
-		list, err := session.ListTools(ctx, nil)
-		if err != nil {
-			t.Fatalf("ListTools(initial) error = %v", err)
-		}
-		if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
-			t.Fatalf("initial tools = %#v, want %#v", got, want)
-		}
+			serverReader, clientWriter := io.Pipe()
+			clientReader, serverWriter := io.Pipe()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 
-		result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
-			Name:      "compozy__hosted_echo",
-			Arguments: map[string]any{"message": "hello"},
-			Meta: sdkmcp.Meta{
-				"toolCallId":    "call-1",
-				"approvalToken": "ignored",
-			},
-		})
-		if err != nil {
-			t.Fatalf("CallTool() error = %v", err)
-		}
-		if result == nil || result.IsError {
-			t.Fatalf("CallTool() result = %#v, want non-error result", result)
-		}
-		observedCall := proxyClient.lastCall(t)
-		if observedCall.BindID != "bind-1" || observedCall.ToolName != "compozy__hosted_echo" ||
-			observedCall.ToolCallID != "call-1" {
-			t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
-		}
+			errCh := make(chan error, 1)
+			go func() {
+				errCh <- RunHostedProxy(ctx, proxyClient, HostedProxyOptions{
+					SessionID: "sess-1",
+					Nonce:     "nonce-1",
+					Stdin:     serverReader,
+					Stdout:    serverWriter,
+					Stderr:    io.Discard,
+					Version:   "test",
+				})
+			}()
 
-		proxyClient.emitProjection(t, HostedProjectionResponse{
-			Tools:  []tools.ToolView{updated},
-			Digest: "updated",
-		})
+			changed := make(chan struct{}, 16)
+			mcpClient := sdkmcp.NewClient(
+				&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"},
+				&sdkmcp.ClientOptions{
+					Capabilities:           &sdkmcp.ClientCapabilities{},
+					ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) { changed <- struct{}{} },
+				},
+			)
+			session, err := mcpClient.Connect(
+				ctx,
+				&sdkmcp.IOTransport{
+					Reader: io.NopCloser(clientReader),
+					Writer: nopWriteCloser{Writer: clientWriter},
+				},
+				nil,
+			)
+			if err != nil {
+				t.Fatalf("Connect() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := session.Close(); closeErr != nil {
+					t.Errorf("session.Close() error = %v", closeErr)
+				}
+			})
 
-		select {
-		case <-changed:
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for tools/list_changed")
-		}
-		list, err = session.ListTools(ctx, nil)
-		if err != nil {
-			t.Fatalf("ListTools(updated) error = %v", err)
-		}
-		if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_other"}; !slices.Equal(got, want) {
-			t.Fatalf("updated tools = %#v, want %#v", got, want)
-		}
+			if caps := session.InitializeResult().Capabilities.Tools; caps == nil || !caps.ListChanged {
+				t.Fatal("want listChanged advertised")
+			}
+			list, err := session.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatalf("ListTools(initial) error = %v", err)
+			}
+			if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
+				t.Fatalf("initial tools = %#v, want %#v", got, want)
+			}
 
-		result, err = session.CallTool(ctx, &sdkmcp.CallToolParams{Name: "compozy__hosted_other", Arguments: map[string]any{"message": "late"}})
-		if err != nil || result == nil || result.IsError {
-			t.Fatalf("CallTool(late) result = %#v, error = %v", result, err)
-		}
-		lateCall := proxyClient.lastCall(t)
-		if lateCall.BindID != "bind-1" || lateCall.ToolName != "compozy__hosted_other" {
-			t.Fatalf("late call = %#v", lateCall)
-		}
-		if got, want := list.CacheScope, "private"; got != want {
-			t.Fatalf("tools/list cache scope = %q, want %q", got, want)
-		}
-		if list.TTLMs <= 0 {
-			t.Fatalf("tools/list TTL = %d, want positive", list.TTLMs)
-		}
+			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
+				Name:      "compozy__hosted_echo",
+				Arguments: map[string]any{"message": "hello"},
+				Meta: sdkmcp.Meta{
+					"toolCallId":    "call-1",
+					"approvalToken": "ignored",
+				},
+			})
+			if err != nil {
+				t.Fatalf("CallTool() error = %v", err)
+			}
+			if result == nil || result.IsError {
+				t.Fatalf("CallTool() result = %#v, want non-error result", result)
+			}
+			observedCall := proxyClient.lastCall(t)
+			if observedCall.BindID != "bind-1" || observedCall.ToolName != "compozy__hosted_echo" ||
+				observedCall.ToolCallID != "call-1" {
+				t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
+			}
 
-		// Drain any coalesced addition/removal notifications before replaying a fallback refresh.
-		select {
-		case <-changed:
-		case <-time.After(100 * time.Millisecond):
-		}
-		for range 3 {
-			proxyClient.emitProjection(t, HostedProjectionResponse{Tools: []tools.ToolView{updated}, Digest: "updated"})
-		}
-		proxyClient.emitProjection(t, HostedProjectionResponse{Tools: []tools.ToolView{updated}, Digest: "same-tools-new-digest"})
-		select {
-		case <-changed:
-			t.Fatal("unchanged tools emitted tools/list_changed")
-		case <-time.After(100 * time.Millisecond):
-		}
-		proxyClient.emitProjection(t, HostedProjectionResponse{Digest: "removed"})
-		select {
-		case <-changed:
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for tool removal notification")
-		}
-		list, err = session.ListTools(ctx, nil)
-		if err != nil {
-			t.Fatalf("ListTools(removed): %v", err)
-		}
-		if len(list.Tools) != 0 {
-			t.Fatalf("removed tools = %#v, want none", sdkToolNames(list.Tools))
-		}
-		cancel()
-		if err := session.Close(); err != nil {
-			t.Fatalf("session.Close() error = %v", err)
-		}
-		select {
-		case <-errCh:
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for hosted proxy shutdown")
-		}
-		if got := proxyClient.releaseCount(); got != 1 {
-			t.Fatalf("ReleaseHostedMCP calls = %d, want 1", got)
-		}
-	})
+			proxyClient.emitProjection(t, HostedProjectionResponse{
+				Tools:  []tools.ToolView{updated},
+				Digest: "updated",
+			})
+
+			select {
+			case <-changed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for tools/list_changed")
+			}
+			list, err = session.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatalf("ListTools(updated) error = %v", err)
+			}
+			if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_other"}; !slices.Equal(got, want) {
+				t.Fatalf("updated tools = %#v, want %#v", got, want)
+			}
+
+			result, err = session.CallTool(
+				ctx,
+				&sdkmcp.CallToolParams{Name: "compozy__hosted_other", Arguments: map[string]any{"message": "late"}},
+			)
+			if err != nil || result == nil || result.IsError {
+				t.Fatalf("CallTool(late) result = %#v, error = %v", result, err)
+			}
+
+			if len(result.Content) != 1 {
+				t.Fatalf("late content = %#v, want one text block", result.Content)
+			}
+			lateText, isText := result.Content[0].(*sdkmcp.TextContent)
+			if !isText || lateText.Text != "called" {
+				t.Fatalf("late content = %#v, want called", result.Content)
+			}
+			if !equalJSON(t, proxyClient.lastCall(t).Input, json.RawMessage(`{"message":"late"}`)) {
+				t.Fatalf("late forwarded input = %s", proxyClient.lastCall(t).Input)
+			}
+			lateCall := proxyClient.lastCall(t)
+			if lateCall.BindID != "bind-1" || lateCall.ToolName != "compozy__hosted_other" {
+				t.Fatalf("late call = %#v", lateCall)
+			}
+			if got, want := list.CacheScope, "private"; got != want {
+				t.Fatalf("tools/list cache scope = %q, want %q", got, want)
+			}
+			if list.TTLMs <= 0 {
+				t.Fatalf("tools/list TTL = %d, want positive", list.TTLMs)
+			}
+
+			// Drain any coalesced addition/removal notifications before replaying a fallback refresh.
+			select {
+			case <-changed:
+			case <-time.After(100 * time.Millisecond):
+			}
+			for range 3 {
+				proxyClient.emitProjection(
+					t,
+					HostedProjectionResponse{Tools: []tools.ToolView{updated}, Digest: "updated"},
+				)
+			}
+			proxyClient.emitProjection(
+				t,
+				HostedProjectionResponse{Tools: []tools.ToolView{updated}, Digest: "same-tools-new-digest"},
+			)
+			select {
+			case <-changed:
+				t.Fatal("unchanged tools emitted tools/list_changed")
+			case <-time.After(100 * time.Millisecond):
+			}
+			proxyClient.emitProjection(t, HostedProjectionResponse{Digest: "removed"})
+			select {
+			case <-changed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for tool removal notification")
+			}
+			list, err = session.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatalf("ListTools(removed): %v", err)
+			}
+			if len(list.Tools) != 0 {
+				t.Fatalf("removed tools = %#v, want none", sdkToolNames(list.Tools))
+			}
+			cancel()
+			if err := session.Close(); err != nil {
+				t.Fatalf("session.Close() error = %v", err)
+			}
+			select {
+			case <-errCh:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for hosted proxy shutdown")
+			}
+			if got := proxyClient.releaseCount(); got != 1 {
+				t.Fatalf("ReleaseHostedMCP calls = %d, want 1", got)
+			}
+		},
+	)
 }
 
 func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
@@ -570,7 +593,10 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 			t.Fatalf("tools/list tools = %#v, want %#v", got, want)
 		}
 
-		proxyClient.emitProjection(t, HostedProjectionResponse{Tools: []tools.ToolView{hostedToolView("mcp__late__echo")}, Digest: "late"})
+		proxyClient.emitProjection(
+			t,
+			HostedProjectionResponse{Tools: []tools.ToolView{hostedToolView("mcp__late__echo")}, Digest: "late"},
+		)
 		var notification struct {
 			Method string `json:"method"`
 		}
@@ -580,7 +606,9 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		if notification.Method != "notifications/tools/list_changed" {
 			t.Fatalf("notification = %q", notification.Method)
 		}
-		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": 3, "method": mcpToolsListMethod, "params": map[string]any{}}); err != nil {
+		if err := encoder.Encode(
+			map[string]any{"jsonrpc": "2.0", "id": 3, "method": mcpToolsListMethod, "params": map[string]any{}},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := decode(&listed); err != nil {
@@ -589,20 +617,34 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		if len(listed.Result.Tools) != 1 || listed.Result.Tools[0].Name != "mcp__late__echo" {
 			t.Fatalf("late tools = %#v", listed.Result.Tools)
 		}
-		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": map[string]any{"name": "mcp__late__echo", "arguments": map[string]any{}}}); err != nil {
+		if err := encoder.Encode(
+			map[string]any{
+				"jsonrpc": "2.0",
+				"id":      4,
+				"method":  "tools/call",
+				"params":  map[string]any{"name": "mcp__late__echo", "arguments": map[string]any{"message": "late"}},
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		var called struct {
+			ID     json.Number            `json:"id"`
 			Result *sdkmcp.CallToolResult `json:"result"`
 			Error  json.RawMessage        `json:"error"`
 		}
 		if err := decode(&called); err != nil {
 			t.Fatalf("decode late call: %v", err)
 		}
+		if string(called.ID) != "4" {
+			t.Fatalf("late response id = %q, want 4", called.ID)
+		}
 		if called.Result == nil || called.Result.IsError || (len(called.Error) > 0 && string(called.Error) != "null") {
 			t.Fatalf("late call response = %#v", called)
 		}
 		lateCall := proxyClient.lastCall(t)
+		if !equalJSON(t, lateCall.Input, json.RawMessage(`{"message":"late"}`)) {
+			t.Fatalf("late provider forwarded input = %s", lateCall.Input)
+		}
 		if lateCall.BindID != "bind-provider" || lateCall.ToolName != "mcp__late__echo" {
 			t.Fatalf("late provider call = %#v", lateCall)
 		}
