@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -127,14 +128,17 @@ func TestNPXStartupDiagnostic(t *testing.T) {
 			err := npxDiagnostic(stage, context.DeadlineExceeded)
 			classification := ClassifyProbeError("custom", err)
 			if classification.Code != diagcontract.CodeProviderTransientFailure ||
-				classification.State != authproviders.ProviderAuthStateTransient {
+				classification.State != authproviders.ProviderAuthStateTransient ||
+				classification.Action != authproviders.ProviderFailureActionRetry {
 				t.Fatalf("classification = %#v", classification)
 			}
-			failure, ok := FailureFromError(err, store.FailureHandshake)
+			wrapped := WrapFailure(store.FailureHandshake, "launch failed", fmt.Errorf("%s: %w",
+				strings.Repeat("x", maxFailureSummaryBytes*2), err))
+			failure, ok := FailureFromError(wrapped, store.FailureHandshake)
 			if !ok {
 				t.Fatal("missing failure")
 			}
-			item, ok := NPXStartupDiagnostic(failure.Summary)
+			item, ok := NPXStartupDiagnostic(failure)
 			if !ok || !strings.Contains(item.Message, "retry") {
 				t.Fatalf("diagnostic = %#v, %t from %q", item, ok, failure.Summary)
 			}
@@ -143,4 +147,28 @@ func TestNPXStartupDiagnostic(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNPXStartupDiagnosticOrigin(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject quoted startup text from unrelated failures", func(t *testing.T) {
+		t.Parallel()
+		for _, failure := range []*store.SessionFailure{
+			{Kind: store.FailurePrompt, ReasonCode: store.FailureReasonNPXInitialize,
+				Summary: "ACP adapter initialize failed: npx "},
+			{Kind: store.FailureHandshake, Summary: "ACP adapter initialize failed: npx "},
+		} {
+			if item, ok := NPXStartupDiagnostic(failure); ok {
+				t.Fatalf("unexpected diagnostic: %#v", item)
+			}
+		}
+	})
+	t.Run("Should preserve login guidance ahead of a timeout diagnostic", func(t *testing.T) {
+		t.Parallel()
+		err := npxDiagnostic("initialize", &acpsdk.RequestError{Code: -32000, Message: "authentication required"})
+		got := ClassifyProbeError("custom", err)
+		if got.State != authproviders.ProviderAuthStateNeedsLogin || got.Action != authproviders.ProviderFailureActionLogin {
+			t.Fatalf("auth classification = %#v", got)
+		}
+	})
 }

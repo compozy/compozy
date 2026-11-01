@@ -4,7 +4,7 @@ package acp
 
 import (
 	"context"
-	shellquote "github.com/kballard/go-shellquote"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	terminaljournal "github.com/compozy/compozy/internal/terminal/journal"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 func TestACPIntegrationReadTextFileRequest(t *testing.T) {
@@ -292,12 +292,40 @@ func TestACPIntegrationNPXColdCache(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-		err = launcher.prepareNPX(ctx, spec)
-		cancel()
-		if err == nil {
-			t.Fatal("cold install unexpectedly completed before interruption")
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		finished := make(chan error, 1)
+		go func() { finished <- launcher.prepareNPX(ctx, spec) }()
+		deadline := time.NewTimer(time.Minute)
+		defer deadline.Stop()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+	waitForLock:
+		for {
+			select {
+			case err := <-finished:
+				t.Fatalf("installer exited before its lock could be interrupted: %v", err)
+			case <-deadline.C:
+				cancel()
+				err := <-finished
+				t.Fatalf("npm install lock was not observed: %v", err)
+			case <-ticker.C:
+				locks, err := filepath.Glob(filepath.Join(root, "npm-cache", "_npx", "*", "concurrency.lock"))
+				if err != nil {
+					cancel()
+					cleanupErr := <-finished
+					t.Fatalf("lock lookup = %v; cleanup = %v", err, cleanupErr)
+				}
+				if len(locks) > 0 {
+					break waitForLock
+				}
+			}
 		}
+		cancel()
+		if err := <-finished; !errors.Is(err, context.Canceled) {
+			t.Fatalf("interrupted install = %v, want caller cancellation", err)
+		}
+		t.Log("interrupted a real npm installation while its concurrency lock existed")
 		driver := New(WithStopTimeout(time.Second))
 		started := time.Now()
 		proc, err := driver.launchAgentProcess(t.Context(), StartOpts{

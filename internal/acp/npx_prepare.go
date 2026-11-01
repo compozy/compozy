@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	contract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
@@ -19,6 +21,7 @@ const defaultNPXPrepareTimeout = 5 * time.Minute
 // npm owns cache repair; serialize preparation so session starts do not race installs.
 var npxPrepareSlot = make(chan struct{}, 1)
 
+// Recognize resolved runner paths on Unix and Windows.
 func isNPX(command string) bool {
 	base := strings.ToLower(filepath.Base(command))
 	return base == "npx" || base == "npx.cmd" || base == "npx.exe"
@@ -31,7 +34,7 @@ func npxPrepareArgs(args []string) ([]string, string) {
 	hasPackage := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		if arg == "--no-install" || arg == "--no" || arg == "--yes=false" {
+		if slices.Contains([]string{"--no-install", "--no", "--yes=false"}, arg) {
 			return nil, ""
 		}
 		if arg == "--" {
@@ -96,6 +99,7 @@ func npxPrepareArgs(args []string) ([]string, string) {
 	return append(flags, "--call", "exit 0"), positional
 }
 
+// A binary name can be supplied by a differently named local package.
 func npxLocalBinary(name string, spec LaunchSpec) bool {
 	if name == "" || strings.ContainsAny(name, "@/\\") {
 		return false
@@ -114,17 +118,47 @@ func npxLocalBinary(name string, spec LaunchSpec) bool {
 }
 
 // NPXStartupDiagnostic recovers preparation guidance from the persisted failure boundary.
-func NPXStartupDiagnostic(summary string) (contract.DiagnosticItem, bool) {
-	for _, stage := range []string{"prepare", "initialize"} {
-		if strings.Contains(summary, "ACP adapter "+stage+" failed: npx ") {
-			item, ok := diagnostics.ItemFromError(npxDiagnostic(stage, nil))
-			item.DataFreshness = contract.FreshnessStale
-			return item, ok
-		}
+func NPXStartupDiagnostic(failure *store.SessionFailure) (contract.DiagnosticItem, bool) {
+	var empty contract.DiagnosticItem
+	if failure == nil || (failure.Kind != store.FailureStartup && failure.Kind != store.FailureHandshake &&
+		failure.Kind != store.FailureTimeout) {
+		return empty, false
 	}
-	return contract.DiagnosticItem{}, false
+	var stage string
+	switch failure.ReasonCode {
+	case store.FailureReasonNPXPrepare:
+		stage = "prepare"
+	case store.FailureReasonNPXInitialize:
+		stage = "initialize"
+	case store.FailureReasonNPXResolve:
+		stage = "resolve"
+	default:
+		return empty, false
+	}
+	item, ok := diagnostics.ItemFromError(npxDiagnostic(stage, nil))
+	item.DataFreshness = contract.FreshnessStale
+	return item, ok
 }
 
+// Persist origin independently of redacted, truncated failure text.
+func npxFailureReason(err error) store.FailureReasonCode {
+	item, ok := diagnostics.ItemFromError(err)
+	if !ok {
+		return ""
+	}
+	switch item.ID {
+	case "provider.adapter.prepare":
+		return store.FailureReasonNPXPrepare
+	case "provider.adapter.initialize":
+		return store.FailureReasonNPXInitialize
+	case "provider.adapter.resolve":
+		return store.FailureReasonNPXResolve
+	default:
+		return ""
+	}
+}
+
+// Package installation must finish before the ACP handshake budget starts.
 func (l *localLauncher) prepareNPX(ctx context.Context, spec LaunchSpec) error {
 	if !isNPX(spec.ResolvedExecutable) {
 		return nil
@@ -139,6 +173,9 @@ func (l *localLauncher) prepareNPX(ctx context.Context, spec LaunchSpec) error {
 	case npxPrepareSlot <- struct{}{}:
 		defer func() { <-npxPrepareSlot }()
 	case <-prepareCtx.Done():
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return npxDiagnostic("prepare", prepareCtx.Err())
 	}
 	started := time.Now()
@@ -146,11 +183,15 @@ func (l *localLauncher) prepareNPX(ctx context.Context, spec LaunchSpec) error {
 	l.logger.Info("acp.start.stage", "stage", "adapter_prepare", "outcome", stageOutcome(err, false),
 		"duration_ms", time.Since(started).Milliseconds())
 	if err != nil {
+		if ctx.Err() != nil {
+			return errors.Join(ctx.Err(), err)
+		}
 		return npxDiagnostic("prepare", err)
 	}
 	return nil
 }
 
+// Managed shutdown owns the installer tree and joins its output drain.
 func (l *localLauncher) runNPXPreparation(ctx context.Context, spec LaunchSpec, args []string) error {
 	process, err := subprocess.Launch(ctx, subprocess.LaunchConfig{
 		Command: spec.ResolvedExecutable, Executable: spec.ResolvedExecutable,
@@ -178,7 +219,17 @@ func (l *localLauncher) runNPXPreparation(ctx context.Context, spec LaunchSpec, 
 	}
 }
 
+// Keep permanent package errors distinct from network and deadline failures.
 func npxDiagnostic(stage string, cause error) error {
+	if stage == "prepare" && cause != nil {
+		for _, code := range []string{"E404", "ETARGET", "EINVALIDTAGNAME", "EINVALIDPACKAGENAME"} {
+			if strings.Contains(cause.Error(), "code "+code) {
+				stage = "resolve"
+				break
+			}
+		}
+	}
+	code := contract.CodeProviderTransientFailure
 	message := "npx adapter package preparation failed. Check npm registry connectivity and permissions, " +
 		"then retry the session; npm repairs abandoned install locks automatically. Do not clear the npm cache."
 	if stage == "initialize" {
@@ -186,8 +237,13 @@ func npxDiagnostic(stage string, cause error) error {
 			"run the configured adapter command locally to finish or diagnose npm installation, " +
 			"then retry without restarting the daemon."
 	}
+	if stage == "resolve" {
+		code = contract.CodeProviderClassificationUnknown
+		message = "npx could not resolve the configured package or version. Correct the provider command, " +
+			"package name, version, or registry configuration before starting the session again."
+	}
 	item := diagnostics.NewItem(diagnostics.ItemSpec{
-		ID: "provider.adapter." + stage, Code: contract.CodeProviderTransientFailure,
+		ID: "provider.adapter." + stage, Code: code,
 		Category: contract.CategoryProvider, Severity: contract.SeverityWarn,
 		Title: "ACP adapter " + stage + " failed", Message: message,
 		DataFreshness: contract.FreshnessLive,

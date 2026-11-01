@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -16,6 +15,8 @@ import (
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gin-gonic/gin"
 )
@@ -78,12 +79,17 @@ func TestDoctorNPXStartupFailure(t *testing.T) {
 	t.Parallel()
 	t.Run("Should show cached adapter recovery guidance", func(t *testing.T) {
 		t.Parallel()
+		var scans atomic.Int64
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}), Observer: apitestutil.StubObserver{},
 			Sessions: apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{{ID: "failed-start", Failure: &store.SessionFailure{
-					Kind:    store.FailureHandshake,
-					Summary: "ACP adapter initialize failed: npx launched but ACP initialize timed out.",
+				scans.Add(1)
+				return []*session.Info{{ID: "failed-start", State: session.StateStopped, Failure: &store.SessionFailure{
+					Kind:       store.FailureHandshake,
+					ReasonCode: store.FailureReasonNPXInitialize,
+					Summary:    "ACP adapter initialize failed: npx launched but ACP initialize timed out.",
+				}}, {ID: "recovered", State: session.StateActive, Failure: &store.SessionFailure{
+					Kind: store.FailureHandshake, ReasonCode: store.FailureReasonNPXInitialize,
 				}}}, nil
 			}},
 		})
@@ -91,13 +97,21 @@ func TestDoctorNPXStartupFailure(t *testing.T) {
 		router.GET("/doctor", handlers.GetDoctor)
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-			"/doctor?only=provider", http.NoBody))
+			"/doctor", http.NoBody))
 		if response.Code != http.StatusOK {
 			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+		}
+		if scans.Load() != 1 {
+			t.Fatalf("session inventory scanned %d times", scans.Load())
 		}
 		var payload contract.DoctorPayload
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatal(err)
+		}
+		for _, item := range payload.Items {
+			if item.ID == "doctor.session.recovered.adapter" {
+				t.Fatalf("recovered session reported: %#v", item)
+			}
 		}
 		for _, item := range payload.Items {
 			if item.ID == "doctor.session.failed-start.adapter" {
@@ -146,6 +160,7 @@ func TestDoctorProviderSurvivesSessionInventoryFailure(t *testing.T) {
 			providerReady = providerReady || item.ID == "doctor.provider.public" &&
 				item.Code == contract.CodeProviderAuthenticated
 			inventoryFailed = inventoryFailed || item.Code == contract.CodeProbeFailed &&
+				item.Severity == contract.SeverityError &&
 				strings.Contains(item.Message, "session inventory unavailable")
 		}
 		if !providerReady || !inventoryFailed {

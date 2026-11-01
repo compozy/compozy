@@ -29,6 +29,9 @@ const (
 
 const (
 	FailureReasonPromptStreamIncomplete FailureReasonCode = "prompt_stream_incomplete"
+	FailureReasonNPXPrepare             FailureReasonCode = "npx_prepare_failed"
+	FailureReasonNPXInitialize          FailureReasonCode = "npx_initialize_timeout"
+	FailureReasonNPXResolve             FailureReasonCode = "npx_resolution_failed"
 )
 
 // ValidFailureKind reports whether kind is a supported failure enum member.
@@ -54,7 +57,12 @@ func ValidFailureKind(kind FailureKind) bool {
 
 // ValidFailureReasonCode reports whether code is a supported failure reason.
 func ValidFailureReasonCode(code FailureReasonCode) bool {
-	return code == FailureReasonPromptStreamIncomplete
+	switch code {
+	case FailureReasonPromptStreamIncomplete, FailureReasonNPXPrepare, FailureReasonNPXInitialize, FailureReasonNPXResolve:
+		return true
+	default:
+		return false
+	}
 }
 
 // SessionFailure is the durable, redacted diagnostic summary attached to a

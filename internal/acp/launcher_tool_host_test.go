@@ -23,6 +23,7 @@ import (
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -1372,16 +1373,12 @@ func TestLocalLauncherNPXPreparation(t *testing.T) {
 		spec := LaunchSpec{ResolvedExecutable: runner, Args: []string{"-y", "custom"}, Cwd: root, Env: os.Environ()}
 		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 		defer cancel()
-		args, _ := npxPrepareArgs(spec.Args)
-		if err := launcher.runNPXPreparation(
-			ctx,
-			spec,
-			args,
-		); !errors.Is(
-			err,
-			context.DeadlineExceeded,
-		) {
-			t.Fatalf("runNPXPreparation() = %v, want deadline", err)
+		err := launcher.prepareNPX(ctx, spec)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("prepareNPX() = %v, want deadline", err)
+		}
+		if item, ok := diagnosticspkg.ItemFromError(err); ok {
+			t.Fatalf("caller cancellation was reclassified: %#v", item)
 		}
 		if err := os.WriteFile(runner, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
 			t.Fatal(err)
@@ -1390,4 +1387,33 @@ func TestLocalLauncherNPXPreparation(t *testing.T) {
 			t.Fatalf("retry = %v", err)
 		}
 	})
+}
+
+func TestLocalLauncherNPXResolution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should diagnose an unresolvable npm package as a configuration error", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix executable fixture")
+		}
+		root := t.TempDir()
+		runner := filepath.Join(root, "npx")
+		if err := os.WriteFile(runner, []byte("#!/bin/sh\necho 'npm error code ETARGET' >&2\nexit 1\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+		err := launcher.prepareNPX(t.Context(), LaunchSpec{ResolvedExecutable: runner,
+			Args: []string{"-y", "missing@invalid"}, Cwd: root, Env: os.Environ()})
+		got := ClassifyProbeError("custom", err)
+		if got.State != providers.ProviderAuthStateUnknown || got.Action != providers.ProviderFailureActionInspect ||
+			!strings.Contains(got.Message, "Correct the provider command") {
+			t.Fatalf("resolution classification = %#v, error %v", got, err)
+		}
+		failure, ok := FailureFromError(err, store.FailureStartup)
+		if !ok || failure.ReasonCode != store.FailureReasonNPXResolve {
+			t.Fatalf("failure = %#v", failure)
+		}
+	})
+
 }

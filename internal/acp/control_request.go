@@ -18,7 +18,7 @@ func (process *AgentProcess) sendControlRequest[T any](ctx context.Context, meth
 	if err != nil {
 		cause := errors.Join(requestCtx.Err(), err)
 		if method == acpsdk.AgentMethodInitialize && isNPX(process.Command) &&
-			errors.Is(requestCtx.Err(), context.DeadlineExceeded) {
+			errors.Is(requestCtx.Err(), context.DeadlineExceeded) && !IsAuthRequiredError(cause) {
 			cause = npxDiagnostic("initialize", cause)
 		}
 		if method == acpsdk.AgentMethodSessionNew && errors.Is(requestCtx.Err(), context.DeadlineExceeded) &&

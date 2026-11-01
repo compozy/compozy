@@ -39,3 +39,10 @@ Codex ACP initialize in 10.0 seconds. Three concurrent custom-command starts and
 cancellation/retry passed under race detection. Doctor HTTP response included the
 cached unresolved initialize failure. Windows cross-build passed; native Windows
 execution and the Loop public-surface journey remain CI validation scope.
+
+Review remediation evidence: the cold-cache test now waits until npm's
+`concurrency.lock` exists before canceling, asserts `context.Canceled`, and then
+verifies recovery plus a real ACP initialize. The observed-lock re-walk passed
+with 4.5 seconds for retry preparation and 6.1 seconds for initialize. Doctor
+checks additionally cover structured failure reasons surviving truncated summaries,
+excluding recovered sessions, and one inventory read per doctor invocation.

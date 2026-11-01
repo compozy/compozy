@@ -24,12 +24,6 @@ func ClassifyProbeError(providerName string, err error) authproviders.Classifica
 	if errors.Is(err, exec.ErrNotFound) {
 		return authproviders.ClassifyError(err)
 	}
-	if item, ok := diagnostics.ItemFromError(err); ok && strings.HasPrefix(item.ID, "provider.adapter.") {
-		return authproviders.Classification{
-			State: authproviders.ProviderAuthStateTransient, Code: item.Code, Message: item.Message,
-			Kind: authproviders.ProviderFailureUnknown, Action: authproviders.ProviderFailureActionRetry,
-		}
-	}
 	if IsAuthRequiredError(err) {
 		return authproviders.Classification{
 			State: authproviders.ProviderAuthStateNeedsLogin,
@@ -41,6 +35,17 @@ func ClassifyProbeError(providerName string, err error) authproviders.Classifica
 			Kind:   authproviders.ProviderFailureNotAuthenticated,
 			Action: authproviders.ProviderFailureActionLogin,
 		}
+	}
+	if item, ok := diagnostics.ItemFromError(err); ok && strings.HasPrefix(item.ID, "provider.adapter.") {
+		classification := authproviders.Classification{
+			State: authproviders.ProviderAuthStateTransient, Code: item.Code, Message: item.Message,
+			Kind: authproviders.ProviderFailureUnknown, Action: authproviders.ProviderFailureActionRetry,
+		}
+		if item.Code == diagcontract.CodeProviderClassificationUnknown {
+			classification.State = authproviders.ProviderAuthStateUnknown
+			classification.Action = authproviders.ProviderFailureActionInspect
+		}
+		return classification
 	}
 	if unavailable, ok := errors.AsType[*AuthMethodUnavailableError](err); ok && unavailable != nil {
 		return authproviders.Classification{
