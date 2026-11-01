@@ -21,7 +21,7 @@ type ThreadViewportProps = ComponentPropsWithoutRef<"div">;
  * The transcript scroller: renders the thread rows inside the shared content
  * rail, keeps the reader anchored while older history loads above, floats the
  * scroll-to-bottom pill over its own edge, and hosts navigation (S8/S9): the
- * find bar docked above the scroller, the message trail on its left edge, and
+ * find bar docked above the scroller, the message trail on its right edge, and
  * both jumps landing through the one scroll owner.
  */
 export function ThreadViewport({
@@ -84,7 +84,7 @@ export function ThreadViewport({
           <ThreadContentRail
             ref={contentRef}
             inset={contentInset}
-            className={cn("min-h-full", trailVisible && "pl-9")}
+            className={cn("min-h-full", trailVisible && "pr-12")}
           >
             <SessionNavigationTargetContext.Provider value={navigation.target}>
               <ThreadMessages
@@ -113,9 +113,10 @@ export function ThreadViewport({
             </SessionNavigationTargetContext.Provider>
           </ThreadContentRail>
         </div>
+        {/* right-4 clears a classic 15px scrollbar; pr-12 keeps text off the 28px rail beside it. */}
         {workspaceId && navigation.trail.enabled ? (
           <SessionMessageTrail
-            className="absolute top-1/2 left-1 z-10 -translate-y-1/2"
+            className="absolute top-1/2 right-4 z-10 -translate-y-1/2"
             onJumpToSequence={navigation.trail.onJumpToSequence}
             paneHeightPx={navigation.trail.paneHeightPx}
             refreshKey={navigation.refreshKey}

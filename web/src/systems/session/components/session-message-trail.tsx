@@ -45,7 +45,7 @@ const TICK_OPACITY: Record<"anchor" | "in-view" | "rest", string> = {
 };
 
 /**
- * The message trail (S9): a 28px rail on the scroller's left edge with one
+ * The message trail (S9): a 28px rail on the scroller's right edge with one
  * 2px tick per operator message from the outline (full history). Ticks rest
  * faint, read stronger for messages in view, the reading anchor is wider and
  * `aria-current`, and width breathes toward the pointer like a dock — colour
@@ -177,7 +177,7 @@ function SessionTrailTick({
             onFocus={onFocus}
             onKeyDown={onKeyDown}
             onMouseEnter={onHover}
-            className="absolute left-0 flex items-center focus-visible:outline-none"
+            className="absolute right-0 flex items-center justify-end focus-visible:outline-none"
             style={{ height: TRAIL_HIT_HEIGHT_PX, top: offset }}
           >
             <span
@@ -192,7 +192,7 @@ function SessionTrailTick({
           </button>
         }
       />
-      <TooltipContent side="right" className="w-64 max-w-64 whitespace-normal">
+      <TooltipContent side="left" className="w-64 max-w-64 whitespace-normal">
         {/* The popup lays its children out in a row; the card is one column: ask, reply, time · n of N. */}
         <div className="flex min-w-0 flex-col gap-1" data-testid="session-trail-card">
           <div className="line-clamp-2 text-transcript-body font-medium text-fg">
