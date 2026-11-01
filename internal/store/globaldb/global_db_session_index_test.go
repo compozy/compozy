@@ -2497,13 +2497,13 @@ func TestGlobalDBSessionTree(t *testing.T) {
 		registerSubagentSession(t, db, workspace, "forked", parent, "", now)
 		registerSubagentSession(t, db, workspace, "title", parent, "auto-title", now)
 		registerSubagentSession(t, db, other, "foreign", parent, "worker", now)
-		// A corrupt cycle ends the walk instead of looping.
 		registerSubagentSession(t, db, workspace, "loop", "grandchild", "worker", now)
 		for _, statement := range []string{
 			`UPDATE sessions SET lineage_kind='continue' WHERE id='continued'`,
 			`UPDATE sessions SET lineage_kind='fork' WHERE id='forked'`,
-			`UPDATE sessions SET parent_session_id='loop' WHERE id='child'`,
-			`UPDATE sessions SET parent_session_id='parent', spawn_depth=1 WHERE id='child'`,
+			// A corrupt cycle through the root ends the walk instead of looping.
+			`UPDATE sessions SET parent_session_id='loop' WHERE id='parent'`,
+			`UPDATE sessions SET spawn_depth=1 WHERE id='child'`,
 			`UPDATE sessions SET spawn_depth=2 WHERE id='grandchild'`,
 			`UPDATE sessions SET spawn_depth=3 WHERE id='loop'`,
 		} {

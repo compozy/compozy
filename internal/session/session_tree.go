@@ -67,21 +67,26 @@ func (m *Manager) ArchiveWithChildren(
 		Root:        sessionInfoFromCatalog(&archived.Root),
 		Descendants: sessionInfosFromCatalog(archived.Descendants),
 	}
+	// The archive is committed: every member publishes, and a failed release
+	// returns with the tree so callers still finish the members' cleanup.
+	var releaseErr error
 	for _, member := range slices.Concat([]*Info{tree.Root}, tree.Descendants) {
-		if err := m.releaseArchivedSessionWatches(ctx, member.ID); err != nil {
-			return nil, err
-		}
+		releaseErr = errors.Join(releaseErr, m.releaseArchivedSessionWatches(ctx, member.ID))
 		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, member))
 	}
-	return tree, nil
+	return tree, releaseErr
 }
 
+// archiveTreeWithResumeGuard holds lifecycleMu, which adoption also holds, so
+// the members it checks for resume runs are the members the store archives.
 func (m *Manager) archiveTreeWithResumeGuard(
 	ctx context.Context,
 	treeStore store.SessionTreeStore,
 	workspaceID string,
 	sessionID string,
 ) (store.SessionTreeArchive, error) {
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	descendants, err := treeStore.ListSessionDescendants(ctx, workspaceID, sessionID)
 	if err != nil {
 		return store.SessionTreeArchive{}, err
@@ -119,12 +124,8 @@ func (m *Manager) DeleteWithChildren(
 	if err != nil {
 		return nil, err
 	}
-	// A stopped root accepts no new spawns, and nothing it delegated wakes it
-	// while the tree below it goes away.
-	if _, active := m.Get(sessionID); active {
-		if err := stopSessionBeforeDelete(ctx, sessionID, m.stopWithDeleteReceipt); err != nil {
-			return nil, fmt.Errorf("session: stop %q before delete: %w", sessionID, err)
-		}
+	if err := m.stopDeleteTree(ctx, treeStore, workspaceID, sessionID); err != nil {
+		return nil, err
 	}
 	deleted := make([]string, 0)
 	for range maxDeleteTreePasses {
@@ -150,6 +151,46 @@ func (m *Manager) DeleteWithChildren(
 		}
 	}
 	return deleted, fmt.Errorf("session: delete %q: the session tree kept growing", sessionID)
+}
+
+// stopDeleteTree stops the tree top-down, waiting for spawns already in flight,
+// until no new member appears. A stopped session accepts no new spawns, so a
+// deletion below cannot leave a child behind a parent it just removed, and
+// nothing a parent delegated wakes it while the tree goes away.
+func (m *Manager) stopDeleteTree(
+	ctx context.Context,
+	treeStore store.SessionTreeStore,
+	workspaceID string,
+	sessionID string,
+) error {
+	seen := make(map[string]struct{})
+	pending := []string{sessionID}
+	for range maxDeleteTreePasses {
+		for _, id := range pending {
+			seen[id] = struct{}{}
+			if _, active := m.Get(id); !active {
+				continue
+			}
+			if err := stopSessionBeforeDelete(ctx, id, m.stopWithDeleteReceipt); err != nil {
+				return fmt.Errorf("session: stop %q before delete: %w", id, err)
+			}
+		}
+		m.waitForAdmittedSpawns()
+		descendants, err := treeStore.ListSessionDescendants(ctx, workspaceID, sessionID)
+		if err != nil {
+			return err
+		}
+		pending = pending[:0]
+		for i := range descendants {
+			if _, done := seen[descendants[i].ID]; !done {
+				pending = append(pending, descendants[i].ID)
+			}
+		}
+		if len(pending) == 0 {
+			return nil
+		}
+	}
+	return fmt.Errorf("session: delete %q: the session tree kept growing", sessionID)
 }
 
 func (m *Manager) sessionTreeStore() (store.SessionTreeStore, error) {

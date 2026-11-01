@@ -7682,6 +7682,10 @@ export interface components {
       paused_automations: string[];
       state: string;
     };
+    ArchiveSessionResponse: {
+      archived_descendant_ids?: string[];
+      session: components["schemas"]["SessionPayload"];
+    };
     Argument: {
       name: string;
       options?: string[];
@@ -8686,6 +8690,9 @@ export interface components {
     DeleteResourceRequest: {
       /** Format: int64 */
       expected_version: number;
+    };
+    DeleteSessionTreeResponse: {
+      deleted_session_ids: string[];
     };
     DetailBody: {
       actions?: components["schemas"]["RowAction"][];
@@ -47354,6 +47361,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description Deleted with with_children */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DeleteSessionTreeResponse"];
+        };
+      };
       /** @description No Content */
       204: {
         headers: {
@@ -47563,7 +47579,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SessionResponse"];
+          "application/json": components["schemas"]["ArchiveSessionResponse"];
         };
       };
       /** @description Invalid archive request */

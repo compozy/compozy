@@ -49,6 +49,8 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-api")>()),
   clearSessionConversation: vi.fn(),
   archiveSession: vi.fn(),
+  archiveSessionTree: vi.fn(),
+  deleteSessionTree: vi.fn(),
   cancelQueuedSessionPrompt: vi.fn(),
   clearSessionInputs: vi.fn(),
   createSession: vi.fn(),
@@ -98,6 +100,8 @@ vi.mock("@/lib/user-feedback", () => ({ notifyUser: vi.fn() }));
 import {
   cancelQueuedSessionPrompt,
   archiveSession,
+  archiveSessionTree,
+  deleteSessionTree,
   clearSessionConversation,
   clearSessionInputs,
   createSession,
@@ -122,6 +126,7 @@ import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
 
 beforeEach(() => {
+  vi.mocked(listSessionDescendants).mockResolvedValue([]);
   vi.spyOn(toast, "error").mockReturnValue("toast");
   vi.spyOn(toast, "success").mockReturnValue("toast");
   vi.spyOn(toast, "info").mockReturnValue("toast");
@@ -231,7 +236,6 @@ function transcriptCache(messageId = "history-1"): SessionTranscriptData {
 
 describe("session actions", () => {
   beforeEach(() => {
-    vi.mocked(listSessionDescendants).mockResolvedValue([]);
     vi.clearAllMocks();
     sessionStore.trigger.allDraftsDiscarded();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
@@ -998,7 +1002,7 @@ describe("session actions", () => {
       wrapper: createWrapper(queryClient),
     });
 
-    let mutation!: Promise<SessionPayload>;
+    let mutation!: Promise<unknown>;
     act(() => {
       mutation = result.current.mutateAsync(createdSession);
     });
@@ -1020,6 +1024,10 @@ describe("session actions", () => {
       vi.mocked(fetchSessionById).mockResolvedValue(createdSession);
       vi.mocked(archiveSession).mockResolvedValue(createdSession);
       vi.mocked(deleteSession).mockResolvedValue(undefined);
+      vi.mocked(archiveSessionTree).mockResolvedValue({
+        session: createdSession,
+        descendantIds: [child.id],
+      });
     });
 
     it("archives in one click without children", async () => {
@@ -1046,8 +1054,8 @@ describe("session actions", () => {
         included: true,
       });
       act(() => result.current.processDialog.onChoose());
-      await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(1));
-      expect(vi.mocked(archiveSession).mock.calls[0]?.[6]).toBe(true);
+      await waitFor(() => expect(archiveSessionTree).toHaveBeenCalledTimes(1));
+      expect(archiveSession).not.toHaveBeenCalled();
     });
 
     it("leaves children out when the operator unchecks them", async () => {
@@ -1097,6 +1105,7 @@ describe("session actions", () => {
 
     it("deletes a tree once when the opt-in covers a selected child", async () => {
       const grandchild = { ...createdSession, id: "sess-grandchild" };
+      vi.mocked(deleteSessionTree).mockResolvedValue([grandchild.id, child.id, createdSession.id]);
       vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) =>
         id === createdSession.id ? [child, grandchild] : []
       );
@@ -1112,9 +1121,59 @@ describe("session actions", () => {
       act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
       act(() => result.current.deleteDialog.onConfirm());
       await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
-      expect(deleteSession).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe(createdSession.id);
-      expect(vi.mocked(deleteSession).mock.calls[0]?.[5]).toBe(true);
+      expect(deleteSessionTree).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(deleteSessionTree).mock.calls[0]?.[1]).toBe(createdSession.id);
+      expect(deleteSession).not.toHaveBeenCalled();
+    });
+
+    it("runs a covered child itself when the daemon did not report taking it", async () => {
+      vi.mocked(deleteSessionTree).mockImplementation(async (_workspace, id) =>
+        id === createdSession.id ? [createdSession.id] : [id]
+      );
+      vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) =>
+        id === createdSession.id ? [child, { ...createdSession, id: "sess-other" }] : []
+      );
+      vi.mocked(fetchSessionById).mockImplementation(async (id: string) =>
+        id === child.id ? child : createdSession
+      );
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onDeleteMany?.([child, createdSession]));
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.count).toBe(1));
+      act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([child.id]);
+    });
+
+    it("counts a child's processes only while children are included, subagents too", async () => {
+      const subagent = withSessionProcessSummary({
+        ...createdSession,
+        id: "sess-subagent",
+        lineage: { ...createdSession.lineage, spawn_role: "subagent" },
+      } as SessionPayload);
+      vi.mocked(listSessionDescendants).mockResolvedValue([child, subagent]);
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onArchive(createdSession));
+      await waitFor(() => expect(result.current.processDialog.open).toBe(true));
+      expect(result.current.processDialog.childSessions?.count).toBe(1);
+      expect(result.current.processDialog.processCount).toBeGreaterThan(0);
+      act(() => result.current.processDialog.childSessions?.onIncludedChange(false));
+      expect(result.current.processDialog.processCount).toBe(0);
+    });
+
+    it("does not archive when the child sessions cannot be read", async () => {
+      vi.mocked(listSessionDescendants).mockRejectedValue(new Error("Read failed"));
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onArchive(createdSession));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Read failed"));
+      expect(archiveSession).not.toHaveBeenCalled();
+      expect(result.current.processDialog.open).toBe(false);
     });
   });
 
@@ -2012,6 +2071,8 @@ describe("session actions", () => {
 describe("session lifecycle batches", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(listSessionDescendants).mockResolvedValue([]);
+    vi.mocked(listSessionDescendants).mockResolvedValue([]);
     vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...createdSession, id }));
   });
   function lifecycle(options: Parameters<typeof useSessionLifecycleActions>[0] = {}) {

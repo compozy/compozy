@@ -34,6 +34,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/session/contextusage"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -214,6 +215,31 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 	})
 }
 
+// treeProcessService records which sessions a process policy reached.
+type treeProcessService struct {
+	core.SessionProcessService
+	fail       map[string]bool
+	terminated []string
+}
+
+func (s *treeProcessService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
+	return sessionprocess.Snapshot{Supported: true}, nil
+}
+
+func (s *treeProcessService) Terminate(
+	_ context.Context,
+	id string,
+	_ []sessionprocess.Identity,
+	_ sessionprocess.Scope,
+	_ func(sessionprocess.Owner) bool,
+) ([]sessionprocess.Result, error) {
+	s.terminated = append(s.terminated, id)
+	if s.fail[id] {
+		return nil, errors.New("terminate failed")
+	}
+	return nil, nil
+}
+
 func TestBaseHandlersSessionTree(t *testing.T) {
 	t.Parallel()
 
@@ -290,6 +316,45 @@ func TestBaseHandlersSessionTree(t *testing.T) {
 		}
 	})
 
+	t.Run("Should attempt process cleanup for every member after one fails", func(t *testing.T) {
+		t.Parallel()
+		root := &session.Info{ID: "sess-a", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-workspace"}
+		fixture := treeFixture(t, testutil.StubSessionManager{
+			ArchiveWithChildrenFn: func(context.Context, string, string, bool) (*session.SessionTree, error) {
+				return &session.SessionTree{Root: root, Descendants: []*session.Info{child}}, nil
+			},
+			DeleteWithChildrenFn: func(context.Context, string, string) ([]string, error) {
+				return []string{"sess-child", "sess-a"}, errors.New("root delete failed")
+			},
+			DescendantsFn: func(context.Context, string, string) ([]*session.Info, error) {
+				return []*session.Info{child}, nil
+			},
+		})
+		processes := &treeProcessService{fail: map[string]bool{"sess-a": true, "sess-child": true}}
+		fixture.Handlers.SessionProcesses = processes
+		archive := performRequest(
+			t, fixture.Engine, http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/archive?with_children=true&processes=terminate", nil,
+		)
+		if archive.Code != http.StatusInternalServerError {
+			t.Fatalf("archive status = %d body = %s", archive.Code, archive.Body.String())
+		}
+		if !slices.Equal(processes.terminated, []string{"sess-a", "sess-child"}) {
+			t.Fatalf("archive terminated = %v, want every member", processes.terminated)
+		}
+		processes.terminated = nil
+		remove := performRequest(
+			t, fixture.Engine, http.MethodDelete,
+			"/workspaces/ws-workspace/sessions/sess-a?with_children=true&processes=terminate", nil,
+		)
+		if remove.Code != http.StatusInternalServerError {
+			t.Fatalf("delete status = %d body = %s", remove.Code, remove.Body.String())
+		}
+		if !slices.Equal(processes.terminated, []string{"sess-child", "sess-a"}) {
+			t.Fatalf("delete terminated = %v, want every deleted member", processes.terminated)
+		}
+	})
+
 	t.Run("Should report a failed tree stop as the archive stop failure", func(t *testing.T) {
 		t.Parallel()
 		fixture := treeFixture(t, testutil.StubSessionManager{
@@ -319,11 +384,11 @@ func TestBaseHandlersSessionTree(t *testing.T) {
 				return []string{"sess-child", "sess-a"}, nil
 			},
 		})
-		for _, query := range []string{"", "?with_children=true"} {
+		for query, status := range map[string]int{"": http.StatusNoContent, "?with_children=true": http.StatusOK} {
 			response := performRequest(
 				t, fixture.Engine, http.MethodDelete, "/workspaces/ws-workspace/sessions/sess-a"+query, nil,
 			)
-			if response.Code != http.StatusNoContent {
+			if response.Code != status {
 				t.Fatalf("delete%s status = %d body = %s", query, response.Code, response.Body.String())
 			}
 		}

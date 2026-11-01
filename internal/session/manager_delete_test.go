@@ -182,6 +182,31 @@ func TestManagerDelete(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the root and name the child when a descendant delete fails", func(t *testing.T) {
+		t.Parallel()
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &sessionTreeCatalog{familyArchiveCatalog: &familyArchiveCatalog{
+			pagedRecordingSessionCatalog: paged, members: map[string][]string{},
+		}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		parent := createSession(t, h)
+		child := createSession(t, h)
+		grandchild := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID, grandchild.ID)
+		catalog.failDelete = child.ID
+
+		deleted, err := h.manager.DeleteWithChildren(t.Context(), h.workspaceID, parent.ID)
+		if err == nil || !strings.Contains(err.Error(), child.ID) {
+			t.Fatalf("DeleteWithChildren() error = %v, want it to name %s", err, child.ID)
+		}
+		if !slices.Equal(deleted, []string{grandchild.ID}) {
+			t.Fatalf("deleted = %v, want only %s", deleted, grandchild.ID)
+		}
+		if _, err := h.manager.Status(t.Context(), parent.ID); err != nil {
+			t.Fatalf("Status(root) after failed child = %v, want reachable", err)
+		}
+	})
+
 	t.Run("Should leave children in place when the plain delete targets their parent", func(t *testing.T) {
 		t.Parallel()
 		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}

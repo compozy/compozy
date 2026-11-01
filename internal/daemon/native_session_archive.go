@@ -91,8 +91,13 @@ func (n *daemonNativeTools) setSessionArchived(
 	}
 	var members []*session.Info
 	var info *session.Info
+	var committedErr error
 	if archived && input.WithChildren {
 		info, members, err = n.archiveSessionTree(ctx, workspaceID, input)
+		if info != nil {
+			// The tree committed; its cleanup runs before this error is reported.
+			committedErr, err = err, nil
+		}
 	} else {
 		info, err = executeSessionArchive(ctx, manager, workspaceID, input, archived)
 	}
@@ -114,10 +119,13 @@ func (n *daemonNativeTools) setSessionArchived(
 		return toolspkg.ToolResult{}, err
 	}
 	if archived {
+		// Every member is attempted: the tree is archived and no later call retries it.
+		var cleanupErr error
 		for _, member := range append([]*session.Info{info}, members...) {
-			if err := n.finishSessionProcessPolicy(ctx, member, input.Processes); err != nil {
-				return toolspkg.ToolResult{}, err
-			}
+			cleanupErr = errors.Join(cleanupErr, n.finishSessionProcessPolicy(ctx, member, input.Processes))
+		}
+		if cleanupErr = errors.Join(cleanupErr, committedErr); cleanupErr != nil {
+			return toolspkg.ToolResult{}, cleanupErr
 		}
 	}
 	payload := core.SessionPayloadFromInfo(info)
@@ -148,10 +156,10 @@ func (n *daemonNativeTools) archiveSessionTree(
 		return nil, nil, err
 	}
 	tree, err := manager.ArchiveWithChildren(ctx, workspaceID, input.SessionID, input.Stop)
-	if err != nil {
+	if tree == nil {
 		return nil, descendants, err
 	}
-	return tree.Root, tree.Descendants, nil
+	return tree.Root, tree.Descendants, err
 }
 
 func executeSessionArchive(

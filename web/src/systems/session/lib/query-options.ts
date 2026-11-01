@@ -22,7 +22,6 @@ import {
   searchSessionTranscript,
   SESSION_TRANSCRIPT_SEARCH_LIMIT,
 } from "../adapters/session-navigation-api";
-import { listSessionDescendants } from "../adapters/session-archive-api";
 import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
@@ -385,18 +384,6 @@ export function sessionUsageOptions(
  * fallback reachable at all. `retry: false` keeps that 404 a decision rather
  * than three seconds of retries.
  */
-/** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
-export function sessionDescendantsOptions(
-  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
-) {
-  return queryOptions({
-    queryKey: sessionKeys.descendants(session.id, session.profile_name),
-    queryFn: ({ signal }) =>
-      listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
-    staleTime: 0,
-  });
-}
-
 export function sessionScopedDetailOptions(
   sessionId: string,
   scope: ProfileScopeParams,

@@ -23,7 +23,12 @@ import {
 import type { SessionProcessPolicy } from "./session-processes-api";
 
 export { fetchSessions } from "./session-catalog-api";
-export { archiveSession, unarchiveSession } from "./session-archive-api";
+export {
+  archiveSession,
+  archiveSessionTree,
+  deleteSessionTree,
+  unarchiveSession,
+} from "./session-archive-api";
 export { compactSession } from "./session-compaction-api";
 export { fetchSessionCommands } from "./session-command-api";
 export { fetchSessionGoal, mutateSessionGoal } from "./session-goal-api";
@@ -116,19 +121,14 @@ export async function deleteSession(
   id: string,
   profile: string,
   signal?: AbortSignal,
-  processes?: SessionProcessPolicy,
-  withChildren = false
+  processes?: SessionProcessPolicy
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
         path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
-        query: {
-          profile,
-          ...(processes ? { processes } : {}),
-          ...(withChildren ? { with_children: true } : {}),
-        },
+        query: processes ? { profile, processes } : { profile },
       },
       signal,
     }

@@ -204,6 +204,7 @@ func deleteSessionOperationSpec() OperationSpec {
 			),
 		),
 		Responses: []ResponseSpec{
+			{Status: 200, Description: "Deleted with with_children", Body: contract.DeleteSessionTreeResponse{}},
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 400, Description: "Invalid process policy or with_children value", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Process cleanup could not be verified", Body: contract.ErrorPayload{}},

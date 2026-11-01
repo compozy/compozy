@@ -50,7 +50,7 @@ type DeleteSessionParams struct {
 }
 
 // DeleteSession Delete one session and remove it from persisted history
-func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) error {
+func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) (*DeleteSessionTreeResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
 	query := url.Values{}
 	if params.Processes != nil {
@@ -67,7 +67,11 @@ func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) 
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+	var out DeleteSessionTreeResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // DeleteSessionAttachmentParams carries the path, query, and header parameters.

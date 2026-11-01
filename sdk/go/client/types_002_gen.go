@@ -228,6 +228,12 @@ type ArchiveProfileResponse struct {
 	FrozenQueuedRuns  int      `json:"frozen_queued_runs"`
 }
 
+// ArchiveSessionResponse is a daemon API value.
+type ArchiveSessionResponse struct {
+	Session               SessionPayload `json:"session"`
+	ArchivedDescendantIDs []string       `json:"archived_descendant_ids,omitempty"`
+}
+
 // Argument is a daemon API value.
 type Argument struct {
 	Name        string       `json:"name"`
@@ -442,6 +448,3 @@ type BindingsConfig struct {
 	TopCenter    string `json:"top_center"`
 	BottomCenter string `json:"bottom_center"`
 }
-
-// BlockKind is a daemon API value.
-type BlockKind string

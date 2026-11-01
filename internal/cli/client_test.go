@@ -5549,8 +5549,11 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 							if operation == "archive" && (query.Get("stop") == "true") != choice.flag {
 								t.Fatalf("archive stop query: %s", req.URL)
 							}
-							if operation != "stop" && query.Has("with_children") != choice.flag {
-								t.Fatalf("with_children query: %s", req.URL)
+							if operation == "archive" && query.Has("with_children") == choice.flag {
+								t.Fatalf("archive with_children query: %s", req.URL)
+							}
+							if operation == "delete" && query.Has("with_children") != choice.flag {
+								t.Fatalf("delete with_children query: %s", req.URL)
 							}
 						}
 						if operation == "delete" {
@@ -5564,7 +5567,7 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 				case "stop":
 					_, err = client.StopSession(t.Context(), "sess-1", choice.flag, policy)
 				case "archive":
-					_, err = client.ArchiveSession(t.Context(), "sess-1", choice.flag, choice.flag, policy)
+					_, err = client.ArchiveSession(t.Context(), "sess-1", choice.flag, !choice.flag, policy)
 				case "delete":
 					err = client.DeleteSession(t.Context(), "sess-1", choice.flag, policy)
 				}

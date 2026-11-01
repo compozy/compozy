@@ -379,7 +379,7 @@ type ArchiveSessionParams struct {
 }
 
 // ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
-func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*SessionResponse, error) {
+func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*ArchiveSessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/archive"
 	query := url.Values{}
 	if params.Processes != nil {
@@ -399,7 +399,7 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SessionResponse
+	var out ArchiveSessionResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

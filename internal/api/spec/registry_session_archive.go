@@ -23,6 +23,7 @@ func archiveSessionOperationSpec() OperationSpec {
 				"with stop=true their live members stop first and a failed stop archives nothing",
 		),
 	)
+	spec.Responses[0].Body = contract.ArchiveSessionResponse{}
 	spec.Responses = append(spec.Responses,
 		ResponseSpec{Status: 400, Description: "Invalid archive request", Body: contract.ErrorPayload{}},
 		ResponseSpec{

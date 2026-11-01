@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// DslTerminalState is a daemon API value.
+type DslTerminalState string
+
 // DuplicateAgentOverrides is a daemon API value.
 type DuplicateAgentOverrides struct {
 	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
@@ -444,6 +447,3 @@ type FailTaskRunRequest struct {
 
 // FailureKind is a daemon API value.
 type FailureKind string
-
-// FailureReasonCode is a daemon API value.
-type FailureReasonCode string

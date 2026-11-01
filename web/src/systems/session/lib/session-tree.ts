@@ -1,9 +1,23 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 
+import { listSessionDescendants } from "../adapters/session-archive-api";
 import type { SessionPayload } from "../types";
-import { sessionDescendantsOptions } from "./query-options";
+import { sessionKeys } from "./query-keys";
+import { readCurrentSessions } from "./session-batch";
 import { isSubagentSession } from "./session-hierarchy";
 import { sessionsRunningProcesses } from "./session-processes";
+
+/** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
+export function sessionDescendantsOptions(
+  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
+) {
+  return queryOptions({
+    queryKey: sessionKeys.descendants(session.id, session.profile_name),
+    queryFn: ({ signal }) =>
+      listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
+    staleTime: 0,
+  });
+}
 
 export type SessionTreeAction = "archive" | "delete";
 
@@ -22,6 +36,8 @@ export interface SessionChildrenChoice {
 export interface SessionChildrenScope {
   /** Children the choice decides on, without targets or repeats. */
   members: readonly SessionPayload[];
+  /** Everything a yes reaches, subagents below a member included, for its process count. */
+  reached: readonly SessionPayload[];
   /** A selected target another selected target's tree already includes, to its root target. */
   coveredBy: ReadonlyMap<string, string>;
 }
@@ -38,11 +54,16 @@ export function sessionChildrenScope(
 ): SessionChildrenScope {
   const targetIds = new Set(targets.map(target => target.id));
   const members = new Map<string, SessionPayload>();
+  const reached = new Map<string, SessionPayload>();
   const covered = new Set<string>();
   for (const target of targets) {
     for (const child of trees.get(target.id) ?? []) {
-      if (targetIds.has(child.id)) covered.add(child.id);
-      else if (action === "delete" || !(isSubagentSession(child) || child.archived_at)) {
+      if (targetIds.has(child.id)) {
+        covered.add(child.id);
+        continue;
+      }
+      if (action === "delete" || !child.archived_at) reached.set(child.id, child);
+      if (action === "delete" || !(isSubagentSession(child) || child.archived_at)) {
         members.set(child.id, child);
       }
     }
@@ -54,7 +75,7 @@ export function sessionChildrenScope(
       if (covered.has(child.id)) coveredBy.set(child.id, target.id);
     }
   }
-  return { members: [...members.values()], coveredBy };
+  return { members: [...members.values()], reached: [...reached.values()], coveredBy };
 }
 
 /** Targets whose tree another target includes run last, so their root can cover them. */
@@ -68,21 +89,29 @@ export function sessionTreeBatchOrder<T extends Pick<SessionPayload, "id">>(
   ];
 }
 
-/** A failed read offers no children, so the verb keeps its single-session meaning. */
+/** A failed read rejects: without the count the verb cannot offer the operator's choice. */
 export async function readSessionTrees(
   queryClient: QueryClient,
   sessions: readonly SessionPayload[]
 ): Promise<SessionTrees> {
-  const reads = await Promise.allSettled(
+  const reads = await Promise.all(
     sessions.map(session =>
       queryClient.fetchQuery({ ...sessionDescendantsOptions(session), staleTime: 0 })
     )
   );
-  const trees = new Map<string, readonly SessionPayload[]>();
-  reads.forEach((read, index) => {
-    if (read.status === "fulfilled") trees.set(sessions[index]!.id, read.value);
-  });
-  return trees;
+  return new Map(reads.map((descendants, index) => [sessions[index]!.id, descendants]));
+}
+
+/** Fresh targets, then their trees: a stop has no children to offer. */
+export async function readSessionChoiceTargets(
+  queryClient: QueryClient,
+  action: "stop" | "archive",
+  sessions: readonly SessionPayload[]
+) {
+  const current = await readCurrentSessions(queryClient, sessions);
+  const trees: SessionTrees =
+    action === "archive" ? await readSessionTrees(queryClient, current.sessions) : new Map();
+  return { current, trees };
 }
 
 export function sessionChildrenChoice(
@@ -94,7 +123,7 @@ export function sessionChildrenChoice(
   return {
     count: scope.members.length,
     included,
-    includedProcessCount: included ? sessionsRunningProcesses(scope.members) : 0,
+    includedProcessCount: included ? sessionsRunningProcesses(scope.reached) : 0,
     onIncludedChange,
   };
 }

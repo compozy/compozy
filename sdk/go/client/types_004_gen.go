@@ -342,6 +342,11 @@ type DeleteResourceRequest struct {
 	ExpectedVersion int64 `json:"expected_version"`
 }
 
+// DeleteSessionTreeResponse is a daemon API value.
+type DeleteSessionTreeResponse struct {
+	DeletedSessionIDs []string `json:"deleted_session_ids"`
+}
+
 // DependencyKind is a daemon API value.
 type DependencyKind string
 
@@ -442,6 +447,3 @@ type DrainStatusResponse struct {
 	SessionExecutionSettled    bool       `json:"session_execution_settled"`
 	SafeToStop                 bool       `json:"safe_to_stop"`
 }
-
-// DslTerminalState is a daemon API value.
-type DslTerminalState string

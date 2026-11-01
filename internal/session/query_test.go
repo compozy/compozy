@@ -3910,6 +3910,14 @@ type familyArchiveCatalog struct {
 // sessionTreeCatalog answers the tree store from familyArchiveCatalog's members.
 type sessionTreeCatalog struct {
 	*familyArchiveCatalog
+	failDelete string
+}
+
+func (c *sessionTreeCatalog) DeleteSession(ctx context.Context, id string) error {
+	if id == c.failDelete {
+		return errors.New("injected child delete failure")
+	}
+	return c.familyArchiveCatalog.DeleteSession(ctx, id)
 }
 
 func (c *sessionTreeCatalog) ListSessionDescendants(

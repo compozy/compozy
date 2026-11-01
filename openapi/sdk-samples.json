@@ -563,7 +563,7 @@
         },
         "deleteSession": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.deleteSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DeleteSession(ctx, client.DeleteSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeleteSession(ctx, client.DeleteSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"

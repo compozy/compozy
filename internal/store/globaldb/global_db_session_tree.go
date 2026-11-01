@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -25,13 +26,13 @@ func (g *SessionRepo) ListSessionDescendants(
 	if sessionID == "" {
 		return nil, errors.New("store: session descendants session id is required")
 	}
-	var descendants []store.SessionInfo
-	err := g.withImmediateTransaction(ctx, "list session descendants", func(exec globalSQLExecutor) error {
-		var e error
-		descendants, e = sessionTreeDescendants(ctx, exec, workspaceID, sessionID)
-		return e
-	})
-	return descendants, err
+	// A read snapshot keeps the walk consistent without holding the write lock.
+	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("store: begin session descendants read: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	return sessionTreeDescendants(ctx, tx, workspaceID, sessionID)
 }
 
 // ArchiveSessionTree archives one session and every hierarchy descendant in one

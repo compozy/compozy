@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// FailureReasonCode is a daemon API value.
+type FailureReasonCode string
+
 // FanOutTaskRunsRequest is a daemon API value.
 type FanOutTaskRunsRequest struct {
 	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
@@ -445,6 +448,3 @@ type GoalSnapshot struct {
 	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
 	Context         GoalContextSnapshot `json:"context"`
 }
-
-// GoalSnapshotChangeCause is a daemon API value.
-type GoalSnapshotChangeCause string

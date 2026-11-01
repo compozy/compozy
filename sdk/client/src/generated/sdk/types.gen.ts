@@ -554,6 +554,11 @@ export type ArchiveProfileResponse = {
   state: string;
 };
 
+export type ArchiveSessionResponse = {
+  archived_descendant_ids?: Array<string>;
+  session: SessionPayload;
+};
+
 export type Argument = {
   name: string;
   options?: Array<string>;
@@ -1535,6 +1540,10 @@ export type DeleteProfileResponse = {
 
 export type DeleteResourceRequest = {
   expected_version: number;
+};
+
+export type DeleteSessionTreeResponse = {
+  deleted_session_ids: Array<string>;
 };
 
 export type DetailBody = {
@@ -33038,6 +33047,10 @@ export type DeleteSessionError = DeleteSessionErrors[keyof DeleteSessionErrors];
 
 export type DeleteSessionResponses = {
   /**
+   * Deleted with with_children
+   */
+  200: DeleteSessionTreeResponse;
+  /**
    * No Content
    */
   204: void;
@@ -33257,10 +33270,10 @@ export type ArchiveSessionResponses = {
   /**
    * OK
    */
-  200: SessionResponse;
+  200: ArchiveSessionResponse;
 };
 
-export type ArchiveSessionResponse = ArchiveSessionResponses[keyof ArchiveSessionResponses];
+export type ArchiveSessionResponse2 = ArchiveSessionResponses[keyof ArchiveSessionResponses];
 
 export type AttachSessionData = {
   /**

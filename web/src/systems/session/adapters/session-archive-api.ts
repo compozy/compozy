@@ -8,8 +8,7 @@ import { sessionWorkspacePath } from "./session-workspace-path";
 /**
  * Archives a session using its explicit owner profile. `stop` lets the daemon
  * stop a live session through the normal stop path before archiving it;
- * `processes` decides whether the processes it left running stop with it;
- * `withChildren` archives its child sessions, recursively, in one transaction.
+ * `processes` decides whether the processes it left running stop with it.
  */
 export async function archiveSession(
   workspaceId: string,
@@ -17,8 +16,7 @@ export async function archiveSession(
   profile: string,
   signal?: AbortSignal,
   stop = false,
-  processes?: SessionProcessPolicy,
-  withChildren = false
+  processes?: SessionProcessPolicy
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
@@ -29,7 +27,6 @@ export async function archiveSession(
           profile,
           ...(stop ? { stop: true } : {}),
           ...(processes ? { processes } : {}),
-          ...(withChildren ? { with_children: true } : {}),
         },
       },
       signal,
@@ -39,6 +36,62 @@ export async function archiveSession(
     throwSessionRequestError(response, error, `Failed to archive session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to archive session "${id}"`).session;
+}
+
+/** Archives a session with its child sessions and names the ones the daemon archived. */
+export async function archiveSessionTree(
+  workspaceId: string,
+  id: string,
+  profile: string,
+  signal?: AbortSignal,
+  stop = false,
+  processes?: SessionProcessPolicy
+): Promise<{ session: SessionPayload; descendantIds: readonly string[] }> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
+    {
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: {
+          profile,
+          with_children: true,
+          ...(stop ? { stop: true } : {}),
+          ...(processes ? { processes } : {}),
+        },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to archive session "${id}"`, id);
+  }
+  const body = requireResponseData(data, response, `Failed to archive session "${id}"`);
+  return { session: body.session, descendantIds: body.archived_descendant_ids ?? [] };
+}
+
+/** Deletes a session with its child sessions and names every session the daemon removed. */
+export async function deleteSessionTree(
+  workspaceId: string,
+  id: string,
+  profile: string,
+  signal?: AbortSignal,
+  processes?: SessionProcessPolicy
+): Promise<readonly string[]> {
+  const { data, error, response } = await apiClient.DELETE(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}",
+    {
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile, with_children: true, ...(processes ? { processes } : {}) },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to delete session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to delete session "${id}"`)
+    .deleted_session_ids;
 }
 
 /** Lists every child session, recursively; the paginated catalog cannot answer this. */

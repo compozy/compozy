@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -69,7 +70,7 @@ func (h *BaseHandlers) archiveSessionTree(
 		return
 	}
 	archived, err := tree.ArchiveWithChildren(ctx, workspaceID, root.ID, stop)
-	if err != nil {
+	if archived == nil {
 		h.continueProcessCleanup(root.ID, policy, err)
 		for _, member := range descendants {
 			h.continueProcessCleanup(member.ID, policy, err)
@@ -77,15 +78,25 @@ func (h *BaseHandlers) archiveSessionTree(
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	if !h.finishProcessPolicy(c, root, policy) {
+	// A returned tree is committed, so its process policy runs even when a
+	// follow-up after the commit failed.
+	if !h.finishTreeProcessPolicy(c, slices.Concat([]*session.Info{root}, archived.Descendants), policy) {
 		return
 	}
-	for _, member := range archived.Descendants {
-		if !h.finishProcessPolicy(c, member, policy) {
-			return
-		}
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
 	}
-	h.respondArchivedSession(c, archived.Root)
+	payload, err := h.sessionPayloadWithOptionalHealth(ctx, archived.Root, false)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	ids := make([]string, 0, len(archived.Descendants))
+	for _, member := range archived.Descendants {
+		ids = append(ids, member.ID)
+	}
+	c.JSON(http.StatusOK, contract.ArchiveSessionResponse{Session: payload, ArchivedDescendantIDs: ids})
 }
 
 // deleteSessionTree settles the process policy for every session it deleted,
@@ -117,19 +128,21 @@ func (h *BaseHandlers) deleteSessionTree(
 			h.continueProcessCleanup(id, policy, deleteErr)
 		}
 	}
+	settled := make([]*session.Info, 0, len(deleted))
 	for _, id := range deleted {
 		member, known := members[id]
 		if !known {
 			// A child created after the read shares the root's owner.
 			member = &session.Info{ID: id, ProfileID: root.ProfileID, WorkspaceID: root.WorkspaceID}
 		}
-		if !h.finishProcessPolicy(c, member, policy) {
-			return
-		}
+		settled = append(settled, member)
+	}
+	if !h.finishTreeProcessPolicy(c, settled, policy) {
+		return
 	}
 	if deleteErr != nil {
 		h.respondError(c, StatusForSessionError(deleteErr), deleteErr)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, contract.DeleteSessionTreeResponse{DeletedSessionIDs: deleted})
 }

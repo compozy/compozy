@@ -10,6 +10,18 @@ type SessionResponse struct {
 	Session SessionPayload `json:"session"`
 }
 
+// ArchiveSessionResponse is one archived session and, with with_children, every
+// child session the daemon archived with it.
+type ArchiveSessionResponse struct {
+	Session               SessionPayload `json:"session"`
+	ArchivedDescendantIDs []string       `json:"archived_descendant_ids,omitempty"`
+}
+
+// DeleteSessionTreeResponse names every session a with_children delete removed.
+type DeleteSessionTreeResponse struct {
+	DeletedSessionIDs []string `json:"deleted_session_ids"`
+}
+
 // SessionAttachResponse wraps one explicit session attach lease.
 type SessionAttachResponse struct {
 	Session SessionPayload       `json:"session"`
