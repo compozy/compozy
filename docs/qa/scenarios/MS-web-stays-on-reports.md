@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: A report lands in the transcript without starting a turn. Picking a proposal sends one ordinary prompt and folds to "You picked". After an absence with enough check-ins, a While you were away card tells the night and only what needs you stays a card. Asks from child sessions dock on the main session with who asked and where, and answering settles the child's request. Expired, provider-ended and interrupted runs each say what happened and offer one ordinary prompt. A superseded session is read-only and links to the current one.
 entry_points: web Sessions window; main session opened from the avatar row
-qa_status: skipped
+qa_status: blocked-verify
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: fixed
+retest_status: pending
+fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md
+last_report: docs/qa/reports/2026-11-01-stays-on-agents.md
 overlaps: MS-web-stays-on-placement, ET-native-tool-approval-grants
 ---
 
@@ -178,3 +178,5 @@ exhausted context window or an overlong prompt writes one instance failure repor
 per turn, reason `context_exhausted`. Repeated error events deduplicate by turn.
 Deadline and generic provider errors do not enter this classification. The report
 uses fixed descriptive text, avoiding propagation of raw provider error content.
+
+2026-11-01 walk: report entry, proposal pick, While you were away, relayed approval and its failed answer passed, and reports reach `delivered` on the next human prompt. Still unwalked: expired, provider-ended and interrupted approvals, rotation and the superseded state.

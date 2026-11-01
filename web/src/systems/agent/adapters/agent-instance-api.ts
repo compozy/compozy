@@ -246,15 +246,27 @@ export async function fetchAgentInstanceReports(
   return reports;
 }
 
-export function fetchAgentInstanceCheckIns(
+/** Reads newest-first up to `limit`, following the daemon's page cap. */
+export async function fetchAgentInstanceCheckIns(
   ref: AgentInstanceRef,
   limit: number,
   signal?: AbortSignal
-) {
-  return request<AgentInstanceCheckInsResponse>(
-    instancePath(ref, "/check-ins", { limit: String(limit) }),
-    { signal, fallback: "Failed to fetch check-ins" }
-  );
+): Promise<AgentInstanceCheckInsResponse> {
+  const check_ins: AgentInstanceCheckInsResponse["check_ins"] = [];
+  let cursor = "";
+  do {
+    const query: Record<string, string> = {
+      limit: String(Math.min(limit - check_ins.length, LIST_PAGE_LIMIT)),
+    };
+    if (cursor) query.cursor = cursor;
+    const page = await request<AgentInstanceCheckInsResponse>(
+      instancePath(ref, "/check-ins", query),
+      { signal, fallback: "Failed to fetch check-ins" }
+    );
+    check_ins.push(...page.check_ins);
+    cursor = page.next_cursor;
+  } while (cursor && check_ins.length < limit);
+  return { check_ins, next_cursor: cursor };
 }
 
 /** `null` means no route answers yet, which is different from no activity. */

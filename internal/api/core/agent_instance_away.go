@@ -41,6 +41,9 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 		return response, err
 	}
 	response.LastSeenAt = seen
+	if response.QuietCheckIns, err = api.quietCheckInsSince(ctx, id, seen); err != nil {
+		return response, err
+	}
 	query := agentinstance.ReportQuery{InstanceID: id, Limit: 100}
 	if seen != nil {
 		query.AfterCreatedAt = *seen
@@ -66,6 +69,33 @@ func (api *AgentInstanceAPI) Away(ctx context.Context, id string) (contract.Agen
 		}
 		last := reports[len(reports)-1]
 		query.AfterCreatedAt, query.AfterID = last.CreatedAt, last.ID
+	}
+}
+
+// quietCheckInsSince walks check-ins newest first and stops at the operator's last visit.
+func (api *AgentInstanceAPI) quietCheckInsSince(ctx context.Context, id string, seen *time.Time) (int, error) {
+	reader, ok := api.Store.(agentinstance.CheckInReader)
+	if !ok {
+		return 0, nil
+	}
+	quiet, cursor := 0, ""
+	for {
+		rows, err := reader.ListCheckIns(ctx, id, cursor, 100)
+		if err != nil {
+			return 0, err
+		}
+		for _, row := range rows {
+			if seen != nil && !row.CreatedAt.After(*seen) {
+				return quiet, nil
+			}
+			if row.Result == "quiet" {
+				quiet++
+			}
+		}
+		if len(rows) < 100 {
+			return quiet, nil
+		}
+		cursor = rows[len(rows)-1].ID
 	}
 }
 

@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 
+import { fetchAgentInstanceCheckIns } from "../../adapters/agent-instance-api";
 import { agentKeys } from "../../lib/query-keys";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import {
@@ -163,5 +164,29 @@ describe("instance routes and the selected profile", () => {
     act(() => result.current.actions.pause(row!));
 
     await waitFor(() => expect(seen).toContain("POST theirs/pause?profile=marketing"));
+  });
+});
+
+describe("fetchAgentInstanceCheckIns", () => {
+  it("Should follow the cursor without asking past the daemon's page cap", async () => {
+    const limits: string[] = [];
+    server.use(
+      http.get("*/api/agent-instances/:id/check-ins", ({ request }) => {
+        const url = new URL(request.url);
+        limits.push(url.searchParams.get("limit") ?? "");
+        const start = Number(url.searchParams.get("cursor") ?? 0);
+        const size = Number(url.searchParams.get("limit"));
+        return HttpResponse.json({
+          check_ins: Array.from({ length: size }, (_, index) => ({ id: `c${start + index}` })),
+          next_cursor: String(start + size),
+        });
+      })
+    );
+
+    const result = await fetchAgentInstanceCheckIns({ id: "a", profile_name: "default" }, 250);
+
+    expect(limits).toEqual(["100", "100", "50"]);
+    expect(result.check_ins).toHaveLength(250);
+    expect(result.check_ins[249]?.id).toBe("c249");
   });
 });

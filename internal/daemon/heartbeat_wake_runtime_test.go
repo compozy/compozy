@@ -762,6 +762,24 @@ func assertDaemonHeartbeatWakeEventResults(
 }
 
 func TestTimerPolicy(t *testing.T) {
+	t.Run("Should default a user-level agent that lives outside the workspace", func(t *testing.T) {
+		t.Parallel()
+		agentDir := t.TempDir()
+		path := filepath.Join(agentDir, "AGENT.md")
+		if err := os.WriteFile(path, []byte("Agent"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		cfg.Enabled = true
+		policy, err := resolveTimerPolicy(t.Context(), nil, heartbeat.AuthoringTarget{WorkspaceRoot: t.TempDir(), AgentPath: path, Config: cfg})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !policy.Enabled || policy.Present {
+			t.Fatalf("policy=%+v", policy)
+		}
+	})
+
 	t.Run("Should default an absent timer policy without changing legacy resolution", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

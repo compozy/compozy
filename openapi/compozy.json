@@ -68657,6 +68657,14 @@
             }
           },
           {
+            "description": "Exclude stays-on main sessions from the page and its total",
+            "in": "query",
+            "name": "exclude_instance_main",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Filter by exact session state",
             "in": "query",
             "name": "state",
@@ -90168,6 +90176,14 @@
             "description": "Omit the exact catalog count for a bounded cursor read",
             "in": "query",
             "name": "skip_total",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Exclude stays-on main sessions from the page and its total",
+            "in": "query",
+            "name": "exclude_instance_main",
             "schema": {
               "type": "boolean"
             }

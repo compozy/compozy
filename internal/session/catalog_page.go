@@ -49,30 +49,33 @@ var (
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
 	BoardExcludedIDs []string
-	Columns          []string
-	HideChildren     bool
-	Subagents        string
-	ReadScope        store.ReadScope
-	WorkspaceID      string
-	WorkspaceIDs     []string
-	AllWorkspaces    bool
-	WorktreeID       string
-	State            string
-	SessionType      Type
-	AgentName        string
-	ParentSessionID  string
-	RootSessionID    string
-	SearchFields     string
-	Search           string
-	Resumable        bool
-	AttentionOnly    bool
-	Badges           []Badge
-	Archive          store.SessionArchiveFilter
-	Later            store.SessionLaterFilter
-	Sort             string
-	Cursor           string
-	Limit            int
-	SkipTotal        bool
+	// ExcludeInstanceMain hides InstanceMainIDs from the page and its total.
+	ExcludeInstanceMain bool
+	InstanceMainIDs     []string
+	Columns             []string
+	HideChildren        bool
+	Subagents           string
+	ReadScope           store.ReadScope
+	WorkspaceID         string
+	WorkspaceIDs        []string
+	AllWorkspaces       bool
+	WorktreeID          string
+	State               string
+	SessionType         Type
+	AgentName           string
+	ParentSessionID     string
+	RootSessionID       string
+	SearchFields        string
+	Search              string
+	Resumable           bool
+	AttentionOnly       bool
+	Badges              []Badge
+	Archive             store.SessionArchiveFilter
+	Later               store.SessionLaterFilter
+	Sort                string
+	Cursor              string
+	Limit               int
+	SkipTotal           bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -110,6 +113,9 @@ type sessionListFingerprint struct {
 	// Later stays empty for the default exclusion so pre-Later cursors remain valid.
 	Later store.SessionLaterFilter `json:"later,omitempty"`
 	Sort  string                   `json:"sort"`
+	// ExcludeInstanceMain binds the population, not the current main IDs, so a
+	// rotation between pages keeps the cursor valid.
+	ExcludeInstanceMain bool `json:"exclude_instance_main,omitempty"`
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -141,6 +147,12 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	}
 	repositoryKeys := m.catalogRepositoryKeys(ctx, normalized)
 	defaultBranches := m.catalogDefaultBranches(ctx, normalized)
+	if normalized.ExcludeInstanceMain {
+		activeMatches = slices.DeleteFunc(activeMatches, func(info store.SessionInfo) bool {
+			return slices.Contains(normalized.InstanceMainIDs, info.ID)
+		})
+		activeIDs = append(activeIDs, normalized.InstanceMainIDs...)
+	}
 	durableQuery := sessionCatalogPageQuery(normalized, after, activeIDs)
 	durableQuery.RepositoryKeys = repositoryKeys
 	durableQuery.DefaultBranches = defaultBranches
@@ -317,6 +329,8 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		Archive:         query.Archive,
 		Later:           laterFingerprint(query.Later),
 		Sort:            query.Sort,
+
+		ExcludeInstanceMain: query.ExcludeInstanceMain,
 	})
 	if err != nil {
 		return "", fmt.Errorf("session: fingerprint list query: %w", err)

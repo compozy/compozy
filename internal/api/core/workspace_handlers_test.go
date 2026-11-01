@@ -520,11 +520,11 @@ func TestUserWorkspaceReferenceGuard(t *testing.T) {
 		)
 		router := gin.New()
 		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
-		for _, path := range []string{"/agents", "/agents/:name", "/tasks", "/automation/runs", "/observe/overview"} {
+		for _, path := range []string{"/agents", "/agents/:name", "/agent-instances", "/tasks", "/automation/runs", "/observe/overview"} {
 			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		}
 		for _, target := range []string{
-			"/agents?workspace=@user", "/agents/coder?workspace=@user", "/tasks?workspace=@user",
+			"/agents?workspace=@user", "/agents/coder?workspace=@user", "/agent-instances?workspace=@user", "/tasks?workspace=@user",
 			"/automation/runs?workspace_id=@user", "/observe/overview?workspace=@user",
 		} {
 			if resp := performRequest(t, router, http.MethodGet, target, nil); resp.Code != http.StatusNoContent {

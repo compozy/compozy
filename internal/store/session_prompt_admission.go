@@ -87,6 +87,9 @@ type SessionPromptAdmission struct {
 
 // SessionPromptAdmissionRequest carries immutable command identity and request material.
 type SessionPromptAdmissionRequest struct {
+	// DirectDispatch marks a prompt admitted against an idle session: its turn starts
+	// directly, so a steer busy-mode default never applies and it carries reports.
+	DirectDispatch           bool
 	ID                       string
 	WorkspaceID              string
 	SessionID                string

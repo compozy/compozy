@@ -125,6 +125,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		// park or a return; only delivery becomes a queued input.
 		admissionReq.Mode = string(BusyInputModeQueue)
 	}
+	admissionReq.DirectDispatch = !parked && !target.session.IsPrompting()
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)

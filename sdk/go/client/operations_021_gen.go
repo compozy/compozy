@@ -30,6 +30,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	if params.SkipTotal != nil {
 		query.Set("skip_total", strconv.FormatBool(*params.SkipTotal))
 	}
+	if params.ExcludeInstanceMain != nil {
+		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
+	}
 	if params.State != nil {
 		query.Set("state", *params.State)
 	}

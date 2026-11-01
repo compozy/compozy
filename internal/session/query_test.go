@@ -324,6 +324,39 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should drop instance main sessions from the page and its total", func(t *testing.T) {
+		t.Parallel()
+		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		ordinary, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, ordinary.ID) })
+		main, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+		stoppedAt := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		catalog.durable = []store.SessionInfo{{
+			ID: "stopped-main", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+			SessionType: "user", State: "stopped", CreatedAt: stoppedAt, UpdatedAt: stoppedAt,
+		}}
+		query := ListQuery{
+			ReadScope:           store.ReadScope{AllProfiles: true},
+			WorkspaceID:         h.workspaceID,
+			Limit:               MaxListLimit,
+			ExcludeInstanceMain: true,
+			InstanceMainIDs:     []string{main.ID, "stopped-main"},
+		}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != ordinary.ID {
+			t.Fatalf("catalog without mains = %#v, %v", page, err)
+		}
+	})
+
 	t.Run(
 		"Should hide verdict-only judges before counting and preserve actionable system sessions",
 		func(t *testing.T) {

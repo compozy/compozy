@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: With no instance there is no row and no empty space. Global instances sit in a row labeled Global above all projects; each project's instances sit under its name, and in its Kanban lane header. Anyone needing the operator is ordered first and shows the Needs you triangle. A click opens the main session, created again if it was lost, and the open one shows a selected background. Hover or focus opens a card with what it's doing, last and next check, Open conversation and Pause or Resume. The context menu offers Pause or Resume with the pause reason, Open agent, Check-ins and Archive; Resume is disabled when the definition is gone. More agents than fit move into `+N`, a searchable panel grouped by state. A collapsed project shows who needs you by face. Main sessions leave session rows, cards and counts. Sessions they spawn stay ordinary rows and cards with a creator badge. A project with only an agent still gets its group. A project's `+` offers New session, New folder and Add stays-on agent; Add opens a picker of stays-on agents not yet there, with Create new opening New agent on Stays on with that project chosen. At the limit the rows and Create new are blocked and the popover shows it. Flat mode shows one row: Global first, then the focused project's. The dock's Home app reads Dashboard.
 entry_points: web Sessions window (list and Kanban); project `+`; avatar row; avatar context menu
-qa_status: skipped
+qa_status: blocked-verify
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: fixed
+retest_status: pending
+fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md
+last_report: docs/qa/reports/2026-11-01-stays-on-agents.md
 overlaps: MS-web-agent-create-simple-advanced
 ---
 
@@ -164,3 +164,5 @@ creation/recovery and stops the main or registered candidate before committing
 archive state. A failed stop leaves the instance visible and retryable. Repeat
 archive after stop recovery and verify the instance leaves the active catalog.
 Owning SQLite coverage: `TestInstanceServiceRecreation`.
+
+2026-11-01 walk: row, hover card, context menu, picker, cap, Kanban header and Dashboard dock passed in an isolated lab. Still unwalked: `+N`, collapsed signal, flat-mode switching, the project `+` menu, live pose updates and keyboard paths.

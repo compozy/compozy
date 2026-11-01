@@ -21,6 +21,7 @@ import {
   HOME_RUN_TITLE_CLASS,
 } from "./home-zone-shape";
 import { HomeWorkingNowSkeleton } from "./home-zone-skeletons";
+import { useAgentIdentityView } from "@/systems/agent";
 import { AgentIdentityMark } from "@/systems/agent/components/agent-identity-mark";
 import { useSessionCreateActions } from "@/systems/session";
 import { WorkspaceBadge } from "@/systems/workspace";
@@ -34,6 +35,9 @@ export interface HomeWorkingNowProps {
 }
 
 function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds: number }) {
+  // An unnamed session falls back to its agent, which reads by label, never by slug.
+  const { label } = useAgentIdentityView(card.agentName);
+  const title = card.title === card.agentName ? label : card.title;
   const ticked =
     card.elapsedBaseSeconds + Math.max(0, nowSeconds - Math.floor(card.baseAtMs / 1000));
 
@@ -47,7 +51,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
         <div className={HOME_RUN_TITLE_CLASS}>
           <StateGlyph state="running" />
           <AgentIdentityMark name={card.agentName} quietIdle size={20} state="working" />
-          <span className="truncate">{card.title}</span>
+          <span className="truncate">{title}</span>
           {card.kind === "task_run" ? (
             <Pill size="xs" tone="neutral">
               task run

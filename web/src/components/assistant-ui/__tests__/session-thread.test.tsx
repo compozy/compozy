@@ -1205,6 +1205,17 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByRole("button", { name: "Stop generation" })).not.toBeInTheDocument();
   });
 
+  it("Should keep a session stopped before its first turn open for the next prompt", () => {
+    renderThreadState({
+      status: "success",
+      sessionState: "stopped",
+      failure: { kind: "cancellation", summary: "daemon stopped by user" },
+    });
+
+    expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-input")).not.toHaveTextContent("Session failed to start");
+  });
+
   it("Should surface durable startup failure and link to the agent runtime settings", async () => {
     renderThreadState({
       status: "error",

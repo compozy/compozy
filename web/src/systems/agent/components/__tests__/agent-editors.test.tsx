@@ -344,7 +344,7 @@ describe("Check-ins", () => {
     const now = new Date();
     seedAgentInstanceMock(
       [agentInstanceFixture({ agent_name: agent.name, last_wake_at: now.toISOString() })],
-      [{ result: "failed", reason: "triage_timeout", at: now.toISOString() }],
+      [{ id: "c1", result: "failed", reason: "triage_timeout", created_at: now.toISOString() }],
       [{ key: "task:1", summary: "Migrate tokens is stuck" }]
     );
     const user = userEvent.setup();

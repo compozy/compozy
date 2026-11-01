@@ -1,6 +1,7 @@
 import { PageContent } from "@compozy/ui";
 
 import {
+  agentEditorWorkspace,
   AgentAddPlace,
   AgentCheckInsEditor,
   AgentMemoryEditor,
@@ -8,12 +9,12 @@ import {
   AgentWhatItDoesEditor,
   AgentWhereItWorks,
   isAgentReadOnly,
+  useAgentInstances,
   useAgentProfile,
   useAgentWindowScope,
   type AgentEditorPage,
   type AgentPayload,
 } from "@/systems/agent";
-import { useTopbarSlot } from "@compozy/ui";
 
 import { AgentDetailLoading, AgentNotFound } from "./agent-detail-location";
 import { AGENT_PAGE_SCROLL_CLASS } from "./agent-page-frame";
@@ -40,7 +41,8 @@ function PageBody({
   page: AgentEditorPage;
   detail: UseAgentDetailResult;
 }) {
-  const { workspace } = useAgentWindowScope();
+  const scope = useAgentWindowScope();
+  const workspace = agentEditorWorkspace(scope.workspace, agent.name, useAgentInstances());
   const profile = useAgentProfile({
     agent,
     panel: null,
@@ -55,7 +57,7 @@ function PageBody({
     state: profile.state,
     workspace,
   };
-  useTopbarSlot({
+  useAgentDetailTopbar(detail, agent.name, PAGE_TITLES[page], {
     actions:
       page === "where" ? (
         <AgentAddPlace
@@ -97,7 +99,7 @@ function PageBody({
 /** A focused page of the agent, with the crumb back to its home. */
 export function AgentPageLocation({ name, page }: { name: string; page: AgentEditorPage }) {
   const detail = useAgentDetail(name);
-  useAgentDetailTopbar(detail, name, PAGE_TITLES[page]);
+  useAgentDetailTopbar(detail, name, PAGE_TITLES[page], { publish: !detail.agent });
   if (detail.agentLoading) return <AgentDetailLoading />;
   if (detail.agentError || !detail.agent) {
     return <AgentNotFound error={detail.agentError} name={name} onBack={detail.onBackToAgents} />;

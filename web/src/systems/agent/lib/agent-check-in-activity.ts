@@ -89,7 +89,7 @@ export function clockAt(at: string) {
 }
 
 function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
-  const base = { key: checkIn.at, time: clockAt(checkIn.at) };
+  const base = { key: checkIn.id, time: clockAt(checkIn.created_at) };
   const sentence = checkInReason(checkIn.reason);
   if (checkIn.result === "failed") {
     return {
@@ -102,15 +102,16 @@ function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
   if (isTold(checkIn)) {
     return { ...base, title: "Told you something", description: checkIn.detail, told: true };
   }
-  return { ...base, title: "All quiet", description: checkIn.detail || sentence };
+  const title = checkIn.result === "skipped" ? "Skipped" : "All quiet";
+  return { ...base, title, description: checkIn.detail || sentence };
 }
 
 function quietRun(run: readonly AgentInstanceCheckIn[]): RecentCheckIn {
   const newest = run[0]!;
   const oldest = run[run.length - 1]!;
   return {
-    key: newest.at,
-    time: `${clockAt(oldest.at)} to ${clockAt(newest.at)}`,
+    key: newest.id,
+    time: `${clockAt(oldest.created_at)} to ${clockAt(newest.created_at)}`,
     title: `${run.length} quiet check-ins`,
   };
 }
@@ -121,8 +122,8 @@ export function checkInActivity(
   now: Date
 ): CheckInActivity {
   const today = checkIns
-    .filter(item => isToday(item.at, now))
-    .sort((a, b) => b.at.localeCompare(a.at));
+    .filter(item => isToday(item.created_at, now))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const recent: RecentCheckIn[] = [];
   let run: AgentInstanceCheckIn[] = [];
   const flush = () => {
@@ -140,7 +141,7 @@ export function checkInActivity(
   }
   flush();
   return {
-    past: [...today].reverse().map(item => ({ at: item.at, cell: cellOf(item) })),
+    past: [...today].reverse().map(item => ({ at: item.created_at, cell: cellOf(item) })),
     recent,
   };
 }

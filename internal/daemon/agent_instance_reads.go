@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -56,7 +57,8 @@ func projectInstanceMain(payload *contract.AgentInstancePayload, info *session.I
 	if info.State == session.StateStarting {
 		payload.Activity = "unknown"
 	}
-	if info.Failure != nil {
+	// A stop the operator or daemon shutdown asked for is not a failure of the agent.
+	if info.Failure != nil && info.Failure.Kind != store.FailureCanceled {
 		payload.Activity = "failed"
 	}
 	if info.PendingPermissionCount > 0 || info.PendingClarifyCount > 0 {

@@ -28,6 +28,7 @@ func (h *BaseHandlers) RequireProjectReference(c *gin.Context, raw string) bool 
 				"goal",
 				"logs",
 				"agents",
+				"agent-instances",
 				"tasks",
 				"automation",
 				"observe",

@@ -141,10 +141,11 @@ export interface CreateAgentInstanceParams {
 
 /** One wake event of `_dx.md`; `reason` is a stable code, `detail` is bounded free text. */
 export interface AgentInstanceCheckIn {
+  id: string;
   result: string;
   reason?: string;
   detail?: string;
-  at: string;
+  created_at: string;
 }
 
 export interface AgentInstanceCheckInsResponse {

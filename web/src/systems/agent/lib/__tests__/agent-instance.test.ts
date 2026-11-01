@@ -4,6 +4,7 @@ import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import { humanizeAgentSlug, resolveAgentIdentity } from "../agent-identity";
 import { agentFromOrphanInstance, isOrphanAgent } from "../agent-instance-wire";
 import {
+  agentEditorWorkspace,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceCapacity,
@@ -130,5 +131,27 @@ describe("agentFromOrphanInstance", () => {
   it("Should give an orphan enough of an agent to explain itself", () => {
     const agent = agentFromOrphanInstance(agentInstanceFixture({ label: "Triage Lead" }));
     expect(agent).toMatchObject({ name: "triage", label: "Triage Lead", kind: "stays_on" });
+  });
+});
+
+describe("agentEditorWorkspace", () => {
+  const instances = [
+    { agent_name: "scout", workspace_id: "" },
+    { agent_name: "watcher", workspace_id: "" },
+    { agent_name: "watcher", workspace_id: "ws-1" },
+  ];
+
+  it("Should keep the window's project", () => {
+    expect(agentEditorWorkspace("ws-2", "watcher", instances)).toBe("ws-2");
+  });
+
+  it("Should borrow the agent's project under All projects and User", () => {
+    expect(agentEditorWorkspace(null, "watcher", instances)).toBe("ws-1");
+    expect(agentEditorWorkspace("@user", "watcher", instances)).toBe("ws-1");
+  });
+
+  it("Should keep the scope of an agent with no project", () => {
+    expect(agentEditorWorkspace(null, "scout", instances)).toBeNull();
+    expect(agentEditorWorkspace("@user", "scout", instances)).toBe("@user");
   });
 });

@@ -37,6 +37,21 @@ export function agentInstanceBinding(instance: Pick<AgentInstancePayload, "works
   return { workspace: instance.workspace_id || GLOBAL_SCOPE };
 }
 
+/**
+ * Where a focused editor reads a definition: the window's project, else the first
+ * project the agent works in. Authored files need a registered project, so a window
+ * under All projects or User borrows the agent's own placement.
+ */
+export function agentEditorWorkspace(
+  workspace: string | null,
+  agentName: string,
+  instances: readonly Pick<AgentInstancePayload, "agent_name" | "workspace_id">[]
+) {
+  if (workspace && workspace !== GLOBAL_SCOPE) return workspace;
+  const placed = instances.find(item => item.agent_name === agentName && item.workspace_id);
+  return placed?.workspace_id ?? workspace;
+}
+
 /** These reasons resume only once the definition is back, so Resume stays disabled. */
 export function agentInstanceResumeBlocked(instance: AgentInstancePayload) {
   return (

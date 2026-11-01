@@ -318,6 +318,8 @@ func normalizeHarnessSessionType(sessionType session.Type) session.Type {
 		return session.SessionTypeUser
 	case session.SessionTypeSystem:
 		return session.SessionTypeSystem
+	case session.SessionTypeTriage:
+		return session.SessionTypeTriage
 	case session.SessionTypeCoordinator:
 		return session.SessionTypeCoordinator
 	case session.SessionTypeSpawned:
@@ -331,7 +333,7 @@ func harnessSessionClassForType(sessionType session.Type) (SessionClass, error) 
 	switch sessionType {
 	case session.SessionTypeUser:
 		return SessionClassInteractive, nil
-	case session.SessionTypeSystem:
+	case session.SessionTypeSystem, session.SessionTypeTriage:
 		return SessionClassSystem, nil
 	case session.SessionTypeCoordinator:
 		return SessionClassCoordinator, nil

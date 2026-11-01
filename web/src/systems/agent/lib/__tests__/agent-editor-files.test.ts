@@ -325,14 +325,33 @@ describe("check-in activity", () => {
   const now = new Date(2026, 10, 1, 14, 12);
   const at = (hour: number, minute = 0) => new Date(2026, 10, 1, hour, minute).toISOString();
 
+  it("Should not call a skipped check-in quiet", () => {
+    const { recent } = checkInActivity(
+      [{ id: "c1", result: "skipped", reason: "heartbeat_invalid", created_at: at(9) }],
+      now
+    );
+    expect(recent.map(item => item.title)).toEqual(["Skipped"]);
+  });
+
   it("Should fold quiet runs and keep what mattered", () => {
     const { recent, past } = checkInActivity(
       [
-        { result: "quiet", reason: "digest_empty", at: at(9) },
-        { result: "quiet", reason: "digest_unchanged", at: at(9, 30) },
-        { result: "reported", reason: "reported", detail: "Tokens are stuck.", at: at(10) },
-        { result: "failed", reason: "triage_timeout", at: at(10, 30) },
-        { result: "quiet", reason: "digest_empty", at: new Date(2026, 9, 31, 9).toISOString() },
+        { id: "c1", result: "quiet", reason: "digest_empty", created_at: at(9) },
+        { id: "c2", result: "quiet", reason: "digest_unchanged", created_at: at(9, 30) },
+        {
+          id: "c3",
+          result: "reported",
+          reason: "reported",
+          detail: "Tokens are stuck.",
+          created_at: at(10),
+        },
+        { id: "c4", result: "failed", reason: "triage_timeout", created_at: at(10, 30) },
+        {
+          id: "c5",
+          result: "quiet",
+          reason: "digest_empty",
+          created_at: new Date(2026, 9, 31, 9).toISOString(),
+        },
       ],
       now
     );

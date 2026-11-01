@@ -292,7 +292,7 @@ func claimSessionPromptAdmission(
 		return store.SessionPromptAdmission{}, false, fmt.Errorf("store: insert session prompt admission: %w", err)
 	}
 	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt &&
-		req.Mode != store.SessionInputQueueModeSteer {
+		(req.DirectDispatch || req.Mode != store.SessionInputQueueModeSteer) {
 		if err := queries.ReservePromptReports(
 			ctx,
 			sqlcgen.ReservePromptReportsParams{

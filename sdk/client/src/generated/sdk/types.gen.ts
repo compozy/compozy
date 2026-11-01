@@ -23953,6 +23953,10 @@ export type ListSessionsData = {
      */
     skip_total?: boolean;
     /**
+     * Exclude stays-on main sessions from the page and its total
+     */
+    exclude_instance_main?: boolean;
+    /**
      * Filter by exact session state
      */
     state?: "starting" | "active" | "stopping" | "stopped";
@@ -35020,6 +35024,10 @@ export type ListWorkspaceSessionsData = {
      * Omit the exact catalog count for a bounded cursor read
      */
     skip_total?: boolean;
+    /**
+     * Exclude stays-on main sessions from the page and its total
+     */
+    exclude_instance_main?: boolean;
     /**
      * Filter by exact session state
      */

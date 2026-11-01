@@ -343,6 +343,7 @@ export {
   GLOBAL_SCOPE,
   agentAvatarAppearance,
   agentInstanceAvatarState,
+  agentEditorWorkspace,
   agentInstanceBinding,
   agentInstanceCapacity,
   type AgentInstanceCapacity,

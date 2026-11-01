@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-31
 expected: /agents shows one card per agent in Stays on then On demand sections, in Cards and Rows; the agent's home shows identity edited in place, where it's working as live cards, activity, findings, recent work and how it's set up; Model and What it can use open side panels; What it does, Check-ins, Memory and Where it works open focused pages; old tab and section links land on the matching panel or page; no surface prints a slug; a mention of an agent is a reference that starts nothing
 entry_points: web /agents; /agents/$name; /agents/$name/what-it-does; /agents/$name/check-ins; /agents/$name/memory; /agents/$name/where
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+fix_status: fixed
+retest_status: pending
+fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md
+last_report: docs/qa/reports/2026-11-01-stays-on-agents.md
 overlaps: ET-web-agent-detail-tab-parity; ET-web-agent-fleet-listing-rows
 ---
 
@@ -57,3 +57,5 @@ remains pending; SQLite-backed handler and repository tests cover the read path.
     and the page reopens with all of them off.
 14. Switch to another profile, add an agent there, then open All profiles. Rows from both profiles
     appear, and pause, Check-ins and memory act on each row's own profile.
+
+2026-11-01 walk: list, profile, Memory, Where it works, pause, resume, add, remove, cap and the all-day Check-ins reading passed for agents with a project. Blocked: Global-only and On demand agents can't open What it does or Check-ins, because authoring needs a workspace ID (open defect 1 in the report). Saves, extension-owned agents, All profiles and mentions weren't exercised.

@@ -650,3 +650,53 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceReportReservationUnderSteerDefault(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		direct bool
+		want   int
+	}{
+		{"Should reserve for a prompt starting a turn on an idle session", true, 1},
+		{"Should leave reports for a prompt that steers a running turn", false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "steer-default", "sess-steer-default")
+			instance, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspace, AgentName: "coder",
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instances SET state='active', main_session_id=? WHERE id=?", main, instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			report, err := db.InstanceReports().AppendReport(ctx, instance.ID, agentinstance.ReportInput{
+				SourceKey: "occ:steer-default", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"test"}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.InstanceReports().MarkReportPublished(ctx, report.ID, main, 1); err != nil {
+				t.Fatal(err)
+			}
+			req := promptAdmissionRequest(workspace, main, "steer-default", time.Now().UTC())
+			req.HumanIngress, req.Operation = true, store.SessionPromptOperationPrompt
+			req.Mode, req.DirectDispatch = store.SessionInputQueueModeSteer, tc.direct
+			if _, created, err := db.ClaimSessionPromptAdmission(ctx, req); err != nil || !created {
+				t.Fatalf("admission: %v %v", created, err)
+			}
+			reserved, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "reserved", Limit: 10})
+			if err != nil || len(reserved) != tc.want {
+				t.Fatalf("reserved: %d, want %d: %v", len(reserved), tc.want, err)
+			}
+		})
+	}
+}

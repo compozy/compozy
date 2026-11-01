@@ -84,6 +84,7 @@ func sessionCatalogListOperation() OperationSpec {
 			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
 			boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
+			boolQueryParam("exclude_instance_main", "Exclude stays-on main sessions from the page and its total"),
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",

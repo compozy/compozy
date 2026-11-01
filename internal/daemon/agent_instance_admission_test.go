@@ -354,6 +354,7 @@ func TestInstanceMainReadModel(t *testing.T) {
 		{"Should show an idle main", session.Info{State: session.StateActive}, "idle"},
 		{"Should show a starting main as unknown", session.Info{State: session.StateStarting}, "unknown"},
 		{"Should show a failed main", session.Info{State: session.StateActive, Failure: &store.SessionFailure{}}, "failed"},
+		{"Should keep a canceled main idle after a clean stop", session.Info{State: session.StateStopped, Failure: &store.SessionFailure{Kind: store.FailureCanceled}}, "idle"},
 		{"Should prioritize pending permission over failure", session.Info{State: session.StateActive, Failure: &store.SessionFailure{}, PendingPermissionCount: 1}, "waiting"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

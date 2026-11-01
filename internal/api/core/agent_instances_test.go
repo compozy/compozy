@@ -431,6 +431,12 @@ func TestAgentInstanceAway(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		for id, result := range map[string]string{"event-quiet": "quiet", "event-skipped": "skipped"} {
+			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer',?,'digest_empty',?,'2099-01-01T00:00:00Z')`, id, instance.ID, result, store.FormatTimestamp(report.CreatedAt))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Reports: db.InstanceReports(), Authority: agentinstance.Authority{Callers: db.Instances()}}
 		at := report.CreatedAt.Add(time.Second)
@@ -448,7 +454,7 @@ func TestAgentInstanceAway(t *testing.T) {
 				t.Fatal(err)
 			}
 			if method == "GET" && body.LastSeenAt == nil {
-				if len(body.Reports) != 1 || body.Reports[0].ID != report.ID {
+				if len(body.Reports) != 1 || body.Reports[0].ID != report.ID || body.QuietCheckIns != 1 {
 					t.Fatalf("unseen body = %+v", body)
 				}
 				seen, err := db.Instances().LastSeen(t.Context(), instance.ID, agentinstance.LocalOperator)
@@ -456,7 +462,7 @@ func TestAgentInstanceAway(t *testing.T) {
 					t.Fatalf("GET changed seen: %v %v", seen, err)
 				}
 			} else {
-				if body.LastSeenAt == nil || !body.LastSeenAt.Equal(at) || len(body.Reports) != 0 {
+				if body.LastSeenAt == nil || !body.LastSeenAt.Equal(at) || len(body.Reports) != 0 || body.QuietCheckIns != 0 {
 					t.Fatalf("seen body = %+v", body)
 				}
 			}
@@ -591,6 +597,12 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
 			testutil.StubSessionManager{
+				ListPageFn: func(_ context.Context, q session.ListQuery) (session.ListPage, error) {
+					if !q.ExcludeInstanceMain || len(q.InstanceMainIDs) != 2 {
+						t.Fatalf("listed main exclusions: %+v", q)
+					}
+					return session.ListPage{Limit: 1}, nil
+				},
 				CatalogFacetsFn: func(_ context.Context, q session.ListQuery) (store.SessionCatalogFacetResult, error) {
 					if len(q.BoardExcludedIDs) != 2 {
 						t.Fatalf("main exclusions: %v", q.BoardExcludedIDs)
@@ -611,6 +623,11 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 			},
 		}
 		fixture.Engine.GET("/facets", fixture.Handlers.ListSessionFacets)
+		fixture.Engine.GET("/list", fixture.Handlers.ListSessions)
+		listed := performRequest(t, fixture.Engine, "GET", "/list?all_workspaces=true&exclude_instance_main=true", nil)
+		if listed.Code != 200 {
+			t.Fatalf("list: %d %s", listed.Code, listed.Body.String())
+		}
 		response := performRequest(
 			t,
 			fixture.Engine,

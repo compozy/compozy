@@ -141,7 +141,10 @@ export function deriveAwayDigest(
   return {
     firstReportId: first.id,
     foldedIds: new Set(told.map(report => report.id)),
-    headline: `${countWord(hours)} ${lead}${span}, ${decisions}`,
+    headline:
+      hours === 0
+        ? `Under an hour, ${decisions}`
+        : `${countWord(hours)} ${lead}${span}, ${decisions}`,
     summary: mostlyQuiet
       ? `${agentLabel} checked in ${total} times. Most had nothing to report.`
       : `${agentLabel} checked in ${total} times.`,

@@ -44,11 +44,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		return
 	}
 	if excludeMain {
-		for _, instance := range instances {
-			if instance.MainSessionID != "" {
-				query.BoardExcludedIDs = append(query.BoardExcludedIDs, instance.MainSessionID)
-			}
-		}
+		query.BoardExcludedIDs = instanceMainIDs(instances)
 	}
 	facets, err := manager.CatalogFacets(c.Request.Context(), query)
 	if err != nil {

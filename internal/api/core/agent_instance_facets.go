@@ -11,6 +11,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func instanceMainIDs(instances []contract.AgentInstancePayload) []string {
+	ids := make([]string, 0, len(instances))
+	for _, instance := range instances {
+		if instance.MainSessionID != "" {
+			ids = append(ids, instance.MainSessionID)
+		}
+	}
+	return ids
+}
+
 func (h *BaseHandlers) instanceFacetRows(c *gin.Context, query session.ListQuery) ([]contract.AgentInstancePayload, error) {
 	if h.AgentInstances == nil {
 		return nil, nil

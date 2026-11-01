@@ -3,8 +3,10 @@ package daemon
 import (
 	"context"
 	"errors"
+	"path/filepath"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/managedsidecar"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -54,6 +56,15 @@ func resolveInstanceCheckPolicy(ctx context.Context, definitions instanceDefinit
 	return target, nil
 }
 
+// timerPolicyRoot contains HEARTBEAT.md by the agent's own directory when the
+// definition lives outside the workspace, as every user-level agent does.
+func timerPolicyRoot(target heartbeat.AuthoringTarget) string {
+	if _, within := managedsidecar.RelativeWithinRoot(target.WorkspaceRoot, target.AgentPath); within {
+		return target.WorkspaceRoot
+	}
+	return filepath.Dir(target.AgentPath)
+}
+
 func resolveTimerPolicy(ctx context.Context, resolver heartbeat.PolicyResolver, target heartbeat.AuthoringTarget) (heartbeat.ResolvedPolicy, error) {
 	var policy heartbeat.ResolvedPolicy
 	var found bool
@@ -65,7 +76,7 @@ func resolveTimerPolicy(ctx context.Context, resolver heartbeat.PolicyResolver, 
 		}
 	}
 	if !found {
-		policy, err = heartbeat.Resolve(ctx, heartbeat.ResolveRequest{AgentPath: target.AgentPath, WorkspaceRoot: target.WorkspaceRoot, Config: target.Config})
+		policy, err = heartbeat.Resolve(ctx, heartbeat.ResolveRequest{AgentPath: target.AgentPath, WorkspaceRoot: timerPolicyRoot(target), Config: target.Config})
 		if err != nil {
 			return policy, err
 		}

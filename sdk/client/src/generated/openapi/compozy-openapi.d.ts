@@ -35998,6 +35998,8 @@ export interface operations {
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
         skip_total?: boolean;
+        /** @description Exclude stays-on main sessions from the page and its total */
+        exclude_instance_main?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -50456,6 +50458,8 @@ export interface operations {
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
         skip_total?: boolean;
+        /** @description Exclude stays-on main sessions from the page and its total */
+        exclude_instance_main?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */

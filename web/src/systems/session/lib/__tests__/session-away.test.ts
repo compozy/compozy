@@ -23,6 +23,13 @@ const AWAY: AgentInstanceAway = {
 };
 
 describe("deriveAwayDigest", () => {
+  it("Should not count hours for an absence under one", () => {
+    const start = new Date(NOW - 20 * 60 * 1000).toISOString();
+    const reports = AWAY.reports.map(report => ({ ...report, created_at: start }));
+    const digest = deriveAwayDigest({ ...AWAY, last_seen_at: start, reports }, "Triage Lead", NOW);
+    expect(digest?.headline).toBe("Under an hour, one decision for you.");
+  });
+
   it("Should tell the night in one card and keep the decision as its own", () => {
     const digest = deriveAwayDigest(AWAY, "Triage Lead", NOW);
     expect(digest?.firstReportId).toBe("f1");

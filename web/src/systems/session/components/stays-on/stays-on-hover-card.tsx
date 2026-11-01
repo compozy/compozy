@@ -50,7 +50,7 @@ export function CheckTicks({ checkIns }: { checkIns: readonly AgentInstanceCheck
   const quiet = marks.filter(mark => mark === "quiet").length;
   return (
     <div
-      aria-label={`Last ${marks.length} check-ins, ${quiet} with nothing to report`}
+      aria-label={`${marks.length === 1 ? "Last check-in" : `Last ${marks.length} check-ins`}, ${quiet} with nothing to report`}
       className="flex h-3 items-center gap-0.5"
       role="img"
     >
@@ -79,7 +79,9 @@ function CheckIns({ instance }: { instance: AgentInstancePayload }) {
     <div className="flex flex-col gap-1.5">
       {checkIns.length > 0 ? (
         <>
-          <Eyebrow className="text-subtle">Last {checkIns.length} check-ins</Eyebrow>
+          <Eyebrow className="text-subtle">
+            {checkIns.length === 1 ? "Last check-in" : `Last ${checkIns.length} check-ins`}
+          </Eyebrow>
           <CheckTicks checkIns={checkIns} />
         </>
       ) : null}
