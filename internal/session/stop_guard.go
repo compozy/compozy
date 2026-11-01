@@ -16,9 +16,10 @@ var (
 	errStopDeclinedEnded = fmt.Errorf("%w: session ended", errStopDeclined)
 )
 
-// stopGuard decides whether a stop may commit. It runs with m.lifecycleMu held and
-// returns errStopDeclined, errStopDeclinedEnded, or the error that kept it from deciding.
-type stopGuard func(ctx context.Context, session *Session) error
+// stopGuard decides whether a stop may commit, given the session as it is now. It
+// runs with m.lifecycleMu held and returns errStopDeclined, errStopDeclinedEnded, or
+// the error that kept it from deciding.
+type stopGuard func(ctx context.Context, info *Info) error
 
 // ParentStopOutcome reports what StopIfParentStopped did.
 type ParentStopOutcome int
@@ -38,8 +39,9 @@ const (
 // moves the session to stopping. Resume and take-over change lineage under
 // lifecycleMu, and a parent becomes live under it, so each of them orders entirely
 // before the decision, which then declines, or after it, against a child already
-// stopping. onCommitted runs once the stop is committed, before termination begins
-// and outside every lock. A condition that no longer holds is an outcome, not an error.
+// stopping. onCommitted runs once for a committed stop, even if a later step fails,
+// and always before termination or launch cancellation begins. It runs without
+// lifecycleMu. A condition that no longer holds is an outcome, not an error.
 func (m *Manager) StopIfParentStopped(
 	ctx context.Context,
 	id string,
@@ -71,40 +73,61 @@ func (m *Manager) StopIfParentStopped(
 	}
 }
 
-// commitStopIntent moves session to stopping, deciding guard atomically with that
-// transition. Lock order is goalStopMu or the launch commit, then lifecycleMu, then
-// session.mu; lifecycleMu holders never stop a session. Only the in-memory transition
-// needs the lock: from there on the session is stopping, which neither resume nor
-// take-over admits. The caller persists after lifecycleMu is released.
+// commitStopIntent moves session to stopping, deciding run's guard atomically with
+// that transition. A nil run is an unguarded stop. Lock order is goalStopMu or the
+// launch commit, then lifecycleMu, then session.mu; lifecycleMu holders never stop a
+// session. Only the in-memory transition needs the lock: from there on the session
+// is stopping, which neither resume nor take-over admits. The caller persists after
+// lifecycleMu is released.
 func (m *Manager) commitStopIntent(
 	ctx context.Context,
 	session *Session,
 	cause StopCause,
 	detail string,
-	guard stopGuard,
+	run *sessionStopRun,
 ) (bool, <-chan struct{}, error) {
-	if guard == nil {
+	if run == nil || run.guard == nil {
 		return session.prepareStop(m.now(), cause, detail)
 	}
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
-	if err := guard(ctx, session); err != nil {
+	current, ok := m.Get(session.ID)
+	if !ok {
+		return false, nil, errStopDeclinedEnded
+	}
+	if current != session {
+		return false, nil, errStopDeclined
+	}
+	if err := run.guard(ctx, session.Info()); err != nil {
 		return false, nil, err
 	}
-	return session.prepareStop(m.now(), cause, detail)
+	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
+	run.stopCommitted = err == nil
+	return writeMeta, promptSetupDone, err
+}
+
+// commitRecoveredStop decides run's guard for a session a previous daemon left
+// stopping. Resume and take-over both refuse it while its process may run, so the
+// decision needs no transition of its own.
+func (m *Manager) commitRecoveredStop(ctx context.Context, run *sessionStopRun, meta *store.SessionMeta) error {
+	if run.guard == nil {
+		return nil
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	if _, active := m.Get(meta.ID); active || m.isPending(meta.ID) {
+		return errStopDeclined
+	}
+	if err := run.guard(ctx, sessionInfoFromMeta(meta)); err != nil {
+		return err
+	}
+	run.stopCommitted = true
+	return nil
 }
 
 // parentStopGuard admits a live spawned session whose auto_stop_on_parent binding
 // still names a parent that is not live.
-func (m *Manager) parentStopGuard(ctx context.Context, session *Session) error {
-	current, ok := m.Get(session.ID)
-	if !ok {
-		return errStopDeclinedEnded
-	}
-	if current != session {
-		return errStopDeclined
-	}
-	info := session.Info()
+func (m *Manager) parentStopGuard(ctx context.Context, info *Info) error {
 	if !liveState(info.State) {
 		return errStopDeclinedEnded
 	}
@@ -114,7 +137,7 @@ func (m *Manager) parentStopGuard(ctx context.Context, session *Session) error {
 	}
 	state, reason, err := m.sessionStopState(ctx, lineage.ParentSessionID)
 	if err != nil {
-		return fmt.Errorf("session: read parent %q of %q: %w", lineage.ParentSessionID, session.ID, err)
+		return fmt.Errorf("session: read parent %q of %q: %w", lineage.ParentSessionID, info.ID, err)
 	}
 	if liveState(state) || SubagentSurvivesParentStop(lineage, reason) {
 		return errStopDeclined

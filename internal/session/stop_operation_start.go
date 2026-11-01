@@ -12,7 +12,7 @@ func (m *Manager) prepareStartingStopRun(
 	cause StopCause,
 	detail string,
 ) bool {
-	session, start, handled, err := m.prepareStartingSessionStop(ctx, run.session.ID, cause, detail, run.guard)
+	session, start, handled, err := m.prepareStartingSessionStop(ctx, run.session.ID, cause, detail, run)
 	if !handled {
 		return false
 	}

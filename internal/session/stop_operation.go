@@ -17,9 +17,11 @@ type sessionStopRun struct {
 	recoveredSettlement *recoveredStopSettlement
 	outcome             StopOutcome
 	err                 error
-	// guard and onCommitted belong to the claiming caller; joiners never read them.
-	guard       stopGuard
-	onCommitted func()
+	// guard and onCommitted belong to the claiming caller. stopCommitted records that
+	// the guard admitted the stop; joiners read it only after ready closes.
+	guard         stopGuard
+	onCommitted   func()
+	stopCommitted bool
 }
 
 // RequestStop starts or joins a session stop without waiting for termination.
@@ -88,10 +90,10 @@ func (m *Manager) requestGuardedSessionStop(
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
-		if !errors.Is(run.prepareErr, errStopDeclined) {
+		if !run.uncommittedGuardedStop() {
 			return run, run.prepareErr
 		}
-		// A declined guard stopped nothing, and it spoke only for its own caller.
+		// That run stopped nothing, and its guard spoke only for its own caller.
 		run, owned = m.claimSessionStopRun(id)
 	}
 	run.guard, run.onCommitted = guard, onCommitted
@@ -151,11 +153,15 @@ func (m *Manager) claimSessionStopRun(id string) (*sessionStopRun, bool) {
 	return run, true
 }
 
-// failStopPreparation ends a run that stopped nothing. A declined run leaves no
-// trace, so it can read neither as a stop in progress nor as a stop result.
+// failStopPreparation ends a run whose preparation failed. A committed stop still
+// owes its callback. An uncommitted guarded run leaves no trace, so it can read
+// neither as a stop in progress nor as a stop result.
 func (m *Manager) failStopPreparation(run *sessionStopRun, err error) {
 	run.prepareErr, run.err = err, err
-	if errors.Is(err, errStopDeclined) {
+	if run.stopCommitted {
+		run.notifyCommitted()
+	}
+	if run.uncommittedGuardedStop() {
 		m.mu.Lock()
 		if m.stopRuns[run.session.ID] == run {
 			delete(m.stopRuns, run.session.ID)
@@ -166,15 +172,23 @@ func (m *Manager) failStopPreparation(run *sessionStopRun, err error) {
 	close(run.done)
 }
 
+func (r *sessionStopRun) uncommittedGuardedStop() bool {
+	return r.guard != nil && !r.stopCommitted
+}
+
+// notifyCommitted runs the callback at most once. Nil receivers are unguarded stops.
 func (r *sessionStopRun) notifyCommitted() {
-	if r.onCommitted != nil {
-		r.onCommitted()
+	if r == nil || r.onCommitted == nil {
+		return
 	}
+	notify := r.onCommitted
+	r.onCommitted = nil
+	notify()
 }
 
 func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun, cause StopCause, detail string) {
 	session, proc, stopped, requested, _, err := m.prepareStopWithCauseMode(
-		ctx, run.session.ID, cause, detail, stopPreparationDefault, run.guard,
+		ctx, run.session.ID, cause, detail, stopPreparationDefault, run,
 	)
 	if err != nil {
 		m.failStopPreparation(run, err)

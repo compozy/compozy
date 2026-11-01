@@ -735,6 +735,34 @@ func (h *harness) assertRunning(t *testing.T, id string) {
 	}
 }
 
+// joinSignalContext reports the first wait on it. A stop request waits on its
+// context first when it joins a run another caller already claimed.
+type joinSignalContext struct {
+	context.Context
+	joined chan struct{}
+	once   sync.Once
+}
+
+func (c *joinSignalContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.joined) })
+	return c.Context.Done()
+}
+
+var errCatalogStateRefused = errors.New("test: catalog state refused")
+
+// failingStateCatalog refuses lifecycle state writes while armed.
+type failingStateCatalog struct {
+	*globaldb.GlobalDB
+	failing atomic.Bool
+}
+
+func (c *failingStateCatalog) UpdateSessionState(ctx context.Context, update store.SessionStateUpdate) error {
+	if c.failing.Load() {
+		return errCatalogStateRefused
+	}
+	return c.GlobalDB.UpdateSessionState(ctx, update)
+}
+
 // Invariant: a parent-stop reap commits only while its condition holds, decided
 // atomically with the move to stopping; owner: the session manager's stop path.
 func TestStopIfParentStopped(t *testing.T) {
@@ -837,15 +865,19 @@ func TestStopIfParentStopped(t *testing.T) {
 		}
 		worker := h.spawnBoundWorker(t, parent)
 
-		// The child's parent stays live, so the guard declines after this request
-		// joined or, at the latest, right before it claims its own run.
+		// The child's parent stays live, so the guard declines once the operator's
+		// Stop has joined: its first ctx.Done() is the wait on this run.
+		joinCtx := &joinSignalContext{Context: ctx, joined: make(chan struct{})}
 		joined := make(chan error, 1)
 		var once sync.Once
 		dispatcher.dispatchSessionPreStopFn = func(
 			_ context.Context,
 			payload hookspkg.SessionPreStopPayload,
 		) (hookspkg.SessionPreStopPayload, error) {
-			once.Do(func() { go func() { joined <- h.manager.Stop(ctx, worker.ID) }() })
+			once.Do(func() {
+				go func() { joined <- h.manager.Stop(joinCtx, worker.ID) }()
+				<-joinCtx.joined
+			})
 			return payload, nil
 		}
 		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, nil)
@@ -921,6 +953,78 @@ func TestStopIfParentStopped(t *testing.T) {
 		}
 	})
 
+	t.Run("Should guard a child a previous daemon left stopping", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		h.mustStop(t, worker.ID)
+		seedRecoveredStoppingProcess(t, h.harness, worker)
+
+		commits := 0
+		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopSuperseded || commits != 0 {
+			t.Fatalf("StopIfParentStopped(live parent) = %v, %v, commits %d; want superseded", outcome, err, commits)
+		}
+		if got := readMeta(t, worker.MetaPath()).State; got != string(StateStopping) {
+			t.Fatalf("state after a declined recovered stop = %q, want stopping", got)
+		}
+		h.mustStop(t, parent.ID)
+		outcome, err = h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopCommitted || commits != 1 {
+			t.Fatalf("StopIfParentStopped(stopped parent) = %v, %v, commits %d; want committed", outcome, err, commits)
+		}
+	})
+
+	t.Run("Should run the effects of a committed stop whose persistence fails", func(t *testing.T) {
+		t.Parallel()
+		catalog := &failingStateCatalog{}
+		h := newReparentHarnessFrom(t, newHostedMCPHarness(t), catalog)
+		catalog.GlobalDB = h.db
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		h.mustStop(t, parent.ID)
+
+		catalog.failing.Store(true)
+		commits := 0
+		outcome, err := h.manager.StopIfParentStopped(testutil.Context(t), worker.ID, detail, func() { commits++ })
+		catalog.failing.Store(false)
+		if !errors.Is(err, errCatalogStateRefused) || outcome != ParentStopCommitted || commits != 1 {
+			t.Fatalf("StopIfParentStopped() = %v, %v, commits %d; want a committed stop with its error",
+				outcome, err, commits)
+		}
+	})
+
+	t.Run("Should let an operator stop past a guard that could not decide", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		failure := errors.New("parent read failed")
+
+		joinCtx := &joinSignalContext{Context: ctx, joined: make(chan struct{})}
+		joined := make(chan error, 1)
+		run, owned := h.manager.claimSessionStopRun(worker.ID)
+		if !owned {
+			t.Fatal("claimSessionStopRun() did not own the run")
+		}
+		run.guard = func(context.Context, *Info) error { return failure }
+		go func() { joined <- h.manager.Stop(joinCtx, worker.ID) }()
+		<-joinCtx.joined
+		h.manager.prepareSessionStopRun(ctx, run, CauseUserRequested, detail)
+		if !errors.Is(run.prepareErr, failure) {
+			t.Fatalf("guarded run error = %v, want the guard failure", run.prepareErr)
+		}
+		if err := <-joined; err != nil {
+			t.Fatalf("Stop() after a failed guard error = %v", err)
+		}
+		if got := readMeta(t, worker.MetaPath()).State; got != string(StateStopped) {
+			t.Fatalf("child state = %q, want stopped by the operator request", got)
+		}
+	})
+
 	t.Run("Should guard a child still starting", func(t *testing.T) {
 		t.Parallel()
 		h := newSpawnReparentHarness(t)
@@ -931,8 +1035,10 @@ func TestStopIfParentStopped(t *testing.T) {
 		h.mustStop(t, worker.ID)
 		entered := make(chan struct{})
 		release := make(chan struct{})
+		var launchContext atomic.Pointer[context.Context]
 		h.driver.mu.Lock()
 		h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+			launchContext.Store(&ctx)
 			close(entered)
 			// The fake driver holds its lock across this hook; stopping the parent needs it.
 			h.driver.mu.Unlock()
@@ -961,7 +1067,12 @@ func TestStopIfParentStopped(t *testing.T) {
 			t.Fatalf("Status after a declined stop = %#v, %v; want the launch undisturbed", info, err)
 		}
 		h.mustStop(t, parent.ID)
-		outcome, err = h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+		outcome, err = h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() {
+			commits++
+			if err := (*launchContext.Load()).Err(); err != nil {
+				t.Errorf("launch context when effects ran = %v, want a launch not yet canceled", err)
+			}
+		})
 		if err != nil || outcome != ParentStopCommitted || commits != 1 {
 			t.Fatalf("StopIfParentStopped(stopped parent) = %v, %v; want committed", outcome, err)
 		}
