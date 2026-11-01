@@ -2150,6 +2150,24 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		}
 	})
 
+	t.Run("Should clear an earlier refusal when a save confirms the current runtime", func(t *testing.T) {
+		t.Parallel()
+		h, driver, active := newLiveRuntimeHarness(t, runtimeProviderClaude, nil)
+		active.mu.Lock()
+		active.RuntimeFailure = "session: configure runtime: an earlier prompt was refused"
+		active.mu.Unlock()
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "xhigh"), 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(matching) error = %v", err)
+		}
+		if got := driver.configSnapshots(); len(got) != 0 || updated.RuntimeFailure != "" {
+			t.Fatalf("configs = %#v info = %#v, want no reconfigure and no stale failure", got, updated)
+		}
+		if meta := readMeta(t, active.MetaPath()); meta.RuntimeFailureValue() != "" {
+			t.Fatalf("durable failure = %q, want it cleared", meta.RuntimeFailureValue())
+		}
+	})
+
 	t.Run("Should defer a provider change to the next prompt", func(t *testing.T) {
 		t.Parallel()
 		h, driver, active := newLiveRuntimeHarness(t, runtimeProviderClaude, nil)

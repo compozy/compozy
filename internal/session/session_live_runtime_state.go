@@ -107,6 +107,22 @@ func (s *Session) recordLiveRuntimeFailure(
 	return true
 }
 
+// clearRuntimeFailure reports whether it removed a failure while revision was current.
+func (s *Session) clearRuntimeFailure(proc *AgentProcess, revision int64, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.process != proc || s.RuntimeSelectionRevision != revision ||
+		s.RuntimeFailure == "" {
+		return false
+	}
+	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
+	return true
+}
+
 // markRuntimeConfigUnverified records that the provider config may differ from the
 // effective selection. Any later bind or successful configure clears it.
 func (s *Session) markRuntimeConfigUnverified() {

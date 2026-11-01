@@ -46,7 +46,11 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 		return
 	}
 	selection, err := NormalizeRuntimeSelection(*stored)
-	if err != nil || runtimeSelectionsEqual(snapshot.selection, selection) && !runtimeControlsDrifted(&snapshot) {
+	if err != nil {
+		return
+	}
+	if runtimeSelectionsEqual(snapshot.selection, selection) && !runtimeControlsDrifted(&snapshot) {
+		m.clearSupersededRuntimeFailure(session, snapshot.process, revision)
 		return
 	}
 	failed := liveRuntimeFailure{revision: revision}
@@ -197,6 +201,19 @@ func (m *Manager) rollbackLiveRuntime(
 	if err := configurator.ConfigureRuntime(cleanupCtx, snapshot.process, rollback); err != nil {
 		failed.cause = errors.Join(failed.cause, err)
 		failed.rollbackFailed = true
+	}
+}
+
+// clearSupersededRuntimeFailure drops an earlier refusal once a save confirms the runtime
+// the process already uses: nothing is left to retry, so it must not read as this save's.
+func (m *Manager) clearSupersededRuntimeFailure(session *Session, proc *AgentProcess, revision int64) {
+	if !session.clearRuntimeFailure(proc, revision, m.now()) {
+		return
+	}
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	if err := m.persistSessionLifecycleState(cleanupCtx, session, false); err != nil {
+		m.sessionLogger(session).Warn("session: persist cleared runtime failure", "error", err)
 	}
 }
 
