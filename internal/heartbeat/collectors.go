@@ -59,7 +59,12 @@ type CheckDigest struct {
 var collectorNames = []string{"task", "session_health", "sessions_idle", "automations_failed", "monitors_fired"}
 
 // CollectDigest accepts daemon-owned facts; callers must fetch complete eligible populations before applying caps.
-func CollectDigest(scope CollectorScope, facts CollectorFacts, include []string, policyDigest, instructions string) (CheckDigest, error) {
+func CollectDigest(
+	scope CollectorScope,
+	facts CollectorFacts,
+	include []string,
+	policyDigest, instructions string,
+) (CheckDigest, error) {
 	result := CheckDigest{Items: []DigestItem{}, AutomationCursor: scope.AutomationCursor}
 	if include == nil {
 		include = collectorNames
@@ -87,25 +92,34 @@ func CollectDigest(scope CollectorScope, facts CollectorFacts, include []string,
 		}
 	}
 	for _, session := range facts.Sessions {
-		if session.Hidden || slices.Contains(chain, session.ID) || !scope.contains(session.ProfileID, session.WorkspaceID) {
+		if session.Hidden || slices.Contains(chain, session.ID) ||
+			!scope.contains(session.ProfileID, session.WorkspaceID) {
 			continue
 		}
-		if selected["session_health"] && slices.Contains([]string{"degraded", "stale", "dead", "unknown"}, session.Health) {
+		if selected["session_health"] &&
+			slices.Contains([]string{"degraded", "stale", "dead", "unknown"}, session.Health) {
 			buckets["session_health"] = append(buckets["session_health"], "health:"+session.ID+":"+session.Health)
 		}
-		if selected["sessions_idle"] && session.LastEventAt.After(scope.LastCompletedAt) &&
+		if selected["sessions_idle"] && session.LastEventAt.Add(time.Hour).After(scope.LastCompletedAt) &&
 			!session.LastEventAt.After(scope.Now.Add(-time.Hour)) && session.LastSeq > 0 {
-			buckets["sessions_idle"] = append(buckets["sessions_idle"], fmt.Sprintf("idle:%s:%d", session.ID, session.LastSeq))
+			buckets["sessions_idle"] = append(
+				buckets["sessions_idle"],
+				fmt.Sprintf("idle:%s:%d", session.ID, session.LastSeq),
+			)
 		}
 	}
 	if selected["automations_failed"] {
 		eligible := make([]AutomationFact, 0)
 		for _, run := range facts.Automations {
-			if scope.contains(run.ProfileID, run.WorkspaceID) && run.Status == "failed" && run.Cursor > scope.AutomationCursor {
+			if scope.contains(run.ProfileID, run.WorkspaceID) && run.Status == "failed" &&
+				run.Cursor > scope.AutomationCursor {
 				eligible = append(eligible, run)
 			}
 		}
-		slices.SortFunc(eligible, func(a, b AutomationFact) int { return cmp.Or(cmp.Compare(a.Cursor, b.Cursor), cmp.Compare(a.ID, b.ID)) })
+		slices.SortFunc(
+			eligible,
+			func(a, b AutomationFact) int { return cmp.Or(cmp.Compare(a.Cursor, b.Cursor), cmp.Compare(a.ID, b.ID)) },
+		)
 		seen := map[string]bool{}
 		for _, run := range eligible {
 			if seen[run.ID] {

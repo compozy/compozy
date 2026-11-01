@@ -850,16 +850,56 @@ func diagnosticsContain(list []Diagnostic, needle string) bool {
 }
 
 func TestCollectDigest(t *testing.T) {
+	t.Run("Should report sessions crossing the idle threshold after the previous check", func(t *testing.T) {
+		t.Parallel()
+		lastEvent := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+		facts := CollectorFacts{
+			Sessions: []SessionFact{{ID: "session", ProfileID: "p", LastEventAt: lastEvent, LastSeq: 7}},
+		}
+		scope := CollectorScope{ProfileID: "p", Now: lastEvent.Add(30 * time.Minute)}
+		first, err := CollectDigest(scope, facts, []string{"sessions_idle"}, "", "")
+		if err != nil || len(first.Items) != 0 {
+			t.Fatalf("early digest = %+v, %v", first, err)
+		}
+		scope.LastCompletedAt, scope.Now = scope.Now, lastEvent.Add(90*time.Minute)
+		second, err := CollectDigest(scope, facts, []string{"sessions_idle"}, "", "")
+		if err != nil || !slices.Equal(second.Items, []DigestItem{{Key: "idle:session:7"}}) {
+			t.Fatalf("newly idle digest = %+v, %v", second, err)
+		}
+		scope.LastCompletedAt = scope.Now
+		third, err := CollectDigest(scope, facts, []string{"sessions_idle"}, "", "")
+		if err != nil || len(third.Items) != 0 {
+			t.Fatalf("repeated idle digest = %+v, %v", third, err)
+		}
+	})
+
 	t.Run("Should use all five collectors when the policy omits context", func(t *testing.T) {
 		t.Parallel()
 		root, source := heartbeatWorkspace(t)
-		policy, err := Parse(t.Context(), ParseRequest{SourcePath: source, WorkspaceRoot: root, Content: []byte("Check pending work."), Config: compozyconfig.DefaultHeartbeatConfig()})
+		policy, err := Parse(
+			t.Context(),
+			ParseRequest{
+				SourcePath:    source,
+				WorkspaceRoot: root,
+				Content:       []byte("Check pending work."),
+				Config:        compozyconfig.DefaultHeartbeatConfig(),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 		scope := CollectorScope{ProfileID: "p", MainSessionID: "main", Now: now}
-		facts := CollectorFacts{Tasks: []TaskFact{{ID: "task", ProfileID: "p", OwnerKind: "agent_session", OwnerSessionID: "main", Status: "blocked"}}, Sessions: []SessionFact{{ID: "session", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 1}}, Automations: []AutomationFact{{ID: "auto", ProfileID: "p", Status: "failed", Cursor: "1"}}, Monitors: []MonitorFact{{ID: "monitor", SessionID: "main", Fired: true}}}
+		facts := CollectorFacts{
+			Tasks: []TaskFact{
+				{ID: "task", ProfileID: "p", OwnerKind: "agent_session", OwnerSessionID: "main", Status: "blocked"},
+			},
+			Sessions: []SessionFact{
+				{ID: "session", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 1},
+			},
+			Automations: []AutomationFact{{ID: "auto", ProfileID: "p", Status: "failed", Cursor: "1"}},
+			Monitors:    []MonitorFact{{ID: "monitor", SessionID: "main", Fired: true}},
+		}
 		digest, err := CollectDigest(scope, facts, policy.Preferences.Context.Include, "policy", "Check pending work.")
 		if err != nil {
 			t.Fatal(err)
@@ -891,13 +931,21 @@ func TestCollectDigest(t *testing.T) {
 				{ID: "visible", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 4},
 				{ID: "workspace", ProfileID: "p", WorkspaceID: "w", Health: "dead"},
 			},
-			Monitors: []MonitorFact{{ID: "own", SessionID: "main", Fired: true}, {ID: "other", SessionID: "old", Fired: true}},
+			Monitors: []MonitorFact{
+				{ID: "own", SessionID: "main", Fired: true},
+				{ID: "other", SessionID: "old", Fired: true},
+			},
 		}
 		got, err := CollectDigest(scope, facts, nil, "policy", "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []DigestItem{{Key: "health:visible:stale"}, {Key: "idle:visible:4"}, {Key: "monitor:own"}, {Key: "task:owned:blocked"}}
+		want := []DigestItem{
+			{Key: "health:visible:stale"},
+			{Key: "idle:visible:4"},
+			{Key: "monitor:own"},
+			{Key: "task:owned:blocked"},
+		}
 		if !slices.Equal(got.Items, want) {
 			t.Fatalf("items=%v want=%v", got.Items, want)
 		}
@@ -925,7 +973,10 @@ func TestCollectDigest(t *testing.T) {
 		facts := CollectorFacts{}
 		for i := 15; i > 0; i-- {
 			id := fmt.Sprintf("%02d", i)
-			facts.Automations = append(facts.Automations, AutomationFact{ID: id, ProfileID: "p", Status: "failed", Cursor: id})
+			facts.Automations = append(
+				facts.Automations,
+				AutomationFact{ID: id, ProfileID: "p", Status: "failed", Cursor: id},
+			)
 		}
 		first, err := CollectDigest(scope, facts, nil, "p", "")
 		if err != nil {
@@ -1018,11 +1069,16 @@ func TestParseTriageReply(t *testing.T) {
 	t.Run("Should cap proposals and retain only unique digest keys", func(t *testing.T) {
 		t.Parallel()
 		digest := CheckDigest{Items: []DigestItem{{Key: "b"}, {Key: "a"}}}
-		proposals, err := ParseTriageReply(`{"proposals":[{"title":"first","body":"details","item_keys":["b","foreign","a","b"]},{"title":"second","body":"ignored","item_keys":[]}]}`, digest, 1)
+		proposals, err := ParseTriageReply(
+			`{"proposals":[{"title":"first","body":"details","item_keys":["b","foreign","a","b"]},{"title":"second","body":"ignored","item_keys":[]}]}`,
+			digest,
+			1,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(proposals) != 1 || proposals[0].Title != "first" || !slices.Equal(proposals[0].ItemKeys, []string{"a", "b"}) {
+		if len(proposals) != 1 || proposals[0].Title != "first" ||
+			!slices.Equal(proposals[0].ItemKeys, []string{"a", "b"}) {
 			t.Fatalf("proposals=%+v", proposals)
 		}
 	})
