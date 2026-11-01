@@ -29,23 +29,23 @@ func (c *daemonClient) AgentMemory(
 
 func agentMemoryRoute(operation string) (string, string, error) {
 	switch operation {
-	case "inspect":
+	case loopInspectKey:
 		return "GET", "", nil
-	case "write":
+	case terminalStreamModeWrite:
 		return "PUT", "", nil
-	case "add":
-		return "POST", "/entries", nil
-	case "replace":
-		return "PATCH", "/entries", nil
-	case "remove":
-		return "DELETE", "/entries", nil
-	case "search":
+	case agentMemoryAddOperation:
+		return "POST", agentMemoryEntriesPath, nil
+	case agentMemoryReplaceOperation:
+		return "PATCH", agentMemoryEntriesPath, nil
+	case string(gatewayProfileTransactionRemove):
+		return "DELETE", agentMemoryEntriesPath, nil
+	case agentMemorySearchOperation:
 		return "POST", "/search", nil
-	case "validate":
+	case cliValidateVerb:
 		return "POST", "/validate", nil
-	case "history":
+	case agentMemoryHistoryOperation:
 		return "GET", "/history", nil
-	case "rollback":
+	case agentMemoryRollbackOperation:
 		return "POST", "/rollback", nil
 	default:
 		return "", "", errors.New("unknown agent memory operation")

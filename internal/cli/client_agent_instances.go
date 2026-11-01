@@ -51,7 +51,7 @@ func (c *daemonClient) MutateAgentInstance(
 ) (contract.AgentInstanceResponse, error) {
 	var result contract.AgentInstanceResponse
 	method, path := http.MethodPost, "/api/agent-instances/"+url.PathEscape(id)
-	if action == "archive" {
+	if action == workspaceArchiveAction {
 		method = http.MethodDelete
 	} else if action == "show" {
 		method = http.MethodGet
@@ -59,7 +59,7 @@ func (c *daemonClient) MutateAgentInstance(
 		path += "/" + action
 	}
 	var response any = &result
-	if action == "archive" {
+	if action == workspaceArchiveAction {
 		response = nil
 	}
 	err := c.doJSON(ctx, method, path, nil, nil, response)

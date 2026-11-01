@@ -5574,6 +5574,5 @@ func TestSessionPendingDescendants(t *testing.T) {
 			!strings.Contains(toon, expiresAt.UTC().Format(time.RFC3339)) {
 			t.Fatalf("pending toon = %q, %v", toon, err)
 		}
-
 	})
 }

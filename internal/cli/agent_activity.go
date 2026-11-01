@@ -90,7 +90,7 @@ func writeInstanceRead(cmd *cobra.Command, base any, action, id string, query ur
 		return errors.New("cli: instance reads unavailable")
 	}
 	switch action {
-	case "away":
+	case agentInstanceAwayAction:
 		result, err := client.InstanceAway(cmd.Context(), id)
 		if err != nil {
 			return err
@@ -100,7 +100,7 @@ func writeInstanceRead(cmd *cobra.Command, base any, action, id string, query ur
 			result,
 			fmt.Sprintf("Quiet check-ins: %d\nReports: %d\n", result.QuietCheckIns, len(result.Reports)),
 		)
-	case "mark-seen":
+	case agentInstanceMarkSeenAction:
 		result, err := client.InstanceSeen(cmd.Context(), id)
 		if err != nil {
 			return err

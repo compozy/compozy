@@ -12,7 +12,7 @@ import (
 
 func newAgentMemoryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "memory", Short: "Inspect and manage agent memory (experimental)"}
-	for _, operation := range []string{"inspect", "add", "replace", "remove", "write", "validate", "search", "history", "rollback"} {
+	for _, operation := range []string{loopInspectKey, agentMemoryAddOperation, agentMemoryReplaceOperation, string(gatewayProfileTransactionRemove), terminalStreamModeWrite, cliValidateVerb, agentMemorySearchOperation, agentMemoryHistoryOperation, agentMemoryRollbackOperation} {
 		cmd.AddCommand(newAgentMemoryOperation(deps, operation))
 	}
 	return cmd
@@ -23,19 +23,19 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 	count := 1
 	use := operation + " <agent>"
 	switch operation {
-	case "add":
+	case agentMemoryAddOperation:
 		count = 2
 		use += " <text>"
-	case "replace":
+	case agentMemoryReplaceOperation:
 		count = 3
 		use += " <match> <text>"
-	case "remove":
+	case string(gatewayProfileTransactionRemove):
 		count = 2
 		use += " <match>"
-	case "search":
+	case agentMemorySearchOperation:
 		count = 2
 		use += " <query>"
-	case "rollback":
+	case agentMemoryRollbackOperation:
 		count = 2
 		use += " <revision>"
 	}
@@ -75,15 +75,15 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 	}
 	addWorkspaceFlag(cmd)
 	switch operation {
-	case "add":
+	case agentMemoryAddOperation:
 		cmd.Flags().StringVar(&options.until, "until", "", "Optional expiry date (YYYY-MM-DD)")
-	case "search":
+	case agentMemorySearchOperation:
 		cmd.Flags().
 			BoolVar(&options.includeSessions, "include-sessions", false, "Include accessible session transcripts")
-	case "write", "validate":
+	case terminalStreamModeWrite, cliValidateVerb:
 		addAuthoredBodyFlags(cmd, &options.input)
 	}
-	if operation == "write" {
+	if operation == terminalStreamModeWrite {
 		cmd.Flags().StringVar(&options.expectedDigest, "expected-digest", "", "Digest returned by inspect")
 	}
 	return cmd
@@ -92,7 +92,7 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 func agentMemoryBundle(operation string, raw json.RawMessage) outputBundle {
 	human := func() (string, error) {
 		switch operation {
-		case "inspect":
+		case loopInspectKey:
 			var doc contract.AgentMemoryDocument
 			if err := json.Unmarshal(raw, &doc); err != nil {
 				return "", err
@@ -106,7 +106,7 @@ func agentMemoryBundle(operation string, raw json.RawMessage) outputBundle {
 				float64(doc.Budget.MaxBytes)/1024,
 				doc.Digest,
 			), nil
-		case "search":
+		case agentMemorySearchOperation:
 			var result struct {
 				Results []contract.AgentMemorySearchResult `json:"results"`
 			}
@@ -118,7 +118,7 @@ func agentMemoryBundle(operation string, raw json.RawMessage) outputBundle {
 				rows = append(rows, fmt.Sprintf("%s:%d %s", item.File, item.Line, item.Text))
 			}
 			return strings.Join(rows, "\n"), nil
-		case "history":
+		case agentMemoryHistoryOperation:
 			var result struct {
 				Revisions []contract.AgentMemoryRevision `json:"revisions"`
 			}
@@ -130,7 +130,7 @@ func agentMemoryBundle(operation string, raw json.RawMessage) outputBundle {
 				rows = append(rows, item.ID)
 			}
 			return strings.Join(rows, "\n"), nil
-		case "validate":
+		case cliValidateVerb:
 			return string(raw), nil
 		default:
 			return "Saved agent memory.", nil
@@ -155,29 +155,29 @@ func (options agentMemoryOptions) requestBody(
 ) (any, error) {
 	var body any
 	switch operation {
-	case "add":
+	case agentMemoryAddOperation:
 		body = contract.AgentMemoryAddRequest{Text: args[1], Until: options.until}
-	case "replace":
+	case agentMemoryReplaceOperation:
 		body = contract.AgentMemoryReplaceRequest{Match: args[1], Text: args[2]}
-	case "remove":
+	case string(gatewayProfileTransactionRemove):
 		body = contract.AgentMemoryRemoveRequest{Match: args[1]}
-	case "search":
+	case agentMemorySearchOperation:
 		body = contract.AgentMemorySearchRequest{Query: args[1], IncludeSessions: options.includeSessions}
-	case "rollback":
+	case agentMemoryRollbackOperation:
 		body = contract.AgentMemoryRollbackRequest{Revision: args[1]}
-	case "write", "validate":
-		content, err := readAuthoredBody(cmd, options.input, operation == "write")
+	case terminalStreamModeWrite, cliValidateVerb:
+		content, err := readAuthoredBody(cmd, options.input, operation == terminalStreamModeWrite)
 		if err != nil {
 			return nil, err
 		}
-		if operation == "write" {
+		if operation == terminalStreamModeWrite {
 			if !cmd.Flags().Changed("expected-digest") {
 				return nil, errors.New("--expected-digest is required; inspect memory before writing")
 			}
 			body = contract.AgentMemoryWriteRequest{Content: content, ExpectedDigest: options.expectedDigest}
 		} else {
 			if !cmd.Flags().Changed("file") && !options.input.stdin {
-				current, err := client.AgentMemory(cmd.Context(), args[0], query, "inspect", nil)
+				current, err := client.AgentMemory(cmd.Context(), args[0], query, loopInspectKey, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -192,3 +192,12 @@ func (options agentMemoryOptions) requestBody(
 	}
 	return body, nil
 }
+
+const (
+	agentMemoryAddOperation      = "add"
+	agentMemoryReplaceOperation  = "replace"
+	agentMemorySearchOperation   = "search"
+	agentMemoryHistoryOperation  = "history"
+	agentMemoryRollbackOperation = "rollback"
+	agentMemoryEntriesPath       = "/entries"
+)
