@@ -8,6 +8,7 @@ import {
   FolderGit2,
   FolderOpen,
   GripVertical,
+  ListTree,
   Rows3,
   SlidersHorizontal,
   UserRound,
@@ -111,6 +112,9 @@ export interface SessionViewOptionsMenuProps {
   /** Project grouping's "Show empty projects" (#1085), shared by the window's List and Kanban. */
   showEmptyProjects: boolean;
   onShowEmptyProjectsChange: (show: boolean) => void;
+  /** The board's "Hide child sessions" filter; absent where a surface has no such filter. */
+  hideChildren?: boolean;
+  onHideChildrenChange?: (hide: boolean) => void;
   allCollapsed: boolean;
   /** Absent where nothing folds: the action is left out. */
   onAllCollapsedChange?: (collapsed: boolean) => void;
@@ -132,12 +136,16 @@ export function SessionViewOptionsMenu({
   groupByOptions,
   showEmptyProjects,
   onShowEmptyProjectsChange,
+  hideChildren = true,
+  onHideChildrenChange,
   allCollapsed,
   onAllCollapsedChange,
   testId,
   className,
 }: SessionViewOptionsMenuProps) {
-  const marked = groupBy !== "none" || allCollapsed;
+  // The filter starts on, so showing child sessions is the choice worth marking.
+  const showsChildren = onHideChildrenChange !== undefined && !hideChildren;
+  const marked = groupBy !== "none" || allCollapsed || showsChildren;
   return (
     <DropdownMenu>
       {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
@@ -188,6 +196,23 @@ export function SessionViewOptionsMenu({
                 </DropdownMenuCheckboxItem>
               ) : null}
             </ChoiceSection>
+          </>
+        ) : null}
+        {onHideChildrenChange ? (
+          <>
+            <DropdownMenuSeparator className={SECTION_DIVIDER} />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Filter</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={hideChildren}
+                className={CHOICE_ITEM}
+                data-testid={`${testId}-hide-children`}
+                onCheckedChange={checked => onHideChildrenChange(checked === true)}
+              >
+                <Icon as={ListTree} size="sm" />
+                Hide child sessions
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuGroup>
           </>
         ) : null}
         {onAllCollapsedChange ? (

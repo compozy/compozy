@@ -868,6 +868,7 @@ vertical name and count without extra words.
 ### Session view options
 
 The List toolbar and the Kanban header share one sliders button named "View options". Its menu holds
-"Sort by", "Group by" (only where a grouping applies), "Show empty projects" (under Project), and one
+"Sort by", "Group by" (only where a grouping applies), "Show empty projects" (under Project), "Filter" with
+"Hide child sessions" (Kanban only, because the List has no such filter), and one
 action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
 shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."

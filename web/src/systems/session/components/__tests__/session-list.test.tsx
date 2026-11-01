@@ -61,6 +61,7 @@ import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { formatLaterReturn } from "../../lib/session-later";
 import { SessionSidebar } from "../session-sidebar";
+import { SessionViewOptionsMenu } from "../session-view-options-menu";
 
 // Dynamic JavaScript acquisition is an I/O boundary; these tests exercise the real query cache.
 vi.mock("@/systems/os/lib/app-registry", async importOriginal => ({
@@ -2637,6 +2638,49 @@ describe("SessionList breadth and Group by", () => {
     await user.click(screen.getByRole("button", { name: "View options" }));
     await user.click(await screen.findByRole("menuitem", { name: label }));
     expect(setFoldAll).toHaveBeenCalledWith(next);
+  });
+
+  // The filter belongs to the board: the List has no such control, and showing children marks
+  // the trigger because hiding them is the default.
+  it.each([
+    { hideChildren: true, marked: false, next: false },
+    { hideChildren: false, marked: true, next: true },
+  ])(
+    "Should offer Hide child sessions where a surface filters them (hide: $hideChildren)",
+    async ({ hideChildren, marked, next }) => {
+      const user = userEvent.setup();
+      const onHideChildrenChange = vi.fn();
+      render(
+        <SessionViewOptionsMenu
+          allCollapsed={false}
+          groupBy="none"
+          groupByOptions={["none"]}
+          hideChildren={hideChildren}
+          onGroupByChange={vi.fn()}
+          onHideChildrenChange={onHideChildrenChange}
+          onShowEmptyProjectsChange={vi.fn()}
+          onSortChange={vi.fn()}
+          showEmptyProjects={false}
+          sort="created"
+          testId="board"
+        />
+      );
+      const trigger = screen.getByRole("button", { name: "View options" });
+      expect(trigger.classList.contains("bg-surface-2")).toBe(marked);
+      await user.click(trigger);
+      const filter = await screen.findByRole("menuitemcheckbox", { name: "Hide child sessions" });
+      expect(filter).toHaveAttribute("aria-checked", String(hideChildren));
+      await user.click(filter);
+      expect(onHideChildrenChange).toHaveBeenCalledWith(next);
+    }
+  );
+
+  it("Should leave Hide child sessions out of the List's View options", async () => {
+    const user = userEvent.setup();
+    renderList({ view });
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Created" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Hide child sessions" })).toBeNull();
   });
 
   // #1085: "Show empty projects" belongs to project grouping and reports the operator's choice.
