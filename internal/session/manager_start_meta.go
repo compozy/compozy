@@ -24,6 +24,7 @@ func sessionStartSpecFromMeta(
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	acpOptions := ACPOptionSelectionsFromStore(meta.ACPOptionsValue())
 	spec := sessionStartSpec{
+		initiatorKind: meta.InitiatorKind, initiatorID: meta.InitiatorID,
 		sessionID:                meta.ID,
 		worktreeTransition:       store.CloneSessionWorktreeTransition(meta.WorktreeTransition),
 		profileID:                strings.TrimSpace(meta.ProfileID),

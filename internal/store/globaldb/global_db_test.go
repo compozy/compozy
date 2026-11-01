@@ -7125,3 +7125,120 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 		}
 	})
 }
+
+func TestPermissionInitiatorSnapshot(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve unknown defaults and snapshot the session initiator", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		_, id := registerHeartbeatWorkspaceAndSession(t, db, "initiator", "initiator-session")
+		var kind, actor string
+		if err := db.DB().QueryRowContext(t.Context(), `SELECT initiator_kind, initiator_id FROM sessions WHERE id=?`, id).Scan(&kind, &actor); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "" || actor != "" {
+			t.Fatalf("unknown initiator = %q/%q", kind, actor)
+		}
+		write := func(key string) {
+			t.Helper()
+			if err := db.WritePermissionLog(t.Context(), store.PermissionLogEntry{ID: key, SessionID: id, AgentName: "coder", Action: "execute", Resource: "terminal", Decision: "reject_once", PolicyUsed: "interactive"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		write("unknown-decision")
+		if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind='automation', initiator_id='automation-1' WHERE id=?`, id); err != nil {
+			t.Fatal(err)
+		}
+		write("automated-decision")
+		if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind='human', initiator_id='operator-1' WHERE id=?`, id); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Limit: 10})
+		if err != nil || len(rows) != 2 {
+			t.Fatalf("permission rows = %#v, %v", rows, err)
+		}
+		for _, row := range rows {
+			if row.ID == "automated-decision" {
+				if row.InitiatorKind != "automation" || row.InitiatorID != "automation-1" {
+					t.Fatalf("snapshot = %#v", row)
+				}
+			} else if row.InitiatorKind != "" || row.InitiatorID != "" {
+				t.Fatalf("unknown snapshot = %#v", row)
+			}
+		}
+	})
+}
+
+func TestPermissionLogUnattended(t *testing.T) {
+	t.Parallel()
+	t.Run("Should filter persisted initiators before applying the limit", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		_, id := registerHeartbeatWorkspaceAndSession(t, db, "unattended", "unattended-session")
+		kinds := []string{"", "human", "app", "agent_session", "automation", "daemon", "extension"}
+		for i, kind := range kinds {
+			if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind=?, initiator_id=? WHERE id=?`, kind, kind, id); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.WritePermissionLog(t.Context(), store.PermissionLogEntry{
+				ID: fmt.Sprintf("decision-%d", i), SessionID: id, AgentName: "coder", Action: "execute", Resource: "terminal", Decision: "reject_once", PolicyUsed: "interactive", Timestamp: time.Date(2026, 1, 1, 0, 0, i, 0, time.UTC),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err := db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Unattended: true, Limit: 3})
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("unattended rows = %#v, %v", rows, err)
+		}
+		for i, row := range rows {
+			if row.InitiatorKind != kinds[i+4] {
+				t.Fatalf("row %d initiator = %q, want %q", i, row.InitiatorKind, kinds[i+4])
+			}
+		}
+		rows, err = db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Limit: 10})
+		if err != nil || len(rows) != len(kinds) {
+			t.Fatalf("unfiltered rows = %#v, %v", rows, err)
+		}
+		rows, err = db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Unattended: true, Decision: "allow_once", Limit: 3})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("decision-filtered rows = %#v, %v", rows, err)
+		}
+	})
+}
+
+func TestPermissionDailyRollups(t *testing.T) {
+	t.Parallel()
+	t.Run("Should aggregate the complete scoped population by UTC day agent and decision", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, id := registerHeartbeatWorkspaceAndSession(t, db, "rollup", "rollup-session")
+		start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		for i, kind := range []string{"automation", "daemon", "human", "extension"} {
+			if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind=? WHERE id=?`, kind, id); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.WritePermissionLog(t.Context(), store.PermissionLogEntry{ID: fmt.Sprintf("rollup-%d", i), SessionID: id, AgentName: "coder", Action: "execute", Resource: "terminal", Decision: "deny", PolicyUsed: "interactive", Timestamp: start.Add(time.Duration(i) * time.Hour)}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := store.PermissionRollupQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspace, Since: start, Until: start.Add(24 * time.Hour)}
+		rows, err := db.PermissionDailyRollups(t.Context(), query)
+		if err != nil || len(rows) != 1 || rows[0].Count != 4 || rows[0].Day != "2026-01-01" || rows[0].AgentName != "coder" || rows[0].Decision != "deny" {
+			t.Fatalf("rollups = %#v, %v", rows, err)
+		}
+		query.Unattended = true
+		rows, err = db.PermissionDailyRollups(t.Context(), query)
+		if err != nil || len(rows) != 1 || rows[0].Count != 3 {
+			t.Fatalf("unattended rollups = %#v, %v", rows, err)
+		}
+		query.ReadScope.ProfileID = "other-profile"
+		rows, err = db.PermissionDailyRollups(t.Context(), query)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("foreign profile rollups = %#v, %v", rows, err)
+		}
+		query.ReadScope = store.ReadScope{}
+		if _, err := db.PermissionDailyRollups(t.Context(), query); err == nil {
+			t.Fatal("implicit profile scope accepted")
+		}
+	})
+}

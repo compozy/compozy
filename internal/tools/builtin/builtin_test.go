@@ -1237,6 +1237,7 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDSessionPending, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstanceArchive, risk: toolspkg.RiskMutating, destructive: true},
 		{id: toolspkg.ToolIDAgentInstanceCreate, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDAgentInstanceEnsureMain, risk: toolspkg.RiskMutating},

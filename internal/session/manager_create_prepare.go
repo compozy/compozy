@@ -54,7 +54,19 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	initiatorKind, initiatorID := string(opts.Origin.Kind), opts.Origin.ID
+	if lineage != nil && lineage.RootSessionID != "" && lineage.RootSessionID != sessionID {
+		root, err := m.readMetaWithContext(ctx, lineage.RootSessionID)
+		if err != nil && !errors.Is(err, ErrSessionNotFound) {
+			return sessionStartSpec{}, fmt.Errorf("session: resolve root initiator: %w", err)
+		}
+		initiatorKind, initiatorID = "", ""
+		if err == nil {
+			initiatorKind, initiatorID = root.InitiatorKind, root.InitiatorID
+		}
+	}
 	return sessionStartSpec{
+		initiatorKind: initiatorKind, initiatorID: initiatorID,
 		instanceID:               opts.InstanceID,
 		sessionID:                sessionID,
 		origin:                   opts.Origin,

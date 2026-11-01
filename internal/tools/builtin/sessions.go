@@ -55,6 +55,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionInputCancelDescriptor(),
 	sessionInputPromoteDescriptor(),
 	sessionStatusDescriptor(),
+	sessionPendingDescriptor(),
 	nativeDescriptor(
 		toolspkg.ToolIDSessionHistory,
 		"session_history",

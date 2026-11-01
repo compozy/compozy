@@ -166,6 +166,7 @@ func (h *BaseHandlers) createSessionOrigin(c *gin.Context) (workspaceaccess.Orig
 	}
 	return workspaceaccess.Origin{
 		Kind:    workspaceaccess.ActorAgentSession,
+		ID:      creator.ID,
 		Ceiling: creator.EffectiveWorkspaceAccess,
 	}, true
 }

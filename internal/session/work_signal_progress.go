@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SetWorkSignalSources installs the daemon's authoritative inspection adapters.
@@ -64,4 +65,29 @@ func (m *Manager) recordPersistedWorkProgress(target *Session, event acp.AgentEv
 	if kind, _, _, _, _ := activityFromEvent(event); kind != "" {
 		m.recordWorkProgress(target, m.now())
 	}
+}
+
+func (m *Manager) heldPermissionSignals(_ context.Context, id string) ([]WorkSignal, error) {
+	target, ok := m.Get(id)
+	if !ok {
+		return nil, ErrSessionNotFound
+	}
+	target.mu.RLock()
+	defer target.mu.RUnlock()
+	if target.State != StateActive {
+		return nil, nil
+	}
+	now := m.now().UTC()
+	signals := make([]WorkSignal, 0)
+	for _, interaction := range target.PendingInteractions {
+		if interaction.Kind != store.PendingInteractionKindPermission || interaction.Status != store.PendingInteractionStatusPending {
+			continue
+		}
+		since := interaction.CreatedAt
+		if since.IsZero() {
+			since = now
+		}
+		signals = append(signals, WorkSignal{Kind: WorkSignalHeldPermission, Ref: interaction.InteractionID, Since: since, ValidUntil: now.Add(2 * m.supervision.ActivityHeartbeatInterval)})
+	}
+	return signals, nil
 }

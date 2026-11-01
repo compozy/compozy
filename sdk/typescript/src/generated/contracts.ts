@@ -3987,6 +3987,8 @@ export type Badge =
   | "waiting";
 
 export interface PendingInteractionPayload {
+  expires_at?: ISODateTime;
+  session_id: string;
   interaction_id: string;
   kind: string;
   provider_request_id: string;

@@ -1304,14 +1304,16 @@ type NotificationCursor struct {
 }
 
 type PermissionLog struct {
-	ID         string `json:"id"`
-	SessionID  string `json:"session_id"`
-	AgentName  string `json:"agent_name"`
-	Action     string `json:"action"`
-	Resource   string `json:"resource"`
-	Decision   string `json:"decision"`
-	PolicyUsed string `json:"policy_used"`
-	Timestamp  string `json:"timestamp"`
+	InitiatorKind string `json:"initiator_kind"`
+	InitiatorID   string `json:"initiator_id"`
+	ID            string `json:"id"`
+	SessionID     string `json:"session_id"`
+	AgentName     string `json:"agent_name"`
+	Action        string `json:"action"`
+	Resource      string `json:"resource"`
+	Decision      string `json:"decision"`
+	PolicyUsed    string `json:"policy_used"`
+	Timestamp     string `json:"timestamp"`
 }
 
 type Profile struct {
@@ -1416,6 +1418,8 @@ type SchedulerPause struct {
 }
 
 type Session struct {
+	InitiatorKind            string         `json:"initiator_kind"`
+	InitiatorID              string         `json:"initiator_id"`
 	InstanceID               sql.NullString `json:"instance_id"`
 	Branch                   string         `json:"branch"`
 	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
@@ -1630,6 +1634,7 @@ type SessionPendingInteraction struct {
 	PayloadJson       string         `json:"payload_json"`
 	Status            string         `json:"status"`
 	CreatedAt         string         `json:"created_at"`
+	ExpiresAt         sql.NullString `json:"expires_at"`
 	ResolvedAt        sql.NullString `json:"resolved_at"`
 	Resolution        string         `json:"resolution"`
 	ResolvedBy        string         `json:"resolved_by"`

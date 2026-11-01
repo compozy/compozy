@@ -23,6 +23,7 @@ function interaction(
   overrides: Partial<SessionPendingInteraction> & Pick<SessionPendingInteraction, "kind">
 ): SessionPendingInteraction {
   return {
+    session_id: "sess-1",
     interaction_id: "int-1",
     provider_request_id: "req-1",
     status: "pending",
@@ -91,11 +92,13 @@ describe("pendingInteractionReason", () => {
       pendingInteractionReason(
         sessionWith([
           interaction({
+            session_id: "sess-1",
             interaction_id: "int-q",
             kind: "clarify",
             title: "Should I drop the legacy column?",
           }),
           interaction({
+            session_id: "sess-1",
             interaction_id: "int-p",
             kind: "permission",
             title: "Terminal Write",
@@ -114,6 +117,7 @@ describe("pendingInteractionReason", () => {
 describe("expiredInteractionsByRequest", () => {
   function record(overrides: Partial<SessionInteractionRecord>): SessionInteractionRecord {
     return {
+      session_id: "sess-1",
       interaction_id: "int-1",
       kind: "permission",
       provider_request_id: "req-1",
@@ -162,12 +166,14 @@ describe("expiredInteractionsByRequest", () => {
 
   it("Should never let a resolved clarification sharing the request id overwrite the permission", () => {
     const permission = record({
+      session_id: "sess-1",
       interaction_id: "int-perm",
       status: "resolved",
       resolution: "reject-once",
       resolved_by: "timeout",
     });
     const clarification = record({
+      session_id: "sess-1",
       interaction_id: "int-clar",
       kind: "clarify",
       status: "resolved",

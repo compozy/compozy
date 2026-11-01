@@ -16,3 +16,7 @@ type SessionAttentionManager interface {
 	) ([]store.PendingInteraction, error)
 	AttentionSummary(ctx context.Context, readScope store.ReadScope) (store.SessionAttentionSummary, error)
 }
+
+type SessionDescendantInteractionManager interface {
+	DescendantPendingInteractions(context.Context, string, []string) ([]store.PendingInteraction, error)
+}

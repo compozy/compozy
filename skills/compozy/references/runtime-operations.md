@@ -610,6 +610,17 @@ and the carried context was sent instead. A failed clone request yields `seed: r
 
 ### Session attention and pending interactions
 
+For Stays on approval relay, use `compozy session pending <main-session-id> --descendants -o json`
+or `compozy__session_pending` with `session_id`, `workspace`, and `descendants: true`.
+HTTP/UDS expose the same read at
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions?descendants=true`.
+Keep each returned original `session_id` and `provider_request_id` when answering. Optional
+`expires_at` is the stored deadline; an absent value does not imply an unlimited wait.
+Instance sessions and descendants resolve `agents.stays_on.approval_timeout` per request
+(default 12h, range 1m–72h); ordinary sessions retain their existing approval waits.
+Held permissions prevent inactivity termination. Expiry denies and records an instance report;
+restart interruption records its report once. Read current state before answering a stale request.
+
 Session badges have one daemon-owned precedence order. `waiting` means the session has no active
 prompt but still owns fresh child sessions, replies, Loop runs, task leases, scheduled waits, or
 active/delivering monitors. Its `waiting_on` reason is `sessions` for child/reply/Loop/task work,
@@ -641,8 +652,10 @@ winning decision or answer. `queue-full` leaves the interaction untouched and is
 `compozy session status <session-id> -o json` returns both the canonical badge and this same bounded
 pending-interaction projection.
 
-When a permission's caller cancels or its provider connection closes, the runtime cancels that
-interaction and clears its pending attention without a daemon restart. A hosted native tool whose
+When a provider ends its permission request early or its connection closes, the interaction becomes
+`timed_out` with `resolution: "expired-by-provider"` and `resolved_by: "provider"`. Cancellation of
+a daemon-originated native approval retains `canceled` with `resolved_by: "system"`. Both clear
+pending attention without a daemon restart. A hosted native tool whose
 approval deadline expires reports `approval_timed_out`; its canceled permission cannot be approved
 later. Read interactions again before answering a request retained in an older client view.
 
@@ -1439,6 +1452,14 @@ through the existing settings apply lifecycle. Inspect a skipped session before 
 operator prompt; an automatic pause never authorizes replaying an external effect.
 
 ## Status, Doctor, Logs, And Support
+
+`compozy observe activity --days 7 --unattended -o json` reads daily permission totals by
+UTC day, agent, and decision. Use `--agent`, `--profile`, or `--all-profiles` to narrow or
+explicitly aggregate the profile lens. `GET /api/permissions/rollup` over HTTP/UDS accepts
+`days` (1–90, default 30), `agent`, `unattended`, and the profile selectors. Its `since`,
+`until`, and `rollups` describe the complete filtered population, not a page of audit rows.
+Unattended means `automation`, `daemon`, or `extension`; unknown historical initiators,
+humans, apps, and agent-session initiators are excluded when the filter is enabled.
 
 `compozy observe overview -o json` reads the selected profile by default. Use `--profile <name>` for
 another active profile or `--all-profiles` for an intentional aggregate; combine either mode with

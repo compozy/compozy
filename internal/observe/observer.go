@@ -22,6 +22,7 @@ import (
 
 // Registry is the narrowed global persistence surface consumed by observe/.
 type Registry interface {
+	PermissionDailyRollups(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error)
 	RegisterSession(ctx context.Context, session store.SessionInfo) error
 	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
 	ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error)

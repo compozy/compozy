@@ -115,6 +115,7 @@ func (n *daemonNativeTools) sessionCreate(
 		}
 		opts.Origin = workspaceaccess.Origin{
 			Kind:    workspaceaccess.ActorAgentSession,
+			ID:      creator.ID,
 			Ceiling: creator.EffectiveWorkspaceAccess,
 		}
 	}

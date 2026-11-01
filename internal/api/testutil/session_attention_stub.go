@@ -10,10 +10,11 @@ import (
 
 // StubSessionAttention configures the attention-specific behavior of StubSessionManager.
 type StubSessionAttention struct {
-	PresenceFn func(context.Context, string, string, bool) (string, error)
-	PendingFn  func(context.Context, string, []string) ([]store.PendingInteraction, error)
-	SummaryFn  func(context.Context, store.ReadScope) (store.SessionAttentionSummary, error)
-	WaitFn     func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
+	DescendantPendingFn func(context.Context, string, []string) ([]store.PendingInteraction, error)
+	PresenceFn          func(context.Context, string, string, bool) (string, error)
+	PendingFn           func(context.Context, string, []string) ([]store.PendingInteraction, error)
+	SummaryFn           func(context.Context, store.ReadScope) (store.SessionAttentionSummary, error)
+	WaitFn              func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
 }
 
 // SessionPresence acquires, renews, or releases a test presence lease.
@@ -65,3 +66,10 @@ func (s StubSessionManager) WaitForBadge(
 
 var _ core.SessionAttentionManager = (*StubSessionManager)(nil)
 var _ core.SessionWaitManager = (*StubSessionManager)(nil)
+
+func (s StubSessionManager) DescendantPendingInteractions(ctx context.Context, id string, statuses []string) ([]store.PendingInteraction, error) {
+	if s.Attention.DescendantPendingFn != nil {
+		return s.Attention.DescendantPendingFn(ctx, id, statuses)
+	}
+	return []store.PendingInteraction{}, nil
+}

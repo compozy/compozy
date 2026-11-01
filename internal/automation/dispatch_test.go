@@ -2296,3 +2296,24 @@ func TestAutomationSessionTaskActorContextBindsUserSessionsToTheirProfile(t *tes
 		}
 	})
 }
+
+func TestDispatchInitiatorIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		request DispatchRequest
+		want    string
+	}{
+		{name: "Should attribute a job session to its definition", request: DispatchRequest{Job: &Job{ID: "job-origin"}}, want: "job-origin"},
+		{name: "Should attribute a trigger session to its definition", request: DispatchRequest{Trigger: &Trigger{ID: "trigger-origin"}}, want: "trigger-origin"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dispatcher := &Dispatcher{}
+			opts := dispatcher.createOpts(tc.request)
+			if string(opts.Origin.Kind) != "automation" || opts.Origin.ID != tc.want {
+				t.Fatalf("origin = %#v, want automation/%s", opts.Origin, tc.want)
+			}
+		})
+	}
+}

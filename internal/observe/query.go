@@ -123,3 +123,7 @@ func (o *Observer) WriteHookRecord(ctx context.Context, sessionID string, record
 	}
 	return nil
 }
+
+func (o *Observer) QueryPermissionDailyRollups(ctx context.Context, query store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
+	return o.registry.PermissionDailyRollups(ctx, query)
+}

@@ -141,3 +141,30 @@ func TestDriverApprovePermissionValidationAndForwarding(t *testing.T) {
 		t.Fatalf("ApprovePermission(canceled ctx) error = %v, want context.Canceled", err)
 	}
 }
+
+func TestPermissionWaitResolution(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve each request using the daemon session identity", func(t *testing.T) {
+		t.Parallel()
+		wait := 12 * time.Hour
+		proc := &AgentProcess{compozySessionID: "daemon-session", permissionTimeout: time.Minute,
+			permissionWaitResolver: func(id string) time.Duration {
+				if id != "daemon-session" {
+					t.Fatalf("session = %q", id)
+				}
+				return wait
+			},
+		}
+		if got := proc.permissionTimeoutOrDefault(); got != wait {
+			t.Fatalf("wait = %v", got)
+		}
+		wait = 24 * time.Hour
+		if got := proc.permissionTimeoutOrDefault(); got != wait {
+			t.Fatalf("updated wait = %v", got)
+		}
+		wait = 0
+		if got := proc.permissionTimeoutOrDefault(); got != time.Minute {
+			t.Fatalf("fallback = %v", got)
+		}
+	})
+}

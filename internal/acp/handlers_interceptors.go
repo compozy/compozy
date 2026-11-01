@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"strings"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 )
@@ -155,6 +156,7 @@ func (p *AgentProcess) emitPermissionEvent(
 	decision permissionDecision,
 	resolvedBy string,
 	raw json.RawMessage,
+	expiresAt ...time.Time,
 ) {
 	event := AgentEvent{
 		Type:       EventTypePermission,
@@ -168,5 +170,8 @@ func (p *AgentProcess) emitPermissionEvent(
 		Decision:   string(decision),
 		Raw:        CloneRawMessage(raw),
 	}.WithRequestID(requestID).WithResolvedBy(resolvedBy)
+	if len(expiresAt) > 0 {
+		event.ExpiresAt = new(expiresAt[0])
+	}
 	p.emitPromptEvent(event)
 }

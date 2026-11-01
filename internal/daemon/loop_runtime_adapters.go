@@ -143,6 +143,7 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 	opts := session.CreateOpts{
 		Origin: workspaceaccess.Origin{
 			Kind:    workspaceaccess.ActorAutomation,
+			ID:      req.LoopRunID,
 			Ceiling: req.GrantCeiling,
 		},
 		ProvenanceParentSessionID: strings.TrimSpace(req.ParentSessionID),

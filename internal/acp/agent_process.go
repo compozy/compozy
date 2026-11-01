@@ -77,11 +77,13 @@ type AgentProcess struct {
 	promptMu                sync.RWMutex
 	activePrompt            *activePromptState
 
-	pendingPermissionMu  sync.Mutex
-	pendingPermissions   map[string]*pendingPermission
-	permissionRequestSeq uint64
-	permissionTimeout    time.Duration
-	controlTimeout       time.Duration
+	pendingPermissionMu    sync.Mutex
+	pendingPermissions     map[string]*pendingPermission
+	permissionRequestSeq   uint64
+	permissionTimeout      time.Duration
+	permissionWaitResolver PermissionWaitResolver
+	compozySessionID       string
+	controlTimeout         time.Duration
 
 	systemPromptMu       sync.Mutex
 	systemPrompt         string

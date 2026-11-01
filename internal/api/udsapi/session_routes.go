@@ -37,6 +37,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.POST("/:session_id/wait", handlers.SessionWait)
 		workspaceSessions.POST("/:session_id/presence", handlers.SessionPresence)
 		workspaceSessions.GET("/:session_id/interactions", handlers.ListSessionInteractions)
+		workspaceSessions.GET("/:session_id/pending-interactions", handlers.ListSessionInteractions)
 		workspaceSessions.GET("/:session_id/inspect", handlers.InspectSession)
 		workspaceSessions.DELETE("/:session_id", handlers.DeleteSession)
 		workspaceSessions.POST("/:session_id/stop", handlers.StopSession)

@@ -62,6 +62,8 @@ type PayloadBase struct {
 }
 
 type PendingInteractionPayload struct {
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	SessionID         string     `json:"session_id"`
 	InteractionID     string     `json:"interaction_id"`
 	Kind              string     `json:"kind"`
 	ProviderRequestID string     `json:"provider_request_id"`

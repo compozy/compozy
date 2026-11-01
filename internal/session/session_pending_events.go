@@ -51,6 +51,7 @@ func (m *Manager) applyAttentionAgentEvent(
 			Title:             title,
 			Payload:           payload,
 			CreatedAt:         event.Timestamp,
+			ExpiresAt:         event.ExpiresAt,
 		})
 		if errors.Is(err, store.ErrPendingInteractionConflict) {
 			return true, m.refreshPendingInteractions(ctx, target.ID)
@@ -69,14 +70,22 @@ func (m *Manager) applyAttentionAgentEvent(
 	if resolvedBy == "" {
 		resolvedBy = "provider"
 	}
+	resolution := event.Decision
 	status := store.PendingInteractionStatusResolved
+	if resolvedBy == "timeout" {
+		status = store.PendingInteractionStatusTimedOut
+	}
 	if event.Decision == string(acp.PermissionDecisionCanceled) {
 		status = store.PendingInteractionStatusCanceled
+		if resolvedBy == "provider" {
+			status = store.PendingInteractionStatusTimedOut
+			resolution = "expired-by-provider"
+		}
 	}
 	_, err := m.transitionPendingInteraction(ctx, store.PendingInteractionTransition{
 		InteractionID: interaction.InteractionID,
 		Status:        status,
-		Resolution:    event.Decision,
+		Resolution:    resolution,
 		ResolvedBy:    resolvedBy,
 		At:            event.Timestamp,
 	})

@@ -63,6 +63,8 @@ type SessionAttachState struct {
 }
 
 type SessionInfo struct {
+	InitiatorKind            string
+	InitiatorID              string
 	EffectiveWorkspaceAccess string
 	VerdictOnly              bool `json:"-"`
 	ID                       string

@@ -37,6 +37,9 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
+	if c.StaysOn.ApprovalTimeout < time.Minute || c.StaysOn.ApprovalTimeout > 72*time.Hour {
+		return fmt.Errorf("agents.stays_on.approval_timeout must be between 1m and 72h")
+	}
 	if c.StaysOn.MaxActiveInstances <= 0 {
 		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
 	}

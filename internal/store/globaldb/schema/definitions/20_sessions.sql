@@ -119,6 +119,8 @@ CREATE TABLE session_health (
 			human_ingress INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
+ initiator_kind TEXT NOT NULL DEFAULT '',
+ initiator_id TEXT NOT NULL DEFAULT '',
             instance_id TEXT,
  branch TEXT NOT NULL DEFAULT '',
  effective_workspace_access TEXT NOT NULL DEFAULT '',
@@ -222,6 +224,7 @@ CREATE TABLE session_pending_interactions (
 			CHECK (json_valid(payload_json) AND length(CAST(payload_json AS BLOB)) <= 4096),
 		status TEXT NOT NULL CHECK (status IN ('pending', 'orphaned', 'resolved', 'timed_out', 'canceled')),
 		created_at TEXT NOT NULL,
+		expires_at TEXT,
 		resolved_at TEXT,
 		resolution TEXT NOT NULL DEFAULT '' CHECK (length(CAST(resolution AS BLOB)) <= 240),
 		resolved_by TEXT NOT NULL DEFAULT ''

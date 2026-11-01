@@ -2333,10 +2333,10 @@ func TestCreateOptionsFromProfileKeepsGrantCeiling(t *testing.T) {
 		t.Run("Should carry the persisted loop run ceiling "+ceiling+" into a pinned recreation", func(t *testing.T) {
 			t.Parallel()
 			opts := createOptionsFromProfile(
-				looppkg.ActionSessionBindRequest{GrantCeiling: ceiling},
+				looppkg.ActionSessionBindRequest{GrantCeiling: ceiling, LoopRunID: "run-origin"},
 				store.SessionCreationProfile{ProfileID: "profile-a", AgentName: "coder", WorkspaceID: "ws-a"},
 			)
-			if opts.Origin.Kind != workspaceaccess.ActorAutomation || opts.Origin.Ceiling != ceiling {
+			if opts.Origin.ID != "run-origin" || opts.Origin.Kind != workspaceaccess.ActorAutomation || opts.Origin.Ceiling != ceiling {
 				t.Fatalf("Origin = %#v, want automation origin with ceiling %q (USW BR-9)", opts.Origin, ceiling)
 			}
 		})

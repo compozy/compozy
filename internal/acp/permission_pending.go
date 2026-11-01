@@ -163,10 +163,15 @@ func (p *AgentProcess) RequestPermission(
 		return RequestPermissionResponse{}, errors.New("acp: agent process is stopped")
 	default:
 	}
-	return p.resolvePermissionRequest(ctx, req)
+	return p.resolvePermissionRequest(ctx, req, "system")
 }
 
 func (p *AgentProcess) permissionTimeoutOrDefault() time.Duration {
+	if p.permissionWaitResolver != nil {
+		if wait := p.permissionWaitResolver(p.compozySessionID); wait > 0 {
+			return wait
+		}
+	}
 	if p.permissionTimeout <= 0 {
 		return 5 * time.Minute
 	}

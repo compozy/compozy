@@ -2177,6 +2177,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/permissions/rollup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read daily permission totals by agent and decision */
+    get: operations["getPermissionRollup"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/processes": {
     parameters: {
       query?: never;
@@ -6120,6 +6137,23 @@ export interface paths {
     post?: never;
     /** Make an adopted child session top-level, or take over a stopped spawned worker */
     delete: operations["clearSessionParent"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending session interactions */
+    get: operations["listSessionPendingInteractions"];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -12469,6 +12503,8 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       decisions?: string[];
+      /** Format: date-time */
+      expires_at?: string | null;
       interaction_id: string;
       kind: string;
       provider_request_id: string;
@@ -12476,10 +12512,25 @@ export interface components {
       /** Format: date-time */
       resolved_at?: string | null;
       resolved_by?: string;
+      session_id: string;
       status: string;
       title?: string;
       tool_id?: string;
       turn_id?: string;
+    };
+    PermissionDailyRollupPayload: {
+      agent_name: string;
+      /** Format: int64 */
+      count: number;
+      day: string;
+      decision: string;
+    };
+    PermissionRollupResponse: {
+      rollups: components["schemas"]["PermissionDailyRollupPayload"][];
+      /** Format: date-time */
+      since: string;
+      /** Format: date-time */
+      until: string;
     };
     PickFilesEffect: {
       directories?: boolean;
@@ -16559,7 +16610,8 @@ export interface components {
         | "task_lease"
         | "scheduled_wait"
         | "awaiting_reply"
-        | "active_monitor";
+        | "active_monitor"
+        | "held_permission";
       ref?: string;
       state: string;
     };
@@ -20332,7 +20384,8 @@ export interface components {
         | "task_lease"
         | "scheduled_wait"
         | "awaiting_reply"
-        | "active_monitor";
+        | "active_monitor"
+        | "held_permission";
       ref?: string;
       /** Format: date-time */
       since: string;
@@ -31865,6 +31918,73 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getPermissionRollup: {
+    parameters: {
+      query?: {
+        /** @description UTC calendar days including today, 1 through 90 (default 30) */
+        days?: string;
+        /** @description Filter by agent name */
+        agent?: string;
+        /** @description Include only automation, daemon and extension initiators */
+        unattended?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PermissionRollupResponse"];
+        };
+      };
+      /** @description Invalid query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -51040,6 +51160,8 @@ export interface operations {
   listSessionInteractions: {
     parameters: {
       query?: {
+        /** @description Include descendant sessions in the same workspace and profile */
+        descendants?: boolean;
         /** @description Filter by interaction status */
         status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
       };
@@ -51539,6 +51661,81 @@ export interface operations {
         };
       };
       /** @description Session reparent unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionPendingInteractions: {
+    parameters: {
+      query?: {
+        /** @description Include descendant sessions in the same workspace and profile */
+        descendants?: boolean;
+        /** @description Filter by interaction status */
+        status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionInteractionsResponse"];
+        };
+      };
+      /** @description Invalid interaction status */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session attention is unavailable */
       503: {
         headers: {
           [name: string]: unknown;

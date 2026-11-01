@@ -16,6 +16,7 @@ func sessionCatalogOperations() []OperationSpec {
 		sessionPromptCancelOperation(),
 		sessionPresenceOperation(),
 		sessionInteractionsOperation(),
+		sessionPendingInteractionsOperation(),
 		sessionAttentionSummaryOperation(),
 	}
 }
@@ -178,6 +179,13 @@ func sessionPresenceOperation() OperationSpec {
 	}
 }
 
+func sessionPendingInteractionsOperation() OperationSpec {
+	operation := sessionInteractionsOperation()
+	operation.Path = "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions"
+	operation.OperationID = "listSessionPendingInteractions"
+	return operation
+}
+
 func sessionInteractionsOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
@@ -190,6 +198,7 @@ func sessionInteractionsOperation() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
+			boolQueryParam("descendants", "Include descendant sessions in the same workspace and profile"),
 			enumQueryParam(
 				"status",
 				"Filter by interaction status",

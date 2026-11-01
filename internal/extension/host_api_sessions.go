@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -121,6 +122,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	createOpts := session.CreateOpts{
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorExtension, ID: hostAPIExtensionNameFromContext(ctx)},
 		AgentName: strings.TrimSpace(params.Agent),
 		Workspace: strings.TrimSpace(params.Workspace),
 		Type:      session.SessionTypeSystem,

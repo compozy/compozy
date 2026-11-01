@@ -5021,16 +5021,31 @@ export type PendingInteractionPayload = {
   choices?: Array<string>;
   created_at: string;
   decisions?: Array<string>;
+  expires_at?: string | null;
   interaction_id: string;
   kind: string;
   provider_request_id: string;
   resolution?: string;
   resolved_at?: string | null;
   resolved_by?: string;
+  session_id: string;
   status: string;
   title?: string;
   tool_id?: string;
   turn_id?: string;
+};
+
+export type PermissionDailyRollupPayload = {
+  agent_name: string;
+  count: number;
+  day: string;
+  decision: string;
+};
+
+export type PermissionRollupResponse = {
+  rollups: Array<PermissionDailyRollupPayload>;
+  since: string;
+  until: string;
 };
 
 export type PickFilesEffect = {
@@ -8991,7 +9006,8 @@ export type SignalSourceState = {
     | "task_lease"
     | "scheduled_wait"
     | "awaiting_reply"
-    | "active_monitor";
+    | "active_monitor"
+    | "held_permission";
   ref?: string;
   state: string;
 };
@@ -12090,7 +12106,8 @@ export type WorkSignal = {
     | "task_lease"
     | "scheduled_wait"
     | "awaiting_reply"
-    | "active_monitor";
+    | "active_monitor"
+    | "held_permission";
   ref?: string;
   since: string;
 };
@@ -21102,6 +21119,65 @@ export type GetOpenAPIDocumentResponses = {
    */
   200: unknown;
 };
+
+export type GetPermissionRollupData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * UTC calendar days including today, 1 through 90 (default 30)
+     */
+    days?: string;
+    /**
+     * Filter by agent name
+     */
+    agent?: string;
+    /**
+     * Include only automation, daemon and extension initiators
+     */
+    unattended?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/permissions/rollup";
+};
+
+export type GetPermissionRollupErrors = {
+  /**
+   * Invalid query
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Observe service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type GetPermissionRollupError = GetPermissionRollupErrors[keyof GetPermissionRollupErrors];
+
+export type GetPermissionRollupResponses = {
+  /**
+   * OK
+   */
+  200: PermissionRollupResponse;
+};
+
+export type GetPermissionRollupResponse =
+  GetPermissionRollupResponses[keyof GetPermissionRollupResponses];
 
 export type ListProcessesData = {
   body?: never;
@@ -35687,6 +35763,10 @@ export type ListSessionInteractionsData = {
   };
   query?: {
     /**
+     * Include descendant sessions in the same workspace and profile
+     */
+    descendants?: boolean;
+    /**
      * Filter by interaction status
      */
     status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
@@ -36073,6 +36153,67 @@ export type SetSessionParentResponses = {
 };
 
 export type SetSessionParentResponse = SetSessionParentResponses[keyof SetSessionParentResponses];
+
+export type ListSessionPendingInteractionsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Include descendant sessions in the same workspace and profile
+     */
+    descendants?: boolean;
+    /**
+     * Filter by interaction status
+     */
+    status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions";
+};
+
+export type ListSessionPendingInteractionsErrors = {
+  /**
+   * Invalid interaction status
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session attention is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionPendingInteractionsError =
+  ListSessionPendingInteractionsErrors[keyof ListSessionPendingInteractionsErrors];
+
+export type ListSessionPendingInteractionsResponses = {
+  /**
+   * OK
+   */
+  200: SessionInteractionsResponse;
+};
+
+export type ListSessionPendingInteractionsResponse =
+  ListSessionPendingInteractionsResponses[keyof ListSessionPendingInteractionsResponses];
 
 export type UpdateSessionPresenceData = {
   /**

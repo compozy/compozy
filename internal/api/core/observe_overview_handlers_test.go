@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -134,4 +135,38 @@ func TestObserveOverviewAllWorkspaces(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestPermissionRollupHandler(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve profile and unattended filters in daily totals", func(t *testing.T) {
+		t.Parallel()
+		observer := testutil.StubObserver{QueryPermissionDailyRollupsFn: func(_ context.Context, q store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
+			if !q.Unattended || q.AgentName != "coder" || q.ReadScope.ProfileID != store.DefaultProfileID || q.Since.IsZero() || !q.Until.After(q.Since) {
+				t.Fatalf("query = %#v", q)
+			}
+			return []store.PermissionDailyRollup{{Day: "2026-01-01", AgentName: "coder", Decision: "deny", Count: 3}}, nil
+		}}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/permissions/rollup?days=7&agent=coder&unattended=true", nil))
+		var payload contract.PermissionRollupResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || len(payload.Rollups) != 1 || payload.Rollups[0].Count != 3 {
+			t.Fatalf("response = %d %s", response.Code, response.Body.String())
+		}
+	})
+	for _, query := range []string{"days=0", "days=91", "days=bad", "unattended=bad"} {
+		t.Run("Should reject invalid query "+query, func(t *testing.T) {
+			t.Parallel()
+			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/permissions/rollup?"+query, nil))
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "error") {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+		})
+	}
 }

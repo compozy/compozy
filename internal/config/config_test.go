@@ -3191,3 +3191,26 @@ enabled = false
 		}
 	})
 }
+
+func TestStaysOnApprovalTimeout(t *testing.T) {
+	t.Parallel()
+	t.Run("Should default to twelve hours and validate inclusive bounds", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		if cfg.Agents.StaysOn.ApprovalTimeout != 12*time.Hour {
+			t.Fatal("unexpected approval timeout default")
+		}
+		for _, wait := range []time.Duration{time.Minute, 12 * time.Hour, 72 * time.Hour} {
+			cfg.Agents.StaysOn.ApprovalTimeout = wait
+			if err := cfg.Agents.Validate(); err != nil {
+				t.Fatalf("valid wait %v: %v", wait, err)
+			}
+		}
+		for _, wait := range []time.Duration{0, 30 * time.Second, time.Minute - time.Nanosecond, 72*time.Hour + time.Nanosecond, 73 * time.Hour} {
+			cfg.Agents.StaysOn.ApprovalTimeout = wait
+			if err := cfg.Agents.Validate(); err == nil {
+				t.Fatalf("accepted invalid wait %v", wait)
+			}
+		}
+	})
+}

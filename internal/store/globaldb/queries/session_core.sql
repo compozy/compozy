@@ -55,6 +55,7 @@ ORDER BY updated_at DESC, session_id DESC;
 
 -- name: UpsertSession :execrows
 INSERT INTO sessions (
+ initiator_kind, initiator_id,
  effective_workspace_access,
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
@@ -69,6 +70,7 @@ INSERT INTO sessions (
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
   created_at, updated_at
 ) SELECT
+ sqlc.arg(initiator_kind), sqlc.arg(initiator_id),
  sqlc.arg(effective_workspace_access),
   sqlc.arg(profile_id), sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
   sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(acp_options_json), sqlc.arg(speed_resolution_json),

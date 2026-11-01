@@ -10,7 +10,7 @@ import (
 
 func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	opts := session.CreateOpts{
-		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.grantCeiling()},
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: req.definitionID(), Ceiling: req.grantCeiling()},
 		AgentName: req.agentName(),
 		ProfileID: req.profileID(),
 		Provider:  "",

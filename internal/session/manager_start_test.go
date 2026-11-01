@@ -851,6 +851,7 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 				}
 			}
 			h.resolver.upsert(&workspace)
+			tc.origin.ID = "origin-1"
 			created, err := h.manager.CreateAccepted(
 				t.Context(),
 				CreateAcceptedOpts{
@@ -859,6 +860,9 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 			)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if created.InitiatorKind != string(tc.origin.Kind) || created.InitiatorID != "origin-1" {
+				t.Fatalf("initiator = %q/%q", created.InitiatorKind, created.InitiatorID)
 			}
 			if created.EffectiveWorkspaceAccess != tc.want {
 				t.Fatalf("grant=%q want %q", created.EffectiveWorkspaceAccess, tc.want)
@@ -875,9 +879,37 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			if resumed.Info().InitiatorKind != string(tc.origin.Kind) || resumed.Info().InitiatorID != "origin-1" {
+				t.Fatal("resume changed initiator")
+			}
 			if resumed.Info().EffectiveWorkspaceAccess != tc.want {
 				t.Fatalf("resumed grant=%q want %q", resumed.Info().EffectiveWorkspaceAccess, tc.want)
 			}
 		})
 	}
+}
+
+func TestSessionInitiatorInheritance(t *testing.T) {
+	t.Parallel()
+	t.Run("Should inherit the root initiator across child generations", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "automation-1"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootID := parent.ID
+		t.Cleanup(func() { reportSessionStop(t, h, rootID) })
+		for range 2 {
+			child, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem, ProvenanceParentSessionID: parent.ID, Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "daemon"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+			if child.Info().InitiatorKind != "automation" || child.Info().InitiatorID != "automation-1" {
+				t.Fatalf("child initiator = %#v", child.Info())
+			}
+			parent = child
+		}
+	})
 }

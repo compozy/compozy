@@ -18181,6 +18181,11 @@
             },
             "type": "array"
           },
+          "expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "interaction_id": {
             "type": "string"
           },
@@ -18201,6 +18206,9 @@
           "resolved_by": {
             "type": "string"
           },
+          "session_id": {
+            "type": "string"
+          },
           "status": {
             "type": "string"
           },
@@ -18219,7 +18227,56 @@
           "interaction_id",
           "kind",
           "provider_request_id",
+          "session_id",
           "status"
+        ],
+        "type": "object"
+      },
+      "PermissionDailyRollupPayload": {
+        "properties": {
+          "agent_name": {
+            "type": "string"
+          },
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "day": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_name",
+          "count",
+          "day",
+          "decision"
+        ],
+        "type": "object"
+      },
+      "PermissionRollupResponse": {
+        "properties": {
+          "rollups": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionDailyRollupPayload"
+            },
+            "type": "array"
+          },
+          "since": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rollups",
+          "since",
+          "until"
         ],
         "type": "object"
       },
@@ -32356,7 +32413,8 @@
               "task_lease",
               "scheduled_wait",
               "awaiting_reply",
-              "active_monitor"
+              "active_monitor",
+              "held_permission"
             ],
             "type": "string"
           },
@@ -44937,7 +44995,8 @@
               "task_lease",
               "scheduled_wait",
               "awaiting_reply",
-              "active_monitor"
+              "active_monitor",
+              "held_permission"
             ],
             "type": "string"
           },
@@ -62865,6 +62924,114 @@
           "diagnostics"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/permissions/rollup": {
+      "get": {
+        "operationId": "getPermissionRollup",
+        "parameters": [
+          {
+            "description": "UTC calendar days including today, 1 through 90 (default 30)",
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by agent name",
+            "in": "query",
+            "name": "agent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include only automation, daemon and extension initiators",
+            "in": "query",
+            "name": "unattended",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionRollupResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid query"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent aggregate access denied"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Observe service is not configured"
+          }
+        },
+        "summary": "Read daily permission totals by agent and decision",
+        "tags": [
+          "observe"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"
@@ -91268,6 +91435,14 @@
             }
           },
           {
+            "description": "Include descendant sessions in the same workspace and profile",
+            "in": "query",
+            "name": "descendants",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Filter by interaction status",
             "in": "query",
             "name": "status",
@@ -91997,6 +92172,125 @@
           }
         },
         "summary": "Adopt a parentless user session as a child of another session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions": {
+      "get": {
+        "operationId": "listSessionPendingInteractions",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include descendant sessions in the same workspace and profile",
+            "in": "query",
+            "name": "descendants",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by interaction status",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "pending",
+                "orphaned",
+                "resolved",
+                "timed_out",
+                "canceled"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInteractionsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid interaction status"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session attention is unavailable"
+          }
+        },
+        "summary": "List pending session interactions",
         "tags": [
           "sessions"
         ],

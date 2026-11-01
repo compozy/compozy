@@ -67,6 +67,7 @@ var (
 		"defaults.provider":                                        ConfigValueString,
 		configDefaultsModelPath:                                    ConfigValueString,
 		configDefaultsReasoningEffortPath:                          ConfigValueString,
+		"agents.stays_on.approval_timeout":                         ConfigValueDuration,
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
 		toolSurfaceAgentsSoulContextProjectionBytesPath:            ConfigValueInt64,

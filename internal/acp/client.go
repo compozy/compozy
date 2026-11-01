@@ -59,20 +59,21 @@ type Option func(*Driver)
 
 // Driver launches ACP agent subprocesses and brokers JSON-RPC traffic.
 type Driver struct {
-	logger               *slog.Logger
-	stopTimeout          time.Duration
-	controlTimeout       time.Duration
-	startAttempts        int
-	promptBufferCap      int
-	promptDrainWait      time.Duration
-	permissionWait       time.Duration
-	processRecordTimeout time.Duration
-	launcher             Launcher
-	toolHost             ToolHost
-	processRegistry      *toolruntime.Registry
-	terminals            TerminalHost
-	providerPreStarter   ProviderPreStarter
-	agentNiceness        int
+	logger                 *slog.Logger
+	stopTimeout            time.Duration
+	controlTimeout         time.Duration
+	startAttempts          int
+	promptBufferCap        int
+	promptDrainWait        time.Duration
+	permissionWait         time.Duration
+	permissionWaitResolver PermissionWaitResolver
+	processRecordTimeout   time.Duration
+	launcher               Launcher
+	toolHost               ToolHost
+	processRegistry        *toolruntime.Registry
+	terminals              TerminalHost
+	providerPreStarter     ProviderPreStarter
+	agentNiceness          int
 }
 
 // WithLogger directs driver diagnostics to the provided logger.

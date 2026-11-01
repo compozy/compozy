@@ -64,3 +64,101 @@ with "Don't allow" / "Never allow". Contracts, test ids, and persisted data are 
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-11-01 (B4 unattended approval waits): configure
+`agents.stays_on.approval_timeout` (default `12h`, range `1m` through `72h`).
+For a Stays on main and its child, trigger a native approval and verify the
+request appears in pending interactions with the original request identity.
+Approve through the existing session approval route. Repeat after adoption and
+after archiving the instance while the process remains running: subsequent
+requests must resolve current membership and use the applicable wait. Ordinary
+sessions retain their existing native approval timeout and terminal policy.
+This scenario remains pending execution; unit coverage alone is not a QA pass.
+
+B4 deadline projection: pending permission interactions expose optional `expires_at`.
+Verify that new ACP requests show their resolved approval deadline and that old
+rows remain readable without a fabricated deadline after upgrading. Confirm the
+same stored value in direct and descendant lists. Expiry/report atomicity and
+native bridge deadline alignment require their remaining B4 checks.
+
+B4 external initiators: sessions created by scheduled jobs and triggers retain
+the automation definition ID. App-token requests retain the authenticated token
+session ID without gaining an unrestricted grant. Agent-created sessions retain
+the authenticated caller ID; descendants still inherit their root initiator.
+Check attribution in permission audit reads for each origin, including a
+cross-workspace agent creation without lineage. Manual QA remains pending.
+
+B4 audit filter: the observe permission query's unattended filter includes only
+`automation`, `daemon`, and `extension` initiators. Unknown historical rows,
+operator, app, and agent-session initiators are excluded. Filtering precedes
+the row limit and composes with session and decision filters. Public transport
+and CLI exposure remain outstanding.
+
+B4 CLI relay: run `compozy session pending <main-session-id> --descendants`
+and compare its SESSION and EXPIRES AT columns with `-o json` fields
+`session_id` and `expires_at`. The deadline is UTC; an absent deadline remains
+absent in JSON and displays a dash in the table. Answer using the displayed
+original session and provider request IDs.
+
+B4 native relay: call `compozy__session_pending` with the main `session_id`,
+its `workspace`, and `descendants: true`. Compare `interactions` with the CLI
+JSON read, including original session/request IDs and optional `expires_at`.
+A foreign workspace must fail before reading interactions.
+
+B4 daily audit aggregate: group permission decisions by UTC day, agent and
+decision across the complete filtered population. The service requires an
+explicit profile read scope and a bounded half-open time interval; workspace
+and unattended filters apply before grouping. Compare counts for human and
+automation requests and confirm another profile's decisions are excluded.
+HTTP and CLI expose this aggregate through the rollup endpoint and activity command below.
+
+B4 permission rollup API: `GET /api/permissions/rollup?days=7&unattended=true`
+returns `since`, `until`, and `rollups` grouped by UTC day, agent and decision.
+Use `profile` or `all_profiles` for the profile lens and optional `agent` for
+a single agent. Verify invalid days (outside 1–90) and invalid booleans fail,
+and compare the totals with persisted decisions in the selected profile.
+The endpoint is available over HTTP and UDS to operators and granted agents.
+
+B4 activity CLI: `compozy observe activity --days 7 --unattended -o json`
+reads the permission rollup endpoint; `--agent` narrows the agent and the
+existing `--profile` / `--all-profiles` flags select the profile lens. Compare
+the JSON envelope and table totals with the API. Days outside 1–90 must fail
+before transport; omitting `--unattended` includes every initiator kind.
+
+B4 provider expiry (IT-034): end a provider permission request before its
+Compozy deadline. Its persisted interaction must read `status: timed_out`,
+`resolution: expired-by-provider`, and `resolved_by: provider`, with no pending
+approval badge. A canceled daemon-originated native approval remains
+`status: canceled` and `resolved_by: system`. Neither accepts a later answer.
+
+B4 persistence proof (IT-019/IT-020): the canonical
+`TestPendingInteractionReportsAtomicity` suite injects report/transition failures,
+then runs a subprocess that exits without database cleanup before and after the
+transition. Reopening the real SQLite database preserves the pending request
+before commit and exactly one expiry/interruption report after commit. Repeated
+process exits do not duplicate reports; terminal requests reject a late answer.
+`TestInstanceApprovalCrashRestartDaemonIntegration` additionally kills the daemon-hosting
+process with one expired and one pending child interaction, boots the same isolated
+home, and boots it again. It checks terminal decisions, the preserved expiry report,
+one interruption report, and `already-resolved` responses retaining the original
+decision. The original subagent continuation journey remains unchanged.
+
+B4 surface verification: `TestSessionPendingDescendants`,
+`TestNativeSessionPending`, and `TestSessionInteractionDescendants` cover the CLI,
+native registry, and HTTP handlers. `TestObserveActivityCommand`,
+`TestPermissionRollupClient`, and `TestPermissionRollupHandler` cover unattended
+rollups. OpenAPI, generated Go operation parameters, and generated TypeScript
+operation types expose `descendants` and `unattended`; the Go generated-operation
+suite and the TypeScript client typecheck pass. IT-018 provider timing is covered by
+`TestInstancePermissionBeyondDefaultTimeout` using eleven minutes of virtual time;
+`TestInstanceNativeApprovalBeyondDefaultTimeout` covers the native bridge's same
+wait. `TestSubagentPermissionDaemonIntegration` boots a real daemon and ACP child,
+adopts its parent into an instance, reads the child request through the main
+session's native descendants query, and answers through the main session's native
+approval tool. It also opens a native approval in the same child through the real
+permission manager, lists both requests, and answers the native request from the
+main session before completing the provider approval.
+
+The repository `make codegen-check` passed after retrying with cache access.
+The test-shape checker reports existing cases outside the changed region in
+`handlers_test.go`; both new timeout cases follow the canonical subtest shape.

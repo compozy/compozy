@@ -81,6 +81,20 @@ func (m *Manager) PendingInteractions(
 	return clonePendingInteractions(interactions), nil
 }
 
+func (m *Manager) DescendantPendingInteractions(ctx context.Context, sessionID string, statuses []string) ([]store.PendingInteraction, error) {
+	reader, ok := m.attentionStore.(interface {
+		ListDescendantPendingInteractions(context.Context, string, []string) ([]store.PendingInteraction, error)
+	})
+	if !ok {
+		return nil, errors.New("session: descendant interaction store is required")
+	}
+	interactions, err := reader.ListDescendantPendingInteractions(ctx, strings.TrimSpace(sessionID), statuses)
+	if err != nil {
+		return nil, fmt.Errorf("session: list descendant pending interactions: %w", err)
+	}
+	return clonePendingInteractions(interactions), nil
+}
+
 // RecoverPendingInteractions marks requests from a dead turn as restart-orphaned.
 func (m *Manager) RecoverPendingInteractions(ctx context.Context, sessionID string) (int, error) {
 	return m.recoverPendingInteractions(ctx, sessionID, false)

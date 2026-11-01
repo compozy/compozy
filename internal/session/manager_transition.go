@@ -170,6 +170,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		return store.SessionInfo{}
 	}
 	result := store.SessionInfo{
+		InitiatorKind: info.InitiatorKind, InitiatorID: info.InitiatorID,
 		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
 		VerdictOnly:              info.VerdictOnly,
 		ID:                       info.ID,

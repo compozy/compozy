@@ -39,7 +39,7 @@ func (r instanceMainSessions) Start(ctx context.Context, request agentinstance.S
 		InstanceID: instance.ID, ProfileID: instance.ProfileID,
 		AgentName: instance.AgentName, Workspace: instance.WorkspaceID,
 		Type:   session.SessionTypeUser,
-		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, Ceiling: instance.GrantCeiling},
+		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: instance.ID, Ceiling: instance.GrantCeiling},
 	}
 	if instance.WorkspaceID == "" {
 		opts.Scope = workspacepkg.ScopeUser

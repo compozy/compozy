@@ -51,13 +51,16 @@ func (g *PermissionRepo) ListPermissionLog(
 	}
 
 	// dynamic-sql: optional audit filters, lower time bound, and caller limit change the statement shape.
-	sqlQuery := `SELECT id, session_id, agent_name, action, resource, decision, policy_used, timestamp FROM permission_log`
+	sqlQuery := `SELECT id, session_id, agent_name, action, resource, decision, policy_used, timestamp, initiator_kind, initiator_id FROM permission_log`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("decision", query.Decision),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
+	if query.Unattended {
+		where = append(where, "initiator_kind IN ('automation', 'daemon', 'extension')")
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY timestamp ASC, id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -99,6 +102,8 @@ func scanPermissionLog(scanner rowScanner) (store.PermissionLogEntry, error) {
 		&entry.Decision,
 		&entry.PolicyUsed,
 		&timestampRaw,
+		&entry.InitiatorKind,
+		&entry.InitiatorID,
 	); err != nil {
 		return store.PermissionLogEntry{}, fmt.Errorf("store: scan permission log: %w", err)
 	}

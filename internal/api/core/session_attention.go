@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -62,7 +63,27 @@ func (h *BaseHandlers) ListSessionInteractions(c *gin.Context) {
 		return
 	}
 	statuses := c.QueryArray("status")
-	interactions, err := manager.PendingInteractions(c.Request.Context(), sessionID, statuses)
+	descendants := false
+	if value, present := c.GetQuery("descendants"); present {
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			h.respondError(c, http.StatusBadRequest, errors.New("api: descendants must be a boolean"))
+			return
+		}
+		descendants = parsed
+	}
+	var interactions []store.PendingInteraction
+	var err error
+	if descendants {
+		reader, ok := h.Sessions.(SessionDescendantInteractionManager)
+		if !ok {
+			h.respondError(c, http.StatusServiceUnavailable, errors.New("api: descendant interactions are required"))
+			return
+		}
+		interactions, err = reader.DescendantPendingInteractions(c.Request.Context(), sessionID, statuses)
+	} else {
+		interactions, err = manager.PendingInteractions(c.Request.Context(), sessionID, statuses)
+	}
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, store.ErrSessionNotFound) || errors.Is(err, session.ErrSessionNotFound) {

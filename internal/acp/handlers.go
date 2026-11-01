@@ -207,7 +207,7 @@ func (p *AgentProcess) handleRequestPermission(
 	if !p.permissionRequestIsBound(request.SessionId) {
 		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 	}
-	return p.resolvePermissionRequest(ctx, request)
+	return p.resolvePermissionRequest(ctx, request, "provider")
 }
 
 // resolvePermissionRequest decides one permission request through the provider
@@ -215,6 +215,7 @@ func (p *AgentProcess) handleRequestPermission(
 func (p *AgentProcess) resolvePermissionRequest(
 	ctx context.Context,
 	request acpsdk.RequestPermissionRequest,
+	cancellationActor string,
 ) (acpsdk.RequestPermissionResponse, error) {
 	turnID := p.activeTurnID()
 	resource, title := permissionRequestDisplay(request)
@@ -261,9 +262,11 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	defer p.clearPendingPermission(requestID)
 	raw := buildPermissionEventRaw(requestID, decisionPending, request)
-	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw)
+	wait := p.permissionTimeoutOrDefault()
+	expiresAt := timeNowUTC().Add(wait)
+	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw, expiresAt)
 
-	timer := time.NewTimer(p.permissionTimeoutOrDefault())
+	timer := time.NewTimer(wait)
 	defer timer.Stop()
 
 	select {
@@ -286,7 +289,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	raw = buildPermissionEventRaw(requestID, decisionCanceled, request)
 	p.emitPermissionEvent(
-		sessionID, turnID, requestID, title, toolCallID, resource, decisionCanceled, "system", raw,
+		sessionID, turnID, requestID, title, toolCallID, resource, decisionCanceled, cancellationActor, raw,
 	)
 	return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 }

@@ -183,6 +183,8 @@ func PendingInteractionPayloadsFromStore(values []store.PendingInteraction) []co
 		value = store.SanitizePendingInteraction(value)
 		result = append(result, contract.PendingInteractionPayload{
 			InteractionID:     strings.TrimSpace(value.InteractionID),
+			SessionID:         strings.TrimSpace(value.SessionID),
+			ExpiresAt:         cloneTimePtr(value.ExpiresAt),
 			Kind:              strings.TrimSpace(value.Kind),
 			ProviderRequestID: strings.TrimSpace(value.ProviderRequestID),
 			TurnID:            strings.TrimSpace(value.TurnID),

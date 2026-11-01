@@ -31,6 +31,7 @@ func (s *AvailableCommandSet) Values() []store.SessionAdvertisedCommand {
 
 // AgentEvent is the stream item exposed to session/.
 type AgentEvent struct {
+	ExpiresAt *time.Time
 	Type      string
 	SessionID string
 	TurnID    string

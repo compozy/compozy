@@ -16065,3 +16065,44 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeSessionPending(t *testing.T) {
+	t.Parallel()
+	for _, descendants := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve pending identity and deadline with descendants %v", descendants), func(t *testing.T) {
+			t.Parallel()
+			manager := nativeTestSessionManager("ws-1")
+			deadline := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+			calls := 0
+			read := func(_ context.Context, id string, statuses []string) ([]store.PendingInteraction, error) {
+				calls++
+				if id != "sess-1" || len(statuses) != 0 {
+					t.Fatalf("query = %s/%v", id, statuses)
+				}
+				return []store.PendingInteraction{{SessionID: "child", InteractionID: "interaction", ProviderRequestID: "request", Kind: "permission", Status: "pending", ExpiresAt: &deadline}}, nil
+			}
+			if descendants {
+				manager.Attention.DescendantPendingFn = read
+			} else {
+				manager.Attention.PendingFn = read
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Workspaces: nativeTestWorkspaceService(t), Sessions: manager}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPending, Input: json.RawMessage(fmt.Sprintf(`{"workspace":"ws-1","session_id":"sess-1","descendants":%v}`, descendants))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response contract.SessionInteractionsResponse
+			if err := json.Unmarshal(result.Structured, &response); err != nil {
+				t.Fatal(err)
+			}
+			if len(response.Interactions) != 1 || response.Interactions[0].SessionID != "child" || response.Interactions[0].ExpiresAt == nil || !response.Interactions[0].ExpiresAt.Equal(deadline) {
+				t.Fatalf("response = %#v", response)
+			}
+			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPending, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`)})
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			if calls != 1 {
+				t.Fatalf("read calls = %d", calls)
+			}
+		})
+	}
+}

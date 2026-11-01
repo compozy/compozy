@@ -128,6 +128,7 @@ func (h *BaseHandlers) resolveProfileReadCaller(c *gin.Context, workspaceID stri
 		}
 		origin = workspaceaccess.Origin{
 			Kind:    workspaceaccess.ActorAgentSession,
+			ID:      caller.Session.ID,
 			Ceiling: caller.Session.EffectiveWorkspaceAccess,
 		}
 		result = profileReadCaller{

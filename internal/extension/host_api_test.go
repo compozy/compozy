@@ -442,7 +442,7 @@ func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) 
 			"workspace":"ws-alpha"
 		}`)
 
-		result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
+		result, err := handler.handleSessionsCreate(withHostAPIExtensionName(testutil.Context(t), "ext-origin"), raw)
 		if err != nil {
 			t.Fatalf("handleSessionsCreate() error = %v", err)
 		}
@@ -453,6 +453,9 @@ func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) 
 			t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
 		}
 		accepted := sessions.acceptedCreateCalls[0]
+		if string(accepted.Session.Origin.Kind) != "extension" || accepted.Session.Origin.ID != "ext-origin" {
+			t.Fatalf("origin = %#v", accepted.Session.Origin)
+		}
 		if accepted.Session.AgentName != "coder" || accepted.Session.Workspace != "ws-alpha" {
 			t.Fatalf("CreateAccepted() Session = %#v", accepted.Session)
 		}

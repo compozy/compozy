@@ -23,6 +23,7 @@ func registryTaskStateOperations() []OperationSpec {
 		getTaskDashboardOperationSpec(),
 		getTaskInboxOperationSpec(),
 		getObserveOverviewOperationSpec(),
+		getPermissionRollupOperationSpec(),
 	}
 	for index := range operations {
 		operations[index].Parameters = ensureProfileParameters(

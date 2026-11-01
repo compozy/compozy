@@ -82,7 +82,8 @@ const (
 	// ToolIDSessionInputPromote atomically promotes queued input to steering.
 	ToolIDSessionInputPromote ToolID = "compozy__session_input_promote"
 	// ToolIDSessionStatus reads one runtime session snapshot.
-	ToolIDSessionStatus ToolID = "compozy__session_status"
+	ToolIDSessionPending ToolID = "compozy__session_pending"
+	ToolIDSessionStatus  ToolID = "compozy__session_status"
 	// ToolIDSessionHistory reads grouped turn history for one session.
 	ToolIDSessionHistory ToolID = "compozy__session_history"
 	// ToolIDSessionEvents reads persisted events for one session.

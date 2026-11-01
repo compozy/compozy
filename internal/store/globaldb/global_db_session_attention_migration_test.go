@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -137,6 +138,50 @@ func TestGlobalDBSessionAttentionMigration(t *testing.T) {
 		}
 		if reopenedAttention.PendingClarifyCount != 1 || reopenedAttention.AttentionRevision != 1 {
 			t.Fatalf("attention after reopen = %#v, want durable projection", reopenedAttention)
+		}
+	})
+}
+
+// UT-049: existing audit rows retain unknown attribution after migration.
+// Owner: globaldb migrations; canonical suite: session attention migration.
+func TestPermissionInitiatorMigration(t *testing.T) {
+	t.Run("Should preserve unknown initiators on pre-migration rows", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00164_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := globalMigrationTestContext(t)
+		for _, query := range []string{
+			`INSERT INTO workspaces (id,root_dir,add_dirs,name,created_at,updated_at) VALUES ('legacy-ws','/tmp/legacy','[]','legacy','2026-01-01','2026-01-01')`,
+			`INSERT INTO sessions (profile_id,id,name,agent_name,workspace_id,session_type,state,created_at,updated_at) VALUES ('` + store.DefaultProfileID + `','legacy-session','legacy','coder','legacy-ws','user','active','2026-01-01','2026-01-01')`,
+			`INSERT INTO permission_log (id,session_id,agent_name,action,resource,decision,policy_used,timestamp) VALUES ('legacy-decision','legacy-session','coder','execute','terminal','reject_once','interactive','2026-01-01')`,
+		} {
+			if _, err := prior.ExecContext(ctx, query); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, table := range []string{"sessions", "permission_log"} {
+			var kind, actor string
+			if err := upgraded.DB().QueryRowContext(ctx, "SELECT initiator_kind, initiator_id FROM "+table).Scan(&kind, &actor); err != nil {
+				t.Fatal(err)
+			}
+			if kind != "" || actor != "" {
+				t.Fatalf("%s attribution = %q/%q", table, kind, actor)
+			}
 		}
 	})
 }

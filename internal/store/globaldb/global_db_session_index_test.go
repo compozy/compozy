@@ -3093,3 +3093,39 @@ func BenchmarkSessionCatalogBoard(b *testing.B) {
 		}
 	})
 }
+
+func TestPendingInteractionDescendants(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain original identities and exclude unrelated sessions", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "child-pending", parent, store.SubagentSpawnRole, now)
+		registerSubagentSession(t, db, workspace, "grandchild-pending", "child-pending", store.SubagentSpawnRole, now)
+		registerSubagentSession(t, db, workspace, "unrelated-pending", "", "worker", now)
+		for _, id := range []string{parent, "child-pending", "grandchild-pending", "unrelated-pending"} {
+			_, err := db.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+				InteractionID: "interaction-" + id, SessionID: id, Kind: store.PendingInteractionKindPermission,
+				ProviderRequestID: "request-" + id, CreatedAt: now, ExpiresAt: new(now.Add(12 * time.Hour)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		direct, err := db.ListPendingInteractions(t.Context(), parent, nil)
+		if err != nil || len(direct) != 1 {
+			t.Fatalf("direct = %#v, %v", direct, err)
+		}
+		tree, err := db.ListDescendantPendingInteractions(t.Context(), parent, nil)
+		if err != nil || len(tree) != 3 {
+			t.Fatalf("tree = %#v, %v", tree, err)
+		}
+		for _, row := range tree {
+			if row.ExpiresAt == nil || !row.ExpiresAt.Equal(now.Add(12*time.Hour)) {
+				t.Fatalf("expiry = %v", row.ExpiresAt)
+			}
+			if row.SessionID == "unrelated-pending" || row.ProviderRequestID != "request-"+row.SessionID {
+				t.Fatalf("unexpected interaction: %#v", row)
+			}
+		}
+	})
+}

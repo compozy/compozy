@@ -10,6 +10,7 @@ import (
 func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
+		InitiatorKind: info.InitiatorKind, InitiatorID: info.InitiatorID,
 		VerdictOnly:              info.VerdictOnly,
 		ID:                       strings.TrimSpace(info.ID),
 		ProfileID:                strings.TrimSpace(info.ProfileID),

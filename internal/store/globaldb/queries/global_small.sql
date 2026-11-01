@@ -16,10 +16,12 @@ DELETE FROM app_metadata WHERE key = sqlc.arg(key);
 
 -- name: InsertPermissionLog :exec
 INSERT INTO permission_log (
-  id, session_id, agent_name, action, resource, decision, policy_used, timestamp
+  id, session_id, agent_name, action, resource, decision, policy_used, timestamp, initiator_kind, initiator_id
 ) VALUES (
   sqlc.arg(id), sqlc.arg(session_id), sqlc.arg(agent_name), sqlc.arg(action),
-  sqlc.arg(resource), sqlc.arg(decision), sqlc.arg(policy_used), sqlc.arg(timestamp)
+  sqlc.arg(resource), sqlc.arg(decision), sqlc.arg(policy_used), sqlc.arg(timestamp),
+ COALESCE((SELECT initiator_kind FROM sessions WHERE id = sqlc.arg(session_id)), ''),
+ COALESCE((SELECT initiator_id FROM sessions WHERE id = sqlc.arg(session_id)), '')
 );
 
 -- name: InsertWorkspace :exec

@@ -376,6 +376,7 @@ describe("OsWindowDeck", () => {
 
   it("Should count a session's pending decisions on its tab and omit the count at zero", () => {
     const pending = (id: string, status: string) => ({
+      session_id: "sess-1",
       interaction_id: id,
       kind: "permission",
       provider_request_id: `req-${id}`,

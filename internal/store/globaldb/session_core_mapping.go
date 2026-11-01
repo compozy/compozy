@@ -18,11 +18,13 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 	speedResolutionJSON, acpOptionsJSON, selectedACPOptionsJSON, err :=
 		sessionCatalogRuntimeProjections(session)
 	if err != nil {
-		return sqlcgen.UpsertSessionParams{}, err
+		return sqlcgen.UpsertSessionParams{
+			InitiatorKind: session.InitiatorKind, InitiatorID: session.InitiatorID}, err
 	}
 	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(session.RuntimeRecoveryValue())
 	if err != nil {
-		return sqlcgen.UpsertSessionParams{}, err
+		return sqlcgen.UpsertSessionParams{
+			InitiatorKind: session.InitiatorKind, InitiatorID: session.InitiatorID}, err
 	}
 	params := newSessionUpsertParams(
 		session,
@@ -45,6 +47,7 @@ func newSessionUpsertParams(
 	activityJSON string,
 ) sqlcgen.UpsertSessionParams {
 	return sqlcgen.UpsertSessionParams{
+		InitiatorKind: session.InitiatorKind, InitiatorID: session.InitiatorID,
 		EffectiveWorkspaceAccess: session.EffectiveWorkspaceAccess,
 		ProfileID:                session.ProfileID,
 		ID:                       session.ID,

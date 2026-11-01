@@ -532,6 +532,9 @@ import type {
   GetPendingToolApprovalData,
   GetPendingToolApprovalErrors,
   GetPendingToolApprovalResponses,
+  GetPermissionRollupData,
+  GetPermissionRollupErrors,
+  GetPermissionRollupResponses,
   GetProfileData,
   GetProfileErrors,
   GetProfileResponses,
@@ -915,6 +918,9 @@ import type {
   ListSessionMonitorsData,
   ListSessionMonitorsErrors,
   ListSessionMonitorsResponses,
+  ListSessionPendingInteractionsData,
+  ListSessionPendingInteractionsErrors,
+  ListSessionPendingInteractionsResponses,
   ListSessionProcessesData,
   ListSessionProcessesErrors,
   ListSessionProcessesResponses,
@@ -7157,6 +7163,24 @@ export class observe extends HeyApiClient {
       ...options,
     });
   }
+
+  /**
+   * Read daily permission totals by agent and decision
+   */
+  public getPermissionRollup<ThrowOnError extends boolean = true>(
+    options?: Options<GetPermissionRollupData, ThrowOnError>
+  ): RequestResult<GetPermissionRollupResponses, GetPermissionRollupErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetPermissionRollupResponses,
+      GetPermissionRollupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/permissions/rollup",
+      ...options,
+    });
+  }
 }
 
 export class onboarding extends HeyApiClient {
@@ -8317,6 +8341,29 @@ export class sessions extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * List pending session interactions
+   */
+  public listSessionPendingInteractions<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionPendingInteractionsData, ThrowOnError>
+  ): RequestResult<
+    ListSessionPendingInteractionsResponses,
+    ListSessionPendingInteractionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionPendingInteractionsResponses,
+      ListSessionPendingInteractionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions",
+      ...options,
     });
   }
 

@@ -53,6 +53,8 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	InitiatorKind            string
+	InitiatorID              string
 	LeaderKernelToken        string `json:"-"`
 	BoardColumn              BoardColumn
 	ParentTitle              string
@@ -128,6 +130,8 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	InitiatorKind                string
+	InitiatorID                  string
 	supervisionInspectMu         sync.Mutex
 	supervisionState             *SupervisionState
 	supervisionWarningEvent      *acp.AgentEvent

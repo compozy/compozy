@@ -3023,6 +3023,7 @@ describe("SessionChatRuntimeProvider", () => {
 
   function restartExpiredRow(requestId: string): SessionInteractionRecord {
     return {
+      session_id: "sess-1",
       interaction_id: `int_${requestId}`,
       kind: "permission",
       provider_request_id: requestId,

@@ -16,6 +16,8 @@ import (
 )
 
 type sessionStartSpec struct {
+	initiatorKind             string
+	initiatorID               string
 	instancePermissionCeiling *store.SessionPermissionPolicy
 	instanceID                string
 	origin                    workspaceaccess.Origin
