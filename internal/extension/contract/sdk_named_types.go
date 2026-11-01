@@ -165,7 +165,7 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  sdkSessionAttentionObservationPatchValue,
 		Value: hooks.SessionAttentionObservationPatch{},
 	},
-	"AgentHeartbeatWakePatch": {Name: "AgentHeartbeatWakePatch", Value: hooks.AgentHeartbeatWakePatch{}},
+	sdkAgentHeartbeatWakePatchValue: {Name: sdkAgentHeartbeatWakePatchValue, Value: hooks.AgentHeartbeatWakePatch{}},
 	sdkAuthoredContextObservationPatchValue: {
 		Name:  sdkAuthoredContextObservationPatchValue,
 		Value: hooks.AuthoredContextObservationPatch{},

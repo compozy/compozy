@@ -5,7 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 func agentInstanceOperations() []OperationSpec {
 	operations := []OperationSpec{
 		{
-			Method:      "GET",
+			Method:      httpMethodGet,
 			Path:        "/api/agent-instances/{id}/occurrences/{occurrence}",
 			OperationID: "getAgentInstanceOccurrence",
 			Summary:     "Read an instance check occurrence",
@@ -15,7 +15,7 @@ func agentInstanceOperations() []OperationSpec {
 			},
 		},
 		{
-			Method:      "PATCH",
+			Method:      httpMethodPatch,
 			Path:        "/api/agent-instances/{id}",
 			OperationID: "updateAgentInstance",
 			Summary:     "Update instance checks",
@@ -24,7 +24,7 @@ func agentInstanceOperations() []OperationSpec {
 			Responses:   []ResponseSpec{{Status: 200, Description: "Updated", Body: contract.AgentInstanceResponse{}}},
 		},
 		{
-			Method:      "POST",
+			Method:      httpMethodPost,
 			Path:        "/api/agent-instances/{id}/check",
 			OperationID: "checkAgentInstance",
 			Summary:     "Check an agent instance",
@@ -36,7 +36,7 @@ func agentInstanceOperations() []OperationSpec {
 			},
 		},
 		{
-			Method:      "GET",
+			Method:      httpMethodGet,
 			Path:        "/api/agents/{name}/activity",
 			OperationID: "getAgentActivity",
 			Summary:     "Read agent activity across authorized workspaces",
@@ -49,7 +49,7 @@ func agentInstanceOperations() []OperationSpec {
 			},
 		},
 		{
-			Method:      "POST",
+			Method:      httpMethodPost,
 			Path:        "/api/agent-instances",
 			OperationID: "createAgentInstance",
 			Summary:     "Create a stays-on agent instance",
@@ -60,7 +60,7 @@ func agentInstanceOperations() []OperationSpec {
 			},
 		},
 		{
-			Method:      "GET",
+			Method:      httpMethodGet,
 			Path:        "/api/agent-instances",
 			OperationID: "listAgentInstances",
 			Summary:     "List agent instances",
@@ -75,7 +75,7 @@ func agentInstanceOperations() []OperationSpec {
 			Responses: []ResponseSpec{{Status: 200, Description: "OK", Body: contract.AgentInstanceListResponse{}}},
 		},
 		{
-			Method:      "POST",
+			Method:      httpMethodPost,
 			Path:        "/api/agent-instances/adopt",
 			OperationID: "adoptAgentInstance",
 			Summary:     "Adopt a root session as an instance",
@@ -84,15 +84,15 @@ func agentInstanceOperations() []OperationSpec {
 		},
 	}
 	for _, verb := range []struct{ method, path, id, summary string }{
-		{"GET", "", "getAgentInstance", "Get an agent instance"},
-		{"POST", "/pause", "pauseAgentInstance", "Pause an agent instance"},
-		{"POST", "/resume", "resumeAgentInstance", "Resume an agent instance"},
-		{"POST", "/ensure-main", "ensureAgentInstanceMain", "Ensure the main session exists"},
-		{"DELETE", "", "archiveAgentInstance", "Archive an agent instance"},
-		{"GET", "/reports", "listAgentInstanceReports", "List durable instance reports"},
-		{"GET", "/away", "getAgentInstanceAway", "Read the operator's instance away digest"},
-		{"POST", "/away", "markAgentInstanceSeen", "Mark the instance seen by the local operator"},
-		{"GET", "/check-ins", "listAgentInstanceCheckIns", "List instance wake events"},
+		{httpMethodGet, "", "getAgentInstance", "Get an agent instance"},
+		{httpMethodPost, "/pause", "pauseAgentInstance", "Pause an agent instance"},
+		{httpMethodPost, "/resume", "resumeAgentInstance", "Resume an agent instance"},
+		{httpMethodPost, "/ensure-main", "ensureAgentInstanceMain", "Ensure the main session exists"},
+		{httpMethodDelete, "", "archiveAgentInstance", "Archive an agent instance"},
+		{httpMethodGet, "/reports", "listAgentInstanceReports", "List durable instance reports"},
+		{httpMethodGet, agentInstanceAwaySuffix, "getAgentInstanceAway", "Read the operator's instance away digest"},
+		{httpMethodPost, agentInstanceAwaySuffix, "markAgentInstanceSeen", "Mark the instance seen by the local operator"},
+		{httpMethodGet, "/check-ins", "listAgentInstanceCheckIns", "List instance wake events"},
 	} {
 		operation := OperationSpec{
 			Method:      verb.method,
@@ -102,7 +102,7 @@ func agentInstanceOperations() []OperationSpec {
 			Parameters:  []ParameterSpec{pathParam("id", "Instance ID")},
 			Responses:   []ResponseSpec{{Status: 200, Description: "OK", Body: contract.AgentInstanceResponse{}}},
 		}
-		if verb.method == "DELETE" {
+		if verb.method == httpMethodDelete {
 			operation.Responses = []ResponseSpec{{Status: 204, Description: "Archived"}}
 		}
 		if verb.path == "/reports" {
@@ -117,9 +117,9 @@ func agentInstanceOperations() []OperationSpec {
 			}
 		}
 
-		if verb.path == "/away" {
+		if verb.path == agentInstanceAwaySuffix {
 			var body any = contract.AgentInstanceAwayResponse{}
-			if verb.method == "POST" {
+			if verb.method == httpMethodPost {
 				body = contract.AgentInstanceSeenResponse{}
 			}
 			operation.Responses = []ResponseSpec{{Status: 200, Description: "OK", Body: body}}
@@ -154,3 +154,5 @@ func agentInstanceOperations() []OperationSpec {
 	}
 	return operations
 }
+
+const agentInstanceAwaySuffix = "/away"
