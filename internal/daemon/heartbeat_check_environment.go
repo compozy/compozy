@@ -45,6 +45,10 @@ func (e *instanceCheckEnvironment) ResolveCheck(ctx context.Context, id string) 
 	return target, nil
 }
 
-func (e *instanceCheckEnvironment) BeforeCheck(ctx context.Context, target *heartbeat.CheckTarget, source string) (string, error) {
+func (e *instanceCheckEnvironment) BeforeCheck(
+	ctx context.Context,
+	target *heartbeat.CheckTarget,
+	source string,
+) (string, error) {
 	return beforeInstanceCheck(ctx, e.hooks, target, source)
 }

@@ -133,16 +133,8 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	if err := applyLoopExtensionOwnerGrant(ctx, &inputs, resolvedScope); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
-	if info != nil && r.instanceCallers != nil {
-		caller, err := r.instanceCallers.InstanceCaller(ctx, info.ID)
-		if err != nil {
-			return toolspkg.PolicyInputs{}, err
-		}
-		if caller.InstanceID != "" {
-			if err := applyConcreteSessionToolPolicy(&inputs, info.ID, caller.PermissionPolicy); err != nil {
-				return toolspkg.PolicyInputs{}, err
-			}
-		}
+	if err := r.applyInstanceToolPolicy(ctx, &inputs, info); err != nil {
+		return toolspkg.PolicyInputs{}, err
 	}
 	if err := applySessionToolPolicy(&inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
@@ -461,4 +453,23 @@ func fillToolPolicyScopeFromSession(scope toolspkg.Scope, info *session.Info) to
 		scope.AgentName = strings.TrimSpace(info.AgentName)
 	}
 	return scope
+}
+
+func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	info *session.Info,
+) error {
+	if info != nil && r.instanceCallers != nil {
+		caller, err := r.instanceCallers.InstanceCaller(ctx, info.ID)
+		if err != nil {
+			return err
+		}
+		if caller.InstanceID != "" {
+			if err := applyConcreteSessionToolPolicy(inputs, info.ID, caller.PermissionPolicy); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

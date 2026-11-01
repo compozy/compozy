@@ -35,9 +35,23 @@ func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeTo
 		func() bool { return n.deps.AgentInstances != nil && n.deps.AgentInstances() != nil },
 	)
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding)
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceCheck, toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceOccurrence, toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceList,
-		toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive,
-		toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentActivity, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceAway, toolspkg.ToolIDAgentInstanceSeen, toolspkg.ToolIDAgentInstanceCheckIns} {
+	for _, id := range []toolspkg.ToolID{
+		toolspkg.ToolIDAgentInstanceCheck,
+		toolspkg.ToolIDAgentInstanceChecks,
+		toolspkg.ToolIDAgentInstanceOccurrence,
+		toolspkg.ToolIDAgentInstanceCreate,
+		toolspkg.ToolIDAgentInstanceList,
+		toolspkg.ToolIDAgentInstancePause,
+		toolspkg.ToolIDAgentInstanceResume,
+		toolspkg.ToolIDAgentInstanceArchive,
+		toolspkg.ToolIDAgentInstanceEnsureMain,
+		toolspkg.ToolIDAgentInstanceReports,
+		toolspkg.ToolIDAgentActivity,
+		toolspkg.ToolIDAgentInstanceGet,
+		toolspkg.ToolIDAgentInstanceAway,
+		toolspkg.ToolIDAgentInstanceSeen,
+		toolspkg.ToolIDAgentInstanceCheckIns,
+	} {
 		bindings[id] = nativeToolBinding{call: n.agentInstanceCall, availability: available}
 	}
 	return bindings
@@ -109,7 +123,7 @@ func executeNativeInstanceAction(
 ) (toolspkg.ToolResult, error) {
 	var err error
 	switch action {
-	case "check":
+	case nativeInstanceActionCheck:
 		return nativeInstanceCheck(ctx, api, instance.ID, input)
 	case "checks":
 		if api.CheckSettings == nil {
@@ -118,7 +132,7 @@ func executeNativeInstanceAction(
 		instance, err = api.CheckSettings.SetChecks(ctx, instance.ID, *input.Enabled)
 	case "occurrence":
 		return nativeInstanceOccurrence(ctx, api, instance.ID, input)
-	case "get":
+	case nativeInstanceActionGet:
 	case "away":
 		result, err := api.Away(ctx, instance.ID)
 		if err != nil {
@@ -127,7 +141,7 @@ func executeNativeInstanceAction(
 		return structuredResult(result, "Instance away")
 	case "mark_seen":
 		return nativeInstanceMarkSeen(ctx, api, instance.ID)
-	case "check_ins":
+	case nativeInstanceActionCheckIns:
 		result, err := api.CheckIns(ctx, instance.ID, input.Cursor, input.Limit)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
@@ -141,7 +155,7 @@ func executeNativeInstanceAction(
 		err = api.Service.Archive(ctx, instance.ID)
 	case "ensure_main":
 		instance, err = api.Service.EnsureMain(ctx, instance.ID)
-	case "reports":
+	case nativeInstanceActionReports:
 		return nativeInstanceReports(ctx, api, instance.ID, input)
 	default:
 		return toolspkg.ToolResult{}, errors.New("unsupported instance operation")
@@ -163,7 +177,7 @@ func nativeInstanceReports(
 	input nativeInstanceInput,
 ) (toolspkg.ToolResult, error) {
 	switch input.State {
-	case "", "pending", "reserved", "delivered", "indeterminate":
+	case "", hookAgentEventsPendingKey, "reserved", "delivered", "indeterminate":
 	default:
 		return toolspkg.ToolResult{}, errors.New("invalid report state")
 	}
@@ -271,3 +285,10 @@ func nativeInstanceMarkSeen(ctx context.Context, api *core.AgentInstanceAPI, id 
 	}
 	return structuredResult(contract.AgentInstanceSeenResponse{LastSeenAt: at}, "Instance marked seen")
 }
+
+const (
+	nativeInstanceActionCheck    = "check"
+	nativeInstanceActionGet      = "get"
+	nativeInstanceActionCheckIns = "check_ins"
+	nativeInstanceActionReports  = "reports"
+)

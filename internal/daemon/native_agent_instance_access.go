@@ -18,7 +18,8 @@ func (n *daemonNativeTools) authorizeNativeInstanceApproval(
 	input nativeInstanceInput,
 	action string,
 ) error {
-	if !scope.Operator && (action == "create" || action == "archive" || (action == "check" && !input.DryRun)) &&
+	if !scope.Operator &&
+		(action == "create" || action == "archive" || (action == nativeInstanceActionCheck && !input.DryRun)) &&
 		!req.ApprovalGranted {
 		approved := false
 		if n.deps.Sessions != nil {
@@ -91,7 +92,7 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 		return agentinstance.ListQuery{}, errors.New("limit must be from 1 to 100")
 	}
 	workspaceID := scope.WorkspaceID
-	if input.Workspace == "@user" {
+	if input.Workspace == workspaceaccess.UserSelector {
 		workspaceID = ""
 	} else if input.Workspace != "" {
 		resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, input.Workspace)
@@ -147,8 +148,8 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 		return agentinstance.ErrForbidden
 	}
 	verb := action
-	if action == "get" || action == "check_ins" {
-		verb = "reports"
+	if action == nativeInstanceActionGet || action == nativeInstanceActionCheckIns {
+		verb = nativeInstanceActionReports
 	}
 	if action == "checks" {
 		if input.Enabled == nil {
@@ -159,7 +160,7 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 			verb = "checks_on"
 		}
 	}
-	if action == "check" && input.DryRun {
+	if action == nativeInstanceActionCheck && input.DryRun {
 		verb = "check_dry_run"
 	}
 	if err := api.Authority.Authorize(ctx, actor, instance, verb); err != nil {
@@ -172,10 +173,11 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 		decision, accessErr := n.deps.WorkspaceAccess.Authorize(
 			ctx,
 			workspaceaccess.Request{
-				Actor:    actor,
-				Target:   workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
-				ReadOnly: action == "reports" || action == "get" || action == "check_ins",
-				Seam:     workspaceaccess.SeamTool,
+				Actor:  actor,
+				Target: workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
+				ReadOnly: action == nativeInstanceActionReports || action == nativeInstanceActionGet ||
+					action == nativeInstanceActionCheckIns,
+				Seam: workspaceaccess.SeamTool,
 			},
 		)
 		if accessErr != nil {
