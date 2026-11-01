@@ -1,101 +1,152 @@
 # Issue #1128 - Session monitor improvements
 
-Status: implemented on `feat/monitor-improvements`; lab proof recorded below.
+Status: implemented on `feat/monitor-improvements` (PR #1129). Durable monitors, restart recovery,
+idempotent registration, and lifecycle logging are implemented and proven in an isolated real-daemon lab
+whose raw evidence is saved with this report.
+
+## Evidence statement
+
+An earlier revision of this report described a lab proof (3m19 external wait, one wake, coalesced
+duplicate registration). Those artifacts were not retained (empty journey log, deleted fixture), so that
+claim is **unretained and self-reported**; it is not relied on here. Every lab claim below cites **fresh
+saved evidence** under `docs/qa/reports/artifacts/2026-11-01-issue-1128/` (manifest, strict audit,
+teardown, journey log, per-step command output, HTTP monitor responses, durable rows, event reads, daemon
+log lines with descriptions elided, and focused test outputs).
 
 ## Research
 
-Reference runtimes were read from the vendored `.resources` tree (read-only). Findings and how they
-map onto the current daemon monitor:
+Reference runtimes were read from the vendored `.resources` tree (read-only):
 
-| Reference | Finding | Already covered by | Decision |
-| --- | --- | --- | --- |
-| OpenClaw `bash-tools.exec-notify.ts` | Background exec captures its owner, then wakes that owner | `monitor:<id>` stable enqueue to the owning session | none needed |
-| OpenClaw cron schedules / background-process docs | Bounded condition gates; adopted work is never re-executed; unknown outcomes are explicit | `terminal_unavailable` outcome, bounded caps | no polling kind (below) |
-| Hermes `process_registry` | Persist before notify, idempotent finish; wait policy avoids false wake promises | `markFired` once, stable message id, `settle` | idempotent registration added |
-| GoClaw delegate ledger / gateway boot | Durable delivery states, reconcile interrupted work at boot | `delivering`/`undelivered`, 15 min retry window | persistence excluded (below) |
-| Codex `async_watcher` / input queue | Drain output before exit; fence stale turns; exits do not wake the model | terminal `Wait` result carries the screen; durable queue | none needed |
+| Reference | Finding | Decision |
+| --- | --- | --- |
+| OpenClaw `bash-tools.exec-notify.ts` | Background exec captures its owner, then wakes that owner | stable `monitor:<id>` enqueue to the owning session (existing) |
+| OpenClaw cron schedules / background-process docs | Adopted work is never re-executed; unknown outcomes are explicit | recovery never reruns a command; `terminal_unavailable` is explicit |
+| Hermes `process_registry` | Persist before notify, idempotent finish | fired outcome is durable **before** the wake is admitted; stable message id |
+| GoClaw delegate ledger / gateway boot | Durable delivery states, reconcile interrupted work at boot | `session_monitors` table + `Service.Recover` at boot |
+| Codex `async_watcher` / input queue | Drain output before exit; exits do not wake the model | terminal `Wait` result carries the screen (existing) |
 
-## Compozy path inspected
-
-`terminal_exec` -> terminal handle `Wait` -> `monitor.Service.run` -> daemon `monitorSessionWaker` ->
-`EnqueueSyntheticWake`. `StatusFired` means "admitted to the durable input queue", not "turn executed";
-the queue owns later dispatch; queue acceptance alone does not prove execution. It was left unchanged: redefining it would change a public status
-meaning for no observed defect.
-
-`OnSessionStopped` runs only from stop finalization and failed-start notification, not from an in-place
-runtime-selection rebuild, so `CancelSession` there cancels monitors only when the session actually ended.
+The earlier decision to exclude persistence rested on a wrong premise ("persistence necessarily revives
+operator-stopped sessions"). Evidence: `daemon/session_shutdown.go` stops sessions with `CauseShutdown`
+on restart and `session/restart_continuation.go` resumes ordinary sessions that carry `StopShutdown`,
+excluding operator stops (`CauseUserRequested`). Restart-resumed sessions therefore lost their monitors.
+Persistence can keep operator-stop cancellation, so it is implemented.
 
 ## Implemented
 
-1. **Idempotent terminal registration.** Registering the same terminal condition (session, terminal,
-   `until`, `pattern`, normalized timeout, description) while one is active or delivering returns that monitor (`monitor.Reused`, not on the
-   wire) instead of adding another wake. Evidence: the per-terminal cap of 4 let a retried
-   `monitor_create` (agents retry after ambiguous results) queue up to four identical wakes for one exit.
-   The tool output tells the agent no duplicate was registered. Distinct conditions on one terminal remain
-   separate monitors and still count against the caps.
-2. **Remote-wait guidance.** The tool descriptor, `skills/compozy`, and the site monitors page state that
-   there is no polling kind: run the bounded watch command via `terminal_exec`, monitor that terminal, set
-   `timeout_seconds` past the expected wait. This keeps command approval and the shell-wait guard in the
-   loop.
-3. **Lifecycle logging**: structured `monitor.created|reused|fired|wake_deferred|
-   wake_queued|wake_failed|canceled|interrupted` events with id, session, kind, status and a closed reason
-   set; no description, pattern, output or raw error. This supplies the trace the local aggregate lacked.
-4. Test cleanup: two discarded `Shutdown` errors in the owning suite now fail the test.
+1. **Idempotent terminal registration.** The same terminal condition (session, terminal, `until`,
+   `pattern`, normalized timeout, description) while one is active or delivering returns that monitor
+   (`Monitor.Reused`, `json:"-"`); timers are not deduplicated.
+2. **Lifecycle logging.** `monitor.created|reused|recovered|fired|wake_deferred|wake_queued|wake_failed|
+   canceled|interrupted|persist_failed` with id, session, kind, status, and a closed reason set; no
+   description, pattern, output, or raw error.
+3. **Durable monitors** (global DB migration `00162`, table `session_monitors`). Definition, status, owner
+   binding, and a write version. Terminal output is never stored. Writes happen outside the service lock
+   and the version fences stale writes; the first write holds the lock so a monitor that cannot be
+   persisted is not admitted (`Create` fails).
+4. **Restart recovery** (`Service.Recover`, boot step after interrupted-session resume):
+   - timer: resumes on its original deadline; one that came due while the daemon was down fires at once;
+   - fired-but-unadmitted (`delivering`): re-delivered once under the stable `monitor:<id>` message id,
+     noting that terminal output was not retained;
+   - terminal: a terminal does not survive a restart; the monitor fires `terminal_unavailable`; **no
+     command is ever rerun**;
+   - owner stopped on purpose or removed: monitor canceled, no wake, no revive;
+   - owner interrupted by the restart: readmitted only through the session manager
+     (`ResumeMonitorOwner`) using the restart-eligibility rules (`restartSkipReason`: auto-continue,
+     archive, worktree, route, permissions, policy, workspace, failure, attempt limit) against the
+     binding captured while the owner was live. A live owner is also checked against that binding.
+     Otherwise the monitor is persisted `interrupted` with reason `owner_<rule>`, visible in `monitor_list`
+     and HTTP, with no wake and no held cap slot;
+   - an idle owner has no turn boundary, so no restart checkpoint is fabricated: the monitor row carries
+     the binding captured at registration, and the stored restart-continuation rules are reused unchanged.
+5. **Decision durability.** `Cancel` confirms its durable write or returns an error and a repeat retries it
+   (the monitor is already canceled in memory and cannot wake); owner-stop cancellations retry the write
+   with bounded backoff; the fired outcome is persisted (with the delivery backoff) before any wake, and a
+   store that stays unavailable for the retry window leaves the monitor `undelivered` rather than waking
+   from an outcome a restart could not reproduce.
+6. **Remote-wait guidance.** Tool descriptor, official skill, and site monitors page state there is no
+   polling kind: run the bounded watch command via `terminal_exec`, monitor that terminal, set
+   `timeout_seconds` past the expected wait.
+7. Test cleanup: two discarded `Shutdown` errors in the owning suite now fail the test.
 
-## Excluded proposals
+## Not implemented in this PR
 
-- **Durable monitor definitions / restart reconciliation.** Not implemented. The current documented
-  contract cancels monitors on session stop and loses them on daemon restart. Reliable restart recovery
-  needs persisted ownership plus a distinction between operator stops and recoverable runtime stops.
-  This remains a product/lifecycle decision; persistence does not inherently require reviving sessions
-  stopped by the operator. Clean shutdown is logged, but crashes cannot emit a loss event.
-- **First-class remote-condition kind (CI/HTTP poller).** It would make the daemon execute provider
-  commands or network calls on a timer outside terminal command approval and the shell-wait guard, and
-  needs per-provider auth. A bounded terminal under existing policy already provides it.
-- **Making `fired` mean "turn executed"** or batching wakes: compatibility cost, no evidence; monitors are
-  one-shot so recurring-flood controls do not apply.
-- **Polling or model wakes on process exit (Codex)**: Compozy wakes deliberately.
+- **First-class remote-condition kind (CI/HTTP poller).** Not implemented here. A daemon-run poller would
+  execute provider commands or network calls outside terminal command approval and the shell-wait guard
+  and needs per-provider auth; a bounded terminal under existing policy is the documented path. Whether
+  to add such a kind is a separate product decision, tracked outside this PR.
+- **Making `fired` mean "turn executed"** or batching wakes: no evidence of need; monitors are one-shot.
+- **Real `gh pr checks --watch` against GitHub and a real provider**: the lab uses `acpmock` agents that
+  call the real hosted native tools; no live provider or remote was involved.
 
-## Evidence limits
+## Known limits (stated, not hidden)
 
-The local aggregate scan (8 log files, 1,895 monitor mentions, zero create/cancel/deferred/undelivered
-patterns) is not a usage count and not proof of absence; it only showed the lack of lifecycle trace that
-item 3 fixes. Only aggregate counters from the local log scan were exposed; no raw private log lines were included.
+- A crash between a durable decision and its write can leave the previous durable state. The recovery
+  rules are conservative: a stale `active` row of an owner stopped on purpose is canceled at boot, a stale
+  `delivering` row is re-delivered under the stable id, and `Cancel` reports an unconfirmed write instead
+  of claiming success. A cancellation whose write failed for an owner-stop, then manual resume, then a
+  crash before any retry could still revive that monitor; the write is retried with backoff and failure is
+  logged at error level.
+- Recovery resumes each eligible owner at boot (same posture as restart continuation), even when its timer
+  is far in the future.
+- Terminal output of a monitor that fired before a restart is not retained; the wake says so.
+- The binding is the one captured at registration (a stopped session no longer carries a complete route),
+  so a legitimate route change between registration and restart yields `interrupted`, never a wake under a
+  different policy.
 
 ## Cross-surface impact audit
 
-- **Native tools:** `compozy__monitor_create` description and result preview change; input and output
-  schemas are unchanged (additive behavior only). `monitor_list` and `monitor_cancel` unchanged.
-- **CLI / HTTP / UDS / OpenAPI / SDKs:** no change; `Reused` is `json:"-"`. No codegen.
-- **Extensibility / hooks / config:** no new hook, config key or extension surface.
-- **Workspace data isolation / persistence:** idempotency keys include the session (and terminal key's
-  workspace and profile); no schema or migration change; in-memory only. SD-013: no public shape change.
+- **Native tools:** `compozy__monitor_create` result text and `monitor_list` descriptor change; the
+  `status` output enum gains `interrupted` (additive). Input schemas unchanged.
+- **CLI / HTTP / UDS / OpenAPI / SDKs:** monitor payload `status` is an unconstrained string; the new value
+  needs no contract change or codegen. `POST …/monitors/{id}/cancel` can now return 500 when the durable
+  write fails.
+- **Extensibility / hooks / config:** no new hook or config key. Restart eligibility reuses
+  `session.restart.auto_continue` and the existing restart rules.
+- **Workspace data isolation / persistence:** new global-DB table (migration `00162`) keyed by session with
+  workspace and profile columns; added to the user-scope migration inventory. Owner resume goes through the
+  session manager only. SD-013: additive migration, no public shape change.
 - **Official skill / docs / Web:** `skills/compozy/references/native-tools.md`, site `sessions/monitors.mdx`,
-  and `docs/qa/scenarios/RT-session-monitor-wake.md` (step 11). Web needs no change.
+  scenario `RT-session-monitor-wake` (steps 11–12). Web needs no change (`interrupted` is not a waiting
+  status, so the row/popover treat it as finished).
 
-## Validation
+## Defects found by the lab and fixed
 
-- `go test ./internal/monitor`, `./internal/tools/builtin`, `./internal/toolmeta`, `./internal/shellwait`,
-  `./internal/mcp`, and `./internal/daemon -run Monitor` pass.
+The saved earlier walks (`evidence-defects/`) found two real defects that unit tests did not:
+
+1. The stop observer read the session's persisted stop classification, which is empty when observers run,
+   so a restart-interrupted owner's monitors were durably **canceled** at shutdown. Fixed: the daemon's
+   own restart intent (`restartRequested`, the flag `stopSessions` uses) plus the stop cause decide.
+2. The binding refreshed from the stopped session was degraded (118 bytes vs 457), so recovery reported
+   `owner_binding_changed`. Fixed: keep the binding captured while the owner was live.
 
 ## Isolated lab evidence
 
-Real daemon built from this branch in an isolated home with its own ports and socket (never the default
-daemon), acpmock agent calling the real hosted native tools over MCP, no provider.
+Real daemon built from this branch (`bin/compozy`, `acpmock-driver`) in an isolated home with its own ports
+and socket (never the default daemon), `acpmock` agents calling the real hosted native tools over MCP.
+All paths below are relative to `docs/qa/reports/artifacts/2026-11-01-issue-1128/`.
 
-1. A terminal polling an external marker for about 3m20s was running (`still_running`).
-2. The agent called `compozy__monitor_create` twice with the identical terminal condition and ended its
-   turn. First call: monitor `active`. Second call: the result said the monitor already watches the
-   condition and no duplicate was registered. HTTP list showed exactly one `active` monitor.
-3. The session sat idle for 3m19s. When the marker appeared and the process exited, the daemon started a
-   new turn without any operator input: a `monitor` synthetic re-entry (`scheduler_reason: monitor_exit`)
-   carrying `exited with code 0` and the untrusted output tail, followed by the agent's report. Exactly one
-   wake arrived.
-4. `monitor_list` afterwards: one monitor, `fired`, `reason: exit`, `exit_code: 0`.
-5. Daemon log showed the lifecycle trace in order: `monitor.created`, `monitor.reused`, `monitor.fired`
-   (`delivering`), `monitor.wake_queued` (`fired`), with ids, kind, status and reason only.
+**A. Long external wait + duplicate registration** (`external-wait/`). A terminal polling an external marker
+file; the agent called `compozy__monitor_create` twice with the identical condition and ended its turn.
+Marker written after a ~200 s idle; exactly one `monitor` synthetic wake (`scheduler_reason: monitor_exit`);
+monitor `fired` `exit_code 0`; one `monitor.created`, one `monitor.reused`, one wake.
 
-Not exercised live: timer restore after restart (excluded by design), the `delivering` retry path, and
-real-provider behavior; those stay owned by `internal/monitor` and daemon waker unit suites. This proves
-the daemon wake path for a long external wait; it does not prove a real `gh pr checks --watch` against
-GitHub, which needs a live provider and remote.
+**B. Restart recovery, eligible owner** (`restart-eligible/`). One session with a 150 s timer and a terminal
+monitor, one operator-stopped session with a timer; `POST /api/settings/actions/restart`. Durable rows
+before restart `active`; after boot the owner was resumed and the terminal monitor fired `terminal_unavailable`
+right after the daemon returned; the timer fired on its original deadline (`timer_elapsed`); two wakes in total
+(`monitor_terminal_unavailable`, `monitor_timer_elapsed`); the operator-stopped session's monitor was
+`canceled` (`session_stopped`) and nothing woke or resumed it.
+
+**C. Restart recovery, ineligible owner** (`restart-ineligible/`). `session.restart.auto_continue=false`:
+after restart both monitors are `interrupted` with `owner_disabled`, listed over HTTP, and no wake or
+resume happened after the timer deadline passed.
+
+**Hygiene.** `qa/teardown.json` shows `"clean": true`; the strict audit result is in
+`qa/qa-audit-report.md`.
+
+## Validation (focused; CI owns the gate)
+
+`tests/` holds saved outputs of the focused runs: `go test -race ./internal/monitor`,
+`./internal/session -run ResumeMonitorOwner|ResumeInterruptedSession`, `./internal/daemon -run Monitor`,
+`./internal/store/globaldb -run SessionMonitors|UserScopeMigration`, `./internal/tools/builtin`,
+`./internal/toolmeta`. No `make gate`, full suites, or local E2E were run.

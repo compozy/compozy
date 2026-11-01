@@ -1,0 +1,97 @@
+{
+  "version": 2,
+  "agents": [
+    {
+      "name": "mon-ext",
+      "provider": "claude",
+      "permissions": "approve-all",
+      "prompt": "You register monitors for QA.",
+      "turns": [
+        {
+          "name": "register",
+          "match": {
+            "user_text_contains": "[watch-ext]"
+          },
+          "steps": [
+            {
+              "kind": "native_tool_call",
+              "tool_id": "compozy__monitor_create",
+              "tool_call_id": "mon-first",
+              "raw_input": {
+                "kind": "terminal",
+                "terminal_id": "term-c83bd23ff4b8",
+                "until": "exit",
+                "timeout_seconds": 1800,
+                "description": "external condition marker"
+              }
+            },
+            {
+              "kind": "native_tool_call",
+              "tool_id": "compozy__monitor_create",
+              "tool_call_id": "mon-retry",
+              "raw_input": {
+                "kind": "terminal",
+                "terminal_id": "term-c83bd23ff4b8",
+                "until": "exit",
+                "timeout_seconds": 1800,
+                "description": "external condition marker"
+              }
+            },
+            {
+              "kind": "assistant",
+              "text": "Registered the monitor; waiting for the external condition."
+            }
+          ]
+        },
+        {
+          "name": "wake",
+          "match": {
+            "user_text_contains": "COMPOZY MONITOR"
+          },
+          "steps": [
+            {
+              "kind": "assistant",
+              "text": "WAKE-REPORT-EXT: the monitor fired and I am reporting."
+            }
+          ]
+        }
+      ],
+      "config_options": [
+        {
+          "id": "model",
+          "name": "Model",
+          "current": "claude-sonnet-5",
+          "values": [
+            {
+              "value": "claude-sonnet-5",
+              "label": "Sonnet 5"
+            },
+            {
+              "value": "claude-sonnet-5-5",
+              "label": "Sonnet 5.5"
+            }
+          ]
+        },
+        {
+          "id": "reasoning_effort",
+          "name": "Reasoning effort",
+          "current": "high",
+          "values": [
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

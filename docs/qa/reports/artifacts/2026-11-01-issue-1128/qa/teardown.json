@@ -1,0 +1,140 @@
+{
+  "clean": true,
+  "completed_at": "2026-11-01T04:24:00Z",
+  "killed": [
+    {
+      "pid": 49437,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49451,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49454,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49459,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49462,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 68437,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 68440,
+      "reason": "cmdline references <lab>"
+    }
+  ],
+  "matched": [
+    {
+      "pid": 49437,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49451,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49454,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49459,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 49462,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 68437,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 68440,
+      "reason": "cmdline references <lab>"
+    }
+  ],
+  "notes": [
+    "daemon pid 49437 survived graceful stop; escalating to signal sweep"
+  ],
+  "purged": [],
+  "skipped": [
+    {
+      "file": "daemon.pid",
+      "pid": 40738,
+      "reason": "identity missing or changed"
+    },
+    {
+      "pid": 68440,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49437,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49451,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49454,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49459,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49462,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 68437,
+      "reason": "process identity changed before signaling"
+    }
+  ],
+  "stale": [
+    {
+      "file": "daemon.pid",
+      "pid": 40738,
+      "reason": "identity missing or changed"
+    },
+    {
+      "pid": 68440,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49437,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49451,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49454,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49459,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 49462,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 68437,
+      "reason": "process identity changed before signaling"
+    }
+  ],
+  "stopped_daemon_pid": 49437,
+  "survivors": []
+}

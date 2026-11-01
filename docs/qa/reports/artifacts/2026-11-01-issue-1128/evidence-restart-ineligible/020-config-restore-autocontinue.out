@@ -1,0 +1,18 @@
+$ compozy config set session.restart.auto_continue true --scope user
+Config
+======
+Path:               session.restart.auto_continue
+Value:              true
+Scope:              user
+Target:             <tmp>/runtime/config.toml
+Redacted:           false
+Lifecycle:          restart-required
+Applied:            false
+Next Action:        restart-daemon
+Apply Record:       cfgapp-af25f1a7e56e65ab
+Active Generation:  0
+Restart Required:   true
+Restart Scope:      daemon
+Status:             --
+Winning Layer:      --
+[exit 0]

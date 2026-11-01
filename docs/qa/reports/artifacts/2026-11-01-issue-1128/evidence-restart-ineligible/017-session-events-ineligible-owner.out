@@ -1,0 +1,496 @@
+$ compozy session events sess-3fbea1ca67f2d380 -o json
+[
+  {
+    "resolution_source": "cwd",
+    "id": "ev-abfd7afb5fb55eaa",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 1,
+    "turn_id": "turn-a47bf91e58174fbf",
+    "type": "hook.dispatch.start",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "hook_event": "session.post_create",
+    "hook_name": "daemon.observe.session_post_create",
+    "actor_kind": "agent_session",
+    "actor_id": "sess-3fbea1ca67f2d380",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "hook.dispatch.start",
+      "turn_id": "turn-a47bf91e58174fbf",
+      "hook_event": "session.post_create",
+      "hook_name": "daemon.observe.session_post_create",
+      "actor_kind": "agent_session",
+      "actor_id": "sess-3fbea1ca67f2d380",
+      "timestamp": "2026-11-01T04:13:51.433477Z",
+      "text": "session.post_create daemon.observe.session_post_create start",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.433477Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-b05f431c13a3111e",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 2,
+    "turn_id": "turn-0d908896558b54c1",
+    "type": "hook.dispatch.complete",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "hook_event": "session.post_create",
+    "hook_name": "daemon.observe.session_post_create",
+    "actor_kind": "agent_session",
+    "actor_id": "sess-3fbea1ca67f2d380",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "hook.dispatch.complete",
+      "turn_id": "turn-0d908896558b54c1",
+      "hook_event": "session.post_create",
+      "hook_name": "daemon.observe.session_post_create",
+      "actor_kind": "agent_session",
+      "actor_id": "sess-3fbea1ca67f2d380",
+      "timestamp": "2026-11-01T04:13:51.442256875Z",
+      "text": "session.post_create daemon.observe.session_post_create applied",
+      "decision": "applied",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.442256875Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-2fc7a2db22824257",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 3,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "user_message",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "user_message",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "message_id": "msg-dbaf075cf532c635",
+      "timestamp": "2026-11-01T04:13:51.705745Z",
+      "text": "[watch] register restart monitors",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.705745Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-a5dc8f7751ad2474",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 4,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "tool_call",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "tool_call",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "run_id": "run-1074d930d8f2d847",
+      "generation": 1,
+      "status": "in_progress",
+      "timestamp": "2026-11-01T04:13:51.727856Z",
+      "title": "compozy__monitor_create",
+      "tool_name": "compozy__monitor_create",
+      "tool_kind": "other",
+      "tool_call_id": "mon-timer",
+      "tool_input": {
+        "delay_seconds": 150,
+        "description": "restart timer",
+        "kind": "timer"
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.727856Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-e5a43f8a8d232c3e",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 5,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "tool_result",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "tool_result",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "run_id": "run-1074d930d8f2d847",
+      "generation": 1,
+      "status": "completed",
+      "timestamp": "2026-11-01T04:13:51.734288Z",
+      "title": "compozy__monitor_create",
+      "tool_name": "compozy__monitor_create",
+      "tool_call_id": "mon-timer",
+      "tool_result": {
+        "content": "Monitor mon-e1c009a6cdf2 is active until 2026-11-01T04:16:21Z. Continue independent work; end your turn only when every remaining step waits on a monitor or subagent. This session will be woken with a [COMPOZY MONITOR] message when it fires. Do not poll or sleep while waiting.\n{\"monitor\":{\"monitor_id\":\"mon-e1c009a6cdf2\",\"session_id\":\"sess-3fbea1ca67f2d380\",\"kind\":\"timer\",\"description\":\"restart timer\",\"status\":\"active\",\"created_at\":\"2026-11-01T04:13:51.73233Z\",\"deadline_at\":\"2026-11-01T04:16:21.73233Z\"}}",
+        "raw_output": {
+          "monitor": {
+            "created_at": "2026-11-01T04:13:51.73233Z",
+            "deadline_at": "2026-11-01T04:16:21.73233Z",
+            "description": "restart timer",
+            "kind": "timer",
+            "monitor_id": "mon-e1c009a6cdf2",
+            "session_id": "sess-3fbea1ca67f2d380",
+            "status": "active"
+          }
+        }
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.734288Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-81df26a9fe8da325",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 6,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "tool_call",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "tool_call",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "run_id": "run-1074d930d8f2d847",
+      "generation": 1,
+      "status": "in_progress",
+      "timestamp": "2026-11-01T04:13:51.734306Z",
+      "title": "compozy__monitor_create",
+      "tool_name": "compozy__monitor_create",
+      "tool_kind": "other",
+      "tool_call_id": "mon-term",
+      "tool_input": {
+        "description": "terminal lost in restart",
+        "kind": "terminal",
+        "terminal_id": "term-40aa03dfbd41",
+        "timeout_seconds": 1800,
+        "until": "exit"
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.734306Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-94524b2e70858b06",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 7,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "tool_result",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "tool_result",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "run_id": "run-1074d930d8f2d847",
+      "generation": 1,
+      "status": "completed",
+      "timestamp": "2026-11-01T04:13:51.738004Z",
+      "title": "compozy__monitor_create",
+      "tool_name": "compozy__monitor_create",
+      "tool_call_id": "mon-term",
+      "tool_result": {
+        "content": "Monitor mon-97ef10b3a376 is active until 2026-11-01T04:43:51Z. Continue independent work; end your turn only when every remaining step waits on a monitor or subagent. This session will be woken with a [COMPOZY MONITOR] message when it fires. Do not poll or sleep while waiting.\n{\"monitor\":{\"monitor_id\":\"mon-97ef10b3a376\",\"session_id\":\"sess-3fbea1ca67f2d380\",\"kind\":\"terminal\",\"description\":\"terminal lost in restart\",\"terminal_id\":\"term-40aa03dfbd41\",\"until\":\"exit\",\"status\":\"active\",\"created_at\":\"2026-11-01T04:13:51.736655Z\",\"deadline_at\":\"2026-11-01T04:43:51.736655Z\"}}",
+        "raw_output": {
+          "monitor": {
+            "created_at": "2026-11-01T04:13:51.736655Z",
+            "deadline_at": "2026-11-01T04:43:51.736655Z",
+            "description": "terminal lost in restart",
+            "kind": "terminal",
+            "monitor_id": "mon-97ef10b3a376",
+            "session_id": "sess-3fbea1ca67f2d380",
+            "status": "active",
+            "terminal_id": "term-40aa03dfbd41",
+            "until": "exit"
+          }
+        }
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.738004Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-be5ae5699b776519",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 8,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "agent_message",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "generation": 1,
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      },
+      "run_id": "run-1074d930d8f2d847",
+      "schema": "compozy.session.event.v1",
+      "session_id": "mon-restart-session-1",
+      "text": "Registered monitors; waiting.",
+      "timestamp": "2026-11-01T04:13:51.738017Z",
+      "turn_id": "turn-23612231b64f9625",
+      "type": "agent_message"
+    },
+    "timestamp": "2026-11-01T04:13:51.738017Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-fa07f1e409d9ebd2",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 9,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "prompt_delivery",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "prompt_delivery",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "run_id": "run-1074d930d8f2d847",
+      "generation": 1,
+      "timestamp": "2026-11-01T04:13:51.796359Z",
+      "delivery": {
+        "turn_id": "turn-23612231b64f9625",
+        "sent_at": "2026-11-01T04:13:51.727051Z",
+        "estimate": "bytes_div_4",
+        "spans": [
+          {
+            "key": "runtime_identity",
+            "kind": "text",
+            "bytes": 2379,
+            "tokens": 595,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "situation",
+            "kind": "text",
+            "bytes": 2868,
+            "tokens": 717,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "agent_prompt",
+            "kind": "text",
+            "bytes": 29,
+            "tokens": 8,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "skills",
+            "kind": "text",
+            "bytes": 6652,
+            "tokens": 1663,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "tools",
+            "kind": "text",
+            "bytes": 12528,
+            "tokens": 3132,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "situation",
+            "kind": "text",
+            "bytes": 3217,
+            "tokens": 805,
+            "unchanged": false
+          },
+          {
+            "key": "skills",
+            "kind": "text",
+            "bytes": 464,
+            "tokens": 116,
+            "unchanged": true,
+            "startup_dedup": true
+          }
+        ]
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.796359Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-9c57e2ce8bc4d76d",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 10,
+    "turn_id": "turn-23612231b64f9625",
+    "type": "done",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-1074d930d8f2d847",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "done",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-23612231b64f9625",
+      "run_id": "run-1074d930d8f2d847",
+      "generation": 1,
+      "timestamp": "2026-11-01T04:13:51.796358Z",
+      "stop_reason": "end_turn",
+      "prompt_stop_reason": "end_turn",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:13:51.796358Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-a8624fce95cd435d",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 11,
+    "turn_id": "turn-da33052f3999a422",
+    "type": "session.stop_escalated",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "session.stop_escalated",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-da33052f3999a422",
+      "timestamp": "2026-11-01T04:13:52.447653Z",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      },
+      "raw": {
+        "workspace_id": "ws_93d7060986409c74",
+        "session_id": "sess-3fbea1ca67f2d380",
+        "turn_id": "turn-da33052f3999a422",
+        "scope": "session",
+        "phase": "forced",
+        "elapsed_ms": 6,
+        "cause": 4
+      }
+    },
+    "timestamp": "2026-11-01T04:13:52.447653Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "session-stop:turn-da33052f3999a422",
+    "session_id": "sess-3fbea1ca67f2d380",
+    "sequence": 12,
+    "turn_id": "turn-da33052f3999a422",
+    "type": "session_stopped",
+    "agent_name": "mon-restart",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-3fbea1ca67f2d380",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "session_stopped",
+      "session_id": "mon-restart-session-1",
+      "turn_id": "turn-da33052f3999a422",
+      "timestamp": "2026-11-01T04:13:52.468495Z",
+      "stop_reason": "shutdown",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "stop_reason": "shutdown",
+    "stop_detail": "Interrupted by daemon restart.",
+    "timestamp": "2026-11-01T04:13:52.468495Z"
+  }
+]
+[exit 0]

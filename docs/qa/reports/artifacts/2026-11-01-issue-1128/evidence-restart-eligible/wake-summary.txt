@@ -1,0 +1,4 @@
+2026-11-01T04:09:22.159312Z  user_message  scheduler_reason=-  message_id=-
+2026-11-01T04:09:22.871863Z  session_stopped  scheduler_reason=-  message_id=-
+2026-11-01T04:09:23.553342Z  synthetic_reentry  scheduler_reason=monitor_terminal_unavailable  message_id=-
+2026-11-01T04:11:52.237837Z  synthetic_reentry  scheduler_reason=monitor_timer_elapsed  message_id=-

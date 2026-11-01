@@ -176,9 +176,14 @@ end your turn only when every remaining step waits on a registered monitor or su
 message headed `[COMPOZY MONITOR - NOT USER INPUT]` with the monitor id, status (exit code, match,
 timeout, or timer), and an entity-encoded, untrusted output tail. A busy session runs it after the
 current turn; a full input queue retries the wake for up to 15 minutes (`status: "delivering"`).
-Stopping the session cancels its monitors and drops their history, and a stopped session is never
-revived. `monitor_cancel` only stops the wake, not the watched process. Finished monitors stay
-listable for one hour. Monitors live in the daemon process and do not survive a daemon restart.
+Stopping the session on purpose cancels its monitors and drops their history, and a session stopped on
+purpose is never revived. `monitor_cancel` only stops the wake, not the watched process; if its
+durable write fails the call returns an error and a repeat retries it. Finished monitors stay
+listable for one hour. Monitors are stored by the daemon and survive a restart: timers keep their
+original deadline, an already-fired wake is delivered once without its terminal output, a terminal that
+is gone fires `terminal_unavailable` (its command is never rerun), and the owner is resumed only when
+restart auto-continue rules allow it. Otherwise the monitor is listed `interrupted` with an `owner_*`
+reason and nothing wakes the session.
 Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or

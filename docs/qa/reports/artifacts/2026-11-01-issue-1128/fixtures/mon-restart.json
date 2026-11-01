@@ -1,0 +1,173 @@
+{
+  "version": 2,
+  "agents": [
+    {
+      "name": "mon-restart",
+      "provider": "claude",
+      "permissions": "approve-all",
+      "prompt": "You register monitors for QA.",
+      "config_options": [
+        {
+          "id": "model",
+          "name": "Model",
+          "current": "claude-sonnet-5",
+          "values": [
+            {
+              "value": "claude-sonnet-5",
+              "label": "Sonnet 5"
+            },
+            {
+              "value": "claude-sonnet-5-5",
+              "label": "Sonnet 5.5"
+            }
+          ]
+        },
+        {
+          "id": "reasoning_effort",
+          "name": "Reasoning effort",
+          "current": "high",
+          "values": [
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ],
+      "turns": [
+        {
+          "name": "register",
+          "match": {
+            "user_text_contains": "[watch]"
+          },
+          "steps": [
+            {
+              "kind": "native_tool_call",
+              "tool_id": "compozy__monitor_create",
+              "tool_call_id": "mon-timer",
+              "raw_input": {
+                "kind": "timer",
+                "delay_seconds": 150,
+                "description": "restart timer"
+              }
+            },
+            {
+              "kind": "native_tool_call",
+              "tool_id": "compozy__monitor_create",
+              "tool_call_id": "mon-term",
+              "raw_input": {
+                "kind": "terminal",
+                "terminal_id": "term-40aa03dfbd41",
+                "until": "exit",
+                "timeout_seconds": 1800,
+                "description": "terminal lost in restart"
+              }
+            },
+            {
+              "kind": "assistant",
+              "text": "Registered monitors; waiting."
+            }
+          ]
+        },
+        {
+          "name": "wake",
+          "match": {
+            "user_text_contains": "COMPOZY MONITOR"
+          },
+          "steps": [
+            {
+              "kind": "assistant",
+              "text": "WAKE-REPORT-RESTART: monitor fired after restart."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mon-stopped",
+      "provider": "claude",
+      "permissions": "approve-all",
+      "prompt": "You register monitors for QA.",
+      "config_options": [
+        {
+          "id": "model",
+          "name": "Model",
+          "current": "claude-sonnet-5",
+          "values": [
+            {
+              "value": "claude-sonnet-5",
+              "label": "Sonnet 5"
+            },
+            {
+              "value": "claude-sonnet-5-5",
+              "label": "Sonnet 5.5"
+            }
+          ]
+        },
+        {
+          "id": "reasoning_effort",
+          "name": "Reasoning effort",
+          "current": "high",
+          "values": [
+            {
+              "value": "low",
+              "label": "Low"
+            },
+            {
+              "value": "medium",
+              "label": "Medium"
+            },
+            {
+              "value": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ],
+      "turns": [
+        {
+          "name": "register",
+          "match": {
+            "user_text_contains": "[watch]"
+          },
+          "steps": [
+            {
+              "kind": "native_tool_call",
+              "tool_id": "compozy__monitor_create",
+              "tool_call_id": "mon-timer-stopped",
+              "raw_input": {
+                "kind": "timer",
+                "delay_seconds": 150,
+                "description": "stopped owner timer"
+              }
+            },
+            {
+              "kind": "assistant",
+              "text": "Registered monitors; waiting."
+            }
+          ]
+        },
+        {
+          "name": "wake",
+          "match": {
+            "user_text_contains": "COMPOZY MONITOR"
+          },
+          "steps": [
+            {
+              "kind": "assistant",
+              "text": "WAKE-REPORT-STOPPED: this must never be delivered."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

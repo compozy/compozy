@@ -1,0 +1,11 @@
+--- PASS: TestUserScopeMigration (0.00s)
+    --- PASS: TestUserScopeMigration/Should_account_for_every_workspace_reference_in_the_migration_inventory (0.07s)
+    --- PASS: TestUserScopeMigration/Should_preserve_profiles_collisions_aliases_and_registration_until_verification (0.13s)
+--- PASS: TestUserScopeMigrationNamesAndKeepProject (0.00s)
+    --- PASS: TestUserScopeMigrationNamesAndKeepProject/Should_keep_a_pseudo_workspace_targeted_by_a_Loop_automation (0.06s)
+    --- PASS: TestUserScopeMigrationNamesAndKeepProject/Should_rename_reserved_names_deterministically_and_resolve_aliases_through_the_boundary (0.16s)
+--- PASS: TestGlobalDBSessionMonitors (0.02s)
+    --- PASS: TestGlobalDBSessionMonitors/Should_round-trip_the_definition_and_owner_binding (0.00s)
+    --- PASS: TestGlobalDBSessionMonitors/Should_apply_newer_versions_and_ignore_stale_ones (0.00s)
+    --- PASS: TestGlobalDBSessionMonitors/Should_prune_finished_monitors_past_the_cutoff_and_keep_occupying_ones (0.00s)
+ok  	github.com/compozy/compozy/internal/store/globaldb	1.249s

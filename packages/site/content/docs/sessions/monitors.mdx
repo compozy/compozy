@@ -93,7 +93,7 @@ Ask an agent to run something slow and report back, for example:
 
 If you send a message while the agent is busy, the wake waits behind the current turn. If the
 session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. Stopping the
-session cancels its monitors, so nothing it registered restarts it later.
+session on purpose cancels its monitors, so nothing it registered restarts it later.
 
 ## See and cancel monitors in the app
 
@@ -125,5 +125,15 @@ Every session payload also carries `monitor_summary.active` while the session ha
 - `compozy__monitor_cancel` stops a monitor from waking the session. It does not stop the command
   being watched; use `compozy__terminal_close` for that.
 
-Monitors live in the daemon process. Restarting the daemon drops active monitors, the same way it
-ends the terminals they watch.
+Monitors are stored by the daemon and survive a restart. After the daemon comes back:
+
+- A timer keeps its original deadline. One that came due while the daemon was down fires right away.
+- A monitor that had already fired but was not yet delivered is delivered once; the terminal output it
+  carried is not kept, and the wake says so.
+- A terminal does not survive a restart, and CompozyOS never reruns its command. A monitor on a
+  terminal that no longer exists fires with the status "terminal is no longer observable".
+- The owning session is resumed only when CompozyOS would resume it after a restart: automatic
+  continuation is on, the session is not archived, and its route, permissions, and tool policy have
+  not changed. Otherwise the monitor is listed as `interrupted`, with the reason, and nothing wakes
+  the session.
+- A session you stopped on purpose is never resumed by a monitor; its monitors are canceled.

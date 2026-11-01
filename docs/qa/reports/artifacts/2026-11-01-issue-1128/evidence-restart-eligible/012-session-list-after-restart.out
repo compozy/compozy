@@ -1,0 +1,199 @@
+$ compozy session list --workspace <lab> -o json
+{
+  "resolution_source": "flag",
+  "sessions": [
+    {
+      "pull_request": null,
+      "pull_request_lookup": null,
+      "board_column": "waiting",
+      "waiting_on": "monitor",
+      "effective_workspace_access": "",
+      "scope": "workspace",
+      "process_summary": {
+        "supported": true,
+        "background": 0,
+        "terminals": 0,
+        "total": 0,
+        "ports": []
+      },
+      "monitor_summary": {
+        "active": 1
+      },
+      "supervision": {
+        "work_signals": [
+          {
+            "kind": "active_monitor",
+            "since": "2026-11-01T04:09:22.183654Z",
+            "ref": "mon-42dfb822a121"
+          }
+        ],
+        "sources": [
+          {
+            "kind": "active_child",
+            "state": "absent"
+          },
+          {
+            "kind": "active_monitor",
+            "state": "present"
+          },
+          {
+            "kind": "agent_progress",
+            "state": "absent"
+          },
+          {
+            "kind": "awaiting_reply",
+            "state": "absent"
+          },
+          {
+            "kind": "loop_run",
+            "state": "absent"
+          },
+          {
+            "kind": "scheduled_wait",
+            "state": "absent"
+          },
+          {
+            "kind": "task_lease",
+            "state": "absent"
+          },
+          {
+            "kind": "tool_running",
+            "state": "absent"
+          }
+        ],
+        "quiet_warning": null
+      },
+      "busy_input": {
+        "default_mode": "steer",
+        "steer_capability": "none",
+        "steer_delivery": "interrupt_fallback"
+      },
+      "id": "sess-ffe15feef50905a4",
+      "profile_id": "00000000000000000000000000",
+      "profile_name": "default",
+      "profile_color": "#8E8EB5",
+      "profile_icon": "circle",
+      "agent_name": "mon-restart",
+      "runtime": {
+        "status": "ready",
+        "transition": "initial_bind",
+        "generation": 1,
+        "selection_revision": 0,
+        "effective": {
+          "provider": "claude",
+          "model": "claude-sonnet-5",
+          "reasoning_effort": "high",
+          "speed_resolution": {
+            "requested": "normal",
+            "status": "unsupported",
+            "reason": "capability_absent"
+          }
+        },
+        "requested": {
+          "provider": "claude",
+          "model": "claude-sonnet-5",
+          "reasoning_effort": "high",
+          "speed": "normal"
+        },
+        "last_known": {
+          "provider": "claude",
+          "model": "claude-sonnet-5",
+          "reasoning_effort": "high",
+          "speed_resolution": {
+            "requested": "normal",
+            "status": "unsupported",
+            "reason": "capability_absent"
+          }
+        },
+        "acp_session_id": "mon-restart-session-1",
+        "acp_caps": {
+          "supports_load_session": true,
+          "supports_fork_session": false,
+          "supports_resume_session": false,
+          "prompt_image": false,
+          "prompt_audio": false,
+          "prompt_embedded_context": false,
+          "config_options": [
+            {
+              "id": "model",
+              "label": "Model",
+              "kind": "select",
+              "current_value_id": "claude-sonnet-5",
+              "values": [
+                {
+                  "value": "claude-sonnet-5",
+                  "label": "Sonnet 5"
+                },
+                {
+                  "value": "claude-sonnet-5-5",
+                  "label": "Sonnet 5.5"
+                }
+              ]
+            },
+            {
+              "id": "reasoning_effort",
+              "label": "Reasoning effort",
+              "kind": "select",
+              "current_value_id": "high",
+              "values": [
+                {
+                  "value": "low",
+                  "label": "Low"
+                },
+                {
+                  "value": "medium",
+                  "label": "Medium"
+                },
+                {
+                  "value": "high",
+                  "label": "High"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "workspace_id": "ws_93d7060986409c74",
+      "workspace_path": "<lab>",
+      "type": "user",
+      "state": "active",
+      "badge": "waiting",
+      "attachable": true,
+      "attention_changed_at": "2026-11-01T04:09:23.669325Z",
+      "pending_interactions": [],
+      "archived_at": null,
+      "verified": false,
+      "escalated": false,
+      "available_commands": [],
+      "lineage": {
+        "root_session_id": "sess-ffe15feef50905a4",
+        "spawn_depth": 0,
+        "auto_stop_on_parent": false,
+        "notify_creator": false,
+        "spawn_budget": {
+          "max_children": 5,
+          "max_depth": 1,
+          "ttl_seconds": 0
+        },
+        "permission_policy": {
+          "tools": [
+            "compozy__monitor_cancel",
+            "compozy__monitor_create",
+            "compozy__monitor_list"
+          ],
+          "skills": [],
+          "mcp_servers": [],
+          "workspace_paths": []
+        }
+      },
+      "created_at": "2026-11-01T04:09:21.819843Z",
+      "updated_at": "2026-11-01T04:09:23.661256Z"
+    }
+  ],
+  "page": {
+    "has_more": false,
+    "total": 1,
+    "limit": 50
+  }
+}
+[exit 0]

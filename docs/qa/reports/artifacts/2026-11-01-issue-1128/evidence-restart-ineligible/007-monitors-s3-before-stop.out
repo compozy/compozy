@@ -1,0 +1,2 @@
+$ curl -s --unix-socket <tmp>/runtime/compozyd.sock http://unix/api/workspaces/ws_93d7060986409c74/sessions/sess-5611352893904589/monitors
+{"monitors":[{"monitor_id":"mon-86e35c4e25ed","session_id":"sess-5611352893904589","kind":"timer","description":"stopped owner timer","status":"active","created_at":"2026-11-01T04:13:52.013616Z","deadline_at":"2026-11-01T04:16:22.013616Z"}]}[exit 0]

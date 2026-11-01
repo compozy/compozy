@@ -1,0 +1,29 @@
+$ compozy session stop sess-7605b79ab4a66ba5
+Session
+=======
+ID:               sess-7605b79ab4a66ba5
+Name:             --
+Agent:            mon-stopped
+Provider:         claude
+Speed:            --
+Speed Outcome:    unsupported:capability_absent
+Workspace:        <lab>
+State:            stopping
+Badge:            running
+Attached To:      --
+Attach Expires:   --
+Stop Reason:      --
+Stop Detail:      --
+Failure Kind:     --
+Failure Summary:  --
+Crash Bundle:     --
+ACP Session:      mon-stopped-session-1
+Created:          2026-11-01T04:09:21Z
+Updated:          2026-11-01T04:09:22Z
+Age:              0s
+
+Capabilities
+============
+Supports Load:  true
+Modes:          --
+[exit 0]

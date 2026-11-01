@@ -1,0 +1,449 @@
+$ compozy session events sess-7605b79ab4a66ba5 -o json
+[
+  {
+    "resolution_source": "cwd",
+    "id": "ev-b4a1910a06d7cf06",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 1,
+    "turn_id": "turn-168c0da5ed6a63c3",
+    "type": "hook.dispatch.start",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "hook_event": "session.post_create",
+    "hook_name": "daemon.observe.session_post_create",
+    "actor_kind": "agent_session",
+    "actor_id": "sess-7605b79ab4a66ba5",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "hook.dispatch.start",
+      "turn_id": "turn-168c0da5ed6a63c3",
+      "hook_event": "session.post_create",
+      "hook_name": "daemon.observe.session_post_create",
+      "actor_kind": "agent_session",
+      "actor_id": "sess-7605b79ab4a66ba5",
+      "timestamp": "2026-11-01T04:09:21.99432Z",
+      "text": "session.post_create daemon.observe.session_post_create start",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:21.99432Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-f25dd24a025391cb",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 2,
+    "turn_id": "turn-2afaebbd0a658e71",
+    "type": "hook.dispatch.complete",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "hook_event": "session.post_create",
+    "hook_name": "daemon.observe.session_post_create",
+    "actor_kind": "agent_session",
+    "actor_id": "sess-7605b79ab4a66ba5",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "hook.dispatch.complete",
+      "turn_id": "turn-2afaebbd0a658e71",
+      "hook_event": "session.post_create",
+      "hook_name": "daemon.observe.session_post_create",
+      "actor_kind": "agent_session",
+      "actor_id": "sess-7605b79ab4a66ba5",
+      "timestamp": "2026-11-01T04:09:21.997291167Z",
+      "text": "session.post_create daemon.observe.session_post_create applied",
+      "decision": "applied",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:21.997291167Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-67abe7196f9fe395",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 3,
+    "turn_id": "turn-aa0afe11c2c93875",
+    "type": "user_message",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "user_message",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-aa0afe11c2c93875",
+      "message_id": "msg-8984cb14185e6e61",
+      "timestamp": "2026-11-01T04:09:22.433343Z",
+      "text": "[watch] register stopped-owner monitor",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high",
+        "speed": "normal"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.433343Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-e4333cca76290680",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 4,
+    "turn_id": "turn-aa0afe11c2c93875",
+    "type": "tool_call",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-21075e9d202d1be1",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "tool_call",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-aa0afe11c2c93875",
+      "run_id": "run-21075e9d202d1be1",
+      "generation": 1,
+      "status": "in_progress",
+      "timestamp": "2026-11-01T04:09:22.452557Z",
+      "title": "compozy__monitor_create",
+      "tool_name": "compozy__monitor_create",
+      "tool_kind": "other",
+      "tool_call_id": "mon-timer-stopped",
+      "tool_input": {
+        "delay_seconds": 150,
+        "description": "stopped owner timer",
+        "kind": "timer"
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.452557Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-cdf77a61778160c9",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 5,
+    "turn_id": "turn-aa0afe11c2c93875",
+    "type": "tool_result",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-21075e9d202d1be1",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "tool_result",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-aa0afe11c2c93875",
+      "run_id": "run-21075e9d202d1be1",
+      "generation": 1,
+      "status": "completed",
+      "timestamp": "2026-11-01T04:09:22.45677Z",
+      "title": "compozy__monitor_create",
+      "tool_name": "compozy__monitor_create",
+      "tool_call_id": "mon-timer-stopped",
+      "tool_result": {
+        "content": "Monitor mon-9053ca792dcf is active until 2026-11-01T04:11:52Z. Continue independent work; end your turn only when every remaining step waits on a monitor or subagent. This session will be woken with a [COMPOZY MONITOR] message when it fires. Do not poll or sleep while waiting.\n{\"monitor\":{\"monitor_id\":\"mon-9053ca792dcf\",\"session_id\":\"sess-7605b79ab4a66ba5\",\"kind\":\"timer\",\"description\":\"stopped owner timer\",\"status\":\"active\",\"created_at\":\"2026-11-01T04:09:22.455201Z\",\"deadline_at\":\"2026-11-01T04:11:52.455201Z\"}}",
+        "raw_output": {
+          "monitor": {
+            "created_at": "2026-11-01T04:09:22.455201Z",
+            "deadline_at": "2026-11-01T04:11:52.455201Z",
+            "description": "stopped owner timer",
+            "kind": "timer",
+            "monitor_id": "mon-9053ca792dcf",
+            "session_id": "sess-7605b79ab4a66ba5",
+            "status": "active"
+          }
+        }
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.45677Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-68ffb37034879cdd",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 6,
+    "turn_id": "turn-aa0afe11c2c93875",
+    "type": "agent_message",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-21075e9d202d1be1",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "generation": 1,
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      },
+      "run_id": "run-21075e9d202d1be1",
+      "schema": "compozy.session.event.v1",
+      "session_id": "mon-stopped-session-1",
+      "text": "Registered monitors; waiting.",
+      "timestamp": "2026-11-01T04:09:22.456783Z",
+      "turn_id": "turn-aa0afe11c2c93875",
+      "type": "agent_message"
+    },
+    "timestamp": "2026-11-01T04:09:22.456783Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-656846de03bec93a",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 7,
+    "turn_id": "turn-aa0afe11c2c93875",
+    "type": "prompt_delivery",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-21075e9d202d1be1",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "prompt_delivery",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-aa0afe11c2c93875",
+      "run_id": "run-21075e9d202d1be1",
+      "generation": 1,
+      "timestamp": "2026-11-01T04:09:22.513099Z",
+      "delivery": {
+        "turn_id": "turn-aa0afe11c2c93875",
+        "sent_at": "2026-11-01T04:09:22.451485Z",
+        "estimate": "bytes_div_4",
+        "spans": [
+          {
+            "key": "runtime_identity",
+            "kind": "text",
+            "bytes": 2379,
+            "tokens": 595,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "situation",
+            "kind": "text",
+            "bytes": 2869,
+            "tokens": 718,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "agent_prompt",
+            "kind": "text",
+            "bytes": 29,
+            "tokens": 8,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "skills",
+            "kind": "text",
+            "bytes": 6652,
+            "tokens": 1663,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "tools",
+            "kind": "text",
+            "bytes": 12528,
+            "tokens": 3132,
+            "unchanged": false,
+            "delivery": "first_turn_prefix"
+          },
+          {
+            "key": "situation",
+            "kind": "text",
+            "bytes": 3217,
+            "tokens": 805,
+            "unchanged": false
+          },
+          {
+            "key": "skills",
+            "kind": "text",
+            "bytes": 464,
+            "tokens": 116,
+            "unchanged": true,
+            "startup_dedup": true
+          }
+        ]
+      },
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.513099Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-4b79b013d5afd031",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 8,
+    "turn_id": "turn-aa0afe11c2c93875",
+    "type": "done",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "run_id": "run-21075e9d202d1be1",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "done",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-aa0afe11c2c93875",
+      "run_id": "run-21075e9d202d1be1",
+      "generation": 1,
+      "timestamp": "2026-11-01T04:09:22.513099Z",
+      "stop_reason": "end_turn",
+      "prompt_stop_reason": "end_turn",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.513099Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-175457c4b4117589",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 9,
+    "turn_id": "turn-b39ed4932aa8dcde",
+    "type": "session.stop_escalated",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "session.stop_escalated",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-b39ed4932aa8dcde",
+      "timestamp": "2026-11-01T04:09:22.744212Z",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      },
+      "raw": {
+        "workspace_id": "ws_93d7060986409c74",
+        "session_id": "sess-7605b79ab4a66ba5",
+        "turn_id": "turn-b39ed4932aa8dcde",
+        "scope": "session",
+        "phase": "forced",
+        "elapsed_ms": 7,
+        "cause": 3
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.744212Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "session-stop:turn-b39ed4932aa8dcde",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 10,
+    "turn_id": "turn-b39ed4932aa8dcde",
+    "type": "session_stopped",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "session_stopped",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-b39ed4932aa8dcde",
+      "timestamp": "2026-11-01T04:09:22.75967Z",
+      "stop_reason": "user_canceled",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      }
+    },
+    "stop_reason": "user_canceled",
+    "failure": {
+      "kind": "cancellation",
+      "summary": "session canceled by user"
+    },
+    "timestamp": "2026-11-01T04:09:22.75967Z"
+  },
+  {
+    "resolution_source": "cwd",
+    "id": "ev-d7ada310a02439bc",
+    "session_id": "sess-7605b79ab4a66ba5",
+    "sequence": 11,
+    "turn_id": "turn-b39ed4932aa8dcde",
+    "type": "transcript_marker.created",
+    "agent_name": "mon-stopped",
+    "workspace_id": "ws_93d7060986409c74",
+    "workspace_path": "<lab>",
+    "root_session_id": "sess-7605b79ab4a66ba5",
+    "spawn_depth": 0,
+    "content": {
+      "schema": "compozy.session.event.v1",
+      "type": "transcript_marker.created",
+      "session_id": "mon-stopped-session-1",
+      "turn_id": "turn-b39ed4932aa8dcde",
+      "timestamp": "2026-11-01T04:09:22.769068Z",
+      "text": "Session interrupted by operator.",
+      "title": "transcript_marker.prompt_interrupted",
+      "tool_name": "transcript_marker.prompt_interrupted",
+      "tool_kind": "transcript_marker.prompt_interrupted",
+      "prompt_runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5",
+        "reasoning_effort": "high"
+      },
+      "raw": {
+        "kind": "transcript_marker.prompt_interrupted",
+        "occurred_at": "2026-11-01T04:09:22.769068Z",
+        "summary": "Session interrupted by operator.",
+        "evidence": {
+          "event_type": "session_stopped",
+          "failure_kind": "",
+          "stop_reason": "user_canceled"
+        }
+      }
+    },
+    "timestamp": "2026-11-01T04:09:22.769068Z"
+  }
+]
+[exit 0]

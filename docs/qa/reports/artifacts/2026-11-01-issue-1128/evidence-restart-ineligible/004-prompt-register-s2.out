@@ -1,0 +1,13 @@
+$ compozy session prompt sess-3fbea1ca67f2d380 [watch] register restart monitors
+Prompt Events
+=============
+Timestamp             Type             Detail                         Stop
+---------             ----             ------                         ----
+2026-11-01T04:13:51Z  tool_call        compozy__monitor_create        --
+2026-11-01T04:13:51Z  tool_result      compozy__monitor_create        --
+2026-11-01T04:13:51Z  tool_call        compozy__monitor_create        --
+2026-11-01T04:13:51Z  tool_result      compozy__monitor_create        --
+2026-11-01T04:13:51Z  agent_message    Registered monitors; waiting.  --
+2026-11-01T04:13:51Z  prompt_delivery  null                           --
+2026-11-01T04:13:51Z  done             null                           end_turn
+[exit 0]

@@ -1,0 +1,2 @@
+$ curl -s -X POST --unix-socket <tmp>/runtime/compozyd.sock http://unix/api/settings/actions/restart
+{"operation_id":"86672957-3222-4fb3-988b-bae47b64c875","status":"stopping","status_url":"/api/settings/actions/restart/86672957-3222-4fb3-988b-bae47b64c875","active_session_count":1}[exit 0]

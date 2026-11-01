@@ -1,0 +1,2 @@
+ok  	github.com/compozy/compozy/internal/tools/builtin	0.384s
+ok  	github.com/compozy/compozy/internal/toolmeta	0.569s

@@ -53,7 +53,8 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 		"monitor_list",
 		"Monitor List",
 		"List this session's monitors: active ones first, then delivering (wake retrying a full input queue), "+
-			"fired, canceled, or undelivered ones from the last hour.",
+			"fired, canceled, undelivered, or interrupted (a daemon restart ended the watch and its owner could not "+
+			"be resumed) ones from the last hour.",
 		emptyInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -120,7 +121,7 @@ const monitorItemSchema = `{
 		"terminal_id":{"type":"string"},
 		"until":{"type":"string"},
 		"pattern":{"type":"string"},
-		"status":{"type":"string","enum":["active","delivering","fired","canceled","undelivered"]},
+		"status":{"type":"string","enum":["active","delivering","fired","canceled","undelivered","interrupted"]},
 		"created_at":{"type":"string","format":"date-time"},
 		"deadline_at":{"type":"string","format":"date-time"},
 		"fired_at":{"type":"string","format":"date-time"},
