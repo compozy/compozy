@@ -12,10 +12,12 @@ import { ownerDataScope, sameDataScope, type FocusedDataScope } from "@/systems/
 
 export interface SessionWindowResolution {
   session: SessionPayload | undefined;
+  /** What the window shows: the scoped read, else another profile's session read-only. */
+  shownSession: SessionPayload | undefined;
   /** The session's own workspace id (`""` for User), or the focused one before it resolves. */
   workspaceId: string | null;
   isLoading: boolean;
-  /** A read is in flight, so `session` may predate what the daemon holds now. */
+  /** A read is in flight, so `shownSession` may predate what the daemon holds now. */
   isFetching: boolean;
   error: Error | null;
   /** The scoped read answered "not in this profile" — not yet "nowhere". */
@@ -62,9 +64,10 @@ export function useSessionWindowResolution({
     focusedScope === null ? null : focusedScope.kind === "user" ? "" : focusedScope.workspaceId;
   return {
     session: query.data,
+    shownSession: resolvedSession,
     workspaceId: sessionWorkspaceId ?? focusedWorkspaceId,
     isLoading: query.isLoading,
-    isFetching: query.isFetching,
+    isFetching: query.isFetching || (foreign.status === "found" && foreign.isFetching),
     error: query.error,
     scopedMiss,
     foreign,

@@ -295,7 +295,7 @@ describe("SessionWindow", () => {
       render(<SessionWindow windowId="session:sess-1" />);
 
       await waitFor(() =>
-        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
       );
       expect(userClose).not.toHaveBeenCalled();
       expect(userOpen).not.toHaveBeenCalled();
@@ -314,7 +314,7 @@ describe("SessionWindow", () => {
       queryState.isError = true;
       render(<SessionWindow windowId="session:sess-1" />);
       await waitFor(() =>
-        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
       );
       expect(sessionWindowEmptySpy).toHaveBeenCalled();
       expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
@@ -374,7 +374,30 @@ describe("SessionWindow", () => {
     rerender(<SessionWindow windowId="session:sess-1" />);
 
     await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("Should retire a window showing another profile's session when it is archived", async () => {
+    queryState.data = undefined;
+    queryState.error = new SessionApiError("Session unavailable", 404, "sess-1");
+    queryState.isError = true;
+    const owner = { profile: "finance", label: "finance" };
+    foreignState.current = { status: "found", session, owner, isFetching: false };
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+    expect(userRetireSession).not.toHaveBeenCalled();
+
+    foreignState.current = {
+      status: "found",
+      session: { ...session, archived_at: "2026-10-31T12:00:00Z" },
+      owner,
+      isFetching: false,
+    };
+    rerender(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
     );
     expect(toastError).not.toHaveBeenCalled();
   });
@@ -424,7 +447,7 @@ describe("SessionWindow", () => {
     deletedByOperator = true;
     render(<SessionWindow windowId="session:sess-1" />);
     await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1", "sess-1")
     );
     expect(scopedDetailSpy).toHaveBeenLastCalledWith(
       "sess-1",

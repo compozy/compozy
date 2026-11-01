@@ -1021,6 +1021,17 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
+  it("Should keep the session a window moved on to when retiring the previous one", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/next", "next");
+    const { coordinator, store } = createCoordinator([current]);
+    coordinator.completeHydration();
+
+    await expect(coordinator.userRetireSession(current.id, "previous")).resolves.toBe(false);
+
+    expect(store.spies.retargetWindow).not.toHaveBeenCalled();
+    expect(store.getState().windows[current.id]?.instanceKey).toBe("next");
+  });
+
   it("Should retire a session tab onto the empty route without closing the window", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const { coordinator, router, store } = createCoordinator([current]);

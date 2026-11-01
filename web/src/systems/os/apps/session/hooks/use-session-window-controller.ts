@@ -44,6 +44,7 @@ export function useSessionWindowController(windowId: string) {
   // scope mismatches render a local notice.
   useRetireSessionWindow(
     windowId,
+    sessionId,
     sessionId !== null && !deletionPending && (deletedLocally || archivedWhileOpen),
     // The list's delete already retired this window; if that retarget was refused, retire it
     // again here without announcing an operator-deleted session as missing. An archived
@@ -89,21 +90,27 @@ function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLoca
  */
 function useSessionArchivedWhileOpen(
   sessionId: string | null,
-  { session, isFetching }: Pick<SessionWindowResolution, "session" | "isFetching">
+  { shownSession, isFetching }: Pick<SessionWindowResolution, "shownSession" | "isFetching">
 ): boolean {
   const [seenUnarchivedId, setSeenUnarchivedId] = useState<string | null>(null);
-  const shown = session?.id === sessionId ? session : undefined;
+  const shown = shownSession?.id === sessionId ? shownSession : undefined;
   const seenUnarchived = shown?.archived_at === null && !isFetching;
   const next = seenUnarchived || seenUnarchivedId === sessionId ? sessionId : null;
   if (next !== seenUnarchivedId) setSeenUnarchivedId(next);
   return next !== null && shown !== undefined && shown.archived_at !== null;
 }
 
-function useRetireSessionWindow(windowId: string, retire: boolean, announce: boolean) {
+function useRetireSessionWindow(
+  windowId: string,
+  sessionId: string | null,
+  retire: boolean,
+  announce: boolean
+) {
   const { coordinator } = useOsShell();
   useEffect(() => {
-    if (!retire) return;
+    if (!retire || sessionId === null) return;
     if (announce) toast.error("Session not found");
-    void coordinator.userRetireSession(windowId);
-  }, [announce, coordinator, retire, windowId]);
+    // `sessionId` trails the route by a render: the window may already hold the next session.
+    void coordinator.userRetireSession(windowId, sessionId);
+  }, [announce, coordinator, retire, sessionId, windowId]);
 }

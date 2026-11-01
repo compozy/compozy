@@ -326,10 +326,14 @@ export class RoutingCoordinator {
     return true;
   }
 
-  /** Drop the session instance and land on the empty route so the frame stays. */
-  async userRetireSession(windowId: string): Promise<boolean> {
+  /**
+   * Drop the session instance and land on the empty route so the frame stays. `sessionId`
+   * names the session being retired: a window that moved on to another one keeps it.
+   */
+  async userRetireSession(windowId: string, sessionId?: string): Promise<boolean> {
     const state = this.manager.getState();
-    if (!state.windows[windowId]) return false;
+    const win = state.windows[windowId];
+    if (!win || (sessionId !== undefined && win.instanceKey !== sessionId)) return false;
     const route = { pathname: SESSION_EMPTY_PATH, search: {} };
     const outcome = this.manager.retargetWindow(windowId, "", route);
     if (!(await outcome.completion)) return false;
