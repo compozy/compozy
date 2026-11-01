@@ -37,6 +37,7 @@ type authoredAgentTarget struct {
 	workspaceRoot       string
 	agentName           string
 	agentPath           string
+	agentLayer          string
 	soulConfig          compozyconfig.SoulConfig
 	heartbeatConfig     compozyconfig.HeartbeatConfig
 	packageOwned        bool

@@ -253,6 +253,21 @@ describe("createAgent", () => {
     });
   });
 
+  it("Should explain a missing default provider with a recovery action", async () => {
+    mockJsonResponse(
+      {
+        error:
+          "api: invalid create agent request\nagent runtime cannot be resolved in the target scope: agent provider is required; run `compozy install` or set agent.provider/defaults.provider",
+      },
+      { status: 400 }
+    );
+    await expect(
+      createAgent({ ...request, agent: { ...request.agent, provider: undefined } })
+    ).rejects.toThrow(
+      "Couldn't create this agent. No default provider is set. Choose a provider in Model and try again."
+    );
+  });
+
   it("throws backend duplicate errors with the response status", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(JSON.stringify({ error: "agent definition already exists" }), {

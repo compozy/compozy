@@ -175,7 +175,10 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 				origin = "workspace-" + resolved.OperationWorkspace
 			}
 		}
-		if err := h.AgentMemory.Retire(agentmemory.Key{ProfileID: profileScope.ProfileID, Origin: origin, Agent: name}, startedAt); err != nil {
+		if err := h.AgentMemory.Retire(
+			agentmemory.Key{ProfileID: profileScope.ProfileID, Origin: origin, Agent: name},
+			startedAt,
+		); err != nil {
 			h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: retire agent memory: %w", err))
 			return
 		}
@@ -412,7 +415,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	resolved *resolvedAgentDefinition,
 ) error {
 	workspaceID := strings.TrimSpace(resolved.OperationWorkspace)
-	if workspaceID == "" {
+	if workspaceID == "" && resolved.ProfileID == "" {
 		return nil
 	}
 	if h.SoulHistoryPurger == nil || h.HeartbeatHistoryPurger == nil {
@@ -422,7 +425,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	sourcePath := resolved.Entry.Def.SourcePath
 	if err := h.SoulHistoryPurger.PurgeAgentHistory(
 		ctx,
-		soul.WorkspaceRef{WorkspaceID: workspaceID},
+		soul.WorkspaceRef{WorkspaceID: workspaceID, ProfileID: resolved.ProfileID},
 		name,
 		sourcePath,
 	); err != nil {
@@ -430,7 +433,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	}
 	if err := h.HeartbeatHistoryPurger.PurgeAgentHistory(
 		ctx,
-		heartbeat.WorkspaceRef{WorkspaceID: workspaceID},
+		heartbeat.WorkspaceRef{WorkspaceID: workspaceID, ProfileID: resolved.ProfileID},
 		name,
 		sourcePath,
 	); err != nil {

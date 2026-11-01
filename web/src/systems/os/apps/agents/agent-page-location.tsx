@@ -1,7 +1,6 @@
 import { PageContent } from "@compozy/ui";
 
 import {
-  agentEditorWorkspace,
   AgentAddPlace,
   AgentCheckInsEditor,
   AgentMemoryEditor,
@@ -9,7 +8,6 @@ import {
   AgentWhatItDoesEditor,
   AgentWhereItWorks,
   isAgentReadOnly,
-  useAgentInstances,
   useAgentProfile,
   useAgentWindowScope,
   type AgentEditorPage,
@@ -41,8 +39,7 @@ function PageBody({
   page: AgentEditorPage;
   detail: UseAgentDetailResult;
 }) {
-  const scope = useAgentWindowScope();
-  const workspace = agentEditorWorkspace(scope.workspace, agent.name, useAgentInstances());
+  const { workspace } = useAgentWindowScope();
   const profile = useAgentProfile({
     agent,
     panel: null,

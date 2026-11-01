@@ -81,3 +81,51 @@ W-3 `include: []` handling and the pipeline nits were out of scope; they land se
 - All profiles, extension-owned agents and composer agent mentions.
 - Draft comparison was by eye against `web/src/drafts/` and `_uiux.md`, not a pixel diff.
 - No `make gate`, E2E or repo-wide tests were run, as the brief requires. CI owns those.
+
+## B5 remediation
+
+Worktree: `stays-on-fix-b5`, branch `feat/stays-on-fix-b5`.
+
+| Item | Change | Evidence |
+|---|---|---|
+| 1 | Migration 00172 adds profile ownership to soul/heartbeat history, snapshots and digest uniqueness. Profile-specific historical source paths retain their named profile; other existing rows retain the default profile. Authoring, rollback and purge receive explicit profile identity. User-scope HTTP editors work without a project, and Web no longer borrows a placement. | Migration preservation/reopen and canonical migration stream checks passed before the named-profile backfill extension. Two-profile authoring suites and User-scope HTTP read/write/history/rollback checks passed with real SQLite and race. Named-profile migration preservation and public runtime checks passed. |
+| 2 | Archive accepts a starter without optional reconciliation when no main is bound; recovery-capable starters still resolve and stop unpublished mains. | Original TestAgentInstanceApprovalAdmission passed with race; commit ebb054854. |
+| 3 | A prompt falling back to staged steer releases its report reservations in the admission transaction. | Existing reservation suites passed with race; commit 51c4055a8. |
+| 4 | Permission badges read Needs your approval. | Existing badge suite and focused lint passed; commit 6207d4669. |
+| 5 | Create explains an absent default provider and asks for a provider in Model; helper copy describes configured defaults conditionally. | Adapter and screen suites passed, 53 tests, plus focused lint; commit f2494fd1e. |
+| Digest | Picked proposals no longer count as pending decisions and keep their cards visible. | Existing away suite and focused lint passed; commit 3db879212. |
+
+Validation uses focused checks only, as required by the worker brief. `make codegen`,
+`go build -p 1 ./...`, the canonical authoring/API suites and unchanged
+`TestAgentInstanceApprovalAdmission` passed with race on the final resolver behavior. Full Soul and
+Heartbeat owning suites passed. Native/extension heartbeat and harness integration checks passed. The final serial run passed
+codegen-check, Web typecheck and all 137 tests across the six affected Web suites
+(`term-4b4161556513`). The optional complete SQLite suite exceeded its ten-minute package budget in unrelated migration
+suites; focused B5 cases passed. Scoped Go lint identified local constant, large-parameter and formatting issues, followed by
+three additional constant/fixture findings. They are repaired; final scoped lint passed with
+`0 issues` and exit code 0 (`term-09c88f47b9ab`). A fresh full Go build and focused API/native/session race tests passed
+after those repairs.
+
+Live isolated API verification passed User SOUL/HEARTBEAT open, save, reread and history for an
+On demand definition and a Global-only Stays on definition. Both profiles maintain separate
+revision IDs, and foreign rollback returns 404 for both sidecars. Global definitions remain shared;
+profile ownership applies to persisted history and snapshots. The first walk exposed the public
+User resolver error and was stopped; production now uses ResolveUser for @user, with the canonical
+HTTP suite reproducing that boundary. The borrowed-placement Web workaround is removed.
+
+The affected native Soul/Heartbeat tools and extension/session/scheduler/harness consumers forward
+profile identity. No new native ID, hook or config key is introduced. Migration 00172 is additive;
+all earlier migration checksums remain unchanged. Official agent-definition skill guidance and the
+owning QA scenarios are updated. This is the bounded B5 delta to the approved always-on-agent impact
+entry; the orchestrator-owned central impact record is untouched.
+
+The targeted lab and immutable API receipts are recorded in
+[the remediation report](2026-11-01-stays-on-b5-remediation.md). Browser verification passed in an isolated Chrome profile: both agent kinds opened both editors,
+SOUL saves survived reload, absent HEARTBEAT displayed all day and five checked sources, and the
+missing-provider flow recovered after model selection. Independent API rereads confirmed the UI
+writes. Targeted teardown returned clean=true with zero survivors. No real provider turn,
+global gate, E2E run or push was performed. The authoring fix is committed as `9d766918a`. Strict QA audit retains C14 solely for the global
+gate prohibited by the worker brief; the evidence records this explicit exception without claiming
+a gate pass. The follow-up `73a23ce17` records the lint repairs and completed isolated QA. Final scoped lint,
+API and daemon race checks passed. All requested items 1–5 and the picked-proposal digest fix are
+implemented and committed; no implementation or targeted QA remains pending.

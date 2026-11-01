@@ -86,6 +86,7 @@ func (b *harnessReentryBridge) applyWakeDecision(
 		targetSessionID:   target.SessionID,
 		targetAgentName:   agentName,
 		targetWorkspaceID: target.WorkspaceID,
+		targetProfileID:   target.ProfileID,
 		reason:            decision.reason,
 		summary:           decision.syntheticMeta.Summary,
 		completedAt:       completedAt,
@@ -123,6 +124,7 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 	}
 	switch {
 	case err == nil && info != nil:
+		target.ProfileID = strings.TrimSpace(info.ProfileID)
 		target.AgentName = strings.TrimSpace(info.AgentName)
 		target.Type = info.Type
 		target.State = info.State

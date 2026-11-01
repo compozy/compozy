@@ -13530,6 +13530,7 @@ func (nativeEmptyHeartbeatStore) FindHeartbeatSnapshotByDigest(
 	string,
 	string,
 	string,
+	string,
 ) (heartbeat.Snapshot, bool, error) {
 	return heartbeat.Snapshot{}, false, nil
 }
@@ -16218,21 +16219,35 @@ func TestNativeHiddenTriage(t *testing.T) {
 			t.Parallel()
 			base := nativeTestSessionManager("ws-1")
 			base.StatusFn = func(context.Context, string) (*session.Info, error) {
-				return &session.Info{ID: "hidden", WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID, Type: session.SessionTypeTriage, State: session.StateActive}, nil
+				return &session.Info{
+					ID:          "hidden",
+					WorkspaceID: "ws-1",
+					ProfileID:   store.DefaultProfileID,
+					Type:        session.SessionTypeTriage,
+					State:       session.StateActive,
+				}, nil
 			}
 			base.StopFn = func(context.Context, string) error { t.Error("public stop reached triage"); return nil }
 			base.SendPromptFn = func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 				t.Error("public prompt reached triage")
 				return session.SendPromptResult{}, nil
 			}
-			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: base, Workspaces: nativeTestWorkspaceService(t)}, nativeApproveAllPolicyInputs())
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Sessions: base, Workspaces: nativeTestWorkspaceService(t)},
+				nativeApproveAllPolicyInputs(),
+			)
 			input := `{"workspace":"ws-1","session_id":"hidden"}`
 			if id == toolspkg.ToolIDSessionPrompt {
 				input = `{"workspace":"ws-1","session_id":"hidden","message":"Run work","message_id":"msg-hidden","idempotency_key":"hidden-key"}`
 			} else if id == toolspkg.ToolIDSessionStop {
 				input = `{"session_id":"hidden"}`
 			}
-			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)})
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID},
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)},
+			)
 			if !errors.Is(err, session.ErrSessionNotFound) {
 				t.Fatalf("triage error=%v", err)
 			}

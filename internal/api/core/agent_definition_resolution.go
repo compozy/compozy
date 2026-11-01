@@ -15,6 +15,7 @@ import (
 )
 
 type resolvedAgentDefinition struct {
+	ProfileID          string
 	Entry              AgentCatalogEntry
 	OperationWorkspace string
 	WorkspaceRoot      string
@@ -71,6 +72,7 @@ func (h *BaseHandlers) resolveAgentDefinition(
 			return resolvedAgentDefinition{
 				Entry:       entry,
 				ProfileName: strings.TrimSpace(profileName),
+				ProfileID:   profileScope.ProfileID,
 				Config:      cfg,
 			}, nil
 		}
@@ -121,6 +123,7 @@ func (h *BaseHandlers) resolveWorkspaceAgentDefinition(
 			OperationWorkspace: workspaceID,
 			WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
 			ProfileName:        resolvedProfileName,
+			ProfileID:          resolved.ProfileID,
 			Config:             resolved.Config,
 		}, nil
 	}

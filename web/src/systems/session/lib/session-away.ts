@@ -1,3 +1,5 @@
+import { pickedProposal } from "./session-report";
+
 import type { AgentInstanceAway, AgentInstanceReport } from "@/systems/agent";
 
 /** Client-written away lines: counts from the daemon, no model call. */
@@ -109,9 +111,15 @@ function hourLabels(start: number, end: number) {
 export function deriveAwayDigest(
   away: AgentInstanceAway,
   agentLabel: string,
-  now: number
+  now: number,
+  messages: Parameters<typeof pickedProposal>[0] = []
 ): AwayDigestView | null {
   const reports = [...away.reports].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const picked = (report: AgentInstanceReport) =>
+    report.kind === "proposal" &&
+    Boolean(pickedProposal(messages, report.proposals ?? [], report.created_at));
+  const beat = (report: AgentInstanceReport): AwayBeat =>
+    picked(report) ? "reported" : beatOf(report);
   const first = reports[0];
   const total = reports.length + away.quiet_check_ins;
   if (!first || total < DIGEST_MIN_CHECK_INS) return null;
@@ -122,13 +130,15 @@ export function deriveAwayDigest(
   const beats: AwayBeat[] = Array.from({ length: slots }, () => "quiet");
   for (const report of reports) {
     const slot = Math.floor(((Date.parse(report.created_at) - start) / (now - start)) * slots);
-    beats[Math.min(Math.max(slot, 0), slots - 1)] = beatOf(report);
+    beats[Math.min(Math.max(slot, 0), slots - 1)] = beat(report);
   }
 
-  const needing = reports.filter(report => beatOf(report) === "needs-you");
-  const worth = reports.filter(report => beatOf(report) === "reported");
+  const needing = reports.filter(report => beat(report) === "needs-you");
+  const worth = reports.filter(report => beat(report) === "reported");
   const wrong = reports.filter(report => beatOf(report) === "failed");
-  const told = [...wrong, ...worth].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const told = [...wrong, ...worth.filter(report => !picked(report))].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at)
+  );
   const hours = Math.floor((now - start) / (60 * 60 * 1000));
   const span = hours === 1 ? "hour" : "hours";
   const decisions =

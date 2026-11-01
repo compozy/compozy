@@ -24,6 +24,11 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+const (
+	nativeAuthoredAgentProfileLayer = "profile"
+	nativeAuthoredAgentUserLayer    = "user"
+)
+
 func (n *daemonNativeTools) skillsFor(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -238,6 +243,7 @@ type nativeAuthoredAgentTarget struct {
 	workspaceRoot   string
 	agentName       string
 	agentPath       string
+	agentLayer      string
 	heartbeatConfig compozyconfig.HeartbeatConfig
 }
 
@@ -268,9 +274,16 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if root == "" {
 		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
-	resolvedWorkspaceID, err := nativeResolvedWorkspaceID(resolved)
+	resolvedWorkspaceID, err := nativeResolvedRegistryWorkspaceID(resolved)
 	if err != nil {
 		return nativeAuthoredAgentTarget{}, err
+	}
+	agentLayer := ""
+	for _, agent := range resolved.Agents {
+		if agent.Name == name {
+			agentLayer = agent.SourceLayer
+			break
+		}
 	}
 	return nativeAuthoredAgentTarget{
 		profileID:       resolved.ProfileID,
@@ -279,6 +292,7 @@ func (n *daemonNativeTools) authoredAgentTarget(
 		workspaceRoot:   root,
 		agentName:       name,
 		agentPath:       nativeAuthoredAgentPath(resolved, name),
+		agentLayer:      agentLayer,
 		heartbeatConfig: resolved.Config.Agents.Heartbeat,
 	}, nil
 }
@@ -288,12 +302,34 @@ func (t nativeAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.Authorin
 	return heartbeat.AuthoringTarget{
 		ProfileID:     t.profileID,
 		ProfileName:   t.profileName,
-		WorkspaceID:   t.workspaceID,
-		WorkspaceRoot: nativeAuthoredSourceRoot(t.workspaceRoot, t.agentPath),
+		WorkspaceID:   t.authoringWorkspaceID(),
+		WorkspaceRoot: t.authoringRoot(),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
 	}
+}
+
+func (t nativeAuthoredAgentTarget) authoringRoot() string {
+	if t.agentLayer == nativeAuthoredAgentUserLayer || t.agentLayer == nativeAuthoredAgentProfileLayer {
+		if root := nativeTrustedRootFromAgentSourcePath(t.agentPath); root != "" {
+			return root
+		}
+	}
+	return nativeAuthoredSourceRoot(t.workspaceRoot, t.agentPath)
+}
+
+func (t nativeAuthoredAgentTarget) authoringWorkspaceID() string {
+	switch t.agentLayer {
+	case nativeAuthoredAgentUserLayer, nativeAuthoredAgentProfileLayer:
+		return ""
+	case "project", "project_profile":
+		return t.workspaceID
+	}
+	if !nativePathWithinRoot(t.workspaceRoot, t.agentPath) {
+		return ""
+	}
+	return t.workspaceID
 }
 
 func nativeAuthoredSourceRoot(workspaceRoot string, agentPath string) string {

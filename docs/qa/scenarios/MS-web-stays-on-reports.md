@@ -339,3 +339,9 @@ set `context: {include: []}` to disable collectors. Save, reload and roll back
 the policy; the explicit empty selection must survive. The owning checks are
 `TestCollectDigest` and
 `TestManagedHeartbeatAuthoringServicePutValidateAndCAS/Should_preserve_disabled_collectors`.
+
+B5 regression journey: pick a proposal, reopen the away digest and confirm it counts no pending
+decision for that proposal while keeping You picked visible. An edit permission request in a
+session row reads Needs your approval. Race a new turn against an idle prompt and verify that
+the fallback steer returns reserved reports to pending. Owning Web and SQLite race suites passed;
+the live browser walk remains pending.

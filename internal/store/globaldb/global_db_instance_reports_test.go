@@ -777,6 +777,23 @@ func TestInstanceReportReservationUnderSteerDefault(t *testing.T) {
 			if err != nil || len(reserved) != tc.want {
 				t.Fatalf("reserved: %d, want %d: %v", len(reserved), tc.want, err)
 			}
+			if tc.direct {
+				_, _, created, err := db.StageAdmittedSessionSteer(ctx, req, store.SessionInputQueueInsert{
+					ID: "fallback-steer", SessionID: main, Text: req.AuthoredText,
+					TargetTurnID: "turn-live", Mode: store.SessionInputQueueModeSteer,
+					Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+					QueueCap: 10, Now: req.Now,
+				})
+				if err != nil || !created {
+					t.Fatalf("stage fallback steer: created=%v error=%v", created, err)
+				}
+				pending, err := db.InstanceReports().ListReports(ctx, agentinstance.ReportQuery{
+					InstanceID: instance.ID, State: "pending", Limit: 10,
+				})
+				if err != nil || len(pending) != 1 || pending[0].PromptAdmissionID != "" {
+					t.Fatalf("released fallback reports: %#v, %v", pending, err)
+				}
+			}
 		})
 	}
 }

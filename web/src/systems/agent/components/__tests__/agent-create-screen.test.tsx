@@ -421,7 +421,7 @@ describe("AgentCreateScreen", () => {
     await user.click(screen.getByTestId("agent-create-runtime-use-project-defaults"));
 
     expect(screen.getByTestId("agent-create-runtime-inherited")).toHaveTextContent(
-      "The project's default model will be used."
+      "Choose a provider, or leave blank to use a configured default."
     );
     expect(screen.queryByTestId("agent-create-runtime-use-project-defaults")).toBeNull();
   });

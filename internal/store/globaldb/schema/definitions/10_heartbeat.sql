@@ -1,6 +1,7 @@
 CREATE TABLE agent_heartbeat_revisions (
 			id TEXT PRIMARY KEY,
 			workspace_id TEXT NOT NULL,
+            profile_id TEXT NOT NULL DEFAULT '00000000000000000000000000',
 			agent_name TEXT NOT NULL,
 			source_path TEXT NOT NULL,
 			operation TEXT NOT NULL CHECK (operation IN ('write', 'delete', 'rollback')),
@@ -16,6 +17,7 @@ CREATE TABLE agent_heartbeat_revisions (
 CREATE TABLE agent_heartbeat_snapshots (
 			id TEXT PRIMARY KEY,
 			workspace_id TEXT NOT NULL,
+            profile_id TEXT NOT NULL DEFAULT '00000000000000000000000000',
 			agent_name TEXT NOT NULL,
 			source_path TEXT NOT NULL,
 			schema_version INTEGER NOT NULL DEFAULT 1,
@@ -26,7 +28,7 @@ CREATE TABLE agent_heartbeat_snapshots (
 			resolved_json TEXT NOT NULL,
 			diagnostics_json TEXT NOT NULL,
 			created_at TEXT NOT NULL,
-			UNIQUE (workspace_id, agent_name, digest)
+			UNIQUE (profile_id, workspace_id, agent_name, digest)
 		);
 
 CREATE TABLE agent_heartbeat_wake_events (
@@ -118,10 +120,10 @@ CREATE TABLE agent_heartbeat_wake_state (
 		);
 
 CREATE INDEX idx_agent_heartbeat_revisions_agent_created
-			ON agent_heartbeat_revisions(workspace_id, agent_name, created_at DESC, id DESC);
+			ON agent_heartbeat_revisions(profile_id, workspace_id, agent_name, created_at DESC, id DESC);
 
 CREATE INDEX idx_agent_heartbeat_snapshots_agent_created
-			ON agent_heartbeat_snapshots(workspace_id, agent_name, created_at DESC, id DESC);
+			ON agent_heartbeat_snapshots(profile_id, workspace_id, agent_name, created_at DESC, id DESC);
 
 CREATE INDEX idx_agent_heartbeat_wake_events_agent_created
 			ON agent_heartbeat_wake_events(workspace_id, agent_name, created_at DESC, id DESC);

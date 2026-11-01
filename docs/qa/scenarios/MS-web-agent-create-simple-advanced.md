@@ -43,3 +43,17 @@ QA impact 2026-11-01 (stays-on F1): the Simple/Advanced tabs are gone; `expected
 one screen. Fill with AI and starting an instance need the daemon routes from the stays-on backend
 slices, so this slice verified them against typed mocks only. Focused suites own the screen's states;
 a real walk is required after those slices land. Not walked.
+
+### Missing default provider
+
+With no configured default provider, leave Model unchanged and submit an otherwise valid agent.
+The error explains that no default provider is set and asks you to choose a provider in Model.
+Select a configured provider and retry; creation succeeds without re-entering the agent details.
+The inherited-runtime help must describe a configured default conditionally.
+
+B5 focused evidence: agent API adapter and create-screen suites passed (53 tests). The live
+missing-default and recovery journey remains pending.
+
+B5 isolated re-walk passed: absent defaults.provider produced the actionable copy, selecting Codex
+GPT-6.1-Sol created the agent with the original name, description and instructions, and the public
+API confirmed provider/model. Evidence: `reports/2026-11-01-stays-on-b5-remediation.md`.

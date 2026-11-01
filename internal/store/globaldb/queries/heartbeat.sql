@@ -1,48 +1,50 @@
 -- name: InsertHeartbeatSnapshot :execrows
 INSERT INTO agent_heartbeat_snapshots (
-  id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+  id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
   body, frontmatter_json, resolved_json, diagnostics_json, created_at
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(agent_name), sqlc.arg(source_path),
+  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(profile_id), sqlc.arg(agent_name), sqlc.arg(source_path),
   sqlc.arg(schema_version), sqlc.arg(digest), sqlc.arg(config_digest), sqlc.arg(body),
   sqlc.arg(frontmatter_json), sqlc.arg(resolved_json), sqlc.arg(diagnostics_json), sqlc.arg(created_at)
 )
-ON CONFLICT(workspace_id, agent_name, digest) DO NOTHING;
+ON CONFLICT(profile_id, workspace_id, agent_name, digest) DO NOTHING;
 
 -- name: GetHeartbeatSnapshot :one
-SELECT id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
        body, frontmatter_json, resolved_json, diagnostics_json, created_at
 FROM agent_heartbeat_snapshots WHERE id = sqlc.arg(id);
 
 -- name: GetHeartbeatSnapshotByDigest :one
-SELECT id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
        body, frontmatter_json, resolved_json, diagnostics_json, created_at
 FROM agent_heartbeat_snapshots
-WHERE workspace_id = sqlc.arg(workspace_id)
+WHERE profile_id = sqlc.arg(profile_id)
+  AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
   AND digest = sqlc.arg(digest);
 
 -- name: InsertHeartbeatRevision :exec
 INSERT INTO agent_heartbeat_revisions (
-  id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+  id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
   new_snapshot_id, body, actor_kind, actor_id, created_at
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(agent_name), sqlc.arg(source_path),
+  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(profile_id), sqlc.arg(agent_name), sqlc.arg(source_path),
   sqlc.arg(operation), sqlc.narg(previous_digest), sqlc.narg(new_digest),
   sqlc.narg(new_snapshot_id), sqlc.narg(body), sqlc.arg(actor_kind),
   sqlc.arg(actor_id), sqlc.arg(created_at)
 );
 
 -- name: GetHeartbeatRevision :one
-SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
        new_snapshot_id, body, actor_kind, actor_id, created_at
 FROM agent_heartbeat_revisions WHERE id = sqlc.arg(id);
 
 -- name: GetHeartbeatRevisionForRollback :one
-SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
        new_snapshot_id, body, actor_kind, actor_id, created_at
 FROM agent_heartbeat_revisions
-WHERE workspace_id = sqlc.arg(workspace_id)
+WHERE profile_id = sqlc.arg(profile_id)
+  AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
   AND source_path = sqlc.arg(source_path)
   AND id = sqlc.arg(id)
@@ -134,6 +136,6 @@ WHERE id IN (
 
 -- name: DeleteHeartbeatAgentHistory :exec
 DELETE FROM agent_heartbeat_revisions
-WHERE workspace_id = sqlc.arg(workspace_id)
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
   AND source_path = sqlc.arg(source_path);

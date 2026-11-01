@@ -66,7 +66,7 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 			t.Fatal(err)
 		}
 		snapshot, found, err := fixture.db.FindHeartbeatSnapshotByDigest(
-			fixture.ctx, fixture.workspaceID, "coder", created.Policy.Digest,
+			fixture.ctx, fixture.workspaceID, "coder", created.Policy.Digest, "",
 		)
 		if err != nil || !found {
 			t.Fatalf("reload snapshot: found=%v error=%v", found, err)
@@ -102,6 +102,53 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep user scoped snapshots and history separate across profiles", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		first := fixture.target
+		first.WorkspaceID = ""
+		first.ProfileID = "profile-authoring-first"
+		second := first
+		second.ProfileID = "profile-authoring-second"
+		second.WorkspaceRoot = t.TempDir()
+		second.AgentPath = writeHeartbeatAgentDefinition(t, second.WorkspaceRoot, "coder")
+		body := validHeartbeatBody("Separate profiles", "Separate profile history.")
+		one, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: first, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		two, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: second, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if one.Snapshot.ID == two.Snapshot.ID || one.Snapshot.ProfileID != first.ProfileID ||
+			two.Snapshot.ProfileID != second.ProfileID {
+			t.Fatalf("profile snapshots collided: %#v %#v", one.Snapshot, two.Snapshot)
+		}
+		for _, target := range []heartbeat.AuthoringTarget{first, second} {
+			history, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: target})
+			if err != nil || len(history.Revisions) != 1 || history.Revisions[0].ProfileID != target.ProfileID {
+				t.Fatalf("profile history: %#v %v", history, err)
+			}
+		}
+		if err := fixture.authoring.PurgeAgentHistory(
+			fixture.ctx,
+			heartbeat.WorkspaceRef{ProfileID: first.ProfileID},
+			"coder",
+			first.AgentPath,
+		); err != nil {
+			t.Fatal(err)
+		}
+		empty, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: first})
+		if err != nil || len(empty.Revisions) != 0 {
+			t.Fatalf("purged history: %#v %v", empty, err)
+		}
+		kept, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: second})
+		if err != nil || len(kept.Revisions) != 1 || kept.Revisions[0].ID != two.Revision.ID {
+			t.Fatalf("other profile history: %#v %v", kept, err)
+		}
+	})
+
 	t.Run("Should reject nil authoring store", func(t *testing.T) {
 		t.Parallel()
 
@@ -120,6 +167,7 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 			"",
 			"coder",
 			"agents/coder/HEARTBEAT.md",
+			"",
 		); err == nil || !strings.Contains(err.Error(), "requires workspace id, agent name, and source path") {
 			t.Fatalf("DeleteHeartbeatAgentHistory(empty workspace) error = %v", err)
 		}
@@ -185,9 +233,9 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 				wantError: "store is required",
 			},
 			{
-				name: "missing workspace", service: fixture.authoring, ctx: fixture.ctx,
+				name: "missing workspace and profile", service: fixture.authoring, ctx: fixture.ctx,
 				agentName: "coder", sourcePath: fixture.agentPath,
-				wantError: "workspace id is required",
+				wantError: "workspace id or profile id is required",
 			},
 			{
 				name: "missing agent", service: fixture.authoring, ctx: fixture.ctx,
@@ -917,6 +965,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			firstFixture.workspaceID,
 			"coder",
 			second.Policy.Digest,
+			"",
 		)
 		if err != nil {
 			t.Fatalf("FindHeartbeatSnapshotByDigest(reopen) error = %v", err)

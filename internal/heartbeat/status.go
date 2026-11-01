@@ -25,6 +25,7 @@ type StatusStore interface {
 		workspaceID string,
 		agentName string,
 		digest string,
+		profileID string,
 	) (Snapshot, bool, error)
 	GetHeartbeatWakeState(
 		ctx context.Context,
@@ -281,6 +282,7 @@ func (s *ManagedHeartbeatStatusService) snapshotForPolicy(
 		target.workspaceID,
 		target.agentName,
 		policy.Digest,
+		target.profileID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("heartbeat: find status snapshot: %w", err)

@@ -184,6 +184,7 @@ type RunSnapshot struct {
 
 // SessionSnapshot is the scheduler's rebuildable view of one live session.
 type SessionSnapshot struct {
+	ProfileID       string
 	ID              string
 	AgentName       string
 	WorkspaceID     string

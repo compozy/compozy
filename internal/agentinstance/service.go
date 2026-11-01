@@ -151,15 +151,13 @@ func (s *Service) Archive(ctx context.Context, id string) error {
 	}
 	sessionID := before.MainSessionID
 	if sessionID == "" {
-		recovery, ok := s.starter.(ReconciliationSessions)
-		if !ok {
-			return errors.New("agentinstance: session reconciliation unavailable")
+		if recovery, ok := s.starter.(ReconciliationSessions); ok {
+			outcome, err := recovery.StartOutcome(ctx, before)
+			if err != nil {
+				return err
+			}
+			sessionID = outcome.SessionID
 		}
-		outcome, err := recovery.StartOutcome(ctx, before)
-		if err != nil {
-			return err
-		}
-		sessionID = outcome.SessionID
 	}
 	if sessionID != "" {
 		if err := s.starter.Stop(ctx, sessionID); err != nil {

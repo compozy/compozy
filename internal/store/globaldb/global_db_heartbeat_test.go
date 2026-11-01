@@ -21,6 +21,25 @@ import (
 func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should load only the selected profile latest User policy", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		first := heartbeatSnapshotForTest("hb-first-profile", "", "coder", "sha256:first-profile")
+		first.ProfileID = "profile-first"
+		second := heartbeatSnapshotForTest("hb-second-profile", "", "coder", "sha256:second-profile")
+		second.ProfileID = "profile-second"
+		second.CreatedAt = first.CreatedAt.Add(time.Hour)
+		for _, snapshot := range []heartbeat.Snapshot{first, second} {
+			if _, err := db.UpsertHeartbeatSnapshot(t.Context(), snapshot); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := db.GetLatestValidHeartbeatSnapshot(t.Context(), "", "coder", first.ProfileID)
+		if err != nil || got.ID != first.ID || got.ProfileID != first.ProfileID {
+			t.Fatalf("profile policy = %#v, %v", got, err)
+		}
+	})
+
 	t.Run("Should persist resolver snapshots and authoring revisions across reopen", func(t *testing.T) {
 		t.Parallel()
 
@@ -136,14 +155,14 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 			envelope.ConfigProvenance.Digest != saved.ConfigDigest {
 			t.Fatalf("GetHeartbeatSnapshot() = %#v envelope %#v, want saved resolver provenance", gotSnapshot, envelope)
 		}
-		latest, err := second.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		latest, err := second.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder", "")
 		if err != nil {
 			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v", err)
 		}
 		if latest.ID != saved.ID {
 			t.Fatalf("latest snapshot id = %q, want %q", latest.ID, saved.ID)
 		}
-		found, ok, err := second.FindHeartbeatSnapshotByDigest(ctx, workspaceID, "coder", saved.Digest)
+		found, ok, err := second.FindHeartbeatSnapshotByDigest(ctx, workspaceID, "coder", saved.Digest, "")
 		if err != nil {
 			t.Fatalf("FindHeartbeatSnapshotByDigest() error = %v", err)
 		}
@@ -255,7 +274,7 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 			t.Fatalf("AppendHeartbeatRevision(rollback) error = %v", err)
 		}
 
-		latest, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		latest, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder", "")
 		if err != nil {
 			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v", err)
 		}
@@ -282,7 +301,7 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 			t.Fatalf("AppendHeartbeatRevision() error = %v", err)
 		}
 
-		_, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		_, err := globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder", "")
 		if !errors.Is(err, heartbeat.ErrSnapshotNotFound) {
 			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v, want ErrSnapshotNotFound", err)
 		}
@@ -318,7 +337,7 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 		}
 		corruptHeartbeatRevisionSnapshotIDForTest(t, globalDB, revision.ID, "hb-does-not-exist")
 
-		_, err = globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		_, err = globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder", "")
 		if !errors.Is(err, heartbeat.ErrInvalidRevision) {
 			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v, want ErrInvalidRevision", err)
 		}
@@ -361,7 +380,7 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 			t.Fatalf("invalidate heartbeat snapshot resolved_json error = %v", err)
 		}
 
-		_, err = globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder")
+		_, err = globalDB.GetLatestValidHeartbeatSnapshot(ctx, workspaceID, "coder", "")
 		if !errors.Is(err, heartbeat.ErrInvalidSnapshot) {
 			t.Fatalf("GetLatestValidHeartbeatSnapshot() error = %v, want ErrInvalidSnapshot", err)
 		}
@@ -1167,6 +1186,7 @@ Inspect context, then send at most one synthetic wake prompt.
 		agentName,
 		&resolved,
 		time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC),
+		"",
 	)
 	if err != nil {
 		t.Fatalf("SnapshotFromResolved() error = %v", err)
@@ -1352,6 +1372,7 @@ func assertHeartbeatStoreErrors(t *testing.T, globalDB *GlobalDB, workspaceID st
 		"",
 		"coder",
 		"sha256:missing",
+		"",
 	); !errors.Is(err, heartbeat.ErrInvalidSnapshot) {
 		t.Fatalf("FindHeartbeatSnapshotByDigest(invalid) error = %v, want ErrInvalidSnapshot", err)
 	}
@@ -1359,6 +1380,7 @@ func assertHeartbeatStoreErrors(t *testing.T, globalDB *GlobalDB, workspaceID st
 		ctx,
 		workspaceID,
 		"missing-agent",
+		"",
 	); !errors.Is(err, heartbeat.ErrSnapshotNotFound) {
 		t.Fatalf("GetLatestValidHeartbeatSnapshot(missing) error = %v, want ErrSnapshotNotFound", err)
 	}

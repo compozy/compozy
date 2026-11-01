@@ -222,6 +222,7 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 		source = heartbeat.WakeSourceManual
 	}
 	decision, err := n.deps.HeartbeatWake.Wake(ctx, heartbeat.WakeRequest{
+		ProfileID:   target.profileID,
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
 		SessionID:   sessionID,

@@ -16,7 +16,8 @@ func heartbeatSnapshotFromGenerated(row sqlcgen.AgentHeartbeatSnapshot) (heartbe
 		return heartbeat.Snapshot{}, fmt.Errorf("store: parse heartbeat snapshot created_at: %w", err)
 	}
 	snapshot := heartbeat.Snapshot{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, AgentName: row.AgentName, SourcePath: row.SourcePath,
+		ID: row.ID, WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID,
+		AgentName: row.AgentName, SourcePath: row.SourcePath,
 		SchemaVersion: int(row.SchemaVersion), Digest: row.Digest, ConfigDigest: row.ConfigDigest,
 		Body: row.Body, FrontmatterJSON: []byte(row.FrontmatterJson), ResolvedJSON: []byte(row.ResolvedJson),
 		DiagnosticsJSON: []byte(row.DiagnosticsJson), CreatedAt: createdAt,
@@ -34,9 +35,9 @@ func heartbeatRevisionFromGenerated(row sqlcgen.AgentHeartbeatRevision) (heartbe
 	}
 	revision := heartbeat.Revision{
 		ID:          row.ID,
-		WorkspaceID: row.WorkspaceID,
-		AgentName:   row.AgentName,
-		SourcePath:  row.SourcePath,
+		WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID,
+		AgentName:  row.AgentName,
+		SourcePath: row.SourcePath,
 		Operation: heartbeat.RevisionOperation(
 			row.Operation,
 		),

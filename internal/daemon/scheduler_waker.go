@@ -236,6 +236,7 @@ func schedulerHeartbeatWakeRequest(
 		return heartbeat.WakeRequest{}, false
 	}
 	return heartbeat.WakeRequest{
+		ProfileID:   target.Session.ProfileID,
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
 		SessionID:   strings.TrimSpace(sessionID),

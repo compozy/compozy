@@ -12,6 +12,7 @@ import (
 type AgentHeartbeatRevision struct {
 	ID             string         `json:"id"`
 	WorkspaceID    string         `json:"workspace_id"`
+	ProfileID      string         `json:"profile_id"`
 	AgentName      string         `json:"agent_name"`
 	SourcePath     string         `json:"source_path"`
 	Operation      string         `json:"operation"`
@@ -27,6 +28,7 @@ type AgentHeartbeatRevision struct {
 type AgentHeartbeatSnapshot struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
 	AgentName       string `json:"agent_name"`
 	SourcePath      string `json:"source_path"`
 	SchemaVersion   int64  `json:"schema_version"`
@@ -135,6 +137,7 @@ type AgentInstanceWakeState struct {
 type AgentSoulRevision struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
 	AgentName       string `json:"agent_name"`
 	SourcePath      string `json:"source_path"`
 	Action          string `json:"action"`
@@ -152,6 +155,7 @@ type AgentSoulRevision struct {
 type AgentSoulSnapshot struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
 	Digest      string `json:"digest"`

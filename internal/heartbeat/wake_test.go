@@ -934,7 +934,14 @@ func wakeSnapshotFromContent(
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	snapshot, err := SnapshotFromResolved(id, workspaceID, agentName, &resolved, createdAt)
+	snapshot, err := SnapshotFromResolved(
+		id,
+		workspaceID,
+		agentName,
+		&resolved,
+		createdAt,
+		"00000000000000000000000000",
+	)
 	if err != nil {
 		t.Fatalf("SnapshotFromResolved() error = %v", err)
 	}
@@ -1017,7 +1024,11 @@ func (s *fakeWakeStore) GetLatestValidHeartbeatSnapshot(
 	_ context.Context,
 	workspaceID string,
 	agentName string,
+	profileID string,
 ) (Snapshot, error) {
+	if profileID == "" {
+		profileID = "00000000000000000000000000"
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1026,7 +1037,7 @@ func (s *fakeWakeStore) GetLatestValidHeartbeatSnapshot(
 		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), cmp.Compare(b.ID, a.ID))
 	})
 	for _, snapshot := range candidates {
-		if snapshot.WorkspaceID != workspaceID || snapshot.AgentName != agentName {
+		if snapshot.WorkspaceID != workspaceID || snapshot.AgentName != agentName || snapshot.ProfileID != profileID {
 			continue
 		}
 		envelope, err := snapshot.ResolvedEnvelope()

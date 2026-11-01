@@ -638,6 +638,7 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		}
 		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: db.InstanceReports(), MaxProposals: 2, StopTimeout: time.Second}
 		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		instance.CreatedAt = now.Add(-24 * time.Hour)
 		service, err := heartbeat.NewCheckService(t.Context(), db.Instances(), dueTriageEnvironment{target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"}}}, dispatcher, heartbeat.CheckConfig{Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour, Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 10}, func() time.Time { return now })
 		if err != nil {
 			t.Fatal(err)

@@ -1867,6 +1867,7 @@ func testSituationSoulSnapshot(t *testing.T, body string) soul.Snapshot {
 		&resolved,
 		provenance,
 		fixedTime(),
+		"",
 	)
 	if err != nil {
 		t.Fatalf("SnapshotFromResolved() error = %v", err)

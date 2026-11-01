@@ -100,7 +100,7 @@ export function AgentCreateRuntimeFields({
         </FieldHeader>
         {draft.provider.trim().length === 0 ? (
           <FieldDescription data-testid="agent-create-runtime-inherited">
-            The project's default model will be used.
+            Choose a provider, or leave blank to use a configured default.
           </FieldDescription>
         ) : null}
         <RuntimeSelector

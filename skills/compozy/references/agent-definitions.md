@@ -218,6 +218,12 @@ The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:
 
 ## Authored Context and Profiles
 
+SOUL.md and HEARTBEAT.md authoring follows the effective definition's scope. A User-scope agent
+needs no project placement: What it does and Check-ins can open from All projects. Revisions and
+snapshots belong to the selected profile and agent, including when the agent runs in a project;
+other profiles cannot reuse its history, rollback targets, or snapshots. A missing HEARTBEAT.md
+reads as all day with all five context sources.
+
 Select the intended Profile for named-agent SOUL.md and HEARTBEAT.md operations. The CLI's global
 `--profile` selector is forwarded by its common transport; the corresponding HTTP read, validate,
 write, delete, history, rollback, status, and wake routes accept the optional `profile` query.

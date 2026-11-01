@@ -156,6 +156,7 @@ func (b *harnessReentryBridge) dispatchHeartbeatWake(item harnessSyntheticWake) 
 		return false
 	}
 	decision, err := b.heartbeatWake.Wake(b.ctx, heartbeat.WakeRequest{
+		ProfileID:   item.targetProfileID,
 		WorkspaceID: strings.TrimSpace(item.targetWorkspaceID),
 		AgentName:   strings.TrimSpace(item.targetAgentName),
 		SessionID:   strings.TrimSpace(item.targetSessionID),
@@ -232,6 +233,7 @@ func (b *harnessReentryBridge) refreshWakeTarget(item *harnessSyntheticWake) boo
 	}
 	item.targetSessionID = target.SessionID
 	item.targetAgentName = target.AgentName
+	item.targetProfileID = target.ProfileID
 	item.targetWorkspaceID = target.WorkspaceID
 	return true
 }

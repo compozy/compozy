@@ -255,7 +255,8 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
     enabled: Boolean(instance),
   });
   const [now] = useState(() => Date.now());
-  const digest = away ? deriveAwayDigest(away, agent.label, now) : null;
+  const messages = useAuiState(state => state.thread.messages);
+  const digest = away ? deriveAwayDigest(away, agent.label, now, messages) : null;
   const leads = digest?.firstReportId === data.report_id;
   const { data: indeterminate } = useQuery({
     ...agentInstanceIndeterminateReportsOptions(instance ?? NO_INSTANCE),

@@ -59,3 +59,13 @@ remains pending; SQLite-backed handler and repository tests cover the read path.
     appear, and pause, Check-ins and memory act on each row's own profile.
 
 2026-11-01 walk: list, profile, Memory, Where it works, pause, resume, add, remove, cap and the all-day Check-ins reading passed for agents with a project. Blocked: Global-only and On demand agents can't open What it does or Check-ins, because authoring needs a workspace ID (open defect 1 in the report). Saves, extension-owned agents, All profiles and mentions weren't exercised.
+
+B5 regression journey: under All projects, open What it does and Check-ins for a Global-only
+Stays on agent and an On demand agent without any project placement. Read and save both files.
+With no HEARTBEAT.md, verify all day and all five sources. Switch profiles, select the same global agent
+name, save content and check that history and rollback remain within that profile. The global
+definition and sidecar files remain shared; persisted revisions and snapshots belong to each profile.
+User-scope HTTP read/write/history/rollback, two-profile SQLite authoring tests and the isolated
+browser walk passed. Both agent kinds opened both editors under All projects. SOUL UI saves
+survived reload; missing HEARTBEAT showed 00:00 to 24:00 with all five sources checked. Evidence:
+`reports/2026-11-01-stays-on-b5-remediation.md`.

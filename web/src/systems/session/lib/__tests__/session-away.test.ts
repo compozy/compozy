@@ -40,6 +40,20 @@ describe("deriveAwayDigest", () => {
     expect(digest?.beats.filter(beat => beat === "failed")).toHaveLength(2);
   });
 
+  it("Should exclude a picked proposal from pending decisions and keep its card visible", () => {
+    const title = "Unblock the token migration";
+    const reports = AWAY.reports.map(report =>
+      report.kind === "proposal" ? { ...report, proposals: [{ title, body: "" }] } : report
+    );
+    const messages = [
+      { role: "user", createdAt: new Date(NOW), content: [{ type: "text", text: title }] },
+    ];
+    const digest = deriveAwayDigest({ ...AWAY, reports }, "Triage Lead", NOW, messages);
+    expect(digest?.headline).toBe("Nine quiet hours, nothing for you to decide.");
+    expect(digest?.key.find(item => item.beat === "needs-you")?.count).toBe(0);
+    expect(digest?.foldedIds.has("p1")).toBe(false);
+  });
+
   it("Should stay away after a short absence", () => {
     expect(
       deriveAwayDigest(

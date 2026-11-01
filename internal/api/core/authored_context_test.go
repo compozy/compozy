@@ -1331,7 +1331,7 @@ type emptyHeartbeatStatusStore struct{}
 
 // FindHeartbeatSnapshotByDigest models a Profile with no stored Heartbeat snapshots.
 func (emptyHeartbeatStatusStore) FindHeartbeatSnapshotByDigest(
-	context.Context, string, string, string,
+	context.Context, string, string, string, string,
 ) (heartbeat.Snapshot, bool, error) {
 	return heartbeat.Snapshot{}, false, nil
 }
@@ -1473,7 +1473,7 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, sidecar := range []string{"soul", "heartbeat"} {
-		for _, sourceKind := range []string{"workspace", "personal", "dot-compozy-home"} {
+		for _, sourceKind := range []string{"workspace", "personal", "dot-compozy-home", "user", "user-inside-project"} {
 			t.Run(
 				"Should isolate "+sidecar+" reads writes and history by selected profile in "+sourceKind,
 				func(t *testing.T) {
@@ -1487,6 +1487,10 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 					}
 					if sourceKind == "dot-compozy-home" {
 						agentRoot = filepath.Join(t.TempDir(), ".compozy")
+					}
+					if sourceKind == "user-inside-project" {
+						agentRoot = filepath.Join(root, "runtime")
+						prefix = ""
 					}
 					paths := map[string]string{}
 					for _, profile := range []string{"default", "marketing"} {
@@ -1520,26 +1524,60 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 						}
 					})
 					ws := workspacepkg.Workspace{ID: "ws-profile-authoring", RootDir: root, Name: "profile-authoring"}
-					if err := db.InsertWorkspace(t.Context(), ws); err != nil {
+					if sourceKind == "user" {
+						ws.ID = ""
+					}
+					requestRef := ws.ID
+					if requestRef == "" {
+						requestRef = "@user"
+					} else if err := db.InsertWorkspace(t.Context(), ws); err != nil {
 						t.Fatal(err)
+					}
+					resolveProfile := func(profile string) workspacepkg.ResolvedWorkspace {
+						layer := "user"
+						if profile != "default" {
+							layer = "profile"
+						}
+						if sourceKind == "workspace" {
+							layer = "project"
+							if profile != "default" {
+								layer = "project_profile"
+							}
+						}
+
+						return workspacepkg.ResolvedWorkspace{
+							Workspace:   ws,
+							WorkspaceID: ws.ID,
+							ProfileName: profile,
+							Agents: []compozyconfig.AgentDef{
+								{Name: "coder", SourcePath: paths[profile], SourceLayer: layer},
+							},
+							Config: compozyconfig.Config{
+								Agents: compozyconfig.AgentsConfig{
+									Soul:      compozyconfig.DefaultSoulConfig(),
+									Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
+								},
+							},
+						}
 					}
 					workspaces := testutil.StubWorkspaceService{
 						ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
-							if ref != ws.ID {
+							if ref != requestRef || sourceKind == "user" {
 								return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 							}
-							return workspacepkg.ResolvedWorkspace{
-								Workspace:   ws,
-								WorkspaceID: ws.ID,
-								ProfileName: profile,
-								Agents:      []compozyconfig.AgentDef{{Name: "coder", SourcePath: paths[profile]}},
-								Config: compozyconfig.Config{
-									Agents: compozyconfig.AgentsConfig{
-										Soul:      compozyconfig.DefaultSoulConfig(),
-										Heartbeat: compozyconfig.DefaultHeartbeatConfig(),
-									},
-								},
-							}, nil
+							return resolveProfile(profile), nil
+						},
+						ResolveUserFn: func(_ context.Context, profileID string) (workspacepkg.ResolvedWorkspace, error) {
+							profile := "default"
+							if profileID != store.DefaultProfileID {
+								profile = "marketing"
+							}
+							resolved := resolveProfile(profile)
+							resolved.WorkspaceID = ""
+							resolved.ID = ""
+							resolved.Scope = workspacepkg.ScopeUser
+							resolved.ProfileID = profileID
+							return resolved, nil
 						},
 					}
 					fixture := newHandlerFixture(
@@ -1575,7 +1613,7 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 					fixture.Engine.POST("/agents/:name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
 					request := func(method, suffix, profile string, payload any, status int) *httptest.ResponseRecorder {
 						t.Helper()
-						query := "?workspace_id=" + ws.ID
+						query := "?workspace_id=" + requestRef
 						if profile != "default" {
 							query += "&profile=" + profile
 						}
@@ -1669,6 +1707,24 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 						if len(history.Revisions) != 1 || history.Revisions[0].ID != revisions[profile] {
 							t.Fatalf("profile %s history=%s", profile, response.Body.String())
 						}
+						if sourceKind == "user-inside-project" {
+							reread := performRequest(
+								t,
+								fixture.Engine,
+								http.MethodGet,
+								"/agents/coder/"+sidecar+"/history?workspace_id=@user&profile="+profile,
+								nil,
+							)
+							if reread.Code != http.StatusOK ||
+								!strings.Contains(reread.Body.String(), revisions[profile]) {
+								t.Fatalf(
+									"User view of project-opened global history: %d %s",
+									reread.Code,
+									reread.Body.String(),
+								)
+							}
+						}
+
 					}
 					foreign := request(
 						http.MethodPost,

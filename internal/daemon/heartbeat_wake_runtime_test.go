@@ -625,6 +625,7 @@ Inspect /agent/context before acting.
 		agentName,
 		&resolved,
 		createdAt,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("SnapshotFromResolved() error = %v", err)
@@ -771,7 +772,11 @@ func TestTimerPolicy(t *testing.T) {
 		}
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.Enabled = true
-		policy, err := resolveTimerPolicy(t.Context(), nil, heartbeat.AuthoringTarget{WorkspaceRoot: t.TempDir(), AgentPath: path, Config: cfg})
+		policy, err := resolveTimerPolicy(
+			t.Context(),
+			nil,
+			heartbeat.AuthoringTarget{WorkspaceRoot: t.TempDir(), AgentPath: path, Config: cfg},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -797,7 +802,10 @@ func TestTimerPolicy(t *testing.T) {
 		if !timer.Enabled || timer.Present {
 			t.Fatalf("timer=%+v", timer)
 		}
-		legacy, err := heartbeat.Resolve(t.Context(), heartbeat.ResolveRequest{WorkspaceRoot: root, AgentPath: path, Config: cfg})
+		legacy, err := heartbeat.Resolve(
+			t.Context(),
+			heartbeat.ResolveRequest{WorkspaceRoot: root, AgentPath: path, Config: cfg},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -812,12 +820,20 @@ func TestTimerPolicy(t *testing.T) {
 		if err := os.WriteFile(path, []byte("Agent"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(root, "HEARTBEAT.md"), []byte("---\nversion: 1\nenabled: false\n---\n"), 0600); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(root, "HEARTBEAT.md"),
+			[]byte("---\nversion: 1\nenabled: false\n---\n"),
+			0600,
+		); err != nil {
 			t.Fatal(err)
 		}
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		cfg.Enabled = true
-		policy, err := resolveTimerPolicy(t.Context(), nil, heartbeat.AuthoringTarget{WorkspaceRoot: root, AgentPath: path, Config: cfg})
+		policy, err := resolveTimerPolicy(
+			t.Context(),
+			nil,
+			heartbeat.AuthoringTarget{WorkspaceRoot: root, AgentPath: path, Config: cfg},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

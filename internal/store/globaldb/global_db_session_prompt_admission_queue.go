@@ -201,6 +201,9 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil {
 		return err
 	}
+	if err := sqlcgen.New(exec).ReleasePromptReports(ctx, completed.ID); err != nil {
+		return err
+	}
 	result.admission = completed
 	inserted.SupersededIDs = superseded
 	result.entry = inserted

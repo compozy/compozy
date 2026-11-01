@@ -5286,6 +5286,30 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	facets := baseline["paths"].(map[string]any)["/api/sessions/facets"].(map[string]any)["get"].(map[string]any)
 	facets["parameters"] = append([]any{map[string]any{"name": "exclude_instance_main", "in": "query", "description": "Exclude instance main sessions from board counts", "schema": map[string]any{"type": "boolean"}}}, facets["parameters"].([]any)...)
 
+	for path, item := range baseline["paths"].(map[string]any) {
+		get, ok := item.(map[string]any)["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		parameters, ok := get["parameters"].([]any)
+		if !ok || !strings.HasSuffix(path, "/sessions") {
+			continue
+		}
+		for index, parameter := range parameters {
+			if parameter.(map[string]any)["name"] != "skip_total" {
+				continue
+			}
+			addition := map[string]any{
+				"name":        "exclude_instance_main",
+				"in":          "query",
+				"description": "Exclude stays-on main sessions from the page and its total",
+				"schema":      map[string]any{"type": "boolean"},
+			}
+			get["parameters"] = slices.Insert(parameters, index+1, any(addition))
+			break
+		}
+	}
+
 	var walk func(any)
 	walk = func(value any) {
 		switch node := value.(type) {
