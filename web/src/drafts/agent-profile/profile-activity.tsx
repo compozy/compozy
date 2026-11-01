@@ -93,7 +93,7 @@ export function ActivitySection({ data }: { data: ProfileData }) {
       </Section>
       <Section
         label="What it cost"
-        right={<span className="text-eyebrow text-muted">Last {days} days</span>}
+        right={<span className="text-eyebrow text-muted-foreground">Last {days} days</span>}
       >
         <Panel bodyClassName="flex flex-col gap-3">
           <Headline

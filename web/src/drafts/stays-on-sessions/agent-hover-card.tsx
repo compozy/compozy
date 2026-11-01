@@ -1,5 +1,5 @@
 /** What the agent is doing, one pointer away: the card behind every avatar in a row. */
-import { Pause, Play } from "lucide-react";
+import { Pause, Play } from "@compozy/ui/icons";
 
 import { Button, Eyebrow, HoverCardContent, Pill, type PillTone, cn } from "@compozy/ui";
 
@@ -10,15 +10,15 @@ import { checksOf, doingOf, type CheckMark } from "../stays-on-agents-shared/ses
 import { openMainSession } from "./open-main";
 
 const STATE_TONE: Partial<Record<AgentState, PillTone>> = {
-  "needs-you": "accent",
+  "needs-you": "brand",
   working: "success",
-  failed: "danger",
+  failed: "destructive",
 };
 
 const MARK: Record<CheckMark, string> = {
   quiet: "h-1.5 bg-viz-other",
   reported: "h-3 bg-viz-line",
-  failed: "h-3 bg-danger",
+  failed: "h-3 bg-destructive",
 };
 
 export function CheckTicks({
@@ -74,7 +74,9 @@ export function AgentHoverCardContent({ instance }: { instance: DraftInstance })
           <span className="truncate text-heading font-medium text-fg-strong">
             {instance.agent.label}
           </span>
-          <span className="truncate text-small-body text-muted">{SCOPE_LABEL(instance.scope)}</span>
+          <span className="truncate text-small-body text-muted-foreground">
+            {SCOPE_LABEL(instance.scope)}
+          </span>
         </div>
         {instance.state === "unknown" ? null : (
           <Pill size="sm" tone={STATE_TONE[instance.state] ?? "neutral"}>

@@ -1,6 +1,15 @@
 /** The main session window, with every report, relayed approval and rotation state. */
 import { protoHref } from "@compozy/proto";
-import { Archive, Bot, Check, HeartPulse, History, Pause, ShieldQuestion, X } from "lucide-react";
+import {
+  Archive,
+  Bot,
+  Check,
+  HeartPulse,
+  History,
+  Pause,
+  ShieldQuestion,
+  X,
+} from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -371,8 +380,8 @@ export function SupersededNotice() {
   return (
     <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-6 pt-2 pb-5">
       <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg bg-surface-2 px-3 py-2.5 shadow-hairline-inset">
-        <History aria-hidden="true" className="size-4 shrink-0 text-muted" />
-        <span className="min-w-0 flex-1 text-small-body text-muted">
+        <History aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1 text-small-body text-muted-foreground">
           This conversation moved on. You can read it here.
         </span>
         <SessionLink to="rotation">Open the current one</SessionLink>
@@ -456,7 +465,7 @@ export function ApprovalDock() {
       decisionOptions={["allow-once", "allow-always", "reject-once"]}
       isSubmitting={false}
       origin={
-        <span className="truncate text-small-body text-muted">
+        <span className="truncate text-small-body text-muted-foreground">
           In {ask.session} · {ask.waits}
         </span>
       }

@@ -43,7 +43,7 @@ function CrewRow({ instance }: { instance: DraftInstance }) {
       />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-body font-medium text-fg">{instance.agent.label}</span>
-        <span className="truncate text-small-body text-muted">{doingOf(instance)}</span>
+        <span className="truncate text-small-body text-muted-foreground">{doingOf(instance)}</span>
       </span>
     </Item>
   );
@@ -71,7 +71,7 @@ export function CrewPopover({
     <Popover defaultOpen={defaultOpen}>
       <PopoverTrigger
         aria-label={`Show all ${instances.length} agents in ${scopeName}`}
-        className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-small-body font-medium text-muted tabular-nums outline-none hover:bg-hover hover:text-fg focus-visible:shadow-focus-ring"
+        className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-small-body font-medium text-muted-foreground tabular-nums outline-none hover:bg-hover hover:text-fg focus-visible:shadow-focus-ring"
       >
         +{hidden}
       </PopoverTrigger>
@@ -80,7 +80,7 @@ export function CrewPopover({
           <span className="text-heading font-medium text-fg-strong">
             {instances.length} agents in {scopeName}
           </span>
-          <span className="text-small-body text-muted">{summary(instances)}</span>
+          <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
         </div>
         {instances.length >= SEARCH_FROM ? (
           <SearchInput
@@ -105,7 +105,9 @@ export function CrewPopover({
             );
           })}
           {shown.length === 0 ? (
-            <p className="px-2 py-3 text-small-body text-muted">No agent goes by that name.</p>
+            <p className="px-2 py-3 text-small-body text-muted-foreground">
+              No agent goes by that name.
+            </p>
           ) : null}
         </div>
       </PopoverContent>

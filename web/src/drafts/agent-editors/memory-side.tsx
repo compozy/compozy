@@ -1,5 +1,5 @@
 /** S9's right column: how full memory is, what got put away, and history. */
-import { Archive, History } from "lucide-react";
+import { Archive, History } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -36,19 +36,23 @@ export function FullnessCard({
   onShowYours: () => void;
 }) {
   const share = learned + yours === 0 ? 0 : learned / (learned + yours);
-  const tone = fullness === "full" ? "danger" : fullness === "almost" ? "warning" : "neutral";
+  const tone = fullness === "full" ? "destructive" : fullness === "almost" ? "warning" : "neutral";
   return (
     <EditorCard className="gap-3">
       <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
             "text-display-2xl font-medium tabular-nums",
-            fullness === "full" ? "text-danger" : fullness === "almost" ? "text-warning" : "text-fg"
+            fullness === "full"
+              ? "text-destructive"
+              : fullness === "almost"
+                ? "text-warning"
+                : "text-fg"
           )}
         >
           {percent}%
         </span>
-        <span className="text-small-body text-muted">full</span>
+        <span className="text-small-body text-muted-foreground">full</span>
       </div>
       <StackedProgress
         ariaLabel={`Memory is ${percent}% full`}
@@ -57,13 +61,13 @@ export function FullnessCard({
           { value: Math.round(percent * share), tone, label: "Learned" },
           {
             value: Math.round(percent * (1 - share)),
-            tone: fullness === "full" ? "danger" : "info",
+            tone: fullness === "full" ? "destructive" : "info",
             label: "Yours",
           },
         ]}
         total={100}
       />
-      <div className="flex gap-3 text-eyebrow text-muted tabular-nums empty:hidden">
+      <div className="flex gap-3 text-eyebrow text-muted-foreground tabular-nums empty:hidden">
         {learned > 0 ? (
           <span className="flex items-center gap-1.5">
             <StatusDot size="sm" tone={tone === "neutral" ? "faint" : tone} />
@@ -72,7 +76,7 @@ export function FullnessCard({
         ) : null}
         {yours > 0 ? (
           <span className="flex items-center gap-1.5">
-            <StatusDot size="sm" tone={fullness === "full" ? "danger" : "info"} />
+            <StatusDot size="sm" tone={fullness === "full" ? "destructive" : "info"} />
             {yours} yours
           </span>
         ) : null}
@@ -105,7 +109,7 @@ export function PutAwayCard({ count }: { count: number }) {
         }
         size="md"
       >
-        <ul className="flex flex-col gap-1.5 text-small-body text-muted">
+        <ul className="flex flex-col gap-1.5 text-small-body text-muted-foreground">
           {PUT_AWAY.map(note => (
             <li key={note}>{note}</li>
           ))}
@@ -125,7 +129,7 @@ export function HistoryCard({
   return (
     <EditorCard className="gap-4">
       <h2 className="flex items-center gap-2 text-item-title font-medium text-fg">
-        <History aria-hidden="true" className="size-3.5 text-muted" />
+        <History aria-hidden="true" className="size-3.5 text-muted-foreground" />
         History
       </h2>
       <Timeline ariaLabel="Memory history">

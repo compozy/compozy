@@ -3,7 +3,7 @@
  * Two weights: a proposal taps you on the shoulder and asks; a notice says what happened and what
  * you can do. Neither looks like a log.
  */
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -95,7 +95,7 @@ export function ShoulderTap({
               <ChoiceKey>{index + 1}</ChoiceKey>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="text-item-title font-medium text-fg-strong">{choice.title}</span>
-                <span className="text-small-body text-muted">{choice.body}</span>
+                <span className="text-small-body text-muted-foreground">{choice.body}</span>
               </span>
               <ArrowRight
                 aria-hidden="true"
@@ -145,7 +145,7 @@ export function Notice({
             <span className="text-item-title font-medium text-fg-strong">{title}</span>
             <span className="shrink-0 text-eyebrow text-subtle tabular-nums">{when}</span>
           </p>
-          <p className="text-body text-muted">{body}</p>
+          <p className="text-body text-muted-foreground">{body}</p>
         </div>
         {detail}
         {actions ? <div className="flex flex-wrap gap-2 pt-0.5">{actions}</div> : null}
@@ -193,7 +193,7 @@ export function SettledAsk({
         />
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <Dock.Title>{title}</Dock.Title>
-          <span className="truncate text-small-body text-muted">
+          <span className="truncate text-small-body text-muted-foreground">
             In {session} · {when}
           </span>
         </span>
@@ -211,7 +211,7 @@ export function SettledAsk({
         />
       ) : null}
       {file ? <Dock.Pre>{file}</Dock.Pre> : null}
-      <p className="text-body text-muted">{why}</p>
+      <p className="text-body text-muted-foreground">{why}</p>
       <Dock.Actions className="justify-end border-t border-line pt-3">{actions}</Dock.Actions>
     </Dock>
   );

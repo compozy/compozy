@@ -1,5 +1,5 @@
 /** The drafts' rich controls, composed on `@compozy/ui` and token utilities. */
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import type { CSSProperties, ReactNode } from "react";
 
 import { Slider, Switch, cn } from "@compozy/ui";
@@ -201,7 +201,7 @@ export function DayRangeSlider({
         <Ticks count={24} major={6} />
         {now === undefined ? null : (
           <span
-            className="absolute top-0 h-1.5 w-0.5 -translate-x-1/2 rounded-pill bg-accent"
+            className="absolute top-0 h-1.5 w-0.5 -translate-x-1/2 rounded-pill bg-brand"
             style={{ left: stopLeft(now / 24) }}
           />
         )}
@@ -222,8 +222,8 @@ export type DayCell = "quiet" | "told" | "failed" | "next" | "later";
 const CELL: Record<DayCell, string> = {
   quiet: "bg-faint",
   told: "bg-fg-strong",
-  failed: "bg-danger",
-  next: "bg-accent",
+  failed: "bg-destructive",
+  next: "bg-brand",
   later: "bg-surface-2",
 };
 
@@ -240,7 +240,7 @@ export function DayStrip({ cells, label }: { cells: readonly DayCell[]; label: s
 
 export function DayStripKey({ cell, children }: { cell: DayCell; children: ReactNode }) {
   return (
-    <span className="flex items-center gap-1.5 text-eyebrow text-muted">
+    <span className="flex items-center gap-1.5 text-eyebrow text-muted-foreground">
       <span aria-hidden="true" className={cn("size-2 rounded-xxs", CELL[cell])} />
       {children}
     </span>
@@ -260,7 +260,9 @@ export function SettingRow({
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-item-title font-medium text-fg">{title}</h3>
-        {value ? <span className="text-small-body text-muted tabular-nums">{value}</span> : null}
+        {value ? (
+          <span className="text-small-body text-muted-foreground tabular-nums">{value}</span>
+        ) : null}
       </div>
       {children}
     </section>
@@ -287,8 +289,13 @@ export function ToggleRow({
         disabled ? "opacity-50" : "cursor-pointer"
       )}
     >
-      <Icon aria-hidden="true" className="size-4 shrink-0 text-muted" />
-      <span className={cn("min-w-0 flex-1 text-small-body", checked ? "text-fg" : "text-muted")}>
+      <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+      <span
+        className={cn(
+          "min-w-0 flex-1 text-small-body",
+          checked ? "text-fg" : "text-muted-foreground"
+        )}
+      >
         {label}
       </span>
       <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />

@@ -1,5 +1,5 @@
 /** S15: the real board columns and cards inside project lanes, with the row in each header. */
-import { ListTree, Plus, SquareKanban } from "lucide-react";
+import { ListTree, Plus, SquareKanban } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import { Button, Eyebrow, cn, type TopbarSlotValue } from "@compozy/ui";

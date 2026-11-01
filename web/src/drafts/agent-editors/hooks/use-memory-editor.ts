@@ -107,7 +107,7 @@ export function useMemoryEditor(variant: MemoryVariant) {
     remove: (id: string) => setNotes(current => current.filter(note => note.id !== id)),
     keepMine: () => {
       setConflict(false);
-      toast("Kept your version");
+      toast.message("Kept your version");
     },
     useTheirs: () => {
       const theirs = [THEIR_NOTE, ...NOTES];
@@ -128,7 +128,7 @@ export function useMemoryEditor(variant: MemoryVariant) {
       setSaved(notes);
       setRaw(null);
       setRestored(null);
-      toast("Saved. It takes effect from the next session.");
+      toast.message("Saved. It takes effect from the next session.");
     },
   };
 }

@@ -1,6 +1,6 @@
 /** S2's page: the Agents app content, also the host behind the create wizard. */
 import { protoHref } from "@compozy/proto";
-import { ListFilter, Plus, Users2 } from "lucide-react";
+import { ListFilter, Plus, Users2 } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {

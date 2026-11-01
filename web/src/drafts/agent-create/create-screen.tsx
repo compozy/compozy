@@ -1,5 +1,5 @@
 /** S3: one screen for every agent. It shares the create dialog's host and footer. */
-import { Bot, CircleAlert } from "lucide-react";
+import { Bot, CircleAlert } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -26,7 +26,7 @@ import { EMPTY_DRAFT, PLACE_LATER, nameIssue, type Draft } from "./model";
 import { RunFacts, RunSettings } from "./run-settings";
 
 export interface ScreenNotice {
-  tone: "danger" | "warning" | "info";
+  tone: "destructive" | "warning" | "info";
   title: string;
   body: ReactNode;
 }

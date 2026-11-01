@@ -23,7 +23,7 @@ export function UnsavedDock({
         )}
         role="status"
       >
-        <span className={cn("text-small-body", blocked ? "text-danger" : "text-fg-2")}>
+        <span className={cn("text-small-body", blocked ? "text-destructive" : "text-fg-2")}>
           {blocked ?? `${count} unsaved ${count === 1 ? "change" : "changes"}`}
         </span>
         <div className="flex items-center gap-1">

@@ -1,5 +1,5 @@
 /** The right rail: how it runs, where it works, which model, and the live preview. */
-import { Clock3, Eye, Puzzle } from "lucide-react";
+import { Clock3, Eye, Puzzle } from "@compozy/ui/icons";
 import { useId, type ReactNode } from "react";
 
 import {
@@ -93,7 +93,7 @@ function LimitCard() {
   return (
     <div className="flex flex-col gap-2 rounded-md bg-card p-3 shadow-card">
       <LimitMeter />
-      <p className="text-small-body text-muted">
+      <p className="text-small-body text-muted-foreground">
         <span className="text-fg">
           {ACTIVE_LIMIT} of {ACTIVE_LIMIT} agents are staying on.
         </span>{" "}
@@ -106,7 +106,7 @@ function LimitCard() {
 function SignInNote({ provider }: { provider: string }) {
   return (
     <div className="flex items-center gap-3 rounded-md bg-card p-3 shadow-card">
-      <p className="min-w-0 flex-1 text-small-body text-muted">
+      <p className="min-w-0 flex-1 text-small-body text-muted-foreground">
         <span className="text-fg">{provider} isn't signed in,</span> so it can't start yet. Sign in,
         or pick another model.
       </p>
@@ -197,7 +197,7 @@ function Fact({ mark, children }: { mark: ReactNode; children: ReactNode }) {
   );
 }
 
-const FACT_ICON = "size-4 shrink-0 text-muted";
+const FACT_ICON = "size-4 shrink-0 text-muted-foreground";
 
 /** The same facts as the choices above, for an agent that can't be changed here. */
 export function RunFacts({ draft, owner }: { draft: Draft; owner?: string }) {

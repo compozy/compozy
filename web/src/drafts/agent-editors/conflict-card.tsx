@@ -1,5 +1,5 @@
 /** The agent saved while the person was editing: both versions, side by side, and one choice. */
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Button, Eyebrow } from "@compozy/ui";
@@ -49,7 +49,7 @@ export function ConflictCard({
         <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
         <div className="flex min-w-0 flex-col gap-0.5">
           <h2 className="text-item-title font-medium text-fg">{title}</h2>
-          <p className="text-small-body text-muted">
+          <p className="text-small-body text-muted-foreground">
             Nothing is lost yet. Pick the version you want to keep.
           </p>
         </div>

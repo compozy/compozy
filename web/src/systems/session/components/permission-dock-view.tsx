@@ -1,4 +1,4 @@
-import { ChevronUp, SquareTerminal } from "lucide-react";
+import { ChevronUp, SquareTerminal } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

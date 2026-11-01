@@ -1,6 +1,6 @@
 /** The Sessions app's window: its rail of project groups beside the session pane. */
 import { protoHref } from "@compozy/proto";
-import { FolderPlus, MessageSquare, MessageSquarePlus, Plus, UserPlus } from "lucide-react";
+import { FolderPlus, MessageSquare, MessageSquarePlus, Plus, UserPlus } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -237,7 +237,7 @@ function CollapsedSignal({ instances }: { instances: readonly DraftInstance[] })
         surfaceClassName="ring-sunken"
       />
       {waiting.length > 1 ? (
-        <span className="text-micro text-muted">+{waiting.length - 1}</span>
+        <span className="text-micro text-muted-foreground">+{waiting.length - 1}</span>
       ) : null}
     </span>
   );

@@ -14,7 +14,7 @@ import {
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { useState, type ReactNode } from "react";
 
-import { ChatMessageBubble, InputGroup, Markdown, StateGlyph, TypingDots, cn } from "@compozy/ui";
+import { InputGroup, Markdown, StateGlyph, TypingDots, cn } from "@compozy/ui";
 
 import { SessionComposerActionRow } from "@/components/assistant-ui/session-composer-action-row";
 import { SessionComposerDirectiveChip } from "@/components/assistant-ui/session-composer-chip";
@@ -48,9 +48,11 @@ export function TranscriptColumn({
 
 export function UserTurn({ children }: { children: ReactNode }) {
   return (
-    <ChatMessageBubble align="right" messageRole="user">
-      {children}
-    </ChatMessageBubble>
+    <div className="flex w-full justify-end">
+      <div className="max-w-[640px] rounded-lg bg-surface-2 px-5 py-4 text-card-title leading-relaxed text-fg">
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -65,7 +67,7 @@ export function AgentTurn({ children }: { children: string }) {
 /** The live status line a running turn shows under the transcript. */
 export function WorkingLine({ who }: { who: string }) {
   return (
-    <p className="flex items-center gap-2 text-small-body text-muted" role="status">
+    <p className="flex items-center gap-2 text-small-body text-muted-foreground" role="status">
       <StateGlyph size="sm" state="running" />
       {who} is working
       <TypingDots />

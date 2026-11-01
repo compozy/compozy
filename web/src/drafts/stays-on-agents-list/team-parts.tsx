@@ -1,5 +1,5 @@
 /** Small pieces every team card and row shares. */
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { Button, Pill, StatusDot, cn, type StatusDotTone } from "@compozy/ui";
 
@@ -15,8 +15,8 @@ import { nowLine } from "./team-now";
 
 const DOT: Partial<Record<AgentState, StatusDotTone>> = {
   working: "success",
-  "needs-you": "accent",
-  failed: "danger",
+  "needs-you": "brand",
+  failed: "destructive",
   paused: "faint",
   idle: "faint",
   starting: "faint",
@@ -34,7 +34,7 @@ function PlaceChip({ place }: { place: ListedPlace }) {
     <Pill
       className="max-w-40 min-w-0 shrink"
       size="sm"
-      tone={place.state === "needs-you" ? "accent" : "neutral"}
+      tone={place.state === "needs-you" ? "brand" : "neutral"}
     >
       {tone ? <StatusDot size="sm" tone={tone} /> : null}
       <span className="truncate">{SCOPE_LABEL(place.scope)}</span>
@@ -97,7 +97,7 @@ export function NowLine({ agent, className }: { agent: ListedAgent; className?: 
     <span
       className={cn(
         "flex min-w-0 items-center gap-2 text-small-body",
-        live ? "text-fg" : "text-muted",
+        live ? "text-fg" : "text-muted-foreground",
         className
       )}
     >

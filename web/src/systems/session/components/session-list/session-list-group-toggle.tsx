@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Icon, cn } from "@compozy/ui";

@@ -1,5 +1,5 @@
 /** Where the agent works: the live cards, searchable once there are too many to scan. */
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Alert, AlertDescription, Button, Empty, SearchInput, Section } from "@compozy/ui";

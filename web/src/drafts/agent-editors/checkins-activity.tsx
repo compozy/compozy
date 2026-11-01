@@ -1,5 +1,5 @@
 /** S7's right column: what happens next, how today went, and Try it now. */
-import { Check, MessageCircle, Moon, Play, TriangleAlert, X } from "lucide-react";
+import { Check, MessageCircle, Moon, Play, TriangleAlert, X } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -81,7 +81,7 @@ function TryResult({
   if (phase === "running") {
     return (
       <div
-        className="flex items-center gap-2 rounded-md bg-sunken p-3 text-small-body text-muted"
+        className="flex items-center gap-2 rounded-md bg-sunken p-3 text-small-body text-muted-foreground"
         role="status"
       >
         <Spinner className="size-3.5" />
@@ -139,7 +139,7 @@ function StandingStatement({
           <span className="text-display-2xl font-medium text-fg">
             {failed ? "Stopped" : "Paused"}
           </span>
-          <span className="text-small-body text-muted">
+          <span className="text-small-body text-muted-foreground">
             {failed
               ? "10 check-ins in a row failed, so it stopped trying."
               : "You paused it. It waits until you start it again."}
@@ -156,7 +156,7 @@ function StandingStatement({
       <span className="text-display-2xl font-medium text-fg tabular-nums">
         {next ? `${next.day} at ${next.time}` : "None planned"}
       </span>
-      <span className="text-small-body text-muted">
+      <span className="text-small-body text-muted-foreground">
         {next ? (next.distance ?? "When its hours start") : "Check-ins are off"}
       </span>
     </div>
@@ -200,13 +200,13 @@ export function NextCard({
       <StandingStatement next={running ? next : null} onResume={onResume} standing={standing} />
       {standing === "slowed" ? (
         <p className="flex gap-2 rounded-md bg-sunken p-3 text-small-body text-fg-2">
-          <Moon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted" />
+          <Moon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
           Nothing has changed for a while, so it's checking every 2 hours. It speeds back up when
           you send it a message.
         </p>
       ) : null}
       <div className="flex flex-col gap-2.5">
-        <div className="flex items-baseline justify-between gap-2 text-small-body text-muted tabular-nums">
+        <div className="flex items-baseline justify-between gap-2 text-small-body text-muted-foreground tabular-nums">
           <span>
             <span className="font-medium text-fg">{done}</span> of {total} today
           </span>
@@ -257,7 +257,7 @@ export function RecentCard({ activity }: { activity: PlaceActivity }) {
             key={item.time}
             time={item.time}
             title={item.title}
-            tone={item.failed ? "danger" : "neutral"}
+            tone={item.failed ? "destructive" : "neutral"}
           />
         ))}
       </Timeline>

@@ -1,5 +1,5 @@
 /** One group of the team, in cards or rows, the two-column variation, and the first-run welcome. */
-import { Infinity as InfinityIcon, MessageSquare, Plus } from "lucide-react";
+import { Infinity as InfinityIcon, MessageSquare, Plus } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import { Button, Section, type ListingViewMode } from "@compozy/ui";
@@ -162,7 +162,7 @@ export function StaysOnWelcome({ onCreate }: { onCreate: () => void }) {
         <h2 className="text-heading font-medium text-fg-strong">
           Give someone a job that keeps going
         </h2>
-        <p className="text-small-body text-muted">
+        <p className="text-small-body text-muted-foreground">
           A stays-on agent lives in your project, checks in by itself and tells you what it found.
         </p>
       </div>

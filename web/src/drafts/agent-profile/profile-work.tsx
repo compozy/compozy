@@ -1,6 +1,6 @@
 /** What the agent has actually done: findings first, then the running log. */
 import { protoHref } from "@compozy/proto";
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 
 import { Panel, Pill, Section, Timeline, TimelineEvent, cn } from "@compozy/ui";
 
@@ -36,7 +36,7 @@ function FindingRow({ finding }: { finding: Finding }) {
         </span>
       </span>
       {finding.waiting ? (
-        <Pill size="sm" tone="accent">
+        <Pill size="sm" tone="brand">
           Your call
         </Pill>
       ) : null}

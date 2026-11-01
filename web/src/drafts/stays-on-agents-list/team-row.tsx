@@ -87,7 +87,7 @@ export function TeamRow({
             {staysOn ? (
               <NowLine agent={agent} />
             ) : (
-              <span className="min-w-0 truncate text-small-body text-muted">
+              <span className="min-w-0 truncate text-small-body text-muted-foreground">
                 {agent.description}
               </span>
             )}

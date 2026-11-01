@@ -1,5 +1,5 @@
 /** The left column: who the agent is, what it follows, and the one quiet Advanced fold. */
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 import { useRef, useState } from "react";
 
 import {
@@ -168,7 +168,7 @@ export function Instructions({
 export function InstructionsRead({ value }: { value: string }) {
   return (
     <section className="flex flex-col gap-2">
-      <h3 className="text-form-label text-muted">Instructions</h3>
+      <h3 className="text-form-label text-muted-foreground">Instructions</h3>
       <div className="rounded-md bg-sunken p-4 text-small-body text-fg">
         <StreamMarkdown>{value}</StreamMarkdown>
       </div>

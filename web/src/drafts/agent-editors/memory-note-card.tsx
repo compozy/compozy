@@ -1,5 +1,5 @@
 /** One note as a sheet of paper on the board, its inline editor, and the composer for a new one. */
-import { CalendarClock, Pencil, Trash2, UserRound } from "lucide-react";
+import { CalendarClock, Pencil, Trash2, UserRound } from "@compozy/ui/icons";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { Button, DateTimePicker, MarkdownEditor, Pill, cn } from "@compozy/ui";
@@ -12,7 +12,7 @@ const MAX_NOTE = 1000;
 
 function Source({ agent, note }: { agent: DraftAgent; note: Note }) {
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-1.5 text-eyebrow text-muted">
+    <span className="flex min-w-0 flex-1 items-center gap-1.5 text-eyebrow text-muted-foreground">
       {note.learnedIn ? (
         <AgentAvatar appearance={agent.appearance} label={agent.label} quietIdle size={18} still />
       ) : (
@@ -29,7 +29,7 @@ function Source({ agent, note }: { agent: DraftAgent; note: Note }) {
 function Forgets({ note }: { note: Note }) {
   if (!note.until) return null;
   return (
-    <span className="flex items-center gap-1.5 text-eyebrow text-muted">
+    <span className="flex items-center gap-1.5 text-eyebrow text-muted-foreground">
       <CalendarClock aria-hidden="true" className="size-3 shrink-0" />
       {note.expired ? `Stopped using this on ${note.until}` : `Forgets this on ${note.until}`}
     </span>
@@ -91,7 +91,7 @@ export function NoteComposer({
         <span
           className={cn(
             "ml-auto text-eyebrow tabular-nums",
-            over ? "font-medium text-danger" : "text-subtle"
+            over ? "font-medium text-destructive" : "text-subtle"
           )}
         >
           {text.length.toLocaleString("en-US")} / 1,000

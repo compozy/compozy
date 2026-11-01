@@ -1,6 +1,6 @@
 /** What the Activity page reads: permission entries, each naming who started the work. */
-import type { LucideIcon } from "lucide-react";
-import { FileEdit, FilePlus2, FolderSearch, Globe, SquareTerminal } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
+import { FileEdit, FilePlus2, FolderSearch, Globe, SquareTerminal } from "@compozy/ui/icons";
 
 import {
   CODE_ENGINEER,

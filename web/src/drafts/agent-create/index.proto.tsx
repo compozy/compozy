@@ -71,7 +71,7 @@ const FAILED: CreateScreenProps = {
   initial: TRIAGE_DRAFT,
   title: TRIAGE.label,
   notice: {
-    tone: "danger",
+    tone: "destructive",
     title: "Triage Lead was created, but it couldn't start in compozy",
     body: "Nothing was lost. You can try again from its page.",
   },
@@ -169,7 +169,7 @@ export default function AgentCreateDraft({ state }: PrototypeProps) {
               onOpenChange={() => goToState("filled")}
               open
               title="Discard this agent?"
-              tone="danger"
+              tone="destructive"
             />
           ) : null}
         </>

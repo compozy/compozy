@@ -1,5 +1,5 @@
 /** S9: notes the person can read, find, add and remove, with how full memory is and history. */
-import { Plus, SearchX } from "lucide-react";
+import { Plus, SearchX } from "@compozy/ui/icons";
 
 import { Button, Empty, PillGroup, SearchInput, toast } from "@compozy/ui";
 
@@ -63,7 +63,7 @@ export function MemoryEditor({ agent, variant }: { agent: DraftAgent; variant: M
             onKeepMine={editor.keepMine}
             onUseTheirs={() => {
               editor.useTheirs();
-              toast(`Using ${agent.label}'s version`);
+              toast.message(`Using ${agent.label}'s version`);
             }}
             theirs={<p>Adds "{THEIR_NOTE.text}"</p>}
             title={`${agent.label} added a note while you were editing`}

@@ -1,5 +1,5 @@
 /** The agent page in the Agents app: head with crumbs, focused editors and the home all share it. */
-import { Users2 } from "lucide-react";
+import { Users2 } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {
@@ -57,7 +57,7 @@ export function AgentOverflow({ agent }: { agent: DraftAgent }) {
         onOpenChange={setDeleting}
         open={deleting}
         title={`Delete ${agent.label}?`}
-        tone="danger"
+        tone="destructive"
       />
     </>
   );

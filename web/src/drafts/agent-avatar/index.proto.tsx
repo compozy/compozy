@@ -1,5 +1,5 @@
 /** S1, a component sheet: the one surface that stays out of the app shell, because it's a catalog. */
-import { Check, X } from "lucide-react";
+import { Check, X } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Eyebrow, cn } from "@compozy/ui";

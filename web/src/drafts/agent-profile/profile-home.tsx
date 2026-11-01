@@ -1,6 +1,6 @@
 /** S4: the agent's home. Who it is, what it's doing, and what it has done for you. */
 import { protoHref } from "@compozy/proto";
-import { ArrowRight, MessageSquarePlus, MessagesSquare, Moon, Play } from "lucide-react";
+import { ArrowRight, MessageSquarePlus, MessagesSquare, Moon, Play } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle, Button, Empty, Panel, Section } from "@compozy/ui";

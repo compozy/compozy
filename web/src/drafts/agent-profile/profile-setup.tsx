@@ -9,7 +9,7 @@ import {
   Sparkles,
   Wrench,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { Panel, Section, cn } from "@compozy/ui";
 
@@ -48,7 +48,7 @@ function SetupRow({
     >
       <span className="min-w-0">
         <span className={HOME_RUN_TITLE_CLASS}>
-          <Icon aria-hidden="true" className="size-4 shrink-0 text-muted" />
+          <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{title}</span>
         </span>
         <span className={HOME_RUN_SUBTITLE_CLASS}>
@@ -78,7 +78,9 @@ export function SetupPanel({
     <Section
       label="How it's set up"
       right={
-        readOnly ? <span className="text-eyebrow text-muted">From {agent.owner}</span> : undefined
+        readOnly ? (
+          <span className="text-eyebrow text-muted-foreground">From {agent.owner}</span>
+        ) : undefined
       }
     >
       <Panel bodyClassName="p-0" className="overflow-hidden">

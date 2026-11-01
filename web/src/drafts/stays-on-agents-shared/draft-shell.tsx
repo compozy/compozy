@@ -5,7 +5,7 @@
  * `OsWindowTabView` plates the way `OsWindowDeck` does, `DraftRailFoot` stands in for `OsRailFoot`,
  * and the plain menu row stands in for `DesktopMenubar`'s owned menus.
  */
-import { Settings } from "lucide-react";
+import { Settings } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Icon, Kbd, Pill, ThemeToggle, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
@@ -165,7 +165,7 @@ export function DraftShell({
         commandShortcutLabel="⌘K"
         menus={MENUS.map(menu => (
           <span
-            className="flex h-8.5 items-center rounded-md px-2.5 text-body text-muted"
+            className="flex h-8.5 items-center rounded-md px-2.5 text-body text-muted-foreground"
             key={menu}
           >
             {menu}

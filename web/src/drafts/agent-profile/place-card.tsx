@@ -1,5 +1,5 @@
 /** One place an agent works: what it's doing there right now, with pause and resume at hand. */
-import { Archive, MessagesSquare, MoreHorizontal, Pause, Play } from "lucide-react";
+import { Archive, MessagesSquare, MoreHorizontal, Pause, Play } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -25,10 +25,10 @@ import type { ProfilePlace } from "./profile-fixtures";
 
 const DOT: Partial<Record<AgentState, StatusDotTone>> = {
   working: "success",
-  failed: "danger",
+  failed: "destructive",
   paused: "faint",
   idle: "faint",
-  "needs-you": "accent",
+  "needs-you": "brand",
 };
 
 function status(place: ProfilePlace) {
@@ -102,7 +102,10 @@ export function PlaceCard({ place, onToggle, onArchive }: PlaceCardProps) {
       </div>
       <div className="flex flex-col gap-1">
         <p
-          className={cn("flex items-start gap-2 text-small-body", live ? "text-fg" : "text-muted")}
+          className={cn(
+            "flex items-start gap-2 text-small-body",
+            live ? "text-fg" : "text-muted-foreground"
+          )}
         >
           {dot ? <StatusDot className="mt-1.25 shrink-0" size="sm" tone={dot} /> : null}
           <span className="min-w-0">{status(place)}</span>

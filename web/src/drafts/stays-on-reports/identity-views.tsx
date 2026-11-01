@@ -1,5 +1,5 @@
 /** S12, S13 and S14, shown inside the hosts they change. */
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@compozy/ui/icons";
 
 import { Marker, cn } from "@compozy/ui";
 

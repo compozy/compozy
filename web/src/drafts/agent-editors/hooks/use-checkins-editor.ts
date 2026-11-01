@@ -110,7 +110,7 @@ export function useCheckInsEditor(variant: CheckInsVariant) {
     },
     keepMine: () => {
       setConflict(false);
-      toast("Kept your version");
+      toast.message("Kept your version");
     },
     useTheirs: () => {
       const theirs = { ...SAVED, stop: 3 };
@@ -120,7 +120,7 @@ export function useCheckInsEditor(variant: CheckInsVariant) {
     },
     resume: () => {
       setStanding("running");
-      toast("Check-ins are back on");
+      toast.message("Check-ins are back on");
     },
     discard: () => {
       setSettings(saved);
@@ -131,7 +131,7 @@ export function useCheckInsEditor(variant: CheckInsVariant) {
     save: () => {
       setSaved(settings);
       setRaw(null);
-      toast("Saved");
+      toast.message("Saved");
     },
   };
 }

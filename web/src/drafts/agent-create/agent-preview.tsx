@@ -1,5 +1,5 @@
 /** How the agent will read on the Agents page, updated as you type. */
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { Button, CatalogCard, Pill, StatusDot } from "@compozy/ui";
 
@@ -45,7 +45,7 @@ export function AgentPreview({
       <CatalogCard.Actions className="justify-between">
         {stays ? (
           <Pill size="sm">
-            <StatusDot size="sm" tone={state === "failed" ? "danger" : "faint"} />
+            <StatusDot size="sm" tone={state === "failed" ? "destructive" : "faint"} />
             <span className="max-w-40 truncate">
               {stateLabel ??
                 (draft.place === PLACE_LATER ? "Not working yet" : placeLabel(draft.place))}

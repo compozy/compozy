@@ -37,7 +37,7 @@ const POSE: Record<AgentState, typeof idle> = {
 /** The accompanying signal of `_uiux.md`. `unknown` makes no claim and `needs-you` wears its own mark. */
 const DOT: Partial<Record<AgentState, StatusDotTone>> = {
   working: "success",
-  failed: "danger",
+  failed: "destructive",
   paused: "faint",
   idle: "faint",
   starting: "faint",
@@ -121,7 +121,7 @@ function NeedsYouMark({ size }: { size: number }) {
   return (
     <svg
       aria-hidden="true"
-      className="absolute -top-0.5 -right-0.5 text-accent"
+      className="absolute -top-0.5 -right-0.5 text-brand"
       height={px}
       viewBox="0 0 12 12"
       width={px}

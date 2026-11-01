@@ -2,7 +2,7 @@
  * "A lot happened while you were away": the night at a glance, then only what deserves reading.
  * Quiet check-ins stay a texture; whatever needs you stays a full card below.
  */
-import { ChevronRight, CircleAlert, ShieldAlert, Sparkles } from "lucide-react";
+import { ChevronRight, CircleAlert, ShieldAlert, Sparkles } from "@compozy/ui/icons";
 
 import {
   Collapsible,
@@ -34,9 +34,9 @@ const HOURS = ["23:00", "02:00", "05:00", "08:00"];
 
 const BEAT: Record<Beat, string> = {
   quiet: "bg-viz-other",
-  reported: "bg-muted",
-  failed: "bg-danger",
-  "needs-you": "bg-accent",
+  reported: "bg-muted-foreground",
+  failed: "bg-destructive",
+  "needs-you": "bg-brand",
 };
 
 const KEY: readonly { beat: Beat; label: string; count: number }[] = [
@@ -75,7 +75,10 @@ function Legend() {
   return (
     <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
       {KEY.map(item => (
-        <li className="flex items-center gap-1.5 text-small-body text-muted" key={item.beat}>
+        <li
+          className="flex items-center gap-1.5 text-small-body text-muted-foreground"
+          key={item.beat}
+        >
           <span aria-hidden="true" className={cn("size-2 rounded-xs", BEAT[item.beat])} />
           {item.label}
           <span className="font-medium text-fg tabular-nums">{item.count}</span>
@@ -88,7 +91,7 @@ function Legend() {
 const EVENTS = [
   {
     icon: CircleAlert,
-    tone: "danger" as const,
+    tone: "destructive" as const,
     title: "A check ran out of time, twice",
     description: "Both stopped after 10 minutes. The next one finished fine.",
     time: "01:30",
@@ -121,7 +124,7 @@ export function AwayDigest() {
             <h3 className="text-detail-h1 font-medium text-fg-strong">
               Nine quiet hours, one decision for you.
             </h3>
-            <p className="text-body text-muted">
+            <p className="text-body text-muted-foreground">
               Triage Lead checked in 38 times. Most had nothing to report.
             </p>
           </div>
@@ -129,7 +132,7 @@ export function AwayDigest() {
         <NightStrip />
         <Legend />
         <Collapsible>
-          <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-small-body text-muted outline-none hover:text-fg focus-visible:shadow-focus-ring">
+          <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-small-body text-muted-foreground outline-none hover:text-fg focus-visible:shadow-focus-ring">
             <ChevronRight
               aria-hidden="true"
               className="size-3.5 text-faint transition-transform duration-base group-data-[panel-open]:rotate-90 motion-reduce:transition-none"

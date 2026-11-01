@@ -1,5 +1,5 @@
 /** The big avatar: click to change it, or press the dice to get a different face right away. */
-import { Dices } from "lucide-react";
+import { Dices } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

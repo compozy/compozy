@@ -3,7 +3,7 @@
  * face, most urgent first, so anyone who needs you leads the row and shows it on the avatar. Each
  * opens a card on hover or focus, and `+N` opens the whole crew.
  */
-import { Archive, Bot, HeartPulse, Pause, Play } from "lucide-react";
+import { Archive, Bot, HeartPulse, Pause, Play } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

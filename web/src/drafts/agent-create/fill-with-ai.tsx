@@ -1,5 +1,5 @@
 /** Fill with AI: describe the job, pick a model, and it writes the instructions. */
-import { Check, Sparkles, TriangleAlert } from "lucide-react";
+import { Check, Sparkles, TriangleAlert } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -24,9 +24,9 @@ function Message({ applied, model }: { applied: boolean; model: string }) {
     <div className="flex items-start gap-2.5" role="status">
       <Icon
         aria-hidden="true"
-        className={applied ? "mt-0.5 size-4 text-success" : "mt-0.5 size-4 text-danger"}
+        className={applied ? "mt-0.5 size-4 text-success" : "mt-0.5 size-4 text-destructive"}
       />
-      <p className="min-w-0 text-small-body text-muted">
+      <p className="min-w-0 text-small-body text-muted-foreground">
         <span className="block text-fg">
           {applied ? "Instructions added" : `${model} couldn't write them`}
         </span>
@@ -65,7 +65,7 @@ export function FillWithAi({
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-84 flex-col gap-3 p-3.5" sideOffset={8}>
         <PopoverTitle className="flex items-center gap-2 text-small-body font-medium text-fg">
-          <Sparkles aria-hidden="true" className="size-3.5 text-muted" />
+          <Sparkles aria-hidden="true" className="size-3.5 text-muted-foreground" />
           Fill with AI
         </PopoverTitle>
         {applied ? (

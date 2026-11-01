@@ -1,5 +1,5 @@
 /** S5: who the agent is, edited where it's shown. The avatar opens its picker, the words edit in place. */
-import { Dices, Pencil } from "lucide-react";
+import { Dices, Pencil } from "@compozy/ui/icons";
 import { useState, type KeyboardEvent } from "react";
 
 import {
@@ -192,7 +192,7 @@ export function AvatarEditor({
         {avatar}
         <span
           aria-hidden="true"
-          className="absolute bottom-0 left-0 grid size-6 place-items-center rounded-full bg-elevated text-muted opacity-0 shadow-card transition-opacity duration-base group-hover/avatar:opacity-100 group-focus-visible/avatar:opacity-100 motion-reduce:transition-none"
+          className="absolute bottom-0 left-0 grid size-6 place-items-center rounded-full bg-elevated text-muted-foreground opacity-0 shadow-card transition-opacity duration-base group-hover/avatar:opacity-100 group-focus-visible/avatar:opacity-100 motion-reduce:transition-none"
         >
           <Pencil className="size-3" />
         </span>

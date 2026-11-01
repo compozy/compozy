@@ -76,13 +76,15 @@ export function Hero({
           multiline
           placeholder="Add what it does"
           readOnly={readOnly}
-          textClassName="text-body text-muted"
+          textClassName="text-body text-muted-foreground"
           value={agent.description}
         />
-        <p className={`flex items-center gap-2 text-body ${live ? "text-fg" : "text-muted"}`}>
+        <p
+          className={`flex items-center gap-2 text-body ${live ? "text-fg" : "text-muted-foreground"}`}
+        >
           <StatusDot
             size="sm"
-            tone={state === "working" ? "success" : state === "needs-you" ? "accent" : "faint"}
+            tone={state === "working" ? "success" : state === "needs-you" ? "brand" : "faint"}
           />
           {line}
         </p>

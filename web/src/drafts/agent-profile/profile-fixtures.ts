@@ -34,7 +34,7 @@ export interface WorkItem {
   title: string;
   detail: string;
   when: string;
-  tone?: "neutral" | "success" | "warning" | "danger";
+  tone?: "neutral" | "success" | "warning" | "destructive";
 }
 
 export interface DayActivity {
@@ -248,7 +248,7 @@ export const PROFILES = {
         title: "Stopped checking in on compozy",
         detail: "10 check-ins in a row went wrong",
         when: "2 days ago",
-        tone: "danger",
+        tone: "destructive",
       },
       ...WORK.slice(3),
     ],

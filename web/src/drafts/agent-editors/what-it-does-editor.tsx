@@ -1,5 +1,5 @@
 /** S6: what the agent does, in its own words first; tone and hard limits are optional additions. */
-import { Ban, Info, Plus, X } from "lucide-react";
+import { Ban, Info, Plus, X } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -230,7 +230,7 @@ function NeverCard({
         <ul className="flex flex-col divide-y divide-line-soft">
           {items.map(item => (
             <li className="flex min-h-9 items-center gap-2 py-1" key={item}>
-              <Ban aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
+              <Ban aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 text-small-body text-fg">{item}</span>
               <Button
                 aria-label={`Remove ${item}`}
@@ -305,14 +305,14 @@ export function WhatItDoesEditor({
             mine={<p>Adds "Say who's on call when something breaks" and sounds friendly.</p>}
             onKeepMine={() => {
               setConflict(false);
-              toast("Kept your version");
+              toast.message("Kept your version");
             }}
             onUseTheirs={() => {
               const next = { ...SAVED, body: theirs };
               setSaved(next);
               setDraft(next);
               setConflict(false);
-              toast(`Using ${agent.label}'s version`);
+              toast.message(`Using ${agent.label}'s version`);
             }}
             theirs={<p>Adds "{THEIR_LINE}"</p>}
             title={`${agent.label} changed this while you were editing`}
@@ -382,7 +382,7 @@ export function WhatItDoesEditor({
             const next = { ...draft, raw: null };
             setSaved(next);
             setDraft(next);
-            toast("Saved. It takes effect from the next session.");
+            toast.message("Saved. It takes effect from the next session.");
           }}
         />
       </div>

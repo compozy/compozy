@@ -7,7 +7,7 @@ import {
   Radar,
   Workflow,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { Button, Empty, MarkdownEditor, Switch, toast } from "@compozy/ui";
 
@@ -229,7 +229,7 @@ export function CheckInsEditor({
             onKeepMine={editor.keepMine}
             onUseTheirs={() => {
               editor.useTheirs();
-              toast(`Using ${agent.label}'s version`);
+              toast.message(`Using ${agent.label}'s version`);
             }}
             theirs={<p>Every 1 hr, 09:00 to 18:00</p>}
             title={`${agent.label} changed its schedule while you were editing`}

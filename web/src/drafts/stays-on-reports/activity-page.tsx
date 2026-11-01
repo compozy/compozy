@@ -1,5 +1,5 @@
 /** S14: the Dashboard's Activity page, built from the Dashboard's own zones. */
-import { CircleHelp, MoonStar } from "lucide-react";
+import { CircleHelp, MoonStar } from "@compozy/ui/icons";
 import { Fragment, useState } from "react";
 
 import {
@@ -60,7 +60,7 @@ const RESULT: Record<Result, { label: string; tone: PillTone }> = {
 const SERIES = [
   { key: "allowed", fill: "var(--color-viz-bar)", label: "Allowed" },
   { key: "declined", fill: "var(--color-warning)", label: "Declined" },
-  { key: "expired", fill: "var(--color-danger)", label: "No answer" },
+  { key: "expired", fill: "var(--color-destructive)", label: "No answer" },
 ] as const;
 
 function trend(key: Result) {
@@ -116,7 +116,10 @@ function Stats({ filter }: { filter: Filter }) {
 
 function Outcomes() {
   return (
-    <Section label="What happened" right={<span className="text-eyebrow text-muted">By day</span>}>
+    <Section
+      label="What happened"
+      right={<span className="text-eyebrow text-muted-foreground">By day</span>}
+    >
       <Panel bodyClassName="flex flex-col gap-3">
         <DayStackedBars
           ariaLabel="Actions per day by outcome over the last 14 days"
@@ -260,7 +263,10 @@ function Log({ entries }: { entries: readonly ActivityEntry[] }) {
           {[...byDay].map(([day, members]) => (
             <Fragment key={day}>
               <TableRow>
-                <TableCell className="bg-surface-2/40 py-1.5 text-eyebrow text-muted" colSpan={5}>
+                <TableCell
+                  className="bg-surface-2/40 py-1.5 text-eyebrow text-muted-foreground"
+                  colSpan={5}
+                >
                   {day}
                 </TableCell>
               </TableRow>

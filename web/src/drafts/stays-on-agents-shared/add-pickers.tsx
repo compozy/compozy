@@ -2,7 +2,7 @@
  * S16: the two `+` popovers, on `CommandSelect` so 50 projects stay one search away. Each lists only
  * valid choices, and each explains itself when it has none. The create screen shares `PlaceList`.
  */
-import { Clock3, Globe, Plus, TriangleAlert } from "lucide-react";
+import { Clock3, Globe, Plus, TriangleAlert } from "@compozy/ui/icons";
 import type { ReactElement, ReactNode } from "react";
 
 import {
@@ -78,7 +78,7 @@ const ICON_WELL = "grid size-button-icon-xs shrink-0 place-items-center rounded-
 export function GlobalMark() {
   return (
     <span aria-hidden="true" className={ICON_WELL}>
-      <Globe className="size-3.5 text-muted" />
+      <Globe className="size-3.5 text-muted-foreground" />
     </span>
   );
 }
@@ -86,7 +86,7 @@ export function GlobalMark() {
 export function LaterMark() {
   return (
     <span aria-hidden="true" className={ICON_WELL}>
-      <Clock3 className="size-3.5 text-muted" />
+      <Clock3 className="size-3.5 text-muted-foreground" />
     </span>
   );
 }
@@ -217,7 +217,7 @@ function LimitNotice() {
   return (
     <div className="flex flex-col gap-2 px-2.5 py-2">
       <LimitMeter />
-      <p className="text-small-body text-muted">
+      <p className="text-small-body text-muted-foreground">
         <span className="text-fg">
           {ACTIVE_LIMIT} of {ACTIVE_LIMIT} agents are staying on.
         </span>{" "}
@@ -231,7 +231,7 @@ function SignedOutNotice({ provider }: { provider: string }) {
   return (
     <div className="flex items-start gap-2 px-2.5 py-2">
       <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
-      <p className="min-w-0 flex-1 text-small-body text-muted">
+      <p className="min-w-0 flex-1 text-small-body text-muted-foreground">
         <span className="text-fg">{provider} isn't signed in,</span> so this agent can't start yet.
       </p>
       <Button size="xs" type="button" variant="secondary">
@@ -254,7 +254,7 @@ function NothingLeft({
   return (
     <div className="flex flex-col items-start gap-1 px-2.5 py-2">
       <p className="text-small-body font-medium text-fg">{title}</p>
-      <p className="text-small-body text-muted">{children}</p>
+      <p className="text-small-body text-muted-foreground">{children}</p>
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );
