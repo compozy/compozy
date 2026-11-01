@@ -3224,6 +3224,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		applyApprovedAdditiveSchemaChanges(t, baseline)
 		addAgentIdentitySchemas(t, baseline)
 		addInstanceReadSchemas(t, baseline)
+		addProfileRemovalInstanceCounts(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
@@ -5247,6 +5248,36 @@ func addStaysOnAdditiveSchemas(value any) {
 			slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
 		}
 	}
+}
+
+func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
+	t.Helper()
+
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok || properties["palette_pins"] == nil {
+				return
+			}
+			names := []any{"agent_instances", "agent_memory_files"}
+			for _, name := range names {
+				properties[name.(string)] = map[string]any{"type": "integer"}
+			}
+			if required, ok := node["required"].([]any); ok {
+				node["required"] = append(names, required...)
+			}
+		}
+	}
+	walk(baseline)
 }
 
 func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
