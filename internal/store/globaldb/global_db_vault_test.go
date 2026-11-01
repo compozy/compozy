@@ -359,5 +359,4 @@ func TestGlobalDBVaultSecretPrefixFiltering(t *testing.T) {
 			t.Fatalf("owned metadata refs = %v, want %v", got, owned)
 		}
 	})
-
 }

@@ -55,5 +55,4 @@ func TestExtensionSecretRefUsesInstanceQualifiedCollisionSafeNames(t *testing.T)
 			}
 		}
 	})
-
 }
