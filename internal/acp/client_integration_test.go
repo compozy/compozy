@@ -269,3 +269,45 @@ func newIntegrationTerminalDriver(t *testing.T, root string) (*Driver, string) {
 	})
 	return New(WithTerminalManager(manager)), identity.WorkspaceID
 }
+
+// Invariant: a real cold npm install and a canceled install recover before ACP initialize.
+// Owner: ACP launcher boundary; opt-in external integration suite.
+func TestACPIntegrationNPXColdCache(t *testing.T) {
+	t.Run("Should recover an interrupted cold install and initialize the real adapter", func(t *testing.T) {
+		t.Parallel()
+		if os.Getenv("COMPOZY_TEST_NPX_COLD") != "1" {
+			t.Skip("set COMPOZY_TEST_NPX_COLD=1 to allow an isolated npm registry install")
+		}
+		root := t.TempDir()
+		env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root,
+			"npm_config_cache=" + filepath.Join(root, "npm-cache"), "npm_config_update_notifier=false"}
+		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+		spec, err := launcher.PrepareLaunch(t.Context(), LaunchSpec{
+			Command: "npx -y @agentclientprotocol/codex-acp@latest", Cwd: root, Env: env,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		err = launcher.prepareNPX(ctx, spec)
+		cancel()
+		if err == nil {
+			t.Fatal("cold install unexpectedly completed before interruption")
+		}
+		driver := New(WithStopTimeout(time.Second))
+		started := time.Now()
+		proc, err := driver.launchAgentProcess(t.Context(), StartOpts{
+			AgentName: "cold-cache", Command: spec.Command, Cwd: root, Env: env,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stopProcess(t, driver, proc)
+		t.Logf("recovered adapter launch after interrupted install in %s", time.Since(started))
+		started = time.Now()
+		if err := driver.initializeConnection(t.Context(), proc, "cold-cache"); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("real ACP initialize completed in %s", time.Since(started))
+	})
+}

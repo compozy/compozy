@@ -1,0 +1,173 @@
+package acp
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"path/filepath"
+	"strings"
+	"time"
+
+	contract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/subprocess"
+)
+
+const defaultNPXPrepareTimeout = 5 * time.Minute
+
+// npm owns cache repair; serialize preparation so session starts do not race installs.
+var npxPrepareSlot = make(chan struct{}, 1)
+
+func isNPX(command string) bool {
+	base := strings.ToLower(filepath.Base(command))
+	return base == "npx" || base == "npx.cmd" || base == "npx.exe"
+}
+
+// A no-op call resolves packages without starting the adapter or its ACP deadline.
+func npxPrepareArgs(args []string) []string {
+	var flags []string
+	hasPackage := false
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			if !hasPackage && i+1 < len(args) {
+				flags = append(flags, "--package="+args[i+1])
+			}
+			break
+		}
+		if !strings.HasPrefix(arg, "-") {
+			if !hasPackage {
+				flags = append(flags, "--package="+arg)
+			}
+			break
+		}
+		if arg == "-c" || arg == "--call" || strings.HasPrefix(arg, "--call=") {
+			if !hasPackage {
+				return nil
+			}
+			break
+		}
+		flags = append(flags, arg)
+		name, _, hasValue := strings.Cut(arg, "=")
+		if name == "-p" || name == "--package" {
+			hasPackage = true
+		}
+		if !hasValue {
+			switch name {
+			case "-y",
+				"--yes",
+				"--no",
+				"--no-install",
+				"--quiet",
+				"-q",
+				"--offline",
+				"--prefer-offline",
+				"--prefer-online":
+			case "-p",
+				"--package",
+				"--cache",
+				"--registry",
+				"--userconfig",
+				"--prefix",
+				"--script-shell",
+				"--loglevel",
+				"-w",
+				"--workspace":
+				i++
+				if i >= len(args) {
+					return nil
+				}
+				flags = append(flags, args[i])
+			default:
+				return nil
+			}
+		}
+	}
+	if len(flags) == 0 {
+		return nil
+	}
+	return append(flags, "--call", "exit 0")
+}
+
+// NPXStartupDiagnostic recovers preparation guidance from the persisted failure boundary.
+func NPXStartupDiagnostic(summary string) (contract.DiagnosticItem, bool) {
+	for _, stage := range []string{"prepare", "initialize"} {
+		if strings.Contains(summary, "ACP adapter "+stage+" failed: npx ") {
+			item, ok := diagnostics.ItemFromError(npxDiagnostic(stage, nil))
+			item.DataFreshness = contract.FreshnessStale
+			return item, ok
+		}
+	}
+	return contract.DiagnosticItem{}, false
+}
+
+func (l *localLauncher) prepareNPX(ctx context.Context, spec LaunchSpec) error {
+	if !isNPX(spec.ResolvedExecutable) {
+		return nil
+	}
+	args := npxPrepareArgs(spec.Args)
+	if args == nil {
+		return nil
+	}
+	prepareCtx, cancel := context.WithTimeout(ctx, defaultNPXPrepareTimeout)
+	defer cancel()
+	select {
+	case npxPrepareSlot <- struct{}{}:
+		defer func() { <-npxPrepareSlot }()
+	case <-prepareCtx.Done():
+		return npxDiagnostic("prepare", prepareCtx.Err())
+	}
+	started := time.Now()
+	err := l.runNPXPreparation(prepareCtx, spec, args)
+	l.logger.Info("acp.start.stage", "stage", "adapter_prepare", "outcome", stageOutcome(err, false),
+		"duration_ms", time.Since(started).Milliseconds())
+	if err != nil {
+		return npxDiagnostic("prepare", err)
+	}
+	return nil
+}
+
+func (l *localLauncher) runNPXPreparation(ctx context.Context, spec LaunchSpec, args []string) error {
+	process, err := subprocess.Launch(ctx, subprocess.LaunchConfig{
+		Command: spec.ResolvedExecutable, Executable: spec.ResolvedExecutable,
+		Args: args, Dir: spec.Cwd, Env: spec.Env, Logger: l.logger,
+		DisableTransport: true, ShutdownTimeout: l.stopTimeout, Niceness: l.niceness,
+	})
+	if err != nil {
+		return err
+	}
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		if _, copyErr := io.Copy(io.Discard, process.Stdout()); copyErr != nil {
+			l.logger.Debug("acp: preparation output closed")
+		}
+	}()
+	defer func() { <-drained }()
+	select {
+	case <-process.Done():
+		return process.Wait()
+	case <-ctx.Done():
+		stopCtx, cancel := context.WithTimeout(context.Background(), l.stopTimeout)
+		defer cancel()
+		return errors.Join(ctx.Err(), process.Shutdown(stopCtx))
+	}
+}
+
+func npxDiagnostic(stage string, cause error) error {
+	message := "npx adapter package preparation failed. Check npm registry connectivity and permissions, " +
+		"then retry the session; npm repairs abandoned install locks automatically. Do not clear the npm cache."
+	if stage == "initialize" {
+		message = "npx launched but ACP initialize timed out. Retry the session; if it persists, " +
+			"run the configured adapter command locally to finish or diagnose npm installation, " +
+			"then retry without restarting the daemon."
+	}
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID: "provider.adapter." + stage, Code: contract.CodeProviderTransientFailure,
+		Category: contract.CategoryProvider, Severity: contract.SeverityWarn,
+		Title: "ACP adapter " + stage + " failed", Message: message,
+		DataFreshness: contract.FreshnessLive,
+	}, diagnostics.WithEvidence(map[string]any{"stage": stage, "runner": "npx"}))
+	return diagnostics.NewStructuredError(item, fmt.Errorf("acp: npx %s: %w", stage, cause))
+}

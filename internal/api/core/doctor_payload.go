@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/doctor"
 	"github.com/compozy/compozy/internal/store"
@@ -32,7 +33,8 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 			if err != nil {
 				return nil, err
 			}
-			return providerDiagnosticItems(providers), nil
+			adapters, err := h.adapterStartupDiagnostics(ctx)
+			return append(providerDiagnosticItems(providers), adapters...), err
 		},
 	}); err != nil {
 		return contract.DoctorPayload{}, err
@@ -87,6 +89,27 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 		Summary:       doctorSummary(items),
 		Items:         items,
 	}, nil
+}
+
+func (h *BaseHandlers) adapterStartupDiagnostics(ctx context.Context) ([]contract.DiagnosticItem, error) {
+	if h.Sessions == nil {
+		return nil, nil
+	}
+	infos, err := h.Sessions.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var items []contract.DiagnosticItem
+	for _, info := range infos {
+		if info == nil || info.Failure == nil {
+			continue
+		}
+		if item, ok := acp.NPXStartupDiagnostic(info.Failure.Summary); ok {
+			item.ID = "doctor.session." + info.ID + ".adapter"
+			items = append(items, item)
+		}
+	}
+	return items, nil
 }
 
 func (h *BaseHandlers) registerSessionMetadataDoctorProbe(registry *doctor.Registry) error {

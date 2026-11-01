@@ -1,9 +1,13 @@
 package core_test
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -65,5 +69,44 @@ func TestDoctorProviderFilterIncludesProviderDiagnostics(t *testing.T) {
 			}
 		}
 		t.Fatalf("Doctor items = %#v, want provider public no-auth diagnostic", payload.Items)
+	})
+}
+
+// Invariant: doctor includes unresolved adapter startup failures even when auth is ready.
+func TestDoctorNPXStartupFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should show cached adapter recovery guidance", func(t *testing.T) {
+		t.Parallel()
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			Config: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}), Observer: apitestutil.StubObserver{},
+			Sessions: apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{{ID: "failed-start", Failure: &store.SessionFailure{
+					Kind:    store.FailureHandshake,
+					Summary: "ACP adapter initialize failed: npx launched but ACP initialize timed out.",
+				}}}, nil
+			}},
+		})
+		router := gin.New()
+		router.GET("/doctor", handlers.GetDoctor)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+			"/doctor?only=provider", http.NoBody))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+		}
+		var payload contract.DoctorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range payload.Items {
+			if item.ID == "doctor.session.failed-start.adapter" {
+				if item.Code != contract.CodeProviderTransientFailure ||
+					item.DataFreshness != contract.FreshnessStale || !strings.Contains(item.Message, "retry") {
+					t.Fatalf("diagnostic = %#v", item)
+				}
+				return
+			}
+		}
+		t.Fatalf("missing adapter diagnostic: %#v", payload.Items)
 	})
 }

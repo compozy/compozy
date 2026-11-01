@@ -61,6 +61,9 @@ func (l *localLauncher) Launch(
 	if err != nil {
 		return nil, err
 	}
+	if err := l.prepareNPX(ctx, prepared); err != nil {
+		return nil, err
+	}
 
 	managed, err := subprocess.Launch(ctx, subprocess.LaunchConfig{
 		Command:          prepared.ResolvedExecutable,

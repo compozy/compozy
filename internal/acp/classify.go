@@ -24,6 +24,12 @@ func ClassifyProbeError(providerName string, err error) authproviders.Classifica
 	if errors.Is(err, exec.ErrNotFound) {
 		return authproviders.ClassifyError(err)
 	}
+	if item, ok := diagnostics.ItemFromError(err); ok && strings.HasPrefix(item.ID, "provider.adapter.") {
+		return authproviders.Classification{
+			State: authproviders.ProviderAuthStateTransient, Code: item.Code, Message: item.Message,
+			Kind: authproviders.ProviderFailureUnknown, Action: authproviders.ProviderFailureActionRetry,
+		}
+	}
 	if IsAuthRequiredError(err) {
 		return authproviders.Classification{
 			State: authproviders.ProviderAuthStateNeedsLogin,

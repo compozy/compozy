@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"strings"
@@ -115,4 +116,31 @@ func TestClassifyProbeError(t *testing.T) {
 			t.Fatalf("Message = %q, want redacted failure", got.Message)
 		}
 	})
+}
+
+// Invariant: startup diagnostics retain recovery guidance through probes and persisted failures.
+func TestNPXStartupDiagnostic(t *testing.T) {
+	t.Parallel()
+	for _, stage := range []string{"prepare", "initialize"} {
+		t.Run("Should preserve "+stage+" guidance", func(t *testing.T) {
+			t.Parallel()
+			err := npxDiagnostic(stage, context.DeadlineExceeded)
+			classification := ClassifyProbeError("custom", err)
+			if classification.Code != diagcontract.CodeProviderTransientFailure ||
+				classification.State != authproviders.ProviderAuthStateTransient {
+				t.Fatalf("classification = %#v", classification)
+			}
+			failure, ok := FailureFromError(err, store.FailureHandshake)
+			if !ok {
+				t.Fatal("missing failure")
+			}
+			item, ok := NPXStartupDiagnostic(failure.Summary)
+			if !ok || !strings.Contains(item.Message, "retry") {
+				t.Fatalf("diagnostic = %#v, %t from %q", item, ok, failure.Summary)
+			}
+			if err := diagcontract.ValidateDiagnosticItem(item); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
