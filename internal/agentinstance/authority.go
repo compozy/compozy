@@ -60,7 +60,7 @@ func (a Authority) Authorize(
 	case "list", "reports", "occurrence", "pause", "archive", "ensure_main", "check", "check_dry_run", "checks_off":
 		return nil
 	case "resume":
-		if instance.PauseReason != "manual" && instance.PauseReason != "fatigue" {
+		if instance.PauseReason != pauseReasonManual && instance.PauseReason != "fatigue" {
 			return nil
 		}
 	}
@@ -86,3 +86,5 @@ func intersectAtoms(a, b []string) []string {
 	}
 	return result
 }
+
+const pauseReasonManual = "manual"

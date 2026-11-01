@@ -646,9 +646,15 @@ func TestRequestOperatorOriginAppTokens(t *testing.T) {
 		t.Parallel()
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", nil)
-		c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{Session: gateway.DeviceSession{ID: "app-origin"}}))
+		c.Request = c.Request.WithContext(
+			ContextWithAppToken(
+				c.Request.Context(),
+				gateway.AppToken{Session: gateway.DeviceSession{ID: "app-origin"}},
+			),
+		)
 		origin := requestOperatorOrigin(c)
-		if origin.ID != "app-origin" || origin.Kind != workspaceaccess.ActorApp || origin.Effective(workspaceaccess.Unrestricted) != "" {
+		if origin.ID != "app-origin" || origin.Kind != workspaceaccess.ActorApp ||
+			origin.Effective(workspaceaccess.Unrestricted) != "" {
 			t.Fatalf(
 				"app token origin = %#v, effective = %q, want no grant",
 				origin,

@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 
@@ -29,7 +30,14 @@ func (r *InstanceRepo) InstanceCaller(ctx context.Context, sessionID string) (ag
 	if !ok {
 		return agentinstance.Caller{}, errors.New("store: invalid instance depth")
 	}
-	result := agentinstance.Caller{SessionID: row.ID, AgentName: row.AgentName, ProfileID: row.ProfileID, InstanceID: instanceID, InstanceDepth: int(depth), Grant: row.EffectiveWorkspaceAccess}
+	result := agentinstance.Caller{
+		SessionID:     row.ID,
+		AgentName:     row.AgentName,
+		ProfileID:     row.ProfileID,
+		InstanceID:    instanceID,
+		InstanceDepth: int(depth),
+		Grant:         row.EffectiveWorkspaceAccess,
+	}
 	if err := json.Unmarshal([]byte(row.PermissionPolicyJson), &result.PermissionPolicy); err != nil {
 		return agentinstance.Caller{}, err
 	}

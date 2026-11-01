@@ -24,7 +24,14 @@ var _ agentReadModelsClient = (*daemonClient)(nil)
 
 func (c *daemonClient) AgentActivity(ctx context.Context, name string, days int) (agentinstance.Activity, error) {
 	var result agentinstance.Activity
-	err := c.doJSON(ctx, http.MethodGet, "/api/agents/"+url.PathEscape(name)+"/activity", url.Values{"days": {strconv.Itoa(days)}}, nil, &result)
+	err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/agents/"+url.PathEscape(name)+"/activity",
+		url.Values{"days": {strconv.Itoa(days)}},
+		nil,
+		&result,
+	)
 	return result, err
 }
 func (c *daemonClient) InstanceAway(ctx context.Context, id string) (contract.AgentInstanceAwayResponse, error) {
@@ -37,7 +44,12 @@ func (c *daemonClient) InstanceSeen(ctx context.Context, id string) (contract.Ag
 	err := c.doJSON(ctx, http.MethodPost, "/api/agent-instances/"+url.PathEscape(id)+"/away", nil, nil, &result)
 	return result, err
 }
-func (c *daemonClient) InstanceCheckIns(ctx context.Context, id string, query url.Values) (contract.AgentInstanceCheckInsResponse, error) {
+
+func (c *daemonClient) InstanceCheckIns(
+	ctx context.Context,
+	id string,
+	query url.Values,
+) (contract.AgentInstanceCheckInsResponse, error) {
 	var result contract.AgentInstanceCheckInsResponse
 	err := c.doJSON(ctx, http.MethodGet, "/api/agent-instances/"+url.PathEscape(id)+"/check-ins", query, nil, &result)
 	return result, err
@@ -63,7 +75,11 @@ func newAgentActivityCommand(deps commandDeps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return writeInstanceOutput(cmd, result, fmt.Sprintf("Projects: %d\nReport days: %d\n", len(result.CostByProject), len(result.ReportsByDay)))
+		return writeInstanceOutput(
+			cmd,
+			result,
+			fmt.Sprintf("Projects: %d\nReport days: %d\n", len(result.CostByProject), len(result.ReportsByDay)),
+		)
 	}
 	return cmd
 }
@@ -74,13 +90,17 @@ func writeInstanceRead(cmd *cobra.Command, base any, action, id string, query ur
 		return errors.New("cli: instance reads unavailable")
 	}
 	switch action {
-	case "away":
+	case agentInstanceAwayAction:
 		result, err := client.InstanceAway(cmd.Context(), id)
 		if err != nil {
 			return err
 		}
-		return writeInstanceOutput(cmd, result, fmt.Sprintf("Quiet check-ins: %d\nReports: %d\n", result.QuietCheckIns, len(result.Reports)))
-	case "mark-seen":
+		return writeInstanceOutput(
+			cmd,
+			result,
+			fmt.Sprintf("Quiet check-ins: %d\nReports: %d\n", result.QuietCheckIns, len(result.Reports)),
+		)
+	case agentInstanceMarkSeenAction:
 		result, err := client.InstanceSeen(cmd.Context(), id)
 		if err != nil {
 			return err
@@ -91,6 +111,10 @@ func writeInstanceRead(cmd *cobra.Command, base any, action, id string, query ur
 		if err != nil {
 			return err
 		}
-		return writeInstanceOutput(cmd, result, fmt.Sprintf("Check-ins: %d\nNext cursor: %s\n", len(result.CheckIns), result.NextCursor))
+		return writeInstanceOutput(
+			cmd,
+			result,
+			fmt.Sprintf("Check-ins: %d\nNext cursor: %s\n", len(result.CheckIns), result.NextCursor),
+		)
 	}
 }

@@ -182,13 +182,29 @@ func TestObserveActivityCommand(t *testing.T) {
 	t.Parallel()
 	t.Run("Should forward filters and preserve daily totals", func(t *testing.T) {
 		t.Parallel()
-		client := &stubClient{permissionRollupFn: func(_ context.Context, q PermissionRollupQuery) (contract.PermissionRollupResponse, error) {
-			if q.Days != 7 || q.Agent != "coder" || !q.Unattended {
-				t.Fatalf("query = %#v", q)
-			}
-			return contract.PermissionRollupResponse{Rollups: []contract.PermissionDailyRollupPayload{{Day: "2026-01-01", AgentName: "coder", Decision: "deny", Count: 3}}}, nil
-		}}
-		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "observe", "activity", "--days=7", "--agent=coder", "--unattended", "-o", "json")
+		client := &stubClient{
+			permissionRollupFn: func(_ context.Context, q PermissionRollupQuery) (contract.PermissionRollupResponse, error) {
+				if q.Days != 7 || q.Agent != "coder" || !q.Unattended {
+					t.Fatalf("query = %#v", q)
+				}
+				return contract.PermissionRollupResponse{
+					Rollups: []contract.PermissionDailyRollupPayload{
+						{Day: "2026-01-01", AgentName: "coder", Decision: "deny", Count: 3},
+					},
+				}, nil
+			},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"observe",
+			"activity",
+			"--days=7",
+			"--agent=coder",
+			"--unattended",
+			"-o",
+			"json",
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -203,10 +219,12 @@ func TestObserveActivityCommand(t *testing.T) {
 	for _, days := range []string{"0", "91", "-1"} {
 		t.Run("Should reject invalid days "+days, func(t *testing.T) {
 			t.Parallel()
-			client := &stubClient{permissionRollupFn: func(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error) {
-				t.Fatal("invalid request reached daemon")
-				return contract.PermissionRollupResponse{}, nil
-			}}
+			client := &stubClient{
+				permissionRollupFn: func(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error) {
+					t.Fatal("invalid request reached daemon")
+					return contract.PermissionRollupResponse{}, nil
+				},
+			}
 			_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "observe", "activity", "--days="+days)
 			if err == nil || !strings.Contains(err.Error(), "--days") {
 				t.Fatalf("error = %v", err)

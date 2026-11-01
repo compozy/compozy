@@ -27,14 +27,22 @@ type instanceMonitorRetirer interface {
 	RetireSession(string, func() error) error
 }
 
-func (r *instanceMainRotator) Rotate(ctx context.Context, instance agentinstance.Instance, decision agentinstance.RotationDecision) error {
+func (r *instanceMainRotator) Rotate(
+	ctx context.Context,
+	instance agentinstance.Instance,
+	decision agentinstance.RotationDecision,
+) error {
 	publisher, ok := r.store.(instanceRotationPublisher)
 	guard, guardOK := r.sessions.(instanceRotationGuard)
 	monitors, monitorOK := r.monitors.(instanceMonitorRetirer)
 	if !ok || !guardOK || !monitorOK {
 		return errors.New("instance rotation publication unavailable")
 	}
-	events, err := r.sessions.Events(ctx, instance.MainSessionID, store.EventQuery{Limit: 200, Types: []string{acp.EventTypeUserMessage, acp.EventTypeAgentMessage}})
+	events, err := r.sessions.Events(
+		ctx,
+		instance.MainSessionID,
+		store.EventQuery{Limit: 200, Types: []string{acp.EventTypeUserMessage, acp.EventTypeAgentMessage}},
+	)
 	if err != nil {
 		return err
 	}
@@ -62,7 +70,11 @@ func (r *instanceMainRotator) Rotate(ctx context.Context, instance agentinstance
 	request := decision.Publication
 	request.SuccessorID = candidate
 	err = monitors.RetireSession(instance.MainSessionID, func() error {
-		return guard.PublishInstanceRotation(ctx, instance.MainSessionID, func() error { return publisher.PublishRotation(ctx, request) })
+		return guard.PublishInstanceRotation(
+			ctx,
+			instance.MainSessionID,
+			func() error { return publisher.PublishRotation(ctx, request) },
+		)
 	})
 	if err != nil {
 		return r.rotationFailed(ctx, instance, candidate, "publication_failed", err)
@@ -74,7 +86,12 @@ func (r *instanceMainRotator) Rotate(ctx context.Context, instance agentinstance
 	return r.Cleanup(ctx, instance)
 }
 
-func (r *instanceMainRotator) rotationFailed(ctx context.Context, instance agentinstance.Instance, candidate, reason string, cause error) error {
+func (r *instanceMainRotator) rotationFailed(
+	ctx context.Context,
+	instance agentinstance.Instance,
+	candidate, reason string,
+	cause error,
+) error {
 	r.deferRotationRetry(instance.MainSessionID)
 	cleanupCtx := context.WithoutCancel(ctx)
 	if candidate != "" {
@@ -84,6 +101,14 @@ func (r *instanceMainRotator) rotationFailed(ctx context.Context, instance agent
 	if err != nil {
 		return errors.Join(cause, err)
 	}
-	_, err = r.reports.AppendReport(cleanupCtx, instance.ID, agentinstance.ReportInput{SourceKey: "rotation:failed:" + instance.MainSessionID, Kind: "rotation_failed", Payload: payload})
+	_, err = r.reports.AppendReport(
+		cleanupCtx,
+		instance.ID,
+		agentinstance.ReportInput{
+			SourceKey: "rotation:failed:" + instance.MainSessionID,
+			Kind:      "rotation_failed",
+			Payload:   payload,
+		},
+	)
 	return errors.Join(cause, err)
 }

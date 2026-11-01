@@ -29,22 +29,41 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 		resolved.AdditionalDirs = []string{additional}
 		resolved.Skills = []workspacepkg.SkillPath{{Name: "review"}, {Dir: "/skills/directory"}, {Name: "disabled"}}
 		h.resolver.upsert(&resolved)
-		addHarnessAgent(t, h, compozyconfig.AgentDef{Name: "bounded-coder", Provider: "claude", Prompt: "Review work.", Skills: compozyconfig.AgentSkillsConfig{Disabled: []string{"disabled"}}, MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "test-mcp"}}})
+		addHarnessAgent(
+			t,
+			h,
+			compozyconfig.AgentDef{
+				Name:       "bounded-coder",
+				Provider:   "claude",
+				Prompt:     "Review work.",
+				Skills:     compozyconfig.AgentSkillsConfig{Disabled: []string{"disabled"}},
+				MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "test-mcp"}},
+			},
+		)
 		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "bounded-coder", Workspace: h.workspaceID})
 		if err != nil {
 			t.Fatal(err)
 		}
 		policy := readMeta(t, created.MetaPath()).Lineage.PermissionPolicy
-		want := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{Tools: policy.Tools, Skills: []string{"review", "directory"}, MCPServers: []string{"docs"}, WorkspacePaths: []string{h.workspace, additional}})
+		want := store.NormalizeSessionPermissionPolicy(
+			store.SessionPermissionPolicy{
+				Tools:          policy.Tools,
+				Skills:         []string{"review", "directory"},
+				MCPServers:     []string{"docs"},
+				WorkspacePaths: []string{h.workspace, additional},
+			},
+		)
 		if !reflect.DeepEqual(policy, want) {
 			t.Fatalf("persisted policy = %+v, want %+v", policy, want)
 		}
 		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
 			t.Fatal(err)
 		}
-		h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
-			return &policy, "", nil
-		})
+		h.manager.SetInstanceCeilingReader(
+			func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
+				return &policy, "", nil
+			},
+		)
 		resumed, err := h.manager.Resume(t.Context(), created.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -262,11 +281,17 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 				if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
 					t.Fatalf("lineage tools = %#v, want concrete delegation policy %#v", got, wantTools)
 				}
-				if got := info.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(got, []string{h.workspace}) {
+				if got := info.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(
+					got,
+					[]string{h.workspace},
+				) {
 					t.Fatalf("root workspace paths = %v, want %s", got, h.workspace)
 				}
 				meta := readMeta(t, sess.MetaPath())
-				if got := meta.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(got, []string{h.workspace}) {
+				if got := meta.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(
+					got,
+					[]string{h.workspace},
+				) {
 					t.Fatalf("persisted root workspace paths = %v, want %s", got, h.workspace)
 				}
 				if got := meta.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {

@@ -20,7 +20,11 @@ func (g *GlobalDB) InstanceReports() *InstanceReportRepo {
 	return &InstanceReportRepo{repoBase: newRepoBase(g.db, g.now, &g.closed)}
 }
 
-func (r *InstanceReportRepo) AppendReport(ctx context.Context, instanceID string, input agentinstance.ReportInput) (agentinstance.Report, error) {
+func (r *InstanceReportRepo) AppendReport(
+	ctx context.Context,
+	instanceID string,
+	input agentinstance.ReportInput,
+) (agentinstance.Report, error) {
 	if err := r.checkReady(ctx, "append instance report"); err != nil {
 		return agentinstance.Report{}, err
 	}
@@ -31,18 +35,35 @@ func (r *InstanceReportRepo) AppendReport(ctx context.Context, instanceID string
 	if err != nil {
 		return agentinstance.Report{}, err
 	}
-	err = r.queries.InsertAgentInstanceReport(ctx, sqlcgen.InsertAgentInstanceReportParams{ID: id, InstanceID: instanceID, SourceKey: input.SourceKey, Kind: input.Kind, Payload: string(input.Payload), Fingerprint: input.Fingerprint, CreatedAt: store.FormatTimestamp(r.now())})
+	err = r.queries.InsertAgentInstanceReport(
+		ctx,
+		sqlcgen.InsertAgentInstanceReportParams{
+			ID:          id,
+			InstanceID:  instanceID,
+			SourceKey:   input.SourceKey,
+			Kind:        input.Kind,
+			Payload:     string(input.Payload),
+			Fingerprint: input.Fingerprint,
+			CreatedAt:   store.FormatTimestamp(r.now()),
+		},
+	)
 	if err != nil {
 		return agentinstance.Report{}, fmt.Errorf("append instance report: %w", err)
 	}
-	row, err := r.queries.GetAgentInstanceReportBySource(ctx, sqlcgen.GetAgentInstanceReportBySourceParams{SourceKey: input.SourceKey, InstanceID: instanceID})
+	row, err := r.queries.GetAgentInstanceReportBySource(
+		ctx,
+		sqlcgen.GetAgentInstanceReportBySourceParams{SourceKey: input.SourceKey, InstanceID: instanceID},
+	)
 	if err != nil {
 		return agentinstance.Report{}, fmt.Errorf("read appended instance report: %w", err)
 	}
 	return instanceReport(row)
 }
 
-func (r *InstanceReportRepo) ListReports(ctx context.Context, q agentinstance.ReportQuery) ([]agentinstance.Report, error) {
+func (r *InstanceReportRepo) ListReports(
+	ctx context.Context,
+	q agentinstance.ReportQuery,
+) ([]agentinstance.Report, error) {
 	if err := r.checkReady(ctx, "list instance reports"); err != nil {
 		return nil, err
 	}
@@ -53,7 +74,16 @@ func (r *InstanceReportRepo) ListReports(ctx context.Context, q agentinstance.Re
 	if !q.AfterCreatedAt.IsZero() {
 		after = store.FormatTimestamp(q.AfterCreatedAt)
 	}
-	rows, err := r.queries.ListAgentInstanceReports(ctx, sqlcgen.ListAgentInstanceReportsParams{InstanceID: q.InstanceID, ReportState: q.State, AfterCreatedAt: after, AfterID: q.AfterID, PageLimit: int64(q.Limit)})
+	rows, err := r.queries.ListAgentInstanceReports(
+		ctx,
+		sqlcgen.ListAgentInstanceReportsParams{
+			InstanceID:     q.InstanceID,
+			ReportState:    q.State,
+			AfterCreatedAt: after,
+			AfterID:        q.AfterID,
+			PageLimit:      int64(q.Limit),
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -92,24 +122,49 @@ func instanceReports(rows []sqlcgen.AgentInstanceReport) ([]agentinstance.Report
 	return result, nil
 }
 
-func (r *InstanceReportRepo) UnpublishedReports(ctx context.Context, after string, limit int) ([]agentinstance.ReportPublication, error) {
+func (r *InstanceReportRepo) UnpublishedReports(
+	ctx context.Context,
+	after string,
+	limit int,
+) ([]agentinstance.ReportPublication, error) {
 	if err := r.checkReady(ctx, "list unpublished instance reports"); err != nil {
 		return nil, err
 	}
 	if limit < 1 {
 		return nil, errors.New("publication limit must be positive")
 	}
-	rows, err := r.queries.ListUnpublishedAgentInstanceReports(ctx, sqlcgen.ListUnpublishedAgentInstanceReportsParams{AfterID: after, PageLimit: int64(limit)})
+	rows, err := r.queries.ListUnpublishedAgentInstanceReports(
+		ctx,
+		sqlcgen.ListUnpublishedAgentInstanceReportsParams{AfterID: after, PageLimit: int64(limit)},
+	)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]agentinstance.ReportPublication, 0, len(rows))
 	for _, row := range rows {
-		report, err := instanceReport(sqlcgen.AgentInstanceReport{ID: row.ID, InstanceID: row.InstanceID, SourceKey: row.SourceKey, Kind: row.Kind, Payload: row.Payload, Fingerprint: row.Fingerprint, State: row.State, PromptAdmissionID: row.PromptAdmissionID, EventSessionID: row.EventSessionID, EventSeq: row.EventSeq, CreatedAt: row.CreatedAt, DeliveredAt: row.DeliveredAt})
+		report, err := instanceReport(
+			sqlcgen.AgentInstanceReport{
+				ID:                row.ID,
+				InstanceID:        row.InstanceID,
+				SourceKey:         row.SourceKey,
+				Kind:              row.Kind,
+				Payload:           row.Payload,
+				Fingerprint:       row.Fingerprint,
+				State:             row.State,
+				PromptAdmissionID: row.PromptAdmissionID,
+				EventSessionID:    row.EventSessionID,
+				EventSeq:          row.EventSeq,
+				CreatedAt:         row.CreatedAt,
+				DeliveredAt:       row.DeliveredAt,
+			},
+		)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, agentinstance.ReportPublication{Report: report, MainSessionID: row.MainSessionID.String})
+		result = append(
+			result,
+			agentinstance.ReportPublication{Report: report, MainSessionID: row.MainSessionID.String},
+		)
 	}
 	return result, nil
 }
@@ -121,7 +176,10 @@ func (r *InstanceReportRepo) MarkReportPublished(ctx context.Context, id, sessio
 	if sessionID == "" || seq <= 0 {
 		return errors.New("report publication requires session and positive event sequence")
 	}
-	return r.queries.MarkAgentInstanceReportPublished(ctx, sqlcgen.MarkAgentInstanceReportPublishedParams{ID: id, SessionID: sessionID, EventSeq: seq})
+	return r.queries.MarkAgentInstanceReportPublished(
+		ctx,
+		sqlcgen.MarkAgentInstanceReportPublishedParams{ID: id, SessionID: sessionID, EventSeq: seq},
+	)
 }
 
 func instanceReport(row sqlcgen.AgentInstanceReport) (agentinstance.Report, error) {
@@ -137,10 +195,30 @@ func instanceReport(row sqlcgen.AgentInstanceReport) (agentinstance.Report, erro
 		}
 		delivered = &value
 	}
-	return agentinstance.Report{ID: row.ID, InstanceID: row.InstanceID, ReportInput: agentinstance.ReportInput{SourceKey: row.SourceKey, Kind: row.Kind, Payload: []byte(row.Payload), Fingerprint: row.Fingerprint}, State: row.State, PromptAdmissionID: row.PromptAdmissionID, EventSessionID: row.EventSessionID, EventSeq: row.EventSeq, CreatedAt: created, DeliveredAt: delivered}, nil
+	return agentinstance.Report{
+		ID:         row.ID,
+		InstanceID: row.InstanceID,
+		ReportInput: agentinstance.ReportInput{
+			SourceKey:   row.SourceKey,
+			Kind:        row.Kind,
+			Payload:     []byte(row.Payload),
+			Fingerprint: row.Fingerprint,
+		},
+		State:             row.State,
+		PromptAdmissionID: row.PromptAdmissionID,
+		EventSessionID:    row.EventSessionID,
+		EventSeq:          row.EventSeq,
+		CreatedAt:         created,
+		DeliveredAt:       delivered,
+	}, nil
 }
 
-func (r *InstanceReportRepo) SweepTerminalReports(ctx context.Context, now time.Time, retention time.Duration, limit int) (int64, error) {
+func (r *InstanceReportRepo) SweepTerminalReports(
+	ctx context.Context,
+	now time.Time,
+	retention time.Duration,
+	limit int,
+) (int64, error) {
 	if err := r.checkReady(ctx, "sweep terminal instance reports"); err != nil {
 		return 0, err
 	}
@@ -148,7 +226,13 @@ func (r *InstanceReportRepo) SweepTerminalReports(ctx context.Context, now time.
 		return 0, errors.New("report retention requires time and positive batch limit")
 	}
 	retention = max(retention, 48*time.Hour)
-	return r.queries.SweepTerminalInstanceReports(ctx, sqlcgen.SweepTerminalInstanceReportsParams{Cutoff: sql.NullString{String: store.FormatTimestamp(now.Add(-retention)), Valid: true}, BatchLimit: int64(limit)})
+	return r.queries.SweepTerminalInstanceReports(
+		ctx,
+		sqlcgen.SweepTerminalInstanceReportsParams{
+			Cutoff:     sql.NullString{String: store.FormatTimestamp(now.Add(-retention)), Valid: true},
+			BatchLimit: int64(limit),
+		},
+	)
 }
 
 func (r *SessionRepo) ReportContextExhaustion(ctx context.Context, sessionID, turnID string) error {
@@ -174,6 +258,16 @@ func (r *SessionRepo) ReportContextExhaustion(ctx context.Context, sessionID, tu
 		return nil
 	}
 	reports := &InstanceReportRepo{repoBase: r.repoBase}
-	_, err = reports.AppendReport(ctx, id, agentinstance.ReportInput{SourceKey: "turn:" + turnID, Kind: "failure", Payload: []byte(`{"reason":"context_exhausted","detail":"The provider refused the prompt because its context limit was reached."}`)})
+	_, err = reports.AppendReport(
+		ctx,
+		id,
+		agentinstance.ReportInput{
+			SourceKey: "turn:" + turnID,
+			Kind:      "failure",
+			Payload: []byte(
+				`{"reason":"context_exhausted","detail":"The provider refused the prompt because its context limit was reached."}`,
+			),
+		},
+	)
 	return err
 }

@@ -49,16 +49,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if breadth, ok := errors.AsType[*workspaceBreadthError](err); ok {
 		payload.Code = breadth.code
 	}
-	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
-		payload.Code = "workspace_config_invalid"
-		if unknown, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); ok {
-			payload.ConfigPath = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(unknown.Path))
-			payload.UnknownKeys = make([]string, len(unknown.Keys))
-			for i, key := range unknown.Keys {
-				payload.UnknownKeys[i] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(key))
-			}
-		}
-	}
+	enrichWorkspaceConfigError(&payload, err)
 	for _, sentinel := range []error{
 		session.ErrCreateScopeConflict,
 		workspace.ErrWorkspaceNameReserved,
@@ -252,5 +243,18 @@ func sessionMessageRateLimitDetails(err error) map[string]string {
 		"limit":               strconv.Itoa(limit.Limit),
 		"window":              limit.Window.String(),
 		"retry_after_seconds": strconv.FormatInt(int64(limit.RetryAfter.Seconds()), 10),
+	}
+}
+
+func enrichWorkspaceConfigError(payload *contract.ErrorPayload, err error) {
+	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
+		payload.Code = "workspace_config_invalid"
+		if unknown, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); ok {
+			payload.ConfigPath = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(unknown.Path))
+			payload.UnknownKeys = make([]string, len(unknown.Keys))
+			for i, key := range unknown.Keys {
+				payload.UnknownKeys[i] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(key))
+			}
+		}
 	}
 }

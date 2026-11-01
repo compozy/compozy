@@ -7135,7 +7135,9 @@ func TestPermissionInitiatorSnapshot(t *testing.T) {
 		db := openTestGlobalDB(t)
 		_, id := registerHeartbeatWorkspaceAndSession(t, db, "initiator", "initiator-session")
 		var kind, actor string
-		if err := db.DB().QueryRowContext(t.Context(), `SELECT initiator_kind, initiator_id FROM sessions WHERE id=?`, id).Scan(&kind, &actor); err != nil {
+		if err := db.DB().
+			QueryRowContext(t.Context(), `SELECT initiator_kind, initiator_id FROM sessions WHERE id=?`, id).
+			Scan(&kind, &actor); err != nil {
 			t.Fatal(err)
 		}
 		if kind != "" || actor != "" {
@@ -7143,16 +7145,29 @@ func TestPermissionInitiatorSnapshot(t *testing.T) {
 		}
 		write := func(key string) {
 			t.Helper()
-			if err := db.WritePermissionLog(t.Context(), store.PermissionLogEntry{ID: key, SessionID: id, AgentName: "coder", Action: "execute", Resource: "terminal", Decision: "reject_once", PolicyUsed: "interactive"}); err != nil {
+			if err := db.WritePermissionLog(
+				t.Context(),
+				store.PermissionLogEntry{
+					ID:         key,
+					SessionID:  id,
+					AgentName:  "coder",
+					Action:     "execute",
+					Resource:   "terminal",
+					Decision:   "reject_once",
+					PolicyUsed: "interactive",
+				},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
 		write("unknown-decision")
-		if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind='automation', initiator_id='automation-1' WHERE id=?`, id); err != nil {
+		if _, err := db.DB().
+			ExecContext(t.Context(), `UPDATE sessions SET initiator_kind='automation', initiator_id='automation-1' WHERE id=?`, id); err != nil {
 			t.Fatal(err)
 		}
 		write("automated-decision")
-		if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind='human', initiator_id='operator-1' WHERE id=?`, id); err != nil {
+		if _, err := db.DB().
+			ExecContext(t.Context(), `UPDATE sessions SET initiator_kind='human', initiator_id='operator-1' WHERE id=?`, id); err != nil {
 			t.Fatal(err)
 		}
 		rows, err := db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Limit: 10})
@@ -7179,16 +7194,30 @@ func TestPermissionLogUnattended(t *testing.T) {
 		_, id := registerHeartbeatWorkspaceAndSession(t, db, "unattended", "unattended-session")
 		kinds := []string{"", "human", "app", "agent_session", "automation", "daemon", "extension"}
 		for i, kind := range kinds {
-			if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind=?, initiator_id=? WHERE id=?`, kind, kind, id); err != nil {
+			if _, err := db.DB().
+				ExecContext(t.Context(), `UPDATE sessions SET initiator_kind=?, initiator_id=? WHERE id=?`, kind, kind, id); err != nil {
 				t.Fatal(err)
 			}
 			if err := db.WritePermissionLog(t.Context(), store.PermissionLogEntry{
-				ID: fmt.Sprintf("decision-%d", i), SessionID: id, AgentName: "coder", Action: "execute", Resource: "terminal", Decision: "reject_once", PolicyUsed: "interactive", Timestamp: time.Date(2026, 1, 1, 0, 0, i, 0, time.UTC),
+				ID: fmt.Sprintf(
+					"decision-%d",
+					i,
+				),
+				SessionID:  id,
+				AgentName:  "coder",
+				Action:     "execute",
+				Resource:   "terminal",
+				Decision:   "reject_once",
+				PolicyUsed: "interactive",
+				Timestamp:  time.Date(2026, 1, 1, 0, 0, i, 0, time.UTC),
 			}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		rows, err := db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Unattended: true, Limit: 3})
+		rows, err := db.ListPermissionLog(
+			t.Context(),
+			store.PermissionLogQuery{SessionID: id, Unattended: true, Limit: 3},
+		)
 		if err != nil || len(rows) != 3 {
 			t.Fatalf("unattended rows = %#v, %v", rows, err)
 		}
@@ -7201,7 +7230,10 @@ func TestPermissionLogUnattended(t *testing.T) {
 		if err != nil || len(rows) != len(kinds) {
 			t.Fatalf("unfiltered rows = %#v, %v", rows, err)
 		}
-		rows, err = db.ListPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: id, Unattended: true, Decision: "allow_once", Limit: 3})
+		rows, err = db.ListPermissionLog(
+			t.Context(),
+			store.PermissionLogQuery{SessionID: id, Unattended: true, Decision: "allow_once", Limit: 3},
+		)
 		if err != nil || len(rows) != 0 {
 			t.Fatalf("decision-filtered rows = %#v, %v", rows, err)
 		}
@@ -7216,16 +7248,36 @@ func TestPermissionDailyRollups(t *testing.T) {
 		workspace, id := registerHeartbeatWorkspaceAndSession(t, db, "rollup", "rollup-session")
 		start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 		for i, kind := range []string{"automation", "daemon", "human", "extension"} {
-			if _, err := db.DB().ExecContext(t.Context(), `UPDATE sessions SET initiator_kind=? WHERE id=?`, kind, id); err != nil {
+			if _, err := db.DB().
+				ExecContext(t.Context(), `UPDATE sessions SET initiator_kind=? WHERE id=?`, kind, id); err != nil {
 				t.Fatal(err)
 			}
-			if err := db.WritePermissionLog(t.Context(), store.PermissionLogEntry{ID: fmt.Sprintf("rollup-%d", i), SessionID: id, AgentName: "coder", Action: "execute", Resource: "terminal", Decision: "deny", PolicyUsed: "interactive", Timestamp: start.Add(time.Duration(i) * time.Hour)}); err != nil {
+			if err := db.WritePermissionLog(
+				t.Context(),
+				store.PermissionLogEntry{
+					ID:         fmt.Sprintf("rollup-%d", i),
+					SessionID:  id,
+					AgentName:  "coder",
+					Action:     "execute",
+					Resource:   "terminal",
+					Decision:   "deny",
+					PolicyUsed: "interactive",
+					Timestamp:  start.Add(time.Duration(i) * time.Hour),
+				},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
-		query := store.PermissionRollupQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspace, Since: start, Until: start.Add(24 * time.Hour)}
+		query := store.PermissionRollupQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspace,
+			Since:       start,
+			Until:       start.Add(24 * time.Hour),
+		}
 		rows, err := db.PermissionDailyRollups(t.Context(), query)
-		if err != nil || len(rows) != 1 || rows[0].Count != 4 || rows[0].Day != "2026-01-01" || rows[0].AgentName != "coder" || rows[0].Decision != "deny" {
+		if err != nil || len(rows) != 1 || rows[0].Count != 4 || rows[0].Day != "2026-01-01" ||
+			rows[0].AgentName != "coder" ||
+			rows[0].Decision != "deny" {
 			t.Fatalf("rollups = %#v, %v", rows, err)
 		}
 		query.Unattended = true
@@ -7233,11 +7285,24 @@ func TestPermissionDailyRollups(t *testing.T) {
 		if err != nil || len(rows) != 1 || rows[0].Count != 3 {
 			t.Fatalf("unattended rollups = %#v, %v", rows, err)
 		}
-		entries, err := db.PermissionEntries(t.Context(), store.PermissionEntriesQuery{PermissionRollupQuery: query, Limit: 2})
+		entries, err := db.PermissionEntries(
+			t.Context(),
+			store.PermissionEntriesQuery{PermissionRollupQuery: query, Limit: 2},
+		)
 		if err != nil || len(entries) != 2 || entries[0].ID != "rollup-3" || entries[0].InitiatorKind != "extension" {
 			t.Fatalf("unattended entries = %#v, %v", entries, err)
 		}
-		foreign, err := db.PermissionEntries(t.Context(), store.PermissionEntriesQuery{PermissionRollupQuery: store.PermissionRollupQuery{ReadScope: store.ReadScope{ProfileID: "other-profile"}, Since: start, Until: start.Add(24 * time.Hour)}, Limit: 10})
+		foreign, err := db.PermissionEntries(
+			t.Context(),
+			store.PermissionEntriesQuery{
+				PermissionRollupQuery: store.PermissionRollupQuery{
+					ReadScope: store.ReadScope{ProfileID: "other-profile"},
+					Since:     start,
+					Until:     start.Add(24 * time.Hour),
+				},
+				Limit: 10,
+			},
+		)
 		if err != nil || len(foreign) != 0 {
 			t.Fatalf("foreign entries = %#v, %v", foreign, err)
 		}

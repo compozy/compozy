@@ -2397,7 +2397,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		spec, err := h.manager.prepareCreateStart(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		spec, err := h.manager.prepareCreateStart(ctx, &CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
 		if err != nil {
 			t.Fatal(err)
 		}

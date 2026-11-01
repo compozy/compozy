@@ -237,9 +237,9 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 		return dispatchTarget{}, err
 	}
 	handle, availability := r.resolveHandleForDispatch(ctx, scope, entry)
-	effective, _ := evaluator.(*EffectivePolicyEvaluator)
+	effective, isEffective := evaluator.(*EffectivePolicyEvaluator)
 	var decision EffectiveToolDecision
-	if effective != nil {
+	if isEffective && effective != nil {
 		decision, err = effective.evaluateCall(entry.descriptor, req.Input)
 	} else {
 		decision, err = evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
@@ -253,7 +253,12 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 		Availability: availability,
 		Decision:     decision,
 	}
-	target := dispatchTarget{descriptor: cloneDescriptor(entry.descriptor), handle: handle, view: view, evaluator: effective}
+	target := dispatchTarget{
+		descriptor: cloneDescriptor(entry.descriptor),
+		handle:     handle,
+		view:       view,
+		evaluator:  effective,
+	}
 	if !decision.Callable || isNilInterface(handle) {
 		return target, nil
 	}

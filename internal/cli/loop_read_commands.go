@@ -240,7 +240,7 @@ func loopEventsOutputBundle(page contract.LoopTimelineResponse, entries []looppk
 		"Loop events",
 		[]string{sequenceHeader, loopRoundHeader, "EVENT"},
 		"loop_events",
-		[]string{"seq", resourceKindKey, "generation", loopNodeIDJSONKey, cliOutputTitleKey, "at"},
+		[]string{"seq", resourceKindKey, loopGenerationKey, loopNodeIDJSONKey, cliOutputTitleKey, "at"},
 		loopEventHumanRow,
 		loopEventTOONRow,
 	)

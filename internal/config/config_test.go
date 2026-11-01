@@ -3287,6 +3287,20 @@ func TestStaysOnApprovalTimeout(t *testing.T) {
 }
 
 func TestStaysOnTriageConfiguration(t *testing.T) {
+	t.Run("Should default to two proposals and accept every documented proposal limit", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		if cfg.Agents.StaysOn.MaxProposals != 2 {
+			t.Fatalf("default proposals = %d", cfg.Agents.StaysOn.MaxProposals)
+		}
+		for limit := 1; limit <= 20; limit++ {
+			cfg.Agents.StaysOn.MaxProposals = limit
+			if err := cfg.Agents.Validate(); err != nil {
+				t.Fatalf("limit %d: %v", limit, err)
+			}
+		}
+	})
+
 	t.Run("Should reject unsafe triage limits while accepting defaults", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})

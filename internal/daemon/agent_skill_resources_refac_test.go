@@ -3,9 +3,10 @@ package daemon
 import (
 	"context"
 	"errors"
-	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"reflect"
 	"testing"
+
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
@@ -201,7 +202,11 @@ func TestInstanceCatalogReconciliation(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			state := &bootState{agentCatalog: newResourceCatalog(cloneAgentDef), toolProjectionEpoch: mcppkg.NewProjectionEpoch(), logger: discardLogger()}
+			state := &bootState{
+				agentCatalog:        newResourceCatalog(cloneAgentDef),
+				toolProjectionEpoch: mcppkg.NewProjectionEpoch(),
+				logger:              discardLogger(),
+			}
 			calls := 0
 			bindInstanceCatalogReconciliation(t.Context(), state, func(ctx context.Context) error {
 				if ctx != t.Context() {
@@ -214,16 +219,24 @@ func TestInstanceCatalogReconciliation(t *testing.T) {
 				return nil
 			})
 			before := state.toolProjectionEpoch.Current()
-			state.agentCatalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: "coder", Spec: compozyconfig.AgentDef{Name: "coder", Kind: "stays_on"}}})
+			state.agentCatalog.Replace(
+				1,
+				[]resources.Record[compozyconfig.AgentDef]{
+					{ID: "coder", Spec: compozyconfig.AgentDef{Name: "coder", Kind: "stays_on"}},
+				},
+			)
 			if calls != 1 || state.toolProjectionEpoch.Current() <= before {
 				t.Fatal("publication did not reconcile and invalidate")
 			}
 			before = state.toolProjectionEpoch.Current()
-			state.agentCatalog.Update(func(records []resources.Record[compozyconfig.AgentDef]) []resources.Record[compozyconfig.AgentDef] {
-				records[0].Spec.Kind = "on_demand"
-				return records
-			})
-			if calls != 2 || state.toolProjectionEpoch.Current() <= before || state.agentCatalog.Snapshot()[0].Spec.Kind != "on_demand" {
+			state.agentCatalog.Update(
+				func(records []resources.Record[compozyconfig.AgentDef]) []resources.Record[compozyconfig.AgentDef] {
+					records[0].Spec.Kind = "on_demand"
+					return records
+				},
+			)
+			if calls != 2 || state.toolProjectionEpoch.Current() <= before ||
+				state.agentCatalog.Snapshot()[0].Spec.Kind != "on_demand" {
 				t.Fatal("update did not publish, reconcile and invalidate")
 			}
 			before = state.toolProjectionEpoch.Current()

@@ -172,7 +172,7 @@ func updateAgentRequestFromFlags(
 	if err != nil {
 		return contract.UpdateAgentRequest{}, err
 	}
-	payload := createAgentPayloadFromRecord(current)
+	payload := createAgentPayloadFromRecord(&current)
 	if err := applyAgentDefinitionOverrides(cmd, &payload, flags); err != nil {
 		return contract.UpdateAgentRequest{}, err
 	}
@@ -225,7 +225,7 @@ func duplicateAgentRequestFromFlags(
 	}, nil
 }
 
-func createAgentPayloadFromRecord(agent AgentRecord) contract.CreateAgentPayload {
+func createAgentPayloadFromRecord(agent *AgentRecord) contract.CreateAgentPayload {
 	return contract.CreateAgentPayload{
 		Name: agent.Name,
 		DisplayName: new(

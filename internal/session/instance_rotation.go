@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+
 	"github.com/compozy/compozy/internal/store"
 )
 

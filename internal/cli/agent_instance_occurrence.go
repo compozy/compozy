@@ -17,13 +17,28 @@ type agentInstanceOccurrenceClient interface {
 
 var _ agentInstanceOccurrenceClient = (*daemonClient)(nil)
 
-func (c *daemonClient) AgentInstanceOccurrence(ctx context.Context, id, occurrence string) (contract.AgentInstanceOccurrenceResponse, error) {
+func (c *daemonClient) AgentInstanceOccurrence(
+	ctx context.Context,
+	id, occurrence string,
+) (contract.AgentInstanceOccurrenceResponse, error) {
 	var result contract.AgentInstanceOccurrenceResponse
-	err := c.doJSON(ctx, "GET", "/api/agent-instances/"+url.PathEscape(id)+"/occurrences/"+url.PathEscape(occurrence), nil, nil, &result)
+	err := c.doJSON(
+		ctx,
+		"GET",
+		"/api/agent-instances/"+url.PathEscape(id)+"/occurrences/"+url.PathEscape(occurrence),
+		nil,
+		nil,
+		&result,
+	)
 	return result, err
 }
 
-func waitInstanceOccurrence(cmd *cobra.Command, client agentInstanceOccurrenceClient, id, occurrence string, interval time.Duration) error {
+func waitInstanceOccurrence(
+	cmd *cobra.Command,
+	client agentInstanceOccurrenceClient,
+	id, occurrence string,
+	interval time.Duration,
+) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -47,44 +62,58 @@ func waitInstanceOccurrence(cmd *cobra.Command, client agentInstanceOccurrenceCl
 }
 
 func newAgentInstanceOccurrenceCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{Use: "occurrence <occurrence-id>", Short: "Read an instance check occurrence", Args: exactOneNonBlankArg(), RunE: func(cmd *cobra.Command, args []string) error {
-		base, err := clientFromDeps(deps)
-		if err != nil {
-			return err
-		}
-		instances, ok := base.(agentInstancesClient)
-		if !ok {
-			return errors.New("cli: agent instances unavailable")
-		}
-		reader, ok := base.(agentInstanceOccurrenceClient)
-		if !ok {
-			return errors.New("cli: instance occurrences unavailable")
-		}
-		query := url.Values{"all_workspaces": {"true"}, "limit": {"100"}}
-		for {
-			page, err := instances.ListAgentInstances(cmd.Context(), query)
+	return &cobra.Command{
+		Use:   "occurrence <occurrence-id>",
+		Short: "Read an instance check occurrence",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			base, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			for _, instance := range page.Instances {
-				result, err := reader.AgentInstanceOccurrence(cmd.Context(), instance.ID, args[0])
-				if err == nil {
-					return writeInstanceOutput(cmd, result, fmt.Sprintf("%s\t%s\t%s\n", result.State, result.Result, result.Reason))
-				}
-				var apiErr *daemonAPIError
-				if !errors.As(err, &apiErr) || apiErr.statusCode != 404 {
+			instances, ok := base.(agentInstancesClient)
+			if !ok {
+				return errors.New("cli: agent instances unavailable")
+			}
+			reader, ok := base.(agentInstanceOccurrenceClient)
+			if !ok {
+				return errors.New("cli: instance occurrences unavailable")
+			}
+			query := url.Values{"all_workspaces": {toolBoolTrue}, listLimitField: {"100"}}
+			for {
+				page, err := instances.ListAgentInstances(cmd.Context(), query)
+				if err != nil {
 					return err
 				}
+				for _, instance := range page.Instances {
+					result, err := reader.AgentInstanceOccurrence(cmd.Context(), instance.ID, args[0])
+					if err == nil {
+						return writeInstanceOutput(
+							cmd,
+							result,
+							fmt.Sprintf("%s\t%s\t%s\n", result.State, result.Result, result.Reason),
+						)
+					}
+					apiErr, ok := errors.AsType[*daemonAPIError](err)
+					if !ok || apiErr.statusCode != 404 {
+						return err
+					}
+				}
+				if page.NextCursor == "" {
+					return errors.New("cli: occurrence not found")
+				}
+				query.Set("cursor", page.NextCursor)
 			}
-			if page.NextCursor == "" {
-				return errors.New("cli: occurrence not found")
-			}
-			query.Set("cursor", page.NextCursor)
-		}
-	}}
+		},
+	}
 }
 
-func instanceOccurrenceText(ctx context.Context, client agentInstanceOccurrenceClient, id string, result contract.AgentInstanceOccurrenceResponse) (string, error) {
+func instanceOccurrenceText(
+	ctx context.Context,
+	client agentInstanceOccurrenceClient,
+	id string,
+	result contract.AgentInstanceOccurrenceResponse,
+) (string, error) {
 	if result.Result != "reported" || result.ReportID == "" {
 		return fmt.Sprintf("Check finished: %s (%s)\n", result.Result, result.Reason), nil
 	}
@@ -92,7 +121,7 @@ func instanceOccurrenceText(ctx context.Context, client agentInstanceOccurrenceC
 	if !ok {
 		return "", errors.New("cli: instance reports unavailable")
 	}
-	query := url.Values{"limit": {"100"}}
+	query := url.Values{listLimitField: {"100"}}
 	for {
 		page, err := reports.AgentInstanceReports(ctx, id, query)
 		if err != nil {

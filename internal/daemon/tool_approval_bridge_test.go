@@ -1347,16 +1347,26 @@ func TestInstanceNativeApprovalBeyondDefaultTimeout(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		started := make(chan struct{})
 		answer := make(chan struct{})
-		requester := permissionRequesterFunc(func(ctx context.Context, _ string, _ acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
-			close(started)
-			select {
-			case <-ctx.Done():
-				return acp.RequestPermissionResponse{}, ctx.Err()
-			case <-answer:
-				return acp.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalAllowOnceID)}, nil
-			}
-		})
-		bridge := newToolApprovalBridge(func() sessionPermissionRequester { return requester }, time.Minute, nil, nil, nil)
+		requester := permissionRequesterFunc(
+			func(ctx context.Context, _ string, _ acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+				close(started)
+				select {
+				case <-ctx.Done():
+					return acp.RequestPermissionResponse{}, ctx.Err()
+				case <-answer:
+					return acp.RequestPermissionResponse{
+						Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalAllowOnceID),
+					}, nil
+				}
+			},
+		)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Minute,
+			nil,
+			nil,
+			nil,
+		)
 		bridge.clock = clock
 		bridge.permissionWaitResolver = func(string) time.Duration { return 12 * time.Hour }
 		view := toolApprovalTestView()

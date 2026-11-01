@@ -1039,13 +1039,16 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		cleanupSessionStop(t, h, goal.ID)
 
 		ttl := time.Now().Add(time.Minute)
-		spec, err := h.manager.prepareCreateStart(testutil.Context(t), spawnedCreateOpts(goal.ID, &store.SessionLineage{
-			ParentSessionID: goal.ID,
-			RootSessionID:   root.ID,
-			SpawnDepth:      2,
-			SpawnRole:       "coder",
-			TTLExpiresAt:    &ttl,
-		}))
+		spec, err := h.manager.prepareCreateStart(
+			testutil.Context(t),
+			new(spawnedCreateOpts(goal.ID, &store.SessionLineage{
+				ParentSessionID: goal.ID,
+				RootSessionID:   root.ID,
+				SpawnDepth:      2,
+				SpawnRole:       "coder",
+				TTLExpiresAt:    &ttl,
+			})),
+		)
 		if err != nil {
 			t.Fatalf("prepareCreateStart() error = %v", err)
 		}

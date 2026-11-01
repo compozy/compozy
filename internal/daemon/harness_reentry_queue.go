@@ -2,9 +2,10 @@ package daemon
 
 import (
 	"errors"
-	"github.com/compozy/compozy/internal/store"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/acp"
 

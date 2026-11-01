@@ -169,7 +169,7 @@ func (m *Manager) fillCompactionContext(
 }
 
 func compactionTerminalStatus(status string) bool {
-	return status == "completed" || status == "failed" ||
+	return status == "completed" || status == string(BadgeFailed) ||
 		status == "cancelled" //nolint:misspell // ACP status spelling.
 }
 

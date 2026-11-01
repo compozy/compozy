@@ -10,6 +10,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -63,7 +64,10 @@ func inputClassForTurnSource(source TurnSource) string {
 	}
 }
 
-func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts) (CreateOpts, error) {
+func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts *CreateOpts) (*CreateOpts, error) {
+	if opts.Origin.Kind == "" {
+		opts.Origin = workspaceaccess.OriginFromContext(ctx)
+	}
 	if m == nil {
 		return opts, nil
 	}
@@ -81,10 +85,10 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 	}
 	payload, err := m.hooks.session().DispatchSessionPreCreate(ctx, request)
 	if err != nil {
-		return CreateOpts{}, fmt.Errorf("session: dispatch session.pre_create: %w", err)
+		return nil, fmt.Errorf("session: dispatch session.pre_create: %w", err)
 	}
 	if err := validateProtectedPreCreateSessionType(request.SessionContext, payload.SessionContext); err != nil {
-		return CreateOpts{}, fmt.Errorf("session: validate session.pre_create patch: %w", err)
+		return nil, fmt.Errorf("session: validate session.pre_create patch: %w", err)
 	}
 
 	next := opts
@@ -96,7 +100,7 @@ func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts)
 	workspacePath := strings.TrimSpace(payload.Workspace)
 	switch {
 	case workspaceID != "" && workspacePath != "":
-		return CreateOpts{}, errors.New("session: session.pre_create produced both workspace id and workspace path")
+		return nil, errors.New("session: session.pre_create produced both workspace id and workspace path")
 	case workspaceID != "":
 		next.Workspace = workspaceID
 		next.WorkspacePath = ""

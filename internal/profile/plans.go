@@ -249,7 +249,8 @@ func (m *Manager) deletePlan(ctx context.Context, q queryer, profile Profile) (D
 	if err != nil {
 		return DeletePlan{}, err
 	}
-	if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM agent_instances WHERE profile_id = ? AND archived_at IS NOT NULL`, profile.ID).Scan(&plan.Removed.AgentInstances); err != nil {
+	if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM agent_instances WHERE profile_id = ? AND archived_at IS NOT NULL`, profile.ID).
+		Scan(&plan.Removed.AgentInstances); err != nil {
 		return DeletePlan{}, err
 	}
 	plan.ApprovalBlockers, err = executableApprovals(ctx, q, profile.ID)

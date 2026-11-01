@@ -1,16 +1,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/api/contract"
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/monitor"
-	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/store/globaldb"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"log/slog"
 	"path/filepath"
 	"reflect"
@@ -18,6 +12,15 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/monitor"
+	"github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/core"
@@ -125,12 +128,22 @@ func TestInstanceCreateAdmission(t *testing.T) {
 			t.Parallel()
 			inputs := instanceAdmissionInputs{
 				definition: instanceDefinition{Kind: "stays_on", Grant: workspaceaccess.Unrestricted},
-				caller:     agentinstance.Caller{AgentName: "coder", ProfileID: "profile", Grant: workspaceaccess.Unrestricted},
+				caller: agentinstance.Caller{
+					AgentName: "coder",
+					ProfileID: "profile",
+					Grant:     workspaceaccess.Unrestricted,
+				},
 			}
 			admission := &instanceAdmission{definitions: inputs, callers: inputs, reach: inputs}
 			got, err := admission.ResolveCreate(t.Context(), agentinstance.CreateRequest{
-				Agent: "coder", Profile: "profile", Workspace: tc.workspace,
-				Actor: workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller", Operator: tc.operator},
+				Agent:     "coder",
+				Profile:   "profile",
+				Workspace: tc.workspace,
+				Actor: workspaceaccess.ActorRef{
+					Kind:      workspaceaccess.ActorAgentSession,
+					SessionID: "caller",
+					Operator:  tc.operator,
+				},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -221,39 +234,73 @@ func TestNativeInstanceAuthority(t *testing.T) {
 		t.Run("Should retain foreign instance denial without approval for "+tc.id.String(), func(t *testing.T) {
 			t.Parallel()
 			api := &core.AgentInstanceAPI{
-				Store:     nativeInstanceTargetStore{target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"}},
-				Authority: agentinstance.Authority{Callers: instanceAdmissionInputs{caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"}}},
+				Store: nativeInstanceTargetStore{
+					target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"},
+				},
+				Authority: agentinstance.Authority{
+					Callers: instanceAdmissionInputs{
+						caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
+					},
+				},
 			}
 			inputs := nativeApproveAllPolicyInputs()
 			inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
 			inputs.ApprovalAvailable = false
-			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }, Sessions: testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
-				return &session.Info{ID: "caller", ProfileID: "profile", AgentName: "coder"}, nil
-			}}}, inputs)
-			_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: tc.id, Input: []byte(tc.input)})
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{
+					AgentInstances: func() *core.AgentInstanceAPI { return api },
+					Sessions: testutil.StubSessionManager{
+						StatusFn: func(context.Context, string) (*session.Info, error) {
+							return &session.Info{ID: "caller", ProfileID: "profile", AgentName: "coder"}, nil
+						},
+					},
+				},
+				inputs,
+			)
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"},
+				toolspkg.CallRequest{ToolID: tc.id, Input: []byte(tc.input)},
+			)
 			if !errors.Is(err, agentinstance.ErrForbidden) {
 				t.Fatalf("foreign instance error=%v", err)
 			}
 		})
 	}
 	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceCheck} {
-		t.Run("Should admit approve-all without a receipt and still enforce ownership for "+id.String(), func(t *testing.T) {
-			t.Parallel()
-			api := &core.AgentInstanceAPI{
-				Store:     nativeInstanceTargetStore{target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"}},
-				Authority: agentinstance.Authority{Callers: instanceAdmissionInputs{caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"}}},
-			}
-			native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
-				AgentInstances: func() *core.AgentInstanceAPI { return api },
-				Sessions: testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
-					return &session.Info{EffectivePermissions: "approve-all"}, nil
-				}},
-			}}
-			_, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: id, Input: []byte(`{"id":"target"}`)})
-			if !errors.Is(err, agentinstance.ErrForbidden) {
-				t.Fatalf("ownership after approval admission: %v", err)
-			}
-		})
+		t.Run(
+			"Should admit approve-all without a receipt and still enforce ownership for "+id.String(),
+			func(t *testing.T) {
+				t.Parallel()
+				api := &core.AgentInstanceAPI{
+					Store: nativeInstanceTargetStore{
+						target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"},
+					},
+					Authority: agentinstance.Authority{
+						Callers: instanceAdmissionInputs{
+							caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
+						},
+					},
+				}
+				native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+					AgentInstances: func() *core.AgentInstanceAPI { return api },
+					Sessions: testutil.StubSessionManager{
+						StatusFn: func(context.Context, string) (*session.Info, error) {
+							return &session.Info{EffectivePermissions: "approve-all"}, nil
+						},
+					},
+				}}
+				_, err := native.agentInstanceCall(
+					t.Context(),
+					toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"},
+					toolspkg.CallRequest{ToolID: id, Input: []byte(`{"id":"target"}`)},
+				)
+				if !errors.Is(err, agentinstance.ErrForbidden) {
+					t.Fatalf("ownership after approval admission: %v", err)
+				}
+			},
+		)
 	}
 
 	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceArchive} {
@@ -307,7 +354,12 @@ func TestInstanceWorkspaceReach(t *testing.T) {
 		t.Parallel()
 		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: false}}
 		reach := instanceWorkspaceReach{policy: policy}
-		err := reach.AuthorizeInstanceWorkspace(t.Context(), workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller"}, "target", "profile")
+		err := reach.AuthorizeInstanceWorkspace(
+			t.Context(),
+			workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller"},
+			"target",
+			"profile",
+		)
 		if !errors.Is(err, agentinstance.ErrWorkspaceAccessDenied) {
 			t.Fatalf("workspace denial: %v", err)
 		}
@@ -322,10 +374,26 @@ func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 		t.Run("Should deny an unreachable owned instance through "+id.String(), func(t *testing.T) {
 			t.Parallel()
 			target := agentinstance.Instance{ID: "own", AgentName: "coder", ProfileID: "profile", WorkspaceID: "target"}
-			api := &core.AgentInstanceAPI{Store: nativeInstanceTargetStore{target: target}, Authority: agentinstance.Authority{Callers: instanceAdmissionInputs{caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"}}}}
+			api := &core.AgentInstanceAPI{
+				Store: nativeInstanceTargetStore{target: target},
+				Authority: agentinstance.Authority{
+					Callers: instanceAdmissionInputs{
+						caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
+					},
+				},
+			}
 			policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: false}}
-			native := &daemonNativeTools{deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }, WorkspaceAccess: policy}}
-			_, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: id, Input: []byte(`{"id":"own"}`), ApprovalGranted: true})
+			native := &daemonNativeTools{
+				deps: &daemonNativeToolsDeps{
+					AgentInstances:  func() *core.AgentInstanceAPI { return api },
+					WorkspaceAccess: policy,
+				},
+			}
+			_, err := native.agentInstanceCall(
+				t.Context(),
+				toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"},
+				toolspkg.CallRequest{ToolID: id, Input: []byte(`{"id":"own"}`), ApprovalGranted: true},
+			)
 			if !errors.Is(err, agentinstance.ErrWorkspaceAccessDenied) {
 				t.Fatalf("workspace authority: %v", err)
 			}
@@ -336,9 +404,30 @@ func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 	}
 	t.Run("Should refuse native resume after a manual pause", func(t *testing.T) {
 		t.Parallel()
-		api := &core.AgentInstanceAPI{Store: nativeInstanceTargetStore{target: agentinstance.Instance{ID: "own", AgentName: "coder", ProfileID: "profile", State: "paused", PauseReason: "manual"}}, Authority: agentinstance.Authority{Callers: instanceAdmissionInputs{caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"}}}}
-		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }}}
-		_, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceResume, Input: []byte(`{"id":"own"}`)})
+		api := &core.AgentInstanceAPI{
+			Store: nativeInstanceTargetStore{
+				target: agentinstance.Instance{
+					ID:          "own",
+					AgentName:   "coder",
+					ProfileID:   "profile",
+					State:       "paused",
+					PauseReason: "manual",
+				},
+			},
+			Authority: agentinstance.Authority{
+				Callers: instanceAdmissionInputs{
+					caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
+				},
+			},
+		}
+		native := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }},
+		}
+		_, err := native.agentInstanceCall(
+			t.Context(),
+			toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceResume, Input: []byte(`{"id":"own"}`)},
+		)
 		if !errors.Is(err, agentinstance.ErrForbidden) {
 			t.Fatalf("manual resume: %v", err)
 		}
@@ -370,10 +459,20 @@ func TestInstanceMainReadModel(t *testing.T) {
 	t.Run("Should bound the latest activity to eighty characters on one line", func(t *testing.T) {
 		t.Parallel()
 		payload := contract.AgentInstancePayload{}
-		info := &session.Info{Provider: "claude", State: session.StateActive,
-			Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{TurnID: "turn", LastActivityDetail: "  Working\n" + strings.Repeat("界", 90)}}}
+		info := &session.Info{
+			Provider: "claude",
+			State:    session.StateActive,
+			Liveness: &store.SessionLivenessMeta{
+				Activity: &store.SessionActivityMeta{
+					TurnID:             "turn",
+					LastActivityDetail: "  Working\n" + strings.Repeat("界", 90),
+				},
+			},
+		}
 		projectInstanceMain(&payload, info)
-		if utf8.RuneCountInString(payload.Now) != 80 || strings.Contains(payload.Now, "\n") || payload.Activity != "working" || payload.Provider != "claude" {
+		if utf8.RuneCountInString(payload.Now) != 80 || strings.Contains(payload.Now, "\n") ||
+			payload.Activity != "working" ||
+			payload.Provider != "claude" {
 			t.Fatalf("unexpected projection: %+v", payload)
 		}
 	})
@@ -429,7 +528,16 @@ func TestInstanceRotationEligibility(t *testing.T) {
 			size := int64(100)
 			f := rotationEligibilityFixture{info: &session.Info{State: session.StateActive}, ready: !tc.blocked}
 			if !tc.unknown {
-				f.events = []store.SessionEvent{managedGoalContextEvent(t, 1, acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: &tc.used, ContextSize: &size}})}
+				f.events = []store.SessionEvent{
+					managedGoalContextEvent(
+						t,
+						1,
+						acp.AgentEvent{
+							Type:  acp.EventTypeUsage,
+							Usage: &acp.TokenUsage{ContextUsed: &tc.used, ContextSize: &size},
+						},
+					),
+				}
 			}
 			if tc.compact {
 				f.info.AdvertisedCommands = []store.SessionAdvertisedCommand{{Name: "compact"}}
@@ -438,7 +546,10 @@ func TestInstanceRotationEligibility(t *testing.T) {
 				f.monitors = []monitor.Monitor{{Status: tc.monitor}}
 			}
 			r := instanceMainRotator{sessions: f, store: f, monitors: f, threshold: 0.8, now: time.Now}
-			got, err := r.Eligible(t.Context(), agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"})
+			got, err := r.Eligible(
+				t.Context(),
+				agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"},
+			)
 			if err != nil || got.Eligible != tc.want || got.Publication.AdmissionCount != 7 {
 				t.Fatalf("eligibility = %#v, %v", got, err)
 			}
@@ -484,7 +595,12 @@ func (f *rotationFlowFixture) SupersededSessions(context.Context, string) ([]str
 	}
 	return nil, nil
 }
-func (f *rotationFlowFixture) AppendReport(_ context.Context, _ string, input agentinstance.ReportInput) (agentinstance.Report, error) {
+
+func (f *rotationFlowFixture) AppendReport(
+	_ context.Context,
+	_ string,
+	input agentinstance.ReportInput,
+) (agentinstance.Report, error) {
 	if err := input.Validate(); err != nil {
 		return agentinstance.Report{}, err
 	}
@@ -515,7 +631,14 @@ func TestInstanceRotationFlow(t *testing.T) {
 			if tc.stop {
 				f.stopErr = failure
 			}
-			r := instanceMainRotator{sessions: f, store: f, monitors: f, starter: f, reports: f, now: func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) }}
+			r := instanceMainRotator{
+				sessions: f,
+				store:    f,
+				monitors: f,
+				starter:  f,
+				reports:  f,
+				now:      func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) },
+			}
 			var changes []agentinstance.Instance
 			r.changed = func(instance agentinstance.Instance) {
 				if !f.published || len(f.stopped) != 0 {
@@ -523,7 +646,14 @@ func TestInstanceRotationFlow(t *testing.T) {
 				}
 				changes = append(changes, instance)
 			}
-			err := r.Rotate(t.Context(), agentinstance.Instance{ID: "instance", MainSessionID: "main"}, agentinstance.RotationDecision{Eligible: true, Publication: agentinstance.RotationPublication{InstanceID: "instance", PredecessorID: "main"}})
+			err := r.Rotate(
+				t.Context(),
+				agentinstance.Instance{ID: "instance", MainSessionID: "main"},
+				agentinstance.RotationDecision{
+					Eligible:    true,
+					Publication: agentinstance.RotationPublication{InstanceID: "instance", PredecessorID: "main"},
+				},
+			)
 			failed := tc.start || tc.publish || tc.stop
 			if (err != nil) != failed {
 				t.Fatalf("rotation error = %v", err)
@@ -546,14 +676,19 @@ func TestInstanceRotationFlow(t *testing.T) {
 			if wantPublished && len(f.reports) != 0 {
 				t.Fatal("post-publication cleanup generated a pre-publication failure report")
 			}
-			if !wantPublished && (len(f.reports) != 1 || f.reports[0].Kind != "rotation_failed" || f.reports[0].SourceKey != "rotation:failed:main") {
+			if !wantPublished &&
+				(len(f.reports) != 1 || f.reports[0].Kind != "rotation_failed" || f.reports[0].SourceKey != "rotation:failed:main") {
 				t.Fatalf("failure reports = %v", f.reports)
 			}
 		})
 	}
 }
 
-func (f rotationEligibilityFixture) RotationWaitingSince(_ context.Context, _, _ string, now time.Time) (time.Time, error) {
+func (f rotationEligibilityFixture) RotationWaitingSince(
+	_ context.Context,
+	_, _ string,
+	now time.Time,
+) (time.Time, error) {
 	return now, nil
 }
 func (f rotationEligibilityFixture) ClearRotationWait(context.Context, string, string) error {
@@ -573,11 +708,24 @@ func TestInstanceRotationDeferral(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = db.RegisterInstanceSession(t.Context(), store.SessionInfo{ID: "main", ProfileID: store.DefaultProfileID, AgentName: "coder", State: "active", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}, instance.ID, nil)
+		_, err = db.RegisterInstanceSession(
+			t.Context(),
+			store.SessionInfo{
+				ID:            "main",
+				ProfileID:     store.DefaultProfileID,
+				AgentName:     "coder",
+				State:         "active",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				SessionType:   "user",
+			},
+			instance.ID,
+			nil,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -586,7 +734,11 @@ func TestInstanceRotationDeferral(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
-		r := instanceMainRotator{store: db.Instances(), reports: db.InstanceReports(), now: func() time.Time { return now }}
+		r := instanceMainRotator{
+			store:   db.Instances(),
+			reports: db.InstanceReports(),
+			now:     func() time.Time { return now },
+		}
 		if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
 			t.Fatal(err)
 		}
@@ -602,7 +754,8 @@ func TestInstanceRotationDeferral(t *testing.T) {
 		if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
 			t.Fatal(err)
 		}
-		reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+		reports, err := db.InstanceReports().
+			ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
 		if err != nil || len(reports) != 0 {
 			t.Fatalf("early reports = %v, %v", reports, err)
 		}
@@ -612,7 +765,8 @@ func TestInstanceRotationDeferral(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		reports, err = db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+		reports, err = db.InstanceReports().
+			ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
 		if err != nil || len(reports) != 1 || reports[0].Kind != "rotation_deferred" {
 			t.Fatalf("reports = %v, %v", reports, err)
 		}
@@ -647,10 +801,14 @@ func TestInstanceLateChildReentry(t *testing.T) {
 		if _, err := db.Instances().BindMain(t.Context(), instance.ID, "successor"); err != nil {
 			t.Fatal(err)
 		}
-		bridge := harnessReentryBridge{ctx: t.Context(), store: db, sessions: &fakeSessionManager{infos: []*session.Info{
-			{ID: "predecessor", InstanceID: instance.ID, State: session.StateStopped},
-			{ID: "successor", InstanceID: instance.ID, State: session.StateActive, AgentName: "coder"},
-		}}}
+		bridge := harnessReentryBridge{
+			ctx:   t.Context(),
+			store: db,
+			sessions: &fakeSessionManager{infos: []*session.Info{
+				{ID: "predecessor", InstanceID: instance.ID, State: session.StateStopped},
+				{ID: "successor", InstanceID: instance.ID, State: session.StateActive, AgentName: "coder"},
+			}},
+		}
 		metadata := detachedHarnessRunMetadata{}
 		metadata.WakeTarget.SessionID = "predecessor"
 		target := bridge.resolveWakeTargetSnapshot(metadata)
@@ -668,60 +826,69 @@ func TestInstanceLateChildReentry(t *testing.T) {
 }
 
 func TestNativeInstanceCheckIns(t *testing.T) {
-	t.Run("Should page persisted wake events through the native tool without leaking another instance", func(t *testing.T) {
-		t.Parallel()
-		db := openDaemonTestGlobalDB(t)
-		var instances []agentinstance.Instance
-		for _, agent := range []string{"coder", "reviewer"} {
-			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
-				AgentName: agent, ProfileID: store.DefaultProfileID,
-				CreatedByKind: "human", PermissionCeiling: "{}",
-			}, 10)
-			if err != nil {
-				t.Fatal(err)
+	t.Run(
+		"Should page persisted wake events through the native tool without leaking another instance",
+		func(t *testing.T) {
+			t.Parallel()
+			db := openDaemonTestGlobalDB(t)
+			var instances []agentinstance.Instance
+			for _, agent := range []string{"coder", "reviewer"} {
+				instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+					AgentName: agent, ProfileID: store.DefaultProfileID,
+					CreatedByKind: "human", PermissionCeiling: "{}",
+				}, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				instances = append(instances, instance)
 			}
-			instances = append(instances, instance)
-		}
-		for index, id := range []string{"event-a", "event-b", "event-other"} {
-			instance := instances[0]
-			if index == 2 {
-				instance = instances[1]
-			}
-			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+			for index, id := range []string{"event-a", "event-b", "event-other"} {
+				instance := instances[0]
+				if index == 2 {
+					instance = instances[1]
+				}
+				_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
 				(id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at)
 				VALUES (?,'',?,?,'timer','skipped','quiet','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`,
-				id, instance.AgentName, instance.ID)
-			if err != nil {
-				t.Fatal(err)
+					id, instance.AgentName, instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
-		}
-		api := &core.AgentInstanceAPI{Store: db.Instances(), Authority: agentinstance.Authority{Callers: db.Instances()}}
-		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }}}
-		cursor := ""
-		for _, want := range []string{"event-b", "event-a"} {
-			input, err := json.Marshal(nativeInstanceInput{ID: instances[0].ID, Limit: 1, Cursor: cursor})
-			if err != nil {
-				t.Fatal(err)
+			api := &core.AgentInstanceAPI{
+				Store:     db.Instances(),
+				Authority: agentinstance.Authority{Callers: db.Instances()},
 			}
-			result, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{
-				Operator: true, ProfileID: store.DefaultProfileID,
-			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceCheckIns, Input: input})
-			if err != nil {
-				t.Fatal(err)
+			native := &daemonNativeTools{
+				deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }},
 			}
-			var body contract.AgentInstanceCheckInsResponse
-			if err := json.Unmarshal(result.Structured, &body); err != nil {
-				t.Fatal(err)
+			cursor := ""
+			for _, want := range []string{"event-b", "event-a"} {
+				input, err := json.Marshal(nativeInstanceInput{ID: instances[0].ID, Limit: 1, Cursor: cursor})
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{
+					Operator: true, ProfileID: store.DefaultProfileID,
+				}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceCheckIns, Input: input})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var body contract.AgentInstanceCheckInsResponse
+				if err := json.Unmarshal(result.Structured, &body); err != nil {
+					t.Fatal(err)
+				}
+				if len(body.CheckIns) != 1 || body.CheckIns[0].ID != want || body.CheckIns[0].Reason != "quiet" ||
+					body.CheckIns[0].Result != "skipped" {
+					t.Fatalf("native check-ins = %+v, want %s", body, want)
+				}
+				cursor = body.NextCursor
 			}
-			if len(body.CheckIns) != 1 || body.CheckIns[0].ID != want || body.CheckIns[0].Reason != "quiet" || body.CheckIns[0].Result != "skipped" {
-				t.Fatalf("native check-ins = %+v, want %s", body, want)
+			if cursor != "" {
+				t.Fatalf("terminal cursor = %q", cursor)
 			}
-			cursor = body.NextCursor
-		}
-		if cursor != "" {
-			t.Fatalf("terminal cursor = %q", cursor)
-		}
-	})
+		},
+	)
 }
 
 func TestInstanceDefinitionPaths(t *testing.T) {
@@ -731,10 +898,26 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 		home := testHomePaths(t)
 		root, additional := t.TempDir(), t.TempDir()
 		now := time.Now().UTC()
-		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{ID: "ws-instance-paths", Name: "instance-paths", RootDir: root, AdditionalDirs: []string{additional}, CreatedAt: now, UpdatedAt: now}); err != nil {
+		if err := db.InsertWorkspace(
+			t.Context(),
+			workspacepkg.Workspace{
+				ID:             "ws-instance-paths",
+				Name:           "instance-paths",
+				RootDir:        root,
+				AdditionalDirs: []string{additional},
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
-		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home), workspacepkg.WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) { return compozyconfig.DefaultWithHome(home), nil }))
+		resolver, err := workspacepkg.NewResolver(
+			db,
+			workspacepkg.WithHomePaths(home),
+			workspacepkg.WithProfileConfigLoader(
+				func(string, string) (compozyconfig.Config, error) { return compozyconfig.DefaultWithHome(home), nil },
+			),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -747,10 +930,27 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		definitions := instanceDefinitions{workspaces: resolver, profiles: nativeProfileReaderStub{}, sessions: manager, agents: stubSessionCommandAgentResolver(func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
-			return compozyconfig.AgentDef{Name: name, Kind: "stays_on", Provider: "claude", Prompt: "Review work."}, nil
-		})}
-		definition, err := definitions.InstanceDefinition(t.Context(), store.DefaultProfileID, "ws-instance-paths", "coder")
+		definitions := instanceDefinitions{
+			workspaces: resolver,
+			profiles:   nativeProfileReaderStub{},
+			sessions:   manager,
+			agents: stubSessionCommandAgentResolver(
+				func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return compozyconfig.AgentDef{
+						Name:     name,
+						Kind:     "stays_on",
+						Provider: "claude",
+						Prompt:   "Review work.",
+					}, nil
+				},
+			),
+		}
+		definition, err := definitions.InstanceDefinition(
+			t.Context(),
+			store.DefaultProfileID,
+			"ws-instance-paths",
+			"coder",
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -758,7 +958,11 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...)})
+		want := store.NormalizeSessionPermissionPolicy(
+			store.SessionPermissionPolicy{
+				WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...),
+			},
+		)
 		if len(want.WorkspacePaths) != 2 || !reflect.DeepEqual(definition.Policy.WorkspacePaths, want.WorkspacePaths) {
 			t.Fatalf("definition paths = %v, want %v", definition.Policy.WorkspacePaths, want.WorkspacePaths)
 		}
@@ -774,7 +978,11 @@ type blockedInstanceReconciliation struct {
 	stopped chan struct{}
 }
 
-func (b *blockedInstanceReconciliation) ReconciliationPage(ctx context.Context, _ string, _ int) ([]agentinstance.Instance, error) {
+func (b *blockedInstanceReconciliation) ReconciliationPage(
+	ctx context.Context,
+	_ string,
+	_ int,
+) ([]agentinstance.Instance, error) {
 	close(b.started)
 	<-ctx.Done()
 	close(b.stopped)
@@ -784,7 +992,12 @@ func TestInstanceMaintenanceWorker(t *testing.T) {
 	t.Run("Should isolate blocked reconciliation and join it on shutdown", func(t *testing.T) {
 		t.Parallel()
 		boundary := &blockedInstanceReconciliation{started: make(chan struct{}), stopped: make(chan struct{})}
-		service, err := agentinstance.NewService(agentinstance.WithStore(boundary), agentinstance.WithAdmission(boundary), agentinstance.WithMainSessions(boundary), agentinstance.WithActiveLimit(10))
+		service, err := agentinstance.NewService(
+			agentinstance.WithStore(boundary),
+			agentinstance.WithAdmission(boundary),
+			agentinstance.WithMainSessions(boundary),
+			agentinstance.WithActiveLimit(10),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -828,8 +1041,26 @@ func TestInstanceRotationRetry(t *testing.T) {
 		f := &rotationFlowFixture{startErr: errors.New("start failed")}
 		f.info = &session.Info{State: session.StateActive}
 		f.ready = true
-		f.events = []store.SessionEvent{managedGoalContextEvent(t, 1, acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: &used, ContextSize: &size}})}
-		r := instanceMainRotator{sessions: f, store: f, monitors: f, starter: f, reports: f, now: func() time.Time { return now }, threshold: 0.8, retryDelay: time.Minute}
+		f.events = []store.SessionEvent{
+			managedGoalContextEvent(
+				t,
+				1,
+				acp.AgentEvent{
+					Type:  acp.EventTypeUsage,
+					Usage: &acp.TokenUsage{ContextUsed: &used, ContextSize: &size},
+				},
+			),
+		}
+		r := instanceMainRotator{
+			sessions:   f,
+			store:      f,
+			monitors:   f,
+			starter:    f,
+			reports:    f,
+			now:        func() time.Time { return now },
+			threshold:  0.8,
+			retryDelay: time.Minute,
+		}
 		instance := agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"}
 		if err := r.Rotate(t.Context(), instance, agentinstance.RotationDecision{}); err == nil {
 			t.Fatal("missing startup error")
@@ -842,6 +1073,72 @@ func TestInstanceRotationRetry(t *testing.T) {
 		decision, err = r.Eligible(t.Context(), instance)
 		if err != nil || !decision.Eligible {
 			t.Fatalf("due retry = %#v, %v", decision, err)
+		}
+	})
+}
+
+func TestBootAgentInstances(t *testing.T) {
+	t.Run("Should keep startup available when a paused instance project folder is missing", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(
+			t.Context(),
+			workspacepkg.Workspace{
+				ID:        "missing",
+				Name:      "missing",
+				RootDir:   filepath.Join(t.TempDir(), "gone"),
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, WorkspaceID: "missing", CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instances SET state='paused', pause_reason='manual' WHERE id=?", instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		profiles, err := profile.NewManager(profile.WithStore(db), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var logs bytes.Buffer
+		state := &bootState{
+			sessions:          manager,
+			registry:          db,
+			workspaceResolver: resolver,
+			profiles:          profiles,
+			cfg:               compozyconfig.DefaultWithHome(home),
+			logger:            slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		if err := (&Daemon{now: func() time.Time { return now }}).bootAgentInstances(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
+		if state.deps.AgentInstances == nil || !strings.Contains(logs.String(), instance.ID) {
+			t.Fatalf("missing API or reconciliation diagnostic: %s", logs.String())
+		}
+		got, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil || got.State != "paused" || got.PauseReason != "manual" {
+			t.Fatalf("instance = %+v, %v", got, err)
 		}
 	})
 }

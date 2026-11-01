@@ -53,3 +53,12 @@ func encodeSessionListCursor(fingerprint string, position store.SessionCatalogPo
 	}
 	return encoded, nil
 }
+
+func sessionListPageCursor(query ListQuery) (string, *store.SessionCatalogPosition, error) {
+	fingerprint, err := sessionListFingerprintForQuery(query)
+	if err != nil {
+		return "", nil, err
+	}
+	after, err := decodeSessionListCursor(query.Cursor, fingerprint, query.Sort)
+	return fingerprint, after, err
+}

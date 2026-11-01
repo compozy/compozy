@@ -56,10 +56,17 @@ type CheckDigest struct {
 	Diagnostics      []string     `json:"diagnostics,omitempty"`
 }
 
-var collectorNames = []string{"task", "session_health", "sessions_idle", "automations_failed", "monitors_fired"}
+const collectorTask = "task"
+
+var collectorNames = []string{collectorTask, "session_health", "sessions_idle", "automations_failed", "monitors_fired"}
 
 // CollectDigest accepts daemon-owned facts; callers must fetch complete eligible populations before applying caps.
-func CollectDigest(scope CollectorScope, facts CollectorFacts, include []string, policyDigest, instructions string) (CheckDigest, error) {
+func CollectDigest(
+	scope CollectorScope,
+	facts CollectorFacts,
+	include []string,
+	policyDigest, instructions string,
+) (CheckDigest, error) {
 	result := CheckDigest{Items: []DigestItem{}, AutomationCursor: scope.AutomationCursor}
 	if include == nil {
 		include = collectorNames
@@ -74,67 +81,25 @@ func CollectDigest(scope CollectorScope, facts CollectorFacts, include []string,
 	}
 	chain := append(slices.Clone(scope.ChainSessionIDs), scope.MainSessionID)
 	buckets := map[string][]string{}
-	for _, task := range facts.Tasks {
-		if !selected["task"] || !scope.contains(task.ProfileID, task.WorkspaceID) ||
-			task.OwnerKind != "agent_session" || task.OwnerSessionID == "" || !slices.Contains(chain, task.OwnerSessionID) {
-			continue
-		}
-		if task.RunID == "" && task.Status == "blocked" {
-			buckets["task"] = append(buckets["task"], "task:"+task.ID+":blocked")
-		}
-		if task.RunID != "" && task.Status == "queued" {
-			buckets["task"] = append(buckets["task"], "run:"+task.RunID+":queued")
-		}
+	if selected[collectorTask] {
+		collectTaskFacts(scope, facts.Tasks, chain, buckets)
 	}
-	for _, session := range facts.Sessions {
-		if session.Hidden || slices.Contains(chain, session.ID) || !scope.contains(session.ProfileID, session.WorkspaceID) {
-			continue
-		}
-		if selected["session_health"] && slices.Contains([]string{"degraded", "stale", "dead", "unknown"}, session.Health) {
-			buckets["session_health"] = append(buckets["session_health"], "health:"+session.ID+":"+session.Health)
-		}
-		if selected["sessions_idle"] && session.LastEventAt.After(scope.LastCompletedAt) &&
-			!session.LastEventAt.After(scope.Now.Add(-time.Hour)) && session.LastSeq > 0 {
-			buckets["sessions_idle"] = append(buckets["sessions_idle"], fmt.Sprintf("idle:%s:%d", session.ID, session.LastSeq))
-		}
-	}
+	collectSessionFacts(scope, facts.Sessions, chain, selected, buckets)
 	if selected["automations_failed"] {
-		eligible := make([]AutomationFact, 0)
-		for _, run := range facts.Automations {
-			if scope.contains(run.ProfileID, run.WorkspaceID) && run.Status == "failed" && run.Cursor > scope.AutomationCursor {
-				eligible = append(eligible, run)
-			}
-		}
-		slices.SortFunc(eligible, func(a, b AutomationFact) int { return cmp.Or(cmp.Compare(a.Cursor, b.Cursor), cmp.Compare(a.ID, b.ID)) })
-		seen := map[string]bool{}
-		for _, run := range eligible {
-			if seen[run.ID] {
-				continue
-			}
-			if len(buckets["automations_failed"]) == 10 {
-				break
-			}
-			seen[run.ID] = true
-			buckets["automations_failed"] = append(buckets["automations_failed"], "auto:"+run.ID)
-			result.AutomationCursor = run.Cursor
-		}
+		result.AutomationCursor = collectAutomationFacts(scope, facts.Automations, buckets)
 	}
 	if selected["monitors_fired"] {
-		for _, monitor := range facts.Monitors {
-			if monitor.Fired && scope.MainSessionID != "" && monitor.SessionID == scope.MainSessionID {
-				buckets["monitors_fired"] = append(buckets["monitors_fired"], "monitor:"+monitor.ID)
-			}
-		}
+		collectMonitorFacts(scope, facts.Monitors, buckets)
 	}
 	for _, name := range collectorNames {
 		keys := buckets[name]
 		slices.Sort(keys)
 		keys = slices.Compact(keys)
-		cap := 10
-		if name == "task" || name == "sessions_idle" {
-			cap = 20
+		limit := 10
+		if name == collectorTask || name == "sessions_idle" {
+			limit = 20
 		}
-		for _, key := range keys[:min(len(keys), cap)] {
+		for _, key := range keys[:min(len(keys), limit)] {
 			result.Items = append(result.Items, DigestItem{Key: key})
 		}
 	}
@@ -162,4 +127,81 @@ func (scope CollectorScope) contains(profile, workspace string) bool {
 		return workspace == scope.WorkspaceID
 	}
 	return workspace == "" || scope.Unrestricted && slices.Contains(scope.ReachableWorkspaces, workspace)
+}
+
+func collectTaskFacts(scope CollectorScope, tasks []TaskFact, chain []string, buckets map[string][]string) {
+	for _, task := range tasks {
+		if !scope.contains(task.ProfileID, task.WorkspaceID) ||
+			task.OwnerKind != "agent_session" || task.OwnerSessionID == "" || !slices.Contains(chain, task.OwnerSessionID) {
+			continue
+		}
+		if task.RunID == "" && task.Status == "blocked" {
+			buckets[collectorTask] = append(buckets[collectorTask], "task:"+task.ID+":blocked")
+		}
+		if task.RunID != "" && task.Status == "queued" {
+			buckets[collectorTask] = append(buckets[collectorTask], "run:"+task.RunID+":queued")
+		}
+	}
+}
+
+func collectSessionFacts(
+	scope CollectorScope,
+	sessions []SessionFact,
+	chain []string,
+	selected map[string]bool,
+	buckets map[string][]string,
+) {
+	for _, session := range sessions {
+		if session.Hidden || slices.Contains(chain, session.ID) ||
+			!scope.contains(session.ProfileID, session.WorkspaceID) {
+			continue
+		}
+		if selected["session_health"] &&
+			slices.Contains([]string{"degraded", "stale", "dead", "unknown"}, session.Health) {
+			buckets["session_health"] = append(buckets["session_health"], "health:"+session.ID+":"+session.Health)
+		}
+		if selected["sessions_idle"] && session.LastEventAt.Add(time.Hour).After(scope.LastCompletedAt) &&
+			!session.LastEventAt.After(scope.Now.Add(-time.Hour)) && session.LastSeq > 0 {
+			buckets["sessions_idle"] = append(
+				buckets["sessions_idle"],
+				fmt.Sprintf("idle:%s:%d", session.ID, session.LastSeq),
+			)
+		}
+	}
+}
+
+func collectAutomationFacts(scope CollectorScope, automations []AutomationFact, buckets map[string][]string) string {
+	cursor := scope.AutomationCursor
+	eligible := make([]AutomationFact, 0)
+	for _, run := range automations {
+		if scope.contains(run.ProfileID, run.WorkspaceID) && run.Status == "failed" &&
+			run.Cursor > scope.AutomationCursor {
+			eligible = append(eligible, run)
+		}
+	}
+	slices.SortFunc(
+		eligible,
+		func(a, b AutomationFact) int { return cmp.Or(cmp.Compare(a.Cursor, b.Cursor), cmp.Compare(a.ID, b.ID)) },
+	)
+	seen := map[string]bool{}
+	for _, run := range eligible {
+		if seen[run.ID] {
+			continue
+		}
+		if len(buckets["automations_failed"]) == 10 {
+			break
+		}
+		seen[run.ID] = true
+		buckets["automations_failed"] = append(buckets["automations_failed"], "auto:"+run.ID)
+		cursor = run.Cursor
+	}
+	return cursor
+}
+
+func collectMonitorFacts(scope CollectorScope, monitors []MonitorFact, buckets map[string][]string) {
+	for _, monitor := range monitors {
+		if monitor.Fired && scope.MainSessionID != "" && monitor.SessionID == scope.MainSessionID {
+			buckets["monitors_fired"] = append(buckets["monitors_fired"], "monitor:"+monitor.ID)
+		}
+	}
 }

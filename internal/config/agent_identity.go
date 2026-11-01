@@ -21,12 +21,12 @@ const (
 
 var (
 	ErrAgentKindImmutable = errors.New(
-		"An agent's kind is fixed at creation. Duplicate it to choose another kind.",
+		"an agent's kind is fixed at creation; duplicate it to choose another kind",
 	)
-	ErrAgentKindInvalid        = errors.New("Agent kind must be on_demand or stays_on.")
-	ErrAgentDisplayNameInvalid = errors.New("Display names can have up to 80 characters.")
-	ErrAgentDescriptionInvalid = errors.New("Descriptions can have up to 280 characters.")
-	ErrAgentAppearanceInvalid  = errors.New("Appearance needs a `#rrggbb` color and one icon or emoji.")
+	ErrAgentKindInvalid        = errors.New("agent kind must be on_demand or stays_on")
+	ErrAgentDisplayNameInvalid = errors.New("display names can have up to 80 characters")
+	ErrAgentDescriptionInvalid = errors.New("descriptions can have up to 280 characters")
+	ErrAgentAppearanceInvalid  = errors.New("appearance needs a `#rrggbb` color and one icon or emoji")
 	agentColorPattern          = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
@@ -79,11 +79,10 @@ func cloneAppearanceValue(value any) any {
 
 func (a AgentDef) ResolveAppearance() (map[string]any, error) {
 	if a.Appearance != nil {
-		if err := ValidateAgentAppearance(a.Appearance); err == nil {
-			return CloneAgentAppearance(a.Appearance), nil
-		} else {
+		if err := ValidateAgentAppearance(a.Appearance); err != nil {
 			return a.defaultAppearance(), err
 		}
+		return CloneAgentAppearance(a.Appearance), nil
 	}
 	return a.defaultAppearance(), nil
 }
@@ -113,18 +112,18 @@ func ValidateAgentAppearance(a map[string]any) error {
 	if !appearanceVersionOne(a["version"]) {
 		return ErrAgentAppearanceInvalid
 	}
-	color, _ := a["color"].(string)
+	color := agentAppearanceString(a["color"])
 	if !agentColorPattern.MatchString(color) {
 		return ErrAgentAppearanceInvalid
 	}
-	icon, _ := a["icon"].(string)
-	emoji, _ := a["emoji"].(string)
+	icon := agentAppearanceString(a["icon"])
+	emoji := agentAppearanceString(a["emoji"])
 	if icon != "" && emoji != "" {
 		return ErrAgentAppearanceInvalid
 	}
 	switch a["avatar"] {
 	case "generated":
-		seed, _ := a["seed"].(string)
+		seed := agentAppearanceString(a["seed"])
 		if strings.TrimSpace(seed) == "" || !appearanceVersionOne(a["generation"]) || icon != "" || emoji != "" {
 			return ErrAgentAppearanceInvalid
 		}
@@ -191,4 +190,11 @@ func appearanceVersionOne(value any) bool {
 	default:
 		return false
 	}
+}
+
+func agentAppearanceString(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return ""
 }

@@ -1120,7 +1120,11 @@ func TestAgentInstanceCommands(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main"}}`
 				switch r.URL.Path {
-				case "/api/agent-instances", "/api/agent-instances/adopt", "/api/agent-instances/ainst-test/pause", "/api/agent-instances/ainst-test/resume", "/api/agent-instances/ainst-test/ensure-main":
+				case "/api/agent-instances",
+					"/api/agent-instances/adopt",
+					"/api/agent-instances/ainst-test/pause",
+					"/api/agent-instances/ainst-test/resume",
+					"/api/agent-instances/ainst-test/ensure-main":
 					if r.Method != http.MethodPost {
 						t.Errorf("unexpected method %s", r.Method)
 					}
@@ -1152,10 +1156,13 @@ func TestAgentInstanceCommands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-				return server.Client().Transport.RoundTrip(r)
-			})}}
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+					return server.Client().Transport.RoundTrip(r)
+				})},
+			}
 			args := append([]string{"agent", "instance"}, tc.args...)
 			args = append(args, "--global")
 			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
@@ -1191,10 +1198,13 @@ func TestAgentInstanceCommands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-				return server.Client().Transport.RoundTrip(r)
-			})}}
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+					return server.Client().Transport.RoundTrip(r)
+				})},
+			}
 			args := []string{"agent", "instance", "occurrence", "occ-test", "-o", "json"}
 			if command == "check" {
 				args = []string{"agent", "instance", "check", "ainst-test", "--global", "-o", "json"}
@@ -1231,7 +1241,10 @@ func TestAgentInstanceCommands(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(201)
-			if _, err := io.WriteString(w, `{"instance":{"id":"ainst-test","agent_name":"triage","state":"active","main_session_id":"sess-test"}}`); err != nil {
+			if _, err := io.WriteString(
+				w,
+				`{"instance":{"id":"ainst-test","agent_name":"triage","state":"active","main_session_id":"sess-test"}}`,
+			); err != nil {
 				t.Error(err)
 			}
 		}))
@@ -1240,10 +1253,13 @@ func TestAgentInstanceCommands(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-			return server.Client().Transport.RoundTrip(r)
-		})}}
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})},
+		}
 		deps := newWorkspaceTestDeps(t, client)
 		stdout, _, err := executeRootCommand(t, deps, "agent", "instance", "create", "triage", "--global", "-o", "json")
 		if err != nil {
@@ -1293,10 +1309,13 @@ func TestAgentReadCommands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-				return server.Client().Transport.RoundTrip(r)
-			})}}
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+					return server.Client().Transport.RoundTrip(r)
+				})},
+			}
 			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), tc.args...)
 			if err != nil {
 				t.Fatal(err)
@@ -1334,7 +1353,8 @@ func TestAgentDraftCommand(t *testing.T) {
 				t.Errorf("request = %+v", request)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(contract.DraftAgentInstructionsResponse{Instructions: "Review pending tasks."}); err != nil {
+			if err := json.NewEncoder(w).
+				Encode(contract.DraftAgentInstructionsResponse{Instructions: "Review pending tasks."}); err != nil {
 				t.Error(err)
 			}
 		}))
@@ -1343,11 +1363,22 @@ func TestAgentDraftCommand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-			r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-			return server.Client().Transport.RoundTrip(r)
-		})}}
-		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "agent", "draft", "Review work", "--provider", "claude")
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})},
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"agent",
+			"draft",
+			"Review work",
+			"--provider",
+			"claude",
+		)
 		if err != nil || stdout != "Review pending tasks.\n" {
 			t.Fatalf("draft output=%q err=%v", stdout, err)
 		}

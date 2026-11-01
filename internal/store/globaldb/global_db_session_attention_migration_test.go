@@ -176,7 +176,9 @@ func TestPermissionInitiatorMigration(t *testing.T) {
 		})
 		for _, table := range []string{"sessions", "permission_log"} {
 			var kind, actor string
-			if err := upgraded.DB().QueryRowContext(ctx, "SELECT initiator_kind, initiator_id FROM "+table).Scan(&kind, &actor); err != nil {
+			if err := upgraded.DB().
+				QueryRowContext(ctx, "SELECT initiator_kind, initiator_id FROM "+table).
+				Scan(&kind, &actor); err != nil {
 				t.Fatal(err)
 			}
 			if kind != "" || actor != "" {

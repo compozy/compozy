@@ -734,7 +734,6 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 				t.Fatal("canceled permission retained the live approval badge")
 			}
 		})
-
 	}
 
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
@@ -1186,7 +1185,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if !ok {
 			t.Fatal("catalog missing failed create session sess-1")
 		}
-		assertStartupFailureCatalog(t, failedCatalog)
+		assertStartupFailureCatalog(t, &failedCatalog)
 	})
 
 	t.Run("Should restore catalog projection from metadata after resume start failure", func(t *testing.T) {
@@ -1218,7 +1217,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("catalog missing session %q after failed resume", session.ID)
 		}
 		assertRestoredResumeMeta(t, &afterMeta, &beforeMeta)
-		assertRestoredResumeCatalog(t, afterCatalog, beforeCatalog)
+		assertRestoredResumeCatalog(t, &afterCatalog, &beforeCatalog)
 	})
 
 	t.Run("Should reject archive after a resume transition begins", func(t *testing.T) {
@@ -2702,11 +2701,10 @@ func (c *recordingSessionCatalog) ReconcileSessions(
 ) (store.ReconcileResult, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, session := range sessions {
-		c.sessions[session.ID] = session
-	}
 	indexed := make([]string, 0, len(sessions))
-	for _, session := range sessions {
+	for index := range sessions {
+		session := &sessions[index]
+		c.sessions[session.ID] = *session
 		indexed = append(indexed, session.ID)
 	}
 	return store.ReconcileResult{Indexed: indexed}, nil
@@ -2751,7 +2749,7 @@ func assertStartupFailureMeta(t *testing.T, meta *store.SessionMeta) {
 	}
 }
 
-func assertStartupFailureCatalog(t *testing.T, info store.SessionInfo) {
+func assertStartupFailureCatalog(t *testing.T, info *store.SessionInfo) {
 	t.Helper()
 
 	if info.State != string(StateStopped) {
@@ -2788,7 +2786,7 @@ func assertRestoredResumeMeta(t *testing.T, after, before *store.SessionMeta) {
 	assertSameSessionFailure(t, after.Failure, before.Failure, "restored meta")
 }
 
-func assertRestoredResumeCatalog(t *testing.T, after store.SessionInfo, before store.SessionInfo) {
+func assertRestoredResumeCatalog(t *testing.T, after, before *store.SessionInfo) {
 	t.Helper()
 
 	if after.State != before.State {

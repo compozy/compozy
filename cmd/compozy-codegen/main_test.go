@@ -945,7 +945,7 @@ func (c *Client) Upload(body *UploadFile) {}
 			}
 			if operation.ID == "streamSessionCatalog" {
 				foundUnion = true
-				if operation.Kind != sdkgo.ClientOperationSSE || len(operation.ResponseVariants) != 3 {
+				if operation.Kind != sdkgo.ClientOperationSSE || len(operation.ResponseVariants) != 4 {
 					t.Fatalf("catalog variants = %#v", operation)
 				}
 			}

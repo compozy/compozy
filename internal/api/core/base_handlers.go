@@ -2,13 +2,14 @@ package core
 
 import (
 	"context"
-	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/compozy/compozy/internal/agentmemory"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/cmdpalette"

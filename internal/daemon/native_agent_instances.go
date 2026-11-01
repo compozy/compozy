@@ -6,13 +6,14 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
-	"strings"
-	"time"
 )
 
 type nativeInstanceInput struct {
@@ -30,16 +31,37 @@ type nativeInstanceInput struct {
 }
 
 func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeToolBinding {
-	available := n.dependencyAvailability(func() bool { return n.deps.AgentInstances != nil && n.deps.AgentInstances() != nil })
+	available := n.dependencyAvailability(
+		func() bool { return n.deps.AgentInstances != nil && n.deps.AgentInstances() != nil },
+	)
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding)
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceCheck, toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceOccurrence, toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceList,
-		toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive,
-		toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentActivity, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceAway, toolspkg.ToolIDAgentInstanceSeen, toolspkg.ToolIDAgentInstanceCheckIns} {
+	for _, id := range []toolspkg.ToolID{
+		toolspkg.ToolIDAgentInstanceCheck,
+		toolspkg.ToolIDAgentInstanceChecks,
+		toolspkg.ToolIDAgentInstanceOccurrence,
+		toolspkg.ToolIDAgentInstanceCreate,
+		toolspkg.ToolIDAgentInstanceList,
+		toolspkg.ToolIDAgentInstancePause,
+		toolspkg.ToolIDAgentInstanceResume,
+		toolspkg.ToolIDAgentInstanceArchive,
+		toolspkg.ToolIDAgentInstanceEnsureMain,
+		toolspkg.ToolIDAgentInstanceReports,
+		toolspkg.ToolIDAgentActivity,
+		toolspkg.ToolIDAgentInstanceGet,
+		toolspkg.ToolIDAgentInstanceAway,
+		toolspkg.ToolIDAgentInstanceSeen,
+		toolspkg.ToolIDAgentInstanceCheckIns,
+	} {
 		bindings[id] = nativeToolBinding{call: n.agentInstanceCall, availability: available}
 	}
 	return bindings
 }
-func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (result toolspkg.ToolResult, callErr error) {
+
+func (n *daemonNativeTools) agentInstanceCall(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (result toolspkg.ToolResult, callErr error) {
 	var input nativeInstanceInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -68,195 +90,49 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		return n.nativeAgentActivity(ctx, scope, req, input, actor)
 	}
 	action := strings.TrimPrefix(req.ToolID.String(), "compozy__agent_instance_")
-	if !scope.Operator && (action == "create" || action == "archive" || (action == "check" && !input.DryRun)) && !req.ApprovalGranted {
-		approved := false
-		if n.deps.Sessions != nil {
-			info, err := n.deps.Sessions.Status(ctx, scope.SessionID)
-			if err != nil {
-				return toolspkg.ToolResult{}, err
-			}
-			approved = info != nil && info.EffectivePermissions == string(toolspkg.PermissionModeApproveAll)
-		}
-		if !approved {
-			return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeApprovalRequired, req.ToolID,
-				"instance operation requires operator approval", toolspkg.ErrToolApprovalRequired, toolspkg.ReasonApprovalRequired)
-		}
-	}
-	if action == "create" {
-		target, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		workspaceID, err := nativeResolvedRegistryWorkspaceID(&target)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		instance, created, err := api.Service.Create(ctx, agentinstance.CreateRequest{Agent: input.Agent, Workspace: workspaceID, Profile: scope.ProfileID, Actor: actor})
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		payload, err := api.Payload(ctx, instance)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		payload.Created = created
-		return structuredResult(contract.AgentInstanceResponse{Instance: payload}, "Instance created")
-	}
-	if input.Limit == 0 {
-		input.Limit = 50
-	}
-	if input.Limit < 1 || input.Limit > 100 {
-		return toolspkg.ToolResult{}, errors.New("limit must be from 1 to 100")
-	}
-	workspaceID := scope.WorkspaceID
-	if input.Workspace == "@user" {
-		workspaceID = ""
-	} else if input.Workspace != "" {
-		resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, input.Workspace)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		workspaceID = resolved.ID
-	}
-	if input.AllWorkspaces && !scope.Operator {
-		decision, err := n.deps.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{Actor: actor, Target: workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, ProfileID: scope.ProfileID}, ReadOnly: true, Seam: workspaceaccess.SeamCatalog})
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		if !decision.Allowed {
-			return toolspkg.ToolResult{}, agentinstance.ErrForbidden
-		}
-	}
-	query := agentinstance.ListQuery{AgentName: input.Agent, ProfileID: scope.ProfileID, WorkspaceID: workspaceID, AllWorkspaces: input.AllWorkspaces, Limit: input.Limit}
-	if action == "list" {
-		query.AfterID = input.Cursor
-		query.State = input.State
-	}
-	var instance agentinstance.Instance
-	if input.ID != "" && action != "list" {
-		var err error
-		instance, err = api.Store.Get(ctx, input.ID)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-	} else {
-		for {
-			rows, err := api.Store.List(ctx, query)
-			if err != nil {
-				return toolspkg.ToolResult{}, err
-			}
-			result := contract.AgentInstanceListResponse{Instances: []contract.AgentInstancePayload{}}
-			for _, row := range rows {
-				if err := api.Authority.Authorize(ctx, actor, row, "list"); err != nil {
-					if errors.Is(err, agentinstance.ErrForbidden) {
-						continue
-					}
-					return toolspkg.ToolResult{}, err
-				}
-				if action != "list" {
-					instance = row
-					break
-				}
-				payload, err := api.Payload(ctx, row)
-				if err != nil {
-					return toolspkg.ToolResult{}, err
-				}
-				result.Instances = append(result.Instances, payload)
-			}
-			if len(rows) == query.Limit {
-				result.NextCursor = rows[len(rows)-1].ID
-			}
-			if action == "list" {
-				metadata, err := api.ListResponse(ctx, scope.ProfileID)
-				if err != nil {
-					return toolspkg.ToolResult{}, err
-				}
-				result.MaxActiveInstances, result.ActiveCount = metadata.MaxActiveInstances, metadata.ActiveCount
-				return structuredResult(result, "Agent instances")
-			}
-			if instance.ID != "" {
-				break
-			}
-			if result.NextCursor == "" {
-				return toolspkg.ToolResult{}, agentinstance.ErrNotFound
-			}
-			query.AfterID = result.NextCursor
-		}
-	}
-	if instance.ProfileID != scope.ProfileID {
-		return toolspkg.ToolResult{}, agentinstance.ErrNotFound
-	}
-	if (action == "away" || action == "mark_seen") && !scope.Operator {
-		return toolspkg.ToolResult{}, agentinstance.ErrForbidden
-	}
-	verb := action
-	if action == "get" || action == "check_ins" {
-		verb = "reports"
-	}
-	if action == "checks" {
-		if input.Enabled == nil {
-			return toolspkg.ToolResult{}, errors.New("enabled is required")
-		}
-		verb = "checks_off"
-		if *input.Enabled {
-			verb = "checks_on"
-		}
-	}
-	if action == "check" && input.DryRun {
-		verb = "check_dry_run"
-	}
-	if err := api.Authority.Authorize(ctx, actor, instance, verb); err != nil {
+	if err := n.authorizeNativeInstanceApproval(ctx, scope, req, input, action); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if !scope.Operator {
-		if n.deps.WorkspaceAccess == nil {
-			return toolspkg.ToolResult{}, agentinstance.ErrWorkspaceAccessDenied
-		}
-		decision, accessErr := n.deps.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{Actor: actor, Target: workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID), ReadOnly: action == "reports" || action == "get" || action == "check_ins", Seam: workspaceaccess.SeamTool})
-		if accessErr != nil {
-			return toolspkg.ToolResult{}, accessErr
-		}
-		if !decision.Allowed {
-			return toolspkg.ToolResult{}, agentinstance.ErrWorkspaceAccessDenied
-		}
+	if action == "create" {
+		return n.createNativeInstance(ctx, api, scope, req, input, actor)
 	}
+	query, err := n.nativeInstanceQuery(ctx, scope, &input, actor, action)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if action == "list" {
+		return nativeInstanceList(ctx, api, scope.ProfileID, actor, query)
+	}
+	instance, err := nativeInstanceTarget(ctx, api, actor, input.ID, query)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := n.authorizeNativeInstanceAction(ctx, api, scope, actor, instance, input, action); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return executeNativeInstanceAction(ctx, api, actor, instance, input, action)
+}
+
+func executeNativeInstanceAction(
+	ctx context.Context,
+	api *core.AgentInstanceAPI,
+	actor workspaceaccess.ActorRef,
+	instance agentinstance.Instance,
+	input nativeInstanceInput,
+	action string,
+) (toolspkg.ToolResult, error) {
 	var err error
 	switch action {
-	case "check":
-		if api.Checks == nil {
-			return toolspkg.ToolResult{}, errors.New("instance checks unavailable")
-		}
-		result, err := api.Checks.Check(ctx, instance.ID, input.DryRun)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		response := contract.AgentInstanceCheckResponse{Gate: result.Gate, OccurrenceID: result.OccurrenceID}
-		if result.Digest != nil {
-			response.Digest = &contract.AgentInstanceCheckDigest{ItemKeys: []string{}, Fingerprint: result.Digest.Fingerprint, Diagnostics: result.Digest.Diagnostics}
-			for _, item := range result.Digest.Items {
-				response.Digest.ItemKeys = append(response.Digest.ItemKeys, item.Key)
-			}
-		}
-		return structuredResult(response, "Instance check")
+	case nativeInstanceActionCheck:
+		return nativeInstanceCheck(ctx, api, instance.ID, input)
 	case "checks":
 		if api.CheckSettings == nil {
 			return toolspkg.ToolResult{}, errors.New("instance check settings unavailable")
 		}
 		instance, err = api.CheckSettings.SetChecks(ctx, instance.ID, *input.Enabled)
 	case "occurrence":
-		reader, ok := api.Store.(core.AgentInstanceOccurrenceReader)
-		if !ok {
-			return toolspkg.ToolResult{}, errors.New("instance occurrences unavailable")
-		}
-		if strings.TrimSpace(input.OccurrenceID) == "" {
-			return toolspkg.ToolResult{}, errors.New("occurrence_id is required")
-		}
-		result, err := reader.Occurrence(ctx, instance.ID, input.OccurrenceID)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		return structuredResult(contract.AgentInstanceOccurrenceResponse{State: result.State, Result: result.Result, Reason: result.Reason, ReportID: result.ReportID}, "Instance occurrence")
-	case "get":
+		return nativeInstanceOccurrence(ctx, api, instance.ID, input)
+	case nativeInstanceActionGet:
 	case "away":
 		result, err := api.Away(ctx, instance.ID)
 		if err != nil {
@@ -264,16 +140,8 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		}
 		return structuredResult(result, "Instance away")
 	case "mark_seen":
-		reader, ok := api.Store.(agentinstance.SeenStore)
-		if !ok {
-			return toolspkg.ToolResult{}, errors.New("instance seen storage unavailable")
-		}
-		at, err := reader.MarkSeen(ctx, instance.ID, agentinstance.LocalOperator, time.Now())
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		return structuredResult(contract.AgentInstanceSeenResponse{LastSeenAt: at}, "Instance marked seen")
-	case "check_ins":
+		return nativeInstanceMarkSeen(ctx, api, instance.ID)
+	case nativeInstanceActionCheckIns:
 		result, err := api.CheckIns(ctx, instance.ID, input.Cursor, input.Limit)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
@@ -287,7 +155,7 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		err = api.Service.Archive(ctx, instance.ID)
 	case "ensure_main":
 		instance, err = api.Service.EnsureMain(ctx, instance.ID)
-	case "reports":
+	case nativeInstanceActionReports:
 		return nativeInstanceReports(ctx, api, instance.ID, input)
 	default:
 		return toolspkg.ToolResult{}, errors.New("unsupported instance operation")
@@ -301,9 +169,15 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 	}
 	return structuredResult(contract.AgentInstanceResponse{Instance: payload}, "Instance updated")
 }
-func nativeInstanceReports(ctx context.Context, api *core.AgentInstanceAPI, id string, input nativeInstanceInput) (toolspkg.ToolResult, error) {
+
+func nativeInstanceReports(
+	ctx context.Context,
+	api *core.AgentInstanceAPI,
+	id string,
+	input nativeInstanceInput,
+) (toolspkg.ToolResult, error) {
 	switch input.State {
-	case "", "pending", "reserved", "delivered", "indeterminate":
+	case "", hookAgentEventsPendingKey, "reserved", "delivered", "indeterminate":
 	default:
 		return toolspkg.ToolResult{}, errors.New("invalid report state")
 	}
@@ -338,7 +212,83 @@ func nativeInstanceReports(ctx context.Context, api *core.AgentInstanceAPI, id s
 	}
 	if len(rows) == input.Limit {
 		last := rows[len(rows)-1]
-		result.NextCursor = base64.RawURLEncoding.EncodeToString([]byte(id + "\n" + last.CreatedAt.Format(time.RFC3339Nano) + "\n" + last.ID + "\n" + input.State))
+		result.NextCursor = base64.RawURLEncoding.EncodeToString(
+			[]byte(id + "\n" + last.CreatedAt.Format(time.RFC3339Nano) + "\n" + last.ID + "\n" + input.State),
+		)
 	}
 	return structuredResult(result, "Instance reports")
 }
+
+func nativeInstanceCheck(
+	ctx context.Context,
+	api *core.AgentInstanceAPI,
+	id string,
+	input nativeInstanceInput,
+) (toolspkg.ToolResult, error) {
+	if api.Checks == nil {
+		return toolspkg.ToolResult{}, errors.New("instance checks unavailable")
+	}
+	result, err := api.Checks.Check(ctx, id, input.DryRun)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	response := contract.AgentInstanceCheckResponse{Gate: result.Gate, OccurrenceID: result.OccurrenceID}
+	if result.Digest != nil {
+		response.Digest = &contract.AgentInstanceCheckDigest{
+			ItemKeys:    []string{},
+			Fingerprint: result.Digest.Fingerprint,
+			Diagnostics: result.Digest.Diagnostics,
+		}
+		for _, item := range result.Digest.Items {
+			response.Digest.ItemKeys = append(response.Digest.ItemKeys, item.Key)
+		}
+	}
+	return structuredResult(response, "Instance check")
+}
+
+func nativeInstanceOccurrence(
+	ctx context.Context,
+	api *core.AgentInstanceAPI,
+	id string,
+	input nativeInstanceInput,
+) (toolspkg.ToolResult, error) {
+	reader, ok := api.Store.(core.AgentInstanceOccurrenceReader)
+	if !ok {
+		return toolspkg.ToolResult{}, errors.New("instance occurrences unavailable")
+	}
+	if strings.TrimSpace(input.OccurrenceID) == "" {
+		return toolspkg.ToolResult{}, errors.New("occurrence_id is required")
+	}
+	result, err := reader.Occurrence(ctx, id, input.OccurrenceID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(
+		contract.AgentInstanceOccurrenceResponse{
+			State:    result.State,
+			Result:   result.Result,
+			Reason:   result.Reason,
+			ReportID: result.ReportID,
+		},
+		"Instance occurrence",
+	)
+}
+
+func nativeInstanceMarkSeen(ctx context.Context, api *core.AgentInstanceAPI, id string) (toolspkg.ToolResult, error) {
+	reader, ok := api.Store.(agentinstance.SeenStore)
+	if !ok {
+		return toolspkg.ToolResult{}, errors.New("instance seen storage unavailable")
+	}
+	at, err := reader.MarkSeen(ctx, id, agentinstance.LocalOperator, time.Now())
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(contract.AgentInstanceSeenResponse{LastSeenAt: at}, "Instance marked seen")
+}
+
+const (
+	nativeInstanceActionCheck    = "check"
+	nativeInstanceActionGet      = "get"
+	nativeInstanceActionCheckIns = "check_ins"
+	nativeInstanceActionReports  = "reports"
+)

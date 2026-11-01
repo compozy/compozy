@@ -1747,7 +1747,9 @@ func TestInstanceCallApproval(t *testing.T) {
 			d.ReadOnly, d.OpenWorld, d.RequiresInteraction = false, false, false
 			d.Risk = RiskMutating
 			d.Destructive = tc.id == ToolIDAgentInstanceArchive
-			d.InputSchema = json.RawMessage(`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"}},"additionalProperties":false}`)
+			d.InputSchema = json.RawMessage(
+				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"}},"additionalProperties":false}`,
+			)
 			provider := providerWithDescriptors(d.Source, d)
 			called := false
 			provider.handles[d.ID].(*registryTestHandle).call = func(context.Context, CallRequest) (ToolResult, error) {
@@ -1766,14 +1768,20 @@ func TestInstanceCallApproval(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			hooks := &recordingHookRunner{pre: func(_ context.Context, req CallRequest) (CallRequest, EffectiveToolDecision, error) {
-				if tc.patch != "" {
-					req.Input = json.RawMessage(tc.patch)
-				}
-				return req, hookAllowedDecision(), nil
-			}}
+			hooks := &recordingHookRunner{
+				pre: func(_ context.Context, req CallRequest) (CallRequest, EffectiveToolDecision, error) {
+					if tc.patch != "" {
+						req.Input = json.RawMessage(tc.patch)
+					}
+					return req, hookAllowedDecision(), nil
+				},
+			}
 			registry := mustDispatchRegistry(t, provider, WithPolicyEvaluator(policy), WithHookRunner(hooks))
-			_, err = registry.Call(t.Context(), Scope{SessionID: "owner"}, CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input)})
+			_, err = registry.Call(
+				t.Context(),
+				Scope{SessionID: "owner"},
+				CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input)},
+			)
 			if called != tc.wantCall || (err == nil) != tc.wantCall {
 				t.Fatalf("called=%v error=%v want call=%v", called, err, tc.wantCall)
 			}

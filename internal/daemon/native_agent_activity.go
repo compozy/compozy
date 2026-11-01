@@ -11,7 +11,13 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-func (n *daemonNativeTools) nativeAgentActivity(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest, input nativeInstanceInput, actor workspaceaccess.ActorRef) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) nativeAgentActivity(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	input nativeInstanceInput,
+	actor workspaceaccess.ActorRef,
+) (toolspkg.ToolResult, error) {
 	if input.Days == 0 {
 		input.Days = 30
 	}
@@ -33,7 +39,15 @@ func (n *daemonNativeTools) nativeAgentActivity(ctx context.Context, scope tools
 		if n.deps.WorkspaceAccess == nil {
 			return toolspkg.ToolResult{}, agentinstance.ErrForbidden
 		}
-		decision, err := n.deps.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{Actor: actor, Target: workspaceaccess.ScopeTarget(workspaceID, scope.ProfileID), ReadOnly: true, Seam: workspaceaccess.SeamTool})
+		decision, err := n.deps.WorkspaceAccess.Authorize(
+			ctx,
+			workspaceaccess.Request{
+				Actor:    actor,
+				Target:   workspaceaccess.ScopeTarget(workspaceID, scope.ProfileID),
+				ReadOnly: true,
+				Seam:     workspaceaccess.SeamTool,
+			},
+		)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -45,7 +59,15 @@ func (n *daemonNativeTools) nativeAgentActivity(ctx context.Context, scope tools
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("agent activity unavailable")
 	}
-	result, err := reader.ReadActivity(ctx, agentinstance.ActivityQuery{ProfileID: scope.ProfileID, WorkspaceID: workspaceID, AgentName: input.Agent, Since: store.LocalDayStart(time.Now(), input.Days-1)})
+	result, err := reader.ReadActivity(
+		ctx,
+		agentinstance.ActivityQuery{
+			ProfileID:   scope.ProfileID,
+			WorkspaceID: workspaceID,
+			AgentName:   input.Agent,
+			Since:       store.LocalDayStart(time.Now(), input.Days-1),
+		},
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

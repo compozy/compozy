@@ -613,8 +613,9 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 		}
 		defer proc.endPrompt(active)
 		response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
-			SessionId: "sess-direct", ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "write", Kind: new(acpsdk.ToolKindEdit)},
-			Options: []acpsdk.PermissionOption{{OptionId: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce}},
+			SessionId: "sess-direct",
+			ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "write", Kind: new(acpsdk.ToolKindEdit)},
+			Options:   []acpsdk.PermissionOption{{OptionId: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce}},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -627,7 +628,12 @@ func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 		if terminal.Decision != "canceled" || terminal.ResolvedByValue() != "timeout" {
 			t.Fatalf("terminal = %#v", terminal)
 		}
-		if err := proc.ResolvePermission(ApproveRequest{RequestID: terminal.RequestIDValue(), Decision: string(decisionAllowOnce)}); !errors.Is(err, ErrPendingPermissionNotFound) {
+		if err := proc.ResolvePermission(
+			ApproveRequest{RequestID: terminal.RequestIDValue(), Decision: string(decisionAllowOnce)},
+		); !errors.Is(
+			err,
+			ErrPendingPermissionNotFound,
+		) {
 			t.Fatalf("late answer = %v", err)
 		}
 	})
@@ -1729,6 +1735,29 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve interaction expiry across event copies without sharing mutable values", func(t *testing.T) {
+		t.Parallel()
+		expiry := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		original := (AgentEvent{}).WithExpiresAt(expiry)
+		copied := original.WithResolvedBy("owner").WithRequestID("request")
+		got := copied.ExpiresAtValue()
+		if got == nil || !got.Equal(expiry) {
+			t.Fatalf("copied expiry = %v", got)
+		}
+		*got = expiry.Add(time.Hour)
+		retained := original.ExpiresAtValue()
+		if retained == nil || !retained.Equal(expiry) {
+			t.Fatalf("original expiry = %v", retained)
+		}
+		replaced := copied.WithExpiresAt(expiry.Add(2 * time.Hour))
+		if !replaced.ExpiresAtValue().Equal(expiry.Add(2*time.Hour)) || !copied.ExpiresAtValue().Equal(expiry) {
+			t.Fatal("replacing expiry mutated another event")
+		}
+		if (AgentEvent{}).ExpiresAtValue() != nil {
+			t.Fatal("empty event has an expiry")
+		}
+	})
+
 	t.Run("Should isolate Goal metadata across event copies and preserve unrelated payloads", func(t *testing.T) {
 		t.Parallel()
 		source := &GoalPromptMeta{Kind: GoalPromptKindWork, RunID: "run-goal", NodeID: "node-goal",
@@ -2778,7 +2807,10 @@ func TestPermissionSameRequestFirstWinner(t *testing.T) {
 	t.Run("Should accept exactly one of two clients answering the same request", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
-		id, pending, err := proc.registerPendingPermission("turn-race", acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-race"}})
+		id, pending, err := proc.registerPendingPermission(
+			"turn-race",
+			acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-race"}},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2820,7 +2852,9 @@ func TestPermissionSameRequestFirstWinner(t *testing.T) {
 		if proc.HasPendingPermission() {
 			t.Fatal("winning request remained pending")
 		}
-		if err := proc.ResolvePermission(ApproveRequest{RequestID: id, Decision: string(decisionAllowOnce)}); err == nil {
+		if err := proc.ResolvePermission(
+			ApproveRequest{RequestID: id, Decision: string(decisionAllowOnce)},
+		); err == nil {
 			t.Fatal("late answer accepted")
 		}
 	})
@@ -2844,8 +2878,11 @@ func TestInstancePermissionBeyondDefaultTimeout(t *testing.T) {
 			go func() {
 				response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
 					SessionId: "sess-direct",
-					Options:   []acpsdk.PermissionOption{{OptionId: "allow-once", Name: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce}, {OptionId: "reject-once", Name: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce}},
-					ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "instance-edit", Kind: new(acpsdk.ToolKindEdit)},
+					Options: []acpsdk.PermissionOption{
+						{OptionId: "allow-once", Name: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+						{OptionId: "reject-once", Name: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+					},
+					ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "instance-edit", Kind: new(acpsdk.ToolKindEdit)},
 				})
 				errs <- err
 				done <- response
@@ -2858,7 +2895,9 @@ func TestInstancePermissionBeyondDefaultTimeout(t *testing.T) {
 				t.Fatalf("approval expired before instance deadline: %#v", response)
 			default:
 			}
-			if err := proc.ResolvePermission(ApproveRequest{TurnID: "instance-turn", Decision: "allow-once"}); err != nil {
+			if err := proc.ResolvePermission(
+				ApproveRequest{TurnID: "instance-turn", Decision: "allow-once"},
+			); err != nil {
 				t.Fatal(err)
 			}
 			if err := <-errs; err != nil {

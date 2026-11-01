@@ -91,24 +91,38 @@ func (h *BaseHandlers) listAgentAggregate(c *gin.Context, breadth WorkspaceBread
 			&resolved,
 			userAgentNames,
 			metrics,
-			available && query.Group != "agent",
+			available && query.Group != agentCatalogGroupKey,
 		)
 		response.SessionsAvailable = response.SessionsAvailable && available
 		query.Limit = len(agents) + 1
-		page, buildErr := buildAgentCatalogResponse(agentCatalogWorkspaceQuery(query), workspace, agents, metrics, available)
+		page, buildErr := buildAgentCatalogResponse(
+			agentCatalogWorkspaceQuery(query),
+			workspace,
+			agents,
+			metrics,
+			available,
+		)
 		if buildErr != nil {
 			h.respondError(c, http.StatusInternalServerError, buildErr)
 			return
 		}
 		mergeAgentCatalogPage(&response, page)
 	}
-	groupAgentCatalogResponse(&response, query)
+	h.finishAggregateAgentResponse(c, &response, query, paging)
+}
 
-	if err := paging.finish(&response); err != nil {
+func (h *BaseHandlers) finishAggregateAgentResponse(
+	c *gin.Context,
+	response *contract.AgentCatalogResponse,
+	query agentCatalogQuery,
+	paging aggregateAgentPaging,
+) {
+	groupAgentCatalogResponse(response, query)
+	if err := paging.finish(response); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	projectGroupedAgentCatalog(&response, query)
+	projectGroupedAgentCatalog(response, query)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -163,7 +177,7 @@ func (p aggregateAgentPaging) finish(response *contract.AgentCatalogResponse) er
 	slices.Sort(response.Facets.Categories)
 	response.Facets.Categories = slices.Compact(response.Facets.Categories)
 	slices.SortFunc(response.Agents, func(a, b contract.AgentCatalogItemPayload) int {
-		return compareAggregateAgentPositions(aggregateAgentRowPosition(a), aggregateAgentRowPosition(b))
+		return compareAggregateAgentPositions(aggregateAgentRowPosition(&a), aggregateAgentRowPosition(&b))
 	})
 	response.Page.Total = len(response.Agents)
 	start := aggregateAgentPageStart(response.Agents, p.cursor, p.after)
@@ -173,7 +187,7 @@ func (p aggregateAgentPaging) finish(response *contract.AgentCatalogResponse) er
 	if !response.Page.HasMore {
 		return nil
 	}
-	last := aggregateAgentRowPosition(response.Agents[len(response.Agents)-1])
+	last := aggregateAgentRowPosition(&response.Agents[len(response.Agents)-1])
 	cursor, err := listcursor.Encode(
 		1,
 		"agents_aggregate",
@@ -226,7 +240,7 @@ func aggregateAgentPageStart(
 		return 0
 	}
 	for i := range agents {
-		if compareAggregateAgentPositions(aggregateAgentRowPosition(agents[i]), after) > 0 {
+		if compareAggregateAgentPositions(aggregateAgentRowPosition(&agents[i]), after) > 0 {
 			return i
 		}
 	}
@@ -254,13 +268,13 @@ func inheritedUserAgentWithoutProjectWork(
 
 func aggregateUserAgentNames(entries []AgentCatalogEntry) map[string]struct{} {
 	names := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		names[entry.Def.Name] = struct{}{}
+	for index := range entries {
+		names[entries[index].Def.Name] = struct{}{}
 	}
 	return names
 }
 
-func aggregateAgentRowPosition(row contract.AgentCatalogItemPayload) aggregateAgentPosition {
+func aggregateAgentRowPosition(row *contract.AgentCatalogItemPayload) aggregateAgentPosition {
 	if len(row.Scopes) > 0 {
 		return aggregateAgentPosition{Name: row.Agent.Name, DefinitionDigest: row.Agent.DefinitionDigest}
 	}

@@ -33,7 +33,10 @@ func (h *BaseHandlers) DraftAgentInstructions(c *gin.Context) {
 	}
 	drafter, ok := h.Sessions.(AgentInstructionsDrafter)
 	if !ok {
-		c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{Code: "agent_draft_failed", Error: "Instruction drafting is unavailable"})
+		c.JSON(
+			http.StatusServiceUnavailable,
+			contract.ErrorPayload{Code: "agent_draft_failed", Error: "Instruction drafting is unavailable"},
+		)
 		return
 	}
 	instructions, err := drafter.DraftInstructions(c.Request.Context(), session.DraftInstructionsRequest{

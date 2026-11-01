@@ -14,7 +14,7 @@ func (m *Manager) normalizeCreateOptsLineage(
 	sessionID string,
 	sessionType Type,
 	workspaceID string,
-	opts CreateOpts,
+	opts *CreateOpts,
 ) (*store.SessionLineage, error) {
 	return m.normalizeCreateLineage(
 		ctx, sessionID, sessionType, workspaceID, opts.Lineage, opts.ProvenanceParentSessionID,
@@ -36,7 +36,8 @@ func (m *Manager) prepareInternalSystemProvenance(
 	if lineage != nil {
 		return nil, false, fmt.Errorf("%w: internal system provenance cannot be combined with lineage", ErrValidation)
 	}
-	if normalizeSessionType(sessionType) != SessionTypeSystem && normalizeSessionType(sessionType) != SessionTypeTriage {
+	if normalizeSessionType(sessionType) != SessionTypeSystem &&
+		normalizeSessionType(sessionType) != SessionTypeTriage {
 		return nil, false, fmt.Errorf("%w: internal provenance requires a system session", ErrValidation)
 	}
 

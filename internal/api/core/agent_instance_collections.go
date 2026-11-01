@@ -147,34 +147,12 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 	if all && !h.requireOperatorOrGrantedAgent(c, "agent instances") {
 		return
 	}
-	workspaceID := ""
-	if ref := c.Query("workspace"); ref != "" && ref != "@user" {
-		resolved, err := h.Workspaces.Resolve(c.Request.Context(), ref)
-		if err != nil {
-			h.respondError(c, 422, err)
-			return
-		}
-		workspaceID = resolved.ID
+	query, err := h.agentInstanceListQuery(c, scope.ProfileID, all)
+	if err != nil {
+		h.respondError(c, 422, err)
+		return
 	}
-	limit := 50
-	if value := c.Query("limit"); value != "" {
-		limit, err = strconv.Atoi(value)
-		if err != nil || limit < 1 || limit > 100 {
-			h.respondError(c, 422, errors.New("limit must be from 1 to 100"))
-			return
-		}
-	}
-	rows, err := h.AgentInstances.Store.List(
-		c.Request.Context(),
-		agentinstance.ListQuery{
-			ProfileID:     scope.ProfileID,
-			WorkspaceID:   workspaceID,
-			AllWorkspaces: all,
-			AfterID:       c.Query("cursor"),
-			AgentName:     c.Query("agent"), State: c.Query("state"),
-			Limit: limit,
-		},
-	)
+	rows, err := h.AgentInstances.Store.List(c.Request.Context(), query)
 	if err != nil {
 		h.instanceError(c, err)
 		return
@@ -199,7 +177,7 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		}
 		result.Instances = append(result.Instances, payload)
 	}
-	if len(rows) == limit {
+	if len(rows) == query.Limit {
 		result.NextCursor = rows[len(rows)-1].ID
 	}
 	c.JSON(200, result)
@@ -235,4 +213,31 @@ func (h *BaseHandlers) allowAgentDefinitionDeletion(c *gin.Context, profileID, w
 		}
 		query.AfterID = rows[len(rows)-1].ID
 	}
+}
+
+func (h *BaseHandlers) agentInstanceListQuery(
+	c *gin.Context,
+	profileID string,
+	all bool,
+) (agentinstance.ListQuery, error) {
+	workspaceID := ""
+	if ref := c.Query("workspace"); ref != "" && ref != userScopeWorkspaceRef {
+		resolved, err := h.Workspaces.Resolve(c.Request.Context(), ref)
+		if err != nil {
+			return agentinstance.ListQuery{}, err
+		}
+		workspaceID = resolved.ID
+	}
+	limit := 50
+	if value := c.Query("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 100 {
+			return agentinstance.ListQuery{}, errors.New("limit must be from 1 to 100")
+		}
+		limit = parsed
+	}
+	return agentinstance.ListQuery{
+		ProfileID: profileID, WorkspaceID: workspaceID, AllWorkspaces: all, AfterID: c.Query("cursor"),
+		AgentName: c.Query("agent"), State: c.Query("state"), Limit: limit,
+	}, nil
 }

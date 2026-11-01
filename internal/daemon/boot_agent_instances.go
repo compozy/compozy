@@ -31,22 +31,30 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	catalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
 	})
+	definitions := instanceDefinitions{
+		workspaces: state.workspaceResolver,
+		profiles:   state.profiles,
+		agents:     catalog,
+		sessions:   manager,
+	}
 	admission := &instanceAdmission{
-		definitions: instanceDefinitions{
-			workspaces: state.workspaceResolver,
-			profiles:   state.profiles,
-			agents:     catalog,
-			sessions:   manager,
-		},
-		callers:  repo,
-		sessions: instanceSessionReader{sessions: manager},
-		reach:    instanceWorkspaceReach{policy: state.accessPolicy},
+		definitions: definitions,
+		callers:     repo,
+		sessions:    instanceSessionReader{sessions: manager},
+		reach:       instanceWorkspaceReach{policy: state.accessPolicy},
 	}
 	service, err := agentinstance.NewService(
 		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
 		agentinstance.WithMainSessionRotator(&instanceMainRotator{
-			sessions: manager, store: repo, monitors: state.sessionMonitors,
-			starter: instanceMainSessions{sessions: manager, attempts: repo}, reports: provider.InstanceReports(), now: d.now,
+			sessions: manager,
+			store:    repo,
+			monitors: state.sessionMonitors,
+			starter: instanceMainSessions{
+				sessions: manager,
+				attempts: repo,
+			},
+			reports:    provider.InstanceReports(),
+			now:        d.now,
 			threshold:  state.cfg.Agents.StaysOn.RotationThreshold,
 			retryDelay: state.cfg.Agents.Heartbeat.DefaultInterval,
 			changed: func(instance agentinstance.Instance) {
@@ -70,13 +78,16 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
 		FatigueLimit:       state.cfg.Agents.Heartbeat.FatigueLimit,
 		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
-			return admission.definitions.(instanceDefinitions).instancePayload(ctx, instance, repo)
+			return definitions.instancePayload(ctx, instance, repo)
 		},
 		Authority: agentinstance.Authority{Callers: repo},
 	}
 	state.deps.AgentInstances = state.agentInstances
 	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
-	return errors.Join(service.Reconcile(ctx), sweepInstanceReports(ctx, state))
+	if err := service.Reconcile(ctx); err != nil {
+		state.logger.ErrorContext(ctx, "daemon: reconcile instances at startup", "error", err)
+	}
+	return sweepInstanceReports(ctx, state)
 }
 
 func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, reconcile func(context.Context) error) {

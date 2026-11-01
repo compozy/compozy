@@ -9,7 +9,12 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
-func beforeInstanceCheck(ctx context.Context, hooks *hooksNotifier, target heartbeat.CheckTarget, source string) (string, error) {
+func beforeInstanceCheck(
+	ctx context.Context,
+	hooks *hooksNotifier,
+	target *heartbeat.CheckTarget,
+	source string,
+) (string, error) {
 	if hooks == nil {
 		return "", nil
 	}

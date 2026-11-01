@@ -31,7 +31,11 @@ func (r *InstanceRepo) Get(ctx context.Context, id string) (agentinstance.Instan
 }
 
 // AdmitCreate serializes identity lookup, cap accounting and insertion in one immediate transaction.
-func (r *InstanceRepo) AdmitCreate(ctx context.Context, input agentinstance.Instance, limit int) (agentinstance.Instance, bool, error) {
+func (r *InstanceRepo) AdmitCreate(
+	ctx context.Context,
+	input agentinstance.Instance,
+	limit int,
+) (agentinstance.Instance, bool, error) {
 	if err := r.checkReady(ctx, "admit instance"); err != nil {
 		return agentinstance.Instance{}, false, err
 	}
@@ -39,7 +43,14 @@ func (r *InstanceRepo) AdmitCreate(ctx context.Context, input agentinstance.Inst
 	created := false
 	err := store.ExecuteWriteOperation(ctx, r.db, "admit instance", func(ctx context.Context, tx *store.WriteTx) error {
 		q := sqlcgen.New(tx)
-		existing, err := q.FindLiveAgentInstance(ctx, sqlcgen.FindLiveAgentInstanceParams{ProfileID: input.ProfileID, AgentName: input.AgentName, WorkspaceID: input.WorkspaceID})
+		existing, err := q.FindLiveAgentInstance(
+			ctx,
+			sqlcgen.FindLiveAgentInstanceParams{
+				ProfileID:   input.ProfileID,
+				AgentName:   input.AgentName,
+				WorkspaceID: input.WorkspaceID,
+			},
+		)
 		if err == nil {
 			result, err = instanceFromRow(existing)
 			return err
@@ -59,7 +70,22 @@ func (r *InstanceRepo) AdmitCreate(ctx context.Context, input agentinstance.Inst
 			return err
 		}
 		now := store.FormatTimestamp(r.now())
-		err = q.InsertAgentInstance(ctx, sqlcgen.InsertAgentInstanceParams{ID: id, ProfileID: input.ProfileID, AgentName: input.AgentName, WorkspaceID: input.WorkspaceID, GrantCeiling: input.GrantCeiling, PermissionCeiling: input.PermissionCeiling, Depth: int64(input.Depth), CreatedByKind: input.CreatedByKind, CreatedByID: input.CreatedByID, CreatedAt: now, UpdatedAt: now})
+		err = q.InsertAgentInstance(
+			ctx,
+			sqlcgen.InsertAgentInstanceParams{
+				ID:                id,
+				ProfileID:         input.ProfileID,
+				AgentName:         input.AgentName,
+				WorkspaceID:       input.WorkspaceID,
+				GrantCeiling:      input.GrantCeiling,
+				PermissionCeiling: input.PermissionCeiling,
+				Depth:             int64(input.Depth),
+				CreatedByKind:     input.CreatedByKind,
+				CreatedByID:       input.CreatedByID,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+			},
+		)
 		if err != nil {
 			return err
 		}
@@ -86,7 +112,23 @@ func instanceFromRow(row sqlcgen.AgentInstance) (agentinstance.Instance, error) 
 	if err != nil {
 		return agentinstance.Instance{}, err
 	}
-	result := agentinstance.Instance{ID: row.ID, ProfileID: row.ProfileID, AgentName: row.AgentName, WorkspaceID: row.WorkspaceID, State: row.State, PauseReason: row.PauseReason, MainSessionID: row.MainSessionID.String, GrantCeiling: row.GrantCeiling, PermissionCeiling: row.PermissionCeiling, ChecksEnabled: row.ChecksEnabled != 0, Depth: int(row.Depth), CreatedByKind: row.CreatedByKind, CreatedByID: row.CreatedByID, CreatedAt: created, UpdatedAt: updated}
+	result := agentinstance.Instance{
+		ID:                row.ID,
+		ProfileID:         row.ProfileID,
+		AgentName:         row.AgentName,
+		WorkspaceID:       row.WorkspaceID,
+		State:             row.State,
+		PauseReason:       row.PauseReason,
+		MainSessionID:     row.MainSessionID.String,
+		GrantCeiling:      row.GrantCeiling,
+		PermissionCeiling: row.PermissionCeiling,
+		ChecksEnabled:     row.ChecksEnabled != 0,
+		Depth:             int(row.Depth),
+		CreatedByKind:     row.CreatedByKind,
+		CreatedByID:       row.CreatedByID,
+		CreatedAt:         created,
+		UpdatedAt:         updated,
+	}
 	if row.ArchivedAt.Valid {
 		archived, err := store.ParseTimestamp(row.ArchivedAt.String)
 		if err != nil {

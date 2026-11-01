@@ -368,16 +368,31 @@ func TestAgentInstanceCheck(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			instance, _, err := db.Instances().
+				AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
 			if err != nil {
 				t.Fatal(err)
 			}
 			checker := &instanceCheckStub{result: tc.result}
-			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Checks: checker, Authority: agentinstance.Authority{Callers: db.Instances()}}
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+				Store:     db.Instances(),
+				Checks:    checker,
+				Authority: agentinstance.Authority{Callers: db.Instances()},
+			}
 			fixture.Engine.POST("/instances/:id/check", fixture.Handlers.CheckAgentInstance)
 			response := httptest.NewRecorder()
-			req := httptest.NewRequestWithContext(t.Context(), "POST", "/instances/"+instance.ID+"/check", strings.NewReader(tc.body))
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				"POST",
+				"/instances/"+instance.ID+"/check",
+				strings.NewReader(tc.body),
+			)
 			req.Header.Set("Content-Type", "application/json")
 			fixture.Engine.ServeHTTP(response, req)
 			if response.Code != tc.status {
@@ -387,7 +402,9 @@ func TestAgentInstanceCheck(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
 			}
-			if body.Gate != tc.result.Gate || body.OccurrenceID != tc.result.OccurrenceID || checker.id != instance.ID || checker.dry != tc.dry {
+			if body.Gate != tc.result.Gate || body.OccurrenceID != tc.result.OccurrenceID ||
+				checker.id != instance.ID ||
+				checker.dry != tc.dry {
 				t.Fatalf("response=%+v call=%+v", body, checker)
 			}
 		})
@@ -397,10 +414,18 @@ func TestAgentInstanceCheck(t *testing.T) {
 func TestAgentInstanceCheckSettings(t *testing.T) {
 	t.Run("Should reject a missing checks setting before mutation", func(t *testing.T) {
 		t.Parallel()
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
 		fixture.Engine.PATCH("/instances/:id", fixture.Handlers.UpdateAgentInstance)
 		response := httptest.NewRecorder()
-		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "PATCH", "/instances/unknown", strings.NewReader(`{}`)))
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), "PATCH", "/instances/unknown", strings.NewReader(`{}`)),
+		)
 		var body contract.ErrorPayload
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
@@ -423,25 +448,38 @@ func TestAgentInstanceAway(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
-		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "turn:away-report", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider exited"}`)})
+		report, err := db.InstanceReports().
+			AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "turn:away-report", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider exited"}`)})
 		if err != nil {
 			t.Fatal(err)
 		}
 		for id, result := range map[string]string{"event-quiet": "quiet", "event-skipped": "skipped"} {
-			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer',?,'digest_empty',?,'2099-01-01T00:00:00Z')`, id, instance.ID, result, store.FormatTimestamp(report.CreatedAt))
+			_, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer',?,'digest_empty',?,'2099-01-01T00:00:00Z')`, id, instance.ID, result, store.FormatTimestamp(report.CreatedAt))
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Reports: db.InstanceReports(), Authority: agentinstance.Authority{Callers: db.Instances()}}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store:     db.Instances(),
+			Reports:   db.InstanceReports(),
+			Authority: agentinstance.Authority{Callers: db.Instances()},
+		}
 		at := report.CreatedAt.Add(time.Second)
 		fixture.Handlers.Now = func() time.Time { return at }
-		other, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "other", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		other, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "other", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -456,7 +494,8 @@ func TestAgentInstanceAway(t *testing.T) {
 			if i == 104 {
 				result = "failed"
 			}
-			if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer',?,'quiet',?,?)`, fmt.Sprintf("quiet-%03d", i), id, result, store.FormatTimestamp(timestamp), store.FormatTimestamp(at.Add(time.Hour))); err != nil {
+			if _, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer',?,'quiet',?,?)`, fmt.Sprintf("quiet-%03d", i), id, result, store.FormatTimestamp(timestamp), store.FormatTimestamp(at.Add(time.Hour))); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -464,7 +503,10 @@ func TestAgentInstanceAway(t *testing.T) {
 		fixture.Engine.POST("/instances/:id/away", fixture.Handlers.MarkAgentInstanceSeen)
 		for _, method := range []string{"GET", "POST", "GET"} {
 			response := httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), method, "/instances/"+instance.ID+"/away", nil))
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), method, "/instances/"+instance.ID+"/away", nil),
+			)
 			if response.Code != 200 {
 				t.Fatalf("%s: %d %s", method, response.Code, response.Body.String())
 			}
@@ -683,23 +725,41 @@ func TestAgentInstanceCheckIns(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, id := range []string{"event-a", "event-b"} {
-			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer','skipped','quiet','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`, id, instance.ID)
+			_, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer','skipped','quiet','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`, id, instance.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Authority: agentinstance.Authority{Callers: db.Instances()}}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store:     db.Instances(),
+			Authority: agentinstance.Authority{Callers: db.Instances()},
+		}
 		fixture.Engine.GET("/instances/:id/check-ins", fixture.Handlers.ListAgentInstanceCheckIns)
 		cursor := ""
 		for _, want := range []string{"event-b", "event-a"} {
 			response := httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/instances/"+instance.ID+"/check-ins?limit=1&cursor="+cursor, nil))
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					"GET",
+					"/instances/"+instance.ID+"/check-ins?limit=1&cursor="+cursor,
+					nil,
+				),
+			)
 			var body contract.AgentInstanceCheckInsResponse
 			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
@@ -728,19 +788,43 @@ func TestAgentInstanceCheckProjection(t *testing.T) {
 			}
 		})
 		repo := db.Instances()
-		instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 7)
+		instance, _, err := repo.AdmitCreate(
+			t.Context(),
+			agentinstance.Instance{
+				AgentName:         "coder",
+				ProfileID:         store.DefaultProfileID,
+				CreatedByKind:     "human",
+				PermissionCeiling: "{}",
+			},
+			7,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "other", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 7); err != nil {
+		if _, _, err := repo.AdmitCreate(
+			t.Context(),
+			agentinstance.Instance{
+				AgentName:         "other",
+				ProfileID:         store.DefaultProfileID,
+				CreatedByKind:     "human",
+				PermissionCeiling: "{}",
+			},
+			7,
+		); err != nil {
 			t.Fatal(err)
 		}
 		const last = "2026-11-01T12:00:00Z"
 		const next = "2026-11-01T13:00:00Z"
-		if _, err := db.DB().ExecContext(t.Context(), `UPDATE agent_instance_wake_state SET last_wake_at=?, next_wake_at=?, quiet_streak=3, failure_streak=2 WHERE instance_id=?`, last, next, instance.ID); err != nil {
+		if _, err := db.DB().
+			ExecContext(t.Context(), `UPDATE agent_instance_wake_state SET last_wake_at=?, next_wake_at=?, quiet_streak=3, failure_streak=2 WHERE instance_id=?`, last, next, instance.ID); err != nil {
 			t.Fatal(err)
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
 			Service: &agentinstance.Service{}, Store: repo, WakeState: repo.WakeState, CountActive: repo.CountActive,
 			MaxActiveInstances: 7, FatigueLimit: 4, CheckSettings: instanceCheckSettingsRepo{repo},
@@ -750,7 +834,11 @@ func TestAgentInstanceCheckProjection(t *testing.T) {
 		fixture.Engine.PATCH("/instances/:id", fixture.Handlers.UpdateAgentInstance)
 		assertPayload := func(payload contract.AgentInstancePayload, enabled bool) {
 			t.Helper()
-			if payload.ID != instance.ID || payload.ChecksEnabled != enabled || payload.LastWakeAt != last || payload.NextWakeAt != next || payload.QuietStreak != 3 || payload.FailureStreak != 2 || payload.FatigueLimit != 4 {
+			if payload.ID != instance.ID || payload.ChecksEnabled != enabled || payload.LastWakeAt != last ||
+				payload.NextWakeAt != next ||
+				payload.QuietStreak != 3 ||
+				payload.FailureStreak != 2 ||
+				payload.FatigueLimit != 4 {
 				t.Fatalf("unexpected check projection: %+v", payload)
 			}
 		}
@@ -766,7 +854,15 @@ func TestAgentInstanceCheckProjection(t *testing.T) {
 		assertPayload(list.Instances[0], true)
 		for _, method := range []string{"GET", "PATCH", "GET"} {
 			response := httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), method, "/instances/"+instance.ID, strings.NewReader(`{"checks_enabled":false}`)))
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					method,
+					"/instances/"+instance.ID,
+					strings.NewReader(`{"checks_enabled":false}`),
+				),
+			)
 			if response.Code != 200 {
 				t.Fatalf("%s: %d %s", method, response.Code, response.Body.String())
 			}
@@ -792,7 +888,11 @@ type instanceCheckSettingsRepo struct{ repo *globaldb.InstanceRepo }
 
 var _ core.AgentInstanceCheckSettings = instanceCheckSettingsRepo{}
 
-func (r instanceCheckSettingsRepo) SetChecks(ctx context.Context, id string, enabled bool) (agentinstance.Instance, error) {
+func (r instanceCheckSettingsRepo) SetChecks(
+	ctx context.Context,
+	id string,
+	enabled bool,
+) (agentinstance.Instance, error) {
 	return r.repo.SetChecks(ctx, id, enabled, time.Hour)
 }
 
@@ -810,22 +910,53 @@ func TestAgentInstanceApprovalAdmission(t *testing.T) {
 				}
 			})
 			repo := db.Instances()
-			instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			instance, _, err := repo.AdmitCreate(
+				t.Context(),
+				agentinstance.Instance{
+					AgentName:         "coder",
+					ProfileID:         store.DefaultProfileID,
+					CreatedByKind:     "human",
+					PermissionCeiling: "{}",
+				},
+				10,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			boundary := instanceAPIInputs{instance: instance}
-			service, err := agentinstance.NewService(agentinstance.WithStore(repo), agentinstance.WithAdmission(boundary), agentinstance.WithMainSessions(boundary), agentinstance.WithActiveLimit(10))
+			service, err := agentinstance.NewService(
+				agentinstance.WithStore(repo),
+				agentinstance.WithAdmission(boundary),
+				agentinstance.WithMainSessions(boundary),
+				agentinstance.WithActiveLimit(10),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			fixture := newHandlerFixture(t, testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
-				return &session.Info{ID: "caller", AgentName: "coder", ProfileID: store.DefaultProfileID, State: session.StateActive, EffectivePermissions: mode}, nil
-			}}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Service: service, Store: repo, Authority: agentinstance.Authority{Callers: boundary}}
-			fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
-				return workspaceaccess.Decision{Allowed: true}, nil
-			}}
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{
+						ID:                   "caller",
+						AgentName:            "coder",
+						ProfileID:            store.DefaultProfileID,
+						State:                session.StateActive,
+						EffectivePermissions: mode,
+					}, nil
+				}},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+				Service:   service,
+				Store:     repo,
+				Authority: agentinstance.Authority{Callers: boundary},
+			}
+			fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+				AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+					return workspaceaccess.Decision{Allowed: true}, nil
+				},
+			}
 			fixture.Engine.POST("/instances", fixture.Handlers.CreateAgentInstance)
 			fixture.Engine.DELETE("/instances/:id", fixture.Handlers.ArchiveAgentInstance)
 			allowed := mode == "operator" || mode == "approve-all"
@@ -834,7 +965,12 @@ func TestAgentInstanceApprovalAdmission(t *testing.T) {
 				if operation == "archive" {
 					method, path = "DELETE", path+"/"+instance.ID
 				}
-				req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(`{"agent":"coder","workspace":"@user"}`))
+				req := httptest.NewRequestWithContext(
+					t.Context(),
+					method,
+					path,
+					strings.NewReader(`{"agent":"coder","workspace":"@user"}`),
+				)
 				if mode != "operator" {
 					req.Header.Set(agentidentity.HeaderSessionID, "caller")
 					req.Header.Set(agentidentity.HeaderAgent, "coder")
@@ -844,7 +980,8 @@ func TestAgentInstanceApprovalAdmission(t *testing.T) {
 				if !allowed {
 					var body contract.ErrorPayload
 					decodeJSON(t, response.Body.Bytes(), &body)
-					if response.Code != 403 || body.Code != "tool_approval_required" || !strings.Contains(body.Error, "compozy__agent_instance_"+operation) {
+					if response.Code != 403 || body.Code != "tool_approval_required" ||
+						!strings.Contains(body.Error, "compozy__agent_instance_"+operation) {
 						t.Fatalf("denial: %d %s", response.Code, response.Body.String())
 					}
 				} else if operation == "create" {
@@ -874,15 +1011,31 @@ type instanceAPIInputs struct {
 	instance agentinstance.Instance
 }
 
-func (i instanceAPIInputs) ResolveCreate(_ context.Context, req agentinstance.CreateRequest) (agentinstance.Instance, error) {
+func (i instanceAPIInputs) ResolveCreate(
+	_ context.Context,
+	req agentinstance.CreateRequest,
+) (agentinstance.Instance, error) {
 	if i.db != nil {
-		return agentinstance.Instance{AgentName: req.Agent, ProfileID: req.Profile, WorkspaceID: req.Workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, nil
+		return agentinstance.Instance{
+			AgentName:         req.Agent,
+			ProfileID:         req.Profile,
+			WorkspaceID:       req.Workspace,
+			PermissionCeiling: "{}",
+			CreatedByKind:     "human",
+		}, nil
 	}
 	return agentinstance.Instance{}, agentinstance.ErrNotStaysOn
 }
 func (i instanceAPIInputs) Start(ctx context.Context, req agentinstance.StartMainSession) (string, error) {
 	if i.db != nil {
-		info := store.SessionInfo{ID: "sess-api-created-main", ProfileID: req.Instance.ProfileID, AgentName: req.Instance.AgentName, State: "starting", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}
+		info := store.SessionInfo{
+			ID:            "sess-api-created-main",
+			ProfileID:     req.Instance.ProfileID,
+			AgentName:     req.Instance.AgentName,
+			State:         "starting",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			SessionType:   "user",
+		}
 		_, err := i.db.RegisterInstanceSession(ctx, info, req.Instance.ID, nil)
 		return info.ID, err
 	}
@@ -892,7 +1045,11 @@ func (i instanceAPIInputs) Stop(context.Context, string) error {
 	return errors.New("unexpected session stop")
 }
 func (i instanceAPIInputs) InstanceCaller(context.Context, string) (agentinstance.Caller, error) {
-	return agentinstance.Caller{InstanceID: i.instance.ID, AgentName: i.instance.AgentName, ProfileID: i.instance.ProfileID}, nil
+	return agentinstance.Caller{
+		InstanceID: i.instance.ID,
+		AgentName:  i.instance.AgentName,
+		ProfileID:  i.instance.ProfileID,
+	}, nil
 }
 
 var _ agentinstance.Admission = instanceAPIInputs{}
@@ -912,22 +1069,43 @@ func TestAgentInstanceCreateResult(t *testing.T) {
 			}
 		})
 		boundary := instanceAPIInputs{db: db}
-		service, err := agentinstance.NewService(agentinstance.WithStore(db.Instances()), agentinstance.WithAdmission(boundary), agentinstance.WithMainSessions(boundary), agentinstance.WithActiveLimit(1))
+		service, err := agentinstance.NewService(
+			agentinstance.WithStore(db.Instances()),
+			agentinstance.WithAdmission(boundary),
+			agentinstance.WithMainSessions(boundary),
+			agentinstance.WithActiveLimit(1),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Service: service, Store: db.Instances(), WakeState: db.Instances().WakeState}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Service:   service,
+			Store:     db.Instances(),
+			WakeState: db.Instances().WakeState,
+		}
 		fixture.Engine.POST("/instances", fixture.Handlers.CreateAgentInstance)
 		id := ""
 		for attempt, status := range []int{201, 200} {
-			response := performRequest(t, fixture.Engine, "POST", "/instances", []byte(`{"agent":"coder","workspace":"@user"}`))
+			response := performRequest(
+				t,
+				fixture.Engine,
+				"POST",
+				"/instances",
+				[]byte(`{"agent":"coder","workspace":"@user"}`),
+			)
 			if response.Code != status {
 				t.Fatalf("create: %d %s", response.Code, response.Body.String())
 			}
 			var body contract.AgentInstanceResponse
 			decodeJSON(t, response.Body.Bytes(), &body)
-			if body.Instance.Created != (attempt == 0) || body.Instance.MainSessionID != "sess-api-created-main" || body.Instance.State != "active" {
+			if body.Instance.Created != (attempt == 0) || body.Instance.MainSessionID != "sess-api-created-main" ||
+				body.Instance.State != "active" {
 				t.Fatalf("create response: %+v", body)
 			}
 			if attempt == 0 {

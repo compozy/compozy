@@ -733,16 +733,47 @@ func TestInstanceHookDispatch(t *testing.T) {
 		t.Run("Should deliver an immutable payload for "+string(event), func(t *testing.T) {
 			t.Parallel()
 			seen := make(chan []byte, 1)
-			runtime := newTestHooks(t,
-				WithNativeDeclarations([]HookDecl{{Name: "instance-observer", Event: event, Mode: HookModeAsync, ExecutorKind: HookExecutorNative}}),
-				WithExecutorResolver(testExecutorResolver(map[string]Executor{"instance-observer": NewNativeExecutor(func(_ context.Context, _ RegisteredHook, payload []byte) ([]byte, error) {
-					seen <- append([]byte(nil), payload...)
-					return []byte(`{"state":"archived"}`), nil
-				})})))
+			runtime := newTestHooks(
+				t,
+				WithNativeDeclarations(
+					[]HookDecl{
+						{
+							Name:         "instance-observer",
+							Event:        event,
+							Mode:         HookModeAsync,
+							ExecutorKind: HookExecutorNative,
+						},
+					},
+				),
+				WithExecutorResolver(
+					testExecutorResolver(
+						map[string]Executor{
+							"instance-observer": NewNativeExecutor(
+								func(_ context.Context, _ RegisteredHook, payload []byte) ([]byte, error) {
+									seen <- append([]byte(nil), payload...)
+									return []byte(`{"state":"archived"}`), nil
+								},
+							),
+						},
+					),
+				),
+			)
 			if err := runtime.Rebuild(t.Context()); err != nil {
 				t.Fatal(err)
 			}
-			payload := AgentInstancePayload{PayloadBase: PayloadBase{Event: event, Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, SessionContext: SessionContext{ProfileID: "default", WorkspaceID: "workspace", AgentName: "coder", SessionID: "main", State: "paused"}, InstanceID: "instance", MainSessionID: "main", Reason: "manual"}
+			payload := AgentInstancePayload{
+				PayloadBase: PayloadBase{Event: event, Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+				SessionContext: SessionContext{
+					ProfileID:   "default",
+					WorkspaceID: "workspace",
+					AgentName:   "coder",
+					SessionID:   "main",
+					State:       "paused",
+				},
+				InstanceID:    "instance",
+				MainSessionID: "main",
+				Reason:        "manual",
+			}
 			got, err := runtime.DispatchAgentInstance(t.Context(), payload)
 			if err != nil {
 				t.Fatal(err)

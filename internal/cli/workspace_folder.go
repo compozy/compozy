@@ -258,14 +258,17 @@ func workspaceLayoutBundle(layout contract.WorkspaceLayoutResponse) outputBundle
 		if placement.FolderID != "" {
 			container = stringOrDash(names[placement.FolderID])
 		}
-		rows = append(rows, row{"workspace", placement.WorkspaceID, "", container, strconv.Itoa(placement.Position)})
+		rows = append(
+			rows,
+			row{workspaceSkillSource, placement.WorkspaceID, "", container, strconv.Itoa(placement.Position)},
+		)
 	}
 	render := func(r row) []string { return []string{r.kind, r.id, stringOrDash(r.name), r.container, r.position} }
 	return listBundle(
 		layout,
 		rows,
 		"Workspace Layout",
-		[]string{"Kind", "ID", automationNameValue, "Container", sessionFolderPositionLabel},
+		[]string{cliOutputKindValue, "ID", automationNameValue, "Container", sessionFolderPositionLabel},
 		"workspace_layout",
 		[]string{cliKindKey, "id", automationNameKey, "container", workspaceLayoutPositionKey},
 		render,

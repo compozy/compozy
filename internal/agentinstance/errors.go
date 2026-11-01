@@ -9,7 +9,10 @@ import (
 func ErrorMessage(err error, activeLimit int) string {
 	if errors.Is(err, ErrLimit) {
 		if activeLimit > 0 {
-			return fmt.Sprintf("You have %d active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`.", activeLimit)
+			return fmt.Sprintf(
+				"You have %d active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`.",
+				activeLimit,
+			)
 		}
 		return "The active stays-on agent limit has been reached. Pause one or raise `agents.stays_on.max_active_instances`."
 	}

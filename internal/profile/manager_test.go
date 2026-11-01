@@ -1207,7 +1207,8 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		VALUES ('profile-instance',?,'coder','paused','human','operator','2026-11-01','2026-11-01','2026-11-01')`, created.ID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := database.DB().ExecContext(ctx, `UPDATE agent_instances SET archived_at = NULL WHERE id = 'profile-instance'`); err != nil {
+		if _, err := database.DB().
+			ExecContext(ctx, `UPDATE agent_instances SET archived_at = NULL WHERE id = 'profile-instance'`); err != nil {
 			t.Fatal(err)
 		}
 		blockedPlan, err := manager.PrepareDelete(ctx, "growth")
@@ -1217,7 +1218,8 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		if _, err := manager.Delete(ctx, "growth", blockedPlan.Revision); !errors.Is(err, ErrOwnsWork) {
 			t.Fatalf("live instance deletion error = %v", err)
 		}
-		if _, err := database.DB().ExecContext(ctx, `UPDATE agent_instances SET archived_at = '2026-11-01' WHERE id = 'profile-instance'`); err != nil {
+		if _, err := database.DB().
+			ExecContext(ctx, `UPDATE agent_instances SET archived_at = '2026-11-01' WHERE id = 'profile-instance'`); err != nil {
 			t.Fatal(err)
 		}
 		desktops.byProfile[created.ID] = 2

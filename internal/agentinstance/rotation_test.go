@@ -47,7 +47,13 @@ func TestMainSessionRotation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			runtime := &rotationRuntime{decision: RotationDecision{Eligible: tc.eligible, Publication: RotationPublication{InstanceID: "instance", PredecessorID: "main"}}, cleanupErr: tc.cleanupErr}
+			runtime := &rotationRuntime{
+				decision: RotationDecision{
+					Eligible:    tc.eligible,
+					Publication: RotationPublication{InstanceID: "instance", PredecessorID: "main"},
+				},
+				cleanupErr: tc.cleanupErr,
+			}
 			if tc.stale {
 				runtime.decision.Publication.PredecessorID = "old"
 			}

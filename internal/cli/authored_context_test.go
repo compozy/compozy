@@ -581,7 +581,13 @@ type memoryHTTPClient struct {
 
 var _ DaemonClient = (*memoryHTTPClient)(nil)
 
-func (c *memoryHTTPClient) AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error) {
+func (c *memoryHTTPClient) AgentMemory(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+	operation string,
+	body any,
+) (json.RawMessage, error) {
 	return c.transport.AgentMemory(ctx, name, query, operation, body)
 }
 
@@ -603,7 +609,8 @@ func TestAgentMemoryCommands(t *testing.T) {
 		t.Run("Should send "+tc.name+" through the daemon client", func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method != tc.method || r.URL.Path != "/api/agents/triage/memory"+tc.suffix || r.URL.Query().Get("workspace") != "checkout-api" {
+				if r.Method != tc.method || r.URL.Path != "/api/agents/triage/memory"+tc.suffix ||
+					r.URL.Query().Get("workspace") != "checkout-api" {
 					t.Errorf("unexpected request %s %s", r.Method, r.URL)
 				}
 				body, err := io.ReadAll(r.Body)
@@ -614,19 +621,28 @@ func TestAgentMemoryCommands(t *testing.T) {
 					t.Errorf("unexpected body %s", body)
 				}
 				w.Header().Set("Content-Type", "application/json")
-				if _, err := io.WriteString(w, `{"content":"note body","digest":"digest-one","budget":{"lines":1,"max_lines":200,"bytes":9,"max_bytes":24576}}`); err != nil {
+				if _, err := io.WriteString(
+					w,
+					`{"content":"note body","digest":"digest-one","budget":{"lines":1,"max_lines":200,"bytes":9,"max_bytes":24576}}`,
+				); err != nil {
 					t.Error(err)
 				}
 			}))
 			t.Cleanup(server.Close)
-			transport := &daemonClient{target: LocalClientTarget("/tmp/compozy-memory.sock"), httpClient: &http.Client{Timeout: defaultUnixSocketClientTimeout, Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				target, err := url.Parse(server.URL)
-				if err != nil {
-					return nil, err
-				}
-				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-				return server.Client().Transport.RoundTrip(r)
-			})}}
+			transport := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy-memory.sock"),
+				httpClient: &http.Client{
+					Timeout: defaultUnixSocketClientTimeout,
+					Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+						target, err := url.Parse(server.URL)
+						if err != nil {
+							return nil, err
+						}
+						r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+						return server.Client().Transport.RoundTrip(r)
+					}),
+				},
+			}
 			stub := &stubClient{}
 			withWorkspaceResolution(stub)
 			deps := newTestDeps(t, &memoryHTTPClient{stubClient: stub, transport: transport})
@@ -643,7 +659,8 @@ func TestAgentMemoryCommands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(output, `"digest":"digest-one"`) && !strings.Contains(output, `"digest": "digest-one"`) {
+			if !strings.Contains(output, `"digest":"digest-one"`) &&
+				!strings.Contains(output, `"digest": "digest-one"`) {
 				t.Fatalf("unexpected output %s", output)
 			}
 		})
@@ -658,7 +675,18 @@ func TestAgentMemoryWriteConflictGuard(t *testing.T) {
 			t.Fatal(err)
 		}
 		deps := newWorkspaceTestDeps(t, &stubClient{})
-		_, _, err := executeRootCommand(t, deps, "agent", "memory", "write", "triage", "--file", path, "--workspace", "checkout-api")
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"memory",
+			"write",
+			"triage",
+			"--file",
+			path,
+			"--workspace",
+			"checkout-api",
+		)
 		if err == nil || !strings.Contains(err.Error(), "--expected-digest is required") {
 			t.Fatalf("unexpected error %v", err)
 		}

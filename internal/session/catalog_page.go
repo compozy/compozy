@@ -132,11 +132,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if !ok || pager == nil {
 		return ListPage{}, errors.New("session: paged session catalog is required")
 	}
-	fingerprint, err := sessionListFingerprintForQuery(normalized)
-	if err != nil {
-		return ListPage{}, err
-	}
-	after, err := decodeSessionListCursor(normalized.Cursor, fingerprint, normalized.Sort)
+	fingerprint, after, err := sessionListPageCursor(normalized)
 	if err != nil {
 		return ListPage{}, err
 	}

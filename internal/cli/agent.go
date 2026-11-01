@@ -155,7 +155,7 @@ func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, agentBundle(agent))
+			return writeCommandOutput(cmd, agentBundle(&agent))
 		},
 	}
 	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
@@ -256,7 +256,10 @@ func agentListBundle(items []AgentRecord) outputBundle {
 	)
 }
 
-func agentBundle(item AgentRecord) outputBundle {
+func agentBundle(record *AgentRecord) outputBundle {
+	// Render callbacks retain an owned snapshot of the response record.
+	snapshot := *record
+	item := &snapshot
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
@@ -319,12 +322,12 @@ func agentBundle(item AgentRecord) outputBundle {
 }
 
 // renderAgentHuman renders the human detail view of one agent.
-func renderAgentHuman(item AgentRecord) string {
+func renderAgentHuman(item *AgentRecord) string {
 	base := renderHumanSection("Agent", []keyValue{
 		{Label: automationNameValue, Value: stringOrDash(item.Name)},
 		{Label: "Display name", Value: stringOrDash(item.Label)},
-		{Label: "Description", Value: stringOrDash(item.Description)},
-		{Label: "Kind", Value: stringOrDash(item.Kind)},
+		{Label: extensionMarketplaceDescriptionValue, Value: stringOrDash(item.Description)},
+		{Label: cliOutputKindValue, Value: stringOrDash(item.Kind)},
 		{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
 		{Label: cliCommandValue, Value: stringOrDash(item.Command)},
 		{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
@@ -372,7 +375,7 @@ func renderAgentHuman(item AgentRecord) string {
 	return renderHumanBlocks(base, mcp, fallbackChain, renderAgentEnvironment(item, false), prompt)
 }
 
-func renderAgentEnvironment(item AgentRecord, toon bool) string {
+func renderAgentEnvironment(item *AgentRecord, toon bool) string {
 	if item.EffectiveRuntime == nil || len(item.EffectiveRuntime.SessionEnvStatus) == 0 {
 		return ""
 	}

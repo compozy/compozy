@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
@@ -267,7 +268,7 @@ func (h *BaseHandlers) authorizeGrantedProfile(
 			AgentName:   caller.Session.AgentName,
 		},
 		Target:   target,
-		ReadOnly: c.Request.Method == "GET",
+		ReadOnly: c.Request.Method == http.MethodGet,
 		Seam:     workspaceaccess.SeamIdentity,
 	})
 }

@@ -18,7 +18,10 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	if !ok {
 		return errors.New("daemon: proactive check repositories unavailable")
 	}
-	catalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{soul: state.soulCatalog, heartbeat: state.heartbeatCatalog})
+	catalog := agentCatalogDependency(
+		state.agentCatalog,
+		agentSidecarCatalogs{soul: state.soulCatalog, heartbeat: state.heartbeatCatalog},
+	)
 	if catalog == nil {
 		return errors.New("daemon: proactive policy resolver unavailable")
 	}
@@ -28,13 +31,37 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	cfg, hb := state.cfg.Agents.StaysOn, state.cfg.Agents.Heartbeat
 	environment := &instanceCheckEnvironment{
-		instanceDigestCollector: instanceDigestCollector{instances: provider.Instances(), sessions: manager, monitors: state.sessionMonitors},
-		definitions:             instanceDefinitions{workspaces: state.workspaceResolver, profiles: state.profiles, agents: catalog, sessions: manager},
-		policies:                catalog, hooks: state.notifier, workspaces: workspaces,
+		instanceDigestCollector: instanceDigestCollector{
+			instances: provider.Instances(),
+			sessions:  manager,
+			monitors:  state.sessionMonitors,
+		},
+		definitions: instanceDefinitions{
+			workspaces: state.workspaceResolver,
+			profiles:   state.profiles,
+			agents:     catalog,
+			sessions:   manager,
+		},
+		policies:   catalog,
+		hooks:      state.notifier,
+		workspaces: workspaces,
 	}
-	dispatcher := &session.TriageDispatcher{Manager: manager, Reports: provider.InstanceReports(), MaxProposals: min(cfg.MaxProposals, 2), StopTimeout: state.cfg.Session.Supervision.StopGrace}
+	dispatcher := &session.TriageDispatcher{
+		Manager:      manager,
+		Reports:      provider.InstanceReports(),
+		MaxProposals: cfg.MaxProposals,
+		StopTimeout:  state.cfg.Session.Supervision.StopGrace,
+	}
 	service, err := heartbeat.NewCheckService(ctx, provider.Instances(), environment, dispatcher, heartbeat.CheckConfig{
-		QuietBackoffCap: hb.QuietBackoffCap, FatigueLimit: hb.FatigueLimit, Enabled: hb.Enabled, Interval: hb.DefaultInterval, MaxInterval: hb.MaxInterval, Retention: hb.WakeEventRetention, Timeout: cfg.TriageTimeout, MaxConcurrent: hb.MaxConcurrentTriage, BatchSize: hb.MaxWakesPerCycle,
+		QuietBackoffCap: hb.QuietBackoffCap,
+		FatigueLimit:    hb.FatigueLimit,
+		Enabled:         hb.Enabled,
+		Interval:        hb.DefaultInterval,
+		MaxInterval:     hb.MaxInterval,
+		Retention:       hb.WakeEventRetention,
+		Timeout:         cfg.TriageTimeout,
+		MaxConcurrent:   hb.MaxConcurrentTriage,
+		BatchSize:       hb.MaxWakesPerCycle,
 	}, d.now)
 	if err != nil {
 		return fmt.Errorf("daemon: create proactive checks: %w", err)

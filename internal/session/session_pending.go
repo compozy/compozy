@@ -81,7 +81,11 @@ func (m *Manager) PendingInteractions(
 	return clonePendingInteractions(interactions), nil
 }
 
-func (m *Manager) DescendantPendingInteractions(ctx context.Context, sessionID string, statuses []string) ([]store.PendingInteraction, error) {
+func (m *Manager) DescendantPendingInteractions(
+	ctx context.Context,
+	sessionID string,
+	statuses []string,
+) ([]store.PendingInteraction, error) {
 	reader, ok := m.attentionStore.(interface {
 		ListDescendantPendingInteractions(context.Context, string, []string) ([]store.PendingInteraction, error)
 	})

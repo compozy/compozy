@@ -3753,18 +3753,31 @@ func (s *stubClient) ChangeSessionWorktree(ctx context.Context, id, ref, expecte
 	return s.changeSessionWorktreeFn(ctx, id, ref, expected)
 }
 
-func (s *stubClient) AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error) {
+func (s *stubClient) AgentMemory(
+	_ context.Context,
+	_ string,
+	_ AgentQuery,
+	_ string,
+	_ any,
+) (json.RawMessage, error) {
 	return nil, errors.New("unexpected AgentMemory call")
 }
 
-func (s *stubClient) ListSessionPendingInteractions(ctx context.Context, id string, descendants bool) (SessionInteractionsRecord, error) {
+func (s *stubClient) ListSessionPendingInteractions(
+	ctx context.Context,
+	id string,
+	descendants bool,
+) (SessionInteractionsRecord, error) {
 	if s.listSessionPendingInteractionsFn != nil {
 		return s.listSessionPendingInteractionsFn(ctx, id, descendants)
 	}
 	return SessionInteractionsRecord{}, errors.New("unexpected ListSessionPendingInteractions call")
 }
 
-func (s *stubClient) PermissionRollup(ctx context.Context, q PermissionRollupQuery) (contract.PermissionRollupResponse, error) {
+func (s *stubClient) PermissionRollup(
+	ctx context.Context,
+	q PermissionRollupQuery,
+) (contract.PermissionRollupResponse, error) {
 	if s.permissionRollupFn != nil {
 		return s.permissionRollupFn(ctx, q)
 	}
