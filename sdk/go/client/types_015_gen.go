@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// ReviewDecision is a daemon API value.
+type ReviewDecision string
+
 // ReviewPolicy is a daemon API value.
 type ReviewPolicy string
 
@@ -443,6 +446,3 @@ type SchedulerBacklogRunPayload struct {
 	Task TaskSummaryPayload `json:"task"`
 	Run  TaskRunPayload     `json:"run"`
 }
-
-// SchedulerCatchUpPolicy is a daemon API value.
-type SchedulerCatchUpPolicy string

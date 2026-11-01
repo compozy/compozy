@@ -447,6 +447,3 @@ type ProviderUsageWindow struct {
 	ResetsAt        *time.Time           `json:"resets_at"`
 	ResetText       string               `json:"reset_text"`
 }
-
-// PullRequestState is a daemon API value.
-type PullRequestState string

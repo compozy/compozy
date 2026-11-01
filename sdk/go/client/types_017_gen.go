@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// SessionContextState is a daemon API value.
+type SessionContextState string
+
 // SessionConversationRewindPayload is a daemon API value.
 type SessionConversationRewindPayload struct {
 	TranscriptEpoch int64  `json:"transcript_epoch"`

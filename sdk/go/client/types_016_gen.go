@@ -4,6 +4,9 @@ package client
 
 import "time"
 
+// SchedulerCatchUpPolicy is a daemon API value.
+type SchedulerCatchUpPolicy string
+
 // SchedulerCountersPayload is a daemon API value.
 type SchedulerCountersPayload struct {
 	Cycles              int        `json:"cycles"`
@@ -445,6 +448,3 @@ type SessionContextSpanPayload struct {
 	HookModified bool   `json:"hook_modified,omitzero"`
 	Name         string `json:"name,omitempty"`
 }
-
-// SessionContextState is a daemon API value.
-type SessionContextState string

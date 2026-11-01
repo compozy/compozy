@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// PullRequestState is a daemon API value.
+type PullRequestState string
+
 // PutLoopAnnotationsRequest is a daemon API value.
 type PutLoopAnnotationsRequest struct {
 	Annotations []LoopAnnotationPayload `json:"annotations"`
@@ -445,6 +448,3 @@ type ReviewContinuation struct {
 	MissingWork       []string `json:"missing_work"`
 	NextRoundGuidance string   `json:"next_round_guidance"`
 }
-
-// ReviewDecision is a daemon API value.
-type ReviewDecision string
