@@ -26,7 +26,7 @@ import {
   providerKindIconRegistry,
 } from "@compozy/ui";
 
-import { setParam } from "@compozy/proto";
+import { goToState } from "../persistent-agents-shared/go-to-state";
 
 import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
 import { KindPill } from "../persistent-agents-shared/agent-page";
@@ -50,7 +50,7 @@ function SummaryRow({
   return (
     <button
       className="group flex min-h-13 w-full items-center gap-3 px-4 py-2.5 text-left outline-none transition-colors hover:bg-hover focus-visible:shadow-focus-inset"
-      onClick={() => (to ? setParam("state", to) : undefined)}
+      onClick={() => (to ? goToState(to) : undefined)}
       type="button"
     >
       <span

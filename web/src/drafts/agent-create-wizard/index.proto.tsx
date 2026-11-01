@@ -1,6 +1,8 @@
 import { ConfirmDialog } from "@compozy/ui";
 
-import { definePrototype, setParam, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, type PrototypeProps } from "@compozy/proto";
+
+import { goToState } from "../persistent-agents-shared/go-to-state";
 
 import { LISTED_EPHEMERAL, LISTED_PERSISTENT } from "../persistent-agents-shared/agents-fixtures";
 import { AgentsPage } from "../persistent-agents-shared/agents-page";
@@ -21,7 +23,10 @@ export const meta = definePrototype({
     { id: "persistent-where", label: "Persistent · Where it runs" },
     { id: "persistent-global", label: "Persistent · Global" },
     { id: "persistent-not-now", label: "Persistent · Not now" },
-    { id: "preselected-scope", label: "S16 · Create new, scope preselected" },
+    { id: "preselected-identity", label: "S16 · Create new · Identity" },
+    { id: "preselected-runtime", label: "S16 · Create new · Runtime" },
+    { id: "preselected-persona", label: "S16 · Create new · Persona" },
+    { id: "preselected-scope", label: "S16 · Create new · Scope marked" },
     { id: "slug-conflict", label: "Slug conflict" },
     { id: "no-valid-slug", label: "No valid slug" },
     { id: "discard", label: "Unsaved discard" },
@@ -100,11 +105,32 @@ const WIZARD: Record<string, WizardProps> = {
     primary: "Create agent",
     hint: "Nothing runs until you add it to a workspace.",
   },
+  "preselected-identity": {
+    kind: "persistent",
+    step: "identity",
+    skipKind: true,
+    next: "preselected-runtime",
+  },
+  "preselected-runtime": {
+    kind: "persistent",
+    step: "runtime",
+    skipKind: true,
+    back: "preselected-identity",
+    next: "preselected-persona",
+  },
+  "preselected-persona": {
+    kind: "persistent",
+    step: "persona",
+    skipKind: true,
+    back: "preselected-runtime",
+    next: "preselected-scope",
+  },
   "preselected-scope": {
     kind: "persistent",
     step: "where",
-    where: "reloaddev",
-    back: "persistent-persona",
+    where: "compozy",
+    skipKind: true,
+    back: "preselected-persona",
     primary: "Create and start",
     hint: "Runs while CompozyOS is running on this computer.",
   },
@@ -200,8 +226,8 @@ export default function AgentCreateWizardDraft({ state }: PrototypeProps) {
               cancelLabel="Keep editing"
               confirmLabel="Discard"
               description="What you entered in this agent won't be saved."
-              onConfirm={() => setParam("state", "kind")}
-              onOpenChange={() => setParam("state", "persistent-identity")}
+              onConfirm={() => goToState("kind")}
+              onOpenChange={() => goToState("persistent-identity")}
               open
               title="Discard this agent?"
               tone="danger"

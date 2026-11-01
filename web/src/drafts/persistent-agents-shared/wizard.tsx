@@ -35,7 +35,7 @@ import {
   providerKindIconRegistry,
 } from "@compozy/ui";
 
-import { setParam } from "@compozy/proto";
+import { goToState } from "./go-to-state";
 
 import { AgentAvatar } from "./agent-avatar";
 import { TRIAGE, WORKSPACES } from "./fixtures";
@@ -56,8 +56,16 @@ const STEPS: Record<WizardKind, readonly WizardStep[]> = {
   ephemeral: ["kind", "identity"],
 };
 
-function StepRail({ kind, step }: { kind: WizardKind | null; step: WizardStep }) {
-  const steps = STEPS[kind ?? "persistent"];
+function StepRail({
+  kind,
+  step,
+  skipKind,
+}: {
+  kind: WizardKind | null;
+  step: WizardStep;
+  skipKind: boolean;
+}) {
+  const steps = STEPS[kind ?? "persistent"].filter(item => !skipKind || item !== "kind");
   const current = steps.indexOf(step);
   return (
     <ol className="flex min-h-0 flex-col gap-0.5 bg-sunken p-3" aria-label="Steps">
@@ -102,7 +110,7 @@ function KindStep({ selected, note }: { selected: WizardKind | null; note?: Reac
         description="Stays on in a workspace, checks in on its own and keeps memory."
         icon={PersistentIcon}
         iconWellSize="lg"
-        onSelect={() => setParam("state", "persistent-identity")}
+        onSelect={() => goToState("persistent-identity")}
         selected={selected === "persistent"}
         title="Persistent"
       />
@@ -111,7 +119,7 @@ function KindStep({ selected, note }: { selected: WizardKind | null; note?: Reac
         description="Runs when you start a session with it."
         icon={Clock3}
         iconWellSize="lg"
-        onSelect={() => setParam("state", "ephemeral-identity")}
+        onSelect={() => goToState("ephemeral-identity")}
         selected={selected === "ephemeral"}
         title="Ephemeral"
       />
@@ -193,7 +201,7 @@ function IdentityStep({ values }: { values: IdentityValues }) {
       ) : (
         <button
           className="inline-flex w-fit items-center gap-1 text-small-body text-muted hover:text-fg"
-          onClick={() => setParam("state", "ephemeral-advanced")}
+          onClick={() => goToState("ephemeral-advanced")}
           type="button"
         >
           <ChevronDown aria-hidden="true" className="size-3.5" />
@@ -348,6 +356,8 @@ export interface WizardProps {
   where?: WherePick;
   alert?: ReactNode;
   duplicateOf?: string;
+  /** Opened from a popover's Create new: the kind is already Persistent. */
+  skipKind?: boolean;
   advanced?: boolean;
   primary?: ReactNode;
   cancel?: ReactNode;
@@ -395,9 +405,9 @@ export function AgentWizard(props: WizardProps) {
         showCloseButton={false}
         unframed
       >
-        <EntityDialogHeader icon={Bot} onClose={() => setParam("state", "discard")} title={title} />
+        <EntityDialogHeader icon={Bot} onClose={() => goToState("discard")} title={title} />
         <div className="grid min-h-0 grid-cols-[13rem_minmax(0,1fr)]">
-          <StepRail kind={kind} step={step} />
+          <StepRail kind={kind} skipKind={props.skipKind ?? false} step={step} />
           <div className="min-h-0 overflow-y-auto p-6">
             <StepBody {...props} />
           </div>
@@ -405,8 +415,8 @@ export function AgentWizard(props: WizardProps) {
         <EntityDialogFooter
           cancelLabel={cancel ?? (back ? "Back" : "Cancel")}
           hint={hint}
-          onCancel={() => setParam("state", back ?? "discard")}
-          onPrimary={() => (next ? setParam("state", next) : undefined)}
+          onCancel={() => goToState(back ?? "discard")}
+          onPrimary={() => (next ? goToState(next) : undefined)}
           primaryDisabled={primaryDisabled}
           primaryLabel={primary ?? "Continue"}
         />

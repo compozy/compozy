@@ -14,7 +14,7 @@ import {
   type TopbarSlotValue,
 } from "@compozy/ui";
 
-import { setParam } from "@compozy/proto";
+import { goToState } from "./go-to-state";
 
 import { DraftShell, DraftUnsavedPill } from "./draft-shell";
 import type { DraftAgent } from "./fixtures";
@@ -67,14 +67,12 @@ export function AgentAppPage({
 }: AgentAppPageProps) {
   const crumbs = [
     { id: "agents", label: "Agents", onSelect: () => undefined },
-    ...(leaf
-      ? [{ id: agent.name, label: agent.label, onSelect: () => setParam("state", hubState) }]
-      : []),
+    ...(leaf ? [{ id: agent.name, label: agent.label, onSelect: () => goToState(hubState) }] : []),
   ];
   const topbar: TopbarSlotValue = {
     crumbs,
     crumb: leaf ?? agent.label,
-    onBack: () => (leaf ? setParam("state", hubState) : undefined),
+    onBack: () => (leaf ? goToState(hubState) : undefined),
     actions,
     overflow: leaf ? undefined : <AgentOverflow />,
   };
@@ -100,19 +98,14 @@ export function SaveActions({ unsaved, hub = "persistent" }: { unsaved: number; 
       {unsaved > 0 ? <DraftUnsavedPill count={unsaved} /> : null}
       <Button
         disabled={unsaved === 0}
-        onClick={() => setParam("state", hub)}
+        onClick={() => goToState(hub)}
         size="sm"
         type="button"
         variant="ghost"
       >
         Discard
       </Button>
-      <Button
-        disabled={unsaved === 0}
-        onClick={() => setParam("state", hub)}
-        size="sm"
-        type="button"
-      >
+      <Button disabled={unsaved === 0} onClick={() => goToState(hub)} size="sm" type="button">
         Save
       </Button>
     </div>

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { Button, Eyebrow, Marker, cn } from "@compozy/ui";
 
-import { setParam } from "@compozy/proto";
+import { goToState } from "../persistent-agents-shared/go-to-state";
 
 import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
 import type { DraftAgent } from "../persistent-agents-shared/fixtures";
@@ -94,7 +94,7 @@ export function ReportEntry({
 
 export function SessionLink({ to, children }: { to: string; children: ReactNode }) {
   return (
-    <Button onClick={() => setParam("state", to)} size="sm" type="button" variant="ghost">
+    <Button onClick={() => goToState(to)} size="sm" type="button" variant="ghost">
       {children}
     </Button>
   );

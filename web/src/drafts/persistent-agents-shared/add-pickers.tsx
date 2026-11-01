@@ -81,11 +81,14 @@ function CapNotice() {
   );
 }
 
-function CreateNew() {
+function CreateNew({ disabled }: { disabled: boolean }) {
   return (
     <Button
       className="justify-start"
-      onClick={() => window.location.assign(protoHref("agent-create-wizard", "preselected-scope"))}
+      disabled={disabled}
+      onClick={() =>
+        window.location.assign(protoHref("agent-create-wizard", "preselected-identity"))
+      }
       size="sm"
       type="button"
       variant="ghost"
@@ -149,7 +152,7 @@ export function AgentPicker({
           Every persistent agent already runs here.
         </p>
       ) : null}
-      <CreateNew />
+      <CreateNew disabled={capped} />
     </PickerFrame>
   );
 }
