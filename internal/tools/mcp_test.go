@@ -1301,14 +1301,20 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			executor.mu.Lock()
+			afterAuthCalls := len(executor.listedSources) - calls
+			executor.mu.Unlock()
+			if afterAuthCalls > 2 {
+				t.Fatalf("upstream discovery calls after auth withdrawal = %d, want bounded batch discovery", afterAuthCalls)
+			}
 			if operator {
+				if len(views) != 114 {
+					t.Fatalf("diagnostic tools = %d, want 114", len(views))
+				}
 				for _, view := range views {
 					if view.Availability.Executable {
 						t.Fatal("auth withdrawal retained executable tool")
 					}
-				}
-				if len(views) != 114 {
-					t.Fatalf("diagnostic tools = %d, want 114", len(views))
 				}
 				original := views[1].Availability.ReasonCodes[0]
 				views[0].Availability.ReasonCodes[0] = ReasonBackendUnhealthy

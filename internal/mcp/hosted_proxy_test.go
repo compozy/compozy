@@ -387,6 +387,15 @@ func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T)
 		if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_other"}; !slices.Equal(got, want) {
 			t.Fatalf("updated tools = %#v, want %#v", got, want)
 		}
+
+		result, err = session.CallTool(ctx, &sdkmcp.CallToolParams{Name: "compozy__hosted_other", Arguments: map[string]any{"message": "late"}})
+		if err != nil || result == nil || result.IsError {
+			t.Fatalf("CallTool(late) result = %#v, error = %v", result, err)
+		}
+		lateCall := proxyClient.lastCall(t)
+		if lateCall.BindID != "bind-1" || lateCall.ToolName != "compozy__hosted_other" {
+			t.Fatalf("late call = %#v", lateCall)
+		}
 		if got, want := list.CacheScope, "private"; got != want {
 			t.Fatalf("tools/list cache scope = %q, want %q", got, want)
 		}
@@ -407,6 +416,19 @@ func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T)
 		case <-changed:
 			t.Fatal("unchanged tools emitted tools/list_changed")
 		case <-time.After(100 * time.Millisecond):
+		}
+		proxyClient.emitProjection(t, HostedProjectionResponse{Digest: "removed"})
+		select {
+		case <-changed:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for tool removal notification")
+		}
+		list, err = session.ListTools(ctx, nil)
+		if err != nil {
+			t.Fatalf("ListTools(removed): %v", err)
+		}
+		if len(list.Tools) != 0 {
+			t.Fatalf("removed tools = %#v, want none", sdkToolNames(list.Tools))
 		}
 		cancel()
 		if err := session.Close(); err != nil {
@@ -459,6 +481,16 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 
 		encoder := json.NewEncoder(clientWriter)
 		decoder := json.NewDecoder(clientReader)
+		decode := func(value any) error {
+			t.Helper()
+			timer := time.AfterFunc(2*time.Second, func() {
+				if err := clientReader.CloseWithError(errors.New("MCP response timed out")); err != nil {
+					t.Errorf("close timed-out reader: %v", err)
+				}
+			})
+			defer timer.Stop()
+			return decoder.Decode(value)
+		}
 		if err := encoder.Encode(map[string]any{
 			"jsonrpc": "2.0",
 			"id":      1,
@@ -491,7 +523,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 			} `json:"result"`
 			Error json.RawMessage `json:"error"`
 		}
-		if err := decoder.Decode(&initialized); err != nil {
+		if err := decode(&initialized); err != nil {
 			t.Fatalf("decode initialize response error = %v", err)
 		}
 		if len(initialized.Error) > 0 && string(initialized.Error) != "null" {
@@ -526,7 +558,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 			} `json:"result"`
 			Error json.RawMessage `json:"error"`
 		}
-		if err := decoder.Decode(&listed); err != nil {
+		if err := decode(&listed); err != nil {
 			t.Fatalf("decode tools/list response error = %v", err)
 		}
 		if len(listed.Error) > 0 && string(listed.Error) != "null" {
@@ -542,7 +574,7 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		var notification struct {
 			Method string `json:"method"`
 		}
-		if err := decoder.Decode(&notification); err != nil {
+		if err := decode(&notification); err != nil {
 			t.Fatalf("decode change notification: %v", err)
 		}
 		if notification.Method != "notifications/tools/list_changed" {
@@ -551,11 +583,28 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": 3, "method": mcpToolsListMethod, "params": map[string]any{}}); err != nil {
 			t.Fatal(err)
 		}
-		if err := decoder.Decode(&listed); err != nil {
+		if err := decode(&listed); err != nil {
 			t.Fatal(err)
 		}
 		if len(listed.Result.Tools) != 1 || listed.Result.Tools[0].Name != "mcp__late__echo" {
 			t.Fatalf("late tools = %#v", listed.Result.Tools)
+		}
+		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": map[string]any{"name": "mcp__late__echo", "arguments": map[string]any{}}}); err != nil {
+			t.Fatal(err)
+		}
+		var called struct {
+			Result *sdkmcp.CallToolResult `json:"result"`
+			Error  json.RawMessage        `json:"error"`
+		}
+		if err := decode(&called); err != nil {
+			t.Fatalf("decode late call: %v", err)
+		}
+		if called.Result == nil || called.Result.IsError || (len(called.Error) > 0 && string(called.Error) != "null") {
+			t.Fatalf("late call response = %#v", called)
+		}
+		lateCall := proxyClient.lastCall(t)
+		if lateCall.BindID != "bind-provider" || lateCall.ToolName != "mcp__late__echo" {
+			t.Fatalf("late provider call = %#v", lateCall)
 		}
 		cancel()
 		if err := clientWriter.Close(); err != nil {
