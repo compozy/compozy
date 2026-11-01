@@ -4960,3 +4960,18 @@ commands: they reach neither the permission callback nor ACP terminal/create. Wo
 unchanged. Official skill and Web
 docs: `skills/compozy/references/{terminal,native-tools}.md` and `sessions/monitors.mdx`. QA:
 RT-session-monitor-wake step 10.
+
+## Stays-on agents and agent identity
+
+**Owning spec:** `.compozy/tasks/always-on-agent/_spec.md`. Slices link to this entry and update only what they affect.
+
+- **Native tools.** New `compozy__agent_instance_{create,list,pause,resume,archive,check,checks,occurrence,reports,ensure_main}`, `compozy__session_pending_interactions` and `compozy__agent_memory_{add,replace,remove,search}`, `experimental` for one release. `compozy__agent_create` and `compozy__agent_list` gain identity and kind fields. Tombstoned `compozy__memory*` IDs stay retired.
+- **CLI/HTTP/UDS.** `compozy agent instance …`, `compozy agent memory …`; `/api/agent-instances`, `/api/agents/{name}/memory`, `/api/agents/{name}/activity`, `GET /api/sessions/{id}/pending-interactions?descendants=true`; `session.report` and `agent_instance.updated` SSE events; `facets.instances_needing_attention`; workspace archive gains an `instance` blocker. Agent, session, heartbeat and observe payloads gain additive fields. `GET /api/agents/catalog` gains `group=agent`. All additive, ladder (a). OpenAPI and `@compozy/client` regenerate per slice.
+- **Extensibility and hooks.** AGENT.md keys apply to extension agents; no manifest change. `agent.heartbeat.wake.before` gains a cancel patch. New `agent.instance.*` events. `extensions/spec-cycle` Orchestrator declares `kind: stays_on`.
+- **Config.** `agents.heartbeat.{triage_models,quiet_backoff_cap,max_interval,fatigue_limit,max_concurrent_triage}`, `agents.stays_on.{max_active_instances,approval_timeout,rotation_threshold}`. `min_interval` and `default_interval` gain runtime meaning for active instances. No `[memory]` table.
+- **Workspace data isolation.** `agent_instances` follows workspace scope guards. Agent-created instances pass `workspaceaccess`. User and extension agents share memory across workspaces by recorded operator decision (ADR-007); repository-defined agents keep their own. Stored under `$COMPOZY_HOME` with source scope. Session search stays within workspace access.
+- **User state.** Append-only Goose migrations per outcome: new tables, additive columns, lossless heartbeat CHECK rebuild. No file rewritten on upgrade. Older daemons reject new AGENT.md keys; release note covers downgrade.
+- **Web.** Agents list, one create screen, agent profile with activity, structured editors, sidebar and Kanban rows, identity on every slug surface, `agent` mention kind. New `AgentAvatar` in `@compozy/ui`, Blobatar dependency.
+- **Docs and official skill.** `skills/compozy/references/` gains stays-on-agent and memory guidance; heartbeat docs corrected; site tutorial; `docs/_memory/glossary.md` gains Stays-on agent, On-demand agent, Instance disambiguation.
+- **SDKs.** Hook events regenerate `sdk/go/contracts/hook_events_gen.go` and `sdk/typescript/src/generated/contracts.ts`.
+- **QA.** Scenarios in `docs/qa/scenarios/` for instances, Kanban, proactive checks, rotation, approvals, memory, create screen and upgrade.
