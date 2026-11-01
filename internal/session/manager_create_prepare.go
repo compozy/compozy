@@ -17,9 +17,6 @@ import (
 )
 
 func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
-	if opts.Origin.Kind == "" {
-		opts.Origin = workspaceaccess.OriginFromContext(ctx)
-	}
 	opts, err := m.dispatchSessionPreCreate(ctx, opts)
 	if err != nil {
 		return sessionStartSpec{}, err

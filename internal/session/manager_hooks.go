@@ -10,6 +10,7 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -64,6 +65,9 @@ func inputClassForTurnSource(source TurnSource) string {
 }
 
 func (m *Manager) dispatchSessionPreCreate(ctx context.Context, opts CreateOpts) (CreateOpts, error) {
+	if opts.Origin.Kind == "" {
+		opts.Origin = workspaceaccess.OriginFromContext(ctx)
+	}
 	if m == nil {
 		return opts, nil
 	}
