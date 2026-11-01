@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   cancelWorktreeExitAction,
@@ -37,8 +37,9 @@ export function useWorktreeStatus(
 
 /**
  * A plan read refreshes and persists the worktree status on the daemon without
- * announcing it on the stream, so the status strip is told here: each settled
- * plan read rereads the status key, which is a cached read and emits nothing.
+ * announcing it on the stream, so the status strip is told here: each plan read
+ * that settles, in success or failure, rereads the status key, which is a cached
+ * read and emits nothing. A plan already cached at mount settled nothing new.
  */
 export function useWorktreeExitPlan(
   workspaceID: string,
@@ -47,14 +48,16 @@ export function useWorktreeExitPlan(
 ) {
   const queryClient = useQueryClient();
   const query = useQuery(worktreeExitPlanOptions(workspaceID, worktreeID, options.enabled ?? true));
-  const { dataUpdatedAt } = query;
+  const settledAt = Math.max(query.dataUpdatedAt, query.errorUpdatedAt);
+  const seenSettledAt = useRef(settledAt);
   useEffect(() => {
-    if (dataUpdatedAt === 0) return;
+    if (settledAt === seenSettledAt.current) return;
+    seenSettledAt.current = settledAt;
     void queryClient.invalidateQueries({
       queryKey: workspaceKeys.worktreeStatus(workspaceID, worktreeID),
       exact: true,
     });
-  }, [dataUpdatedAt, queryClient, workspaceID, worktreeID]);
+  }, [settledAt, queryClient, workspaceID, worktreeID]);
   return query;
 }
 
@@ -107,7 +110,8 @@ export function useRunWorktreeExitAction(workspaceID: string, worktreeID: string
   return useMutation({
     mutationFn: (params: RunWorktreeExitActionParams) =>
       runWorktreeExitAction(workspaceID, worktreeID, params),
-    onSuccess: () => invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID),
+    // A refused action emits no stream frame, so its stale plan is reread here too.
+    onSettled: () => invalidateWorktreeExitScope(queryClient, workspaceID, worktreeID),
   });
 }
 
