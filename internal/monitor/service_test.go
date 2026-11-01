@@ -1729,3 +1729,48 @@ func TestServiceOwnerCheckAnchorSurvivesAFailedWrite(t *testing.T) {
 		})
 	})
 }
+
+func TestServiceRecoveryStartsTheWatchOnlyAfterTheAnchorClearIsDurable(t *testing.T) {
+	t.Run("Should hold the recovered watch until the cleared anchor lands", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			waker := &recordingWaker{}
+			first := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			record := store.records[created.ID]
+			record.OwnerCheckFailedAt = time.Now()
+			record.Version++
+			store.records[created.ID] = record
+
+			store.setFail(true)
+			second := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(2 * time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("watch started before the cleared anchor was durable: %+v", got)
+			}
+			if store.records[created.ID].OwnerCheckFailedAt.IsZero() {
+				t.Fatal("anchor cleared in the store while it was failing")
+			}
+			store.setFail(false)
+			time.Sleep(durableRetryInterval + 2*time.Second)
+			synctest.Wait()
+			if !store.records[created.ID].OwnerCheckFailedAt.IsZero() {
+				t.Fatal("the cleared anchor never landed")
+			}
+			if got := waker.notifications(); len(got) != 1 || got[0].Monitor.ID != created.ID {
+				t.Fatalf("notifications = %+v, want one wake once the anchor clear was durable", got)
+			}
+		})
+	})
+}

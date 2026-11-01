@@ -288,13 +288,33 @@ func (s *Service) rearm(item *entry) {
 	state := item.state
 	s.logLifecycle("monitor.recovered", state, "registered")
 	s.mu.Unlock()
-	if cleared != nil {
-		s.writeDecision(item, *cleared, saveRetries)
-	}
 	s.wg.Go(func() {
 		defer cancel()
+		// A cleared anchor must be durable before the watch starts: if the clear were lost in a crash, the
+		// next boot would find the old anchor and close an overdue monitor on one transient owner error.
+		if cleared != nil {
+			s.writeDecision(item, *cleared, saveRetries)
+			if !s.awaitConfirmed(runCtx, item) {
+				return
+			}
+		}
 		s.runRecovered(runCtx, state, item)
 	})
+}
+
+// awaitConfirmed waits for the entry's latest decision to become durable (the decision queue keeps
+// retrying it) and reports false if ctx ends first.
+func (s *Service) awaitConfirmed(ctx context.Context, item *entry) bool {
+	for !s.confirmed(item) {
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return false
+		case <-timer.C:
+		}
+	}
+	return true
 }
 
 func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
