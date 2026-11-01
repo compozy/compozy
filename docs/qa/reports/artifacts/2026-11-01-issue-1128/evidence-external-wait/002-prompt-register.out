@@ -1,0 +1,14 @@
+$ compozy session prompt sess-895bce8420bad44c [watch-ext] please watch the external condition
+Prompt Events
+=============
+Timestamp             Type             Detail                                                       Stop
+---------             ----             ------                                                       ----
+2026-11-01T05:49:34Z  tool_call        compozy__monitor_create                                      --
+2026-11-01T05:49:34Z  tool_result      compozy__monitor_create                                      --
+2026-11-01T05:49:34Z  tool_call        compozy__monitor_create                                      --
+2026-11-01T05:49:34Z  tool_result      compozy__monitor_create                                      --
+2026-11-01T05:49:34Z  agent_message    Registered the monitor; waiting for the external condition.  --
+2026-11-01T05:49:34Z  prompt_delivery  null                                                         --
+2026-11-01T05:49:34Z  done             null                                                         end_turn
+
+[exit 0]

@@ -34,6 +34,9 @@ const (
 	StatusCanceled Status = "canceled"
 	// StatusUndelivered means the monitor fired but its owning session could not be woken.
 	StatusUndelivered Status = "undelivered"
+	// StatusInterrupted means a daemon restart ended the watch and the owner could not be
+	// resumed, so no wake was sent. Reason says why.
+	StatusInterrupted Status = "interrupted"
 )
 
 // Terminal wait conditions accepted by terminal monitors.
@@ -50,6 +53,10 @@ const (
 	ReasonStalled        = "stalled"
 	ReasonTimerElapsed   = "timer_elapsed"
 	ReasonTerminalFailed = "terminal_unavailable"
+	// ReasonSessionStopped marks a monitor canceled because its owner was stopped on purpose.
+	ReasonSessionStopped = "session_stopped"
+	// ReasonOwnerPrefix prefixes the restart-eligibility reason that kept an owner from resuming.
+	ReasonOwnerPrefix = "owner_"
 )
 
 // Bounds keep monitors cheap and prevent runaway wake loops.
@@ -118,6 +125,9 @@ type Monitor struct {
 	FiredAt     time.Time `json:"fired_at,omitzero"`
 	Reason      string    `json:"reason,omitempty"`
 	ExitCode    *int      `json:"exit_code,omitempty"`
+	// Reused marks a Create that returned an already-active identical terminal
+	// monitor instead of registering a duplicate wake. It is not part of the wire shape.
+	Reused bool `json:"-"`
 }
 
 // Outcome is what a fired monitor observed.
@@ -126,6 +136,8 @@ type Outcome struct {
 	ExitCode *int
 	// Output is untrusted terminal text; empty for timers.
 	Output string
+	// OutputLost marks a wake re-delivered after a restart: the terminal output it carried was not retained.
+	OutputLost bool
 }
 
 func normalizeSpec(spec Spec) (Spec, error) {
@@ -186,8 +198,8 @@ func normalizeTerminalSpec(spec Spec) (Spec, error) {
 	if spec.Timeout == 0 {
 		spec.Timeout = DefaultTerminalTimeout
 	}
-	if spec.Timeout < 0 || spec.Timeout > MaxTerminalTimeout {
-		return Spec{}, invalid("terminal timeout must be at most 6 hours")
+	if spec.Timeout < time.Millisecond || spec.Timeout > MaxTerminalTimeout {
+		return Spec{}, invalid("terminal timeout must be between 1 millisecond and 6 hours")
 	}
 	return spec, nil
 }

@@ -1,0 +1,9 @@
+$ dbmon
+id                session_id             kind      terminal_id        status  reason  exit_code  deadline_at                  fired_at                    binding_len  version
+----------------  ---------------------  --------  -----------------  ------  ------  ---------  ---------------------------  --------------------------  -----------  -------
+mon-60ae6ab7068b  sess-895bce8420bad44c  terminal  term-6aade59d29ac  fired   exit    0          2026-11-01T06:19:34.448935Z  2026-11-01T05:52:55.98703Z  454          3      
+mon-07925dba9174  sess-60907c9f632fad79  timer                        active                     2026-11-01T05:55:33.481848Z                              454          1      
+mon-42b0c7f79704  sess-60907c9f632fad79  terminal  term-d1ae3fea576e  active                     2026-11-01T06:23:03.488433Z                              454          1      
+mon-e78094e1212c  sess-cde03d41de4735b1  timer                        active                     2026-11-01T05:55:33.987513Z                              454          1      
+
+[exit 0]

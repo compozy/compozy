@@ -1,0 +1,2 @@
+2026-11-01T05:49:34.415905Z  user_message  scheduler_reason=-
+2026-11-01T05:52:56.013994Z  synthetic_reentry  scheduler_reason=monitor_exit

@@ -1,0 +1,22 @@
+{
+  "agents": [],
+  "artifacts": [],
+  "cross_surface_targets": [],
+  "disruption_probes": [],
+  "expected_business_outcome": "UNFILLED: user-visible outcome required for success",
+  "operator_intent": "UNFILLED: what the operator needs to accomplish",
+  "provider_plan": {
+    "fallback_boundary": null,
+    "providers": [],
+    "reachability_probe": "UNFILLED: exact provider-backed command to run",
+    "required": false
+  },
+  "schema_version": 1,
+  "startup_situation": "UNFILLED: realistic startup situation for monitor-durable-head-20261101-054840-692446",
+  "task_tree": {
+    "dependencies": [],
+    "roots": [],
+    "runs": [],
+    "subtasks": []
+  }
+}

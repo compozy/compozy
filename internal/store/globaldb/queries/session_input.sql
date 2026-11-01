@@ -232,6 +232,14 @@ WHERE session_id = sqlc.arg(session_id)
 SELECT * FROM session_input_queue WHERE session_id = ? AND message_id = ?
  AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching');
 
+-- name: SyntheticSessionInputAdmitted :one
+-- A synthetic input counts as admitted once it was queued, is dispatching, or was sent; a failed or
+-- canceled one was never delivered and may be admitted again.
+SELECT EXISTS(
+  SELECT 1 FROM session_input_queue WHERE session_id = ? AND message_id = ?
+   AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching','sent')
+);
+
 -- name: ListStaleDispatchingSessionInputs :many
 -- Boot recovery: no live turn can own a non-Goal lease left by a previous daemon process.
 SELECT session_id, id FROM session_input_queue

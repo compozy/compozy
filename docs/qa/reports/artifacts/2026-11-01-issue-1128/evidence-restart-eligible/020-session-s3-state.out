@@ -1,0 +1,17 @@
+$ compozy session health sess-cde03d41de4735b1
+Session Health
+==============
+Session:               sess-cde03d41de4735b1
+Workspace:             ws_eaab30503360db34
+Agent:                 mon-stopped
+State:                 stopped
+Health:                dead
+Active Prompt:         false
+Attachable:            false
+Eligible For Wake:     false
+Ineligibility Reason:  session_health_dead
+Last Activity:         2026-11-01T05:53:04Z
+Last Presence:         2026-11-01T05:53:04Z
+Updated:               2026-11-01T05:55:37Z
+
+[exit 0]

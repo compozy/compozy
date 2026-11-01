@@ -96,3 +96,11 @@ func waitSessionDrain(ctx context.Context, sessions SessionManager, grace time.D
 		}
 	}
 }
+
+// restartInProgress reports that the daemon is shutting down to relaunch itself, so session stops are
+// interruptions rather than decisions.
+func (d *Daemon) restartInProgress() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.restartRequested
+}

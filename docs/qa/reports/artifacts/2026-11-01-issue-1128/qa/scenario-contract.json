@@ -1,0 +1,37 @@
+{
+  "audit_command": "<repo>/.agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py",
+  "enforcement": "block",
+  "minimums": {
+    "agents": 0,
+    "artifacts_used_later": 0,
+    "cross_surface_objects": 0,
+    "differentiated_roles": 0,
+    "disruption_probes": 0,
+    "provider_backed_sessions": 0,
+    "surfaces_required": [
+      "cli",
+      "runtime",
+      "api"
+    ],
+    "tasks": {
+      "dependencies": 0,
+      "roots": 0,
+      "runs": 0,
+      "subtasks": 0
+    }
+  },
+  "profile_overrides": {
+    "feature": {
+      "agents": 4,
+      "differentiated_roles": 3
+    },
+    "targeted": {
+      "agents": 0,
+      "differentiated_roles": 0,
+      "provider_backed_sessions": 0
+    }
+  },
+  "release_grade": "targeted",
+  "schema_version": 1,
+  "scope_slug": "monitor-durable-head-20261101-054840-692446"
+}
