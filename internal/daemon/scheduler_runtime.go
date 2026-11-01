@@ -204,13 +204,7 @@ func newSchedulerRuntime(
 		return nil, fmt.Errorf("daemon: create scheduler: %w", err)
 	}
 	manager.SetSchedulerCountersReader(func() taskpkg.SchedulerCounters {
-		stats := scheduler.Stats()
-		return taskpkg.SchedulerCounters{
-			Cycles: stats.Cycles, WakeAttempts: stats.WakeAttempts, WakeSkipped: stats.WakeSkipped,
-			WakeSucceeded: stats.WakeSucceeded, WakeFailed: stats.WakeFailed,
-			CapacityWaitingRuns: stats.CapacityWaitingRuns, SpawnRequested: stats.SpawnRequested,
-			NeedsAttention: stats.NeedsAttention, LastCycleAt: stats.LastCycleAt,
-		}
+		return schedulerTaskCounters(scheduler.Stats())
 	})
 	return &schedulerRuntime{scheduler: scheduler, waker: waker}, nil
 }
@@ -317,4 +311,13 @@ func (s schedulerTaskSource) GetRunStatus(
 		return taskpkg.TaskRunStatusUnknown, false, fmt.Errorf("daemon: scheduler read run status %q: %w", runID, err)
 	}
 	return run.Status, true, nil
+}
+
+func schedulerTaskCounters(stats schedulerpkg.Stats) taskpkg.SchedulerCounters {
+	return taskpkg.SchedulerCounters{
+		Cycles: stats.Cycles, WakeAttempts: stats.WakeAttempts, WakeSkipped: stats.WakeSkipped,
+		WakeSucceeded: stats.WakeSucceeded, WakeFailed: stats.WakeFailed,
+		CapacityWaitingRuns: stats.CapacityWaitingRuns, SpawnRequested: stats.SpawnRequested,
+		NeedsAttention: stats.NeedsAttention, LastCycleAt: stats.LastCycleAt,
+	}
 }

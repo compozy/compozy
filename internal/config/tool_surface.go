@@ -263,30 +263,8 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		policy.Kind = ConfigValueBool
 		return policy, nil
 	}
-	if len(clean) == 3 && clean[0] == providersConfigKey {
-		switch clean[2] {
-		case toolSurfaceCommandKey,
-			"auth_mode",
-			"env_policy",
-			"home_policy",
-			"steer_capability",
-			"auth_status_command":
-			policy.Kind = ConfigValueString
-			return policy, nil
-		case toolSurfaceAuthLoginCommandKey:
-			policy.Kind = ConfigValueString
-			policy.Redacted = true
-			return policy, nil
-		case "session_mcp":
-			policy.Kind = ConfigValueBool
-			return policy, nil
-		}
-	}
-	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == toolSurfaceModelsKey {
-		if clean[3] == toolSurfaceDefaultKey {
-			policy.Kind = ConfigValueString
-			return policy, nil
-		}
+	if providerPolicy, ok := providerMutableConfigPolicy(clean); ok {
+		return providerPolicy, nil
 	}
 	policy.Denial = ConfigPathForbidden
 	return policy, nil
@@ -422,4 +400,34 @@ func HookDeclarationOverlayValues(decl hookspkg.HookDecl) map[string]any {
 		values["executor"] = map[string]any{"kind": string(decl.ExecutorKind)}
 	}
 	return values
+}
+
+func providerMutableConfigPolicy(clean []string) (PathPolicy, bool) {
+	policy := PathPolicy{Segments: clean, Kind: ConfigValueString}
+	if len(clean) == 3 && clean[0] == providersConfigKey {
+		switch clean[2] {
+		case toolSurfaceCommandKey,
+			"auth_mode",
+			"env_policy",
+			"home_policy",
+			"steer_capability",
+			"auth_status_command":
+			policy.Kind = ConfigValueString
+			return policy, true
+		case toolSurfaceAuthLoginCommandKey:
+			policy.Kind = ConfigValueString
+			policy.Redacted = true
+			return policy, true
+		case "session_mcp":
+			policy.Kind = ConfigValueBool
+			return policy, true
+		}
+	}
+	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == toolSurfaceModelsKey {
+		if clean[3] == toolSurfaceDefaultKey {
+			policy.Kind = ConfigValueString
+			return policy, true
+		}
+	}
+	return PathPolicy{}, false
 }
