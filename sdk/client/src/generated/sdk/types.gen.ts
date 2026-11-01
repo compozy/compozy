@@ -48,6 +48,26 @@ export type Action = {
   view?: string;
 };
 
+export type ActivityCost = {
+  scope: string;
+  tokens: number;
+  usd_estimate: number;
+  workspace_id: string;
+};
+
+export type ActivityDay = {
+  day: string;
+  needed_you: number;
+  quiet: number;
+  told: number;
+};
+
+export type ActivityHour = {
+  events: number;
+  hour: number;
+  weekday: number;
+};
+
 export type ActorIdentity = {
   kind: "human" | "agent_session" | "automation" | "extension" | "daemon";
   ref: string;
@@ -71,6 +91,12 @@ export type AgentACPOptionSelection = {
   bool_value?: boolean | null;
   id: string;
   value_id?: string;
+};
+
+export type AgentActivityResponse = {
+  busy_by_hour: Array<ActivityHour>;
+  cost_by_project: Array<ActivityCost>;
+  reports_by_day: Array<ActivityDay>;
 };
 
 export type AgentCapabilityPayload = {
@@ -192,10 +218,28 @@ export type AgentInstanceAdoptRequest = {
   session_id: string;
 };
 
+export type AgentInstanceAwayResponse = {
+  last_seen_at: string | null;
+  quiet_check_ins: number;
+  reports: Array<AgentInstanceReportPayload>;
+};
+
 export type AgentInstanceCheckDigest = {
   diagnostics?: Array<string>;
   fingerprint: string;
   item_keys: Array<string>;
+};
+
+export type AgentInstanceCheckInPayload = {
+  created_at: string;
+  id: string;
+  reason: string;
+  result: string;
+};
+
+export type AgentInstanceCheckInsResponse = {
+  check_ins: Array<AgentInstanceCheckInPayload>;
+  next_cursor: string;
 };
 
 export type AgentInstanceCheckRequest = {
@@ -226,12 +270,21 @@ export type AgentInstanceOccurrenceResponse = {
 };
 
 export type AgentInstancePayload = {
+  activity: string;
   agent_name: string;
   created_at: string;
   id: string;
+  label: string;
   main_session_id: string;
+  needs_attention: boolean;
+  now: string;
   pause_reason: string;
   profile_id: string;
+  provider: string;
+  resolved_appearance: {
+    [key: string]: unknown;
+  };
+  scope: string;
   state: string;
   updated_at: string;
   workspace_id: string;
@@ -265,6 +318,10 @@ export type AgentInstanceReportsResponse = {
 
 export type AgentInstanceResponse = {
   instance: AgentInstancePayload;
+};
+
+export type AgentInstanceSeenResponse = {
+  last_seen_at: string;
 };
 
 export type AgentInstanceUpdateRequest = {
@@ -6475,6 +6532,7 @@ export type SessionCatalogFacetsPayload = {
   board: SessionBoardCountsPayload;
   finished: number;
   idle: number;
+  instances_needing_attention: number;
   needs_you: number;
   terminal_approvals: number;
   working: number;
@@ -12929,6 +12987,128 @@ export type UpdateAgentInstanceResponses = {
 export type UpdateAgentInstanceResponse =
   UpdateAgentInstanceResponses[keyof UpdateAgentInstanceResponses];
 
+export type GetAgentInstanceAwayData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/away";
+};
+
+export type GetAgentInstanceAwayErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentInstanceAwayError =
+  GetAgentInstanceAwayErrors[keyof GetAgentInstanceAwayErrors];
+
+export type GetAgentInstanceAwayResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceAwayResponse;
+};
+
+export type GetAgentInstanceAwayResponse =
+  GetAgentInstanceAwayResponses[keyof GetAgentInstanceAwayResponses];
+
+export type MarkAgentInstanceSeenData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/away";
+};
+
+export type MarkAgentInstanceSeenErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type MarkAgentInstanceSeenError =
+  MarkAgentInstanceSeenErrors[keyof MarkAgentInstanceSeenErrors];
+
+export type MarkAgentInstanceSeenResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceSeenResponse;
+};
+
+export type MarkAgentInstanceSeenResponse =
+  MarkAgentInstanceSeenResponses[keyof MarkAgentInstanceSeenResponses];
+
 export type CheckAgentInstanceData = {
   /**
    * JSON request body
@@ -12995,6 +13175,75 @@ export type CheckAgentInstanceResponses = {
 
 export type CheckAgentInstanceResponse =
   CheckAgentInstanceResponses[keyof CheckAgentInstanceResponses];
+
+export type ListAgentInstanceCheckInsData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Pagination cursor
+     */
+    cursor?: string;
+    /**
+     * Page size from 1 to 100; defaults to 50
+     */
+    limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/check-ins";
+};
+
+export type ListAgentInstanceCheckInsErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentInstanceCheckInsError =
+  ListAgentInstanceCheckInsErrors[keyof ListAgentInstanceCheckInsErrors];
+
+export type ListAgentInstanceCheckInsResponses = {
+  /**
+   * Wake events, empty when instance wakes are unavailable
+   */
+  200: AgentInstanceCheckInsResponse;
+};
+
+export type ListAgentInstanceCheckInsResponse =
+  ListAgentInstanceCheckInsResponses[keyof ListAgentInstanceCheckInsResponses];
 
 export type EnsureAgentInstanceMainData = {
   body?: never;
@@ -14509,6 +14758,69 @@ export type UpdateAgentResponses = {
 };
 
 export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses];
+
+export type GetAgentActivityData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Number of days, from 1 to 365; defaults to 30
+     */
+    days?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/activity";
+};
+
+export type GetAgentActivityErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentActivityError = GetAgentActivityErrors[keyof GetAgentActivityErrors];
+
+export type GetAgentActivityResponses = {
+  /**
+   * Scoped activity
+   */
+  200: AgentActivityResponse;
+};
+
+export type GetAgentActivityResponse = GetAgentActivityResponses[keyof GetAgentActivityResponses];
 
 export type DuplicateAgentData = {
   /**
@@ -23776,6 +24088,10 @@ export type ListSessionFacetsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Exclude instance main sessions from board counts
+     */
+    exclude_instance_main?: boolean;
     /**
      * Workspace id or path
      */

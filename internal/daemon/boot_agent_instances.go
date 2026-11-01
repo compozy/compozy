@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -46,6 +47,9 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		agentinstance.WithMainSessions(instanceMainSessions{sessions: manager, attempts: repo}),
 		agentinstance.WithActiveLimit(state.cfg.Agents.StaysOn.MaxActiveInstances),
 		agentinstance.WithClock(d.now),
+		agentinstance.WithInstanceChanged(func(instance agentinstance.Instance) {
+			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+		}),
 		agentinstance.WithLifecycleHooks(state.hookDispatcher),
 	)
 	if err != nil {
@@ -53,6 +57,9 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	state.agentInstances = &core.AgentInstanceAPI{
 		Service: service, Store: repo, Reports: provider.InstanceReports(),
+		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
+			return admission.definitions.(instanceDefinitions).instancePayload(ctx, instance, provider.InstanceReports(), repo)
+		},
 		Authority: agentinstance.Authority{Callers: repo},
 	}
 	state.deps.AgentInstances = state.agentInstances

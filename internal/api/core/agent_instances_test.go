@@ -10,15 +10,20 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestAgentInstanceReports(t *testing.T) {
@@ -396,6 +401,227 @@ func TestAgentInstanceCheckSettings(t *testing.T) {
 		}
 		if response.Code != 422 || !strings.Contains(body.Error, "checks_enabled") {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+}
+
+func TestAgentInstanceAway(t *testing.T) {
+	t.Run("Should keep reads passive and hide seen reports after marking", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "away.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "turn:away-report", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider exited"}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Reports: db.InstanceReports(), Authority: agentinstance.Authority{Callers: db.Instances()}}
+		at := report.CreatedAt.Add(time.Second)
+		fixture.Handlers.Now = func() time.Time { return at }
+		fixture.Engine.GET("/instances/:id/away", fixture.Handlers.GetAgentInstanceAway)
+		fixture.Engine.POST("/instances/:id/away", fixture.Handlers.MarkAgentInstanceSeen)
+		for _, method := range []string{"GET", "POST", "GET"} {
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), method, "/instances/"+instance.ID+"/away", nil))
+			if response.Code != 200 {
+				t.Fatalf("%s: %d %s", method, response.Code, response.Body.String())
+			}
+			var body contract.AgentInstanceAwayResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if method == "GET" && body.LastSeenAt == nil {
+				if len(body.Reports) != 1 || body.Reports[0].ID != report.ID {
+					t.Fatalf("unseen body = %+v", body)
+				}
+				seen, err := db.Instances().LastSeen(t.Context(), instance.ID, agentinstance.LocalOperator)
+				if err != nil || seen != nil {
+					t.Fatalf("GET changed seen: %v %v", seen, err)
+				}
+			} else {
+				if body.LastSeenAt == nil || !body.LastSeenAt.Equal(at) || len(body.Reports) != 0 {
+					t.Fatalf("seen body = %+v", body)
+				}
+			}
+		}
+	})
+}
+
+// Activity authorization belongs to the HTTP read boundary; aggregation uses real SQLite.
+type activityReachPolicy struct{}
+
+var _ workspaceaccess.Policy = activityReachPolicy{}
+
+func (activityReachPolicy) Authorize(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+	return workspaceaccess.Decision{
+		Allowed: req.Target.Kind == workspaceaccess.TargetAggregate || req.Target.WorkspaceID == "allowed",
+		Source:  workspaceaccess.SourceAgentGrant,
+	}, nil
+}
+
+func TestAgentInstanceActivityReach(t *testing.T) {
+	t.Run(
+		"Should isolate activity by caller profile and authorized workspace and return empty arrays",
+		func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "activity.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.Local)
+			foreign := "uuuuuuuuuuuuuuuuuuuuuuuuuu"
+			if _, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO profiles(id,name,color,icon,state,created_at) VALUES (?, 'foreign', '#8E8EB5', 'circle', 'active', ?)`, foreign, store.FormatTimestamp(now)); err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range []struct {
+				profile, workspace string
+				tokens             int64
+			}{
+				{store.DefaultProfileID, "allowed", 10}, {store.DefaultProfileID, "denied", 20}, {foreign, "allowed", 40}, {store.DefaultProfileID, "", 80},
+			} {
+				if err := db.UpsertTokenUsageDaily(
+					t.Context(),
+					store.TokenUsageDailyUpdate{
+						ProfileID:   row.profile,
+						WorkspaceID: row.workspace,
+						AgentName:   "coder",
+						Day:         store.LocalDay(now),
+						TotalTokens: &row.tokens,
+						CostStatus:  store.TokenCostStatusIncluded,
+						CostSource:  store.TokenCostSourceNone,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{
+						ID:                       "caller",
+						AgentName:                "coder",
+						ProfileID:                store.DefaultProfileID,
+						WorkspaceID:              "allowed",
+						State:                    session.StateActive,
+						EffectiveWorkspaceAccess: workspaceaccess.Unrestricted,
+					}, nil
+				}},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{
+					ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+						return []workspacepkg.Workspace{{ID: "allowed"}, {ID: "denied"}}, nil
+					},
+					ResolveFn: func(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{ID: id, Name: id}, nil
+					},
+				},
+			)
+			fixture.Handlers.Now = func() time.Time { return now }
+			fixture.Handlers.WorkspaceAccess = activityReachPolicy{}
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
+			fixture.Engine.GET("/activity/:name", fixture.Handlers.GetAgentActivity)
+			for _, name := range []string{"coder", "empty"} {
+				req := httptest.NewRequestWithContext(t.Context(), "GET", "/activity/"+name, nil)
+				req.Header.Set(agentidentity.HeaderSessionID, "caller")
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+				response := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(response, req)
+				var body agentinstance.Activity
+				if response.Code != 200 {
+					t.Fatalf("activity status=%d body=%s", response.Code, response.Body.String())
+				}
+				decodeJSON(t, response.Body.Bytes(), &body)
+				if body.ReportsByDay == nil || body.BusyByHour == nil || body.CostByProject == nil {
+					t.Fatalf("null arrays: %+v", body)
+				}
+				if name == "coder" {
+					if len(body.CostByProject) != 1 || body.CostByProject[0].Tokens != 10 ||
+						body.CostByProject[0].WorkspaceID != "allowed" {
+						t.Fatalf("scope leak: %+v", body)
+					}
+				} else if len(body.CostByProject) != 0 || len(body.ReportsByDay) != 0 || len(body.BusyByHour) != 0 {
+					t.Fatalf("invented activity: %+v", body)
+				}
+			}
+		},
+	)
+}
+
+func TestAgentInstanceReadFacets(t *testing.T) {
+	t.Run("Should count attention per instance and exclude main sessions from board counts", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "facets.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, name := range []string{"attention", "quiet"} {
+			if _, _, err := db.Instances().
+				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: name, PermissionCeiling: "{}", CreatedByKind: "human"}, 10); err != nil {
+				t.Fatal(err)
+			}
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				CatalogFacetsFn: func(_ context.Context, q session.ListQuery) (store.SessionCatalogFacetResult, error) {
+					if len(q.BoardExcludedIDs) != 2 {
+						t.Fatalf("main exclusions: %v", q.BoardExcludedIDs)
+					}
+					return store.SessionCatalogFacetResult{Facets: store.SessionCatalogFacets{All: 7}}, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store: db.Instances(),
+			ReadPayload: func(_ context.Context, i agentinstance.Instance) (contract.AgentInstancePayload, error) {
+				p := core.AgentInstancePayload(i)
+				p.NeedsAttention = i.AgentName == "attention"
+				p.MainSessionID = "main-" + i.AgentName
+				return p, nil
+			},
+		}
+		fixture.Engine.GET("/facets", fixture.Handlers.ListSessionFacets)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			"GET",
+			"/facets?all_workspaces=true&exclude_instance_main=true",
+			nil,
+		)
+		var body contract.SessionCatalogFacetsResponse
+		decodeJSON(t, response.Body.Bytes(), &body)
+		if response.Code != 200 || body.Facets.All != 7 || body.Facets.InstancesNeedingAttention != 1 ||
+			len(body.ByWorkspace) != 1 ||
+			body.ByWorkspace[0].WorkspaceID != "" ||
+			body.ByWorkspace[0].Facets.InstancesNeedingAttention != 1 ||
+			len(body.ByProfile) != 1 ||
+			body.ByProfile[0].ProfileID != store.DefaultProfileID ||
+			body.ByProfile[0].Facets.InstancesNeedingAttention != 1 {
+			t.Fatalf("facets: %d %+v", response.Code, body)
 		}
 	})
 }

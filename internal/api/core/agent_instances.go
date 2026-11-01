@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
@@ -16,6 +17,7 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	ReadPayload   func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
 	CheckSettings AgentInstanceCheckSettings
 	Checks        AgentInstanceChecker
 	Service       *agentinstance.Service
@@ -96,7 +98,12 @@ func (h *BaseHandlers) GetAgentInstance(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: AgentInstancePayload(instance)})
+	payload, err := h.AgentInstances.Payload(c.Request.Context(), instance)
+	if err != nil {
+		h.instanceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: payload})
 }
 func (h *BaseHandlers) PauseAgentInstance(c *gin.Context)  { h.mutateAgentInstance(c, "pause") }
 func (h *BaseHandlers) ResumeAgentInstance(c *gin.Context) { h.mutateAgentInstance(c, "resume") }
@@ -128,7 +135,12 @@ func (h *BaseHandlers) mutateAgentInstance(c *gin.Context, verb string) {
 		c.Status(http.StatusNoContent)
 		return
 	}
-	c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: AgentInstancePayload(instance)})
+	payload, err := h.AgentInstances.Payload(c.Request.Context(), instance)
+	if err != nil {
+		h.instanceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: payload})
 }
 
 func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
@@ -197,8 +209,16 @@ func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, result)
 }
+func (api *AgentInstanceAPI) Payload(ctx context.Context, i agentinstance.Instance) (contract.AgentInstancePayload, error) {
+	if api.ReadPayload != nil {
+		return api.ReadPayload(ctx, i)
+	}
+	return AgentInstancePayload(i), nil
+}
+
 func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayload {
 	return contract.AgentInstancePayload{
+		Label: i.AgentName, Activity: "unknown", Scope: i.WorkspaceID,
 		ID:            i.ID,
 		ProfileID:     i.ProfileID,
 		AgentName:     i.AgentName,

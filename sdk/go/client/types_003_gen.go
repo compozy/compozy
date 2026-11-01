@@ -7,6 +7,74 @@ import (
 	"time"
 )
 
+// ApproveLoopRunRequest is a daemon API value.
+type ApproveLoopRunRequest struct {
+	GateID   string           `json:"gate_id"`
+	Decision LoopGateDecision `json:"decision"`
+}
+
+// ApproveSessionRequest is a daemon API value.
+type ApproveSessionRequest struct {
+	RequestID string `json:"request_id"`
+	TurnID    string `json:"turn_id"`
+	Decision  string `json:"decision"`
+}
+
+// ArchiveProfilePlan is a daemon API value.
+type ArchiveProfilePlan struct {
+	Revision           string   `json:"revision"`
+	RunningSessions    []string `json:"running_sessions"`
+	ApprovalBlockers   []string `json:"approval_blockers"`
+	LeasedRuns         int      `json:"leased_runs"`
+	QueuedRunsToFreeze int      `json:"queued_runs_to_freeze"`
+	AutomationsToPause []string `json:"automations_to_pause"`
+}
+
+// ArchiveProfileResponse is a daemon API value.
+type ArchiveProfileResponse struct {
+	State             string   `json:"state"`
+	PausedAutomations []string `json:"paused_automations"`
+	FrozenQueuedRuns  int      `json:"frozen_queued_runs"`
+}
+
+// Argument is a daemon API value.
+type Argument struct {
+	Name        string       `json:"name"`
+	Type        ArgumentType `json:"type"`
+	Placeholder string       `json:"placeholder,omitempty"`
+	Required    bool         `json:"required"`
+	Options     []string     `json:"options,omitempty"`
+}
+
+// ArgumentType is a daemon API value.
+type ArgumentType string
+
+// ArtifactAvailability is a daemon API value.
+type ArtifactAvailability string
+
+// ArtifactRef is a daemon API value.
+type ArtifactRef struct {
+	URI      string `json:"uri"`
+	Name     string `json:"name,omitempty"`
+	MIMEType string `json:"mime_type,omitempty"`
+	Bytes    int64  `json:"bytes,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
+}
+
+// AttachSessionRequest is a daemon API value.
+type AttachSessionRequest struct {
+	AttachedTo string `json:"attached_to,omitempty"`
+	TTLSeconds int    `json:"ttl_seconds,omitzero"`
+}
+
+// AttachTaskRunSessionRequest is a daemon API value.
+type AttachTaskRunSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// AttentionClass is a daemon API value.
+type AttentionClass string
+
 // AttentionNotificationPayload is a daemon API value.
 type AttentionNotificationPayload struct {
 	ID             string    `json:"id"`
@@ -368,81 +436,4 @@ type CmdPaletteClient struct {
 	Kind       string      `json:"kind"`
 	Workspace  WorkspaceID `json:"workspace"`
 	AttachedAt time.Time   `json:"attached_at"`
-}
-
-// CmdPaletteCommand is a daemon API value.
-type CmdPaletteCommand struct {
-	ID                 CommandID       `json:"id"`
-	Title              string          `json:"title"`
-	Source             string          `json:"source"`
-	Section            string          `json:"section"`
-	Icon               string          `json:"icon"`
-	Keywords           []string        `json:"keywords,omitempty"`
-	Available          bool            `json:"available"`
-	Reason             string          `json:"reason,omitempty"`
-	Bindings           []string        `json:"bindings"`
-	Alias              *string         `json:"alias"`
-	Destructive        bool            `json:"destructive"`
-	Confirmation       *Confirmation   `json:"confirmation,omitzero"`
-	Arguments          []Argument      `json:"arguments"`
-	Action             Action          `json:"action"`
-	Execution          ExecutionPolicy `json:"execution"`
-	When               []Predicate     `json:"when,omitempty"`
-	AvailabilityExempt bool            `json:"availability_exempt"`
-	GlobalShortcut     *GlobalShortcut `json:"global_shortcut,omitzero"`
-}
-
-// CmdPaletteCommandsResponse is a daemon API value.
-type CmdPaletteCommandsResponse struct {
-	ProfileLens     ProfileLens         `json:"profile_lens"`
-	Commands        []CmdPaletteCommand `json:"commands"`
-	Sources         []SourceStatus      `json:"sources"`
-	CatalogRevision string              `json:"catalog_revision"`
-	ContextRevision string              `json:"context_revision,omitempty"`
-}
-
-// CmdPaletteInvokeRequest is a daemon API value.
-type CmdPaletteInvokeRequest struct {
-	Workspace string         `json:"workspace"`
-	Args      map[string]any `json:"args"`
-	Client    string         `json:"client,omitempty"`
-}
-
-// CmdPaletteInvokeResult is a daemon API value.
-type CmdPaletteInvokeResult struct {
-	ProfileLens  ProfileLens     `json:"profile_lens"`
-	Status       InvokeStatus    `json:"status"`
-	Result       json.RawMessage `json:"result,omitempty"`
-	ApprovalID   string          `json:"approval_id,omitempty"`
-	InvocationID string          `json:"invocation_id"`
-}
-
-// CmdPalettePersonalizationResetResponse is a daemon API value.
-type CmdPalettePersonalizationResetResponse struct {
-	Status string `json:"status"`
-}
-
-// CmdPalettePersonalizationResponse is a daemon API value.
-type CmdPalettePersonalizationResponse struct {
-	ProfileLens       ProfileLens `json:"profile_lens"`
-	Workspace         WorkspaceID `json:"workspace"`
-	Pins              []CommandID `json:"pins"`
-	Recents           int         `json:"recents"`
-	FrecencyEntries   int         `json:"frecency_entries"`
-	QueryAssociations int         `json:"query_associations"`
-}
-
-// CmdPalettePinResponse is a daemon API value.
-type CmdPalettePinResponse struct {
-	Pinned bool `json:"pinned"`
-}
-
-// CmdPaletteRankSignalsResponse is a daemon API value.
-type CmdPaletteRankSignalsResponse struct {
-	ProfileLens ProfileLens   `json:"profile_lens"`
-	Weights     Weights       `json:"weights"`
-	Usage       []UsageSignal `json:"usage"`
-	QueryHits   []QueryHit    `json:"query_hits"`
-	Pins        []CommandID   `json:"pins"`
-	Revision    string        `json:"revision"`
 }

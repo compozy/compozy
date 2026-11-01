@@ -1193,3 +1193,59 @@ func TestAgentInstanceCommands(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentReadCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, path, body string
+		args                     []string
+	}{
+		{"Should read away reports", "GET", "/api/agent-instances/ainst-test/away", `{"last_seen_at":null,"quiet_check_ins":2,"reports":[]}`, []string{"agent", "instance", "away", "ainst-test", "--global", "-o", "json"}},
+		{"Should mark an instance seen", "POST", "/api/agent-instances/ainst-test/away", `{"last_seen_at":"2026-11-01T12:00:00Z"}`, []string{"agent", "instance", "mark-seen", "ainst-test", "--global", "-o", "json"}},
+		{"Should page check-ins", "GET", "/api/agent-instances/ainst-test/check-ins", `{"check_ins":[],"next_cursor":""}`, []string{"agent", "instance", "check-ins", "ainst-test", "--global", "--limit", "10", "-o", "json"}},
+		{"Should read agent activity", "GET", "/api/agents/coder/activity", `{"reports_by_day":[],"cost_by_project":[],"busy_by_hour":[]}`, []string{"agent", "activity", "coder", "--days", "7", "-o", "json"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != tc.method || r.URL.Path != tc.path {
+					t.Errorf("request = %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(404)
+					return
+				}
+				if strings.HasSuffix(tc.path, "check-ins") && r.URL.Query().Get("limit") != "10" {
+					t.Error("missing page limit")
+				}
+				if strings.HasSuffix(tc.path, "activity") && r.URL.Query().Get("days") != "7" {
+					t.Error("missing time window")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if _, err := io.WriteString(w, tc.body); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			target, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})}}
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), tc.args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got, want any
+			if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(tc.body), &want); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("output = %s", stdout)
+			}
+		})
+	}
+}

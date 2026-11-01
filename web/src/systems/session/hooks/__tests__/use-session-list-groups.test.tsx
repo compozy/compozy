@@ -50,6 +50,7 @@ vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => (
 function counts(all: number, working = 0, needsYou = 0) {
   return {
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all,
     needs_you: needsYou,
     working,
@@ -609,6 +610,7 @@ describe("useWorkspaceWorkingSessions", () => {
 
   const facets = (working: number) => ({
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all: working + 1,
     needs_you: 0,
     working,

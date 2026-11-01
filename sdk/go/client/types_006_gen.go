@@ -7,6 +7,86 @@ import (
 	"time"
 )
 
+// ExtensionEnablePreviewPayload is a daemon API value.
+type ExtensionEnablePreviewPayload struct {
+	MissingInputs               []string                    `json:"missing_inputs"`
+	Extension                   string                      `json:"extension"`
+	Changes                     []ExtensionKitChangePayload `json:"changes"`
+	AgentConflicts              []string                    `json:"agent_conflicts"`
+	MissingEnv                  []string                    `json:"missing_env"`
+	AutomationStarting          []string                    `json:"automation_starting"`
+	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
+	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
+}
+
+// ExtensionEnablementPayload is a daemon API value.
+type ExtensionEnablementPayload struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
+// ExtensionInputStatePayload is a daemon API value.
+type ExtensionInputStatePayload struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Set    bool   `json:"set"`
+	Active bool   `json:"active"`
+}
+
+// ExtensionInstallDeclaredProfilePayload is a daemon API value.
+type ExtensionInstallDeclaredProfilePayload struct {
+	Name        string                         `json:"name"`
+	Create      bool                           `json:"create"`
+	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
+}
+
+// ExtensionInstallPreviewPayload is a daemon API value.
+type ExtensionInstallPreviewPayload struct {
+	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
+	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
+	Name                     string                                   `json:"name"`
+	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
+	Placements               []ExtensionPlacementPayload              `json:"placements"`
+	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
+}
+
+// ExtensionInventoryPayload is a daemon API value.
+type ExtensionInventoryPayload struct {
+	Extension   string                    `json:"extension"`
+	Format      string                    `json:"format"`
+	Enabled     bool                      `json:"enabled"`
+	Items       []ExtensionKitItemPayload `json:"items"`
+	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
+}
+
+// ExtensionKitChange is a daemon API value.
+type ExtensionKitChange string
+
+// ExtensionKitChangePayload is a daemon API value.
+type ExtensionKitChangePayload struct {
+	Kind   ResourceKind       `json:"kind"`
+	ID     string             `json:"id"`
+	Name   string             `json:"name"`
+	Change ExtensionKitChange `json:"change"`
+}
+
+// ExtensionKitItemPayload is a daemon API value.
+type ExtensionKitItemPayload struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
+	Name string       `json:"name"`
+	Live bool         `json:"live"`
+}
+
+// ExtensionLogPayload is a daemon API value.
+type ExtensionLogPayload struct {
+	Sequence       int64     `json:"sequence"`
+	Timestamp      time.Time `json:"timestamp"`
+	Message        string    `json:"message"`
+	GenerationHash string    `json:"generation_hash,omitempty"`
+	StreamEpoch    string    `json:"stream_epoch"`
+}
+
 // ExtensionLogsResponse is a daemon API value.
 type ExtensionLogsResponse struct {
 	Logs        []ExtensionLogPayload `json:"logs"`
@@ -358,88 +438,4 @@ type GatewayDeviceHighlights struct {
 	Stale          int      `json:"stale"`
 	RecentlyPaired int      `json:"recently_paired"`
 	StaleDeviceIDs []string `json:"stale_device_ids"`
-}
-
-// GatewayDevicePayload is a daemon API value.
-type GatewayDevicePayload struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
-	ActorKind     string     `json:"actor_kind"`
-	PairingOrigin string     `json:"pairing_origin"`
-	RevokeEpoch   uint64     `json:"revoke_epoch"`
-	CreatedAt     time.Time  `json:"created_at"`
-	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
-	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
-}
-
-// GatewayDeviceRenameRequest is a daemon API value.
-type GatewayDeviceRenameRequest struct {
-	Name string `json:"name"`
-}
-
-// GatewayDevicesResponse is a daemon API value.
-type GatewayDevicesResponse struct {
-	Devices []GatewayDevicePayload `json:"devices"`
-}
-
-// GatewayIngressBindRequest is a daemon API value.
-type GatewayIngressBindRequest struct {
-	SubjectKind string `json:"subject_kind"`
-	SubjectID   string `json:"subject_id"`
-	Confirmed   bool   `json:"confirmed"`
-}
-
-// GatewayIngressBindingResponse is a daemon API value.
-type GatewayIngressBindingResponse struct {
-	Binding GatewayIngressPayload `json:"binding"`
-	Changed bool                  `json:"changed"`
-}
-
-// GatewayIngressPayload is a daemon API value.
-type GatewayIngressPayload struct {
-	SubjectKind                 string     `json:"subject_kind"`
-	SubjectID                   string     `json:"subject_id"`
-	ScopeKind                   string     `json:"scope_kind"`
-	WorkspaceID                 string     `json:"workspace_id,omitempty"`
-	URL                         string     `json:"url,omitempty"`
-	Reachability                string     `json:"reachability"`
-	EndpointGeneration          uint64     `json:"endpoint_generation"`
-	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
-	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
-	EnablePath                  string     `json:"enable_path,omitempty"`
-}
-
-// GatewayIngressUnbindResponse is a daemon API value.
-type GatewayIngressUnbindResponse struct {
-	SubjectKind string `json:"subject_kind"`
-	SubjectID   string `json:"subject_id"`
-	Changed     bool   `json:"changed"`
-}
-
-// GatewayIssuedCredentialPayload is a daemon API value.
-type GatewayIssuedCredentialPayload struct {
-	Device     GatewayDevicePayload `json:"device"`
-	Credential string               `json:"credential,omitempty"`
-}
-
-// GatewayPairingArtifactPayload is a daemon API value.
-type GatewayPairingArtifactPayload struct {
-	Artifact  string    `json:"artifact"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// GatewayPairingRedeemRequest is a daemon API value.
-type GatewayPairingRedeemRequest struct {
-	Artifact   string `json:"artifact"`
-	Name       string `json:"name"`
-	ActorKind  string `json:"actor_kind"`
-	Credential string `json:"credential,omitempty"`
-}
-
-// GatewayProviderEnableRequest is a daemon API value.
-type GatewayProviderEnableRequest struct {
-	Tier               string `json:"tier"`
-	InstallSource      string `json:"install_source"`
-	DigestConfirmed    string `json:"digest_confirmed,omitempty"`
-	ExpectedGeneration uint64 `json:"expected_generation"`
 }

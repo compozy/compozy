@@ -70,3 +70,10 @@ CREATE TABLE agent_instance_wake_state (
 );
 
 CREATE INDEX idx_agent_instance_wake_state_due ON agent_instance_wake_state(next_wake_at, instance_id);
+
+CREATE TABLE agent_instance_seen (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    operator_id TEXT NOT NULL CHECK (length(operator_id) > 0),
+    last_seen_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, operator_id)
+);

@@ -7,6 +7,48 @@ import (
 	"time"
 )
 
+// SettingsSkillSourceCollisionPayload is a daemon API value.
+type SettingsSkillSourceCollisionPayload struct {
+	Name          string `json:"name"`
+	WinnerRootID  string `json:"winner_root_id"`
+	QualifiedForm string `json:"qualified_form"`
+}
+
+// SettingsSkillSourceInheritancePayload is a daemon API value.
+type SettingsSkillSourceInheritancePayload struct {
+	Sources       bool `json:"sources"`
+	CustomSources bool `json:"custom_sources"`
+}
+
+// SettingsSkillSourcePayload is a daemon API value.
+type SettingsSkillSourcePayload struct {
+	Slug          string                           `json:"slug"`
+	Label         string                           `json:"label"`
+	Kind          string                           `json:"kind"`
+	Enabled       bool                             `json:"enabled"`
+	AlwaysOn      bool                             `json:"always_on"`
+	Default       bool                             `json:"default,omitzero"`
+	WorkspacePath string                           `json:"workspace_path,omitempty"`
+	GlobalPath    string                           `json:"global_path,omitempty"`
+	Path          string                           `json:"path,omitempty"`
+	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
+}
+
+// SettingsSkillSourceRootPayload is a daemon API value.
+type SettingsSkillSourceRootPayload struct {
+	RootID        string                                  `json:"root_id"`
+	Path          string                                  `json:"path"`
+	Exists        bool                                    `json:"exists"`
+	Readable      bool                                    `json:"readable"`
+	ScannedCount  *int                                    `json:"scanned_count,omitzero"`
+	SkillCount    *int                                    `json:"skill_count,omitzero"`
+	Truncated     bool                                    `json:"truncated"`
+	SkippedLinks  []SettingsSkillSourceSkippedLinkPayload `json:"skipped_links"`
+	Collisions    []SettingsSkillSourceCollisionPayload   `json:"collisions"`
+	Verification  SettingsSkillSourceVerificationPayload  `json:"verification"`
+	NativeReaders []string                                `json:"native_readers"`
+}
+
 // SettingsSkillSourceSkippedLinkPayload is a daemon API value.
 type SettingsSkillSourceSkippedLinkPayload struct {
 	Path   string `json:"path"`
@@ -393,51 +435,3 @@ type SkillActivationReasonPayload struct {
 type SkillContentResponse struct {
 	Content string `json:"content"`
 }
-
-// SkillDiagnosticPayload is a daemon API value.
-type SkillDiagnosticPayload struct {
-	Name               string                            `json:"name"`
-	State              SkillDiagnosticState              `json:"state"`
-	Source             string                            `json:"source,omitempty"`
-	Path               string                            `json:"path,omitempty"`
-	WinningSource      string                            `json:"winning_source,omitempty"`
-	WinningPath        string                            `json:"winning_path,omitempty"`
-	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
-	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
-	Failure            *SkillVerificationFailurePayload  `json:"failure,omitzero"`
-	ActivationReasons  []SkillActivationReasonPayload    `json:"activation_reasons,omitempty"`
-}
-
-// SkillDiagnosticState is a daemon API value.
-type SkillDiagnosticState string
-
-// SkillExposeResponse is a daemon API value.
-type SkillExposeResponse struct {
-	Name        string                             `json:"name"`
-	WorkspaceID string                             `json:"workspace_id,omitempty"`
-	Results     []SkillExposureTargetResultPayload `json:"results"`
-	RolledBack  bool                               `json:"rolled_back"`
-}
-
-// SkillExposureErrorPayload is a daemon API value.
-type SkillExposureErrorPayload struct {
-	Code       string `json:"code"`
-	Message    string `json:"message,omitempty"`
-	OccupiedBy string `json:"occupied_by,omitempty"`
-}
-
-// SkillExposurePayload is a daemon API value.
-type SkillExposurePayload struct {
-	Target string              `json:"target"`
-	Path   string              `json:"path"`
-	Status SkillExposureStatus `json:"status"`
-}
-
-// SkillExposureRequest is a daemon API value.
-type SkillExposureRequest struct {
-	Targets     []string `json:"targets"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-}
-
-// SkillExposureStatus is a daemon API value.
-type SkillExposureStatus string

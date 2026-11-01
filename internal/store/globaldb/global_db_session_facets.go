@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -35,11 +36,21 @@ func (g *SessionRepo) SessionCatalogFacets(
 	if err != nil {
 		return result, err
 	}
+	boardCount := "COUNT(1)"
+	var boardArgs []any
+	if len(query.BoardExcludedIDs) > 0 {
+		encoded, err := json.Marshal(query.BoardExcludedIDs)
+		if err != nil {
+			return result, err
+		}
+		boardCount = "SUM(CASE WHEN id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END)"
+		boardArgs = []any{string(encoded)}
+	}
 	selection := "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression + ", " +
-		sessionCatalogBoardColumnExpression + ", COUNT(1) FROM " + source
+		sessionCatalogBoardColumnExpression + ", COUNT(1), " + boardCount + " FROM " + source
 	statement.WriteString(store.AppendWhere(selection, where))
 	statement.WriteString(" GROUP BY workspace_id, profile_id, 3, 4 ORDER BY workspace_id")
-	args = append(sourceArgs, args...)
+	args = append(append(boardArgs, sourceArgs...), args...)
 
 	rows, err := g.db.QueryContext(ctx, statement.String(), args...)
 	if err != nil {
@@ -54,8 +65,8 @@ func (g *SessionRepo) SessionCatalogFacets(
 	profiles := map[string]store.SessionCatalogFacets{}
 	for rows.Next() {
 		var workspaceID, profileID, badge, column string
-		var count int
-		if err := rows.Scan(&workspaceID, &profileID, &badge, &column, &count); err != nil {
+		var count, boardCount int
+		if err := rows.Scan(&workspaceID, &profileID, &badge, &column, &count, &boardCount); err != nil {
 			return result, fmt.Errorf("store: scan session catalog facets: %w", err)
 		}
 		if len(result.ByWorkspace) == 0 || result.ByWorkspace[len(result.ByWorkspace)-1].WorkspaceID != workspaceID {
@@ -66,12 +77,12 @@ func (g *SessionRepo) SessionCatalogFacets(
 		}
 		workspace := &result.ByWorkspace[len(result.ByWorkspace)-1]
 		addCatalogBadgeCount(&workspace.Facets, badge, count)
-		workspace.Facets.Board.Add(column, count)
+		workspace.Facets.Board.Add(column, boardCount)
 		addCatalogBadgeCount(&result.Facets, badge, count)
-		result.Facets.Board.Add(column, count)
+		result.Facets.Board.Add(column, boardCount)
 		facets := profiles[profileID]
 		addCatalogBadgeCount(&facets, badge, count)
-		facets.Board.Add(column, count)
+		facets.Board.Add(column, boardCount)
 		profiles[profileID] = facets
 	}
 	if err := rows.Err(); err != nil {

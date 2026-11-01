@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+// GetSessionHistoryParams carries the path, query, and header parameters.
+type GetSessionHistoryParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	Since         *string `url:"since"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Type          *string `url:"type"`
+	AgentName     *string `url:"agent_name"`
+	TurnID        *string `url:"turn_id"`
+	Archive       *string `url:"archive"`
+}
+
 // GetSessionHistory List grouped session turn history
 func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
@@ -425,25 +438,4 @@ func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProvide
 // GetSettingsRestartStatusParams carries the path, query, and header parameters.
 type GetSettingsRestartStatusParams struct {
 	OperationID string `url:"operation_id"`
-}
-
-// GetSettingsRestartStatus Get the persisted status for one daemon restart operation
-func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSettingsRestartStatusParams) (*RestartActionStatus, error) {
-	path := "/api/settings/actions/restart/{operation_id}"
-	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
-	var out RestartActionStatus
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsRoles Read the background-role routing settings section
-func (c *Client) GetSettingsRoles(ctx context.Context) (*SettingsRolesResponse, error) {
-	path := "/api/settings/roles"
-	var out SettingsRolesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -592,6 +592,7 @@ describe("SessionsBoard swimlanes", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: {
         terminal_approvals: 0,
+        instances_needing_attention: 0,
         all: 1,
         needs_you: 0,
         working: 1,

@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"listSessionPendingInteractions",
 			"listSessionProcesses", "terminateSessionProcesses",
 			"listProviderUsage", "getProviderUsage", "streamProviderUsage",
 			"acceptAutomationSuggestion",
@@ -207,6 +208,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"getPermissionRollup",
+			"createAgentInstance", "listAgentInstances", "adoptAgentInstance", "getAgentInstance", "pauseAgentInstance", "resumeAgentInstance", "ensureAgentInstanceMain", "archiveAgentInstance", "listAgentInstanceReports", "getAgentActivity", "getAgentInstanceAway", "markAgentInstanceSeen", "listAgentInstanceCheckIns",
 			"getAgentMemory", "putAgentMemory", "addAgentMemory", "replaceAgentMemory", "removeAgentMemory", "searchAgentMemory", "validateAgentMemory", "listAgentMemoryHistory", "rollbackAgentMemory",
 			"createAgentInstance", "listAgentInstances", "adoptAgentInstance", "getAgentInstance", "pauseAgentInstance", "resumeAgentInstance", "ensureAgentInstanceMain", "archiveAgentInstance", "listAgentInstanceReports", "checkAgentInstance", "updateAgentInstance", "getAgentInstanceOccurrence",
 			"getPermissionRollup", "listPermissionEntries",

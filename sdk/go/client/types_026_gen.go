@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// TerminalWaitRequest is a daemon API value.
+type TerminalWaitRequest struct {
+	Until     string `json:"until"`
+	Pattern   string `json:"pattern,omitempty"`
+	TimeoutMs int    `json:"timeout_ms,omitzero"`
+}
+
+// TerminalWaitResponse is a daemon API value.
+type TerminalWaitResponse struct {
+	Reason    string `json:"reason"`
+	ExitCode  *int   `json:"exit_code,omitzero"`
+	Screen    string `json:"screen"`
+	Untrusted bool   `json:"untrusted"`
+}
+
 // TerminateProcessesRequest is a daemon API value.
 type TerminateProcessesRequest struct {
 	Targets []SessionProcessTarget `json:"targets"`

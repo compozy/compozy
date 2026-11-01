@@ -145,6 +145,73 @@
         ],
         "type": "object"
       },
+      "ActivityCost": {
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "tokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "usd_estimate": {
+            "format": "double",
+            "type": "number"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope",
+          "tokens",
+          "usd_estimate",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "ActivityDay": {
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "needed_you": {
+            "type": "integer"
+          },
+          "quiet": {
+            "type": "integer"
+          },
+          "told": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "needed_you",
+          "quiet",
+          "told"
+        ],
+        "type": "object"
+      },
+      "ActivityHour": {
+        "properties": {
+          "events": {
+            "type": "integer"
+          },
+          "hour": {
+            "type": "integer"
+          },
+          "weekday": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "events",
+          "hour",
+          "weekday"
+        ],
+        "type": "object"
+      },
       "ActorIdentity": {
         "properties": {
           "kind": {
@@ -224,6 +291,34 @@
         },
         "required": [
           "id"
+        ],
+        "type": "object"
+      },
+      "AgentActivityResponse": {
+        "properties": {
+          "busy_by_hour": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityHour"
+            },
+            "type": "array"
+          },
+          "cost_by_project": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityCost"
+            },
+            "type": "array"
+          },
+          "reports_by_day": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityDay"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "busy_by_hour",
+          "cost_by_project",
+          "reports_by_day"
         ],
         "type": "object"
       },
@@ -633,6 +728,30 @@
         ],
         "type": "object"
       },
+      "AgentInstanceAwayResponse": {
+        "properties": {
+          "last_seen_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "quiet_check_ins": {
+            "type": "integer"
+          },
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/AgentInstanceReportPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "last_seen_at",
+          "quiet_check_ins",
+          "reports"
+        ],
+        "type": "object"
+      },
       "AgentInstanceCheckDigest": {
         "properties": {
           "diagnostics": {
@@ -654,6 +773,48 @@
         "required": [
           "fingerprint",
           "item_keys"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceCheckInPayload": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "reason",
+          "result"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceCheckInsResponse": {
+        "properties": {
+          "check_ins": {
+            "items": {
+              "$ref": "#/components/schemas/AgentInstanceCheckInPayload"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_ins",
+          "next_cursor"
         ],
         "type": "object"
       },
@@ -747,6 +908,9 @@
       },
       "AgentInstancePayload": {
         "properties": {
+          "activity": {
+            "type": "string"
+          },
           "agent_name": {
             "type": "string"
           },
@@ -757,13 +921,32 @@
           "id": {
             "type": "string"
           },
+          "label": {
+            "type": "string"
+          },
           "main_session_id": {
+            "type": "string"
+          },
+          "needs_attention": {
+            "type": "boolean"
+          },
+          "now": {
             "type": "string"
           },
           "pause_reason": {
             "type": "string"
           },
           "profile_id": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "resolved_appearance": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "scope": {
             "type": "string"
           },
           "state": {
@@ -778,12 +961,19 @@
           }
         },
         "required": [
+          "activity",
           "agent_name",
           "created_at",
           "id",
+          "label",
           "main_session_id",
+          "needs_attention",
+          "now",
           "pause_reason",
           "profile_id",
+          "provider",
+          "resolved_appearance",
+          "scope",
           "state",
           "updated_at",
           "workspace_id"
@@ -889,6 +1079,18 @@
         },
         "required": [
           "instance"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceSeenResponse": {
+        "properties": {
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "last_seen_at"
         ],
         "type": "object"
       },
@@ -23474,6 +23676,9 @@
           "idle": {
             "type": "integer"
           },
+          "instances_needing_attention": {
+            "type": "integer"
+          },
           "needs_you": {
             "type": "integer"
           },
@@ -23489,6 +23694,7 @@
           "board",
           "finished",
           "idle",
+          "instances_needing_attention",
           "needs_you",
           "terminal_approvals",
           "working"
@@ -47126,6 +47332,234 @@
         ]
       }
     },
+    "/api/agent-instances/{id}/away": {
+      "get": {
+        "operationId": "getAgentInstanceAway",
+        "parameters": [
+          {
+            "description": "Instance ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentInstanceAwayResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Read the operator's instance away digest",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "markAgentInstanceSeen",
+        "parameters": [
+          {
+            "description": "Instance ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentInstanceSeenResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Mark the instance seen by the local operator",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/agent-instances/{id}/check": {
       "post": {
         "operationId": "checkAgentInstance",
@@ -47252,6 +47686,138 @@
           }
         },
         "summary": "Check an agent instance",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent-instances/{id}/check-ins": {
+      "get": {
+        "operationId": "listAgentInstanceCheckIns",
+        "parameters": [
+          {
+            "description": "Instance ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Pagination cursor",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size from 1 to 100; defaults to 50",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentInstanceCheckInsResponse"
+                }
+              }
+            },
+            "description": "Wake events, empty when instance wakes are unavailable"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "List instance wake events",
         "tags": [
           "agents"
         ],
@@ -50184,6 +50750,130 @@
           }
         },
         "summary": "Replace one effective AGENT.md definition with digest CAS",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agents/{name}/activity": {
+      "get": {
+        "operationId": "getAgentActivity",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of days, from 1 to 365; defaults to 30",
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentActivityResponse"
+                }
+              }
+            },
+            "description": "Scoped activity"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Read agent activity across authorized workspaces",
         "tags": [
           "agents"
         ],
@@ -68296,6 +68986,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/OperatorNotificationEventPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentInstancePayload"
                     }
                   ]
                 }
@@ -68339,6 +69032,14 @@
       "get": {
         "operationId": "listSessionFacets",
         "parameters": [
+          {
+            "description": "Exclude instance main sessions from board counts",
+            "in": "query",
+            "name": "exclude_instance_main",
+            "schema": {
+              "type": "boolean"
+            }
+          },
           {
             "description": "Workspace id or path",
             "in": "query",

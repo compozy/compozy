@@ -7,6 +7,83 @@ import (
 	"time"
 )
 
+// CreateTaskChildRequest is a daemon API value.
+type CreateTaskChildRequest struct {
+	ID                 string          `json:"id,omitempty"`
+	Identifier         string          `json:"identifier,omitempty"`
+	Scope              TaskScope       `json:"scope"`
+	Workspace          string          `json:"workspace,omitempty"`
+	Title              string          `json:"title"`
+	Description        string          `json:"description,omitempty"`
+	Priority           Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int            `json:"max_attempts,omitzero"`
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitzero"`
+	Draft              bool            `json:"draft,omitzero"`
+	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Owner              *Ownership      `json:"owner,omitempty"`
+	WakeCreator        *bool           `json:"wake_creator,omitzero"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
+}
+
+// CreateTaskRequest is a daemon API value.
+type CreateTaskRequest struct {
+	ID                 string          `json:"id,omitempty"`
+	Identifier         string          `json:"identifier,omitempty"`
+	Scope              TaskScope       `json:"scope"`
+	Workspace          string          `json:"workspace,omitempty"`
+	Title              string          `json:"title"`
+	Description        string          `json:"description,omitempty"`
+	Priority           Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int            `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
+	Draft              bool            `json:"draft,omitempty"`
+	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Owner              *Ownership      `json:"owner,omitempty"`
+	WakeCreator        *bool           `json:"wake_creator,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
+}
+
+// CreateTriggerRequest is a daemon API value.
+type CreateTriggerRequest struct {
+	Scope              Scope             `json:"scope"`
+	Name               string            `json:"name"`
+	TargetKind         TargetKind        `json:"target_kind,omitempty"`
+	AgentName          string            `json:"agent_name"`
+	WorkspaceID        string            `json:"workspace_id,omitempty"`
+	Prompt             string            `json:"prompt"`
+	Event              string            `json:"event"`
+	Filter             map[string]string `json:"filter,omitempty"`
+	LoopTarget         *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled            *bool             `json:"enabled,omitempty"`
+	Retry              *RetryConfig      `json:"retry,omitempty"`
+	FireLimit          *FireLimitConfig  `json:"fire_limit,omitempty"`
+	WebhookID          string            `json:"webhook_id,omitempty"`
+	EndpointSlug       string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue string            `json:"webhook_secret_value,omitempty"`
+}
+
+// CreateWorkspaceFolderRequest is a daemon API value.
+type CreateWorkspaceFolderRequest struct {
+	Name string `json:"name"`
+}
+
+// CreateWorkspaceRequest is a daemon API value.
+type CreateWorkspaceRequest struct {
+	RootDir      string   `json:"root_dir"`
+	Name         string   `json:"name,omitempty"`
+	AddDirs      []string `json:"add_dirs,omitempty"`
+	DefaultAgent string   `json:"default_agent,omitempty"`
+}
+
+// CreateWorktreeRequest is a daemon API value.
+type CreateWorktreeRequest struct {
+	Name           string `json:"name,omitempty"`
+	Branch         string `json:"branch,omitempty"`
+	BaseRef        string `json:"base_ref,omitempty"`
+	ExistingBranch string `json:"existing_branch,omitempty"`
+	Path           string `json:"path,omitempty"`
+}
+
 // CriterionType is a daemon API value.
 type CriterionType string
 
@@ -365,84 +442,4 @@ type ExtensionDeclaredProfilePayload struct {
 	CreatedByExtension     bool                           `json:"created_by_extension"`
 	NeedsSetup             bool                           `json:"needs_setup"`
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
-}
-
-// ExtensionEnablePreviewPayload is a daemon API value.
-type ExtensionEnablePreviewPayload struct {
-	MissingInputs               []string                    `json:"missing_inputs"`
-	Extension                   string                      `json:"extension"`
-	Changes                     []ExtensionKitChangePayload `json:"changes"`
-	AgentConflicts              []string                    `json:"agent_conflicts"`
-	MissingEnv                  []string                    `json:"missing_env"`
-	AutomationStarting          []string                    `json:"automation_starting"`
-	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
-	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
-}
-
-// ExtensionEnablementPayload is a daemon API value.
-type ExtensionEnablementPayload struct {
-	Profile string `json:"profile"`
-	Enabled bool   `json:"enabled"`
-}
-
-// ExtensionInputStatePayload is a daemon API value.
-type ExtensionInputStatePayload struct {
-	ID     string `json:"id"`
-	Type   string `json:"type"`
-	Set    bool   `json:"set"`
-	Active bool   `json:"active"`
-}
-
-// ExtensionInstallDeclaredProfilePayload is a daemon API value.
-type ExtensionInstallDeclaredProfilePayload struct {
-	Name        string                         `json:"name"`
-	Create      bool                           `json:"create"`
-	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
-}
-
-// ExtensionInstallPreviewPayload is a daemon API value.
-type ExtensionInstallPreviewPayload struct {
-	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
-	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
-	Name                     string                                   `json:"name"`
-	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
-	Placements               []ExtensionPlacementPayload              `json:"placements"`
-	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
-}
-
-// ExtensionInventoryPayload is a daemon API value.
-type ExtensionInventoryPayload struct {
-	Extension   string                    `json:"extension"`
-	Format      string                    `json:"format"`
-	Enabled     bool                      `json:"enabled"`
-	Items       []ExtensionKitItemPayload `json:"items"`
-	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
-}
-
-// ExtensionKitChange is a daemon API value.
-type ExtensionKitChange string
-
-// ExtensionKitChangePayload is a daemon API value.
-type ExtensionKitChangePayload struct {
-	Kind   ResourceKind       `json:"kind"`
-	ID     string             `json:"id"`
-	Name   string             `json:"name"`
-	Change ExtensionKitChange `json:"change"`
-}
-
-// ExtensionKitItemPayload is a daemon API value.
-type ExtensionKitItemPayload struct {
-	Kind ResourceKind `json:"kind"`
-	ID   string       `json:"id"`
-	Name string       `json:"name"`
-	Live bool         `json:"live"`
-}
-
-// ExtensionLogPayload is a daemon API value.
-type ExtensionLogPayload struct {
-	Sequence       int64     `json:"sequence"`
-	Timestamp      time.Time `json:"timestamp"`
-	Message        string    `json:"message"`
-	GenerationHash string    `json:"generation_hash,omitempty"`
-	StreamEpoch    string    `json:"stream_epoch"`
 }

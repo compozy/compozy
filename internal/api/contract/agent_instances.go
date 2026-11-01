@@ -3,15 +3,22 @@ package contract
 import "time"
 
 type AgentInstancePayload struct {
-	ID            string    `json:"id"`
-	ProfileID     string    `json:"profile_id"`
-	AgentName     string    `json:"agent_name"`
-	WorkspaceID   string    `json:"workspace_id"`
-	State         string    `json:"state"`
-	PauseReason   string    `json:"pause_reason"`
-	MainSessionID string    `json:"main_session_id"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	Label              string         `json:"label"`
+	Provider           string         `json:"provider"`
+	ResolvedAppearance map[string]any `json:"resolved_appearance"`
+	Scope              string         `json:"scope"`
+	Activity           string         `json:"activity"`
+	Now                string         `json:"now"`
+	NeedsAttention     bool           `json:"needs_attention"`
+	ID                 string         `json:"id"`
+	ProfileID          string         `json:"profile_id"`
+	AgentName          string         `json:"agent_name"`
+	WorkspaceID        string         `json:"workspace_id"`
+	State              string         `json:"state"`
+	PauseReason        string         `json:"pause_reason"`
+	MainSessionID      string         `json:"main_session_id"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
 }
 type AgentInstanceResponse struct {
 	Instance AgentInstancePayload `json:"instance"`
@@ -76,4 +83,26 @@ type AgentInstanceOccurrenceResponse struct {
 	Result   string `json:"result,omitempty"`
 	Reason   string `json:"reason,omitempty"`
 	ReportID string `json:"report_id,omitempty"`
+}
+
+type AgentInstanceAwayResponse struct {
+	LastSeenAt    *time.Time                   `json:"last_seen_at"`
+	QuietCheckIns int                          `json:"quiet_check_ins"`
+	Reports       []AgentInstanceReportPayload `json:"reports"`
+}
+
+type AgentInstanceSeenResponse struct {
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+type AgentInstanceCheckInPayload struct {
+	ID        string    `json:"id"`
+	Result    string    `json:"result"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type AgentInstanceCheckInsResponse struct {
+	CheckIns   []AgentInstanceCheckInPayload `json:"check_ins"`
+	NextCursor string                        `json:"next_cursor"`
 }

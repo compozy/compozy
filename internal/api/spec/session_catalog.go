@@ -267,6 +267,7 @@ func sessionCatalogStreamOperation() OperationSpec {
 					responseBodyOf[contract.SessionCatalogEventPayload](),
 					responseBodyOf[contract.SessionAttentionEventPayload](),
 					responseBodyOf[contract.OperatorNotificationEventPayload](),
+					responseBodyOf[contract.AgentInstancePayload](),
 				),
 				ContentType: specContentTypeEventStream,
 			},
@@ -286,6 +287,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
+			boolQueryParam("exclude_instance_main", "Exclude instance main sessions from board counts"),
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),

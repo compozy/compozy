@@ -7,6 +7,68 @@ import (
 	"time"
 )
 
+// ReviewSpec is a daemon API value.
+type ReviewSpec struct {
+	Decisions  []ReviewDecision `json:"decisions,omitempty"`
+	When       string           `json:"when,omitempty"`
+	Prompt     string           `json:"prompt,omitempty"`
+	Responders *ResponderSpec   `json:"responders,omitzero"`
+	OnReject   *RejectPolicy    `json:"on_reject,omitzero"`
+	Expires    *WaitExpiry      `json:"expires,omitzero"`
+}
+
+// RiskClass is a daemon API value.
+type RiskClass string
+
+// RoleDiagnostic is a daemon API value.
+type RoleDiagnostic struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Agent   string `json:"agent,omitempty"`
+}
+
+// RoleFallbackStatus is a daemon API value.
+type RoleFallbackStatus struct {
+	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider           string                              `json:"provider"`
+	Model              string                              `json:"model"`
+	ReasoningEffort    string                              `json:"reasoning_effort,omitempty"`
+	Speed              Speed                               `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command            string                              `json:"command,omitempty"`
+	CommandFingerprint string                              `json:"command_fingerprint,omitempty"`
+}
+
+// RoleResolutionMode is a daemon API value.
+type RoleResolutionMode string
+
+// RoleStatus is a daemon API value.
+type RoleStatus struct {
+	Role            string                    `json:"role"`
+	Enabled         bool                      `json:"enabled"`
+	ResolutionMode  RoleResolutionMode        `json:"resolution_mode"`
+	Agent           *string                   `json:"agent"`
+	Provider        *string                   `json:"provider"`
+	Model           *string                   `json:"model"`
+	ReasoningEffort *string                   `json:"reasoning_effort"`
+	Speed           *Speed                    `json:"speed"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
+	Timeout         *string                   `json:"timeout,omitzero"`
+	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
+	Provenance      map[string]string         `json:"provenance"`
+	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
+}
+
+// RoleStatusResponse is a daemon API value.
+type RoleStatusResponse struct {
+	Role RoleStatus `json:"role"`
+}
+
+// RolesResponse is a daemon API value.
+type RolesResponse struct {
+	Roles []RoleStatus `json:"roles"`
+}
+
 // RosterNode is a daemon API value.
 type RosterNode struct {
 	Generation     int               `json:"generation"`
@@ -386,57 +448,3 @@ type SchedulerDrainRequest struct {
 	Reason         string `json:"reason,omitempty"`
 	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
 }
-
-// SchedulerDrainResponse is a daemon API value.
-type SchedulerDrainResponse struct {
-	Scheduler       SchedulerStatusPayload `json:"scheduler"`
-	Completed       bool                   `json:"completed"`
-	TimedOut        bool                   `json:"timed_out,omitzero"`
-	RemainingClaims int                    `json:"remaining_claims"`
-	StartedAt       time.Time              `json:"started_at"`
-	CompletedAt     time.Time              `json:"completed_at"`
-}
-
-// SchedulerPauseRequest is a daemon API value.
-type SchedulerPauseRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// SchedulerResumeRequest is a daemon API value.
-type SchedulerResumeRequest struct {
-	Reason string `json:"reason,omitempty"`
-}
-
-// SchedulerSkipReason is a daemon API value.
-type SchedulerSkipReason string
-
-// SchedulerStatusPayload is a daemon API value.
-type SchedulerStatusPayload struct {
-	Counters               *SchedulerCountersPayload `json:"counters,omitzero"`
-	Paused                 bool                      `json:"paused"`
-	PausedBy               string                    `json:"paused_by,omitempty"`
-	PausedAt               *time.Time                `json:"paused_at,omitempty"`
-	PausedReason           string                    `json:"paused_reason,omitempty"`
-	ActiveClaimCount       int                       `json:"active_claim_count"`
-	QueuedRunCount         int                       `json:"queued_run_count"`
-	PausedTaskCount        int                       `json:"paused_task_count"`
-	StarvedRunCount        int                       `json:"starved_run_count"`
-	NeedsAttentionRunCount int                       `json:"needs_attention_run_count"`
-	AsOf                   time.Time                 `json:"as_of"`
-}
-
-// SchedulerStatusResponse is a daemon API value.
-type SchedulerStatusResponse struct {
-	Scheduler SchedulerStatusPayload `json:"scheduler"`
-}
-
-// SchemaStreamStatus is a daemon API value.
-type SchemaStreamStatus struct {
-	Stream       string `json:"stream"`
-	Version      int64  `json:"version"`
-	AppliedCount int    `json:"applied_count"`
-	SumDigest    string `json:"sum_digest"`
-}
-
-// Scope is a daemon API value.
-type Scope string

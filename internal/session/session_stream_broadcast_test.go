@@ -1013,3 +1013,33 @@ func TestInstanceReportPublication(t *testing.T) {
 		}
 	})
 }
+
+func TestInstanceCatalogUpdates(t *testing.T) {
+	t.Run("Should scope instance updates without a main session to their owner", func(t *testing.T) {
+		t.Parallel()
+		broadcaster := newSessionCatalogBroadcaster()
+		scope := CatalogScope{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-owner"}
+		events, cancel, err := broadcaster.subscribe(t.Context(), scope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		event := CatalogEvent{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-other", InstanceID: "instance", Name: "agent_instance.updated"}
+		if got := broadcaster.publish(event); got != 0 {
+			t.Fatalf("delivered outside workspace: %d", got)
+		}
+		event.WorkspaceID = scope.WorkspaceID
+		event.ProfileID = "profile-other"
+		if got := broadcaster.publish(event); got != 0 {
+			t.Fatalf("delivered outside profile: %d", got)
+		}
+		event.ProfileID = scope.ReadScope.ProfileID
+		if got := broadcaster.publish(event); got != 1 {
+			t.Fatalf("delivered = %d", got)
+		}
+		got := <-events
+		if got.InstanceID != "instance" || got.Name != "agent_instance.updated" {
+			t.Fatalf("event = %+v", got)
+		}
+	})
+}

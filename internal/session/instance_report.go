@@ -77,6 +77,7 @@ func (m *Manager) PublishInstanceReport(
 		if notification != nil {
 			m.publishSessionCatalogEventCount(CatalogEvent{Name: CatalogEventNameOperatorNotification, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, SessionID: sessionID, OperatorNotification: notification})
 		}
+		m.PublishInstanceCatalogChanged(info.ProfileID, info.WorkspaceID, report.InstanceID)
 	}
 	return persisted.Sequence, nil
 }

@@ -7,6 +7,68 @@ import (
 	"time"
 )
 
+// NodeUsage is a daemon API value.
+type NodeUsage struct {
+	Tokens int64 `json:"tokens"`
+}
+
+// NormalizedRect is a daemon API value.
+type NormalizedRect struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+}
+
+// ObserveFailureHealthPayload is a daemon API value.
+type ObserveFailureHealthPayload struct {
+	Status string                        `json:"status"`
+	Total  int                           `json:"total"`
+	ByKind map[FailureKind]int           `json:"by_kind,omitempty"`
+	Recent []SessionFailureHealthPayload `json:"recent,omitempty"`
+}
+
+// ObserveHealthPayload is a daemon API value.
+type ObserveHealthPayload struct {
+	Status             string                          `json:"status"`
+	UptimeSeconds      int64                           `json:"uptime_seconds"`
+	ActiveSessions     int                             `json:"active_sessions"`
+	ActiveAgents       int                             `json:"active_agents"`
+	GlobalDBSizeBytes  int64                           `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                           `json:"session_db_size_bytes"`
+	Persistence        ObservePersistenceHealthPayload `json:"persistence"`
+	Retention          ObserveRetentionHealthPayload   `json:"retention"`
+	Failures           ObserveFailureHealthPayload     `json:"failures"`
+	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
+	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
+	Version            string                          `json:"version"`
+}
+
+// ObserveOverviewPayload is a daemon API value.
+type ObserveOverviewPayload struct {
+	SchemaVersion string                        `json:"schema_version"`
+	GeneratedAt   time.Time                     `json:"generated_at"`
+	Attention     OverviewAttentionPayload      `json:"attention"`
+	Today         OverviewTodayPayload          `json:"today"`
+	Outcomes      OverviewOutcomesPayload       `json:"outcomes"`
+	Usage         OverviewUsagePayload          `json:"usage"`
+	Pulse         OverviewPulsePayload          `json:"pulse"`
+	System        OverviewSystemPayload         `json:"system"`
+	Freshness     TaskDashboardFreshnessPayload `json:"freshness"`
+}
+
+// ObserveOverviewResponse is a daemon API value.
+type ObserveOverviewResponse struct {
+	Overview ObserveOverviewPayload `json:"overview"`
+}
+
+// ObservePersistenceHealthPayload is a daemon API value.
+type ObservePersistenceHealthPayload struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+}
+
 // ObserveRetentionHealthPayload is a daemon API value.
 type ObserveRetentionHealthPayload struct {
 	Enabled                  bool       `json:"enabled"`
@@ -384,66 +446,4 @@ type ProfileFolderRef struct {
 	WorkspaceID   string `json:"workspace_id"`
 	WorkspaceName string `json:"workspace"`
 	Path          string `json:"path"`
-}
-
-// ProfileLens is a daemon API value.
-type ProfileLens struct {
-	ID   ProfileLensID `json:"profile_lens_id"`
-	Name string        `json:"profile_name"`
-}
-
-// ProfileLensID is a daemon API value.
-type ProfileLensID string
-
-// ProfileOperation is a daemon API value.
-type ProfileOperation struct {
-	ID      string `json:"id"`
-	Kind    string `json:"kind"`
-	Profile string `json:"profile"`
-	Status  string `json:"status"`
-	Step    string `json:"step"`
-	Error   string `json:"error,omitempty"`
-}
-
-// ProfilePlacement is a daemon API value.
-type ProfilePlacement struct {
-	Extension string `json:"extension"`
-	Resource  string `json:"resource"`
-	Profile   string `json:"profile"`
-}
-
-// ProfilePlanRequest is a daemon API value.
-type ProfilePlanRequest struct {
-	PlanRevision string `json:"plan_revision"`
-}
-
-// ProfileRemovalSummary is a daemon API value.
-type ProfileRemovalSummary struct {
-	Agents              int `json:"agents"`
-	Skills              int `json:"skills"`
-	Loops               int `json:"loops"`
-	MCPServers          int `json:"mcp_servers"`
-	ConfigKeys          int `json:"config_keys"`
-	CredentialOverrides int `json:"credential_overrides"`
-	DesktopPartitions   int `json:"desktop_partitions"`
-	PaletteUsage        int `json:"palette_usage"`
-	PaletteQueryHits    int `json:"palette_query_hits"`
-	PalettePins         int `json:"palette_pins"`
-	TerminalApprovals   int `json:"terminal_approvals"`
-	EventSummaries      int `json:"event_summaries"`
-}
-
-// ProfileRepoRenameOutcome is a daemon API value.
-type ProfileRepoRenameOutcome struct {
-	WorkspaceID string `json:"workspace_id"`
-	Renamed     bool   `json:"renamed"`
-	Reason      string `json:"reason,omitempty"`
-}
-
-// ProfileSelection is a daemon API value.
-type ProfileSelection struct {
-	Scope       ProfileSelectionScope `json:"scope"`
-	WorkspaceID string                `json:"workspace_id,omitempty"`
-	Profile     string                `json:"profile"`
-	Note        string                `json:"note,omitempty"`
 }

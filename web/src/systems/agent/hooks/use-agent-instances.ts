@@ -10,7 +10,6 @@ import {
   pauseAgentInstance,
   resumeAgentInstance,
 } from "../adapters/agent-instance-api";
-import { normalizeAgentInstance } from "../lib/agent-instance-wire";
 import { agentInstancesOptions, staysOnAgentsOptions } from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
 import type { AgentInstancePayload, CreateAgentInstanceParams } from "../types";
@@ -18,8 +17,7 @@ import type { AgentInstancePayload, CreateAgentInstanceParams } from "../types";
 const NO_INSTANCES: readonly AgentInstancePayload[] = [];
 
 /** Merges one instance into the list; an unknown id rereads, since order is the server's. */
-export function applyAgentInstanceUpdate(queryClient: QueryClient, payload: AgentInstancePayload) {
-  const next = normalizeAgentInstance(payload);
+export function applyAgentInstanceUpdate(queryClient: QueryClient, next: AgentInstancePayload) {
   let known = false;
   queryClient.setQueryData<AgentInstancePayload[]>(agentKeys.instances(), current => {
     if (!current?.some(instance => instance.id === next.id)) return current;

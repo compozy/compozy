@@ -1247,6 +1247,11 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: toolspkg.ToolIDAgentInstanceList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstancePause, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDAgentInstanceReports, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentActivity, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceGet, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceAway, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceCheckIns, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceSeen, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDAgentInstanceResume, risk: toolspkg.RiskMutating},
 
 		{id: toolspkg.ToolIDAgentMemoryAdd, risk: toolspkg.RiskMutating},
@@ -3130,14 +3135,19 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(authored_context) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDAgentActivity,
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDAgentInstanceArchive,
+			toolspkg.ToolIDAgentInstanceAway,
 			toolspkg.ToolIDAgentInstanceCheck,
+			toolspkg.ToolIDAgentInstanceCheckIns,
 			toolspkg.ToolIDAgentInstanceChecks,
 			toolspkg.ToolIDAgentInstanceCreate,
 			toolspkg.ToolIDAgentInstanceEnsureMain,
+			toolspkg.ToolIDAgentInstanceGet,
 			toolspkg.ToolIDAgentInstanceList,
+			toolspkg.ToolIDAgentInstanceSeen,
 			toolspkg.ToolIDAgentInstanceOccurrence,
 			toolspkg.ToolIDAgentInstancePause,
 			toolspkg.ToolIDAgentInstanceReports,

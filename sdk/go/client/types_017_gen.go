@@ -7,6 +7,57 @@ import (
 	"time"
 )
 
+// SessionConversationRewindRequest is a daemon API value.
+type SessionConversationRewindRequest struct {
+	MessageID           string `json:"message_id"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch"`
+	ExpectedGeneration  *int64 `json:"expected_generation"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence"`
+}
+
+// SessionConversationRewindResponse is a daemon API value.
+type SessionConversationRewindResponse struct {
+	Session SessionPayload                   `json:"session"`
+	Rewind  SessionConversationRewindPayload `json:"rewind"`
+}
+
+// SessionDerivationPayload is a daemon API value.
+type SessionDerivationPayload struct {
+	Kind            LineageKind `json:"kind"`
+	SourceSessionID string      `json:"source_session_id"`
+	Seed            string      `json:"seed"`
+	NativeState     string      `json:"native_state,omitempty"`
+	NativeForkError string      `json:"native_fork_error,omitempty"`
+	FirstPrompt     string      `json:"first_prompt"`
+}
+
+// SessionDeriveCutPayload is a daemon API value.
+type SessionDeriveCutPayload struct {
+	MessageID   string `json:"message_id"`
+	TurnID      string `json:"turn_id"`
+	TurnSettled bool   `json:"turn_settled"`
+}
+
+// SessionDerivePreviewResponse is a daemon API value.
+type SessionDerivePreviewResponse struct {
+	MessageCount         int                      `json:"message_count"`
+	SourceMessageCount   int                      `json:"source_message_count"`
+	ReplayBytes          int                      `json:"replay_bytes"`
+	Truncated            bool                     `json:"truncated"`
+	OmittedCount         int                      `json:"omitted_count"`
+	SourceTurnInProgress bool                     `json:"source_turn_in_progress"`
+	NativeForkPossible   bool                     `json:"native_fork_possible"`
+	Cut                  *SessionDeriveCutPayload `json:"cut,omitzero"`
+	Transcript           SessionTranscriptFences  `json:"transcript"`
+}
+
+// SessionDeriveResponse is a daemon API value.
+type SessionDeriveResponse struct {
+	Session *SessionPayload       `json:"session,omitzero"`
+	Derived SessionDerivedPayload `json:"derived"`
+}
+
 // SessionDerivedPayload is a daemon API value.
 type SessionDerivedPayload struct {
 	Kind                 string `json:"kind"`
@@ -395,50 +446,3 @@ type SessionPresenceRequest struct {
 	Visible bool   `json:"visible"`
 	LeaseID string `json:"lease_id,omitempty"`
 }
-
-// SessionPresenceResponse is a daemon API value.
-type SessionPresenceResponse struct {
-	LeaseID string `json:"lease_id"`
-}
-
-// SessionProcessAttribution is a daemon API value.
-type SessionProcessAttribution string
-
-// SessionProcessGroupPayload is a daemon API value.
-type SessionProcessGroupPayload struct {
-	SessionID   string                      `json:"session_id"`
-	WorkspaceID string                      `json:"workspace_id"`
-	Profile     string                      `json:"profile"`
-	SessionName string                      `json:"session_name"`
-	Orphaned    bool                        `json:"orphaned"`
-	Items       []SessionProcessPayload     `json:"items"`
-	Trees       []SessionProcessTreePayload `json:"trees,omitempty"`
-}
-
-// SessionProcessKind is a daemon API value.
-type SessionProcessKind string
-
-// SessionProcessOutcome is a daemon API value.
-type SessionProcessOutcome string
-
-// SessionProcessPayload is a daemon API value.
-type SessionProcessPayload struct {
-	Attribution SessionProcessAttribution `json:"attribution"`
-	PID         int                       `json:"pid"`
-	PGID        int                       `json:"pgid"`
-	StartedAt   time.Time                 `json:"started_at"`
-	Kind        SessionProcessKind        `json:"kind"`
-	Command     string                    `json:"command"`
-	Argv0       string                    `json:"argv0"`
-	CWD         string                    `json:"cwd"`
-	Ports       []int                     `json:"ports"`
-	AgeSeconds  float64                   `json:"age_seconds"`
-	CPUPercent  *float64                  `json:"cpu_percent,omitempty"`
-	RSSKB       *int64                    `json:"rss_kb,omitempty"`
-	ParentAlive bool                      `json:"parent_alive"`
-	TerminalID  string                    `json:"terminal_id,omitempty"`
-	TreeID      string                    `json:"tree_id,omitempty"`
-}
-
-// SessionProcessPolicy is a daemon API value.
-type SessionProcessPolicy string

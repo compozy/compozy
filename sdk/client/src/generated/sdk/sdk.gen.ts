@@ -400,6 +400,9 @@ import type {
   ForkSessionToWorktreeData,
   ForkSessionToWorktreeErrors,
   ForkSessionToWorktreeResponses,
+  GetAgentActivityData,
+  GetAgentActivityErrors,
+  GetAgentActivityResponses,
   GetAgentContextData,
   GetAgentContextErrors,
   GetAgentContextResponses,
@@ -417,6 +420,9 @@ import type {
   GetAgentHeartbeatStatusData,
   GetAgentHeartbeatStatusErrors,
   GetAgentHeartbeatStatusResponses,
+  GetAgentInstanceAwayData,
+  GetAgentInstanceAwayErrors,
+  GetAgentInstanceAwayResponses,
   GetAgentInstanceData,
   GetAgentInstanceErrors,
   GetAgentInstanceOccurrenceData,
@@ -768,6 +774,9 @@ import type {
   ListAgentHeartbeatHistoryData,
   ListAgentHeartbeatHistoryErrors,
   ListAgentHeartbeatHistoryResponses,
+  ListAgentInstanceCheckInsData,
+  ListAgentInstanceCheckInsErrors,
+  ListAgentInstanceCheckInsResponses,
   ListAgentInstanceReportsData,
   ListAgentInstanceReportsErrors,
   ListAgentInstanceReportsResponses,
@@ -1014,6 +1023,9 @@ import type {
   LogoutSettingsMCPAuthData,
   LogoutSettingsMCPAuthErrors,
   LogoutSettingsMCPAuthResponses,
+  MarkAgentInstanceSeenData,
+  MarkAgentInstanceSeenErrors,
+  MarkAgentInstanceSeenResponses,
   MarkTaskReadData,
   MarkTaskReadErrors,
   MarkTaskReadResponses,
@@ -1721,6 +1733,52 @@ export class agents extends HeyApiClient {
   }
 
   /**
+   * Read the operator's instance away digest
+   */
+  public getAgentInstanceAway<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentInstanceAwayData, ThrowOnError>
+  ): RequestResult<
+    GetAgentInstanceAwayResponses,
+    GetAgentInstanceAwayErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentInstanceAwayResponses,
+      GetAgentInstanceAwayErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/away",
+      ...options,
+    });
+  }
+
+  /**
+   * Mark the instance seen by the local operator
+   */
+  public markAgentInstanceSeen<ThrowOnError extends boolean = true>(
+    options: Options<MarkAgentInstanceSeenData, ThrowOnError>
+  ): RequestResult<
+    MarkAgentInstanceSeenResponses,
+    MarkAgentInstanceSeenErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      MarkAgentInstanceSeenResponses,
+      MarkAgentInstanceSeenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/away",
+      ...options,
+    });
+  }
+
+  /**
    * Check an agent instance
    */
   public checkAgentInstance<ThrowOnError extends boolean = true>(
@@ -1739,6 +1797,29 @@ export class agents extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * List instance wake events
+   */
+  public listAgentInstanceCheckIns<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentInstanceCheckInsData, ThrowOnError>
+  ): RequestResult<
+    ListAgentInstanceCheckInsResponses,
+    ListAgentInstanceCheckInsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentInstanceCheckInsResponses,
+      ListAgentInstanceCheckInsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/check-ins",
+      ...options,
     });
   }
 
@@ -1978,6 +2059,24 @@ export class agents extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Read agent activity across authorized workspaces
+   */
+  public getAgentActivity<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentActivityData, ThrowOnError>
+  ): RequestResult<GetAgentActivityResponses, GetAgentActivityErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentActivityResponses,
+      GetAgentActivityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/activity",
+      ...options,
     });
   }
 

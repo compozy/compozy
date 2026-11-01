@@ -2452,6 +2452,7 @@ describe("SessionList breadth and Group by", () => {
     }) as SessionPayload;
   const facet = (all: number, needsYou = 0) => ({
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all,
     working: 0,
     needs_you: needsYou,

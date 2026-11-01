@@ -303,6 +303,7 @@ const laneHandlers = [
     return HttpResponse.json({
       facets: {
         terminal_approvals: 0,
+        instances_needing_attention: 0,
         all,
         needs_you: board.needs_you,
         working: board.working,

@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 	"reflect"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/core"
@@ -185,7 +189,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 			}
 		})
 	}
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports} {
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceAway, toolspkg.ToolIDAgentInstanceSeen, toolspkg.ToolIDAgentInstanceCheckIns} {
 		t.Run("Should deny another instance through "+id.String(), func(t *testing.T) {
 			t.Parallel()
 			api := &core.AgentInstanceAPI{
@@ -229,7 +233,7 @@ func TestInstanceWorkspaceReach(t *testing.T) {
 }
 
 func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports} {
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceCheckIns} {
 		t.Run("Should deny an unreachable owned instance through "+id.String(), func(t *testing.T) {
 			t.Parallel()
 			target := agentinstance.Instance{ID: "own", AgentName: "coder", ProfileID: "profile", WorkspaceID: "target"}
@@ -252,6 +256,47 @@ func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 		_, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceResume, Input: []byte(`{"id":"own"}`)})
 		if !errors.Is(err, agentinstance.ErrForbidden) {
 			t.Fatalf("manual resume: %v", err)
+		}
+	})
+}
+
+func TestInstanceMainReadModel(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		info session.Info
+		want string
+	}{
+		{"Should show an idle main", session.Info{State: session.StateActive}, "idle"},
+		{"Should show a starting main as unknown", session.Info{State: session.StateStarting}, "unknown"},
+		{"Should show a failed main", session.Info{State: session.StateActive, Failure: &store.SessionFailure{}}, "failed"},
+		{"Should prioritize pending permission over failure", session.Info{State: session.StateActive, Failure: &store.SessionFailure{}, PendingPermissionCount: 1}, "waiting"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			payload := contract.AgentInstancePayload{}
+			projectInstanceMain(&payload, &tc.info)
+			if payload.Activity != tc.want {
+				t.Fatalf("activity=%q want %q", payload.Activity, tc.want)
+			}
+		})
+	}
+
+	t.Run("Should bound the latest activity to eighty characters on one line", func(t *testing.T) {
+		t.Parallel()
+		payload := contract.AgentInstancePayload{}
+		info := &session.Info{Provider: "claude", State: session.StateActive,
+			Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{TurnID: "turn", LastActivityDetail: "  Working\n" + strings.Repeat("界", 90)}}}
+		projectInstanceMain(&payload, info)
+		if utf8.RuneCountInString(payload.Now) != 80 || strings.Contains(payload.Now, "\n") || payload.Activity != "working" || payload.Provider != "claude" {
+			t.Fatalf("unexpected projection: %+v", payload)
+		}
+	})
+	t.Run("Should expose a pending interaction as waiting", func(t *testing.T) {
+		t.Parallel()
+		payload := contract.AgentInstancePayload{}
+		projectInstanceMain(&payload, &session.Info{State: session.StateActive, PendingClarifyCount: 1})
+		if payload.Activity != "waiting" {
+			t.Fatalf("activity = %q", payload.Activity)
 		}
 	})
 }

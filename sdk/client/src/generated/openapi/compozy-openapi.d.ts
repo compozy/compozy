@@ -58,6 +58,24 @@ export interface paths {
     patch: operations["updateAgentInstance"];
     trace?: never;
   };
+  "/api/agent-instances/{id}/away": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the operator's instance away digest */
+    get: operations["getAgentInstanceAway"];
+    put?: never;
+    /** Mark the instance seen by the local operator */
+    post: operations["markAgentInstanceSeen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-instances/{id}/check": {
     parameters: {
       query?: never;
@@ -69,6 +87,23 @@ export interface paths {
     put?: never;
     /** Check an agent instance */
     post: operations["checkAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/check-ins": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List instance wake events */
+    get: operations["listAgentInstanceCheckIns"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -447,6 +482,23 @@ export interface paths {
     post?: never;
     /** Durably delete one effective authored agent definition */
     delete: operations["deleteAgent"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read agent activity across authorized workspaces */
+    get: operations["getAgentActivity"];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -7505,6 +7557,25 @@ export interface components {
       url?: string;
       view?: string;
     };
+    ActivityCost: {
+      scope: string;
+      /** Format: int64 */
+      tokens: number;
+      /** Format: double */
+      usd_estimate: number;
+      workspace_id: string;
+    };
+    ActivityDay: {
+      day: string;
+      needed_you: number;
+      quiet: number;
+      told: number;
+    };
+    ActivityHour: {
+      events: number;
+      hour: number;
+      weekday: number;
+    };
     ActorIdentity: {
       /** @enum {string} */
       kind: "human" | "agent_session" | "automation" | "extension" | "daemon";
@@ -7526,6 +7597,11 @@ export interface components {
       bool_value?: boolean | null;
       id: string;
       value_id?: string;
+    };
+    AgentActivityResponse: {
+      busy_by_hour: components["schemas"]["ActivityHour"][];
+      cost_by_project: components["schemas"]["ActivityCost"][];
+      reports_by_day: components["schemas"]["ActivityDay"][];
     };
     AgentCapabilityPayload: {
       id: string;
@@ -7632,10 +7708,27 @@ export interface components {
       agent: string;
       session_id: string;
     };
+    AgentInstanceAwayResponse: {
+      /** Format: date-time */
+      last_seen_at: string | null;
+      quiet_check_ins: number;
+      reports: components["schemas"]["AgentInstanceReportPayload"][];
+    };
     AgentInstanceCheckDigest: {
       diagnostics?: string[];
       fingerprint: string;
       item_keys: string[];
+    };
+    AgentInstanceCheckInPayload: {
+      /** Format: date-time */
+      created_at: string;
+      id: string;
+      reason: string;
+      result: string;
+    };
+    AgentInstanceCheckInsResponse: {
+      check_ins: components["schemas"]["AgentInstanceCheckInPayload"][];
+      next_cursor: string;
     };
     AgentInstanceCheckRequest: {
       dry_run: boolean;
@@ -7660,13 +7753,22 @@ export interface components {
       state: string;
     };
     AgentInstancePayload: {
+      activity: string;
       agent_name: string;
       /** Format: date-time */
       created_at: string;
       id: string;
+      label: string;
       main_session_id: string;
+      needs_attention: boolean;
+      now: string;
       pause_reason: string;
       profile_id: string;
+      provider: string;
+      resolved_appearance: {
+        [key: string]: unknown;
+      };
+      scope: string;
       state: string;
       /** Format: date-time */
       updated_at: string;
@@ -7698,6 +7800,10 @@ export interface components {
     };
     AgentInstanceResponse: {
       instance: components["schemas"]["AgentInstancePayload"];
+    };
+    AgentInstanceSeenResponse: {
+      /** Format: date-time */
+      last_seen_at: string;
     };
     AgentInstanceUpdateRequest: {
       checks_enabled: boolean | null;
@@ -14067,6 +14173,7 @@ export interface components {
       board: components["schemas"]["SessionBoardCountsPayload"];
       finished: number;
       idle: number;
+      instances_needing_attention: number;
       needs_you: number;
       terminal_approvals: number;
       working: number;
@@ -21343,6 +21450,184 @@ export interface operations {
       };
     };
   };
+  getAgentInstanceAway: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceAwayResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  markAgentInstanceSeen: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceSeenResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   checkAgentInstance: {
     parameters: {
       query?: {
@@ -21379,6 +21664,99 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceCheckResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAgentInstanceCheckIns: {
+    parameters: {
+      query?: {
+        /** @description Pagination cursor */
+        cursor?: string;
+        /** @description Page size from 1 to 100; defaults to 50 */
+        limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Wake events, empty when instance wakes are unavailable */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceCheckInsResponse"];
         };
       };
       /** @description Request failed */
@@ -23485,6 +23863,97 @@ export interface operations {
         };
       };
       /** @description Workspace resolver or definition sync unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentActivity: {
+    parameters: {
+      query?: {
+        /** @description Number of days, from 1 to 365; defaults to 30 */
+        days?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Scoped activity */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentActivityResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
       503: {
         headers: {
           [name: string]: unknown;
@@ -35692,7 +36161,8 @@ export interface operations {
           "text/event-stream":
             | components["schemas"]["SessionCatalogEventPayload"]
             | components["schemas"]["SessionAttentionEventPayload"]
-            | components["schemas"]["OperatorNotificationEventPayload"];
+            | components["schemas"]["OperatorNotificationEventPayload"]
+            | components["schemas"]["AgentInstancePayload"];
         };
       };
       /** @description Internal server error */
@@ -35718,6 +36188,8 @@ export interface operations {
   listSessionFacets: {
     parameters: {
       query?: {
+        /** @description Exclude instance main sessions from board counts */
+        exclude_instance_main?: boolean;
         /** @description Workspace id or path */
         workspace_id?: string;
         /** @description Use the explicit all-workspaces aggregate */

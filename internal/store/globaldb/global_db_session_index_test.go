@@ -83,6 +83,33 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 }
 
 func TestPageSessionsVisibilityExclusion(t *testing.T) {
+	t.Run("Should exclude instance main sessions only from board counts", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "instance-board", filepath.Join(t.TempDir(), "workspace"))
+		at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"instance-main", "instance-child"} {
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, globalDBSessionStateStopped, at)
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID, Limit: 10, Sort: "recent"}
+		before, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query.BoardExcludedIDs = []string{"instance-main"}
+		after, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before.Facets.All != 2 || after.Facets.All != 2 || before.Facets.Board.Done != 2 || after.Facets.Board.Done != 1 || after.ByWorkspace[0].Facets.Board.Done != 1 || after.ByProfile[0].Facets.Board.Done != 1 {
+			t.Fatalf("before=%+v after=%+v", before, after)
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should hide persisted verdict-only judges while preserving actionable system sessions", func(t *testing.T) {

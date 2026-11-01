@@ -10,6 +10,39 @@ import (
 	"strings"
 )
 
+// GetPendingToolApprovalParams carries the path, query, and header parameters.
+type GetPendingToolApprovalParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// GetPendingToolApproval Get one pending tool approval lifecycle
+func (c *Client) GetPendingToolApproval(ctx context.Context, params GetPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
+	path := "/api/tools/approvals/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetPermissionRollupParams carries the path, query, and header parameters.
+type GetPermissionRollupParams struct {
+	Days        *string `url:"days"`
+	Agent       *string `url:"agent"`
+	Unattended  *bool   `url:"unattended"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetPermissionRollup Read daily permission totals by agent and decision
 func (c *Client) GetPermissionRollup(ctx context.Context, params GetPermissionRollupParams) (*PermissionRollupResponse, error) {
 	path := "/api/permissions/rollup"
@@ -413,17 +446,4 @@ func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionHistoryParams carries the path, query, and header parameters.
-type GetSessionHistoryParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
 }

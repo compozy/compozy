@@ -4,6 +4,60 @@ package client
 
 import "time"
 
+// SchedulerDrainResponse is a daemon API value.
+type SchedulerDrainResponse struct {
+	Scheduler       SchedulerStatusPayload `json:"scheduler"`
+	Completed       bool                   `json:"completed"`
+	TimedOut        bool                   `json:"timed_out,omitzero"`
+	RemainingClaims int                    `json:"remaining_claims"`
+	StartedAt       time.Time              `json:"started_at"`
+	CompletedAt     time.Time              `json:"completed_at"`
+}
+
+// SchedulerPauseRequest is a daemon API value.
+type SchedulerPauseRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// SchedulerResumeRequest is a daemon API value.
+type SchedulerResumeRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// SchedulerSkipReason is a daemon API value.
+type SchedulerSkipReason string
+
+// SchedulerStatusPayload is a daemon API value.
+type SchedulerStatusPayload struct {
+	Counters               *SchedulerCountersPayload `json:"counters,omitzero"`
+	Paused                 bool                      `json:"paused"`
+	PausedBy               string                    `json:"paused_by,omitempty"`
+	PausedAt               *time.Time                `json:"paused_at,omitempty"`
+	PausedReason           string                    `json:"paused_reason,omitempty"`
+	ActiveClaimCount       int                       `json:"active_claim_count"`
+	QueuedRunCount         int                       `json:"queued_run_count"`
+	PausedTaskCount        int                       `json:"paused_task_count"`
+	StarvedRunCount        int                       `json:"starved_run_count"`
+	NeedsAttentionRunCount int                       `json:"needs_attention_run_count"`
+	AsOf                   time.Time                 `json:"as_of"`
+}
+
+// SchedulerStatusResponse is a daemon API value.
+type SchedulerStatusResponse struct {
+	Scheduler SchedulerStatusPayload `json:"scheduler"`
+}
+
+// SchemaStreamStatus is a daemon API value.
+type SchemaStreamStatus struct {
+	Stream       string `json:"stream"`
+	Version      int64  `json:"version"`
+	AppliedCount int    `json:"applied_count"`
+	SumDigest    string `json:"sum_digest"`
+}
+
+// Scope is a daemon API value.
+type Scope string
+
 // SearchMatch is a daemon API value.
 type SearchMatch struct {
 	Sequence  int64  `json:"sequence"`
@@ -175,13 +229,14 @@ type SessionCatalogEventPayload struct {
 
 // SessionCatalogFacetsPayload is a daemon API value.
 type SessionCatalogFacetsPayload struct {
-	Board             SessionBoardCountsPayload `json:"board"`
-	All               int                       `json:"all"`
-	NeedsYou          int                       `json:"needs_you"`
-	Working           int                       `json:"working"`
-	Finished          int                       `json:"finished"`
-	Idle              int                       `json:"idle"`
-	TerminalApprovals int                       `json:"terminal_approvals"`
+	InstancesNeedingAttention int                       `json:"instances_needing_attention"`
+	Board                     SessionBoardCountsPayload `json:"board"`
+	All                       int                       `json:"all"`
+	NeedsYou                  int                       `json:"needs_you"`
+	Working                   int                       `json:"working"`
+	Finished                  int                       `json:"finished"`
+	Idle                      int                       `json:"idle"`
+	TerminalApprovals         int                       `json:"terminal_approvals"`
 }
 
 // SessionCatalogFacetsResponse is a daemon API value.
@@ -386,55 +441,4 @@ type SessionConversationRewindPayload struct {
 	MaxSequence     int64  `json:"max_sequence"`
 	DraftText       string `json:"draft_text"`
 	Replayed        bool   `json:"replayed"`
-}
-
-// SessionConversationRewindRequest is a daemon API value.
-type SessionConversationRewindRequest struct {
-	MessageID           string `json:"message_id"`
-	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch"`
-	ExpectedGeneration  *int64 `json:"expected_generation"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence"`
-}
-
-// SessionConversationRewindResponse is a daemon API value.
-type SessionConversationRewindResponse struct {
-	Session SessionPayload                   `json:"session"`
-	Rewind  SessionConversationRewindPayload `json:"rewind"`
-}
-
-// SessionDerivationPayload is a daemon API value.
-type SessionDerivationPayload struct {
-	Kind            LineageKind `json:"kind"`
-	SourceSessionID string      `json:"source_session_id"`
-	Seed            string      `json:"seed"`
-	NativeState     string      `json:"native_state,omitempty"`
-	NativeForkError string      `json:"native_fork_error,omitempty"`
-	FirstPrompt     string      `json:"first_prompt"`
-}
-
-// SessionDeriveCutPayload is a daemon API value.
-type SessionDeriveCutPayload struct {
-	MessageID   string `json:"message_id"`
-	TurnID      string `json:"turn_id"`
-	TurnSettled bool   `json:"turn_settled"`
-}
-
-// SessionDerivePreviewResponse is a daemon API value.
-type SessionDerivePreviewResponse struct {
-	MessageCount         int                      `json:"message_count"`
-	SourceMessageCount   int                      `json:"source_message_count"`
-	ReplayBytes          int                      `json:"replay_bytes"`
-	Truncated            bool                     `json:"truncated"`
-	OmittedCount         int                      `json:"omitted_count"`
-	SourceTurnInProgress bool                     `json:"source_turn_in_progress"`
-	NativeForkPossible   bool                     `json:"native_fork_possible"`
-	Cut                  *SessionDeriveCutPayload `json:"cut,omitzero"`
-	Transcript           SessionTranscriptFences  `json:"transcript"`
-}
-
-// SessionDeriveResponse is a daemon API value.
-type SessionDeriveResponse struct {
-	Session *SessionPayload       `json:"session,omitzero"`
-	Derived SessionDerivedPayload `json:"derived"`
 }

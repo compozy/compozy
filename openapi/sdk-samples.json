@@ -918,6 +918,13 @@
             "resource": "agents",
             "app_access": "allowed"
         },
+        "getAgentActivity": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.getAgentActivity({ path: { \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentActivity(ctx, client.GetAgentActivityParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "getAgentContext": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agent.getAgentContext({ headers: { \"X-Compozy-Session-ID\": \"X-Compozy-Session-ID\", \"X-Compozy-Agent\": \"X-Compozy-Agent\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentContext(ctx, client.GetAgentContextParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -956,6 +963,13 @@
         "getAgentInstance": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.getAgentInstance({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentInstance(ctx, client.GetAgentInstanceParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
+        "getAgentInstanceAway": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.getAgentInstanceAway({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentInstanceAway(ctx, client.GetAgentInstanceAwayParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agents",
             "app_access": "denied"
@@ -1772,6 +1786,13 @@
             "resource": "agents",
             "app_access": "denied"
         },
+        "listAgentInstanceCheckIns": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.listAgentInstanceCheckIns({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAgentInstanceCheckIns(ctx, client.ListAgentInstanceCheckInsParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "listAgentInstanceReports": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.listAgentInstanceReports({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAgentInstanceReports(ctx, client.ListAgentInstanceReportsParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2344,6 +2365,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.LogoutSettingsMCPAuth(ctx, client.LogoutSettingsMCPAuthParams{Name: \"name\", Scope: \"user\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
+            "app_access": "denied"
+        },
+        "markAgentInstanceSeen": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.markAgentInstanceSeen({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MarkAgentInstanceSeen(ctx, client.MarkAgentInstanceSeenParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
             "app_access": "denied"
         },
         "markTaskRead": {

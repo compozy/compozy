@@ -1,5 +1,18 @@
 [
   {
+    "tool_id": "compozy__agent_activity",
+    "native_name": "agent_activity",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__agent_create",
     "native_name": "agent_create",
     "toolsets": [
@@ -48,7 +61,20 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_away",
+    "native_name": "agent_instance_away",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -61,7 +87,20 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_check_ins",
+    "native_name": "agent_instance_check_ins",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -74,7 +113,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -87,7 +126,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -100,7 +139,20 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_get",
+    "native_name": "agent_instance_get",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -113,7 +165,20 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "db9110c884940e39699fb7a6de20b8f1dff2d56c20fa9b1223d4c3b06122a20a",
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_mark_seen",
+    "native_name": "agent_instance_mark_seen",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -126,7 +191,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "db9110c884940e39699fb7a6de20b8f1dff2d56c20fa9b1223d4c3b06122a20a",
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -139,7 +204,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -152,7 +217,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "db9110c884940e39699fb7a6de20b8f1dff2d56c20fa9b1223d4c3b06122a20a",
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -165,7 +230,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

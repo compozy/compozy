@@ -45,7 +45,11 @@ func (s *Service) EnsureMain(ctx context.Context, id string) (Instance, error) {
 	if sessionID == "" {
 		return Instance{}, errors.New("agentinstance: empty main session id")
 	}
-	return s.store.PublishMissingMain(ctx, id, sessionID)
+	updated, err := s.store.PublishMissingMain(ctx, id, sessionID)
+	if err == nil && s.changed != nil {
+		s.changed(updated)
+	}
+	return updated, err
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {

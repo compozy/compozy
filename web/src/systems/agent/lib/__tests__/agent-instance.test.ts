@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import { humanizeAgentSlug, resolveAgentIdentity } from "../agent-identity";
-import { agentFromOrphanInstance, normalizeAgentInstance } from "../agent-instance-wire";
+import { agentFromOrphanInstance } from "../agent-instance-wire";
 import {
-  GLOBAL_SCOPE,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceLimitReached,
@@ -116,23 +115,7 @@ describe("agent identity", () => {
   });
 });
 
-describe("normalizeAgentInstance", () => {
-  it("Should read what the daemon leaves out as unknown, never as a state", () => {
-    const instance = normalizeAgentInstance({
-      id: "ainst-1",
-      agent_name: "release-captain",
-      state: "active",
-      workspace_id: "",
-    });
-    expect(instance).toMatchObject({
-      label: "Release Captain",
-      scope: GLOBAL_SCOPE,
-      activity: "unknown",
-      needs_attention: false,
-    });
-    expect(agentInstanceAvatarState(instance)).toBe("unknown");
-  });
-
+describe("agentFromOrphanInstance", () => {
   it("Should give an orphan enough of an agent to explain itself", () => {
     const agent = agentFromOrphanInstance(agentInstanceFixture({ label: "Triage Lead" }));
     expect(agent).toMatchObject({ name: "triage", label: "Triage Lead", kind: "stays_on" });

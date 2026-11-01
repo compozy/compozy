@@ -48,30 +48,31 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
-	Columns         []string
-	HideChildren    bool
-	Subagents       string
-	ReadScope       store.ReadScope
-	WorkspaceID     string
-	WorkspaceIDs    []string
-	AllWorkspaces   bool
-	WorktreeID      string
-	State           string
-	SessionType     Type
-	AgentName       string
-	ParentSessionID string
-	RootSessionID   string
-	SearchFields    string
-	Search          string
-	Resumable       bool
-	AttentionOnly   bool
-	Badges          []Badge
-	Archive         store.SessionArchiveFilter
-	Later           store.SessionLaterFilter
-	Sort            string
-	Cursor          string
-	Limit           int
-	SkipTotal       bool
+	BoardExcludedIDs []string
+	Columns          []string
+	HideChildren     bool
+	Subagents        string
+	ReadScope        store.ReadScope
+	WorkspaceID      string
+	WorkspaceIDs     []string
+	AllWorkspaces    bool
+	WorktreeID       string
+	State            string
+	SessionType      Type
+	AgentName        string
+	ParentSessionID  string
+	RootSessionID    string
+	SearchFields     string
+	Search           string
+	Resumable        bool
+	AttentionOnly    bool
+	Badges           []Badge
+	Archive          store.SessionArchiveFilter
+	Later            store.SessionLaterFilter
+	Sort             string
+	Cursor           string
+	Limit            int
+	SkipTotal        bool
 }
 
 // ListPage contains one bounded public session catalog result.

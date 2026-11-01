@@ -2486,3 +2486,92 @@ func TestInstanceCollectorSecrets(t *testing.T) {
 		}
 	})
 }
+
+func TestInstanceActivity(t *testing.T) {
+	t.Run("Should isolate activity by profile workspace agent and time window", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		since := time.Date(2026, 10, 1, 0, 0, 0, 0, time.Local)
+		foreign := "uuuuuuuuuuuuuuuuuuuuuuuuuu"
+		if _, err := db.DB().ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'activity-foreign', '#8E8EB5', 'circle', 'active', ?)`, foreign, store.FormatTimestamp(since)); err != nil {
+			t.Fatal(err)
+		}
+		for index, row := range []struct {
+			profile, workspace, agent, day string
+			tokens                         int64
+		}{
+			{store.DefaultProfileID, "", "coder", "2026-10-02", 10},
+			{store.DefaultProfileID, "ws-other", "coder", "2026-10-02", 20},
+			{foreign, "", "coder", "2026-10-02", 40},
+			{store.DefaultProfileID, "", "other", "2026-10-02", 80},
+			{store.DefaultProfileID, "", "coder", "2026-09-01", 160},
+		} {
+			if err := db.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{ProfileID: row.profile, WorkspaceID: row.workspace, AgentName: row.agent, Day: row.day, TotalTokens: &row.tokens, CostStatus: store.TokenCostStatusIncluded, CostSource: store.TokenCostSourceNone}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().ExecContext(ctx, `INSERT INTO event_summaries(id,profile_id,workspace_id,agent_name,type,timestamp) VALUES (?,?,?,?,?,?)`, fmt.Sprintf("activity-%d", index), row.profile, row.workspace, row.agent, "session.done", row.day+"T12:00:00Z"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := db.Instances().ReadActivity(ctx, agentinstance.ActivityQuery{ProfileID: store.DefaultProfileID, AgentName: "coder", Since: since})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.CostByProject) != 1 || got.CostByProject[0].Tokens != 10 || got.CostByProject[0].WorkspaceID != "" {
+			t.Fatalf("cost = %+v", got.CostByProject)
+		}
+		if len(got.BusyByHour) != 1 || got.BusyByHour[0].Events != 1 {
+			t.Fatalf("hours = %+v", got.BusyByHour)
+		}
+		if got.ReportsByDay == nil {
+			t.Fatal("empty reports must serialize as an array")
+		}
+	})
+}
+
+func TestInstanceSeen(t *testing.T) {
+	t.Run("Should preserve monotonic operator-specific seen times across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "seen.db")
+		db, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		instance, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		before, err := db.Instances().LastSeen(ctx, instance.ID, "first")
+		if err != nil || before != nil {
+			t.Fatalf("initial seen = %v, %v", before, err)
+		}
+		for _, next := range []time.Time{at, at.Add(time.Second), at.Add(-time.Hour)} {
+			if _, err := db.Instances().MarkSeen(ctx, instance.ID, "first", next); err != nil {
+				t.Fatal(err)
+			}
+		}
+		other, err := db.Instances().LastSeen(ctx, instance.ID, "second")
+		if err != nil || other != nil {
+			t.Fatalf("other operator seen = %v, %v", other, err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		db, err = OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.Instances().LastSeen(ctx, instance.ID, "first")
+		if err != nil || got == nil || !got.Equal(at.Add(time.Second)) {
+			t.Fatalf("reopened seen = %v, %v", got, err)
+		}
+	})
+}

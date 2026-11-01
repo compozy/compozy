@@ -49,6 +49,7 @@ type MainSessionStarter interface {
 }
 
 type Service struct {
+	changed   func(Instance)
 	hooks     LifecycleHooks
 	store     InstanceStore
 	admission Admission
@@ -182,4 +183,8 @@ func WithClock(now func() time.Time) Option {
 			s.now = now
 		}
 	}
+}
+
+func WithInstanceChanged(changed func(Instance)) Option {
+	return func(s *Service) { s.changed = changed }
 }

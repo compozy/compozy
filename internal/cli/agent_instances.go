@@ -12,7 +12,7 @@ import (
 
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "instance", Short: "Manage stays-on agent instances"}
-	for _, action := range []string{"create", "list", "show", "pause", "resume", "archive", "adopt", "ensure-main", "reports", "check"} {
+	for _, action := range []string{"create", "list", "show", "pause", "resume", "archive", "adopt", "ensure-main", "reports", "check", "away", "mark-seen", "check-ins"} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	checks := &cobra.Command{Use: "checks", Short: "Turn proactive checks on or off"}
@@ -35,8 +35,10 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	cmd.Flags().String("workspace", "", "Workspace ID, name, or path")
 	cmd.Flags().BoolVar(&global, "global", false, "Use the global scope")
 	cmd.MarkFlagsMutuallyExclusive("global", "workspace")
-	if action == "list" || action == "reports" {
-		cmd.Flags().StringVar(&state, "state", "", "Filter by state")
+	if action == "list" || action == "reports" || action == "check-ins" {
+		if action != "check-ins" {
+			cmd.Flags().StringVar(&state, "state", "", "Filter by state")
+		}
 		cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&limit, "limit", 50, "Page size (1-100)")
 	}
@@ -70,12 +72,14 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 			workspace = query.Workspace
 		}
 		query := url.Values{"workspace": {workspace}}
-		if action == "list" || action == "reports" {
+		if action == "list" || action == "reports" || action == "check-ins" {
 			if limit < 1 || limit > 100 {
 				return errors.New("cli: --limit must be from 1 to 100")
 			}
 			query.Set("limit", strconv.Itoa(limit))
-			query.Set("state", state)
+			if action != "check-ins" {
+				query.Set("state", state)
+			}
 			query.Set("cursor", cursor)
 		}
 		if action == "list" {
@@ -134,6 +138,9 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 				return err
 			}
 			return writeInstanceOutput(cmd, result, instanceText(result.Instance))
+		}
+		if action == "away" || action == "mark-seen" || action == "check-ins" {
+			return writeInstanceRead(cmd, base, action, id, query)
 		}
 		if action == "reports" {
 			result, err := client.AgentInstanceReports(cmd.Context(), id, query)

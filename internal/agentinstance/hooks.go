@@ -15,6 +15,9 @@ func WithLifecycleHooks(dispatcher LifecycleHooks) Option {
 }
 
 func (s *Service) notifyLifecycle(ctx context.Context, event hooks.HookEvent, instance Instance) {
+	if s.changed != nil {
+		s.changed(instance)
+	}
 	if s.hooks == nil {
 		return
 	}

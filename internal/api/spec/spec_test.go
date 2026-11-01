@@ -891,9 +891,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				operation := operationFor(t, doc, "/api/sessions/catalog-stream", "GET")
 				stream := responseSchema(t, operation, 200, specContentTypeEventStream)
-				if len(stream.OneOf) != 3 {
-					t.Fatalf("session catalog SSE response oneOf = %#v, want three named payloads", stream.OneOf)
+				if len(stream.OneOf) != 4 {
+					t.Fatalf("session catalog SSE response oneOf = %#v, want four named payloads", stream.OneOf)
 				}
+				assertRequired(t, stream.OneOf[3].Value, "id", "label", "provider", "resolved_appearance", "scope", "activity", "now", "needs_attention")
 				catalog := stream.OneOf[0].Value
 				attention := stream.OneOf[1].Value
 				notification := stream.OneOf[2].Value
@@ -3222,6 +3223,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
 		addAgentIdentitySchemas(t, baseline)
+		addInstanceReadSchemas(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
@@ -5109,6 +5111,7 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 				if props["definition_digest"] != nil {
 					props["label"] = text()
 					props["resolved_appearance"] = open()
+					props["package_owned"] = map[string]any{"type": "boolean"}
 					node["required"] = append(node["required"].([]any), "label", "resolved_appearance")
 					slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
 					agentSchema = node
@@ -5203,4 +5206,68 @@ func TestAgentMemoryOpenAPI(t *testing.T) {
 		search := jsonResponseSchema(t, operationFor(t, doc, "/api/agents/{name}/memory/search", "POST"), 200)
 		assertRequired(t, search, "results")
 	})
+}
+
+func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	interactions := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"].(map[string]any)["get"].(map[string]any)
+	interactions["parameters"] = slices.Insert(interactions["parameters"].([]any), 2, any(map[string]any{"name": "descendants", "in": "query", "description": "Include descendant sessions in the same workspace and profile", "schema": map[string]any{"type": "boolean"}}))
+
+	facets := baseline["paths"].(map[string]any)["/api/sessions/facets"].(map[string]any)["get"].(map[string]any)
+	facets["parameters"] = append([]any{map[string]any{"name": "exclude_instance_main", "in": "query", "description": "Exclude instance main sessions from board counts", "schema": map[string]any{"type": "boolean"}}}, facets["parameters"].([]any)...)
+
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
+				for _, addition := range []string{"active_monitor", "held_permission"} {
+					if !slices.Contains(values, any(addition)) {
+						values = append(values, addition)
+					}
+				}
+				node["enum"] = values
+			}
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("subagent.settled")) && !slices.Contains(values, any("agent.created")) && !slices.Contains(values, any("agent.instance.created")) {
+				node["enum"] = append([]any{"agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted"}, values...)
+			}
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent.created")) && !slices.Contains(values, any("agent.instance.created")) {
+				values = append(values, "agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted")
+				slices.SortFunc(values, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+				node["enum"] = values
+			}
+			if props, ok := node["properties"].(map[string]any); ok && props["interaction_id"] != nil && props["provider_request_id"] != nil && props["session_id"] == nil {
+				props["expires_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+				props["session_id"] = map[string]any{"type": "string"}
+				node["required"] = append(node["required"].([]any), "session_id")
+				slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+			}
+			if props, ok := node["properties"].(map[string]any); ok && props["terminal_approvals"] != nil && props["board"] != nil && props["instances_needing_attention"] == nil {
+				props["instances_needing_attention"] = map[string]any{"type": "integer"}
+				node["required"] = append(node["required"].([]any), "instances_needing_attention")
+				slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+			}
+		}
+	}
+	walk(baseline)
+	props := map[string]any{}
+	required := []any{}
+	for _, name := range []string{"activity", "agent_name", "created_at", "id", "label", "main_session_id", "needs_attention", "now", "pause_reason", "profile_id", "provider", "resolved_appearance", "scope", "state", "updated_at", "workspace_id"} {
+		props[name] = map[string]any{"type": "string"}
+		required = append(required, name)
+	}
+	props["created_at"] = map[string]any{"type": "string", "format": "date-time"}
+	props["updated_at"] = map[string]any{"type": "string", "format": "date-time"}
+	props["needs_attention"] = map[string]any{"type": "boolean"}
+	props["resolved_appearance"] = map[string]any{"type": "object", "additionalProperties": map[string]any{}}
+	stream := baseline["paths"].(map[string]any)["/api/sessions/catalog-stream"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["text/event-stream"].(map[string]any)["schema"].(map[string]any)
+	stream["oneOf"] = append(stream["oneOf"].([]any), map[string]any{"type": "object", "properties": props, "required": required})
+
 }

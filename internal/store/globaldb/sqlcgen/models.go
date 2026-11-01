@@ -104,6 +104,12 @@ type AgentInstanceReport struct {
 	DeliveredAt       sql.NullString `json:"delivered_at"`
 }
 
+type AgentInstanceSeen struct {
+	InstanceID string `json:"instance_id"`
+	OperatorID string `json:"operator_id"`
+	LastSeenAt string `json:"last_seen_at"`
+}
+
 type AgentInstanceWakeState struct {
 	InstanceID          string `json:"instance_id"`
 	NextWakeAt          string `json:"next_wake_at"`

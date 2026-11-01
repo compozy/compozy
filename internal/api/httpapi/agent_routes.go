@@ -31,6 +31,9 @@ func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	instances.POST("/:id/check", handlers.CheckAgentInstance)
 	instances.PATCH("/:id", handlers.UpdateAgentInstance)
 	instances.GET("/:id/occurrences/:occurrence", handlers.GetAgentInstanceOccurrence)
+	instances.GET("/:id/away", handlers.GetAgentInstanceAway)
+	instances.POST("/:id/away", handlers.MarkAgentInstanceSeen)
+	instances.GET("/:id/check-ins", handlers.ListAgentInstanceCheckIns)
 	instances.POST("/:id/pause", handlers.PauseAgentInstance)
 	instances.POST("/:id/resume", handlers.ResumeAgentInstance)
 	instances.POST("/:id/ensure-main", handlers.EnsureAgentInstanceMain)
@@ -59,5 +62,6 @@ func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	agents.POST("/:name/heartbeat/rollback", handlers.RollbackAgentHeartbeat)
 	agents.GET("/:name/heartbeat/status", handlers.GetAgentHeartbeatStatus)
 	agents.POST("/:name/heartbeat/wake", handlers.WakeAgentHeartbeat)
+	agents.GET("/:name/activity", handlers.GetAgentActivity)
 	agents.GET("/:name", handlers.GetAgent)
 }

@@ -62,6 +62,7 @@ func newAgentCommand(deps commandDeps) *cobra.Command {
 
 	commands := []*cobra.Command{
 		newAgentInstanceCommand(deps),
+		newAgentActivityCommand(deps),
 		newAgentCreateCommand(deps),
 		newAgentUpdateCommand(deps),
 		newAgentDeleteCommand(deps),

@@ -2,6 +2,7 @@
     "title": "Agent",
     "pages": [
         "index",
+        "activity",
         "create",
         "delete",
         "duplicate",

@@ -10,6 +10,33 @@ import (
 	"strings"
 )
 
+// GetAgentCoordinatorConfig Read resolved coordinator config for the calling agent workspace
+func (c *Client) GetAgentCoordinatorConfig(ctx context.Context, params GetAgentCoordinatorConfigParams) (*AgentCoordinatorConfigResponse, error) {
+	path := "/api/agent/coordinator/config"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentCoordinatorConfigResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentDefinitionSoulParams carries the path, query, and header parameters.
+type GetAgentDefinitionSoulParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetAgentDefinitionSoul Inspect the resolved Soul read model for an agent definition
 func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefinitionSoulParams) (*AgentSoulPayload, error) {
 	path := "/api/agents/{name}/soul"
@@ -117,6 +144,30 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 		path += "?" + query.Encode()
 	}
 	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceAwayParams carries the path, query, and header parameters.
+type GetAgentInstanceAwayParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// GetAgentInstanceAway Read the operator's instance away digest
+func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstanceAwayParams) (*AgentInstanceAwayResponse, error) {
+	path := "/api/agent-instances/{id}/away"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceAwayResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -390,55 +441,4 @@ type GetDoctorParams struct {
 	Only    *string `url:"only"`
 	Exclude *string `url:"exclude"`
 	Quiet   *bool   `url:"quiet"`
-}
-
-// GetDoctor Run runtime diagnostics
-func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*DoctorPayload, error) {
-	path := "/api/doctor"
-	query := url.Values{}
-	if params.Only != nil {
-		query.Set("only", *params.Only)
-	}
-	if params.Exclude != nil {
-		query.Set("exclude", *params.Exclude)
-	}
-	if params.Quiet != nil {
-		query.Set("quiet", strconv.FormatBool(*params.Quiet))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DoctorPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionParams carries the path, query, and header parameters.
-type GetExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtension Get one installed extension
-func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*ExtensionResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

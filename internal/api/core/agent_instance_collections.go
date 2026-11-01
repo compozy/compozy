@@ -66,7 +66,12 @@ func (h *BaseHandlers) CreateAgentInstance(c *gin.Context) {
 	if created {
 		status = http.StatusCreated
 	}
-	c.JSON(status, contract.AgentInstanceResponse{Instance: AgentInstancePayload(instance)})
+	payload, err := h.AgentInstances.Payload(c.Request.Context(), instance)
+	if err != nil {
+		h.instanceError(c, err)
+		return
+	}
+	c.JSON(status, contract.AgentInstanceResponse{Instance: payload})
 }
 func (h *BaseHandlers) AdoptAgentInstance(c *gin.Context) {
 	if !h.instanceReady(c) {
@@ -109,7 +114,12 @@ func (h *BaseHandlers) AdoptAgentInstance(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
-	c.JSON(201, contract.AgentInstanceResponse{Instance: AgentInstancePayload(instance)})
+	payload, err := h.AgentInstances.Payload(c.Request.Context(), instance)
+	if err != nil {
+		h.instanceError(c, err)
+		return
+	}
+	c.JSON(201, contract.AgentInstanceResponse{Instance: payload})
 }
 func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 	if !h.instanceReady(c) {
@@ -182,7 +192,12 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 			h.instanceError(c, err)
 			return
 		}
-		result.Instances = append(result.Instances, AgentInstancePayload(row))
+		payload, err := h.AgentInstances.Payload(c.Request.Context(), row)
+		if err != nil {
+			h.instanceError(c, err)
+			return
+		}
+		result.Instances = append(result.Instances, payload)
 	}
 	if len(rows) == limit {
 		result.NextCursor = rows[len(rows)-1].ID

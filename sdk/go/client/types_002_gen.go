@@ -7,6 +7,72 @@ import (
 	"time"
 )
 
+// AgentMemoryRemoveRequest is a daemon API value.
+type AgentMemoryRemoveRequest struct {
+	Match string `json:"match"`
+}
+
+// AgentMemoryRemoveResponse is a daemon API value.
+type AgentMemoryRemoveResponse struct {
+	Digest  string `json:"digest"`
+	Removed int    `json:"removed"`
+}
+
+// AgentMemoryReplaceRequest is a daemon API value.
+type AgentMemoryReplaceRequest struct {
+	Match string `json:"match"`
+	Text  string `json:"text"`
+}
+
+// AgentMemoryRevision is a daemon API value.
+type AgentMemoryRevision struct {
+	ID     string `json:"id"`
+	Digest string `json:"digest"`
+}
+
+// AgentMemoryRollbackRequest is a daemon API value.
+type AgentMemoryRollbackRequest struct {
+	Revision string `json:"revision"`
+}
+
+// AgentMemorySearchRequest is a daemon API value.
+type AgentMemorySearchRequest struct {
+	Query           string `json:"query"`
+	IncludeSessions bool   `json:"include_sessions,omitempty"`
+}
+
+// AgentMemorySearchResponse is a daemon API value.
+type AgentMemorySearchResponse struct {
+	Results []AgentMemorySearchResult `json:"results"`
+}
+
+// AgentMemorySearchResult is a daemon API value.
+type AgentMemorySearchResult struct {
+	Source    string  `json:"source"`
+	Text      string  `json:"text"`
+	File      string  `json:"file,omitempty"`
+	Line      int     `json:"line,omitempty"`
+	Score     float64 `json:"score,omitempty"`
+	SessionID string  `json:"session_id,omitempty"`
+}
+
+// AgentMemoryValidateRequest is a daemon API value.
+type AgentMemoryValidateRequest struct {
+	Content string `json:"content"`
+}
+
+// AgentMemoryValidateResponse is a daemon API value.
+type AgentMemoryValidateResponse struct {
+	Valid       bool     `json:"valid"`
+	Diagnostics []string `json:"diagnostics"`
+}
+
+// AgentMemoryWriteRequest is a daemon API value.
+type AgentMemoryWriteRequest struct {
+	Content        string `json:"content"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
 // AgentNotifyRequest is a daemon API value.
 type AgentNotifyRequest struct {
 	Title string `json:"title"`
@@ -380,71 +446,3 @@ type ApprovalPolicy string
 
 // ApprovalState is a daemon API value.
 type ApprovalState string
-
-// ApproveLoopRunRequest is a daemon API value.
-type ApproveLoopRunRequest struct {
-	GateID   string           `json:"gate_id"`
-	Decision LoopGateDecision `json:"decision"`
-}
-
-// ApproveSessionRequest is a daemon API value.
-type ApproveSessionRequest struct {
-	RequestID string `json:"request_id"`
-	TurnID    string `json:"turn_id"`
-	Decision  string `json:"decision"`
-}
-
-// ArchiveProfilePlan is a daemon API value.
-type ArchiveProfilePlan struct {
-	Revision           string   `json:"revision"`
-	RunningSessions    []string `json:"running_sessions"`
-	ApprovalBlockers   []string `json:"approval_blockers"`
-	LeasedRuns         int      `json:"leased_runs"`
-	QueuedRunsToFreeze int      `json:"queued_runs_to_freeze"`
-	AutomationsToPause []string `json:"automations_to_pause"`
-}
-
-// ArchiveProfileResponse is a daemon API value.
-type ArchiveProfileResponse struct {
-	State             string   `json:"state"`
-	PausedAutomations []string `json:"paused_automations"`
-	FrozenQueuedRuns  int      `json:"frozen_queued_runs"`
-}
-
-// Argument is a daemon API value.
-type Argument struct {
-	Name        string       `json:"name"`
-	Type        ArgumentType `json:"type"`
-	Placeholder string       `json:"placeholder,omitempty"`
-	Required    bool         `json:"required"`
-	Options     []string     `json:"options,omitempty"`
-}
-
-// ArgumentType is a daemon API value.
-type ArgumentType string
-
-// ArtifactAvailability is a daemon API value.
-type ArtifactAvailability string
-
-// ArtifactRef is a daemon API value.
-type ArtifactRef struct {
-	URI      string `json:"uri"`
-	Name     string `json:"name,omitempty"`
-	MIMEType string `json:"mime_type,omitempty"`
-	Bytes    int64  `json:"bytes,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
-}
-
-// AttachSessionRequest is a daemon API value.
-type AttachSessionRequest struct {
-	AttachedTo string `json:"attached_to,omitempty"`
-	TTLSeconds int    `json:"ttl_seconds,omitzero"`
-}
-
-// AttachTaskRunSessionRequest is a daemon API value.
-type AttachTaskRunSessionRequest struct {
-	SessionID string `json:"session_id"`
-}
-
-// AttentionClass is a daemon API value.
-type AttentionClass string

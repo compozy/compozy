@@ -82,6 +82,7 @@ const (
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
 type CatalogEvent struct {
+	InstanceID               string
 	ExecutionLocationChanged bool
 	Sequence                 int64
 	Name                     CatalogEventName
@@ -149,7 +150,7 @@ func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
 	if strings.TrimSpace(event.ProfileID) == "" {
 		return 0
 	}
-	if strings.TrimSpace(event.SessionID) == "" && event.Kind != CatalogEventWorkspaceLayout &&
+	if event.InstanceID == "" && strings.TrimSpace(event.SessionID) == "" && event.Kind != CatalogEventWorkspaceLayout &&
 		(event.Kind != CatalogEventLayout || strings.TrimSpace(event.WorkspaceID) == "") {
 		return 0
 	}
@@ -255,7 +256,8 @@ func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent
 
 func catalogWakeEventType(eventType string) bool {
 	switch eventType {
-	case acp.EventTypePermission, acp.EventTypeClarify, acp.EventTypeDone, acp.EventTypeError:
+	case acp.EventTypePermission, acp.EventTypeClarify, acp.EventTypeDone, acp.EventTypeError,
+		acp.EventTypeToolCall, acp.EventTypeToolResult, acp.EventTypeRuntimeProgress, acp.EventTypeUserMessage:
 		return true
 	default:
 		return false
@@ -271,4 +273,8 @@ func sessionAttentionCatalogEvent(event AttentionEvent) CatalogEvent {
 		SessionID:   strings.TrimSpace(event.SessionID),
 		Attention:   &cloned,
 	}
+}
+
+func (m *Manager) PublishInstanceCatalogChanged(profileID, workspaceID, instanceID string) {
+	m.publishSessionCatalogEvent(CatalogEvent{ProfileID: profileID, WorkspaceID: workspaceID, InstanceID: instanceID, Name: "agent_instance.updated"})
 }

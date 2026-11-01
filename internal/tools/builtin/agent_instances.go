@@ -19,6 +19,10 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		{toolspkg.ToolIDAgentInstanceArchive, "archive", false},
 		{toolspkg.ToolIDAgentInstanceEnsureMain, "ensure_main", false},
 		{toolspkg.ToolIDAgentInstanceReports, "reports", true},
+		{toolspkg.ToolIDAgentInstanceGet, "get", true},
+		{toolspkg.ToolIDAgentInstanceAway, "away", true},
+		{toolspkg.ToolIDAgentInstanceSeen, "mark_seen", false},
+		{toolspkg.ToolIDAgentInstanceCheckIns, "check_ins", true},
 	} {
 		risk := toolspkg.RiskMutating
 		if operation.read {
@@ -29,6 +33,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 			agentInstanceInputSchema, risk, operation.read, operation.name == "archive", false,
 			[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext}, []string{"agents", "instances"}, []string{"stays-on instance", operation.name}))
 	}
+	result = append(result, nativeDescriptor(toolspkg.ToolIDAgentActivity, "agent_activity", "Agent Activity", "Read agent activity in an authorized workspace", agentInstanceInputSchema, toolspkg.RiskRead, true, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext}, []string{"agents", "activity"}, []string{"agent activity"}))
 	return result
 }
 
@@ -36,4 +41,5 @@ const agentInstanceInputSchema = `{"type":"object","properties":{
 "enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},"occurrence_id":{"type":"string"},
 "agent":{"type":"string"},"workspace":{"type":"string"},"id":{"type":"string"},
 "all_workspaces":{"type":"boolean"},"state":{"type":"string"},"cursor":{"type":"string"},
+"days":{"type":"integer","minimum":1,"maximum":365},
 "limit":{"type":"integer","minimum":1,"maximum":100}},"additionalProperties":false}`

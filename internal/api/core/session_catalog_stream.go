@@ -100,6 +100,13 @@ func (h *BaseHandlers) streamSessionCatalogEvents(
 				return
 			}
 			event.ProfileName = owner.Name
+			if err := h.writeInstanceCatalogEvent(c, writer, event); err != nil {
+				h.logSSEWriteFailure("agent_instance.updated", err)
+				return
+			}
+			if event.InstanceID != "" {
+				continue
+			}
 			name, data := sessionCatalogSSEMessage(event)
 			if err := WriteSSE(writer, SSEMessage{
 				ID:   strconv.FormatInt(event.Sequence, 10),

@@ -1,6 +1,5 @@
 import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
 
-import { normalizeAgentInstance } from "../lib/agent-instance-wire";
 import type {
   AgentActivityPayload,
   AgentInstanceAway,
@@ -87,7 +86,7 @@ export async function fetchAgentInstances(signal?: AbortSignal): Promise<AgentIn
       signal,
       fallback: "Failed to fetch stays-on agents",
     });
-    instances.push(...page.instances.map(normalizeAgentInstance));
+    instances.push(...page.instances);
     cursor = page.next_cursor;
   } while (cursor);
   return instances;
@@ -99,7 +98,7 @@ async function instanceAction(path: string, fallback: string, body?: unknown) {
     body,
     fallback,
   });
-  return normalizeAgentInstance(instance);
+  return instance;
 }
 
 export function createAgentInstance(params: CreateAgentInstanceParams) {
