@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import type { RuntimeProviderOption } from "@/systems/runtime";
 
 import {
+  agentCreateDraftsEqual,
   agentCreateSlug,
   agentSlugFor,
   type AgentCreateDialogDraft,
@@ -33,13 +34,10 @@ export function agentCreateNameIssue(
   return { kind: "taken", suggestion: `${name || slug} ${Date.now()}` };
 }
 
-/** Text copied from a duplicate's source isn't entered data: only a change from it is. */
-function hasEntries(draft: AgentCreateDialogDraft, seed: AgentCreateEntrySeed) {
-  return (
-    draft.displayName !== "" ||
-    draft.description !== seed.description ||
-    draft.prompt !== seed.prompt
-  );
+/** What a duplicate copied isn't entered data: only a change from it is. */
+function hasEntries(draft: AgentCreateDialogDraft, seed: AgentCreateDialogDraft | null) {
+  if (seed) return !agentCreateDraftsEqual(draft, seed);
+  return draft.displayName !== "" || draft.description !== "" || draft.prompt !== "";
 }
 
 /** A field speaks up only once the person has touched it. */
@@ -61,14 +59,10 @@ function shownCreateErrors(
   } as Record<string, string | undefined>;
 }
 
-export type AgentCreateEntrySeed = Pick<AgentCreateDialogDraft, "description" | "prompt">;
-
-const NO_ENTRY_SEED: AgentCreateEntrySeed = { description: "", prompt: "" };
-
 interface AgentCreateViewStateArgs {
   draft: AgentCreateDialogDraft;
-  /** What the draft opened with; a blank create starts from nothing. */
-  entrySeed?: AgentCreateEntrySeed | null;
+  /** The draft a duplicate opened with; a blank create starts from nothing. */
+  entrySeed?: AgentCreateDialogDraft | null;
   providerOptions: readonly RuntimeProviderOption[];
   providersError: string | null;
   providersLoading: boolean;
@@ -105,7 +99,7 @@ export function useAgentCreateViewState({
     Boolean(providersError || providersLoading) ||
     providerOptions.length === 0 ||
     draft.provider.trim().length > 0;
-  const dirty = !startFailure && hasEntries(draft, entrySeed ?? NO_ENTRY_SEED);
+  const dirty = !startFailure && hasEntries(draft, entrySeed ?? null);
   const dismiss = () => {
     if (isSubmitting) return;
     setAdvancedOpen(false);

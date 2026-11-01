@@ -222,12 +222,19 @@ describe("AgentCreateScreen", () => {
     expect(onEmptyClose).toHaveBeenCalledWith(false);
   });
 
-  it("Should close an untouched duplicate on Escape, and confirm once its copied text changes", async () => {
-    const entrySeed = { description: "Copied", prompt: "Copied instructions" };
+  it("Should close an untouched duplicate on Escape, and confirm once any copied field changes", async () => {
+    const entrySeed = validDraft({
+      displayName: "",
+      description: "Copied",
+      prompt: "Copied instructions",
+      kind: "on_demand",
+      model: "gpt-5.4",
+      tools: ["compozy__skill_view"],
+    });
     const onOpenChange = vi.fn();
     const user = userEvent.setup();
     const { unmount } = renderScreen({
-      draft: validDraft({ displayName: "", ...entrySeed }),
+      draft: { ...entrySeed, tools: [...entrySeed.tools] },
       entrySeed,
       onOpenChange,
     });
@@ -236,15 +243,27 @@ describe("AgentCreateScreen", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     unmount();
 
-    const onEditedClose = vi.fn();
-    renderScreen({
-      draft: validDraft({ displayName: "", ...entrySeed, prompt: "Changed" }),
-      entrySeed,
-      onOpenChange: onEditedClose,
-    });
-    await user.keyboard("{Escape}");
-    expect(onEditedClose).not.toHaveBeenCalled();
-    expect(await screen.findByRole("button", { name: "Discard" })).toBeInTheDocument();
+    const edits: Partial<AgentCreateDialogDraft>[] = [
+      { prompt: "Changed" },
+      { kind: "stays_on" },
+      { place: "@user" },
+      { provider: "claude" },
+      { model: "gpt-5.5" },
+      { reasoningEffort: "high" },
+      { tools: [] },
+    ];
+    for (const edit of edits) {
+      const onEditedClose = vi.fn();
+      const edited = renderScreen({
+        draft: { ...entrySeed, ...edit },
+        entrySeed,
+        onOpenChange: onEditedClose,
+      });
+      await user.keyboard("{Escape}");
+      expect(onEditedClose).not.toHaveBeenCalled();
+      expect(await screen.findByRole("button", { name: "Discard" })).toBeInTheDocument();
+      edited.unmount();
+    }
   });
 
   it("Should show Where it works only for Stays on, and say what the primary will do", async () => {

@@ -375,6 +375,23 @@ function sameTokenList(left: readonly string[], right: readonly string[]): boole
   return left.every((value, index) => value === right[index]);
 }
 
+/** Whether two drafts hold the same answers in every field. */
+export function agentCreateDraftsEqual(
+  left: AgentCreateDialogDraft,
+  right: AgentCreateDialogDraft
+): boolean {
+  const { appearance, acpOptions, tools, toolsets, denyTools, disabledSkills, ...text } = left;
+  return (
+    (Object.keys(text) as (keyof typeof text)[]).every(field => text[field] === right[field]) &&
+    JSON.stringify(appearance) === JSON.stringify(right.appearance) &&
+    runtimeACPSelectionsEqual(acpOptions, right.acpOptions) &&
+    sameTokenList(tools, right.tools) &&
+    sameTokenList(toolsets, right.toolsets) &&
+    sameTokenList(denyTools, right.denyTools) &&
+    sameTokenList(disabledSkills, right.disabledSkills)
+  );
+}
+
 /**
  * Build POST /duplicate body: required target name + override diff against source.
  * Never returns a create payload.

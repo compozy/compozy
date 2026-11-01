@@ -528,6 +528,7 @@ describe("useAgentCreateDialog", () => {
     expect(result.current.draft.prompt).toBe("Own release readiness.");
     expect(result.current.draft.tools).toEqual(["compozy__skill_view"]);
     expect(result.current.draft.categoryPath).toBe("Engineering/Release");
+    expect(result.current.entrySeed).toEqual(result.current.draft);
 
     act(() => {
       result.current.openDialog();
@@ -535,6 +536,7 @@ describe("useAgentCreateDialog", () => {
 
     expect(result.current.mode).toBe("create");
     expect(result.current.duplicateSourceName).toBeNull();
+    expect(result.current.entrySeed).toBeNull();
     expect(result.current.draft.name).toBe("");
     expect(result.current.draft.provider).toBe("");
     expect(result.current.draft.prompt).toBe("");

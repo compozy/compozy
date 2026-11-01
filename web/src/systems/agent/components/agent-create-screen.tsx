@@ -27,10 +27,7 @@ import {
   type AgentCreateDialogDraft,
 } from "../lib/agent-create-draft";
 import type { AgentInstanceCapacity } from "../lib/agent-instance";
-import {
-  useAgentCreateViewState,
-  type AgentCreateEntrySeed,
-} from "../hooks/use-agent-create-view-state";
+import { useAgentCreateViewState } from "../hooks/use-agent-create-view-state";
 import { AgentCreateAdvanced } from "./agent-create-advanced";
 import {
   AgentCreateIdentity,
@@ -70,8 +67,8 @@ export interface AgentCreateScreenProps {
   instanceCapacity: AgentInstanceCapacity;
   /** Set while duplicating: the source's label heads the screen. */
   duplicateSourceName?: string | null;
-  /** Set while duplicating: the source's copied text, which closing doesn't need to confirm. */
-  entrySeed?: AgentCreateEntrySeed | null;
+  /** Set while duplicating: the draft it opened with, which closing doesn't need to confirm. */
+  entrySeed?: AgentCreateDialogDraft | null;
 }
 
 function outcome(

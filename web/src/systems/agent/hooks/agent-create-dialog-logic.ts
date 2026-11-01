@@ -196,8 +196,10 @@ export const agentCreateDialogLogic = createStoreLogic<
   },
 });
 
-function errorMessage(error: unknown, fallback: string): string {
+export function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
 }
+
+export type AgentCreateDialogStore = ReturnType<typeof agentCreateDialogLogic.createStore>;
 
 export type { AgentCreateFlow, AgentCreateMode };
