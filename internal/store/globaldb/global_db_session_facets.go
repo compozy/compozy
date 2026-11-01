@@ -36,15 +36,9 @@ func (g *SessionRepo) SessionCatalogFacets(
 	if err != nil {
 		return result, err
 	}
-	boardCount := "COUNT(1)"
-	var boardArgs []any
-	if len(query.BoardExcludedIDs) > 0 {
-		encoded, err := json.Marshal(query.BoardExcludedIDs)
-		if err != nil {
-			return result, err
-		}
-		boardCount = "SUM(CASE WHEN id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END)"
-		boardArgs = []any{string(encoded)}
+	boardCount, boardArgs, err := sessionCatalogBoardCount(query.BoardExcludedIDs)
+	if err != nil {
+		return result, err
 	}
 	selection := "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression + ", " +
 		sessionCatalogBoardColumnExpression + ", COUNT(1), " + boardCount + " FROM " + source
@@ -137,3 +131,14 @@ func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, coun
 }
 
 var _ store.SessionCatalogFacetReader = (*SessionRepo)(nil)
+
+func sessionCatalogBoardCount(excludedIDs []string) (string, []any, error) {
+	if len(excludedIDs) == 0 {
+		return "COUNT(1)", nil, nil
+	}
+	encoded, err := json.Marshal(excludedIDs)
+	if err != nil {
+		return "", nil, err
+	}
+	return "SUM(CASE WHEN id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END)", []any{string(encoded)}, nil
+}
