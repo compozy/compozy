@@ -1082,7 +1082,9 @@ spawn reaper stops the child (`spawn_reaper:parent_stopped`) when its parent sto
 while a launch is still starting settles as a canceled stop, never a failed runtime, so the child
 stays resumable. Resuming a child whose parent is no longer live releases its `auto_stop_on_parent`
 binding before launch (lineage, TTL, and permission narrowing stay), so the reaper does not cancel a
-deliberate resume. Take it over with `compozy session reparent <id> --top-level` to make it a normal
+deliberate resume. The reaper decides this stop atomically with resume and take-over: if the parent
+came back or the child was resumed or taken over in the meantime, the child keeps running and no
+reap is recorded. Take it over with `compozy session reparent <id> --top-level` to make it a normal
 session.
 
 ### Subagents

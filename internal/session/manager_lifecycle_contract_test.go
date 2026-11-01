@@ -2429,6 +2429,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			active.ID,
 			CauseShutdown,
 			"manager shutdown",
+			nil,
 		); !handled ||
 			err != nil {
 			t.Fatalf("prepare stop = %t, %v", handled, err)
@@ -2685,10 +2686,17 @@ func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
 		t.Skip("Unix process-group lifecycle; Windows termination has its own procutil suite")
 	}
 	active := createSession(t, h)
-	ctx := testutil.Context(t)
-	if err := h.manager.Stop(ctx, active.ID); err != nil {
+	if err := h.manager.Stop(testutil.Context(t), active.ID); err != nil {
 		t.Fatal(err)
 	}
+	seedRecoveredStoppingProcess(t, h, active)
+	return active
+}
+
+// seedRecoveredStoppingProcess rewrites a stopped session as one a previous daemon
+// left stopping, with a live process this test owns.
+func seedRecoveredStoppingProcess(t *testing.T, h *harness, active *Session) {
+	t.Helper()
 	cmd := exec.CommandContext(t.Context(), "sleep", "30")
 	procutil.ConfigureCommandProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
@@ -2719,7 +2727,6 @@ func seedRecoveredLocalStop(t *testing.T, h *harness) *Session {
 	h.manager.mu.Lock()
 	delete(h.manager.stopRuns, active.ID)
 	h.manager.mu.Unlock()
-	return active
 }
 
 // stopGoalHandler injects only the daemon cancellation I/O boundary.

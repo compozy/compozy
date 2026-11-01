@@ -688,3 +688,105 @@ func (m *swappingReaperManager) List() []*session.Info {
 	m.swapped = true
 	return infos
 }
+
+// Invariant: a parent-stop reap has no effect unless the session manager commits
+// the stop; owner: reaper. The manager's decision itself is owned by TestStopIfParentStopped.
+func TestSpawnReaperParentStopCommit(t *testing.T) {
+	t.Parallel()
+
+	failure := errors.New("parent read failed")
+	for _, tc := range []struct {
+		name         string
+		outcome      session.ParentStopOutcome
+		stopErr      error
+		wantSequence []string
+		wantReaped   int
+		wantHooks    int
+	}{
+		{
+			name:         "Should fire hooks and release leases when the stop commits",
+			wantSequence: []string{"commit:child", "release:child", "stopped:child"},
+			wantReaped:   1,
+			wantHooks:    1,
+		},
+		{
+			name:         "Should leave a superseded child untouched and quiet",
+			outcome:      session.ParentStopSuperseded,
+			wantSequence: []string{},
+		},
+		{
+			name:         "Should only release the leases of a child that ended",
+			outcome:      session.ParentStopEnded,
+			wantSequence: []string{"release:child"},
+		},
+		{
+			name:         "Should surface an undecided stop without any effect",
+			outcome:      session.ParentStopSuperseded,
+			stopErr:      failure,
+			wantSequence: []string{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+			sequence := make([]string, 0)
+			sessions := &conditionalStopReaperManager{
+				fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+					rootReaperInfo("parent", session.StateStopped),
+					spawnedReaperInfo("child", "parent", now.Add(time.Hour), true),
+				}},
+				outcome:  tc.outcome,
+				stopErr:  tc.stopErr,
+				sequence: &sequence,
+			}
+			leases := &fakeSpawnLeaseReleaser{
+				resultCountBySession: map[string]int{"child": 1},
+				sequence:             &sequence,
+			}
+			hooks := &recordingSpawnHooks{}
+			reaper, err := newSpawnReaper(
+				t.Context(), sessions, leases, hooks, discardLogger(),
+				func() time.Time { return now }, time.Hour,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := reaper.Sweep(t.Context())
+			if !errors.Is(err, tc.stopErr) || (tc.stopErr == nil && err != nil) {
+				t.Fatalf("Sweep() error = %v, want %v", err, tc.stopErr)
+			}
+			if !equalStrings(sequence, tc.wantSequence) {
+				t.Fatalf("sequence = %#v, want %#v", sequence, tc.wantSequence)
+			}
+			if report.Reaped != tc.wantReaped || report.ParentStopped != tc.wantReaped ||
+				len(sessions.stopWithCauseCalls) != 0 ||
+				len(hooks.parentStopped) != tc.wantHooks || len(hooks.reaped) != tc.wantHooks {
+				t.Fatalf("report=%#v stops=%#v hooks=%d/%d", report, sessions.stopWithCauseCalls,
+					len(hooks.parentStopped), len(hooks.reaped))
+			}
+		})
+	}
+}
+
+// conditionalStopReaperManager answers as the session manager does: it runs the
+// commit callback only for a committed stop.
+type conditionalStopReaperManager struct {
+	*fakeSessionManager
+	outcome  session.ParentStopOutcome
+	stopErr  error
+	sequence *[]string
+}
+
+func (m *conditionalStopReaperManager) StopIfParentStopped(
+	_ context.Context,
+	id string,
+	_ string,
+	onCommitted func(),
+) (session.ParentStopOutcome, error) {
+	if m.outcome == session.ParentStopCommitted {
+		*m.sequence = append(*m.sequence, "commit:"+id)
+		onCommitted()
+		*m.sequence = append(*m.sequence, "stopped:"+id)
+	}
+	return m.outcome, m.stopErr
+}

@@ -36,7 +36,16 @@ type spawnReaperTTLStopper interface {
 	StopWithSpawnTTL(context.Context, string, string) error
 }
 
-var _ spawnReaperTTLStopper = (*session.Manager)(nil)
+// spawnReaperParentStopper lets the concrete session manager decide a parent-stop
+// reap atomically with the stop, where resume and take-over are serialized.
+type spawnReaperParentStopper interface {
+	StopIfParentStopped(context.Context, string, string, func()) (session.ParentStopOutcome, error)
+}
+
+var (
+	_ spawnReaperTTLStopper    = (*session.Manager)(nil)
+	_ spawnReaperParentStopper = (*session.Manager)(nil)
+)
 
 type spawnReaper struct {
 	ctx      context.Context
@@ -260,7 +269,7 @@ func (r *spawnReaper) reapSpawnedCandidate(
 		return spawnReapCandidate{child: info, reason: spawnReapReasonOrphaned}, true
 	}
 	if lineage.AutoStopOnParent && !spawnReaperLiveState(parent.State) {
-		if subagentSurvivesParentStop(lineage, parent) {
+		if session.SubagentSurvivesParentStop(lineage, parent.StopReason) {
 			return spawnReapCandidate{}, false
 		}
 		return spawnReapCandidate{
@@ -306,13 +315,73 @@ func (r *spawnReaper) reap(
 	case spawnCandidateCurrent:
 	}
 
+	if stopper, ok := r.sessions.(spawnReaperParentStopper); ok && reason == spawnReapReasonParentStopped {
+		return r.reapParentStopped(ctx, stopper, candidate, report)
+	}
+
+	released, releaseErr := r.dispatchReapEffects(ctx, candidate, reason)
+	stopErr := r.stopChild(ctx, child, reason)
+	return r.finishReap(ctx, candidate, reason, report, released, releaseErr, stopErr)
+}
+
+// reapParentStopped runs every reap effect only after the session manager commits
+// the stop. An outdated candidate keeps its leases and fires no spawn hook.
+func (r *spawnReaper) reapParentStopped(
+	ctx context.Context,
+	stopper spawnReaperParentStopper,
+	candidate spawnReapCandidate,
+	report *spawnReaperReport,
+) error {
+	child, reason := candidate.child, candidate.reason
+	var released int
+	var releaseErr error
+	outcome, stopErr := stopper.StopIfParentStopped(ctx, child.ID, "spawn_reaper:"+reason, func() {
+		released, releaseErr = r.dispatchReapEffects(ctx, candidate, reason)
+	})
+	switch outcome {
+	case session.ParentStopCommitted:
+		return r.finishReap(ctx, candidate, reason, report, released, releaseErr, stopErr)
+	case session.ParentStopEnded:
+		// As in candidateFreshness: no stop was needed, but the leases go back now.
+		released, releaseErr = r.releaseChildLeases(ctx, child, reason)
+		if report != nil {
+			report.ReleasedLeases += released
+		}
+		if releaseErr != nil {
+			return fmt.Errorf("daemon: release child leases for %q: %w", child.ID, releaseErr)
+		}
+		return nil
+	default:
+		if stopErr != nil {
+			return fmt.Errorf("daemon: stop spawned child %q: %w", child.ID, stopErr)
+		}
+		r.logger.Debug("daemon: spawn reap superseded", "session_id", child.ID, "reason", reason)
+		return nil
+	}
+}
+
+func (r *spawnReaper) dispatchReapEffects(
+	ctx context.Context,
+	candidate spawnReapCandidate,
+	reason string,
+) (int, error) {
 	r.dispatchReasonHook(ctx, candidate)
-	released, releaseErr := r.releaseChildLeases(ctx, child, reason)
+	return r.releaseChildLeases(ctx, candidate.child, reason)
+}
+
+func (r *spawnReaper) finishReap(
+	ctx context.Context,
+	candidate spawnReapCandidate,
+	reason string,
+	report *spawnReaperReport,
+	released int,
+	releaseErr error,
+	stopErr error,
+) error {
+	child := candidate.child
 	if report != nil {
 		report.ReleasedLeases += released
 	}
-
-	stopErr := r.stopChild(ctx, child, reason)
 	if stopErr == nil && report != nil {
 		report.Reaped++
 		switch reason {
