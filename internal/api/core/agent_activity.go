@@ -89,17 +89,7 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		}
 		mergeAgentActivity(&result, activity, label)
 	}
-	slices.SortFunc(result.ReportsByDay, func(a, b agentinstance.ActivityDay) int { return cmp.Compare(a.Day, b.Day) })
-	slices.SortFunc(
-		result.CostByProject,
-		func(a, b agentinstance.ActivityCost) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) },
-	)
-	slices.SortFunc(result.BusyByHour, func(a, b agentinstance.ActivityHour) int {
-		if a.Weekday != b.Weekday {
-			return cmp.Compare(a.Weekday, b.Weekday)
-		}
-		return cmp.Compare(a.Hour, b.Hour)
-	})
+	sortAgentActivity(&result)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -173,4 +163,18 @@ func (h *BaseHandlers) agentActivityReader() (agentinstance.ActivityReader, erro
 		return nil, errors.New("agent activity unavailable")
 	}
 	return reader, nil
+}
+
+func sortAgentActivity(result *agentinstance.Activity) {
+	slices.SortFunc(result.ReportsByDay, func(a, b agentinstance.ActivityDay) int { return cmp.Compare(a.Day, b.Day) })
+	slices.SortFunc(
+		result.CostByProject,
+		func(a, b agentinstance.ActivityCost) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) },
+	)
+	slices.SortFunc(result.BusyByHour, func(a, b agentinstance.ActivityHour) int {
+		if a.Weekday != b.Weekday {
+			return cmp.Compare(a.Weekday, b.Weekday)
+		}
+		return cmp.Compare(a.Hour, b.Hour)
+	})
 }
