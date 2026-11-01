@@ -53,3 +53,20 @@ WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = 
 BEGIN
     SELECT RAISE(ABORT, 'workspace not found');
 END;
+
+CREATE TABLE agent_instance_wake_state (
+    instance_id TEXT PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
+    next_wake_at TEXT NOT NULL DEFAULT '',
+    last_wake_at TEXT NOT NULL DEFAULT '',
+    last_digest TEXT NOT NULL DEFAULT '',
+    last_digest_at TEXT NOT NULL DEFAULT '',
+    automation_cursor TEXT NOT NULL DEFAULT '',
+    quiet_streak INTEGER NOT NULL DEFAULT 0 CHECK (quiet_streak >= 0),
+    failure_streak INTEGER NOT NULL DEFAULT 0 CHECK (failure_streak >= 0),
+    occurrence_id TEXT NOT NULL DEFAULT '',
+    triage_session_id TEXT NOT NULL DEFAULT '',
+    occurrence_started_at TEXT NOT NULL DEFAULT '',
+    occurrence_cancelled INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_cancelled IN (0, 1))
+);
+
+CREATE INDEX idx_agent_instance_wake_state_due ON agent_instance_wake_state(next_wake_at, instance_id);

@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type ModelsListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	SourceID     string `json:"source_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
+}
+
 type ModelsRefreshParams struct {
 	ProviderID string `json:"provider_id,omitempty"`
 	SourceID   string `json:"source_id,omitempty"`
@@ -230,10 +237,4 @@ type PermissionToolCall struct {
 	Title     string         `json:"title,omitempty"`
 	Status    string         `json:"status,omitempty"`
 	Locations []ToolLocation `json:"locations,omitempty"`
-}
-
-type PersistenceHealth struct {
-	Status             string `json:"status"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 }

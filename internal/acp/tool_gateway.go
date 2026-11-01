@@ -222,6 +222,9 @@ func (p *AgentProcess) interceptProviderNativeTool(
 	ctx context.Context,
 	request ToolExecutionRequest,
 ) (ToolExecutionRequest, error) {
+	if p != nil && p.executionPolicy == ExecutionPolicyTriage && (!request.ReadOnly || request.Execute) {
+		return ToolExecutionRequest{}, ErrPermissionDenied
+	}
 	normalized := cloneToolExecutionRequest(request)
 	normalized.ToolID = canonicalProviderNativeToolID(normalized.ToolID)
 	if normalized.ToolID == "" {

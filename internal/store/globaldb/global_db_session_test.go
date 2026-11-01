@@ -33,6 +33,8 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		row := db.QueryRowContext(t.Context(), `
 		SELECT
             '',
+            '',
+            '',
 			'sess-scan',
 			?,
 			'Demo',
@@ -295,6 +297,8 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		row := db.QueryRowContext(t.Context(), `
 		SELECT
             '',
+            '',
+            '',
 			'sess-null',
 			?,
 			NULL,
@@ -417,6 +421,8 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		row := db.QueryRowContext(t.Context(), `
 		SELECT
+            '',
+            '',
             '',
 			'sess-invalid-stall',
 			?,

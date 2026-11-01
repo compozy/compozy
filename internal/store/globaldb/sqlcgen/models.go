@@ -48,6 +48,10 @@ type AgentHeartbeatWakeEvent struct {
 	Source            string         `json:"source"`
 	Result            string         `json:"result"`
 	Reason            string         `json:"reason"`
+	Detail            string         `json:"detail"`
+	DeniedCalls       int64          `json:"denied_calls"`
+	OccurrenceID      string         `json:"occurrence_id"`
+	InstanceID        string         `json:"instance_id"`
 	SyntheticPromptID sql.NullString `json:"synthetic_prompt_id"`
 	CreatedAt         string         `json:"created_at"`
 	ExpiresAt         string         `json:"expires_at"`
@@ -98,6 +102,21 @@ type AgentInstanceReport struct {
 	EventSeq          int64          `json:"event_seq"`
 	CreatedAt         string         `json:"created_at"`
 	DeliveredAt       sql.NullString `json:"delivered_at"`
+}
+
+type AgentInstanceWakeState struct {
+	InstanceID          string `json:"instance_id"`
+	NextWakeAt          string `json:"next_wake_at"`
+	LastWakeAt          string `json:"last_wake_at"`
+	LastDigest          string `json:"last_digest"`
+	LastDigestAt        string `json:"last_digest_at"`
+	AutomationCursor    string `json:"automation_cursor"`
+	QuietStreak         int64  `json:"quiet_streak"`
+	FailureStreak       int64  `json:"failure_streak"`
+	OccurrenceID        string `json:"occurrence_id"`
+	TriageSessionID     string `json:"triage_session_id"`
+	OccurrenceStartedAt string `json:"occurrence_started_at"`
+	OccurrenceCancelled int64  `json:"occurrence_cancelled"`
 }
 
 type AgentSoulRevision struct {

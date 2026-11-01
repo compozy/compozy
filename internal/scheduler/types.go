@@ -367,3 +367,8 @@ func WithStarvationThresholds(thresholds StarvationThresholds) Option {
 		s.starvationAge = s.starveThresholds.MinQueuedAge
 	}
 }
+
+// WithProactiveChecks runs the instance check owner once per scheduler cycle.
+func WithProactiveChecks(tick func(context.Context) error) Option {
+	return func(s *Scheduler) { s.proactiveChecks = tick }
+}

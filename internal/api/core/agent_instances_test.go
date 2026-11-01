@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -15,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -316,6 +318,84 @@ func TestAgentInstanceDeletionPagination(t *testing.T) {
 		}
 		if _, err := compozyconfig.LoadAgentDefFile(path); err != nil {
 			t.Fatalf("blocked definition was removed: %v", err)
+		}
+	})
+}
+
+type instanceCheckStub struct {
+	result heartbeat.CheckResult
+	dry    bool
+	id     string
+}
+
+var _ core.AgentInstanceChecker = (*instanceCheckStub)(nil)
+
+func (s *instanceCheckStub) Check(_ context.Context, id string, dry bool) (heartbeat.CheckResult, error) {
+	s.id, s.dry = id, dry
+	return s.result, nil
+}
+
+func TestAgentInstanceCheck(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		result     heartbeat.CheckResult
+		status     int
+		dry        bool
+	}{
+		{name: "Should return an admitted occurrence", body: `{"dry_run":false}`, result: heartbeat.CheckResult{OccurrenceID: "instance_check-test"}, status: 202},
+		{name: "Should return a gate without an occurrence", body: `{"dry_run":false}`, result: heartbeat.CheckResult{Gate: "no_slot"}, status: 200},
+		{name: "Should forward dry runs and return their gate", body: `{"dry_run":true}`, result: heartbeat.CheckResult{Gate: "would_run"}, status: 200, dry: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "check.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checker := &instanceCheckStub{result: tc.result}
+			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Checks: checker, Authority: agentinstance.Authority{Callers: db.Instances()}}
+			fixture.Engine.POST("/instances/:id/check", fixture.Handlers.CheckAgentInstance)
+			response := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), "POST", "/instances/"+instance.ID+"/check", strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			fixture.Engine.ServeHTTP(response, req)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			var body contract.AgentInstanceCheckResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Gate != tc.result.Gate || body.OccurrenceID != tc.result.OccurrenceID || checker.id != instance.ID || checker.dry != tc.dry {
+				t.Fatalf("response=%+v call=%+v", body, checker)
+			}
+		})
+	}
+}
+
+func TestAgentInstanceCheckSettings(t *testing.T) {
+	t.Run("Should reject a missing checks setting before mutation", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Engine.PATCH("/instances/:id", fixture.Handlers.UpdateAgentInstance)
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "PATCH", "/instances/unknown", strings.NewReader(`{}`)))
+		var body contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != 422 || !strings.Contains(body.Error, "checks_enabled") {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
 		}
 	})
 }

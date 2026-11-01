@@ -2,6 +2,16 @@
 
 package contracts
 
+import "time"
+
+type AutomationLastRunPayload struct {
+	ID         string              `json:"id"`
+	Status     RunStatus           `json:"status"`
+	StartedAt  *time.Time          `json:"started_at,omitzero"`
+	EndedAt    *time.Time          `json:"ended_at,omitzero"`
+	SkipReason SchedulerSkipReason `json:"skip_reason,omitempty"`
+}
+
 type AutomationObservationPatch struct{}
 
 type AutomationRunCompletedPayload struct {
@@ -177,5 +187,3 @@ type BlockedReason struct {
 type BlockedSource string
 
 type CatalogScope string
-
-type CatalogSort string

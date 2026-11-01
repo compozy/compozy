@@ -10,6 +10,63 @@ import (
 	"strings"
 )
 
+// GetPermissionRollup Read daily permission totals by agent and decision
+func (c *Client) GetPermissionRollup(ctx context.Context, params GetPermissionRollupParams) (*PermissionRollupResponse, error) {
+	path := "/api/permissions/rollup"
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", *params.Days)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Unattended != nil {
+		query.Set("unattended", strconv.FormatBool(*params.Unattended))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out PermissionRollupResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProfileParams carries the path, query, and header parameters.
+type GetProfileParams struct {
+	Name string `url:"name"`
+}
+
+// GetProfile Get a profile
+func (c *Client) GetProfile(ctx context.Context, params GetProfileParams) (*Profile, error) {
+	path := "/api/profiles/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out Profile
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProfileSelectionsParams carries the path, query, and header parameters.
+type GetProfileSelectionsParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// GetProfileSelectionsFrame preserves each response payload; select its variant using the event name or HTTP status.
+type GetProfileSelectionsFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
 var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
 
 var _ json.Marshaler = GetProfileSelectionsFrame{}
@@ -369,64 +426,4 @@ type GetSessionHistoryParams struct {
 	AgentName     *string `url:"agent_name"`
 	TurnID        *string `url:"turn_id"`
 	Archive       *string `url:"archive"`
-}
-
-// GetSessionHistory List grouped session turn history
-func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionOwnerParams carries the path, query, and header parameters.
-type GetSessionOwnerParams struct {
-	SessionID string `url:"session_id"`
-}
-
-// GetSessionOwner Get a session owner; Global history has an empty workspace id
-func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
-	path := "/api/sessions/{session_id}/owner"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionOwner
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionRecapParams carries the path, query, and header parameters.
-type GetSessionRecapParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-	Limit       *int   `url:"limit"`
 }

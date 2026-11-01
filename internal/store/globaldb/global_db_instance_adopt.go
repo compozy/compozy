@@ -40,6 +40,9 @@ func (r *InstanceRepo) Adopt(ctx context.Context, input agentinstance.Instance, 
 		if err != nil {
 			return err
 		}
+		if err := q.InsertInstanceWakeState(ctx, id); err != nil {
+			return err
+		}
 		stamped, err := q.StampInstanceMainSession(ctx, sqlcgen.StampInstanceMainSessionParams{InstanceID: sql.NullString{String: id, Valid: true}, SessionID: sessionID})
 		if err != nil {
 			return err

@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskDashboardLatencyCardPayload struct {
+	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
+	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
+}
+
 type TaskDashboardParams struct {
 	AllWorkspaces bool       `json:"all_workspaces,omitzero"`
 	WorkspaceIDs  []string   `json:"workspace_ids,omitempty"`
@@ -223,10 +228,4 @@ type TaskNeedsAttentionPayload struct {
 
 type TaskObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type TaskOwnerTotal struct {
-	OwnerKind OwnerKind `json:"owner_kind"`
-	OwnerRef  string    `json:"owner_ref"`
-	Count     int       `json:"count"`
 }

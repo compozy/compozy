@@ -226,6 +226,25 @@ type AgentInstanceAdoptRequest struct {
 	SessionID string `json:"session_id"`
 }
 
+// AgentInstanceCheckDigest is a daemon API value.
+type AgentInstanceCheckDigest struct {
+	ItemKeys    []string `json:"item_keys"`
+	Fingerprint string   `json:"fingerprint"`
+	Diagnostics []string `json:"diagnostics,omitempty"`
+}
+
+// AgentInstanceCheckRequest is a daemon API value.
+type AgentInstanceCheckRequest struct {
+	DryRun bool `json:"dry_run"`
+}
+
+// AgentInstanceCheckResponse is a daemon API value.
+type AgentInstanceCheckResponse struct {
+	Gate         string                    `json:"gate,omitempty"`
+	OccurrenceID string                    `json:"occurrence_id,omitempty"`
+	Digest       *AgentInstanceCheckDigest `json:"digest,omitempty"`
+}
+
 // AgentInstanceCreateRequest is a daemon API value.
 type AgentInstanceCreateRequest struct {
 	Agent     string `json:"agent"`
@@ -236,6 +255,14 @@ type AgentInstanceCreateRequest struct {
 type AgentInstanceListResponse struct {
 	Instances  []AgentInstancePayload `json:"instances"`
 	NextCursor string                 `json:"next_cursor"`
+}
+
+// AgentInstanceOccurrenceResponse is a daemon API value.
+type AgentInstanceOccurrenceResponse struct {
+	State    string `json:"state"`
+	Result   string `json:"result,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	ReportID string `json:"report_id,omitempty"`
 }
 
 // AgentInstancePayload is a daemon API value.
@@ -283,6 +310,11 @@ type AgentInstanceReportsResponse struct {
 // AgentInstanceResponse is a daemon API value.
 type AgentInstanceResponse struct {
 	Instance AgentInstancePayload `json:"instance"`
+}
+
+// AgentInstanceUpdateRequest is a daemon API value.
+type AgentInstanceUpdateRequest struct {
+	ChecksEnabled *bool `json:"checks_enabled"`
 }
 
 // AgentLimitsPayload is a daemon API value.
@@ -416,18 +448,3 @@ type AgentMemoryWriteRequest struct {
 	Content        string `json:"content"`
 	ExpectedDigest string `json:"expected_digest"`
 }
-
-// AgentNotifyRequest is a daemon API value.
-type AgentNotifyRequest struct {
-	Title string `json:"title"`
-	Body  string `json:"body,omitempty"`
-}
-
-// AgentNotifyResponse is a daemon API value.
-type AgentNotifyResponse struct {
-	Outcome      string `json:"outcome"`
-	RetryAfterMS int64  `json:"retry_after_ms,omitzero"`
-}
-
-// AgentOrigin is a daemon API value.
-type AgentOrigin string

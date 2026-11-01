@@ -10,6 +10,72 @@ import (
 	"strings"
 )
 
+// RefreshSessionSoulParams carries the path, query, and header parameters.
+type RefreshSessionSoulParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// RefreshSessionSoul Refresh an idle session's Soul snapshot through body-level CAS
+func (c *Client) RefreshSessionSoul(ctx context.Context, params RefreshSessionSoulParams, body SessionSoulRefreshRequest) (*AgentSoulPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RegisterWindowManagerClientParams carries the path, query, and header parameters.
+type RegisterWindowManagerClientParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RegisterWindowManagerClient Register a window-manager client view
+func (c *Client) RegisterWindowManagerClient(ctx context.Context, params RegisterWindowManagerClientParams, body WindowManagerClientRegistration) (*WindowManagerClientView, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerClientView
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RejectTaskParams carries the path, query, and header parameters.
+type RejectTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RejectTask Reject one approval-gated task
+func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/reject"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RejectTerminalInputRequestParams carries the path, query, and header parameters.
 type RejectTerminalInputRequestParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -381,66 +447,4 @@ func (c *Client) ReorderSessionFolders(ctx context.Context, params ReorderSessio
 type ReorderSessionsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ReorderSessions Set the manual session order in a folder or the workspace root
-func (c *Client) ReorderSessions(ctx context.Context, params ReorderSessionsParams, body ReorderSessionsRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/sessions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderWorkspaceFoldersParams carries the path, query, and header parameters.
-type ReorderWorkspaceFoldersParams struct {
-	Profile *string `url:"profile"`
-}
-
-// ReorderWorkspaceFolders Set the complete workspace folder order
-func (c *Client) ReorderWorkspaceFolders(ctx context.Context, params ReorderWorkspaceFoldersParams, body ReorderWorkspaceFoldersRequest) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-order/folders"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderWorkspacesParams carries the path, query, and header parameters.
-type ReorderWorkspacesParams struct {
-	Profile *string `url:"profile"`
-}
-
-// ReorderWorkspaces Set the manual workspace order in a folder or the root
-func (c *Client) ReorderWorkspaces(ctx context.Context, params ReorderWorkspacesParams, body ReorderWorkspacesRequest) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-order/workspaces"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

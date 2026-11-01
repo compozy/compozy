@@ -241,6 +241,12 @@ func (o soulOverlay) Apply(dst *SoulConfig) {
 }
 
 func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
+	if o.QuietBackoffCap != nil {
+		dst.QuietBackoffCap = *o.QuietBackoffCap
+	}
+	if o.FatigueLimit != nil {
+		dst.FatigueLimit = *o.FatigueLimit
+	}
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
 	}

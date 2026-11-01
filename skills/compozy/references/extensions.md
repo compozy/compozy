@@ -367,3 +367,7 @@ extension manifest hooks with one `agent.retired_entries_ignored`,
 in a `config.toml` (see `references/configuration.md`).
 
 Manage hooks with `compozy__hooks_*` (list/info/events/runs/create/update/delete/enable/disable). Workspace-scoped declarations match the registered workspace ID shown by `compozy workspace info`, the same ID carried by their event payloads. Hook families are documented beside their domain: `loop.*` in `references/loops.md`, and `window_manager.*` in `references/window-management.md`.
+
+The `agent.heartbeat.wake.before` hook accepts `cancel: true` for proactive `timer` and
+`instance_check` sources. Legacy `scheduler`, `manual`, and `harness_reentry` sources ignore
+cancellation. Dry-run checks skip this hook. Cancellation creates no triage occurrence.

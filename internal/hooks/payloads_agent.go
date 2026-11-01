@@ -141,3 +141,9 @@ type SessionHealthUpdateAfterPayload struct {
 	LastPresenceAt      time.Time `json:"last_presence_at"`
 	LastError           string    `json:"last_error,omitempty"`
 }
+
+// AgentHeartbeatWakePatch can veto proactive checks without affecting legacy wake sources.
+type AgentHeartbeatWakePatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+	Cancel bool              `json:"cancel,omitempty"`
+}

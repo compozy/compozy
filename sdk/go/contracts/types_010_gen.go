@@ -4,6 +4,20 @@ package contracts
 
 import "time"
 
+type HeartbeatWakeEventPayload struct {
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id,omitempty"`
+	AgentName         string              `json:"agent_name,omitempty"`
+	SessionID         string              `json:"session_id,omitempty"`
+	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
+	Source            HeartbeatWakeSource `json:"source"`
+	Result            HeartbeatWakeResult `json:"result"`
+	Reason            HeartbeatWakeReason `json:"reason"`
+	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	ExpiresAt         time.Time           `json:"expires_at"`
+}
+
 type HeartbeatWakeReason string
 
 type HeartbeatWakeRequest struct {
@@ -150,12 +164,4 @@ type InitializeRuntime struct {
 
 type InitializeSupports struct {
 	HealthCheck bool `json:"health_check"`
-}
-
-type InputAttachmentMetadata struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	MIME  string `json:"mime"`
-	Bytes int64  `json:"bytes"`
-	Kind  string `json:"kind"`
 }

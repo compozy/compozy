@@ -9,6 +9,70 @@ import (
 	"strings"
 )
 
+// ListOpenAIModels List provider models using the OpenAI-compatible model shape
+func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsParams) (*OpenAIModelListResponse, error) {
+	path := "/api/openai/v1/models"
+	query := url.Values{}
+	if params.ProviderID != nil {
+		query.Set("provider_id", *params.ProviderID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out OpenAIModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListPermissionEntriesParams carries the path, query, and header parameters.
+type ListPermissionEntriesParams struct {
+	Days        *string `url:"days"`
+	Agent       *string `url:"agent"`
+	Unattended  *bool   `url:"unattended"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListPermissionEntries List the newest permission decisions with their initiators
+func (c *Client) ListPermissionEntries(ctx context.Context, params ListPermissionEntriesParams) (*PermissionEntriesResponse, error) {
+	path := "/api/permissions"
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", *params.Days)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Unattended != nil {
+		query.Set("unattended", strconv.FormatBool(*params.Unattended))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out PermissionEntriesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProcessesParams carries the path, query, and header parameters.
+type ListProcessesParams struct {
+	WorkspaceID   *string `url:"workspace_id"`
+	AllWorkspaces *bool   `url:"all_workspaces"`
+	Orphaned      *bool   `url:"orphaned"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // ListProcesses List processes grouped by session, including left-running processes
 func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
 	path := "/api/processes"
@@ -370,74 +434,4 @@ type ListSessionFacetsParams struct {
 	Later         *string   `url:"later"`
 	Profile       *string   `url:"profile"`
 	AllProfiles   *bool     `url:"all_profiles"`
-}
-
-// ListSessionFacets Count session catalog facets
-func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacetsParams) (*SessionCatalogFacetsResponse, error) {
-	path := "/api/sessions/facets"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Subagents != nil {
-		query.Set("subagents", *params.Subagents)
-	}
-	if params.Children != nil {
-		query.Set("children", *params.Children)
-	}
-	if params.Parent != nil {
-		query.Set("parent", *params.Parent)
-	}
-	if params.Root != nil {
-		query.Set("root", *params.Root)
-	}
-	if params.Resumable != nil {
-		query.Set("resumable", strconv.FormatBool(*params.Resumable))
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Later != nil {
-		query.Set("later", *params.Later)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCatalogFacetsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionFoldersParams carries the path, query, and header parameters.
-type ListSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

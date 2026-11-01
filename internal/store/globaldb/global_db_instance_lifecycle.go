@@ -60,7 +60,14 @@ func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinsta
 	if err := r.checkReady(ctx, "pause instance"); err != nil {
 		return agentinstance.Instance{}, err
 	}
-	_, err := r.queries.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{ID: id, PauseReason: reason, UpdatedAt: store.FormatTimestamp(r.now())})
+	err := store.ExecuteWriteOperation(ctx, r.db, "pause instance wake", func(ctx context.Context, tx *store.WriteTx) error {
+		q := sqlcgen.New(tx)
+		if err := q.CancelInstanceWake(ctx, id); err != nil {
+			return err
+		}
+		_, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{ID: id, PauseReason: reason, UpdatedAt: store.FormatTimestamp(r.now())})
+		return err
+	})
 	if err != nil {
 		return agentinstance.Instance{}, err
 	}
@@ -109,7 +116,14 @@ func (r *InstanceRepo) Archive(ctx context.Context, id string) (agentinstance.In
 		return agentinstance.Instance{}, err
 	}
 	now := store.FormatTimestamp(r.now())
-	_, err := r.queries.ArchiveAgentInstance(ctx, sqlcgen.ArchiveAgentInstanceParams{ID: id, ArchivedAt: sql.NullString{String: now, Valid: true}, UpdatedAt: now})
+	err := store.ExecuteWriteOperation(ctx, r.db, "archive instance wake", func(ctx context.Context, tx *store.WriteTx) error {
+		q := sqlcgen.New(tx)
+		if err := q.CancelInstanceWake(ctx, id); err != nil {
+			return err
+		}
+		_, err := q.ArchiveAgentInstance(ctx, sqlcgen.ArchiveAgentInstanceParams{ID: id, ArchivedAt: sql.NullString{String: now, Valid: true}, UpdatedAt: now})
+		return err
+	})
 	if err != nil {
 		return agentinstance.Instance{}, err
 	}

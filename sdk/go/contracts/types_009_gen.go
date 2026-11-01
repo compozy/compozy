@@ -4,6 +4,16 @@ package contracts
 
 import "time"
 
+type GridTile struct {
+	ID       string            `json:"id"`
+	Title    string            `json:"title"`
+	Image    Image             `json:"image"`
+	Badge    *ViewBadge        `json:"badge,omitempty"`
+	Actions  []RowAction       `json:"actions,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
 type HeartbeatActorKind string
 
 type HeartbeatActorPayload struct {
@@ -197,18 +207,4 @@ type HeartbeatWakeDecisionPayload struct {
 	ConfigDigest      string                             `json:"config_digest,omitempty"`
 	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
 	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-type HeartbeatWakeEventPayload struct {
-	ID                string              `json:"id"`
-	WorkspaceID       string              `json:"workspace_id,omitempty"`
-	AgentName         string              `json:"agent_name,omitempty"`
-	SessionID         string              `json:"session_id,omitempty"`
-	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
-	Source            HeartbeatWakeSource `json:"source"`
-	Result            HeartbeatWakeResult `json:"result"`
-	Reason            HeartbeatWakeReason `json:"reason"`
-	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
-	CreatedAt         time.Time           `json:"created_at"`
-	ExpiresAt         time.Time           `json:"expires_at"`
 }

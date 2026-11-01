@@ -20,6 +20,8 @@ func DefaultSoulConfig() SoulConfig {
 // DefaultHeartbeatConfig returns built-in Agent Heartbeat wake-policy limits.
 func DefaultHeartbeatConfig() HeartbeatConfig {
 	return HeartbeatConfig{
+		QuietBackoffCap:              4 * time.Hour,
+		FatigueLimit:                 10,
 		Enabled:                      true,
 		MaxBodyBytes:                 32768,
 		ContextProjectionBytes:       4096,
@@ -39,6 +41,9 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 func (c AgentsConfig) Validate() error {
 	if c.StaysOn.ApprovalTimeout < time.Minute || c.StaysOn.ApprovalTimeout > 72*time.Hour {
 		return fmt.Errorf("agents.stays_on.approval_timeout must be between 1m and 72h")
+	}
+	if c.StaysOn.MaxConcurrentTriage < 1 || c.StaysOn.MaxProposals < 1 || c.StaysOn.MaxProposals > 20 || c.StaysOn.TriageTimeout <= 0 || c.StaysOn.MaxInterval <= 0 {
+		return fmt.Errorf("agents.stays_on requires positive triage limits and max_proposals between 1 and 20")
 	}
 	if c.StaysOn.MaxActiveInstances <= 0 {
 		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
@@ -81,6 +86,12 @@ func (c SoulConfig) Validate() error {
 
 // Validate ensures HEARTBEAT.md limits and timing bounds are internally consistent.
 func (c HeartbeatConfig) Validate() error {
+	if c.QuietBackoffCap <= 0 {
+		return fmt.Errorf("agents.heartbeat.quiet_backoff_cap must be positive")
+	}
+	if c.FatigueLimit < 1 {
+		return fmt.Errorf("agents.heartbeat.fatigue_limit must be positive")
+	}
 	const (
 		maxHeartbeatBodyBytes = int64(1 << 20)
 		minWakeEventRetention = time.Hour

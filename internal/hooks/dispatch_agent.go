@@ -107,19 +107,15 @@ func (h *Hooks) DispatchAgentHeartbeatPolicyResolved(
 }
 
 // DispatchAgentHeartbeatWakeBefore runs the agent.heartbeat.wake.before hook pipeline.
-func (h *Hooks) DispatchAgentHeartbeatWakeBefore(
-	ctx context.Context,
-	payload AgentHeartbeatWakeBeforePayload,
-) (AgentHeartbeatWakeBeforePayload, error) {
-	return h.executeDispatch(
-		ctx,
-		HookAgentHeartbeatWakeBefore,
-		payload,
-		dispatchConfig[AgentHeartbeatWakeBeforePayload, AuthoredContextObservationPatch]{
-			match: matchAgentHeartbeatWakeBefore,
-			apply: applyNoop[AgentHeartbeatWakeBeforePayload, AuthoredContextObservationPatch],
-		},
-	)
+func (h *Hooks) DispatchAgentHeartbeatWakeBefore(ctx context.Context, payload AgentHeartbeatWakeBeforePayload) (AgentHeartbeatWakeBeforePayload, error) {
+	proactive := payload.Source == "timer" || payload.Source == "instance_check"
+	return h.executeDispatch(ctx, HookAgentHeartbeatWakeBefore, payload,
+		dispatchConfig[AgentHeartbeatWakeBeforePayload, AgentHeartbeatWakePatch]{
+			match:   matchAgentHeartbeatWakeBefore,
+			apply:   applyNoop[AgentHeartbeatWakeBeforePayload, AgentHeartbeatWakePatch],
+			denied:  func(patch AgentHeartbeatWakePatch) bool { return proactive && !payload.DryRun && patch.Cancel },
+			denyErr: func(AgentHeartbeatWakeBeforePayload, dispatchReport) error { return ErrHeartbeatWakeCancelled },
+		})
 }
 
 // DispatchAgentHeartbeatWakeAfter runs the agent.heartbeat.wake.after hook dispatch.

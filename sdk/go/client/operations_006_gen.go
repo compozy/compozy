@@ -10,6 +10,15 @@ import (
 	"strings"
 )
 
+// DeliverGlobalWebhookParams carries the path, query, and header parameters.
+type DeliverGlobalWebhookParams struct {
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
 // DeliverGlobalWebhook Deliver one global automation webhook
 func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
 	path := "/api/webhooks/global/{endpoint}"
@@ -427,22 +436,4 @@ func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*Sk
 type EnqueueTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// EnqueueTaskRun Enqueue one task run
-func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

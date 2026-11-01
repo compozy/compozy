@@ -36,7 +36,7 @@ func (a Authority) Authorize(ctx context.Context, actor workspaceaccess.ActorRef
 		return ErrForbidden
 	}
 	switch verb {
-	case "list", "reports", "pause", "archive", "ensure_main", "check", "checks_off":
+	case "list", "reports", "occurrence", "pause", "archive", "ensure_main", "check", "check_dry_run", "checks_off":
 		return nil
 	case "resume":
 		if instance.PauseReason != "manual" && instance.PauseReason != "fatigue" {

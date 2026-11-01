@@ -16,10 +16,12 @@ import (
 )
 
 type AgentInstanceAPI struct {
-	Service   *agentinstance.Service
-	Store     agentinstance.InstanceStore
-	Reports   agentinstance.ReportStore
-	Authority agentinstance.Authority
+	CheckSettings AgentInstanceCheckSettings
+	Checks        AgentInstanceChecker
+	Service       *agentinstance.Service
+	Store         agentinstance.InstanceStore
+	Reports       agentinstance.ReportStore
+	Authority     agentinstance.Authority
 }
 
 func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, bool) {
@@ -77,7 +79,7 @@ func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstanc
 			workspaceaccess.Request{
 				Actor:    actor,
 				Target:   workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
-				ReadOnly: verb == "reports" || verb == "list",
+				ReadOnly: verb == "occurrence" || verb == "reports" || verb == "list" || verb == "check_dry_run",
 				Seam:     workspaceaccess.SeamTool,
 			},
 		)

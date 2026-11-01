@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type SubagentRuntimePayload struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
 type SubagentSettledPayload struct {
 	Event           HookEvent                `json:"event"`
 	Timestamp       time.Time                `json:"timestamp"`
@@ -319,9 +324,4 @@ type TaskDashboardInProgressCardPayload struct {
 	ClaimedRuns  int    `json:"claimed_runs"`
 	QueuedRuns   int    `json:"queued_runs"`
 	HealthStatus string `json:"health_status"`
-}
-
-type TaskDashboardLatencyCardPayload struct {
-	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
-	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
 }

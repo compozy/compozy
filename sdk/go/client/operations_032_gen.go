@@ -8,6 +8,65 @@ import (
 	"strings"
 )
 
+// UnbindGatewayIngress Remove one public ingress confirmation
+func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayIngressParams) (*GatewayIngressUnbindResponse, error) {
+	path := "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}"
+	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
+	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
+	var out GatewayIngressUnbindResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnbindSessionWorktreeParams carries the path, query, and header parameters.
+type UnbindSessionWorktreeParams struct {
+	WorkspaceID        string  `url:"workspace_id"`
+	SessionID          string  `url:"session_id"`
+	Profile            *string `url:"profile"`
+	ExpectedWorktreeID *string `url:"expected_worktree_id"`
+}
+
+// UnbindSessionWorktree Return an idle session to the workspace root in place
+func (c *Client) UnbindSessionWorktree(ctx context.Context, params UnbindSessionWorktreeParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ExpectedWorktreeID != nil {
+		query.Set("expected_worktree_id", *params.ExpectedWorktreeID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UndrainDaemon Resume admission of new work
+func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
+	path := "/api/undrain"
+	var out DrainStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnexposeSkillParams carries the path, query, and header parameters.
+type UnexposeSkillParams struct {
+	Name     string  `url:"name"`
+	Profile  *string `url:"profile"`
+	ForAgent *string `url:"for_agent"`
+}
+
 // UnexposeSkill Remove owned provider-root links for one skill
 func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, body SkillExposureRequest) (*SkillUnexposeResponse, error) {
 	path := "/api/skills/{name}/unexpose"
@@ -96,6 +155,30 @@ func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body
 	}
 	var out AgentResponse
 	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAgentInstanceParams carries the path, query, and header parameters.
+type UpdateAgentInstanceParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateAgentInstance Update instance checks
+func (c *Client) UpdateAgentInstance(ctx context.Context, params UpdateAgentInstanceParams, body AgentInstanceUpdateRequest) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -355,94 +438,4 @@ func (c *Client) UpdateSettingsMarketplace(ctx context.Context, body UpdateSetti
 		return nil, err
 	}
 	return &out, nil
-}
-
-// UpdateSettingsObservability Update the observability settings section
-func (c *Client) UpdateSettingsObservability(ctx context.Context, body UpdateSettingsObservabilityRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/observability"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsPersonaParams carries the path, query, and header parameters.
-type UpdateSettingsPersonaParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateSettingsPersona Update profile-layerable persona defaults
-func (c *Client) UpdateSettingsPersona(ctx context.Context, params UpdateSettingsPersonaParams, body UpdateSettingsPersonaRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/persona"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsProviderUsageParams carries the path, query, and header parameters.
-type UpdateSettingsProviderUsageParams struct {
-	CollectionProfile *string `url:"collection_profile"`
-}
-
-// UpdateSettingsProviderUsage Update the provider usage settings section
-func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, params UpdateSettingsProviderUsageParams, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/provider-usage"
-	query := url.Values{}
-	if params.CollectionProfile != nil {
-		query.Set("collection_profile", *params.CollectionProfile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsRoles Update the background-role routing settings section
-func (c *Client) UpdateSettingsRoles(ctx context.Context, body UpdateSettingsRolesRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/roles"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsShell Update the operator shell settings section
-func (c *Client) UpdateSettingsShell(ctx context.Context, body UpdateSettingsShellRequest) (*SettingsShellMutationResponse, error) {
-	path := "/api/settings/shell"
-	var out SettingsShellMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsSkillsParams carries the path, query, and header parameters.
-type UpdateSettingsSkillsParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	AgentName   *string `url:"agent_name"`
 }

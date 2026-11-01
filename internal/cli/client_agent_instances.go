@@ -50,3 +50,21 @@ func (c *daemonClient) AgentInstanceReports(ctx context.Context, id string, quer
 	err := c.doJSON(ctx, http.MethodGet, "/api/agent-instances/"+url.PathEscape(id)+"/reports", query, nil, &result)
 	return result, err
 }
+
+type agentInstanceChecksClient interface {
+	CheckAgentInstance(context.Context, string, bool) (contract.AgentInstanceCheckResponse, error)
+	SetAgentInstanceChecks(context.Context, string, bool) (contract.AgentInstanceResponse, error)
+}
+
+var _ agentInstanceChecksClient = (*daemonClient)(nil)
+
+func (c *daemonClient) CheckAgentInstance(ctx context.Context, id string, dry bool) (contract.AgentInstanceCheckResponse, error) {
+	var result contract.AgentInstanceCheckResponse
+	err := c.doJSON(ctx, http.MethodPost, "/api/agent-instances/"+url.PathEscape(id)+"/check", nil, contract.AgentInstanceCheckRequest{DryRun: dry}, &result)
+	return result, err
+}
+func (c *daemonClient) SetAgentInstanceChecks(ctx context.Context, id string, enabled bool) (contract.AgentInstanceResponse, error) {
+	var result contract.AgentInstanceResponse
+	err := c.doJSON(ctx, http.MethodPatch, "/api/agent-instances/"+url.PathEscape(id), nil, contract.AgentInstanceUpdateRequest{ChecksEnabled: &enabled}, &result)
+	return result, err
+}

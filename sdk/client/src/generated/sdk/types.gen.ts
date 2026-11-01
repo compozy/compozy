@@ -192,6 +192,22 @@ export type AgentInstanceAdoptRequest = {
   session_id: string;
 };
 
+export type AgentInstanceCheckDigest = {
+  diagnostics?: Array<string>;
+  fingerprint: string;
+  item_keys: Array<string>;
+};
+
+export type AgentInstanceCheckRequest = {
+  dry_run: boolean;
+};
+
+export type AgentInstanceCheckResponse = {
+  digest?: AgentInstanceCheckDigest | null;
+  gate?: string;
+  occurrence_id?: string;
+};
+
 export type AgentInstanceCreateRequest = {
   agent: string;
   workspace: string;
@@ -200,6 +216,13 @@ export type AgentInstanceCreateRequest = {
 export type AgentInstanceListResponse = {
   instances: Array<AgentInstancePayload>;
   next_cursor: string;
+};
+
+export type AgentInstanceOccurrenceResponse = {
+  reason?: string;
+  report_id?: string;
+  result?: string;
+  state: string;
 };
 
 export type AgentInstancePayload = {
@@ -242,6 +265,10 @@ export type AgentInstanceReportsResponse = {
 
 export type AgentInstanceResponse = {
   instance: AgentInstancePayload;
+};
+
+export type AgentInstanceUpdateRequest = {
+  checks_enabled: boolean | null;
 };
 
 export type AgentLimitsPayload = {
@@ -12839,6 +12866,136 @@ export type GetAgentInstanceResponses = {
 
 export type GetAgentInstanceResponse = GetAgentInstanceResponses[keyof GetAgentInstanceResponses];
 
+export type UpdateAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceUpdateRequest;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}";
+};
+
+export type UpdateAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type UpdateAgentInstanceError = UpdateAgentInstanceErrors[keyof UpdateAgentInstanceErrors];
+
+export type UpdateAgentInstanceResponses = {
+  /**
+   * Updated
+   */
+  200: AgentInstanceResponse;
+};
+
+export type UpdateAgentInstanceResponse =
+  UpdateAgentInstanceResponses[keyof UpdateAgentInstanceResponses];
+
+export type CheckAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceCheckRequest;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/check";
+};
+
+export type CheckAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type CheckAgentInstanceError = CheckAgentInstanceErrors[keyof CheckAgentInstanceErrors];
+
+export type CheckAgentInstanceResponses = {
+  /**
+   * Gate or dry-run result
+   */
+  200: AgentInstanceCheckResponse;
+  /**
+   * Check admitted
+   */
+  202: AgentInstanceCheckResponse;
+};
+
+export type CheckAgentInstanceResponse =
+  CheckAgentInstanceResponses[keyof CheckAgentInstanceResponses];
+
 export type EnsureAgentInstanceMainData = {
   body?: never;
   path: {
@@ -12899,6 +13056,71 @@ export type EnsureAgentInstanceMainResponses = {
 
 export type EnsureAgentInstanceMainResponse =
   EnsureAgentInstanceMainResponses[keyof EnsureAgentInstanceMainResponses];
+
+export type GetAgentInstanceOccurrenceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+    /**
+     * Occurrence ID
+     */
+    occurrence: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/occurrences/{occurrence}";
+};
+
+export type GetAgentInstanceOccurrenceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentInstanceOccurrenceError =
+  GetAgentInstanceOccurrenceErrors[keyof GetAgentInstanceOccurrenceErrors];
+
+export type GetAgentInstanceOccurrenceResponses = {
+  /**
+   * Occurrence
+   */
+  200: AgentInstanceOccurrenceResponse;
+};
+
+export type GetAgentInstanceOccurrenceResponse =
+  GetAgentInstanceOccurrenceResponses[keyof GetAgentInstanceOccurrenceResponses];
 
 export type PauseAgentInstanceData = {
   body?: never;

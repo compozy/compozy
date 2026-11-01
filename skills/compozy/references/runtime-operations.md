@@ -1791,3 +1791,9 @@ observation; unknown owners need this daemon's home and profile markers.
 Shutdown keeps detached session descendants. The daemon still closes native terminals during
 shutdown; PTY survival across restart is outside this feature. Keeping never prevents a process
 from exiting or receiving its parent's or terminal lifecycle's signals.
+
+Operator HTTP/UDS clients can call `POST /api/agent-instances/{id}/check` with
+`{"dry_run": false}`. Admission returns 202 and `occurrence_id`; a gate returns 200 and
+`gate`. With `dry_run: true`, the service admits nothing and skips hooks. Authenticated
+agents can dry-run their own instance; this HTTP/UDS route requires operator identity
+for real checks. The same profile and workspace boundaries as instance reads apply.

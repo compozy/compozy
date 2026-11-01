@@ -1100,6 +1100,53 @@ func TestAgentIdentityFlags(t *testing.T) {
 
 func TestAgentInstanceCommands(t *testing.T) {
 	t.Parallel()
+	for _, command := range []string{"check", "occurrence"} {
+		t.Run("Should read the completed occurrence through "+command, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				body := `{"state":"finished","result":"quiet","reason":"quiet"}`
+				switch r.URL.Path {
+				case "/api/agent-instances":
+					body = `{"instances":[{"id":"ainst-test"}]}`
+				case "/api/agent-instances/ainst-test/check":
+					w.WriteHeader(202)
+					body = `{"occurrence_id":"occ-test"}`
+				case "/api/agent-instances/ainst-test/occurrences/occ-test":
+				default:
+					t.Errorf("unexpected path: %s", r.URL.Path)
+					w.WriteHeader(404)
+				}
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			target, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})}}
+			args := []string{"agent", "instance", "occurrence", "occ-test", "-o", "json"}
+			if command == "check" {
+				args = []string{"agent", "instance", "check", "ainst-test", "--global", "-o", "json"}
+			}
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result contract.AgentInstanceOccurrenceResponse
+			if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.State != "finished" || result.Result != "quiet" {
+				t.Fatalf("result=%+v", result)
+			}
+		})
+	}
 	t.Run("Should create a global instance through the HTTP client", func(t *testing.T) {
 		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

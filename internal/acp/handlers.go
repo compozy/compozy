@@ -217,6 +217,9 @@ func (p *AgentProcess) resolvePermissionRequest(
 	request acpsdk.RequestPermissionRequest,
 	cancellationActor string,
 ) (acpsdk.RequestPermissionResponse, error) {
+	if p.executionPolicy == ExecutionPolicyTriage {
+		return p.triagePermission(request), nil
+	}
 	turnID := p.activeTurnID()
 	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)

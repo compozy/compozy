@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type SessionRuntimeClearParams struct {
+	WorkspaceID      string `json:"workspace_id"`
+	SessionID        string `json:"session_id"`
+	ExpectedRevision *int64 `json:"expected_revision"`
+}
+
 type SessionRuntimePayload struct {
 	Status            SessionRuntimeStatus           `json:"status"`
 	Transition        SessionRuntimeTransition       `json:"transition,omitempty"`
@@ -235,10 +241,3 @@ type SkillActivationPayload struct {
 }
 
 type SkillActivationReasonCode string
-
-type SkillActivationReasonPayload struct {
-	Gate    string                    `json:"gate"`
-	Code    SkillActivationReasonCode `json:"code"`
-	Missing []string                  `json:"missing,omitempty"`
-	Message string                    `json:"message"`
-}

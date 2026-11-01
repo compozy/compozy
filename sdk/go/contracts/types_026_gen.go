@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type WindowManagerActor struct {
+	Kind string `json:"kind,omitempty"`
+	ID   string `json:"id,omitempty"`
+}
+
 type WindowManagerChanges struct {
 	DesktopIDs     []string `json:"desktop_ids,omitempty"`
 	WindowIDs      []string `json:"window_ids,omitempty"`

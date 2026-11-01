@@ -48,7 +48,33 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "154aa419be6326313330186d9d5287ba94fc6f1b18754c565f82bb4fe8b2f567",
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_check",
+    "native_name": "agent_instance_check",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_checks",
+    "native_name": "agent_instance_checks",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -61,7 +87,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "154aa419be6326313330186d9d5287ba94fc6f1b18754c565f82bb4fe8b2f567",
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -74,7 +100,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "154aa419be6326313330186d9d5287ba94fc6f1b18754c565f82bb4fe8b2f567",
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -87,7 +113,20 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3f3e8593d04cb0c00f2dc70095bf03a602a97c60eb9b4ed4d0efd6b6eb07324c",
+    "input_schema_digest": "db9110c884940e39699fb7a6de20b8f1dff2d56c20fa9b1223d4c3b06122a20a",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_occurrence",
+    "native_name": "agent_instance_occurrence",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "db9110c884940e39699fb7a6de20b8f1dff2d56c20fa9b1223d4c3b06122a20a",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -100,7 +139,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "154aa419be6326313330186d9d5287ba94fc6f1b18754c565f82bb4fe8b2f567",
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -113,7 +152,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3f3e8593d04cb0c00f2dc70095bf03a602a97c60eb9b4ed4d0efd6b6eb07324c",
+    "input_schema_digest": "db9110c884940e39699fb7a6de20b8f1dff2d56c20fa9b1223d4c3b06122a20a",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -126,7 +165,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "154aa419be6326313330186d9d5287ba94fc6f1b18754c565f82bb4fe8b2f567",
+    "input_schema_digest": "ed4a5d4c10657bba829582ffc343bd581a3697a08ae77a72b690a22304e03ad5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

@@ -25,7 +25,15 @@ func (m *Manager) resolveSessionStartRuntime(
 	if spec.startAction == sessionStartActionResume && spec.acceptedRoute != nil {
 		m.applyResumeRouteAffinity(ctx, spec, agentDef)
 	}
-	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
+	runtimeConfig := spec.workspace.Config
+	if spec.sessionType == SessionTypeTriage {
+		runtimeConfig.Permissions.ProviderFullAccess = false
+		runtimeConfig.Permissions.Mode = compozyconfig.PermissionModeApproveReads
+		spec.permissions = compozyconfig.PermissionModeApproveReads
+		agentDef = compozyconfig.CloneAgentDef(agentDef)
+		agentDef.Permissions = string(compozyconfig.PermissionModeApproveReads)
+	}
+	resolved, err := runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
 		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort, Command: spec.command,
 		SessionEnv: spec.sessionEnv,
 	})

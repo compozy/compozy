@@ -23,3 +23,14 @@ and resume from the menu, archive and confirm the session returns to history, an
 
 QA impact 2026-11-01 (stays-on F1): built against the `_dx.md` contract with typed adapters and mocks,
 before those routes merged. Focused suites own the states. Not walked.
+
+Proactive core follow-up (2026-11-01): use CLI `agent instance check --dry-run`, then a real
+check with `--no-wait` and read its occurrence. Confirm one run when timer and manual check
+race, and unchanged timer cadence for an early manual check. Disable checks, restart, and
+verify no wake; enable and verify one-cadence scheduling. A quiet check leaves no hidden
+session; a proposal produces one report and notification without a main-session turn.
+Ten consecutive failures pause with `fatigue`. Keep the existing manual QA status until
+these controls and notification delivery have been walked in an isolated lab.
+Automated evidence owners: `TestInstanceManualCheckRace`, `TestInstanceWakeMigration`,
+`TestInstanceCheckFatigue`, `TestTriageDispatcher`, `TestInstanceReportPublication`, and
+`TestAgentInstanceCommands`.

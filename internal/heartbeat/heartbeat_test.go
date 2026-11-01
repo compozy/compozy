@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -846,4 +847,180 @@ func diagnosticsContain(list []Diagnostic, needle string) bool {
 		}
 	}
 	return false
+}
+
+func TestCollectDigest(t *testing.T) {
+	t.Run("Should use all five collectors when the policy omits context", func(t *testing.T) {
+		t.Parallel()
+		root, source := heartbeatWorkspace(t)
+		policy, err := Parse(t.Context(), ParseRequest{SourcePath: source, WorkspaceRoot: root, Content: []byte("Check pending work."), Config: compozyconfig.DefaultHeartbeatConfig()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		scope := CollectorScope{ProfileID: "p", MainSessionID: "main", Now: now}
+		facts := CollectorFacts{Tasks: []TaskFact{{ID: "task", ProfileID: "p", OwnerKind: "agent_session", OwnerSessionID: "main", Status: "blocked"}}, Sessions: []SessionFact{{ID: "session", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 1}}, Automations: []AutomationFact{{ID: "auto", ProfileID: "p", Status: "failed", Cursor: "1"}}, Monitors: []MonitorFact{{ID: "monitor", SessionID: "main", Fired: true}}}
+		digest, err := CollectDigest(scope, facts, policy.Preferences.Context.Include, "policy", "Check pending work.")
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys := make([]string, 0, len(digest.Items))
+		for _, item := range digest.Items {
+			keys = append(keys, item.Key)
+		}
+		for _, key := range []string{"task:task:blocked", "health:session:stale", "idle:session:1", "auto:auto", "monitor:monitor"} {
+			if !slices.Contains(keys, key) {
+				t.Fatalf("missing %s in %v", key, keys)
+			}
+		}
+	})
+	t.Run("Should enforce scope and exclude the instance chain and hidden sessions", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		scope := CollectorScope{ProfileID: "p", MainSessionID: "main", ChainSessionIDs: []string{"old"}, Now: now}
+		facts := CollectorFacts{
+			Tasks: []TaskFact{
+				{ID: "owned", ProfileID: "p", OwnerKind: "agent_session", OwnerSessionID: "old", Status: "blocked"},
+				{ID: "pool", ProfileID: "p", Status: "blocked"},
+				{ID: "foreign", ProfileID: "q", OwnerKind: "agent_session", OwnerSessionID: "old", Status: "blocked"},
+			},
+			Sessions: []SessionFact{
+				{ID: "main", ProfileID: "p", Health: "dead"},
+				{ID: "old", ProfileID: "p", Health: "dead"},
+				{ID: "hidden", ProfileID: "p", Health: "dead", Hidden: true},
+				{ID: "visible", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 4},
+				{ID: "workspace", ProfileID: "p", WorkspaceID: "w", Health: "dead"},
+			},
+			Monitors: []MonitorFact{{ID: "own", SessionID: "main", Fired: true}, {ID: "other", SessionID: "old", Fired: true}},
+		}
+		got, err := CollectDigest(scope, facts, nil, "policy", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []DigestItem{{Key: "health:visible:stale"}, {Key: "idle:visible:4"}, {Key: "monitor:own"}, {Key: "task:owned:blocked"}}
+		if !slices.Equal(got.Items, want) {
+			t.Fatalf("items=%v want=%v", got.Items, want)
+		}
+		scope.Unrestricted = true
+		scope.ReachableWorkspaces = []string{"w"}
+		expanded, err := CollectDigest(scope, facts, []string{"session_health", "unknown"}, "policy", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(expanded.Items) != 2 || len(expanded.Diagnostics) != 1 {
+			t.Fatalf("expanded=%+v", expanded)
+		}
+		scope.WorkspaceID = "w"
+		restricted, err := CollectDigest(scope, facts, []string{"session_health"}, "policy", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(restricted.Items) != 1 || restricted.Items[0].Key != "health:workspace:dead" {
+			t.Fatalf("restricted=%+v", restricted)
+		}
+	})
+	t.Run("Should cap failures oldest first and advance only through included facts", func(t *testing.T) {
+		t.Parallel()
+		scope := CollectorScope{ProfileID: "p"}
+		facts := CollectorFacts{}
+		for i := 15; i > 0; i-- {
+			id := fmt.Sprintf("%02d", i)
+			facts.Automations = append(facts.Automations, AutomationFact{ID: id, ProfileID: "p", Status: "failed", Cursor: id})
+		}
+		first, err := CollectDigest(scope, facts, nil, "p", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(first.Items) != 10 || first.AutomationCursor != "10" {
+			t.Fatalf("first=%+v", first)
+		}
+		slices.Reverse(facts.Automations)
+		reordered, err := CollectDigest(scope, facts, nil, "p", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.Fingerprint != reordered.Fingerprint {
+			t.Fatal("input ordering changed fingerprint")
+		}
+		scope.AutomationCursor = first.AutomationCursor
+		second, err := CollectDigest(scope, facts, nil, "p", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(second.Items) != 5 || second.AutomationCursor != "15" {
+			t.Fatalf("second=%+v", second)
+		}
+		changed, err := CollectDigest(scope, facts, nil, "p", "new standing instruction")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed.Fingerprint == second.Fingerprint {
+			t.Fatal("instructions must change fingerprint")
+		}
+	})
+}
+
+func TestParseTriageReply(t *testing.T) {
+	t.Run("Should reject responses outside the proposal contract", func(t *testing.T) {
+		t.Parallel()
+		for _, reply := range []string{"", "nothing_to_report", "[]", "null", "{}", `{"proposals":null}`, `{"proposals":[{"title":"x"}]}`, `{"proposals":[],"extra":true}`, `{"proposals":[]} {"proposals":[]}`, "Explanation\nNOTHING_TO_REPORT", `{"proposals":[],"proposals":[]}`} {
+			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
+				t.Errorf("reply %q: %v", reply, err)
+			}
+		}
+	})
+	t.Run("Should accept silence and a single JSON fence", func(t *testing.T) {
+		t.Parallel()
+		for _, reply := range []string{"  NOTHING_TO_REPORT\n", "```json\n{\"proposals\":[]}\n```"} {
+			proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
+			if err != nil || len(proposals) != 0 {
+				t.Fatalf("proposals=%v error=%v", proposals, err)
+			}
+		}
+	})
+	t.Run("Should cap proposals and retain only unique digest keys", func(t *testing.T) {
+		t.Parallel()
+		digest := CheckDigest{Items: []DigestItem{{Key: "b"}, {Key: "a"}}}
+		proposals, err := ParseTriageReply(`{"proposals":[{"title":"first","body":"details","item_keys":["b","foreign","a","b"]},{"title":"second","body":"ignored","item_keys":[]}]}`, digest, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(proposals) != 1 || proposals[0].Title != "first" || !slices.Equal(proposals[0].ItemKeys, []string{"a", "b"}) {
+			t.Fatalf("proposals=%+v", proposals)
+		}
+	})
+}
+
+func TestTriageReplyOutcome(t *testing.T) {
+	for _, tc := range []struct{ name, reply, result, reason string }{
+		{"Should finish silence without a report", "NOTHING_TO_REPORT", "quiet", "quiet"},
+		{"Should publish valid proposals", `{"proposals":[{"title":"Investigate","body":"A task is blocked.","item_keys":[]}]}`, "reported", "reported"},
+		{"Should report malformed output as failure", "not json", "failed", "triage_output_invalid"},
+		{"Should reject oversized report payloads", `{"proposals":[{"title":"Title","body":"` + strings.Repeat("x", 65536) + `","item_keys":[]}]}`, "failed", "triage_output_invalid"},
+		{"Should reject empty proposal text before persistence", `{"proposals":[{"title":" ","body":"details","item_keys":[]}]}`, "failed", "triage_output_invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			outcome := TriageReplyOutcome(tc.reply, CheckDigest{}, 2)
+			if outcome.Result != tc.result || outcome.Reason != tc.reason {
+				t.Fatalf("outcome=%+v", outcome)
+			}
+			if tc.result == "quiet" {
+				if outcome.Report != nil {
+					t.Fatal("quiet result produced a report")
+				}
+				return
+			}
+			if outcome.Report == nil {
+				t.Fatal("missing report")
+			}
+			outcome.Report.SourceKey = "occ:test"
+			if err := outcome.Report.Validate(); err != nil {
+				t.Fatalf("unpersistable report: %v", err)
+			}
+			if tc.result == "failed" && !strings.Contains(string(outcome.Report.Payload), tc.reason) {
+				t.Fatalf("failure reason lost: %s", outcome.Report.Payload)
+			}
+		})
+	}
 }

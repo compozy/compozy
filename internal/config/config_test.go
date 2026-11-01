@@ -595,6 +595,27 @@ func TestSoulConfigValidation(t *testing.T) {
 }
 
 func TestHeartbeatConfigDefaultsAndValidation(t *testing.T) {
+	t.Run("Should default merge and validate the fatigue limit", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultHeartbeatConfig()
+		if cfg.FatigueLimit != 10 {
+			t.Fatalf("default fatigue limit=%d", cfg.FatigueLimit)
+		}
+		limit := 3
+		heartbeatOverlay{FatigueLimit: &limit}.Apply(&cfg)
+		if cfg.FatigueLimit != 3 {
+			t.Fatalf("merged fatigue limit=%d", cfg.FatigueLimit)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		limit = 0
+		heartbeatOverlay{FatigueLimit: &limit}.Apply(&cfg)
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("accepted zero fatigue limit")
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should include built in heartbeat defaults", func(t *testing.T) {
@@ -3210,6 +3231,28 @@ func TestStaysOnApprovalTimeout(t *testing.T) {
 			cfg.Agents.StaysOn.ApprovalTimeout = wait
 			if err := cfg.Agents.Validate(); err == nil {
 				t.Fatalf("accepted invalid wait %v", wait)
+			}
+		}
+	})
+}
+
+func TestStaysOnTriageConfiguration(t *testing.T) {
+	t.Run("Should reject unsafe triage limits while accepting defaults", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		if err := cfg.Agents.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		for _, mutate := range []func(*StaysOnConfig){
+			func(c *StaysOnConfig) { c.MaxConcurrentTriage = 0 },
+			func(c *StaysOnConfig) { c.MaxProposals = 21 },
+			func(c *StaysOnConfig) { c.TriageTimeout = 0 },
+			func(c *StaysOnConfig) { c.MaxInterval = -time.Second },
+		} {
+			candidate := cfg.Agents
+			mutate(&candidate.StaysOn)
+			if candidate.Validate() == nil {
+				t.Fatalf("invalid limits accepted: %+v", candidate.StaysOn)
 			}
 		}
 	})

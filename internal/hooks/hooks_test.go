@@ -2089,3 +2089,37 @@ func TestDispatchCompactionObservationPatches(t *testing.T) {
 		})
 	}
 }
+
+func TestHeartbeatWakeCancellation(t *testing.T) {
+	for _, tc := range []struct {
+		name, source   string
+		dryRun, denied bool
+	}{
+		{name: "Should veto timer checks", source: "timer", denied: true},
+		{name: "Should veto explicit checks", source: "instance_check", denied: true},
+		{name: "Should ignore cancellation for scheduler wakes", source: "scheduler"},
+		{name: "Should ignore cancellation for manual wakes", source: "manual"},
+		{name: "Should ignore cancellation for harness wakes", source: "harness_reentry"},
+		{name: "Should ignore cancellation for dry runs", source: "timer", dryRun: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			hooks := newTestHooks(t,
+				WithNativeDeclarations([]HookDecl{{Name: "veto", Event: HookAgentHeartbeatWakeBefore, Mode: HookModeSync, ExecutorKind: HookExecutorNative}}),
+				WithExecutorResolver(testExecutorResolver(map[string]Executor{"veto": NewTypedNativeExecutor(func(context.Context, RegisteredHook, AgentHeartbeatWakeBeforePayload) (AgentHeartbeatWakePatch, error) {
+					return AgentHeartbeatWakePatch{Cancel: true}, nil
+				})})),
+			)
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			_, err := hooks.DispatchAgentHeartbeatWakeBefore(t.Context(), AgentHeartbeatWakeBeforePayload{Source: tc.source, DryRun: tc.dryRun})
+			if errors.Is(err, ErrHeartbeatWakeCancelled) != tc.denied {
+				t.Fatalf("denied=%v error=%v", tc.denied, err)
+			}
+			if !tc.denied && err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

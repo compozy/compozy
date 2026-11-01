@@ -10,6 +10,27 @@ import (
 	"strings"
 )
 
+// GetAgentDefinitionSoul Inspect the resolved Soul read model for an agent definition
+func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefinitionSoulParams) (*AgentSoulPayload, error) {
+	path := "/api/agents/{name}/soul"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetAgentHeartbeatParams carries the path, query, and header parameters.
 type GetAgentHeartbeatParams struct {
 	Name        string  `url:"name"`
@@ -96,6 +117,32 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 		path += "?" + query.Encode()
 	}
 	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceOccurrenceParams carries the path, query, and header parameters.
+type GetAgentInstanceOccurrenceParams struct {
+	ID         string  `url:"id"`
+	Occurrence string  `url:"occurrence"`
+	Profile    *string `url:"profile"`
+}
+
+// GetAgentInstanceOccurrence Read an instance check occurrence
+func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgentInstanceOccurrenceParams) (*AgentInstanceOccurrenceResponse, error) {
+	path := "/api/agent-instances/{id}/occurrences/{occurrence}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{occurrence}", url.PathEscape(params.Occurrence))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceOccurrenceResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -394,42 +441,4 @@ func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetExtensionInventoryParams carries the path, query, and header parameters.
-type GetExtensionInventoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtensionInventory List shipped and live resources for one extension
-func (c *Client) GetExtensionInventory(ctx context.Context, params GetExtensionInventoryParams) (*ExtensionInventoryPayload, error) {
-	path := "/api/extensions/{name}/inventory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInventoryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionLogsParams carries the path, query, and header parameters.
-type GetExtensionLogsParams struct {
-	Name        string  `url:"name"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	Follow      *string `url:"follow"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
 }

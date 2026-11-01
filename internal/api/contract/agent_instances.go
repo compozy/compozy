@@ -52,3 +52,28 @@ type AgentInstanceProposal struct {
 	Body     string   `json:"body"`
 	ItemKeys []string `json:"item_keys"`
 }
+
+type AgentInstanceCheckRequest struct {
+	DryRun bool `json:"dry_run"`
+}
+type AgentInstanceCheckResponse struct {
+	Gate         string                    `json:"gate,omitempty"`
+	OccurrenceID string                    `json:"occurrence_id,omitempty"`
+	Digest       *AgentInstanceCheckDigest `json:"digest,omitempty"`
+}
+type AgentInstanceCheckDigest struct {
+	ItemKeys    []string `json:"item_keys"`
+	Fingerprint string   `json:"fingerprint"`
+	Diagnostics []string `json:"diagnostics,omitempty"`
+}
+
+type AgentInstanceUpdateRequest struct {
+	ChecksEnabled *bool `json:"checks_enabled"`
+}
+
+type AgentInstanceOccurrenceResponse struct {
+	State    string `json:"state"`
+	Result   string `json:"result,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	ReportID string `json:"report_id,omitempty"`
+}

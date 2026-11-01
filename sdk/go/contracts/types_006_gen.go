@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type ContextBlock struct {
+	Kind     string            `json:"kind,omitempty"`
+	Text     string            `json:"text,omitempty"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}
+
 type ContextCompactionPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -258,23 +264,4 @@ type DescribeGatewayRequirement struct {
 type DescribeHookEvent struct {
 	Event   HookEvent `json:"event"`
 	Profile string    `json:"profile,omitempty"`
-}
-
-type DescribePayload struct {
-	Name             string                           `json:"name"`
-	Version          string                           `json:"version"`
-	Description      string                           `json:"description,omitempty"`
-	Provides         []string                         `json:"provides"`
-	Permissions      []string                         `json:"permissions"`
-	RequiresEnv      []string                         `json:"requires_env,omitempty"`
-	Profiles         []DescribeProfile                `json:"profiles,omitempty"`
-	Resources        DescribeResources                `json:"resources"`
-	Subprocess       DescribeSubprocess               `json:"subprocess"`
-	Gateway          *DescribeGatewayRequirement      `json:"gateway,omitempty"`
-	Tools            []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents       []DescribeHookEvent              `json:"hook_events,omitempty"`
-	WatchSourceKinds []string                         `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews  []string                         `json:"cmd_palette_views,omitempty"`
-	CommandGroups    []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
-	SDK              DescribeSDKInfo                  `json:"sdk"`
 }

@@ -133,6 +133,9 @@ import type {
   CancelWorktreeExitActionData,
   CancelWorktreeExitActionErrors,
   CancelWorktreeExitActionResponses,
+  CheckAgentInstanceData,
+  CheckAgentInstanceErrors,
+  CheckAgentInstanceResponses,
   CheckSettingsUpdateData,
   CheckSettingsUpdateErrors,
   CheckSettingsUpdateResponses,
@@ -416,6 +419,9 @@ import type {
   GetAgentHeartbeatStatusResponses,
   GetAgentInstanceData,
   GetAgentInstanceErrors,
+  GetAgentInstanceOccurrenceData,
+  GetAgentInstanceOccurrenceErrors,
+  GetAgentInstanceOccurrenceResponses,
   GetAgentInstanceResponses,
   GetAgentMeData,
   GetAgentMeErrors,
@@ -1439,6 +1445,9 @@ import type {
   UnregisterWindowManagerClientResponses,
   UpdateAgentData,
   UpdateAgentErrors,
+  UpdateAgentInstanceData,
+  UpdateAgentInstanceErrors,
+  UpdateAgentInstanceResponses,
   UpdateAgentResponses,
   UpdateAppTokenData,
   UpdateAppTokenErrors,
@@ -1690,6 +1699,50 @@ export class agents extends HeyApiClient {
   }
 
   /**
+   * Update instance checks
+   */
+  public updateAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<UpdateAgentInstanceData, ThrowOnError>
+  ): RequestResult<UpdateAgentInstanceResponses, UpdateAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      UpdateAgentInstanceResponses,
+      UpdateAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Check an agent instance
+   */
+  public checkAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<CheckAgentInstanceData, ThrowOnError>
+  ): RequestResult<CheckAgentInstanceResponses, CheckAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CheckAgentInstanceResponses,
+      CheckAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/check",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Ensure the main session exists
    */
   public ensureAgentInstanceMain<ThrowOnError extends boolean = true>(
@@ -1708,6 +1761,29 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agent-instances/{id}/ensure-main",
+      ...options,
+    });
+  }
+
+  /**
+   * Read an instance check occurrence
+   */
+  public getAgentInstanceOccurrence<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentInstanceOccurrenceData, ThrowOnError>
+  ): RequestResult<
+    GetAgentInstanceOccurrenceResponses,
+    GetAgentInstanceOccurrenceErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentInstanceOccurrenceResponses,
+      GetAgentInstanceOccurrenceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/occurrences/{occurrence}",
       ...options,
     });
   }

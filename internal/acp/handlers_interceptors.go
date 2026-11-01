@@ -59,6 +59,9 @@ func (p *AgentProcess) interceptWriteTextFileRequest(
 	ctx context.Context,
 	request acpsdk.WriteTextFileRequest,
 ) (acpsdk.WriteTextFileRequest, error) {
+	if p != nil && p.executionPolicy == ExecutionPolicyTriage {
+		return acpsdk.WriteTextFileRequest{}, ErrPermissionDenied
+	}
 	if p == nil || p.toolGateway == nil {
 		request.Path = strings.TrimSpace(request.Path)
 		return request, nil
@@ -99,6 +102,9 @@ func (p *AgentProcess) interceptCreateTerminalRequest(
 	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalRequest, error) {
+	if p != nil && p.executionPolicy == ExecutionPolicyTriage {
+		return acpsdk.CreateTerminalRequest{}, ErrPermissionDenied
+	}
 	if p == nil || p.toolGateway == nil {
 		request.Command = strings.TrimSpace(request.Command)
 		request.Args = cloneNonEmptyStringSlice(request.Args)

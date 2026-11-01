@@ -5221,6 +5221,8 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"park_until",
 				"later_returned_at",
 				"instance_id",
+				"initiator_kind",
+				"initiator_id",
 			},
 		)
 	})

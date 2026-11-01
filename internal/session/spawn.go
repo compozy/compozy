@@ -163,6 +163,9 @@ func (m *Manager) prepareSpawn(
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
+	if parent.Type == SessionTypeTriage {
+		return SpawnOpts{}, nil, nil, acp.ErrPermissionDenied
+	}
 	if normalized.SpawnRole == store.SubagentSpawnRole {
 		if err := m.validateSubagentSpawn(parent, &normalized); err != nil {
 			return SpawnOpts{}, nil, nil, err

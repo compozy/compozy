@@ -132,6 +132,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"listSessionFolders",
 			"listSessionInputs",
 			"listSessionInteractions",
+			"listSessionPendingInteractions",
 			"listSessionMonitors",
 			"listSessionSubagents",
 			"listSessionTools",
@@ -207,6 +208,8 @@ func TestAppAccessPolicy(t *testing.T) {
 		},
 		AppAccessDenied: {
 			"getAgentMemory", "putAgentMemory", "addAgentMemory", "replaceAgentMemory", "removeAgentMemory", "searchAgentMemory", "validateAgentMemory", "listAgentMemoryHistory", "rollbackAgentMemory",
+			"createAgentInstance", "listAgentInstances", "adoptAgentInstance", "getAgentInstance", "pauseAgentInstance", "resumeAgentInstance", "ensureAgentInstanceMain", "archiveAgentInstance", "listAgentInstanceReports", "checkAgentInstance", "updateAgentInstance", "getAgentInstanceOccurrence",
+			"getPermissionRollup", "listPermissionEntries",
 			"listProcesses", "terminateProcesses",
 			"listTerminalsAggregate",
 			"streamTerminalsAggregate",

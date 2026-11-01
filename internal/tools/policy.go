@@ -104,6 +104,7 @@ type SessionToolPolicy struct {
 
 // PolicyInputs contains the config-neutral inputs for effective policy.
 type PolicyInputs struct {
+	TriageReadOnly       bool
 	ToolsDisabled        bool
 	SystemPermissionMode PermissionMode
 	ExternalDefault      ExternalDefault

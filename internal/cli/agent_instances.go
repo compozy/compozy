@@ -12,14 +12,19 @@ import (
 
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "instance", Short: "Manage stays-on agent instances"}
-	for _, action := range []string{"create", "list", "show", "pause", "resume", "archive", "adopt", "ensure-main", "reports"} {
+	for _, action := range []string{"create", "list", "show", "pause", "resume", "archive", "adopt", "ensure-main", "reports", "check"} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
+	checks := &cobra.Command{Use: "checks", Short: "Turn proactive checks on or off"}
+	for _, action := range []string{"on", "off"} {
+		checks.AddCommand(newAgentInstanceAction(deps, action))
+	}
+	parent.AddCommand(checks, newAgentInstanceOccurrenceCommand(deps))
 	return parent
 }
 
 func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
-	var global, all bool
+	var global, all, dryRun, noWait bool
 	var state, cursor, sessionID, agent string
 	var limit int
 	cmd := &cobra.Command{Use: action + " <agent-or-instance-id>", Short: "Manage agent instances: " + action, Args: exactOneNonBlankArg()}
@@ -39,6 +44,10 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().BoolVar(&all, "all-workspaces", false, "Include every workspace")
 		cmd.Flags().StringVar(&agent, "agent", "", "Filter by agent name")
 		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", "workspace")
+	}
+	if action == "check" {
+		cmd.Flags().BoolVar(&noWait, "no-wait", false, "Return the occurrence ID without waiting")
+		cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Inspect gates without running a check")
 	}
 	if action == "adopt" {
 		cmd.Flags().StringVar(&sessionID, "session", "", "Root session to adopt")
@@ -99,6 +108,32 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		id, err := resolveInstanceID(cmd, client, target, workspace)
 		if err != nil {
 			return err
+		}
+
+		if action == "check" || action == "on" || action == "off" {
+			checks, ok := base.(agentInstanceChecksClient)
+			if !ok {
+				return errors.New("cli: instance checks unavailable")
+			}
+			if action == "check" {
+				result, err := checks.CheckAgentInstance(cmd.Context(), id, dryRun)
+				if err != nil {
+					return err
+				}
+				if !noWait && result.OccurrenceID != "" {
+					reader, ok := base.(agentInstanceOccurrenceClient)
+					if !ok {
+						return errors.New("cli: instance occurrences unavailable")
+					}
+					return waitInstanceOccurrence(cmd, reader, id, result.OccurrenceID, defaultPollInterval)
+				}
+				return writeInstanceOutput(cmd, result, fmt.Sprintf("%s%s\n", result.Gate, result.OccurrenceID))
+			}
+			result, err := checks.SetAgentInstanceChecks(cmd.Context(), id, action == "on")
+			if err != nil {
+				return err
+			}
+			return writeInstanceOutput(cmd, result, instanceText(result.Instance))
 		}
 		if action == "reports" {
 			result, err := client.AgentInstanceReports(cmd.Context(), id, query)

@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+type SessionInput struct {
+	SteerDelivery   SteerDeliveryMode              `json:"steer_delivery,omitempty"`
+	ID              string                         `json:"id"`
+	SessionID       string                         `json:"session_id"`
+	MessageID       string                         `json:"message_id,omitempty"`
+	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
+	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
+	Status          string                         `json:"status"`
+	Mode            PromptMode                     `json:"mode"`
+	Delivery        PromptDelivery                 `json:"delivery"`
+	Text            string                         `json:"text"`
+	QueueGeneration int64                          `json:"queue_generation"`
+	EnqueuedAt      time.Time                      `json:"enqueued_at"`
+	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
 type SessionInputListResult struct {
 	Inputs []SessionInput `json:"inputs"`
 }
@@ -305,10 +321,4 @@ type SessionPromptResult struct {
 type SessionQueueSummaryPayload struct {
 	Entries int `json:"entries"`
 	Cap     int `json:"cap"`
-}
-
-type SessionRuntimeClearParams struct {
-	WorkspaceID      string `json:"workspace_id"`
-	SessionID        string `json:"session_id"`
-	ExpectedRevision *int64 `json:"expected_revision"`
 }

@@ -117,7 +117,7 @@ INSERT INTO agent_heartbeat_wake_events (
 
 -- name: GetHeartbeatWakeEvent :one
 SELECT id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
-       synthetic_prompt_id, created_at, expires_at
+       detail, denied_calls, occurrence_id, instance_id, synthetic_prompt_id, created_at, expires_at
 FROM agent_heartbeat_wake_events WHERE id = sqlc.arg(id);
 
 -- name: HasExpiredHeartbeatWakeEvents :one

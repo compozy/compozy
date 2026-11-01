@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// EnqueueTaskRun Enqueue one task run
+func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/tasks/{id}/runs"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // EnsureAgentInstanceMainParams carries the path, query, and header parameters.
 type EnsureAgentInstanceMainParams struct {
 	ID      string  `url:"id"`
@@ -425,25 +443,4 @@ type GetAgentDefinitionSoulParams struct {
 	Name        string  `url:"name"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// GetAgentDefinitionSoul Inspect the resolved Soul read model for an agent definition
-func (c *Client) GetAgentDefinitionSoul(ctx context.Context, params GetAgentDefinitionSoulParams) (*AgentSoulPayload, error) {
-	path := "/api/agents/{name}/soul"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

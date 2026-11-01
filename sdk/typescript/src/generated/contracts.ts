@@ -347,6 +347,11 @@ export interface AgentHeartbeatWakeParams {
   idempotency_key?: string;
 }
 
+export interface AgentHeartbeatWakePatch {
+  labels?: Record<string, string>;
+  cancel?: boolean;
+}
+
 export type AgentInstanceObservationPatch = Record<string, never>;
 
 export interface AgentInstancePayload {
@@ -6729,7 +6734,7 @@ export interface HookPatchByEvent {
   "agent.soul.snapshot.resolved": AuthoredContextObservationPatch;
   "agent.soul.mutation.after": AuthoredContextObservationPatch;
   "agent.heartbeat.policy.resolved": AuthoredContextObservationPatch;
-  "agent.heartbeat.wake.before": AuthoredContextObservationPatch;
+  "agent.heartbeat.wake.before": AgentHeartbeatWakePatch;
   "agent.heartbeat.wake.after": AuthoredContextObservationPatch;
   "session.health.update.after": AuthoredContextObservationPatch;
   "turn.start": TurnStartPatch;

@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// AgentNotifyRequest is a daemon API value.
+type AgentNotifyRequest struct {
+	Title string `json:"title"`
+	Body  string `json:"body,omitempty"`
+}
+
+// AgentNotifyResponse is a daemon API value.
+type AgentNotifyResponse struct {
+	Outcome      string `json:"outcome"`
+	RetryAfterMS int64  `json:"retry_after_ms,omitzero"`
+}
+
+// AgentOrigin is a daemon API value.
+type AgentOrigin string
+
 // AgentPayload is a daemon API value.
 type AgentPayload struct {
 	DisplayName        string                              `json:"display_name,omitempty"`

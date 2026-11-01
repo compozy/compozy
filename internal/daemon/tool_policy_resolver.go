@@ -391,6 +391,12 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	if info == nil {
 		return nil
 	}
+	if info.Type == session.SessionTypeTriage {
+		inputs.TriageReadOnly = true
+		inputs.ApprovalAvailable = false
+		inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
+		return nil
+	}
 	switch info.Type {
 	case session.SessionTypeSpawned, session.SessionTypeCoordinator:
 	default:

@@ -15,6 +15,9 @@ import (
 )
 
 type nativeInstanceInput struct {
+	DryRun        bool   `json:"dry_run"`
+	Enabled       *bool  `json:"enabled"`
+	OccurrenceID  string `json:"occurrence_id"`
 	Agent         string `json:"agent"`
 	Workspace     string `json:"workspace"`
 	ID            string `json:"id"`
@@ -27,7 +30,7 @@ type nativeInstanceInput struct {
 func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeToolBinding {
 	available := n.dependencyAvailability(func() bool { return n.deps.AgentInstances != nil && n.deps.AgentInstances() != nil })
 	bindings := make(map[toolspkg.ToolID]nativeToolBinding)
-	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceList,
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceCheck, toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceOccurrence, toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceList,
 		toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive,
 		toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports} {
 		bindings[id] = nativeToolBinding{call: n.agentInstanceCall, availability: available}
@@ -55,7 +58,7 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		input.Workspace = scope.WorkspaceID
 	}
 	action := strings.TrimPrefix(req.ToolID.String(), "compozy__agent_instance_")
-	if !scope.Operator && (action == "create" || action == "archive") && !req.ApprovalGranted {
+	if !scope.Operator && (action == "create" || action == "archive" || (action == "check" && !input.DryRun)) && !req.ApprovalGranted {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeApprovalRequired, req.ToolID,
 			"instance operation requires operator approval", toolspkg.ErrToolApprovalRequired, toolspkg.ReasonApprovalRequired)
 	}
@@ -150,7 +153,23 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 			query.AfterID = result.NextCursor
 		}
 	}
-	if err := api.Authority.Authorize(ctx, actor, instance, action); err != nil {
+	if instance.ProfileID != scope.ProfileID {
+		return toolspkg.ToolResult{}, agentinstance.ErrNotFound
+	}
+	verb := action
+	if action == "checks" {
+		if input.Enabled == nil {
+			return toolspkg.ToolResult{}, errors.New("enabled is required")
+		}
+		verb = "checks_off"
+		if *input.Enabled {
+			verb = "checks_on"
+		}
+	}
+	if action == "check" && input.DryRun {
+		verb = "check_dry_run"
+	}
+	if err := api.Authority.Authorize(ctx, actor, instance, verb); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	if !scope.Operator {
@@ -167,6 +186,40 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 	}
 	var err error
 	switch action {
+	case "check":
+		if api.Checks == nil {
+			return toolspkg.ToolResult{}, errors.New("instance checks unavailable")
+		}
+		result, err := api.Checks.Check(ctx, instance.ID, input.DryRun)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		response := contract.AgentInstanceCheckResponse{Gate: result.Gate, OccurrenceID: result.OccurrenceID}
+		if result.Digest != nil {
+			response.Digest = &contract.AgentInstanceCheckDigest{ItemKeys: []string{}, Fingerprint: result.Digest.Fingerprint, Diagnostics: result.Digest.Diagnostics}
+			for _, item := range result.Digest.Items {
+				response.Digest.ItemKeys = append(response.Digest.ItemKeys, item.Key)
+			}
+		}
+		return structuredResult(response, "Instance check")
+	case "checks":
+		if api.CheckSettings == nil {
+			return toolspkg.ToolResult{}, errors.New("instance check settings unavailable")
+		}
+		instance, err = api.CheckSettings.SetChecks(ctx, instance.ID, *input.Enabled)
+	case "occurrence":
+		reader, ok := api.Store.(core.AgentInstanceOccurrenceReader)
+		if !ok {
+			return toolspkg.ToolResult{}, errors.New("instance occurrences unavailable")
+		}
+		if strings.TrimSpace(input.OccurrenceID) == "" {
+			return toolspkg.ToolResult{}, errors.New("occurrence_id is required")
+		}
+		result, err := reader.Occurrence(ctx, instance.ID, input.OccurrenceID)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		return structuredResult(contract.AgentInstanceOccurrenceResponse{State: result.State, Result: result.Result, Reason: result.Reason, ReportID: result.ReportID}, "Instance occurrence")
 	case "pause":
 		instance, err = api.Service.Pause(ctx, instance.ID, "manual")
 	case "resume":

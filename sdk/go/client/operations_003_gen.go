@@ -105,6 +105,30 @@ func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWork
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
 }
 
+// CheckAgentInstanceParams carries the path, query, and header parameters.
+type CheckAgentInstanceParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// CheckAgentInstance Check an agent instance
+func (c *Client) CheckAgentInstance(ctx context.Context, params CheckAgentInstanceParams, body AgentInstanceCheckRequest) (*AgentInstanceCheckResponse, error) {
+	path := "/api/agent-instances/{id}/check"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceCheckResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
 func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
 	path := "/api/settings/update/check"
@@ -412,27 +436,5 @@ func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTer
 
 // CreateAgentParams carries the path, query, and header parameters.
 type CreateAgentParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateAgent Create a global or workspace-local AGENT.md definition
-func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body CreateAgentRequest) (*AgentResponse, error) {
-	path := "/api/agents"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAgentInstanceParams carries the path, query, and header parameters.
-type CreateAgentInstanceParams struct {
 	Profile *string `url:"profile"`
 }

@@ -40,6 +40,7 @@ const (
 type Type string
 
 const (
+	SessionTypeTriage      Type = "triage"
 	SessionTypeUser        Type = "user"
 	SessionTypeSystem      Type = "system"
 	SessionTypeCoordinator Type = "coordinator"

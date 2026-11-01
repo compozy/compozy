@@ -2,10 +2,17 @@ package session
 
 import (
 	"context"
-	"github.com/compozy/compozy/internal/store"
+	"errors"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -160,4 +167,210 @@ func TestInstancePermissionMode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTriageSessionPermissions(t *testing.T) {
+	t.Run("Should preserve triage restrictions across stop and resume", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeTriage,
+			Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertTriage := func() {
+			t.Helper()
+			opts := h.driver.startCalls[len(h.driver.startCalls)-1]
+			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads || len(opts.MCPServers) != 0 || opts.ActivateMCPServers != nil {
+				t.Fatalf("unsafe start opts: policy=%s permissions=%s mcp=%v", opts.ExecutionPolicy, opts.Permissions, opts.MCPServers)
+			}
+		}
+		assertTriage()
+		if isPublicSessionCatalogInfo(created.Info()) {
+			t.Fatal("triage session leaked into public catalog")
+		}
+		meta := readMeta(t, created.MetaPath())
+		if meta.SessionType != "triage" {
+			t.Fatalf("persisted type=%s", meta.SessionType)
+		}
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Resume(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		assertTriage()
+	})
+}
+
+type triageTestReports struct{}
+
+var _ TriageReportReader = triageTestReports{}
+
+func (triageTestReports) ListReports(context.Context, agentinstance.ReportQuery) ([]agentinstance.Report, error) {
+	return nil, nil
+}
+
+func TestTriageDispatcher(t *testing.T) {
+	t.Run("Should delete quiet triage without prompting the main session", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		main := createSession(t, h)
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			now := time.Now().UTC()
+			events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: now, Text: "NOTHING_TO_REPORT"}
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: now, StopReason: string(acp.PromptStopReasonEndTurn), PromptStopReason: acp.PromptStopReasonEndTurn}
+			close(events)
+			return events, nil
+		}
+		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second}
+		var hidden string
+		outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID, MainSessionID: main.ID}}, heartbeat.CheckDigest{}, func(id string) error { hidden = id; return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if outcome.Result != "quiet" || outcome.Report != nil {
+			t.Fatalf("outcome=%+v", outcome)
+		}
+		if _, err := h.manager.Status(t.Context(), hidden); err == nil {
+			t.Fatal("quiet session retained")
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 1 {
+			t.Fatalf("prompts=%d", len(h.driver.promptCalls))
+		}
+	})
+
+	t.Run("Should finalize invalid provider output and stop the triage session", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second}
+		outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID}}, heartbeat.CheckDigest{}, func(string) error { return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		if outcome.Result != "failed" || outcome.Reason != "triage_output_invalid" {
+			t.Fatalf("outcome=%+v", outcome)
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 1 || h.driver.stopCalls != 1 {
+			t.Fatalf("prompts=%d stops=%d", len(h.driver.promptCalls), h.driver.stopCalls)
+		}
+	})
+
+	t.Run("Should stop the hidden session without prompting when occurrence binding fails", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second}
+		denied := errors.New("occurrence cancelled")
+		var id string
+		_, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID}}, heartbeat.CheckDigest{}, func(sessionID string) error { id = sessionID; return denied })
+		if !errors.Is(err, denied) {
+			t.Fatalf("dispatch error=%v", err)
+		}
+		if id == "" {
+			t.Fatal("session was not bound")
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 0 || h.driver.stopCalls != 1 {
+			t.Fatalf("prompts=%d stops=%d", len(h.driver.promptCalls), h.driver.stopCalls)
+		}
+	})
+}
+
+type dueTriageEnvironment struct{ target heartbeat.CheckTarget }
+
+var _ heartbeat.CheckEnvironment = dueTriageEnvironment{}
+
+func (e dueTriageEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
+	return e.target, nil
+}
+func (dueTriageEnvironment) BeforeCheck(context.Context, heartbeat.CheckTarget, string) (string, error) {
+	return "", nil
+}
+func (dueTriageEnvironment) Collect(context.Context, string, heartbeat.CollectorScope, []string, string, string) (heartbeat.CheckDigest, error) {
+	return heartbeat.CheckDigest{Fingerprint: "due"}, nil
+}
+
+func TestDueInstanceTriagePolicy(t *testing.T) {
+	t.Run("Should restrict due triage and persist unsupported provider failure", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		h.cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		h.manager = newManagerWithHarness(t, h)
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "triage.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET state='active' WHERE id=?", instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		instance.State = "active"
+		instance.WorkspaceID = h.workspaceID
+		starts := make(chan acp.StartOpts, 1)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			starts <- opts
+			return nil, acp.ErrTriageUnsupported
+		}
+		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: db.InstanceReports(), MaxProposals: 2, StopTimeout: time.Second}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		service, err := heartbeat.NewCheckService(t.Context(), db.Instances(), dueTriageEnvironment{target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"}}}, dispatcher, heartbeat.CheckConfig{Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour, Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 10}, func() time.Time { return now })
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case opts := <-starts:
+			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads || len(opts.MCPServers) != 0 || opts.ActivateMCPServers != nil {
+				t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicy, opts.Permissions)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("due check did not start")
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(reports) == 1 {
+				if string(reports[0].Payload) != `{"reason":"triage_unsupported","detail":"The provider does not support read-only triage."}` {
+					t.Fatalf("report=%s", reports[0].Payload)
+				}
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("unsupported triage did not settle")
+			}
+			time.Sleep(time.Millisecond)
+		}
+		if err := service.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	})
 }

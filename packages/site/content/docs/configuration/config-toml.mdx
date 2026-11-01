@@ -2763,3 +2763,26 @@ or start with `@` (`workspace_name_reserved`).
 `@user` is the explicit User reference; the CLI forwards it without a workspace lookup. A route that
 requires a project returns `user_scope_unsupported`, or `user_scope_worktree_unsupported` for worktrees.
 See [User scope](/docs/user-scope) for the walkthrough.
+
+### Proactive checks
+
+The `[agents.stays_on]` section bounds proactive checks. These settings apply after a daemon restart.
+
+| Key | Default | Constraint |
+| --- | --- | --- |
+| `max_active_instances` | `10` | Positive |
+| `max_concurrent_triage` | `2` | Positive |
+| `max_proposals` | `3` | 1–20 |
+| `triage_timeout` | `"2m"` | Positive duration |
+| `max_interval` | `"24h"` | Positive duration |
+
+Checks use the existing `[agents.heartbeat]` enablement, default interval, batch size, and wake event retention settings.
+Interrupted occurrences are finalized before the scheduler begins checking due instances.
+
+Consecutive quiet or failed timer checks double the delay up to `max_interval`. A reported
+outcome resets the delay to the resolved cadence. Explicit checks update streaks without
+moving the timer deadline. Retrying an already committed outcome does not increase the delay.
+
+Repeated proposals are suppressed for 24 hours within the same instance, including proposals
+already delivered. Matching uses item keys, or the normalized title when there are no keys.
+New proposals in a mixed batch are retained. A fully repeated batch produces no new report.

@@ -631,3 +631,22 @@ retained in `user_scope_migration_archive`; progress is recorded in `user_scope_
 Do not remove retained directories or bypass a migration refusal. Reserved-name aliases warn through
 v0.4.0 and are removed in v0.5.0. On data selectors, `global` resolves only a migration-created alias;
 on window-manager surfaces it always means the reserved partition. `@user` always means User.
+
+Proactive checks use `[agents.stays_on]` limits: `max_concurrent_triage = 2`,
+`max_proposals = 2`, `triage_timeout = "2m"`, and `max_interval = "24h"` by default.
+All must be positive; `max_proposals` cannot exceed 20. Changes take effect after daemon
+restart. Cadence, enabled state and event retention use the existing `[agents.heartbeat]`
+settings. Boot settles interrupted checks before scheduler timer traffic starts.
+
+Timer checks double the interval after each three consecutive quiet outcomes, capped by
+`agents.heartbeat.quiet_backoff_cap` (default `"4h"`). Failures back off exponentially, capped
+by `agents.stays_on.max_interval`. `agents.heartbeat.fatigue_limit` (default 10) pauses the
+instance after consecutive failures; both new settings must be positive. A reported outcome resets the delay to the resolved cadence.
+Finalization persists the delay with the outcome; retries do not compound it. Explicit checks
+update outcome streaks but preserve the timer deadline, as do cancelled occurrences.
+
+Proactive proposals are deduplicated within each instance against reports from the last 24 hours,
+regardless of delivery state. Identity uses sorted unique item keys, or a lowercase title with
+collapsed whitespace when no keys remain. Body edits do not create a new identity. A batch with
+only duplicates records `duplicate_suppressed` without inserting another report; mixed batches
+retain only new proposals. Deduplication and finalization commit in the same transaction.

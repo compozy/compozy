@@ -8,6 +8,26 @@ import (
 	"strings"
 )
 
+// DeleteAutomationJob Delete one automation job
+func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomationJobParams) error {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteAutomationTriggerParams carries the path, query, and header parameters.
+type DeleteAutomationTriggerParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // DeleteAutomationTrigger Delete one automation trigger
 func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutomationTriggerParams) error {
 	path := "/api/automation/triggers/{id}"
@@ -426,13 +446,4 @@ func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DeliverGlobalWebhookParams carries the path, query, and header parameters.
-type DeliverGlobalWebhookParams struct {
-	Endpoint                  string  `url:"endpoint"`
-	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
-	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
-	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
-	Profile                   *string `url:"profile"`
 }

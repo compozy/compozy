@@ -200,6 +200,11 @@ type AgentHeartbeatWakeParams struct {
 	IdempotencyKey string              `json:"idempotency_key,omitempty"`
 }
 
+type AgentHeartbeatWakePatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+	Cancel bool              `json:"cancel,omitempty"`
+}
+
 type AgentInstanceObservationPatch struct{}
 
 type AgentInstancePayload struct {
@@ -226,30 +231,4 @@ type AgentInstancePayload struct {
 
 type AgentLifecyclePatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type AgentLifecyclePayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	Command        string    `json:"command,omitempty"`
-	Args           []string  `json:"args,omitempty"`
-	Cwd            string    `json:"cwd,omitempty"`
-	PID            int       `json:"pid,omitempty"`
-	Provider       string    `json:"provider,omitempty"`
-	Model          string    `json:"model,omitempty"`
-	Error          string    `json:"error,omitempty"`
 }

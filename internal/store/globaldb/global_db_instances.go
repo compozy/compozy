@@ -63,6 +63,9 @@ func (r *InstanceRepo) AdmitCreate(ctx context.Context, input agentinstance.Inst
 		if err != nil {
 			return err
 		}
+		if err := q.InsertInstanceWakeState(ctx, id); err != nil {
+			return err
+		}
 		row, err := q.GetAgentInstance(ctx, id)
 		if err != nil {
 			return err

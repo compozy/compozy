@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type ExtensionCommandSpec struct {
+	Verb    string            `json:"verb"`
+	Summary string            `json:"summary"`
+	Example string            `json:"example,omitempty"`
+	Flags   map[string]string `json:"flags,omitempty"`
+}
+
 type ExtensionManifestSummary struct {
 	Name              string   `json:"name"`
 	Version           string   `json:"version"`
@@ -204,14 +211,4 @@ type GridBody struct {
 type GridSection struct {
 	Title string     `json:"title,omitempty"`
 	Tiles []GridTile `json:"tiles"`
-}
-
-type GridTile struct {
-	ID       string            `json:"id"`
-	Title    string            `json:"title"`
-	Image    Image             `json:"image"`
-	Badge    *ViewBadge        `json:"badge,omitempty"`
-	Actions  []RowAction       `json:"actions,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
 }

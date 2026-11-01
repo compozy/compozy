@@ -32,6 +32,34 @@ func (m *Manager) PublishInstanceReport(
 	if err != nil {
 		return 0, err
 	}
+	var notification *OperatorNotification
+	title, body := "", ""
+	if report.Kind == "proposal" {
+		title, body = "New agent proposal", "Review the proposed work in the agent thread."
+	}
+	if report.Kind == "failure" {
+		var failure struct {
+			Reason string `json:"reason"`
+		}
+		if err := json.Unmarshal(report.Payload, &failure); err != nil {
+			return 0, err
+		}
+		if failure.Reason == "fatigue" {
+			title, body = "Proactive checks paused", "Consecutive checks failed. Review the agent report before resuming."
+		}
+	}
+	if title != "" {
+		if m.attentionWorkspaceMutes == nil {
+			return 0, errors.New("session: attention workspace mute reader is required")
+		}
+		muted, err := m.attentionWorkspaceMutes.IsAttentionWorkspaceMuted(ctx, info.ProfileID, info.WorkspaceID)
+		if err != nil {
+			return 0, err
+		}
+		if !muted {
+			notification = &OperatorNotification{NotificationID: "report:" + report.ID, SessionID: sessionID, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, Title: title, Body: body, At: report.CreatedAt}
+		}
+	}
 	content, err := json.Marshal(report)
 	if err != nil {
 		return 0, err
@@ -46,6 +74,9 @@ func (m *Manager) PublishInstanceReport(
 	}
 	if inserted {
 		m.publishSessionEventByID(ctx, sessionID, persisted)
+		if notification != nil {
+			m.publishSessionCatalogEventCount(CatalogEvent{Name: CatalogEventNameOperatorNotification, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, SessionID: sessionID, OperatorNotification: notification})
+		}
 	}
 	return persisted.Sequence, nil
 }

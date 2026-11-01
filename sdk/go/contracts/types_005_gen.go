@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type CatalogSort string
+
 type Chip struct {
 	ID       string            `json:"id"`
 	Label    string            `json:"label"`
@@ -160,10 +162,4 @@ type ConnectivityTeardownResponse struct {
 type ConsentArea struct {
 	Area   string `json:"area"`
 	Access string `json:"access"`
-}
-
-type ContextBlock struct {
-	Kind     string            `json:"kind,omitempty"`
-	Text     string            `json:"text,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
 }

@@ -183,3 +183,10 @@ max_bytes_per_session = 268435456
 
 [log]
 level = "info"
+
+[agents.stays_on]
+max_active_instances = 10
+max_concurrent_triage = 2
+max_proposals = 3
+triage_timeout = "2m"
+max_interval = "24h"

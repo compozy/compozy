@@ -36,7 +36,7 @@ func (m *Manager) prepareInternalSystemProvenance(
 	if lineage != nil {
 		return nil, false, fmt.Errorf("%w: internal system provenance cannot be combined with lineage", ErrValidation)
 	}
-	if normalizeSessionType(sessionType) != SessionTypeSystem {
+	if normalizeSessionType(sessionType) != SessionTypeSystem && normalizeSessionType(sessionType) != SessionTypeTriage {
 		return nil, false, fmt.Errorf("%w: internal provenance requires a system session", ErrValidation)
 	}
 
@@ -155,7 +155,7 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		spec.lineage = lineage
 		return store.ValidateSessionLineage(spec.sessionID, lineage)
 	}
-	if spec.sessionType == SessionTypeSystem {
+	if spec.sessionType == SessionTypeSystem || spec.sessionType == SessionTypeTriage {
 		lineage, _, err := m.prepareInternalSystemProvenance(
 			ctx, spec.sessionID, spec.sessionType, spec.workspace.ID, nil, spec.lineage.ParentSessionID,
 		)

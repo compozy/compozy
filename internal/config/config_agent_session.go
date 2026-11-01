@@ -20,6 +20,8 @@ const minSoulContextProjectionBytes int64 = 256
 
 // HeartbeatConfig controls optional HEARTBEAT.md wake-policy parsing and runtime bounds.
 type HeartbeatConfig struct {
+	QuietBackoffCap              time.Duration `toml:"quiet_backoff_cap"`
+	FatigueLimit                 int           `toml:"fatigue_limit"`
 	Enabled                      bool          `toml:"enabled"`
 	MaxBodyBytes                 int64         `toml:"max_body_bytes"`
 	ContextProjectionBytes       int64         `toml:"context_projection_bytes"`

@@ -54,6 +54,24 @@ export interface paths {
     delete: operations["archiveAgentInstance"];
     options?: never;
     head?: never;
+    /** Update instance checks */
+    patch: operations["updateAgentInstance"];
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Check an agent instance */
+    post: operations["checkAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
     patch?: never;
     trace?: never;
   };
@@ -68,6 +86,23 @@ export interface paths {
     put?: never;
     /** Ensure the main session exists */
     post: operations["ensureAgentInstanceMain"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/occurrences/{occurrence}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read an instance check occurrence */
+    get: operations["getAgentInstanceOccurrence"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -7597,6 +7632,19 @@ export interface components {
       agent: string;
       session_id: string;
     };
+    AgentInstanceCheckDigest: {
+      diagnostics?: string[];
+      fingerprint: string;
+      item_keys: string[];
+    };
+    AgentInstanceCheckRequest: {
+      dry_run: boolean;
+    };
+    AgentInstanceCheckResponse: {
+      digest?: components["schemas"]["AgentInstanceCheckDigest"] | null;
+      gate?: string;
+      occurrence_id?: string;
+    };
     AgentInstanceCreateRequest: {
       agent: string;
       workspace: string;
@@ -7604,6 +7652,12 @@ export interface components {
     AgentInstanceListResponse: {
       instances: components["schemas"]["AgentInstancePayload"][];
       next_cursor: string;
+    };
+    AgentInstanceOccurrenceResponse: {
+      reason?: string;
+      report_id?: string;
+      result?: string;
+      state: string;
     };
     AgentInstancePayload: {
       agent_name: string;
@@ -7644,6 +7698,9 @@ export interface components {
     };
     AgentInstanceResponse: {
       instance: components["schemas"]["AgentInstancePayload"];
+    };
+    AgentInstanceUpdateRequest: {
+      checks_enabled: boolean | null;
     };
     AgentLimitsPayload: {
       can_spawn_children: boolean;
@@ -21192,6 +21249,203 @@ export interface operations {
       };
     };
   };
+  updateAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstanceUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstanceCheckRequest"];
+      };
+    };
+    responses: {
+      /** @description Gate or dry-run result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceCheckResponse"];
+        };
+      };
+      /** @description Check admitted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceCheckResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   ensureAgentInstanceMain: {
     parameters: {
       query?: {
@@ -21214,6 +21468,97 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentInstanceOccurrence: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+        /** @description Occurrence ID */
+        occurrence: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Occurrence */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceOccurrenceResponse"];
         };
       };
       /** @description Request failed */

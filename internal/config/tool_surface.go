@@ -81,6 +81,8 @@ var (
 		"agents.heartbeat.active_session_only":                     ConfigValueBool,
 		"agents.heartbeat.allow_active_hours_preferences":          ConfigValueBool,
 		toolSurfaceAgentsHeartbeatWakeEventRetentionPath:           ConfigValueDuration,
+		"agents.heartbeat.quiet_backoff_cap":                       ConfigValueDuration,
+		"agents.heartbeat.fatigue_limit":                           ConfigValueInt,
 		toolSurfaceAgentsHeartbeatSessionHealthStaleAfterPath:      ConfigValueDuration,
 		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath: ConfigValueDuration,
 		"limits.max_concurrent_agents":                             ConfigValueInt,

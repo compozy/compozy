@@ -4,12 +4,15 @@
         "index",
         "adopt",
         "archive",
+        "check",
         "create",
         "ensure-main",
         "list",
+        "occurrence",
         "pause",
         "reports",
         "resume",
-        "show"
+        "show",
+        "checks"
     ]
 }

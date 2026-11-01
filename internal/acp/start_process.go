@@ -178,6 +178,7 @@ func (d *Driver) newAgentProcess(
 		startupManifest:        CloneStartupManifest(normalized.StartupManifest),
 		systemPromptDelivery:   normalized.SystemPromptDelivery,
 		promptCacheControl:     promptCacheControlForStartOpts(normalized),
+		executionPolicy:        normalized.ExecutionPolicy,
 	}
 }
 

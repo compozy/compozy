@@ -967,3 +967,22 @@ observation; unknown owners need this daemon's home and profile markers.
 Shutdown keeps detached session descendants. The daemon still closes native terminals during
 shutdown; PTY survival across restart is outside this feature. Keeping never prevents a process
 from exiting or receiving its parent's or terminal lifecycle's signals.
+
+### Instance proactive checks
+
+- `compozy__agent_instance_check` accepts `id` or `agent` plus `workspace`, and optional
+  `dry_run`. Dry runs admit nothing; real checks return `occurrence_id` or a stopping `gate`.
+  Agent real checks require approval and share the timer's single occurrence slot.
+- `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
+  the instance's own agent can disable them. Enabling schedules one cadence ahead.
+- `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
+  Results contain `state` (`running` or `finished`), and completed `result`, `reason`, and
+  optional `report_id`. Reads stay within the authorized profile and instance.
+
+Operator CLI: `compozy agent instance check <agent> --workspace <workspace>` waits for the
+result; `--no-wait` returns the occurrence ID, and `--dry-run` inspects gates without admission.
+Use `compozy agent instance occurrence <occurrence-id> -o json` to read it later, or
+`compozy agent instance checks on|off <agent> --workspace <workspace>` to change scheduling.
+An upgrade leaves existing instances' checks off until the operator enables them. A fatigue
+pause requires operator resume. Quiet triage removes its hidden session; proposals publish a
+report and notification without prompting the main session.

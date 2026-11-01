@@ -1,6 +1,9 @@
 package tools
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 type indexedPolicyEvaluator interface {
 	evaluateIndexed(context.Context, Scope, Descriptor) (EffectiveToolDecision, error)
@@ -36,6 +39,10 @@ func (e *EffectivePolicyEvaluator) evaluateIndexed(
 		HookResult:           policyResultAllowed,
 	}
 
+	if e.inputs.TriageReadOnly && (!isReadOnlyAutoApprovable(d) || d.Source.Kind != SourceBuiltin || strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
+		denyDecision(&decision, ReasonPolicyDenied)
+		return decision, nil
+	}
 	if e.inputs.ToolsDisabled {
 		denyDecision(&decision, ReasonSourceDisabled)
 		// The restrictions below still apply when tools are disabled: their reasons let callers tell a

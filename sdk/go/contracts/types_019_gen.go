@@ -4,6 +4,13 @@ package contracts
 
 import "time"
 
+type SkillActivationReasonPayload struct {
+	Gate    string                    `json:"gate"`
+	Code    SkillActivationReasonCode `json:"code"`
+	Missing []string                  `json:"missing,omitempty"`
+	Message string                    `json:"message"`
+}
+
 type SkillSummary struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description,omitempty"`
@@ -274,9 +281,4 @@ type SubagentPullRequestPayload struct {
 	URL    string `json:"url"`
 	Number int    `json:"number"`
 	State  string `json:"state"`
-}
-
-type SubagentRuntimePayload struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
 }

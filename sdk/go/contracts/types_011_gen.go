@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type InputAttachmentMetadata struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	MIME  string `json:"mime"`
+	Bytes int64  `json:"bytes"`
+	Kind  string `json:"kind"`
+}
+
 type InputMentionKind string
 
 const (
@@ -359,10 +367,3 @@ type LoopProvenance struct {
 	NodeID     string             `json:"node_id,omitempty"`
 	ItemIndex  *int               `json:"item_index,omitempty"`
 }
-
-type LoopProvenanceRole string
-
-const (
-	LoopProvenanceRoleCoordinator LoopProvenanceRole = "coordinator"
-	LoopProvenanceRoleCell        LoopProvenanceRole = "cell"
-)

@@ -38,3 +38,7 @@ type Instance struct {
 	UpdatedAt         time.Time
 	ArchivedAt        *time.Time
 }
+
+type Occurrence struct {
+	State, Result, Reason, ReportID string
+}

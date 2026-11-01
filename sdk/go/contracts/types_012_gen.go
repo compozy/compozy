@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type LoopProvenanceRole string
+
+const (
+	LoopProvenanceRoleCoordinator LoopProvenanceRole = "coordinator"
+	LoopProvenanceRoleCell        LoopProvenanceRole = "cell"
+)
+
 type LoopStartedPayload struct {
 	Event           HookEvent       `json:"event"`
 	Timestamp       time.Time       `json:"timestamp"`
@@ -314,11 +321,4 @@ type ModelSourceTransportBinding struct {
 	Fast             *bool                        `json:"fast,omitempty"`
 	Thinking         *bool                        `json:"thinking,omitempty"`
 	OptionSelections []ModelSourceOptionSelection `json:"option_selections,omitempty"`
-}
-
-type ModelsListParams struct {
-	ProviderID   string `json:"provider_id,omitempty"`
-	SourceID     string `json:"source_id,omitempty"`
-	Refresh      bool   `json:"refresh,omitempty"`
-	IncludeStale bool   `json:"include_stale,omitempty"`
 }

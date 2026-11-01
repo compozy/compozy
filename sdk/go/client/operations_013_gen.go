@@ -9,6 +9,66 @@ import (
 	"strings"
 )
 
+// GetSettingsShell Read the operator shell settings section
+func (c *Client) GetSettingsShell(ctx context.Context) (*SettingsShellResponse, error) {
+	path := "/api/settings/shell"
+	var out SettingsShellResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsSkillsParams carries the path, query, and header parameters.
+type GetSettingsSkillsParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	AgentName   *string `url:"agent_name"`
+}
+
+// GetSettingsSkills Read the skills settings section
+func (c *Client) GetSettingsSkills(ctx context.Context, params GetSettingsSkillsParams) (*SettingsSkillsResponse, error) {
+	path := "/api/settings/skills"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsSkillsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsUpdate Read the current CompozyOS software update status
+func (c *Client) GetSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
+	path := "/api/settings/update"
+	var out SettingsUpdateResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsWindowManagerParams carries the path, query, and header parameters.
+type GetSettingsWindowManagerParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
 // GetSettingsWindowManager Read the window-manager settings section
 func (c *Client) GetSettingsWindowManager(ctx context.Context, params GetSettingsWindowManagerParams) (*SettingsWindowManagerResponse, error) {
 	path := "/api/settings/window-manager"
@@ -374,62 +434,4 @@ type GetTaskRunParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetTaskRun Get one task run detail
-func (c *Client) GetTaskRun(ctx context.Context, params GetTaskRunParams) (*TaskRunDetailResponse, error) {
-	path := "/api/task-runs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunDetailResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskRunReviewParams carries the path, query, and header parameters.
-type GetTaskRunReviewParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetTaskRunReview Get one task-run review
-func (c *Client) GetTaskRunReview(ctx context.Context, params GetTaskRunReviewParams) (*TaskRunReviewResponse, error) {
-	path := "/api/task-reviews/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskTimelineParams carries the path, query, and header parameters.
-type GetTaskTimelineParams struct {
-	ID            string  `url:"id"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Limit         *int    `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

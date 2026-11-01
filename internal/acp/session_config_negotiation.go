@@ -27,6 +27,12 @@ func (d *Driver) applySessionMode(
 	}
 
 	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil)
+	if process.executionPolicy == ExecutionPolicyTriage {
+		modeID = triageReadOnlyMode(process.CapsSnapshot().SupportedModes)
+		if modeID == "" {
+			return false, ErrTriageUnsupported
+		}
+	}
 	if modeID == "" {
 		return false, nil
 	}

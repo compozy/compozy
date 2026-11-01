@@ -9,6 +9,28 @@ import (
 	"strings"
 )
 
+// CreateAgent Create a global or workspace-local AGENT.md definition
+func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body CreateAgentRequest) (*AgentResponse, error) {
+	path := "/api/agents"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAgentInstanceParams carries the path, query, and header parameters.
+type CreateAgentInstanceParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateAgentInstance Create a stays-on agent instance
 func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances"
@@ -423,26 +445,6 @@ func (c *Client) DeleteAgentSoul(ctx context.Context, params DeleteAgentSoulPara
 
 // DeleteAutomationJobParams carries the path, query, and header parameters.
 type DeleteAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteAutomationJob Delete one automation job
-func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomationJobParams) error {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteAutomationTriggerParams carries the path, query, and header parameters.
-type DeleteAutomationTriggerParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

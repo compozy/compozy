@@ -11,6 +11,36 @@ import (
 	"strings"
 )
 
+// GetLoopConfig Get Loop config override
+func (c *Client) GetLoopConfig(ctx context.Context, params GetLoopConfigParams) (*LoopConfigResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/config"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopConfigResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopInputDefaultParams carries the path, query, and header parameters.
+type GetLoopInputDefaultParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+	Key         string `url:"key"`
+	Scope       string `url:"scope"`
+}
+
 // GetLoopInputDefault Get one scoped Loop input default
 func (c *Client) GetLoopInputDefault(ctx context.Context, params GetLoopInputDefaultParams) (*LoopInputDefaultResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
@@ -389,61 +419,4 @@ type GetPermissionRollupParams struct {
 	Unattended  *bool   `url:"unattended"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetPermissionRollup Read daily permission totals by agent and decision
-func (c *Client) GetPermissionRollup(ctx context.Context, params GetPermissionRollupParams) (*PermissionRollupResponse, error) {
-	path := "/api/permissions/rollup"
-	query := url.Values{}
-	if params.Days != nil {
-		query.Set("days", *params.Days)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Unattended != nil {
-		query.Set("unattended", strconv.FormatBool(*params.Unattended))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out PermissionRollupResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProfileParams carries the path, query, and header parameters.
-type GetProfileParams struct {
-	Name string `url:"name"`
-}
-
-// GetProfile Get a profile
-func (c *Client) GetProfile(ctx context.Context, params GetProfileParams) (*Profile, error) {
-	path := "/api/profiles/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out Profile
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProfileSelectionsParams carries the path, query, and header parameters.
-type GetProfileSelectionsParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-}
-
-// GetProfileSelectionsFrame preserves each response payload; select its variant using the event name or HTTP status.
-type GetProfileSelectionsFrame struct {
-	Raw        json.RawMessage
-	StatusCode int `json:"-"`
 }

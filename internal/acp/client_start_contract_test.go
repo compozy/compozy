@@ -2405,3 +2405,22 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 		}
 	})
 }
+
+func TestTriageStartup(t *testing.T) {
+	t.Run("Should reject a provider without an explicit read only mode", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+		process, err := driver.Start(t.Context(), StartOpts{
+			ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+			AgentName:      "helper", ProviderName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("mode_mapping", ""), ExecutionPolicy: ExecutionPolicyTriage,
+			Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		if process != nil {
+			stopProcess(t, driver, process)
+		}
+		if !errors.Is(err, ErrTriageUnsupported) {
+			t.Fatalf("startup error=%v, want triage_unsupported", err)
+		}
+	})
+}

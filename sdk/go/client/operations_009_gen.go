@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// GetExtensionInventoryParams carries the path, query, and header parameters.
+type GetExtensionInventoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// GetExtensionInventory List shipped and live resources for one extension
+func (c *Client) GetExtensionInventory(ctx context.Context, params GetExtensionInventoryParams) (*ExtensionInventoryPayload, error) {
+	path := "/api/extensions/{name}/inventory"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionInventoryPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetExtensionLogsParams carries the path, query, and header parameters.
+type GetExtensionLogsParams struct {
+	Name        string  `url:"name"`
+	Workspace   *string `url:"workspace"`
+	Profile     *string `url:"profile"`
+	Follow      *string `url:"follow"`
+	After       *string `url:"after"`
+	StreamEpoch *string `url:"stream_epoch"`
+}
+
 // GetExtensionLogs Read or follow redacted extension logs
 func (c *Client) GetExtensionLogs(ctx context.Context, params GetExtensionLogsParams) (*ExtensionLogsResponse, error) {
 	path := "/api/extensions/{name}/logs"
@@ -403,34 +441,4 @@ type GetLoopConfigParams struct {
 	Name        string  `url:"name"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetLoopConfig Get Loop config override
-func (c *Client) GetLoopConfig(ctx context.Context, params GetLoopConfigParams) (*LoopConfigResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/config"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopConfigResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopInputDefaultParams carries the path, query, and header parameters.
-type GetLoopInputDefaultParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	Name        string `url:"name"`
-	Key         string `url:"key"`
-	Scope       string `url:"scope"`
 }

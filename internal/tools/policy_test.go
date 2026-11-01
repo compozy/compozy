@@ -412,3 +412,41 @@ func TestAgentMemoryPermissionCeiling(t *testing.T) {
 		})
 	}
 }
+
+func TestTriageToolPolicy(t *testing.T) {
+	t.Run("Should deny mutations external tools and terminal reads without approvals", func(t *testing.T) {
+		t.Parallel()
+		read := validDescriptor()
+		write := read
+		write.ID = "compozy__task_update"
+		write.ReadOnly = false
+		write.Risk = RiskMutating
+		terminal := read
+		terminal.ID = "compozy__terminal_read"
+		external := mcpDescriptor("mcp__github__search", "github", "search")
+		inputs := DefaultPolicyInputs()
+		inputs.TriageReadOnly = true
+		inputs.SystemPermissionMode = PermissionModeApproveAll
+		inputs.ApprovalAvailable = true
+		evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{read.ID, write.ID, terminal.ID, external.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, descriptor := range []Descriptor{write, terminal, external} {
+			decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable || decision.ApprovalRequired {
+				t.Fatalf("unsafe decision %s: %+v", descriptor.ID, decision)
+			}
+		}
+		decision, err := evaluator.Evaluate(t.Context(), Scope{}, read)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !decision.Callable {
+			t.Fatalf("read denied: %+v", decision)
+		}
+	})
+}

@@ -9,6 +9,9 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		name string
 		read bool
 	}{
+		{toolspkg.ToolIDAgentInstanceCheck, "check", false},
+		{toolspkg.ToolIDAgentInstanceChecks, "checks", false},
+		{toolspkg.ToolIDAgentInstanceOccurrence, "occurrence", true},
 		{toolspkg.ToolIDAgentInstanceCreate, "create", false},
 		{toolspkg.ToolIDAgentInstanceList, "list", true},
 		{toolspkg.ToolIDAgentInstancePause, "pause", false},
@@ -30,6 +33,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 }
 
 const agentInstanceInputSchema = `{"type":"object","properties":{
+"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},"occurrence_id":{"type":"string"},
 "agent":{"type":"string"},"workspace":{"type":"string"},"id":{"type":"string"},
 "all_workspaces":{"type":"boolean"},"state":{"type":"string"},"cursor":{"type":"string"},
 "limit":{"type":"integer","minimum":1,"maximum":100}},"additionalProperties":false}`
