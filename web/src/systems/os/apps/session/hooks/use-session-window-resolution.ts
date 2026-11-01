@@ -10,6 +10,11 @@ import {
 } from "@/systems/session";
 import { ownerDataScope, sameDataScope, type FocusedDataScope } from "@/systems/workspace";
 
+function focusedWorkspaceId(focusedScope: FocusedDataScope | null): string | null {
+  if (focusedScope === null) return null;
+  return focusedScope.kind === "user" ? "" : focusedScope.workspaceId;
+}
+
 export interface SessionWindowResolution {
   session: SessionPayload | undefined;
   /** What the window shows: the scoped read, else another profile's session read-only. */
@@ -60,12 +65,10 @@ export function useSessionWindowResolution({
   const resolvedSession = query.data ?? foreignSession;
   const sessionWorkspaceId = resolvedSession ? (resolvedSession.workspace_id?.trim() ?? "") : null;
   const sessionScope = sessionWorkspaceId === null ? null : ownerDataScope(sessionWorkspaceId);
-  const focusedWorkspaceId =
-    focusedScope === null ? null : focusedScope.kind === "user" ? "" : focusedScope.workspaceId;
   return {
     session: query.data,
     shownSession: resolvedSession,
-    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId,
+    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId(focusedScope),
     isLoading: query.isLoading,
     isFetching: query.isFetching || (foreign.status === "found" && foreign.isFetching),
     error: query.error,
