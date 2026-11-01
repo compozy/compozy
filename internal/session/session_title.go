@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store"
@@ -14,6 +16,30 @@ import (
 const (
 	automaticSessionTitleMaxRunes = 64
 	automaticSessionTitleMaxWords = 8
+)
+
+var (
+	// automaticTitleBlockPrefix matches Markdown block markers before a title.
+	automaticTitleBlockPrefix = regexp.MustCompile(`^(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)+`)
+	// automaticTitleLabel matches the label a model may put before its title.
+	automaticTitleLabel = regexp.MustCompile("(?i)^[*_`\"']*title[*_`\"']*\\s*:[*_`\"']*\\s*")
+	// automaticTitleNoticeLine matches a line that opens as a notice, not a title.
+	automaticTitleNoticeLine = regexp.MustCompile(
+		"(?i)^[*_`~]*\\s*(?:notice|note|reminder|warning|disclaimer)\\s*[*_`~]*\\s*:",
+	)
+	// automaticTitleAppendix matches where text glued after a title begins: an
+	// emphasized label, emphasis opened against a word, or a plain notice label
+	// after a sentence end or against a word.
+	automaticTitleAppendix = regexp.MustCompile(
+		`(?:^|\s)(\*\*[^*]+:\*\*|\*\*[^*]+\*\*:|__[^_]+:__)` +
+			`|[\p{L}\p{N}](\*\*\p{Lu})` +
+			`|(?:[\p{Ll}\p{N}]|[.!?]\s+)((?:Notice|Note|Reminder|Warning|Disclaimer)\s*:)`,
+	)
+)
+
+const (
+	automaticTitleEdgeMarkup = "*_`~"
+	automaticTitleEdgeQuotes = "\"'“”‘’«»"
 )
 
 type sessionTitleClaim struct {
@@ -70,7 +96,7 @@ func (s *Session) claimAutomaticTitleLocked(candidate string, now time.Time) (se
 	if s == nil {
 		return sessionTitleClaim{}, false
 	}
-	title := normalizeAutomaticSessionTitle(candidate)
+	title := CleanAutomaticSessionTitle(candidate)
 	if title == "" {
 		return sessionTitleClaim{}, false
 	}
@@ -92,6 +118,55 @@ func (s *Session) rollbackAutomaticTitleLocked(claim sessionTitleClaim) {
 	s.UpdatedAt = claim.previousUpdatedAt
 }
 
+// CleanAutomaticSessionTitle reduces generator output to one stored title. It
+// keeps the first line that holds title text, drops notices and text glued after
+// the title, removes Markdown, and applies the title bounds. It returns "" when
+// no line is usable, so the caller keeps the session's current name.
+func CleanAutomaticSessionTitle(output string) string {
+	lines := strings.FieldsFunc(output, func(r rune) bool { return r == '\n' || r == '\r' })
+	for _, line := range lines {
+		if title := normalizeAutomaticSessionTitle(cleanAutomaticTitleLine(line)); title != "" {
+			return title
+		}
+	}
+	return ""
+}
+
+func cleanAutomaticTitleLine(line string) string {
+	candidate := automaticTitleBlockPrefix.ReplaceAllString(strings.TrimSpace(line), "")
+	candidate = automaticTitleLabel.ReplaceAllString(candidate, "")
+	if automaticTitleNoticeLine.MatchString(candidate) {
+		return ""
+	}
+	if match := automaticTitleAppendix.FindStringSubmatchIndex(candidate); match != nil {
+		for group := 1; group < len(match)/2; group++ {
+			if start := match[2*group]; start >= 0 {
+				candidate = candidate[:start]
+				break
+			}
+		}
+	}
+	candidate = stripAutomaticTitleMarkup(candidate)
+	if strings.HasSuffix(candidate, ":") {
+		// A trailing colon introduces the answer on a later line.
+		return ""
+	}
+	return candidate
+}
+
+// stripAutomaticTitleMarkup removes emphasis and code markers at word edges, so
+// identifiers such as snake_case and arithmetic such as 5*3 survive.
+func stripAutomaticTitleMarkup(candidate string) string {
+	words := strings.Fields(strings.ReplaceAll(strings.ReplaceAll(candidate, "**", ""), "`", ""))
+	kept := words[:0]
+	for _, word := range words {
+		if word = strings.Trim(word, automaticTitleEdgeMarkup+automaticTitleEdgeQuotes); word != "" {
+			kept = append(kept, word)
+		}
+	}
+	return strings.Join(kept, " ")
+}
+
 func normalizeAutomaticSessionTitle(candidate string) string {
 	words := strings.Fields(candidate)
 	if len(words) == 0 {
@@ -103,7 +178,7 @@ func normalizeAutomaticSessionTitle(candidate string) string {
 		words = words[:automaticSessionTitleMaxWords]
 	}
 	title := strings.Trim(strings.Join(words, " "), " \t\n\r#>*_`-.,;:!?")
-	if title == "" {
+	if !strings.ContainsFunc(title, isAutomaticTitleContent) {
 		return ""
 	}
 	truncated := truncatedByWords || utf8.RuneCountInString(title) > automaticSessionTitleMaxRunes
@@ -115,4 +190,8 @@ func normalizeAutomaticSessionTitle(candidate string) string {
 		title = strings.TrimRight(title, " \t\n\r.,;:!?") + "…"
 	}
 	return title
+}
+
+func isAutomaticTitleContent(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsNumber(r)
 }

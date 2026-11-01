@@ -30,3 +30,9 @@ turn applies the title. Attempts stop after three failures.
 QA 2026-10-29 (isolated lab, Claude + `claude-haiku-5-5`): title child 2.4s end to end (spawn 1.6s, first token
 0.5s), 1.4k context tokens, versus 21.8s and 54k tokens before; three concurrent sessions all titled; two
 failures recorded attempts 1 and 2 with `retry_on_later_turn=true`, and the third turn applied the title.
+
+Clean titles (issue #1119): the stored title holds only title text. When the title run returns a provider notice,
+Markdown, or several lines, the name stays a single plain line of at most eight words and 64 characters. When no
+line is usable, the attempt counts as a failure and the session stays "New session" until a later turn succeeds.
+Titles stored before this fix stay as they are, because a session has no record of whether a person or the daemon
+set its name. Rename an affected session to fix it. Names set by a person are never rewritten.

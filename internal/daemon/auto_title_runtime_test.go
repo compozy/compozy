@@ -352,6 +352,66 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 		}
 	})
 
+	t.Run("Should store only the title when the provider appends a notice", func(t *testing.T) {
+		t.Parallel()
+
+		messageChunk := func(id string, text string) acp.AgentEvent {
+			raw := fmt.Sprintf(`{"content":{"type":"text","text":%q},"messageId":%q}`, text, id)
+			return acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: text, Raw: json.RawMessage(raw)}
+		}
+		text := func(value string) acp.AgentEvent {
+			return acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: value}
+		}
+		tests := []struct {
+			name   string
+			events []acp.AgentEvent
+		}{
+			{name: "glued in one message", events: []acp.AgentEvent{text("Checkout retry race**Notice:** Stop saying that")}},
+			{name: "streamed in chunks", events: []acp.AgentEvent{text("Checkout retry"), text(" race")}},
+			{name: "in a second message", events: []acp.AgentEvent{
+				messageChunk("m1", "Checkout "), messageChunk("m1", "retry race"), messageChunk("m2", "Stop saying that"),
+			}},
+			{name: "after a tool call", events: []acp.AgentEvent{
+				text("Checkout retry race"), {Type: acp.EventTypeToolCall}, text("Stop saying that"),
+			}},
+		}
+		for _, test := range tests {
+			t.Run("Should clean output "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				sessions := &autoTitleSpawnSessionsStub{events: test.events}
+				generator := newForkedAutoTitleGenerator(
+					sessions, resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}), time.Second, slog.Default(),
+				)
+				title, err := generator.Generate(testutil.Context(t), autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"})
+				if err != nil {
+					t.Fatalf("Generate() error = %v", err)
+				}
+				if title != "Checkout retry race" {
+					t.Fatalf("Generate() title = %q, want %q", title, "Checkout retry race")
+				}
+			})
+		}
+	})
+
+	t.Run("Should fail the attempt when the output has no usable title", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &autoTitleSpawnSessionsStub{events: []acp.AgentEvent{
+			{Type: acp.EventTypeAgentMessage, Text: "**Notice:** Stop saying that"},
+		}}
+		generator := newForkedAutoTitleGenerator(
+			sessions, resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}), time.Second, slog.Default(),
+		)
+		title, err := generator.Generate(testutil.Context(t), autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"})
+		if err == nil || title != "" {
+			t.Fatalf("Generate() = %q, %v, want an unusable-title error", title, err)
+		}
+		if len(sessions.stops) != 1 || sessions.stops[0].cause != session.CauseFailed {
+			t.Fatalf("StopWithCause() calls = %#v", sessions.stops)
+		}
+	})
+
 	t.Run("Should cancel the hidden spawn promptly and still stop the child", func(t *testing.T) {
 		t.Parallel()
 
@@ -508,6 +568,8 @@ type autoTitleSpawnSessionsStub struct {
 	// the turn on its accepted route.
 	refuseAfterOutput bool
 	providers         []string
+	// events replaces the default title output when set.
+	events []acp.AgentEvent
 }
 
 type cancelAwareAutoTitleSpawnSessionsStub struct {
@@ -566,7 +628,7 @@ func (s *autoTitleSpawnSessionsStub) PromptSynthetic(
 	opts session.SyntheticPromptOpts,
 ) (<-chan acp.AgentEvent, error) {
 	s.prompt = opts
-	events := make(chan acp.AgentEvent, 2)
+	events := make(chan acp.AgentEvent, len(s.events)+2)
 	defer close(events)
 	if s.refuseProvider != "" && s.providers[len(s.providers)-1] == s.refuseProvider {
 		if s.refuseAfterOutput {
@@ -579,7 +641,12 @@ func (s *autoTitleSpawnSessionsStub) PromptSynthetic(
 		}
 		return events, nil
 	}
-	events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Checkout retry race"}
+	if len(s.events) == 0 {
+		events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "Checkout retry race"}
+	}
+	for _, event := range s.events {
+		events <- event
+	}
 	events <- acp.AgentEvent{Type: acp.EventTypeDone}
 	return events, nil
 }

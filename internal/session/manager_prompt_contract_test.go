@@ -1516,6 +1516,78 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep only clean title text from generator output", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			output string
+			want   string
+		}{
+			{
+				name:   "trailing notice glued to the title",
+				output: "Fluxos automáticos de e-mails da plataforma**Notice:** Stop saying that",
+				want:   "Fluxos automáticos de e-mails da plataforma",
+			},
+			{
+				name:   "emphasized notice after a space",
+				output: "Checkout retry race **Reminder:** review your plan",
+				want:   "Checkout retry race",
+			},
+			{name: "plain notice after a sentence", output: "Checkout retry race. Note: be brief", want: "Checkout retry race"},
+			{name: "plain notice glued to the title", output: "Checkout retry raceNotice: be brief", want: "Checkout retry race"},
+			{name: "whole title emphasis", output: "**Checkout retry race**", want: "Checkout retry race"},
+			{name: "inline emphasis and code", output: "Fix **checkout** `retry` _race_", want: "Fix checkout retry race"},
+			{name: "heading", output: "## Checkout retry race", want: "Checkout retry race"},
+			{name: "label and quotes", output: "**Title:** \"Checkout retry race\"", want: "Checkout retry race"},
+			{name: "identifiers survive", output: "Fix auto_title 5*3 grid", want: "Fix auto_title 5*3 grid"},
+			{name: "lowercase notice word survives", output: "Fix notice: banner spacing", want: "Fix notice: banner spacing"},
+			{name: "multi-line keeps the first title line", output: "Checkout retry race\n\nI kept it short.", want: "Checkout retry race"},
+			{name: "CRLF lines", output: "Checkout retry race\r\nSecond line", want: "Checkout retry race"},
+			{name: "notice line before the title", output: "**Notice:** Stop saying that\nCheckout retry race", want: "Checkout retry race"},
+			{name: "preamble before the title", output: "Here is a title:\n\nCheckout retry race", want: "Checkout retry race"},
+			{name: "only a notice", output: "**Notice:** Stop saying that", want: ""},
+			{name: "only punctuation", output: "--- … ()", want: ""},
+			{name: "empty", output: " \n\t", want: ""},
+		}
+		for _, test := range tests {
+			t.Run("Should handle "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				got := CleanAutomaticSessionTitle(test.output)
+				if got != test.want {
+					t.Fatalf("CleanAutomaticSessionTitle(%q) = %q, want %q", test.output, got, test.want)
+				}
+				if again := CleanAutomaticSessionTitle(got); again != got {
+					t.Fatalf("CleanAutomaticSessionTitle(%q) = %q, want idempotent", got, again)
+				}
+			})
+		}
+	})
+
+	t.Run("Should keep a session unnamed when the title is unusable", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		applied, err := h.manager.ApplyAutomaticSessionTitle(
+			testutil.Context(t), session.ID, "**Notice:** Stop saying that",
+		)
+		if err != nil {
+			t.Fatalf("ApplyAutomaticSessionTitle() error = %v", err)
+		}
+		if applied || session.Info().Name != "" {
+			t.Fatalf("applied = %v, name = %q, want an unnamed session", applied, session.Info().Name)
+		}
+	})
+
 	t.Run("Should hide the generated title until identity persistence completes", func(t *testing.T) {
 		t.Parallel()
 
