@@ -211,6 +211,138 @@ func TestResumeInterruptedSession(t *testing.T) {
 	}
 }
 
+// Invariant: a restart-interrupted idle owner is readmitted for a recovered monitor only when the
+// restart-continuation rules allow it against the binding captured while it was live, and never after a
+// deliberate stop. Owner: session manager; canonical resume suite.
+func TestResumeMonitorOwner(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		cause      StopCause
+		disabled   bool
+		changed    string
+		noBinding  bool
+		wantResume bool
+		wantErr    string
+	}{
+		{name: "Should readmit an idle owner interrupted by a restart", cause: CauseShutdown, wantResume: true},
+		{
+			name: "Should never revive an owner stopped on purpose", cause: CauseUserRequested,
+			wantErr: ErrMonitorOwnerStopped.Error(),
+		},
+		{name: "Should honor automatic continuation opt-out", cause: CauseShutdown, disabled: true, wantErr: "disabled"},
+		{name: "Should refuse a changed tool policy", cause: CauseShutdown, changed: "policy", wantErr: "permissions_changed"},
+		{name: "Should refuse a changed provider command", cause: CauseShutdown, changed: "route", wantErr: "route_changed"},
+		{name: "Should refuse an owner without a captured binding", cause: CauseShutdown, noBinding: true, wantErr: "binding_unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(
+				t, WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
+			)
+			target, err := h.manager.Create(
+				t.Context(), CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			binding, err := h.manager.MonitorOwnerBinding(target.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.noBinding {
+				binding = ""
+			}
+			originalACP := target.Info().ACPSessionID
+			if err := h.manager.StopWithCause(t.Context(), target.ID, tc.cause, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.disabled || tc.changed != "" {
+				h.resolver.mu.Lock()
+				for key, workspace := range h.resolver.byRef {
+					workspace.Config.Session.Restart.AutoContinue = !tc.disabled
+					if tc.changed == "policy" {
+						for i := range workspace.Agents {
+							workspace.Agents[i].DenyTools = []string{"compozy__terminal_exec"}
+						}
+					}
+					if tc.changed == "route" {
+						provider := workspace.Config.Providers["claude"]
+						provider.Command = "changed-acp-command"
+						workspace.Config.Providers["claude"] = provider
+					}
+					h.resolver.byRef[key] = workspace
+				}
+				h.resolver.mu.Unlock()
+			}
+			err = h.manager.ResumeMonitorOwner(t.Context(), target.ID, binding)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+					t.Fatalf("resumed ACP = %q, want %q", got, originalACP)
+				}
+				if err := h.manager.ResumeMonitorOwner(t.Context(), target.ID, binding); err != nil {
+					t.Fatalf("resuming a live owner error = %v, want nil", err)
+				}
+				if len(h.driver.startCalls) != 2 {
+					t.Fatalf("starts = %d, want the owner resumed once", len(h.driver.startCalls))
+				}
+				return
+			}
+			got := ""
+			if ineligible, ok := errors.AsType[*MonitorOwnerIneligibleError](err); ok {
+				got = ineligible.Reason
+			} else if errors.Is(err, ErrMonitorOwnerStopped) {
+				got = err.Error()
+			}
+			if got != tc.wantErr {
+				t.Fatalf("error = %v, want %s", err, tc.wantErr)
+			}
+			if len(h.driver.startCalls) != 1 {
+				t.Fatalf("starts = %d, want the owner left stopped", len(h.driver.startCalls))
+			}
+		})
+	}
+}
+
+// Invariant: an owner that is already live is still checked against the binding captured for its
+// monitors, so a route or policy change after the restart never delivers an old monitor.
+// Owner: session manager; canonical resume suite.
+func TestResumeMonitorOwnerChecksLiveOwnerBinding(t *testing.T) {
+	t.Run("Should refuse a live owner whose binding changed since the monitor was captured", func(t *testing.T) {
+		h := newHarness(t)
+		target, err := h.manager.Create(
+			t.Context(), CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		binding, err := h.manager.MonitorOwnerBinding(target.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.ResumeMonitorOwner(t.Context(), target.ID, binding); err != nil {
+			t.Fatalf("unchanged live owner error = %v, want nil", err)
+		}
+		var changed map[string]any
+		if err := json.Unmarshal([]byte(binding), &changed); err != nil {
+			t.Fatal(err)
+		}
+		changed["cwd"] = "/somewhere/else"
+		data, err := json.Marshal(changed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = h.manager.ResumeMonitorOwner(t.Context(), target.ID, string(data))
+		ineligible, ok := errors.AsType[*MonitorOwnerIneligibleError](err)
+		if !ok || ineligible.Reason != "binding_changed" {
+			t.Fatalf("changed live owner error = %v, want binding_changed", err)
+		}
+	})
+}
+
 // Invariant: repeated interruptions stop after the configured durable attempt budget, including across managers.
 // Owner: session manager; canonical resume suite.
 func TestResumeInterruptedSessionCrashLoop(t *testing.T) {

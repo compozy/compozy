@@ -13,11 +13,16 @@ func (s *Service) run(ctx context.Context, created Monitor, spec Spec, watch Ter
 	if !ok {
 		return
 	}
-	state, ok := s.markFired(created.ID, created.SessionID, outcome)
+	state, record, ok := s.markFired(created.ID, created.SessionID, outcome)
 	if !ok {
 		return
 	}
 	s.notify(created.SessionID)
+	// The fired outcome is durable before the wake is admitted, so a restart re-delivers this exact
+	// outcome under the stable message id instead of regenerating a different one.
+	if !s.persistFired(ctx, record) {
+		return
+	}
 	s.deliver(ctx, Notification{Monitor: state, Outcome: outcome})
 }
 
@@ -76,19 +81,54 @@ func (s *Service) deliver(ctx context.Context, notification Notification) {
 
 // markFired records the outcome and moves the monitor to delivering; it still
 // holds its cap slots until the wake is admitted or abandoned.
-func (s *Service) markFired(id, sessionID string, outcome Outcome) (Monitor, bool) {
+func (s *Service) markFired(id, sessionID string, outcome Outcome) (Monitor, Record, bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	item, ok := s.sessions[sessionID][id]
 	if !ok || item.state.Status != StatusActive {
-		return Monitor{}, false
+		s.mu.Unlock()
+		return Monitor{}, Record{}, false
 	}
 	item.state.Status = StatusDelivering
 	item.state.FiredAt = s.now()
 	item.state.Reason = outcome.Reason
 	item.state.ExitCode = outcome.ExitCode
 	s.logLifecycle("monitor.fired", item.state, outcome.Reason)
-	return item.state, true
+	state, record := item.state, item.recordLocked()
+	s.mu.Unlock()
+	return state, record, true
+}
+
+// persistFired writes the fired outcome with the delivery backoff and reports whether the wake may
+// proceed. A store that stays unavailable for the whole retry window leaves the monitor undelivered
+// rather than waking from an outcome a restart could not reproduce.
+func (s *Service) persistFired(ctx context.Context, record Record) bool {
+	if s.store == nil {
+		return true
+	}
+	deadline := s.now().Add(deliveryRetryWindow)
+	backoff := deliveryRetryInitial
+	for {
+		err := s.saveNow(record)
+		if err == nil {
+			return true
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+		if !s.now().Add(backoff).Before(deadline) {
+			s.settle(record.Monitor.SessionID, record.Monitor.ID, StatusUndelivered)
+			return false
+		}
+		s.logLifecycle("monitor.wake_deferred", record.Monitor, "admission_retry")
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return false
+		case <-timer.C:
+		}
+		backoff = min(backoff*2, deliveryRetryMax)
+	}
 }
 
 func (s *Service) settle(sessionID, id string, status Status) {
@@ -104,7 +144,9 @@ func (s *Service) settle(sessionID, id string, status Status) {
 		event = "monitor.wake_failed"
 	}
 	s.logLifecycle(event, item.state, item.state.Reason)
+	record := item.recordLocked()
 	s.pruneSessionLocked(sessionID, s.now())
 	s.mu.Unlock()
+	s.save(record)
 	s.notify(sessionID)
 }

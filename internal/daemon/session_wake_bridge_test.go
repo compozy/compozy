@@ -376,4 +376,60 @@ func TestMonitorSessionWaker(t *testing.T) {
 			t.Fatalf("List() after stop = %+v, want empty", listed)
 		}
 	})
+
+	t.Run("Should keep a monitor durable when a daemon restart interrupts its owner", func(t *testing.T) {
+		t.Parallel()
+
+		durable := &monitorStoreStub{records: map[string]monitorpkg.Record{}}
+		monitors, err := monitorpkg.NewService(
+			testutil.Context(t), nil, wakerFor(&monitorWakeManagerStub{}), monitorpkg.WithStore(durable),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := monitors.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		if _, err := monitors.Create(testutil.Context(t), monitorpkg.Spec{
+			WorkspaceID: "ws-1", SessionID: "sess-1", Kind: monitorpkg.KindTimer,
+			Description: "check CI", Delay: time.Hour,
+		}); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		observer := monitorLifecycleObserver{monitors: monitors}
+		observer.release("sess-1", true)
+		if counts := monitors.ActiveCounts([]string{"sess-1"}); len(counts) != 0 {
+			t.Fatalf("ActiveCounts() after interruption = %+v, want the watch stopped", counts)
+		}
+		for _, record := range durable.records {
+			if record.Monitor.Status != monitorpkg.StatusActive {
+				t.Fatalf("durable record = %+v, want it left active for Recover", record)
+			}
+		}
+		if len(durable.records) != 1 {
+			t.Fatalf("durable records = %d, want 1", len(durable.records))
+		}
+	})
 }
+
+type monitorStoreStub struct {
+	mu      sync.Mutex
+	records map[string]monitorpkg.Record
+}
+
+func (m *monitorStoreStub) SaveMonitor(_ context.Context, record monitorpkg.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.records[record.Monitor.ID]; !ok || existing.Version < record.Version {
+		m.records[record.Monitor.ID] = record
+	}
+	return nil
+}
+
+func (m *monitorStoreStub) LoadMonitors(context.Context) ([]monitorpkg.Record, error) {
+	return nil, nil
+}
+
+func (m *monitorStoreStub) PruneFinishedMonitors(context.Context, time.Time) error { return nil }

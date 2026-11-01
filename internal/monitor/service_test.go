@@ -66,7 +66,7 @@ func TestServiceLifecycleLogging(t *testing.T) {
 				t.Fatal("lifecycle log contains private payload")
 			}
 			var events []string
-			for _, line := range bytes.Split(bytes.TrimSpace(output.Bytes()), []byte("\n")) {
+			for line := range bytes.SplitSeq(bytes.TrimSpace(output.Bytes()), []byte("\n")) {
 				var row map[string]any
 				if err := json.Unmarshal(line, &row); err != nil {
 					t.Fatal(err)
@@ -670,5 +670,405 @@ func TestNotificationMessageKeepsUntrustedOutputInsideItsBlock(t *testing.T) {
 		if !strings.Contains(message, "earlier output truncated") || !strings.Contains(message, "&lt;END&gt;") {
 			t.Fatalf("message tail = %q", message[len(message)-200:])
 		}
+	})
+}
+
+type memoryStore struct {
+	mu      sync.Mutex
+	records map[string]Record
+}
+
+func newMemoryStore() *memoryStore { return &memoryStore{records: make(map[string]Record)} }
+
+func (m *memoryStore) SaveMonitor(_ context.Context, record Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.records[record.Monitor.ID]; ok && existing.Version >= record.Version {
+		return nil
+	}
+	m.records[record.Monitor.ID] = record
+	return nil
+}
+
+func (m *memoryStore) LoadMonitors(context.Context) ([]Record, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	records := make([]Record, 0, len(m.records))
+	for _, record := range m.records {
+		records = append(records, record)
+	}
+	return records, nil
+}
+
+func (m *memoryStore) PruneFinishedMonitors(context.Context, time.Time) error { return nil }
+
+func (m *memoryStore) status(id string) Status {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.records[id].Monitor.Status
+}
+
+type fakeOwners struct {
+	mu       sync.Mutex
+	err      error
+	resumed  []string
+	bindings []string
+}
+
+func (o *fakeOwners) Binding(context.Context, string) (string, error) { return "binding-1", nil }
+
+func (o *fakeOwners) Resume(_ context.Context, sessionID, binding string) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.resumed = append(o.resumed, sessionID)
+	o.bindings = append(o.bindings, binding)
+	return o.err
+}
+
+func newDurableService(t *testing.T, store Store, owners Owners, terminals TerminalWatcher, waker Waker) *Service {
+	t.Helper()
+	service, err := NewService(t.Context(), terminals, waker, WithStore(store), WithOwners(owners))
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+	return service
+}
+
+// restartService simulates a daemon restart: the owner is interrupted (SuspendSession),
+// the service stops, and a fresh service recovers from the same durable store.
+func restartService(
+	t *testing.T, before *Service, store Store, owners Owners, terminals TerminalWatcher, waker Waker, session string,
+) *Service {
+	t.Helper()
+	before.SuspendSession(session)
+	if err := before.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	after := newDurableService(t, store, owners, terminals, waker)
+	if err := after.Recover(t.Context()); err != nil {
+		t.Fatalf("Recover() error = %v", err)
+	}
+	return after
+}
+
+func TestServiceRecoversDurableMonitorsAfterRestart(t *testing.T) {
+	t.Run("Should resume a timer on its original deadline and wake exactly once", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(20 * time.Second)
+			second := restartService(t, first, store, owners, nil, waker, "sess-r")
+			if got := onlyMonitor(t, second, "sess-r"); got.ID != created.ID || got.Status != StatusActive {
+				t.Fatalf("recovered = %+v, want the same active monitor", got)
+			}
+			if owners.bindings[0] != "binding-1" {
+				t.Fatalf("recovery used binding %q, want the one captured at registration", owners.bindings[0])
+			}
+			time.Sleep(39 * time.Second)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("woke before the original deadline: %+v", got)
+			}
+			time.Sleep(2 * time.Second)
+			synctest.Wait()
+			got := waker.notifications()
+			if len(got) != 1 || got[0].Monitor.ID != created.ID || got[0].Outcome.Reason != ReasonTimerElapsed {
+				t.Fatalf("notifications = %+v, want one timer wake for %s", got, created.ID)
+			}
+			if store.status(created.ID) != StatusFired {
+				t.Fatalf("durable status = %s, want fired", store.status(created.ID))
+			}
+		})
+	})
+
+	t.Run("Should fire a timer that came due while the daemon was down", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+			first := newDurableService(t, store, owners, nil, waker)
+			if _, err := first.Create(t.Context(), timerSpec("sess-r")); err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(10 * time.Minute)
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 1 || got[0].Outcome.Reason != ReasonTimerElapsed {
+				t.Fatalf("notifications = %+v, want one overdue timer wake", got)
+			}
+		})
+	})
+
+	t.Run("Should report a vanished terminal as unavailable without rerunning anything", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+			first := newDurableService(t, store, owners, &channelTerminals{results: make(chan Outcome, 1)}, waker)
+			created, err := first.Create(t.Context(), terminalSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			gone := &channelTerminals{err: errors.New("terminal not found")}
+			restartService(t, first, store, owners, gone, waker, "sess-r")
+			synctest.Wait()
+			got := waker.notifications()
+			if len(got) != 1 || got[0].Monitor.ID != created.ID || got[0].Outcome.Reason != ReasonTerminalFailed {
+				t.Fatalf("notifications = %+v, want one terminal_unavailable wake", got)
+			}
+		})
+	})
+
+	t.Run("Should redeliver a monitor that fired but was not yet admitted, noting the lost output", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+			first := newDurableService(t, store, owners, &channelTerminals{results: make(chan Outcome, 1)}, waker)
+			created, err := first.Create(t.Context(), terminalSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			record := store.records[created.ID]
+			code := 3
+			record.Monitor.Status, record.Monitor.Reason, record.Monitor.ExitCode = StatusDelivering, ReasonExit, &code
+			record.Monitor.FiredAt, record.Version = time.Now(), record.Version+1
+			store.records[created.ID] = record
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			got := waker.notifications()
+			if len(got) != 1 || got[0].Monitor.ID != created.ID || !got[0].Outcome.OutputLost ||
+				!strings.Contains(got[0].Message(), "exited with code 3") {
+				t.Fatalf("notifications = %+v, want one redelivery with exit code and lost output", got)
+			}
+			if store.status(created.ID) != StatusFired {
+				t.Fatalf("durable status = %s, want fired", store.status(created.ID))
+			}
+		})
+	})
+}
+
+func TestServiceRecoveryHonorsOwnerAuthority(t *testing.T) {
+	cases := []struct {
+		name       string
+		ownerErr   error
+		wantStatus Status
+		wantReason string
+		visible    bool
+	}{
+		{
+			"Should cancel monitors of an owner stopped on purpose",
+			ErrOwnerStopped, StatusCanceled, ReasonSessionStopped, false,
+		},
+		{
+			"Should cancel monitors of a removed owner",
+			ErrSessionGone, StatusCanceled, ReasonSessionStopped, false,
+		},
+		{
+			"Should record an interrupted monitor, visibly and without a wake, for an ineligible owner",
+			&OwnerIneligibleError{Reason: "disabled"}, StatusInterrupted, "owner_disabled", true,
+		},
+		{
+			"Should record an interrupted monitor when the owner cannot be resumed", errors.New("resume failed"),
+			StatusInterrupted, "owner_resume_failed", true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+				first := newDurableService(t, store, owners, nil, waker)
+				created, err := first.Create(t.Context(), timerSpec("sess-r"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				owners.err = tc.ownerErr
+				second := restartService(t, first, store, owners, nil, waker, "sess-r")
+				time.Sleep(2 * time.Minute)
+				synctest.Wait()
+				if got := waker.notifications(); len(got) != 0 {
+					t.Fatalf("owner without authority was woken: %+v", got)
+				}
+				if got := store.status(created.ID); got != tc.wantStatus {
+					t.Fatalf("durable status = %s, want %s", got, tc.wantStatus)
+				}
+				listed := second.List("sess-r")
+				if tc.visible {
+					if len(listed) != 1 || listed[0].Status != tc.wantStatus || listed[0].Reason != tc.wantReason {
+						t.Fatalf("listed = %+v, want one %s monitor with reason %s",
+							listed, tc.wantStatus, tc.wantReason)
+					}
+				} else if len(listed) != 0 {
+					t.Fatalf("listed = %+v, want none", listed)
+				}
+				if got := second.ActiveCounts([]string{"sess-r"}); len(got) != 0 {
+					t.Fatalf("recovery left cap slots held: %+v", got)
+				}
+			})
+		})
+	}
+
+	t.Run("Should keep a stop-session cancellation durable so a restart cannot revive the monitor", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, owners, waker := newMemoryStore(), &fakeOwners{}, &recordingWaker{}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.CancelSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(2 * time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 || store.status(created.ID) != StatusCanceled {
+				t.Fatalf("notifications = %+v status = %s, want canceled and silent", got, store.status(created.ID))
+			}
+		})
+	})
+}
+
+func TestServiceCreateRefusesMonitorItCannotPersist(t *testing.T) {
+	t.Run("Should fail creation instead of admitting a monitor a restart could not restore", func(t *testing.T) {
+		store := &failingStore{memoryStore: newMemoryStore()}
+		service := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+		if _, err := service.Create(t.Context(), timerSpec("sess-r")); err == nil {
+			t.Fatal("Create() error = nil, want a persistence failure")
+		}
+		if got := service.List("sess-r"); len(got) != 0 {
+			t.Fatalf("List() = %+v, want no admitted monitor", got)
+		}
+	})
+}
+
+type failingStore struct{ *memoryStore }
+
+func (*failingStore) SaveMonitor(context.Context, Record) error { return errors.New("disk full") }
+
+// toggleStore fails every write after the first (version > 1) while fail is set.
+type toggleStore struct {
+	*memoryStore
+	mu   sync.Mutex
+	fail bool
+}
+
+func (s *toggleStore) setFail(fail bool) {
+	s.mu.Lock()
+	s.fail = fail
+	s.mu.Unlock()
+}
+
+func (s *toggleStore) SaveMonitor(ctx context.Context, record Record) error {
+	s.mu.Lock()
+	failing := s.fail && record.Version > 1
+	s.mu.Unlock()
+	if failing {
+		return errors.New("database is locked")
+	}
+	return s.memoryStore.SaveMonitor(ctx, record)
+}
+
+func TestServiceDurabilityOfDecisions(t *testing.T) {
+	t.Run("Should report an unpersisted cancellation, retry it, and keep it canceled", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			owners, waker := &fakeOwners{}, &recordingWaker{}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			canceled, err := first.Cancel("sess-r", created.ID)
+			if err == nil || canceled.Status != StatusCanceled {
+				t.Fatalf("Cancel() = %+v, %v; want canceled in memory with a persistence error", canceled, err)
+			}
+			if store.status(created.ID) != StatusActive {
+				t.Fatalf("durable status = %s, want the stale active row until retried", store.status(created.ID))
+			}
+			store.setFail(false)
+			if _, err := first.Cancel("sess-r", created.ID); err != nil {
+				t.Fatalf("retried Cancel() error = %v", err)
+			}
+			if store.status(created.ID) != StatusCanceled {
+				t.Fatalf("durable status = %s, want canceled after the retry", store.status(created.ID))
+			}
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(2 * time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("canceled monitor woke after restart: %+v", got)
+			}
+		})
+	})
+
+	t.Run("Should not wake until the fired outcome is durable", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			waker := &recordingWaker{}
+			service := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			created, err := service.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			time.Sleep(time.Minute + 5*time.Second)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("woke before the outcome was durable: %+v", got)
+			}
+			store.setFail(false)
+			time.Sleep(deliveryRetryMax + time.Second)
+			synctest.Wait()
+			got := waker.notifications()
+			if len(got) != 1 || got[0].Monitor.ID != created.ID || store.status(created.ID) != StatusFired {
+				t.Fatalf("notifications = %+v status = %s, want one wake after the write landed",
+					got, store.status(created.ID))
+			}
+		})
+	})
+
+	t.Run("Should leave the monitor undelivered, not woken, when the store stays unavailable", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			waker := &recordingWaker{}
+			service := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			if _, err := service.Create(t.Context(), timerSpec("sess-r")); err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			time.Sleep(time.Minute + deliveryRetryWindow + time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("woke from a non-durable outcome: %+v", got)
+			}
+			if listed := service.List("sess-r"); len(listed) != 1 || listed[0].Status != StatusUndelivered {
+				t.Fatalf("listed = %+v, want one undelivered monitor", listed)
+			}
+		})
 	})
 }

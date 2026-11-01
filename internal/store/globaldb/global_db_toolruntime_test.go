@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -166,6 +167,67 @@ func TestGlobalDBToolProcessRecords(t *testing.T) {
 		})
 		if !errors.Is(err, toolruntime.ErrProcessNotFound) {
 			t.Fatalf("UpdateProcessRecordState(missing) error = %v, want ErrProcessNotFound", err)
+		}
+	})
+}
+
+// Invariant: a monitor definition and lifecycle survive a reopen, a stale write never
+// overwrites a newer one, and retention prunes only finished monitors.
+// Owning layer/canonical suite: globaldb daemon-owned wait persistence.
+func TestGlobalDBSessionMonitors(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t)
+	db := openTestGlobalDB(t)
+	at := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	code := 2
+	active := monitor.Record{
+		Monitor: monitor.Monitor{
+			ID: "mon-aaaaaaaaaaaa", SessionID: "sess-1", Kind: monitor.KindTerminal, Description: "wait for CI",
+			TerminalID: "term-1", Until: monitor.UntilMatch, Pattern: "done", Status: monitor.StatusActive,
+			CreatedAt: at, DeadlineAt: at.Add(time.Hour),
+		},
+		WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, OwnerBinding: `{"turn_id":""}`, Version: 1,
+	}
+	t.Run("Should round-trip the definition and owner binding", func(t *testing.T) {
+		if err := db.SaveMonitor(ctx, active); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.LoadMonitors(ctx)
+		if err != nil || len(got) != 1 || got[0].Monitor != active.Monitor || got[0].Timeout != time.Hour ||
+			got[0].OwnerBinding != active.OwnerBinding || got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {
+			t.Fatalf("LoadMonitors() = %+v, %v; want %+v", got, err, active)
+		}
+	})
+	t.Run("Should apply newer versions and ignore stale ones", func(t *testing.T) {
+		fired := active
+		fired.Monitor.Status, fired.Monitor.Reason, fired.Monitor.ExitCode = monitor.StatusFired, monitor.ReasonExit, &code
+		fired.Monitor.FiredAt, fired.Version = at.Add(time.Minute), 3
+		if err := db.SaveMonitor(ctx, fired); err != nil {
+			t.Fatal(err)
+		}
+		stale := active
+		stale.Monitor.Status, stale.Version = monitor.StatusDelivering, 2
+		if err := db.SaveMonitor(ctx, stale); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.LoadMonitors(ctx)
+		if err != nil || len(got) != 1 || got[0].Monitor.Status != monitor.StatusFired ||
+			got[0].Monitor.ExitCode == nil || *got[0].Monitor.ExitCode != code || !got[0].Monitor.FiredAt.Equal(fired.Monitor.FiredAt) {
+			t.Fatalf("LoadMonitors() = %+v, %v; want the version-3 fired row", got, err)
+		}
+	})
+	t.Run("Should prune finished monitors past the cutoff and keep occupying ones", func(t *testing.T) {
+		live := active
+		live.Monitor.ID, live.Version = "mon-bbbbbbbbbbbb", 1
+		if err := db.SaveMonitor(ctx, live); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.PruneFinishedMonitors(ctx, at.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.LoadMonitors(ctx)
+		if err != nil || len(got) != 1 || got[0].Monitor.ID != live.Monitor.ID {
+			t.Fatalf("LoadMonitors() = %+v, %v; want only the active monitor", got, err)
 		}
 	})
 }

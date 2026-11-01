@@ -34,6 +34,9 @@ const (
 	StatusCanceled Status = "canceled"
 	// StatusUndelivered means the monitor fired but its owning session could not be woken.
 	StatusUndelivered Status = "undelivered"
+	// StatusInterrupted means a daemon restart ended the watch and the owner could not be
+	// resumed, so no wake was sent. Reason says why.
+	StatusInterrupted Status = "interrupted"
 )
 
 // Terminal wait conditions accepted by terminal monitors.
@@ -50,6 +53,10 @@ const (
 	ReasonStalled        = "stalled"
 	ReasonTimerElapsed   = "timer_elapsed"
 	ReasonTerminalFailed = "terminal_unavailable"
+	// ReasonSessionStopped marks a monitor canceled because its owner was stopped on purpose.
+	ReasonSessionStopped = "session_stopped"
+	// ReasonOwnerPrefix prefixes the restart-eligibility reason that kept an owner from resuming.
+	ReasonOwnerPrefix = "owner_"
 )
 
 // Bounds keep monitors cheap and prevent runaway wake loops.
@@ -129,6 +136,8 @@ type Outcome struct {
 	ExitCode *int
 	// Output is untrusted terminal text; empty for timers.
 	Output string
+	// OutputLost marks a wake re-delivered after a restart: the terminal output it carried was not retained.
+	OutputLost bool
 }
 
 func normalizeSpec(spec Spec) (Spec, error) {

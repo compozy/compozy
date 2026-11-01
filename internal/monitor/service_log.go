@@ -1,6 +1,9 @@
 package monitor
 
-import "log/slog"
+import (
+	"log/slog"
+	"strings"
+)
 
 // logLifecycle deliberately excludes descriptions, patterns, output, and raw errors.
 func (s *Service) logLifecycle(event string, mon Monitor, reason string) {
@@ -8,7 +11,10 @@ func (s *Service) logLifecycle(event string, mon Monitor, reason string) {
 	case "registered", "requested", "session_stopped", "daemon_shutdown", "admission_retry",
 		ReasonExit, ReasonMatch, ReasonTimeout, ReasonStalled, ReasonTimerElapsed, ReasonTerminalFailed:
 	default:
-		reason = "unknown"
+		// Owner restart-eligibility reasons come from a fixed vocabulary, never from user input.
+		if !strings.HasPrefix(reason, ReasonOwnerPrefix) {
+			reason = "unknown"
+		}
 	}
 	s.logger.Log(s.ctx, slog.LevelInfo, event,
 		"event", event,

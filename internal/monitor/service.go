@@ -27,6 +27,15 @@ type Waker interface {
 	WakeSession(ctx context.Context, notification Notification) error
 }
 
+// Owners resolves the session that owns a monitor. Binding captures the owner's
+// restart-eligibility snapshot while it is live; Resume makes a restart-stopped
+// owner able to receive a wake, or returns ErrOwnerStopped, ErrSessionGone, or an
+// *OwnerIneligibleError.
+type Owners interface {
+	Binding(ctx context.Context, sessionID string) (string, error)
+	Resume(ctx context.Context, sessionID, binding string) error
+}
+
 // Option configures a Service.
 type Option func(*Service)
 
@@ -46,6 +55,16 @@ func WithClock(now func() time.Time) Option {
 			s.now = now
 		}
 	}
+}
+
+// WithStore makes monitors durable across daemon restarts.
+func WithStore(store Store) Option {
+	return func(s *Service) { s.store = store }
+}
+
+// WithOwners lets the service capture owner bindings and resume owners during recovery.
+func WithOwners(owners Owners) Option {
+	return func(s *Service) { s.owners = owners }
 }
 
 // WithObserver registers a callback for every change to a session's monitors:
@@ -69,6 +88,8 @@ type Service struct {
 	now       func() time.Time
 	observer  func(ctx context.Context, sessionID string)
 	notices   *noticeQueue
+	store     Store
+	owners    Owners
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -80,6 +101,7 @@ type Service struct {
 	occupied    int
 	perTerminal map[string]int
 	lastSweep   time.Time
+	lastPrune   time.Time
 }
 
 type entry struct {
@@ -87,6 +109,12 @@ type entry struct {
 	terminalKey string
 	timeout     time.Duration
 	cancel      context.CancelFunc
+	workspaceID string
+	profileID   string
+	binding     string
+	version     int64
+	// unsaved marks a cancellation whose durable write failed; Cancel retries it.
+	unsaved bool
 }
 
 // occupies reports whether the monitor still holds a slot in the active caps.
@@ -129,6 +157,12 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if err != nil {
 		return Monitor{}, err
 	}
+	binding := ""
+	if s.owners != nil {
+		if binding, err = s.owners.Binding(ctx, normalized.SessionID); err != nil {
+			return Monitor{}, fmt.Errorf("monitor: capture owner binding: %w", err)
+		}
+	}
 	var watch TerminalWatch
 	if normalized.Kind == KindTerminal {
 		if s.terminals == nil {
@@ -156,6 +190,9 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 		},
 		terminalKey: terminalKey(normalized),
 		timeout:     normalized.Timeout,
+		workspaceID: normalized.WorkspaceID,
+		profileID:   normalized.ProfileID,
+		binding:     binding,
 	}
 
 	s.mu.Lock()
@@ -167,6 +204,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if !created.Reused {
 		s.notify(created.SessionID)
 	}
+	s.pruneStore()
 	return created, nil
 }
 
@@ -183,6 +221,10 @@ func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now t
 	}
 	if err := s.admitLocked(item); err != nil {
 		return Monitor{}, err
+	}
+	// The first write holds the lock so a monitor is never admitted that a restart could not restore.
+	if err := s.saveNow(item.recordLocked()); err != nil {
+		return Monitor{}, fmt.Errorf("monitor: persist monitor: %w", err)
 	}
 	runCtx, cancel := context.WithCancel(s.ctx)
 	item.cancel = cancel
@@ -235,17 +277,36 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	}
 	if !item.occupies() {
 		state := item.state
+		if !item.unsaved {
+			s.mu.Unlock()
+			return state, nil
+		}
+		record := item.recordLocked()
 		s.mu.Unlock()
-		return state, nil
+		return state, s.confirmCancel(item, record)
 	}
 	s.finishLocked(item, StatusCanceled, s.now())
 	s.logLifecycle("monitor.canceled", item.state, "requested")
 	item.cancel()
 	s.pruneSessionLocked(sessionID, s.now())
-	state := item.state
+	state, record := item.state, item.recordLocked()
 	s.mu.Unlock()
 	s.notify(sessionID)
-	return state, nil
+	return state, s.confirmCancel(item, record)
+}
+
+// confirmCancel makes a cancellation durable. The monitor is already canceled in memory and can no
+// longer wake, but until the write lands a restart would restore it as active, so a failure is
+// reported to the caller and the next Cancel retries the write.
+func (s *Service) confirmCancel(item *entry, record Record) error {
+	err := s.saveNow(record)
+	s.mu.Lock()
+	item.unsaved = err != nil
+	s.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("monitor: persist cancellation: %w", err)
+	}
+	return nil
 }
 
 // CancelSession stops every monitor of a stopped or removed session and drops
@@ -260,19 +321,54 @@ func (s *Service) CancelSession(sessionID string) int {
 
 func (s *Service) cancelSession(sessionID string) int {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	canceled := 0
 	now := s.now()
+	var records []Record
 	for _, item := range s.sessions[sessionID] {
 		if item.occupies() {
 			s.finishLocked(item, StatusCanceled, now)
-			s.logLifecycle("monitor.canceled", item.state, "session_stopped")
+			item.state.Reason = ReasonSessionStopped
+			s.logLifecycle("monitor.canceled", item.state, ReasonSessionStopped)
 			item.cancel()
+			records = append(records, item.recordLocked())
 			canceled++
 		}
 	}
 	delete(s.sessions, sessionID)
+	s.mu.Unlock()
+	for _, record := range records {
+		s.saveRetrying(record)
+	}
 	return canceled
+}
+
+// SuspendSession stops the in-memory watches of an owner the daemon is
+// interrupting for a restart, keeping every monitor durable so Recover can
+// restore it. Each monitor keeps the owner binding captured while the owner was live: a stopped
+// session no longer carries a complete route, so a snapshot taken at stop time would be degraded.
+func (s *Service) SuspendSession(sessionID string) int {
+	s.mu.Lock()
+	suspended := 0
+	var records []Record
+	for _, item := range s.sessions[sessionID] {
+		if !item.occupies() {
+			continue
+		}
+		s.logLifecycle("monitor.interrupted", item.state, "daemon_shutdown")
+		item.cancel()
+		s.releaseLocked(item)
+		records = append(records, item.recordLocked())
+		suspended++
+	}
+	delete(s.sessions, sessionID)
+	s.mu.Unlock()
+	for _, record := range records {
+		s.save(record)
+	}
+	if suspended > 0 {
+		s.notify(sessionID)
+	}
+	return suspended
 }
 
 // Shutdown cancels every monitor and waits for watcher goroutines.
@@ -352,15 +448,20 @@ func (s *Service) insertLocked(item *entry) {
 	}
 }
 
+// releaseLocked returns an occupying monitor's slots to the active caps.
+func (s *Service) releaseLocked(item *entry) {
+	s.occupied--
+	if item.terminalKey != "" {
+		if s.perTerminal[item.terminalKey]--; s.perTerminal[item.terminalKey] <= 0 {
+			delete(s.perTerminal, item.terminalKey)
+		}
+	}
+}
+
 // finishLocked moves an occupying monitor to a terminal status and releases its cap slots.
 func (s *Service) finishLocked(item *entry, status Status, at time.Time) {
 	if item.occupies() {
-		s.occupied--
-		if item.terminalKey != "" {
-			if s.perTerminal[item.terminalKey]--; s.perTerminal[item.terminalKey] <= 0 {
-				delete(s.perTerminal, item.terminalKey)
-			}
-		}
+		s.releaseLocked(item)
 	}
 	item.state.Status = status
 	if item.state.FiredAt.IsZero() {
