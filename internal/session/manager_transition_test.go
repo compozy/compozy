@@ -2000,7 +2000,8 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		}
 		h, _, session := newLiveRuntimeHarness(t, runtimeProviderClaude, detachAndRefuse)
 		active = session
-		if _, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "max"), 0); err != nil {
+		maxSelection := liveEffortSelection(active, "max")
+		if _, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, maxSelection, 0); err != nil {
 			t.Fatalf("SetRuntimeSelection() error = %v", err)
 		}
 		active.mu.Lock()
