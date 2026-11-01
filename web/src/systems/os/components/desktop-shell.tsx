@@ -430,6 +430,7 @@ function DesktopShellScopedBody({
         instanceCapacity={model.agentCreate.instanceCapacity}
         draft={model.agentCreate.draft}
         duplicateSourceName={model.agentCreate.duplicateSourceName}
+        entrySeed={model.agentCreate.entrySeed}
         hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}
         isSubmitting={model.agentCreate.isSubmitting}
         modelCatalogError={model.agentCreate.modelCatalogError}
