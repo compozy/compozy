@@ -26,6 +26,7 @@ import {
   validateAgentCreateDraft,
   type AgentCreateDialogDraft,
 } from "../lib/agent-create-draft";
+import type { AgentInstanceCapacity } from "../lib/agent-instance";
 import { useAgentCreateViewState } from "../hooks/use-agent-create-view-state";
 import { AgentCreateAdvanced } from "./agent-create-advanced";
 import {
@@ -63,7 +64,7 @@ export interface AgentCreateScreenProps {
   workspaceName: string | null;
   takenNames: ReadonlySet<string>;
   workspaces: readonly WorkspacePayload[];
-  atInstanceLimit: boolean;
+  instanceCapacity: AgentInstanceCapacity;
   /** Set while duplicating: the source's label heads the screen. */
   duplicateSourceName?: string | null;
 }
@@ -123,7 +124,7 @@ export function AgentCreateScreen({
   workspaceName,
   takenNames,
   workspaces,
-  atInstanceLimit,
+  instanceCapacity,
   duplicateSourceName = null,
 }: AgentCreateScreenProps) {
   const validation = validateAgentCreateDraft(draft, {
@@ -146,7 +147,7 @@ export function AgentCreateScreen({
     onOpenCreatedAgent,
   });
   const { issue, signedOut, errors, close } = view;
-  const blocked = atInstanceLimit || signedOut !== null;
+  const blocked = instanceCapacity.reached || signedOut !== null;
   const { primary, hint } = outcome(draft, blocked, isSubmitting, workspaceName);
 
   const title = startFailure
@@ -228,7 +229,7 @@ export function AgentCreateScreen({
                   <AgentCreateRunFacts draft={draft} workspaces={workspaces} />
                 ) : (
                   <AgentCreateRunSettings
-                    atInstanceLimit={atInstanceLimit}
+                    instanceCapacity={instanceCapacity}
                     draft={draft}
                     errors={errors}
                     modelCatalogError={modelCatalogError}

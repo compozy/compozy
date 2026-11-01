@@ -18,7 +18,7 @@ const mockInstances = vi.hoisted(() => vi.fn(async () => [] as AgentInstancePayl
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: mockInstances,
+  fetchAgentInstances: async () => ({ instances: await mockInstances(), capacity: {} }),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {

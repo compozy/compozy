@@ -9,14 +9,14 @@ import { Button, Marker } from "@compozy/ui";
 
 import {
   agentInstanceAwayOptions,
+  agentInstanceBinding,
   agentInstanceCheckInsOptions,
-  agentInstanceReportsOptions,
+  agentInstanceIndeterminateReportsOptions,
   useAgentInstances,
   type AgentInstancePayload,
 } from "@/systems/agent";
 
 import { useReportSource } from "../../../hooks/use-report-source";
-import { useMarkSeenOnLeave } from "../../../hooks/use-mark-seen-on-leave";
 import { countWord, deriveAwayDigest, reportClock } from "../../../lib/session-away";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
 import { pickedProposal, reportPayload } from "../../../lib/session-report";
@@ -26,8 +26,11 @@ import { AwayDigest } from "./away-digest";
 import { reportAgent, type ReportAgent } from "../../../lib/session-report-identity";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
 
-const MAYBE_NOT_RECEIVED = (label: string) =>
+const NO_INSTANCE = { id: "", profile_name: "" };
+
+const MAYBE_NOT_PICKED = (label: string) =>
   `This may not have reached ${label}. If you picked one earlier, check its reply first.`;
+const MAYBE_NOT_RECEIVED = (label: string) => `This may not have reached ${label}.`;
 
 function AskButton({ prompt, children }: { prompt: string; children: ReactNode }) {
   const send = use(SessionReportSendContext);
@@ -42,19 +45,17 @@ function AskButton({ prompt, children }: { prompt: string; children: ReactNode }
 function Proposal({
   agent,
   data,
-  instanceId,
+  unsure,
 }: {
   agent: ReportAgent;
   data: SessionReportData;
-  instanceId: string;
+  unsure: boolean;
 }) {
   const send = use(SessionReportSendContext);
   const proposals = reportPayload(data).proposals;
   const picked = useAuiState(state =>
     pickedProposal(state.thread.messages, proposals, data.created_at)
   );
-  const { data: reports } = useQuery(agentInstanceReportsOptions(instanceId));
-  const state = reports?.find(report => report.id === data.report_id)?.state;
   return (
     <ShoulderTap
       agent={agent}
@@ -65,7 +66,7 @@ function Proposal({
       }
       choices={proposals}
       chosen={picked}
-      footnote={state === "indeterminate" ? MAYBE_NOT_RECEIVED(agent.label) : undefined}
+      footnote={unsure ? MAYBE_NOT_PICKED(agent.label) : undefined}
       onChoose={send ? choice => send(choice.title) : undefined}
       when={reportClock(data.created_at)}
     />
@@ -84,7 +85,7 @@ function FailureReport({
   const navigate = useNavigate();
   const { detail } = reportPayload(data);
   const { data: checkIns } = useQuery({
-    ...agentInstanceCheckInsOptions(data.instance_id),
+    ...agentInstanceCheckInsOptions(instance ?? NO_INSTANCE),
     enabled: Boolean(instance),
   });
   const ticks = [...(checkIns?.check_ins ?? [])].reverse();
@@ -105,7 +106,11 @@ function FailureReport({
           {instance ? (
             <Button
               onClick={() =>
-                void navigate({ to: "/agents/$name", params: { name: instance.agent_name } })
+                void navigate({
+                  to: "/agents/$name/$page",
+                  params: { name: instance.agent_name, page: "check-ins" },
+                  search: agentInstanceBinding(instance),
+                })
               }
               size="sm"
               type="button"
@@ -123,7 +128,7 @@ function FailureReport({
           <div className="flex max-w-xs flex-col gap-1.5">
             <CheckTicks checkIns={ticks} />
             <span className="text-eyebrow text-subtle">
-              After 10 failures in a row, check-ins pause on their own.
+              After {instance?.fatigue_limit} failures in a row, check-ins pause on their own.
             </span>
           </div>
         ) : null
@@ -202,15 +207,17 @@ function ReportBody({
   data,
   instance,
   instances,
+  unsure,
 }: {
   agent: ReportAgent;
   data: SessionReportData;
   instance: AgentInstancePayload | undefined;
   instances: readonly AgentInstancePayload[];
+  unsure: boolean;
 }) {
   switch (data.kind) {
     case "proposal":
-      return <Proposal agent={agent} data={data} instanceId={data.instance_id} />;
+      return <Proposal agent={agent} data={data} unsure={unsure} />;
     case "failure":
       return <FailureReport agent={agent} data={data} instance={instance} />;
     case "approval_expired":
@@ -243,27 +250,51 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
   const instances = useAgentInstances();
   const instance = instances.find(candidate => candidate.id === data.instance_id);
   const agent = reportAgent(instance, "Your agent");
-  const { data: away } = useQuery(agentInstanceAwayOptions(data.instance_id));
+  const { data: away } = useQuery({
+    ...agentInstanceAwayOptions(instance ?? NO_INSTANCE),
+    enabled: Boolean(instance),
+  });
   const [now] = useState(() => Date.now());
   const digest = away ? deriveAwayDigest(away, agent.label, now) : null;
   const leads = digest?.firstReportId === data.report_id;
-  useMarkSeenOnLeave(data.instance_id, leads);
+  const { data: indeterminate } = useQuery({
+    ...agentInstanceIndeterminateReportsOptions(instance ?? NO_INSTANCE),
+    enabled: Boolean(instance),
+  });
+  const unsure = indeterminate?.some(report => report.id === data.report_id) ?? false;
   return (
     <div className="flex flex-col gap-5 py-2" data-testid={`session-report-${data.kind}`}>
       {leads && digest ? <AwayDigest agent={agent} digest={digest} /> : null}
       {digest?.foldedIds.has(data.report_id) ? null : (
-        <ReportBody agent={agent} data={data} instance={instance} instances={instances} />
+        <ReportBody
+          agent={agent}
+          data={data}
+          instance={instance}
+          instances={instances}
+          unsure={unsure}
+        />
       )}
+      {unsure && data.kind !== "proposal" ? (
+        <p className="text-eyebrow text-subtle">{MAYBE_NOT_RECEIVED(agent.label)}</p>
+      ) : null}
     </div>
   );
 }
 
 export function RotatedMarker({ predecessorId }: { predecessorId: string | undefined }) {
+  const navigate = useNavigate();
   return (
     <Marker icon={<History aria-hidden="true" className="size-3" />}>
       This conversation continues from an earlier one.{" "}
       {predecessorId ? (
-        <a className="underline" href={`/session/${encodeURIComponent(predecessorId)}`}>
+        <a
+          className="underline"
+          href={`/session/${encodeURIComponent(predecessorId)}`}
+          onClick={event => {
+            event.preventDefault();
+            void navigate({ to: "/session/$id", params: { id: predecessorId } });
+          }}
+        >
           Read it
         </a>
       ) : null}

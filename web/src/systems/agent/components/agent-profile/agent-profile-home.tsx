@@ -5,7 +5,7 @@ import { Alert, AlertDescription, AlertTitle, Button, type AgentAvatarState } fr
 
 import type { UseAgentProfile } from "../../hooks/use-agent-profile";
 import { agentCanResume } from "../../lib/agent-profile";
-import { AGENT_PAUSE_PLAIN, type AgentTeamPlace } from "../../lib/agent-team";
+import { agentPausePlain, type AgentTeamPlace } from "../../lib/agent-team";
 import { AgentDiagnosticsBanner } from "../agent-diagnostics-banner";
 import {
   AgentActivitySection,
@@ -87,7 +87,7 @@ function Stopped({ places }: { places: readonly AgentTeamPlace[] }) {
       <AlertTitle>
         {agentCanResume(stopped.pauseReason) ? "Check-ins kept failing" : "It can't resume"}
       </AlertTitle>
-      <AlertDescription>{AGENT_PAUSE_PLAIN[stopped.pauseReason]}</AlertDescription>
+      <AlertDescription>{agentPausePlain(stopped.instance)}</AlertDescription>
     </Alert>
   );
 }

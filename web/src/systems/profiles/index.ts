@@ -134,6 +134,8 @@ export {
   useCurrentProfileName,
   useRememberedProfile,
   useSwitchProfile,
+  useProfilePerProfileScope,
+  type ProfilePerProfileScope,
 } from "./hooks/use-profile-selection";
 export { useArchivePlan, useDeletePlan, useRenamePlan } from "./hooks/use-profile-plans";
 export {

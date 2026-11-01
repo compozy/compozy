@@ -36,6 +36,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { projectSessionGroup } from "../../lib/session-list-groups";
 import { workspaceBadgeIdentity, workspacesListOptions } from "@/systems/workspace";
 
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
@@ -57,7 +58,7 @@ const mockInstances = vi.hoisted(() => vi.fn(async () => [] as AgentInstancePayl
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: mockInstances,
+  fetchAgentInstances: async () => ({ instances: await mockInstances(), capacity: {} }),
 }));
 
 vi.mock("../../hooks/use-session-row-runtime-label", async importOriginal => {
@@ -502,6 +503,28 @@ describe("SessionsBoard stays-on agents", () => {
   });
 });
 
+describe("SessionsBoard agents needing you", () => {
+  it("Should say so in the lane header from the served facet", () => {
+    const group = projectSessionGroup(
+      "ws-alpha",
+      { all: 1, working: 1, needs_you: 0, instances_needing_attention: 2 },
+      {
+        workspaces: [{ id: "ws-alpha", name: "Alpha" }],
+        lens: { profile: "default" },
+      }
+    );
+    renderBoard({
+      ...board(),
+      columns: [],
+      lanes: [{ group, filters: { workspace_id: "ws-alpha", sort: "created" as const } }],
+    });
+
+    expect(
+      screen.getByTestId("sessions-board-lane-project:ws-alpha-agents-waiting")
+    ).toHaveTextContent("2 agents need you");
+  });
+});
+
 describe("SessionsBoard card actions", () => {
   it("Should open the session list's verbs from a card's context menu", async () => {
     const user = userEvent.setup();
@@ -574,6 +597,7 @@ describe("SessionsBoard swimlanes", () => {
       total,
       working: total,
       needsYou: 0,
+      instancesNeedingAttention: 0,
       scope: { kind: "project" as const, workspaceId },
       lens: { profile: "default" },
       pair: null,
@@ -612,6 +636,7 @@ describe("SessionsBoard swimlanes", () => {
     });
 
     const alpha = screen.getByRole("region", { name: "Alpha" });
+    expect(screen.queryByTestId("sessions-board-lane-project:ws-alpha-agents-waiting")).toBeNull();
     expect(screen.getByRole("region", { name: "Beta" })).toBeInTheDocument();
     expect(await within(alpha).findByTestId("session-board-card-alpha-1")).toBeInTheDocument();
     // The lane header names the project; its cards do not repeat it.

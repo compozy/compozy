@@ -5,9 +5,9 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { PROFILE_IDENTITY_SWATCHES, useProfileReadScope } from "@/systems/profiles";
 
 import { useAgents, useCreateAgent, useDuplicateAgent } from "./use-agents";
-import { useAgentInstances, useCreateAgentInstance } from "./use-agent-instances";
+import { useAgentInstanceCapacity, useCreateAgentInstance } from "./use-agent-instances";
 import { agentCreateDialogLogic, type AgentCreateOutcome } from "./agent-create-dialog-logic";
-import { agentInstanceLimitReached } from "../lib/agent-instance";
+import type { AgentInstanceCapacity } from "../lib/agent-instance";
 import {
   AGENT_PLACE_LATER,
   buildCreateAgentParams,
@@ -57,7 +57,7 @@ export interface AgentCreateDialogState {
   takenNames: ReadonlySet<string>;
   /** Every project, for Where it works. */
   workspaces: readonly WorkspacePayload[];
-  atInstanceLimit: boolean;
+  instanceCapacity: AgentInstanceCapacity;
   /** The agent was created but couldn't start: the screen reports it instead of closing. */
   startFailure: string | null;
 }
@@ -98,7 +98,7 @@ export function useAgentCreateDialog({
   const { mutateAsync: createAgent } = useCreateAgent();
   const { mutateAsync: duplicateAgent } = useDuplicateAgent();
   const { mutateAsync: createInstance } = useCreateAgentInstance();
-  const instances = useAgentInstances();
+  const instanceCapacity = useAgentInstanceCapacity();
   const workspaces = useWorkspaces();
   const dialogStore = useStore(agentCreateDialogLogic, {
     initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id),
@@ -123,7 +123,6 @@ export function useAgentCreateDialog({
   const runtimeModels = catalog.models;
   const definitions = useAgents(activeWorkspace?.id, { enabled: open });
   const takenNames = definitions.data ? new Set(definitions.data.map(a => a.name)) : NO_NAMES;
-  const atInstanceLimit = agentInstanceLimitReached(instances);
 
   const validationContext = {
     hasActiveWorkspace: Boolean(activeWorkspace),
@@ -162,7 +161,7 @@ export function useAgentCreateDialog({
     const skipped =
       draft.kind !== "stays_on" ||
       draft.place === AGENT_PLACE_LATER ||
-      atInstanceLimit ||
+      instanceCapacity.reached ||
       provider?.needs_auth === true;
     if (skipped) return { agent, landing: "agent" };
     try {
@@ -275,7 +274,7 @@ export function useAgentCreateDialog({
     isSubmitting: flow.status === "submitting",
     takenNames,
     workspaces: workspaces.data ?? [],
-    atInstanceLimit,
+    instanceCapacity,
     startFailure: flow.status === "start-failed" ? flow.error : null,
     hasActiveWorkspace: Boolean(activeWorkspace),
     workspaceId: activeWorkspace?.id ?? null,

@@ -8,6 +8,7 @@ import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
 import { SessionWindowSkeleton } from "./session-window-skeleton";
 import {
+  useMarkSeenOnLeave,
   canPromptSession,
   SessionChatRuntimeProvider,
   type SessionPayload,
@@ -42,6 +43,7 @@ export function SessionWindowView({
   const instance = instances.find(row => row.id === session?.instance_id);
   const currentSessionId = instance?.main_session_id;
   const superseded = Boolean(currentSessionId && currentSessionId !== session?.id);
+  useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
   if (isLoading) return <SessionWindowSkeleton />;

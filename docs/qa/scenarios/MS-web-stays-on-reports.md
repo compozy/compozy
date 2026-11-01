@@ -97,3 +97,9 @@ rotation becomes eligible or context no longer requires it. The additive global
 migration preserves existing data. `TestInstanceRotationDeferral` verifies the
 one-hour boundary, deduplication and reopen against SQLite. Late child re-entry and
 the full browser/runtime walk remain pending.
+
+Web remediation: a relayed ask stays docked until the daemon accepts the answer, and only then
+shows its receipt; force a failed answer and confirm the ask remains. Leave a main session after
+reading fewer than six check-ins, then come back: nothing already read returns as While you were
+away. Any report kind in `indeterminate` shows the may-not-have-reached note, however old. Read it
+and See check-ins navigate in place, in the instance's own scope, without reloading the app.

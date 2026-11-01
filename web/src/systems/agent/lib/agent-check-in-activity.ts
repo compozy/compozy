@@ -167,7 +167,7 @@ export function checkInStanding(
     return instance.pause_reason === "fatigue" ? "failed" : "paused";
   }
   // An instance from before checks existed has no flag, and stays off until it's turned on.
-  if (instance.checks_enabled !== true) return "off";
+  if (!instance.checks_enabled) return "off";
   return slowedMinutes(instance, intervalMinutes) === null ? "running" : "slowed";
 }
 

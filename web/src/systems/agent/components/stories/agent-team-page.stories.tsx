@@ -17,7 +17,7 @@ const meta: Meta<typeof AgentTeamPage> = {
   args: {
     actions: {
       add: {
-        capped: false,
+        capacity: { limit: 10, active: 2, reached: false },
         onAdd: fn(),
         onSignIn: fn(),
         places: [{ id: "@user", name: "Global" }, ...TEAM_WORKSPACES],

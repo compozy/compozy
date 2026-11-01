@@ -5,7 +5,7 @@ import { toast } from "@compozy/ui";
 
 import { useProfileReadScope } from "@/systems/profiles";
 
-import { AGENT_PAUSE_COPY, agentInstanceResumeBlocked } from "../lib/agent-instance";
+import { agentInstanceResumeBlocked, agentPauseCopy } from "../lib/agent-instance";
 import { checkInActivity, checkInStanding, slowedMinutes } from "../lib/agent-check-in-activity";
 import {
   HOW_OFTEN,
@@ -98,10 +98,10 @@ export function useCheckInsEditor(
   const [limit, setLimit] = useState(false);
   const [fresh, setFresh] = useState(false);
   const now = useMinuteClock();
-  const checkIns = useAgentInstanceDayCheckIns(instance?.id ?? null);
+  const checkIns = useAgentInstanceDayCheckIns(instance);
   const setChecks = useSetAgentInstanceChecks();
   const { resume } = useAgentInstanceActions();
-  const tryCheck = useTryCheck(instance?.id ?? null);
+  const tryCheck = useTryCheck(instance);
 
   const floor = floorStop(payload.config_provenance?.subset.min_interval);
   const settings = { ...document.form, stop: Math.max(document.form.stop, floor) };
@@ -115,12 +115,12 @@ export function useCheckInsEditor(
 
   const turnOn = (on: boolean) => {
     if (!instance) return;
-    setChecks.mutate({ id: instance.id, enabled: on });
+    setChecks.mutate({ instance, enabled: on });
     if (!on) return;
     setFresh(true);
-    // Checks only run with a file that allows them, so turning them on writes one if needed.
+    // No file already allows checks on the config's timer, so only a file saying no needs a write.
     const { baseline, form } = document;
-    if (readOnly || baseline.block || (!baseline.missing && form.kept.enabled)) return;
+    if (readOnly || baseline.block || baseline.missing || form.kept.enabled) return;
     document.setForm({ ...form, kept: { ...form.kept, enabled: true } });
     void document.save();
   };
@@ -140,9 +140,9 @@ export function useCheckInsEditor(
     nowhere: instance === null,
     /** Never checked in and still off: the page leads with turning it on. */
     never: instance !== null && standing === "off" && !instance.last_wake_at,
-    on: instance?.checks_enabled === true,
+    on: instance?.checks_enabled ?? false,
     paused: standing === "paused" || standing === "failed",
-    pauseCopy: instance?.pause_reason ? AGENT_PAUSE_COPY[instance.pause_reason] : undefined,
+    pauseCopy: instance ? agentPauseCopy(instance) || undefined : undefined,
     resumeBlocked: instance ? agentInstanceResumeBlocked(instance) : false,
     failedInARow: instance?.failure_streak ?? 0,
     slowedBy: instance ? slowedMinutes(instance, interval) : null,
@@ -152,7 +152,7 @@ export function useCheckInsEditor(
     turnOn,
     resume: () => {
       if (!instance) return;
-      resume(instance.id);
+      resume(instance);
       toast.message("Check-ins are back on");
     },
   };

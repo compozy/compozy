@@ -70,6 +70,7 @@ export function SoundCard({
       {form.tone === "custom" ? (
         <Input
           aria-label="Describe how it should sound"
+          autoFocus
           disabled={disabled}
           onChange={event => onChange({ customTone: event.target.value })}
           placeholder="Calm, a little dry, no exclamation marks"

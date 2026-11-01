@@ -10,7 +10,6 @@ import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-dat
 import {
   AGENT_PLACE_LATER,
   GLOBAL_SCOPE,
-  agentInstanceLimitReached,
   agentTeamOptions,
   buildAgentTeam,
   buildAgentTeamFilterFields,
@@ -19,8 +18,10 @@ import {
   matchesAgentFocus,
   useAgentCreateHost,
   useAgentInstanceActions,
+  useAgentInstanceCapacity,
   useAgentInstances,
   type AgentAddPlaceActions,
+  type AgentInstanceCapacity,
   type AgentTeamFocus,
   type AgentTeamMember,
   type AgentsFleetSearch,
@@ -82,17 +83,17 @@ function useTeamMembers(enabled: boolean) {
     instances: inWindow,
     workspaces,
   });
-  return { team, instances, members };
+  return { team, members };
 }
 
-function useAddPlaceActions(instancesCapped: boolean): AgentAddPlaceActions {
+function useAddPlaceActions(capacity: AgentInstanceCapacity): AgentAddPlaceActions {
   const navigate = useNavigate();
   const { workspaces } = useActiveWorkspace();
   const actions = useAgentInstanceActions();
   const signedOut = useSignedOutProviders();
   return {
     places: [{ id: GLOBAL_SCOPE, name: "Global" }, ...workspaces],
-    capped: instancesCapped,
+    capacity,
     signedOut,
     onAdd: (agent, place) => actions.add({ agent, workspace: place }),
     onSignIn: () => void navigate({ to: "/settings/providers" }),
@@ -121,11 +122,9 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
   });
 
-  const { team, instances, members } = useTeamMembers(
-    liveDataEnabled && !pending && dataScope !== null
-  );
-  const capped = agentInstanceLimitReached(instances);
-  const add = useAddPlaceActions(capped);
+  const { team, members } = useTeamMembers(liveDataEnabled && !pending && dataScope !== null);
+  const capacity = useAgentInstanceCapacity();
+  const add = useAddPlaceActions(capacity);
   const chips = searchChips(search);
   const focus: AgentTeamFocus = search.focus ?? "all";
   const view: ListingViewMode = search.view ?? "cards";
@@ -160,7 +159,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     draftQuery: queryInput.draftValue,
     searchInputRef,
     unfiltered,
-    capped,
+    capacity,
     isLoading,
     isFirstRunEmpty,
     isFilteredEmpty,

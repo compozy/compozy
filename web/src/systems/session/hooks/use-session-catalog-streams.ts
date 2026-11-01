@@ -5,7 +5,7 @@ import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react
 import {
   applyAgentInstanceUpdate,
   invalidateAgentInstances,
-  type AgentInstancePayload,
+  type AgentInstanceWirePayload,
 } from "@/systems/agent";
 import { notificationKeys } from "@/systems/notifications";
 
@@ -342,7 +342,7 @@ function openSessionCatalogStream(
   };
   const handleInstanceUpdate: EventListener = event => {
     markLive();
-    const payload = parseNamedEvent<AgentInstancePayload>(event, ["id", "agent_name", "state"]);
+    const payload = parseNamedEvent<AgentInstanceWirePayload>(event, ["id", "agent_name", "state"]);
     if (payload) applyAgentInstanceUpdate(queryClient, payload);
     else void invalidateAgentInstances(queryClient);
   };

@@ -7,7 +7,6 @@ import {
   fetchSessionHistory,
   fetchSessionInputs,
   fetchSessionInteractions,
-  fetchSessionPendingWithDescendants,
   fetchSessionGoal,
   fetchSessionRecap,
   fetchSessionUsage,
@@ -285,17 +284,7 @@ function isTerminalInputReadError(error: unknown): boolean {
   );
 }
 
-/** Asks reaching a main session from the sessions it started. A new ask needs no prompt to show. */
-export function sessionRelayedInteractionsOptions(workspace: string, id: string, enabled: boolean) {
-  return queryOptions({
-    queryKey: sessionKeys.interactions(workspace, id, "descendants"),
-    queryFn: ({ signal }) => fetchSessionPendingWithDescendants(workspace, id, signal),
-    enabled,
-    refetchInterval: 15_000,
-    retry: false,
-  });
-}
-
+export { sessionRelayedInteractionsOptions } from "./session-relayed-query-options";
 export { sessionTranscriptOptions } from "./session-transcript-options";
 
 // Navigation reads (S8/S9) sit under the detail key: mutation invalidation

@@ -46,3 +46,14 @@ Follow `next_cursor` and confirm newest-first ordering, no duplicate rows, and a
 empty final cursor. An instance in another workspace must never expose those events.
 The HTTP and native reads share the same persisted-event reader. The browser walk
 remains pending; SQLite-backed handler and repository tests cover the read path.
+11. Set `agents.stays_on.max_active_instances` to 25 with 10 agents running. Every picker still
+    offers its rows and the create screen keeps Where it works. Set it to the running count and the
+    meter shows that number; the daemon's limit is what stops a start.
+12. Pause a place with a pending failure report. Its card shows Resume, or Can't resume when the
+    definition is gone, keeps the triangle, and never says Pause or Working. Set
+    `agents.heartbeat.fatigue_limit` to 3 and fail three checks: every message says 3.
+13. Open Check-ins for an agent with no HEARTBEAT.md. It reads all day with all five sources, and
+    turning checks on writes no file. Turn every source off and save: the file says `include: []`
+    and the page reopens with all of them off.
+14. Switch to another profile, add an agent there, then open All profiles. Rows from both profiles
+    appear, and pause, Check-ins and memory act on each row's own profile.

@@ -74,7 +74,12 @@ export function blankSoulDocumentFixture() {
   });
 }
 
-const CHECK_IN_SETTINGS: CheckInSettings = blankCheckIns({ defaultStop: 2, timezone: "UTC" });
+const CHECK_IN_SETTINGS: CheckInSettings = {
+  ...blankCheckIns({ defaultStop: 2, timezone: "UTC" }),
+  hours: [9, 18],
+  lunch: true,
+  looksAt: ["task", "session_health", "sessions_idle"],
+};
 
 export function checkInsModelFixture(
   overrides: Partial<CheckInsEditorModel> = {}
@@ -131,7 +136,7 @@ export function checkInsModelFixture(
 }
 
 export function blankCheckInsModelFixture() {
-  const instance = agentInstanceFixture({ checks_enabled: false, last_wake_at: null });
+  const instance = agentInstanceFixture({ checks_enabled: false, last_wake_at: "" });
   return checkInsModelFixture({
     instance,
     places: [instance],

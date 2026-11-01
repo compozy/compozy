@@ -55,7 +55,9 @@ describe("AgentPicker", () => {
 
   it("Should block the rows and Create new at the limit and show it", async () => {
     const user = userEvent.setup();
-    const { onPick, onCreateNew } = renderPicker({ capped: true });
+    const { onPick, onCreateNew } = renderPicker({
+      capacity: { limit: 10, active: 10, reached: true },
+    });
 
     expect(screen.getByTestId("agent-add-limit")).toHaveTextContent(
       "10 of 10 agents are staying on."
@@ -65,6 +67,16 @@ describe("AgentPicker", () => {
 
     expect(onPick).not.toHaveBeenCalled();
     expect(onCreateNew).not.toHaveBeenCalled();
+  });
+
+  it("Should follow the configured limit past ten", async () => {
+    const user = userEvent.setup();
+    const { onPick } = renderPicker({ capacity: { limit: 25, active: 10, reached: false } });
+
+    expect(screen.queryByTestId("agent-add-limit")).toBeNull();
+    await user.click(screen.getByText("Scout"));
+
+    expect(onPick).toHaveBeenCalledOnce();
   });
 
   it("Should block only the agents whose provider isn't signed in", async () => {
@@ -116,7 +128,10 @@ describe("AgentScopePicker", () => {
 
   it("Should block the scopes at the limit or signed out", async () => {
     const user = userEvent.setup();
-    const onPick = renderScopes({ capped: true, signedOut: "Codex" });
+    const onPick = renderScopes({
+      capacity: { limit: 10, active: 10, reached: true },
+      signedOut: "Codex",
+    });
 
     expect(screen.getByTestId("agent-add-limit")).toBeInTheDocument();
     expect(screen.getByText("Codex isn't signed in,")).toBeInTheDocument();

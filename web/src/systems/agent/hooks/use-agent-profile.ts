@@ -12,7 +12,8 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { agentAppearanceFromPayload } from "../lib/agent-appearance";
-import { GLOBAL_SCOPE, agentInstanceLimitReached } from "../lib/agent-instance";
+import { isOrphanAgent } from "../lib/agent-instance-wire";
+import { GLOBAL_SCOPE, type AgentInstanceCapacity } from "../lib/agent-instance";
 import { formatAgentOwner, isAgentReadOnly } from "../lib/agent-ownership";
 import {
   agentActivityView,
@@ -26,15 +27,28 @@ import {
 } from "../lib/agent-profile";
 import { agentFindings } from "../lib/agent-reports";
 import { buildSettingsDraftFromAgent, buildUpdateAgentParams } from "../lib/agent-settings-draft";
-import { agentOverallState, agentPlaceFromInstance, type AgentTeamPlace } from "../lib/agent-team";
+import {
+  agentAddablePlaces,
+  agentOverallState,
+  agentPlaceFromInstance,
+  type AgentTeamPlace,
+} from "../lib/agent-team";
 import { formatRelativeClock } from "../lib/agent-time";
-import { agentActivityOptions, agentInstanceReportsOptions } from "../lib/query-options";
+import {
+  agentActivityOptions,
+  agentInstanceReportsOptions,
+  agentTeamOptions,
+} from "../lib/query-options";
 import { isAgentSessionFailure } from "../lib/session-status";
 import type { AgentPayload, UpdateAgentParams } from "../types";
 import type { AgentWorkItem } from "../components/agent-profile/agent-profile-work";
 import type { AgentHeroIdentity } from "../components/agent-profile/agent-profile-hero";
 import type { AgentAddPlaceActions } from "../components/agent-team/agent-team-parts";
-import { useAgentInstanceActions, useAgentInstances } from "./use-agent-instances";
+import {
+  useAgentInstanceActions,
+  useAgentInstanceCapacity,
+  useAgentInstances,
+} from "./use-agent-instances";
 import { useAgentSessions } from "./use-agent-sessions";
 import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useUpdateAgent } from "./use-agents";
@@ -55,7 +69,7 @@ function workItem(session: SessionPayload): AgentWorkItem {
 
 function useFindings(places: readonly AgentTeamPlace[]) {
   const results = useQueries({
-    queries: places.map(place => agentInstanceReportsOptions(place.instance.id)),
+    queries: places.map(place => agentInstanceReportsOptions(place.instance)),
   });
   return agentFindings(
     places.flatMap((place, index) =>
@@ -64,13 +78,19 @@ function useFindings(places: readonly AgentTeamPlace[]) {
   );
 }
 
-function useAddPlace(capped: boolean): AgentAddPlaceActions {
+function useAddPlace(agent: AgentPayload, capacity: AgentInstanceCapacity): AgentAddPlaceActions {
   const navigate = useNavigate();
   const { workspaces } = useActiveWorkspace();
   const actions = useAgentInstanceActions();
+  const { destination } = useProfileReadScope();
+  const { data: team } = useQuery(agentTeamOptions("", destination));
+  const scopes = team?.find(
+    item => item.name === agent.name && item.definition_digest === agent.definition_digest
+  )?.scopes;
+  const places = [{ id: GLOBAL_SCOPE, name: "Global" }, ...workspaces];
   return {
-    places: [{ id: GLOBAL_SCOPE, name: "Global" }, ...workspaces],
-    capped,
+    places: scopes ? agentAddablePlaces(places, scopes) : places,
+    capacity,
     signedOut: useSignedOutProviders(),
     onAdd: (agent, place) => actions.add({ agent, workspace: place }),
     onSignIn: () => void navigate({ to: "/settings/providers" }),
@@ -129,6 +149,7 @@ export function useAgentProfile(input: {
   const { workspace, projectId, bindingSearch } = useAgentWindowScope();
   const { openForAgent } = useSessionCreateActions();
   const instances = useAgentInstances();
+  const capacity = useAgentInstanceCapacity();
   const actions = useAgentInstanceActions();
   const names = new Map(workspaces.map(item => [item.id, item.name]));
   const places = instances.flatMap(instance =>
@@ -144,7 +165,8 @@ export function useAgentProfile(input: {
   const { sessions } = useAgentSessions(workspace, agent.name);
   const findings = useFindings(staysOn ? places : []);
   const work = sessions.slice(0, WORK_SHOWN).map(workItem);
-  const readOnly = isAgentReadOnly(agent);
+  const packageOwned = isAgentReadOnly(agent);
+  const readOnly = packageOwned || isOrphanAgent(agent);
   const identity: AgentHeroIdentity = {
     name: agent.name,
     label: agent.label,
@@ -153,14 +175,14 @@ export function useAgentProfile(input: {
     provider: agent.provider || null,
     staysOn,
     readOnly,
-    ...(readOnly ? { owner: formatAgentOwner(agent) } : {}),
+    ...(packageOwned ? { owner: formatAgentOwner(agent) } : {}),
   };
   const openSessionById = (id: string) =>
     void navigate({ to: "/agents/$name/sessions/$id", params: { name: agent.name, id } });
   const openSession = async (place: AgentTeamPlace) => {
     const current = place.instance.main_session_id
       ? place.instance
-      : await actions.ensureMain(place.instance.id).catch(() => null);
+      : await actions.ensureMain(place.instance).catch(() => null);
     if (current?.main_session_id) openSessionById(current.main_session_id);
   };
   const saveIdentity = useIdentitySave(agent);
@@ -179,8 +201,8 @@ export function useAgentProfile(input: {
       work.length === 0 &&
       findings.length === 0 &&
       (activity ? agentActivityView(activity, ACTIVITY_DAYS).empty : false),
-    capped: agentInstanceLimitReached(instances),
-    add: useAddPlace(agentInstanceLimitReached(instances)),
+    capacity,
+    add: useAddPlace(agent, capacity),
     newSessionDisabled: projectId === null,
     summaries: {
       behavior: agentBehaviorSummary(agent),
@@ -193,14 +215,14 @@ export function useAgentProfile(input: {
       onOpen: (place: AgentTeamPlace) => void openSession(place),
       onToggle: (place: AgentTeamPlace) =>
         place.instance.state === "paused"
-          ? actions.resume(place.instance.id)
-          : actions.pause(place.instance.id),
-      onArchive: (place: AgentTeamPlace) => actions.archive(place.instance.id),
+          ? actions.resume(place.instance)
+          : actions.pause(place.instance),
+      onArchive: (place: AgentTeamPlace) => actions.archive(place.instance),
     },
     onResumeAll: () => {
       for (const place of places) {
-        if (place.state === "paused" && agentCanResume(place.pauseReason)) {
-          actions.resume(place.instance.id);
+        if (place.instance.state === "paused" && agentCanResume(place.pauseReason)) {
+          actions.resume(place.instance);
         }
       }
     },

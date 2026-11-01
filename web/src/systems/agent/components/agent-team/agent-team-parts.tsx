@@ -5,10 +5,12 @@ import { Button, Pill, StatusDot, cn } from "@compozy/ui";
 
 import {
   AGENT_STATE_DOT,
+  agentAddablePlaces,
   agentNowLine,
   type AgentTeamMember,
   type AgentTeamPlace,
 } from "../../lib/agent-team";
+import type { AgentInstanceCapacity } from "../../lib/agent-instance";
 import type { AgentPlaceOption } from "../agent-add-pickers";
 import { AgentScopePicker } from "../agent-add-pickers";
 
@@ -56,7 +58,7 @@ export function AgentPlaceChips({ member }: { member: AgentTeamMember }) {
 export interface AgentAddPlaceActions {
   /** Every place an agent could work: Global, then each project. */
   places: readonly AgentPlaceOption[];
-  capped: boolean;
+  capacity: AgentInstanceCapacity;
   /** Provider ids that aren't signed in, with their names. */
   signedOut: ReadonlyMap<string, string>;
   onAdd: (agent: string, place: string) => void;
@@ -73,10 +75,10 @@ export function AgentAddPlaceButton({
   const taken = new Set(member.places.map(place => place.scope));
   return (
     <AgentScopePicker
-      capped={add.capped}
+      capacity={add.capacity}
       onPick={place => add.onAdd(member.name, place)}
       onSignIn={add.onSignIn}
-      scopes={add.places.filter(place => !taken.has(place.id))}
+      scopes={agentAddablePlaces(add.places, member.scopes).filter(place => !taken.has(place.id))}
       signedOut={add.signedOut.get(member.provider ?? "") ?? null}
       trigger={
         <Button

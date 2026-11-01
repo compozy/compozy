@@ -17,7 +17,7 @@ import {
 
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
-  AGENT_PAUSE_COPY,
+  agentPauseCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceResumeBlocked,
@@ -53,16 +53,14 @@ function SeatMenu({
   actions: StaysOnRowActions;
 }) {
   const paused = instance.state === "paused";
-  const reason = instance.pause_reason;
+  const reason = agentPauseCopy(instance);
   return (
     <ContextMenuContent className="w-64">
       <ContextMenuGroup>
         <ContextMenuLabel>
           {instance.label} · {agentScopeLabel(instance.scope)}
         </ContextMenuLabel>
-        {reason ? (
-          <p className="px-2 pb-1.5 text-eyebrow text-subtle">{AGENT_PAUSE_COPY[reason]}</p>
-        ) : null}
+        {reason ? <p className="px-2 pb-1.5 text-eyebrow text-subtle">{reason}</p> : null}
       </ContextMenuGroup>
       <ContextMenuSeparator />
       <ContextMenuItem

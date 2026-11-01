@@ -21,7 +21,7 @@ const { mockApi } = vi.hoisted(() => ({
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: mockApi.instances,
+  fetchAgentInstances: async () => ({ instances: await mockApi.instances(), capacity: {} }),
   createAgentInstance: mockApi.create,
 }));
 

@@ -1,6 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import { useAgentInstanceActions, type AgentInstancePayload } from "@/systems/agent";
+import {
+  agentInstanceBinding,
+  useAgentInstanceActions,
+  type AgentInstancePayload,
+} from "@/systems/agent";
 
 import type { SessionListTarget } from "../types";
 
@@ -11,7 +15,7 @@ export function useStaysOnRowActions(onOpenSession: (session: SessionListTarget)
   const open = async (instance: AgentInstancePayload) => {
     const current = instance.main_session_id
       ? instance
-      : await actions.ensureMain(instance.id).catch(() => null);
+      : await actions.ensureMain(instance).catch(() => null);
     if (!current?.main_session_id) return;
     onOpenSession({
       id: current.main_session_id,
@@ -22,14 +26,19 @@ export function useStaysOnRowActions(onOpenSession: (session: SessionListTarget)
   return {
     open,
     togglePause: (instance: AgentInstancePayload) =>
-      instance.state === "paused" ? actions.resume(instance.id) : actions.pause(instance.id),
-    archive: (instance: AgentInstancePayload) => actions.archive(instance.id),
+      instance.state === "paused" ? actions.resume(instance) : actions.pause(instance),
+    archive: (instance: AgentInstancePayload) => actions.archive(instance),
     openAgent: (instance: AgentInstancePayload) =>
-      navigate({ to: "/agents/$name", params: { name: instance.agent_name } }),
+      navigate({
+        to: "/agents/$name",
+        params: { name: instance.agent_name },
+        search: agentInstanceBinding(instance),
+      }),
     openCheckIns: (instance: AgentInstancePayload) =>
       navigate({
         to: "/agents/$name/$page",
         params: { name: instance.agent_name, page: "check-ins" },
+        search: agentInstanceBinding(instance),
       }),
   };
 }

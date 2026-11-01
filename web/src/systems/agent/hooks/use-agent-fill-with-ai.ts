@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useProfileReadScope } from "@/systems/profiles";
 import type { RuntimeSelectorValue } from "@/systems/runtime";
 
 import { draftAgentInstructions } from "../adapters/agent-instance-api";
@@ -16,6 +17,7 @@ export function useAgentFillWithAi({
   onChange: (next: string) => void;
   runtime: RuntimeSelectorValue;
 }) {
+  const { destination } = useProfileReadScope();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<AgentFillStatus>("idle");
   const [brief, setBrief] = useState("");
@@ -23,6 +25,9 @@ export function useAgentFillWithAi({
   const [previous, setPrevious] = useState("");
   const pending = useRef<AbortController | null>(null);
   const model = picked ?? runtime;
+
+  // Leaving the screen stops the write, so a late answer can't land in a closed form.
+  useEffect(() => () => pending.current?.abort(), []);
 
   const finish = () => {
     setStatus("idle");
@@ -45,6 +50,7 @@ export function useAgentFillWithAi({
             ...(model.reasoning_effort ? { reasoning_effort: model.reasoning_effort } : {}),
           },
         },
+        destination,
         controller.signal
       );
       if (controller.signal.aborted) return;

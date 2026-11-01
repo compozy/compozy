@@ -122,7 +122,7 @@ export function AgentFillWithAi({
               </Button>
             ) : (
               <Button
-                disabled={brief.trim() === ""}
+                disabled={brief.trim() === "" || !model.provider}
                 onClick={() => void fill.start()}
                 size="sm"
                 type="button"

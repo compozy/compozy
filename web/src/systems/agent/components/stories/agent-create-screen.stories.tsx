@@ -1,3 +1,4 @@
+import type { AgentInstanceCapacity } from "../../lib/agent-instance";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
@@ -91,7 +92,7 @@ function AgentCreateScreenHarness({
   initialDraft,
   isSubmitting = false,
   submitError = null,
-  atInstanceLimit = false,
+  instanceCapacity = { limit: 10, active: 2, reached: false },
   startFailure = null,
   modelCatalogError = null,
   modelCatalogLoading = false,
@@ -104,7 +105,7 @@ function AgentCreateScreenHarness({
   initialDraft?: AgentCreateDialogDraft;
   isSubmitting?: boolean;
   submitError?: string | null;
-  atInstanceLimit?: boolean;
+  instanceCapacity?: AgentInstanceCapacity;
   startFailure?: string | null;
   modelCatalogError?: string | null;
   modelCatalogLoading?: boolean;
@@ -135,7 +136,7 @@ function AgentCreateScreenHarness({
       providersError={providersError}
       providersLoading={providersLoading}
       runtimeModels={models}
-      atInstanceLimit={atInstanceLimit}
+      instanceCapacity={instanceCapacity}
       startFailure={startFailure}
       submitError={submitError}
       takenNames={new Set(["reviewer"])}
@@ -161,7 +162,10 @@ export const StaysOn: Story = {
 export const LimitReached: Story = {
   args: {},
   render: () => (
-    <AgentCreateScreenHarness atInstanceLimit initialDraft={{ ...validDraft, kind: "stays_on" }} />
+    <AgentCreateScreenHarness
+      instanceCapacity={{ limit: 10, active: 10, reached: true }}
+      initialDraft={{ ...validDraft, kind: "stays_on" }}
+    />
   ),
 };
 

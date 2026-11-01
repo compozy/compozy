@@ -15,7 +15,7 @@ import {
 } from "@compozy/ui";
 
 import { agentCanResume, agentPlaceStatus, agentPlaceTimes } from "../../lib/agent-profile";
-import { AGENT_PAUSE_SHORT, AGENT_STATE_DOT, type AgentTeamPlace } from "../../lib/agent-team";
+import { AGENT_STATE_DOT, type AgentTeamPlace } from "../../lib/agent-team";
 import { AgentProjectMark } from "../agent-add-pickers";
 
 export interface AgentPlaceActions {
@@ -31,9 +31,9 @@ export function AgentPlaceCard({
   onArchive,
 }: AgentPlaceActions & { place: AgentTeamPlace }) {
   const [archiving, setArchiving] = useState(false);
-  const paused = place.state === "paused";
+  const paused = place.instance.state === "paused";
   const resumable = agentCanResume(place.pauseReason);
-  const live = place.state === "working" || place.state === "needs-you";
+  const live = !paused && (place.state === "working" || place.state === "needs-you");
   const { label } = place;
   const dot = AGENT_STATE_DOT[place.state];
   return (
@@ -82,7 +82,7 @@ export function AgentPlaceCard({
           )}
         >
           {dot ? <StatusDot className="mt-1.25 shrink-0" size="sm" tone={dot} /> : null}
-          <span className="min-w-0">{agentPlaceStatus(place, AGENT_PAUSE_SHORT)}</span>
+          <span className="min-w-0">{agentPlaceStatus(place)}</span>
         </p>
         <p className="pl-3.5 text-eyebrow text-subtle">{agentPlaceTimes(place)}</p>
       </div>

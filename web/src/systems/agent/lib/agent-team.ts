@@ -63,20 +63,32 @@ export const AGENT_STATE_DOT: Partial<Record<AgentAvatarState, StatusDotTone>> =
 };
 
 /** Why it stopped, the way you'd say it to a colleague. */
-export const AGENT_PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, "">, string> = {
+const PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, "" | "fatigue">, string> = {
   manual: "You paused it.",
-  fatigue: "It stopped itself after 10 check-ins in a row went wrong.",
   definition_not_stays_on: "It was changed to on demand, so it can't stay on here anymore.",
   definition_missing: "Its setup was deleted, so it can't come back. What it remembers is kept.",
 };
 
 /** The same reason, short enough for a card. */
-export const AGENT_PAUSE_SHORT: Record<Exclude<AgentInstancePauseReason, "">, string> = {
+const PAUSE_SHORT: Record<Exclude<AgentInstancePauseReason, "" | "fatigue">, string> = {
   manual: "You paused it",
-  fatigue: "Stopped after 10 failed check-ins",
   definition_not_stays_on: "Now on demand, so it can't stay on",
   definition_missing: "Its setup was deleted",
 };
+
+type PausedInstance = Pick<AgentInstancePayload, "pause_reason" | "fatigue_limit">;
+
+export function agentPausePlain({ pause_reason: reason, fatigue_limit: limit }: PausedInstance) {
+  if (!reason) return "";
+  return reason === "fatigue"
+    ? `It stopped itself after ${limit} check-ins in a row went wrong.`
+    : PAUSE_PLAIN[reason];
+}
+
+export function agentPauseShort({ pause_reason: reason, fatigue_limit: limit }: PausedInstance) {
+  if (!reason) return "";
+  return reason === "fatigue" ? `Stopped after ${limit} failed check-ins` : PAUSE_SHORT[reason];
+}
 
 const STATE_ORDER: readonly AgentAvatarState[] = [
   "needs-you",
@@ -85,6 +97,16 @@ const STATE_ORDER: readonly AgentAvatarState[] = [
   "paused",
   "starting",
 ];
+
+/** Where a definition can start: a user-level one anywhere, any other only where it resolves. */
+export function agentAddablePlaces<T extends { id: string }>(
+  places: readonly T[],
+  scopes: readonly string[]
+) {
+  const resolved = new Set(scopes);
+  if (resolved.has(GLOBAL_SCOPE)) return [...places];
+  return places.filter(place => resolved.has(place.id));
+}
 
 /** The state that speaks for an agent across all the places it works. */
 export function agentOverallState(
@@ -291,16 +313,15 @@ export function buildAgentTeamFilterFields(
 
 /** What a stays-on teammate is up to, in one plain sentence, with the tone of its dot. */
 export function agentNowLine(member: AgentTeamMember, lastCheckIn: string | null) {
-  const live = member.places.find(
-    place => place.state === "needs-you" || place.state === "working"
-  );
+  const running = member.places.filter(place => place.instance.state !== "paused");
+  const live = running.find(place => place.state === "needs-you" || place.state === "working");
   if (live) {
     return { text: `${live.now ?? "Working"} in ${live.label}`, tone: live.state };
   }
-  const paused = member.places.find(place => place.state === "paused");
+  const paused = member.places.find(place => place.instance.state === "paused");
   if (paused) {
     return {
-      text: paused.pauseReason ? AGENT_PAUSE_SHORT[paused.pauseReason] : "Paused",
+      text: agentPauseShort(paused.instance) || "Paused",
       tone: "paused" as const,
     };
   }

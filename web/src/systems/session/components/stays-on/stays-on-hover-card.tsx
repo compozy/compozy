@@ -14,7 +14,7 @@ import {
 
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
-  AGENT_PAUSE_COPY,
+  agentPauseCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceCheckInsOptions,
@@ -67,7 +67,7 @@ export function CheckTicks({ checkIns }: { checkIns: readonly AgentInstanceCheck
 
 /** Reads only when a card opens; an instance with no check-ins yet shows nothing here. */
 function CheckIns({ instance }: { instance: AgentInstancePayload }) {
-  const { data } = useQuery(agentInstanceCheckInsOptions(instance.id));
+  const { data } = useQuery(agentInstanceCheckInsOptions(instance));
   const checkIns = data?.check_ins ?? [];
   const last = formatRelativeClock(instance.last_wake_at);
   const next = instance.state === "paused" ? null : formatRelativeClock(instance.next_wake_at);
@@ -89,8 +89,7 @@ function CheckIns({ instance }: { instance: AgentInstancePayload }) {
 }
 
 function doingLine(instance: AgentInstancePayload) {
-  if (instance.pause_reason) return AGENT_PAUSE_COPY[instance.pause_reason];
-  return instance.now?.trim() || null;
+  return agentPauseCopy(instance) || instance.now.trim() || null;
 }
 
 /** What the agent is doing, one pointer away: the card behind every avatar in a row. */

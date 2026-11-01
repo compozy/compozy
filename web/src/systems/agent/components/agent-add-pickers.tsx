@@ -15,7 +15,12 @@ import {
   PopoverTrigger,
 } from "@compozy/ui";
 
-import { agentAvatarAppearance, ACTIVE_INSTANCE_LIMIT, GLOBAL_SCOPE } from "../lib/agent-instance";
+import {
+  agentAvatarAppearance,
+  agentLimitLine,
+  GLOBAL_SCOPE,
+  type AgentInstanceCapacity,
+} from "../lib/agent-instance";
 import type { AgentAppearancePayload, AgentGroupedCatalogItem } from "../types";
 import { AgentMark } from "./agent-mark";
 
@@ -199,14 +204,10 @@ function PickerFrame({
 }
 
 /** One cell per agent staying on: the limit is a full bar, not a sentence. */
-export function AgentLimitMeter() {
+export function AgentLimitMeter({ capacity }: { capacity: AgentInstanceCapacity }) {
   return (
-    <span
-      aria-label={`${ACTIVE_INSTANCE_LIMIT} of ${ACTIVE_INSTANCE_LIMIT} agents are staying on`}
-      className="flex items-center gap-1"
-      role="img"
-    >
-      {Array.from({ length: ACTIVE_INSTANCE_LIMIT }, (_, index) => (
+    <span aria-label={agentLimitLine(capacity)} className="flex items-center gap-1" role="img">
+      {Array.from({ length: capacity.limit }, (_, index) => (
         <span className="h-2 flex-1 rounded-xxs bg-warning" key={index} />
       ))}
     </span>
@@ -214,15 +215,12 @@ export function AgentLimitMeter() {
 }
 
 /** The limit, shown as the full meter it is, with the way forward. */
-function LimitNotice() {
+function LimitNotice({ capacity }: { capacity: AgentInstanceCapacity }) {
   return (
     <div className="flex flex-col gap-2 px-2.5 py-2" data-testid="agent-add-limit">
-      <AgentLimitMeter />
+      <AgentLimitMeter capacity={capacity} />
       <p className="text-small-body text-muted-foreground">
-        <span className="text-fg">
-          {ACTIVE_INSTANCE_LIMIT} of {ACTIVE_INSTANCE_LIMIT} agents are staying on.
-        </span>{" "}
-        Pause one to make room.
+        <span className="text-fg">{agentLimitLine(capacity)}.</span> Pause one to make room.
       </p>
     </div>
   );
@@ -280,7 +278,7 @@ export interface AgentPickerProps extends PickerOpenState {
   name: string;
   /** Stays-on agents not yet running there. */
   agents: readonly AgentGroupedCatalogItem[];
-  capped?: boolean;
+  capacity?: AgentInstanceCapacity;
   /** Provider ids that aren't signed in, with their names; their agents can't start. */
   signedOut?: ReadonlyMap<string, string>;
   onPick: (agent: AgentGroupedCatalogItem) => void;
@@ -292,7 +290,7 @@ export interface AgentPickerProps extends PickerOpenState {
 export function AgentPicker({
   name,
   agents,
-  capped = false,
+  capacity,
   signedOut,
   onPick,
   onCreateNew,
@@ -300,6 +298,7 @@ export function AgentPicker({
   open,
   onOpenChange,
 }: AgentPickerProps) {
+  const capped = capacity?.reached === true;
   const none = agents.length === 0;
   return (
     <PickerFrame
@@ -308,7 +307,7 @@ export function AgentPicker({
       search={none ? undefined : "Search agents…"}
       trigger={trigger}
     >
-      {capped ? <LimitNotice /> : null}
+      {capacity?.reached ? <LimitNotice capacity={capacity} /> : null}
       {none ? (
         <NothingLeft
           action={
@@ -369,7 +368,7 @@ export function AgentPicker({
 export interface AgentScopePickerProps extends PickerOpenState {
   /** Scopes the agent doesn't run in yet. */
   scopes: readonly AgentPlaceOption[];
-  capped?: boolean;
+  capacity?: AgentInstanceCapacity;
   /** Provider name when it isn't signed in. */
   signedOut?: string | null;
   onSignIn?: () => void;
@@ -380,7 +379,7 @@ export interface AgentScopePickerProps extends PickerOpenState {
 /** From a card or profile `+`: where to add this agent. */
 export function AgentScopePicker({
   scopes,
-  capped = false,
+  capacity,
   signedOut = null,
   onSignIn,
   onPick,
@@ -388,6 +387,7 @@ export function AgentScopePicker({
   open,
   onOpenChange,
 }: AgentScopePickerProps) {
+  const capped = capacity?.reached === true;
   const none = scopes.length === 0;
   return (
     <PickerFrame
@@ -397,7 +397,7 @@ export function AgentScopePicker({
       search={none ? undefined : "Search projects…"}
       trigger={trigger}
     >
-      {capped ? <LimitNotice /> : null}
+      {capacity?.reached ? <LimitNotice capacity={capacity} /> : null}
       {signedOut ? <SignedOutNotice onSignIn={onSignIn} provider={signedOut} /> : null}
       {none ? (
         <NothingLeft title="Nowhere left to add it">

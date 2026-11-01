@@ -21,6 +21,7 @@ interface GroupFacets {
   all: number;
   working: number;
   needs_you: number;
+  instances_needing_attention?: number;
 }
 
 /** One (workspace, profile) pair: the only place folders and manual order live (BR-11). */
@@ -43,6 +44,8 @@ export interface SessionListGroupSpec {
   total: number;
   working: number;
   needsYou: number;
+  /** Stays-on agents of this group waiting on the operator; main sessions stay out of `needsYou`. */
+  instancesNeedingAttention: number;
   /** The group's own data scope. */
   scope: DataScope;
   /** The group's own profile lens. */
@@ -52,7 +55,12 @@ export interface SessionListGroupSpec {
 }
 
 function counts(facets: GroupFacets) {
-  return { total: facets.all, working: facets.working, needsYou: facets.needs_you };
+  return {
+    total: facets.all,
+    working: facets.working,
+    needsYou: facets.needs_you,
+    instancesNeedingAttention: facets.instances_needing_attention ?? 0,
+  };
 }
 
 /** The pair a bounded scope and a single profile resolve to; `null` for any aggregate. */
@@ -81,7 +89,9 @@ export function projectSessionGroups(
   if (!facets) return [];
   const order = new Map(input.workspaces.map((workspace, index) => [workspace.id, index]));
   const rows = facets.by_workspace.flatMap(row =>
-    row.facets.all > 0 ? [{ row, scope: ownerDataScope(row.workspace_id) }] : []
+    row.facets.all > 0 || (row.facets.instances_needing_attention ?? 0) > 0
+      ? [{ row, scope: ownerDataScope(row.workspace_id) }]
+      : []
   );
   const rank = (scope: FocusedDataScope) =>
     scope.kind === "user" ? Number.MAX_SAFE_INTEGER : (order.get(scope.workspaceId) ?? order.size);

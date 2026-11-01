@@ -92,28 +92,45 @@ export interface AgentInstancePayload {
   id: string;
   agent_name: string;
   label: string;
-  provider?: string;
+  /** Empty until the main session or the definition names one. */
+  provider: string;
   resolved_appearance: AgentAppearancePayload;
+  profile_id: string;
+  /** The profile selector id routes need. Not on the wire: the read that fetched the row sets it. */
+  profile_name: string;
   /** Empty for a Global instance. */
   workspace_id: string;
   /** A display name; `@user` is Global. */
   scope: string;
   state: AgentInstanceState;
   activity: AgentInstanceActivity;
-  now?: string;
+  now: string;
   needs_attention: boolean;
-  pause_reason?: AgentInstancePauseReason;
-  main_session_id?: string | null;
-  checks_enabled?: boolean;
-  last_wake_at?: string | null;
-  next_wake_at?: string | null;
-  quiet_streak?: number;
-  failure_streak?: number;
+  pause_reason: AgentInstancePauseReason;
+  /** Empty until the main session exists. */
+  main_session_id: string;
+  checks_enabled: boolean;
+  /** Empty until the first check. */
+  last_wake_at: string;
+  /** Empty when no check is scheduled. */
+  next_wake_at: string;
+  quiet_streak: number;
+  failure_streak: number;
+  /** Failed checks in a row that pause it: `agents.heartbeat.fatigue_limit`. */
+  fatigue_limit: number;
+  created_at: string;
+  updated_at: string;
 }
 
+export type AgentInstanceWirePayload = Omit<AgentInstancePayload, "profile_name">;
+
 export interface AgentInstancesResponse {
-  instances: AgentInstancePayload[];
+  instances: AgentInstanceWirePayload[];
   next_cursor: string;
+  /** `agents.stays_on.max_active_instances`. */
+  max_active_instances: number;
+  /** Instances of this profile holding a slot. */
+  active_count: number;
 }
 
 export interface CreateAgentInstanceParams {

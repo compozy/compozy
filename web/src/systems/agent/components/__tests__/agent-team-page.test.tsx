@@ -25,7 +25,7 @@ function renderPage(overrides: Partial<ComponentProps<typeof AgentTeamPage>> = {
       <AgentTeamPage
         actions={{
           add: {
-            capped: false,
+            capacity: { limit: 10, active: 2, reached: false },
             onAdd: vi.fn(),
             onSignIn: vi.fn(),
             places: [],

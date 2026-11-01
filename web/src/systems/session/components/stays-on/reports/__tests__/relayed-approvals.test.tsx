@@ -21,7 +21,7 @@ const reads = vi.hoisted(() => ({
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: reads.instances,
+  fetchAgentInstances: async () => ({ instances: await reads.instances(), capacity: {} }),
 }));
 
 vi.mock("../../../../adapters/session-api", async importOriginal => ({
@@ -77,6 +77,17 @@ describe("Relayed approvals", () => {
     expect(JSON.stringify(reads.approve.mock.calls[0])).toContain("sess-child");
     expect(JSON.stringify(reads.approve.mock.calls[0])).toContain("perm-1");
     expect(await screen.findByText(/You allowed/)).toBeInTheDocument();
+  });
+
+  it("Should keep the ask docked and show no receipt when the answer fails", async () => {
+    reads.approve.mockRejectedValueOnce(new Error("expired"));
+    render(<RelayedApprovalDock sessionId="sess-main" workspaceId="ws-1" />, { wrapper });
+
+    await userEvent.click(await screen.findByTestId("permission-allow-once"));
+
+    await waitFor(() => expect(reads.approve).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.getByTestId("permission-allow-once")).toBeEnabled());
+    expect(screen.queryByText(/You allowed/)).toBeNull();
   });
 
   it("Should leave this session's own asks to its own dock", async () => {

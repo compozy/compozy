@@ -23,14 +23,19 @@ export const agentKeys = {
       [...workspaceIds].sort().join(","),
       normalizeAgentCatalogFilter(filters),
     ] as const,
-  /** The operator's stays-on agents across every scope; one read shared by every row. */
   instances: () => [...agentKeys.all, "instances"] as const,
+  instanceLists: () => [...agentKeys.instances(), "list"] as const,
+  /** The view's stays-on agents across every scope; one read shared by every row. */
+  instanceList: (view: string, profiles: readonly string[]) =>
+    [...agentKeys.instanceLists(), view, profiles.join(",")] as const,
   instanceAway: (id: string) => [...agentKeys.instances(), id, "away"] as const,
   instanceCheckIns: (id: string) => [...agentKeys.all, "instance-check-ins", id] as const,
   instanceDayCheckIns: (id: string) => [...agentKeys.instanceCheckIns(id), "day"] as const,
   instanceOccurrence: (id: string, occurrence: string) =>
     [...agentKeys.all, "instance-occurrence", id, occurrence] as const,
   instanceReports: (id: string) => [...agentKeys.all, "instance-reports", id] as const,
+  instanceIndeterminateReports: (id: string) =>
+    [...agentKeys.instanceReports(id), "indeterminate"] as const,
   /** Definitions a scope can start: one `group=agent` read per scope and profile. */
   staysOnCatalog: (workspace: string, profile = "default") =>
     [...agentKeys.catalogs(), "@stays-on", workspace, profile] as const,

@@ -9,7 +9,9 @@ import type {
   AgentInstancePayload,
   AgentInstanceReport,
   AgentInstanceReportsResponse,
+  AgentInstanceReportState,
   AgentInstancesResponse,
+  AgentInstanceWirePayload,
   CreateAgentInstanceParams,
   DraftAgentInstructionsParams,
   DraftAgentInstructionsResponse,
@@ -75,77 +77,156 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
   return (await response.json()) as T;
 }
 
-/** Every non-archived instance the operator can reach; the set is small and read as one list. */
-export async function fetchAgentInstances(signal?: AbortSignal): Promise<AgentInstancePayload[]> {
+/** Which instance a route acts on, and the profile that owns it: id routes refuse any other. */
+export type AgentInstanceRef = Pick<AgentInstancePayload, "id" | "profile_name">;
+
+/** The instances a view can see, with each read profile's own slots. */
+export interface AgentInstancesRead {
+  instances: AgentInstancePayload[];
+  capacity: Readonly<Record<string, AgentInstanceCapacityCount>>;
+}
+
+export interface AgentInstanceCapacityCount {
+  limit: number;
+  active: number;
+}
+
+function owned(instance: AgentInstanceWirePayload, profile_name: string) {
+  return { ...instance, profile_name };
+}
+
+async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
   const instances: AgentInstancePayload[] = [];
   let cursor = "";
+  let page: AgentInstancesResponse;
   do {
-    const query = new URLSearchParams({ all_workspaces: "true", limit: String(LIST_PAGE_LIMIT) });
+    const query = new URLSearchParams({
+      all_workspaces: "true",
+      limit: String(LIST_PAGE_LIMIT),
+      profile,
+    });
     if (cursor) query.set("cursor", cursor);
-    const page = await request<AgentInstancesResponse>(`/api/agent-instances?${query}`, {
+    page = await request<AgentInstancesResponse>(`/api/agent-instances?${query}`, {
       signal,
       fallback: "Failed to fetch stays-on agents",
     });
-    instances.push(...page.instances);
+    instances.push(...page.instances.map(instance => owned(instance, profile)));
     cursor = page.next_cursor;
   } while (cursor);
-  return instances;
+  return {
+    profile,
+    instances,
+    capacity: { limit: page.max_active_instances, active: page.active_count },
+  };
 }
 
-async function instanceAction(path: string, fallback: string, body?: unknown) {
-  const { instance } = await request<{ instance: AgentInstancePayload }>(path, {
+/**
+ * One read per profile: the list route serves a single profile, so a profile's slots stay its own
+ * and the aggregate is every profile's read. One unavailable profile doesn't hide the others.
+ */
+export async function fetchAgentInstances(
+  profiles: readonly string[],
+  signal?: AbortSignal
+): Promise<AgentInstancesRead> {
+  const settled = await Promise.allSettled(
+    profiles.map(profile => fetchProfileInstances(profile, signal))
+  );
+  const reads = settled.flatMap(result => (result.status === "fulfilled" ? [result.value] : []));
+  if (reads.length === 0 && settled[0]?.status === "rejected") throw settled[0].reason;
+  return {
+    instances: reads.flatMap(read => read.instances),
+    capacity: Object.fromEntries(reads.map(read => [read.profile, read.capacity])),
+  };
+}
+
+function instancePath(
+  { id, profile_name }: AgentInstanceRef,
+  suffix = "",
+  params: Record<string, string> = {}
+) {
+  const query = new URLSearchParams({ ...params, profile: profile_name });
+  return `/api/agent-instances/${encodeURIComponent(id)}${suffix}?${query}`;
+}
+
+async function instanceAction(
+  path: string,
+  profile: string,
+  fallback: string,
+  body?: unknown
+): Promise<AgentInstancePayload> {
+  const { instance } = await request<{ instance: AgentInstanceWirePayload }>(path, {
     method: "POST",
     body,
     fallback,
   });
-  return instance;
+  return owned(instance, profile);
 }
 
-export function createAgentInstance(params: CreateAgentInstanceParams) {
-  return instanceAction("/api/agent-instances", "Failed to start this agent", params);
+export function createAgentInstance(params: CreateAgentInstanceParams, profile: string) {
+  const query = new URLSearchParams({ profile });
+  return instanceAction(
+    `/api/agent-instances?${query}`,
+    profile,
+    "Failed to start this agent",
+    params
+  );
 }
 
-const instancePath = (id: string) => `/api/agent-instances/${encodeURIComponent(id)}`;
-
-export function pauseAgentInstance(id: string) {
-  return instanceAction(`${instancePath(id)}/pause`, "Failed to pause this agent");
+export function pauseAgentInstance(ref: AgentInstanceRef) {
+  return instanceAction(
+    instancePath(ref, "/pause"),
+    ref.profile_name,
+    "Failed to pause this agent"
+  );
 }
 
-export function resumeAgentInstance(id: string) {
-  return instanceAction(`${instancePath(id)}/resume`, "Failed to resume this agent");
+export function resumeAgentInstance(ref: AgentInstanceRef) {
+  return instanceAction(
+    instancePath(ref, "/resume"),
+    ref.profile_name,
+    "Failed to resume this agent"
+  );
 }
 
-export function ensureAgentInstanceMain(id: string) {
-  return instanceAction(`${instancePath(id)}/ensure-main`, "Failed to open this agent");
+export function ensureAgentInstanceMain(ref: AgentInstanceRef) {
+  return instanceAction(
+    instancePath(ref, "/ensure-main"),
+    ref.profile_name,
+    "Failed to open this agent"
+  );
 }
 
-export async function archiveAgentInstance(id: string): Promise<void> {
-  await request<void>(instancePath(id), {
+export async function archiveAgentInstance(ref: AgentInstanceRef): Promise<void> {
+  await request<void>(instancePath(ref), {
     method: "DELETE",
     fallback: "Failed to archive this agent",
   });
 }
 
-export async function setAgentInstanceChecks(id: string, checksEnabled: boolean) {
-  const { instance } = await request<{ instance: AgentInstancePayload }>(instancePath(id), {
+export async function setAgentInstanceChecks(ref: AgentInstanceRef, checksEnabled: boolean) {
+  const { instance } = await request<{ instance: AgentInstanceWirePayload }>(instancePath(ref), {
     method: "PATCH",
     body: { checks_enabled: checksEnabled },
     fallback: "Failed to change check-ins",
   });
-  return instance;
+  return owned(instance, ref.profile_name);
 }
 
-export function runAgentInstanceCheck(id: string, dryRun: boolean) {
-  return request<AgentInstanceCheckResponse>(`${instancePath(id)}/check`, {
+export function runAgentInstanceCheck(ref: AgentInstanceRef, dryRun: boolean) {
+  return request<AgentInstanceCheckResponse>(instancePath(ref, "/check"), {
     method: "POST",
     body: { dry_run: dryRun },
     fallback: "Failed to run this check",
   });
 }
 
-export function fetchAgentInstanceOccurrence(id: string, occurrence: string, signal?: AbortSignal) {
+export function fetchAgentInstanceOccurrence(
+  ref: AgentInstanceRef,
+  occurrence: string,
+  signal?: AbortSignal
+) {
   return request<AgentInstanceOccurrence>(
-    `${instancePath(id)}/occurrences/${encodeURIComponent(occurrence)}`,
+    instancePath(ref, `/occurrences/${encodeURIComponent(occurrence)}`),
     { signal, fallback: "Failed to read this check" }
   );
 }
@@ -153,22 +234,27 @@ export function fetchAgentInstanceOccurrence(id: string, occurrence: string, sig
 const REPORTS_READ_LIMIT = 100;
 
 export async function fetchAgentInstanceReports(
-  id: string,
+  ref: AgentInstanceRef,
   limit = REPORTS_READ_LIMIT,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  state?: AgentInstanceReportState
 ): Promise<AgentInstanceReport[]> {
   const { reports } = await request<AgentInstanceReportsResponse>(
-    `${instancePath(id)}/reports?limit=${limit}`,
+    instancePath(ref, "/reports", { limit: String(limit), ...(state ? { state } : {}) }),
     { signal, fallback: "Failed to fetch this agent's reports" }
   );
   return reports;
 }
 
-export function fetchAgentInstanceCheckIns(id: string, limit: number, signal?: AbortSignal) {
-  return request<AgentInstanceCheckInsResponse>(`${instancePath(id)}/check-ins?limit=${limit}`, {
-    signal,
-    fallback: "Failed to fetch check-ins",
-  });
+export function fetchAgentInstanceCheckIns(
+  ref: AgentInstanceRef,
+  limit: number,
+  signal?: AbortSignal
+) {
+  return request<AgentInstanceCheckInsResponse>(
+    instancePath(ref, "/check-ins", { limit: String(limit) }),
+    { signal, fallback: "Failed to fetch check-ins" }
+  );
 }
 
 /** `null` means no route answers yet, which is different from no activity. */
@@ -193,11 +279,11 @@ export async function fetchAgentActivity(
 
 /** `null` until the daemon serves away reads: no route means no digest, never a made-up one. */
 export async function fetchAgentInstanceAway(
-  id: string,
+  ref: AgentInstanceRef,
   signal?: AbortSignal
 ): Promise<AgentInstanceAway | null> {
   try {
-    return await request<AgentInstanceAway>(`/api/agent-instances/${encodeURIComponent(id)}/away`, {
+    return await request<AgentInstanceAway>(instancePath(ref, "/away"), {
       signal,
       fallback: "Failed to fetch what happened while you were away",
     });
@@ -207,9 +293,9 @@ export async function fetchAgentInstanceAway(
   }
 }
 
-export async function markAgentInstanceSeen(id: string): Promise<void> {
+export async function markAgentInstanceSeen(ref: AgentInstanceRef): Promise<void> {
   try {
-    await request<void>(`/api/agent-instances/${encodeURIComponent(id)}/away`, {
+    await request<void>(instancePath(ref, "/away"), {
       method: "POST",
       fallback: "Failed to mark this agent as seen",
     });
@@ -221,10 +307,12 @@ export async function markAgentInstanceSeen(id: string): Promise<void> {
 
 export async function draftAgentInstructions(
   params: DraftAgentInstructionsParams,
+  profile: string,
   signal?: AbortSignal
 ) {
+  const query = new URLSearchParams({ profile });
   const { instructions } = await request<DraftAgentInstructionsResponse>(
-    "/api/agents/draft-instructions",
+    `/api/agents/draft-instructions?${query}`,
     { method: "POST", body: params, signal, fallback: "Failed to write the instructions" }
   );
   return instructions;

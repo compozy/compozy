@@ -2,7 +2,7 @@
 import type { AgentAvatarState } from "@compozy/ui";
 
 import { formatRelativeClock } from "./agent-time";
-import type { AgentTeamPlace } from "./agent-team";
+import { agentPauseShort, type AgentTeamPlace } from "./agent-team";
 import type { AgentActivityPayload, AgentPayload } from "../types";
 
 export const AGENT_PROFILE_PANELS = ["model", "tools"] as const;
@@ -18,7 +18,7 @@ export function agentCanResume(reason: AgentTeamPlace["pauseReason"]) {
 /** The freshest check-in across places, in plain words. */
 export function agentLastCheckIn(places: readonly AgentTeamPlace[], now = Date.now()) {
   const stamps = places.flatMap(place => {
-    const at = Date.parse(place.instance.last_wake_at ?? "");
+    const at = Date.parse(place.instance.last_wake_at);
     return Number.isNaN(at) ? [] : [at];
   });
   if (stamps.length === 0) return null;
@@ -36,6 +36,9 @@ export function agentHeadline(input: {
   if (places.length === 0) return "Waiting for its first project";
   const place = places.find(entry => entry.state === state);
   const where = place?.label ?? "";
+  if (place?.instance.state === "paused" && state === "needs-you") {
+    return `Needs you in ${where}`;
+  }
   if (state === "needs-you") return `${place?.now ?? "Needs you"} in ${where}`;
   if (state === "working") return `${place?.now ?? "Working"} in ${where}`;
   if (state === "paused") {
@@ -58,16 +61,16 @@ export function agentPlacesByAttention(places: readonly AgentTeamPlace[]) {
   );
 }
 
-export function agentPlaceStatus(place: AgentTeamPlace, short: Record<string, string>) {
-  if (place.pauseReason) return short[place.pauseReason] ?? "Paused";
-  if (place.state === "paused") return "You paused it";
+export function agentPlaceStatus(place: AgentTeamPlace) {
+  if (place.pauseReason) return agentPauseShort(place.instance);
+  if (place.instance.state === "paused") return "You paused it";
   if (place.now) return place.now;
   return place.state === "working" ? "Working" : "Resting until its next check-in";
 }
 
 export function agentPlaceTimes(place: AgentTeamPlace, now = Date.now()) {
   const last = formatRelativeClock(place.instance.last_wake_at, now);
-  if (place.state === "paused") return `Last checked in ${last ?? "never"}`;
+  if (place.instance.state === "paused") return `Last checked in ${last ?? "never"}`;
   const next = formatRelativeClock(place.instance.next_wake_at, now);
   return `${last ? `Checked in ${last}` : "No check-ins yet"}${next ? ` · next ${next}` : ""}`;
 }

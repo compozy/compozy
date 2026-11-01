@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { checkInActivity, checkInReason } from "../agent-check-in-activity";
 import {
+  LOOK_AT_IDS,
+  blankCheckIns,
   composeCheckInsFile,
   floorStop,
   parseCheckInsFile,
   previewNextCheckIn,
+  scheduleSummary,
   type CheckInSettings,
 } from "../agent-check-in-form";
 import {
@@ -115,6 +118,27 @@ describe("HEARTBEAT.md form", () => {
     ["a comment", `---\n# keep this\nenabled: true\n---\n`],
   ])("Should refuse %s", (_name, source) => {
     expect(parseCheckInsFile(source, DEFAULTS).block).toBe("settings");
+  });
+
+  it("Should show every source and all day when the file says nothing about them", () => {
+    expect(settingsOf("---\nversion: 1\nenabled: true\n---\n")).toMatchObject({
+      hours: [0, 24],
+      lunch: false,
+      looksAt: LOOK_AT_IDS,
+    });
+  });
+
+  it("Should describe no file the way the daemon runs it", () => {
+    const form = blankCheckIns({ defaultStop: 2, timezone: "UTC" });
+    expect(form).toMatchObject({ hours: [0, 24], lunch: false, looksAt: LOOK_AT_IDS });
+    expect(scheduleSummary(form, true)).toBe("Every 30 min, all day");
+  });
+
+  it("Should keep every source off through a save instead of falling back to all five", () => {
+    const form = settingsOf(CHECK_INS_FILE);
+    const body = composeCheckInsFile({ ...form, looksAt: [] });
+    expect(body).toContain("include: []");
+    expect(settingsOf(body).looksAt).toEqual([]);
   });
 
   it("Should refuse guidance the Markdown field would flatten", () => {

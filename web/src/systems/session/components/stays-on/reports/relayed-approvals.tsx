@@ -66,6 +66,12 @@ function RelayedAsk({
     permission,
     sessionId: ask.session_id,
     workspaceId,
+    onResolved: decision =>
+      onDecided({
+        allowed: decision.startsWith("allow"),
+        subject: subject ?? "this request",
+        agent: agent.label,
+      }),
   });
   if (isResolved) return null;
   const wait = waitsMore(ask.expires_at ?? undefined, now);
@@ -85,14 +91,7 @@ function RelayedAsk({
         />
       }
       countLabel={countLabel}
-      decide={decision => {
-        decide(decision);
-        onDecided({
-          allowed: decision.startsWith("allow"),
-          subject: subject ?? "this request",
-          agent: agent.label,
-        });
-      }}
+      decide={decide}
       decisionOptions={decisionOptions}
       isSubmitting={isSubmitting}
       origin={

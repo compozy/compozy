@@ -427,7 +427,7 @@ function DesktopShellScopedBody({
         worktreeDialogs={worktreeDialogs}
       />
       <AgentCreateScreen
-        atInstanceLimit={model.agentCreate.atInstanceLimit}
+        instanceCapacity={model.agentCreate.instanceCapacity}
         draft={model.agentCreate.draft}
         duplicateSourceName={model.agentCreate.duplicateSourceName}
         hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}

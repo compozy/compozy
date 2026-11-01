@@ -68,9 +68,11 @@ export function serializeAgentHeartbeatSource(
     appendHeartbeatWindows(lines, "active_hours", activeHours);
     appendHeartbeatWindows(lines, "quiet_windows", quietWindows);
   }
-  if ((context.include ?? []).length > 0) {
+  // An empty list is a choice: every source off. Only a missing key means all of them.
+  if (context.include?.length === 0) lines.push("context:", "  include: []");
+  if (context.include?.length) {
     lines.push("context:", "  include:");
-    for (const value of context.include ?? []) {
+    for (const value of context.include) {
       lines.push(`    - ${quoteYaml(value)}`);
     }
   }

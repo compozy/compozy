@@ -280,6 +280,7 @@ function projectLane(workspaceId: string): SessionsBoardLane {
       total,
       working: laneSessions(workspaceId, "working").length,
       needsYou: laneSessions(workspaceId, "needs_you").length,
+      instancesNeedingAttention: 0,
       scope: { kind: "project", workspaceId },
       lens: { profile: "default" },
       pair: null,

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -85,7 +86,7 @@ function makeProps(overrides: Partial<AgentCreateScreenProps> = {}): AgentCreate
     workspaceName: "alpha",
     takenNames: new Set(["reviewer"]),
     workspaces,
-    atInstanceLimit: false,
+    instanceCapacity: { limit: 10, active: 2, reached: false },
     ...overrides,
   };
 }
@@ -99,15 +100,31 @@ function renderScreen(props: Partial<AgentCreateScreenProps> = {}) {
   }
 
   return render(
-    <UIProvider reducedMotion="never" skipAnimations>
-      <Harness />
-    </UIProvider>
+    <QueryClientProvider client={new QueryClient()}>
+      <UIProvider reducedMotion="never" skipAnimations>
+        <Harness />
+      </UIProvider>
+    </QueryClientProvider>
   );
 }
 
 const advancedToggle = () => screen.getByRole("button", { name: "Advanced" });
 
 describe("AgentCreateScreen", () => {
+  it("Should stop a write in flight when the screen closes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(draftAgentInstructions).mockReturnValue(new Promise(() => undefined));
+    const { unmount } = renderScreen({ draft: validDraft({ provider: "codex" }) });
+
+    await user.click(screen.getByTestId("agent-fill-with-ai"));
+    await user.type(screen.getByLabelText("What should this agent do?"), "Review releases");
+    await user.click(screen.getByRole("button", { name: "Write it" }));
+    const signal = vi.mocked(draftAgentInstructions).mock.lastCall?.[2];
+    unmount();
+
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("Should draft instructions with the selected runtime without saving the agent", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -128,6 +145,7 @@ describe("AgentCreateScreen", () => {
         goal: "Review releases",
         runtime: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
       },
+      "default",
       expect.any(AbortSignal)
     );
     expect(onSubmit).not.toHaveBeenCalled();
@@ -231,7 +249,10 @@ describe("AgentCreateScreen", () => {
   });
 
   it("Should show the limit before submit and create the agent unstarted", () => {
-    renderScreen({ atInstanceLimit: true, draft: validDraft({ kind: "stays_on" }) });
+    renderScreen({
+      instanceCapacity: { limit: 10, active: 10, reached: true },
+      draft: validDraft({ kind: "stays_on" }),
+    });
 
     expect(screen.getByTestId("agent-create-limit")).toHaveTextContent(
       "10 of 10 agents are staying on."

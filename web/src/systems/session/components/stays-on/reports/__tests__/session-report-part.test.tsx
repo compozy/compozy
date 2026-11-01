@@ -15,6 +15,7 @@ import type { SessionReportData } from "../../../../types";
 import { SessionReportPart } from "../session-report-part";
 
 const reads = vi.hoisted(() => ({
+  navigate: vi.fn(),
   instances: vi.fn(async () => [] as AgentInstancePayload[]),
   reports: vi.fn(async () => [] as AgentInstanceReport[]),
   away: vi.fn(async () => null as AgentInstanceAway | null),
@@ -22,7 +23,7 @@ const reads = vi.hoisted(() => ({
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: reads.instances,
+  fetchAgentInstances: async () => ({ instances: await reads.instances(), capacity: {} }),
   fetchAgentInstanceReports: reads.reports,
   fetchAgentInstanceAway: reads.away,
 }));
@@ -34,7 +35,7 @@ vi.mock("@assistant-ui/react", async importOriginal => ({
 
 vi.mock("@tanstack/react-router", async importOriginal => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => reads.navigate,
 }));
 
 function harness(send: ((text: string) => void) | null) {
@@ -76,10 +77,15 @@ describe("SessionReportPart", () => {
     expect(
       await screen.findByText(/This conversation continues from an earlier one/)
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Read it" })).toHaveAttribute(
-      "href",
-      "/session/sess-before"
-    );
+    const link = screen.getByRole("link", { name: "Read it" });
+    expect(link).toHaveAttribute("href", "/session/sess-before");
+
+    reads.navigate.mockClear();
+    await userEvent.click(link);
+    expect(reads.navigate).toHaveBeenCalledWith({
+      to: "/session/$id",
+      params: { id: "sess-before" },
+    });
   });
 
   beforeEach(() => {
@@ -114,6 +120,41 @@ describe("SessionReportPart", () => {
     expect(await screen.findByText(/may not have reached/)).toBeInTheDocument();
   });
 
+  it("Should find an indeterminate report of any kind, past the newest few", async () => {
+    reads.reports.mockImplementation(async (...args: unknown[]) =>
+      args[3] === "indeterminate"
+        ? [
+            {
+              id: "arpt-1",
+              kind: "failure",
+              state: "indeterminate",
+              created_at: PROPOSAL.created_at,
+            },
+          ]
+        : []
+    );
+    render(<SessionReportPart data={{ ...PROPOSAL, kind: "failure", payload: {} }} />, {
+      wrapper: harness(vi.fn()),
+    });
+
+    expect(await screen.findByText("This may not have reached Triage Lead.")).toBeInTheDocument();
+  });
+
+  it("Should open the instance's Check-ins page, in its own scope, from a failure", async () => {
+    reads.navigate.mockClear();
+    render(<SessionReportPart data={{ ...PROPOSAL, kind: "failure", payload: {} }} />, {
+      wrapper: harness(vi.fn()),
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "See check-ins" }));
+
+    expect(reads.navigate).toHaveBeenCalledWith({
+      to: "/agents/$name/$page",
+      params: { name: INSTANCE.agent_name, page: "check-ins" },
+      search: { workspace: INSTANCE.workspace_id },
+    });
+  });
+
   it("Should tell a provider-ended request apart from an unanswered one [US-023.EC-1]", async () => {
     render(
       <SessionReportPart
@@ -128,7 +169,7 @@ describe("SessionReportPart", () => {
 
     expect(await screen.findByText(/request ended early/)).toBeInTheDocument();
     expect(screen.getByText("Didn't happen")).toBeInTheDocument();
-    expect(screen.getByText("make migrate")).toBeInTheDocument();
+    expect(await screen.findByText("make migrate")).toBeInTheDocument();
   });
 
   it("Should fold a told report into the digest and keep the decision", async () => {

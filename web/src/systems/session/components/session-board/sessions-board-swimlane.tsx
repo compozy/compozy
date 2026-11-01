@@ -1,4 +1,4 @@
-import { cn } from "@compozy/ui";
+import { StatusDot, cn } from "@compozy/ui";
 
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
@@ -40,6 +40,7 @@ export function SessionsBoardSwimlane({
 }) {
   const columns = useSessionsBoardColumns(lane.filters, true);
   const name = laneName(lane);
+  const waiting = lane.group.instancesNeedingAttention;
   const testId = `sessions-board-lane-${lane.group.key}`;
   // A project lane's header is a project surface: it takes focus so Shift+F10 reaches its menu.
   const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
@@ -72,6 +73,15 @@ export function SessionsBoardSwimlane({
             <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
               {lane.group.total}
             </span>
+            {waiting > 0 ? (
+              <span
+                className="flex items-center gap-1.5 text-small-body text-muted-foreground"
+                data-testid={`${testId}-agents-waiting`}
+              >
+                <StatusDot size="sm" tone="brand" />
+                {waiting === 1 ? "1 agent needs you" : `${waiting} agents need you`}
+              </span>
+            ) : null}
           </header>
         </SessionListGroupProjectMenu>
         {staysOnScope ? (

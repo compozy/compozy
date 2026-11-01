@@ -12,6 +12,7 @@ import {
 } from "@compozy/ui";
 
 import {
+  agentInstanceBinding,
   agentInstanceResumeBlocked,
   useAgentInstanceActions,
   type AgentInstancePayload,
@@ -22,8 +23,11 @@ export function StaysOnAgentMenu({ instance }: { instance: AgentInstancePayload 
   const navigate = useNavigate();
   const { archive, pause, resume } = useAgentInstanceActions();
   const paused = instance.state === "paused";
-  const openAgent = () =>
-    void navigate({ to: "/agents/$name", params: { name: instance.agent_name } });
+  const search = agentInstanceBinding(instance);
+  const name = instance.agent_name;
+  const openAgent = () => void navigate({ to: "/agents/$name", params: { name }, search });
+  const openCheckIns = () =>
+    void navigate({ to: "/agents/$name/$page", params: { name, page: "check-ins" }, search });
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -36,13 +40,13 @@ export function StaysOnAgentMenu({ instance }: { instance: AgentInstancePayload 
         {paused ? (
           <DropdownMenuItem
             disabled={agentInstanceResumeBlocked(instance)}
-            onClick={() => resume(instance.id)}
+            onClick={() => resume(instance)}
           >
             <Play aria-hidden="true" />
             Resume
           </DropdownMenuItem>
         ) : (
-          <DropdownMenuItem onClick={() => pause(instance.id)}>
+          <DropdownMenuItem onClick={() => pause(instance)}>
             <Pause aria-hidden="true" />
             Pause
           </DropdownMenuItem>
@@ -51,12 +55,12 @@ export function StaysOnAgentMenu({ instance }: { instance: AgentInstancePayload 
           <Bot aria-hidden="true" />
           Open agent
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={openAgent}>
+        <DropdownMenuItem onClick={openCheckIns}>
           <HeartPulse aria-hidden="true" />
           Check-ins
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => archive(instance.id)}>
+        <DropdownMenuItem onClick={() => archive(instance)}>
           <Archive aria-hidden="true" />
           Archive
         </DropdownMenuItem>

@@ -3,7 +3,6 @@ export type {
   AgentEventPayload,
   CompozyPermissionData,
   SessionCompactionItemData,
-  SessionReportData,
   AnswerClarificationBody,
   AnswerClarificationResult,
   ApproveSessionParams,
@@ -146,17 +145,7 @@ export type { SessionPromptCapability } from "./lib/session-prompt-capability";
 export * from "./attachments";
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
 export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarify-event";
-export {
-  isAgentEventPayload,
-  isCompactionItemData,
-  isSessionReportData,
-  resolveToolResult,
-} from "./lib/message-parts";
-export { SessionReportPart } from "./components/stays-on/reports/session-report-part";
-export { RelayedWaitingMarker } from "./components/stays-on/reports/relayed-approvals";
-export { SupersededNotice } from "./components/stays-on/reports/superseded-notice";
-export { SessionReportSendContext } from "./lib/session-report-send";
-export { sessionSuccessorId } from "./lib/session-superseded";
+export { isAgentEventPayload, isCompactionItemData, resolveToolResult } from "./lib/message-parts";
 export { isProviderErrorEvent } from "./lib/provider-error";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 // Attention surface — badge dictionary, pending-interaction reads, list
@@ -508,4 +497,4 @@ export * from "./subagents";
 // Processes surface — what a session left running and the stop/keep choice (./processes).
 export * from "./processes";
 export * from "./board-drawer";
-export { useSignedOutProviders } from "./hooks/use-signed-out-providers";
+export * from "./stays-on";

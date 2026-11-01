@@ -1,15 +1,12 @@
 import {
   AgentPicker,
-  GLOBAL_SCOPE,
-  agentInstanceLimitReached,
   useAgentCreateHost,
   useAgentInstanceActions,
-  useAgentInstances,
-  useStaysOnAgents,
+  useAgentInstanceCapacity,
 } from "@/systems/agent";
 
 import { useSignedOutProviders } from "../../hooks/use-signed-out-providers";
-import { instancesInScope } from "../../lib/stays-on-scope";
+import { useUnplacedAgents } from "../../hooks/use-unplaced-agents";
 
 /**
  * S16 from a project `+`: a popover over the same button. It mounts only while open, so nothing
@@ -26,17 +23,15 @@ export function StaysOnAddPicker({
   onOpenChange: (open: boolean) => void;
 }) {
   const host = useAgentCreateHost();
-  const instances = useAgentInstances();
+  const capacity = useAgentInstanceCapacity();
   const actions = useAgentInstanceActions();
-  const catalog = useStaysOnAgents(place === GLOBAL_SCOPE ? "" : place, true);
   const signedOut = useSignedOutProviders();
-  const placed = new Set(instancesInScope(instances, place).map(instance => instance.agent_name));
-  const agents = (catalog.data ?? []).filter(agent => !placed.has(agent.name));
-  if (catalog.isPending) return null;
+  const { agents, pending } = useUnplacedAgents(place);
+  if (pending) return null;
   return (
     <AgentPicker
       agents={agents}
-      capped={agentInstanceLimitReached(instances)}
+      capacity={capacity}
       name={name}
       onCreateNew={() => {
         onOpenChange(false);

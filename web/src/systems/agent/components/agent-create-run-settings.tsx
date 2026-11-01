@@ -16,7 +16,7 @@ import {
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { AGENT_PLACE_LATER, type AgentCreateDialogDraft } from "../lib/agent-create-draft";
-import { ACTIVE_INSTANCE_LIMIT, GLOBAL_SCOPE } from "../lib/agent-instance";
+import { GLOBAL_SCOPE, agentLimitLine, type AgentInstanceCapacity } from "../lib/agent-instance";
 import { agentPlaceLabel } from "../lib/agent-place";
 import {
   AgentGlobalMark,
@@ -83,18 +83,16 @@ function Labeled({ id, label, children }: { id: string; label: string; children:
   );
 }
 
-function LimitCard() {
+function LimitCard({ capacity }: { capacity: AgentInstanceCapacity }) {
   return (
     <div
       className="flex flex-col gap-2 rounded-md bg-card p-3 shadow-card"
       data-testid="agent-create-limit"
     >
-      <AgentLimitMeter />
+      <AgentLimitMeter capacity={capacity} />
       <p className="text-small-body text-muted-foreground">
-        <span className="text-fg">
-          {ACTIVE_INSTANCE_LIMIT} of {ACTIVE_INSTANCE_LIMIT} agents are staying on.
-        </span>{" "}
-        Create this one now, and start it once you've paused another.
+        <span className="text-fg">{agentLimitLine(capacity)}.</span> Create this one now, and start
+        it once you've paused another.
       </p>
     </div>
   );
@@ -115,14 +113,14 @@ function SignInNote({ provider, onSignIn }: { provider: string; onSignIn: () => 
 }
 
 export interface AgentCreateRunSettingsProps extends AgentCreateRuntimeFieldsProps {
-  atInstanceLimit: boolean;
+  instanceCapacity: AgentInstanceCapacity;
   signedOut: string | null;
   workspaces: readonly WorkspacePayload[];
 }
 
 /** The right rail: how it runs, where it works, and which model. */
 export function AgentCreateRunSettings({
-  atInstanceLimit,
+  instanceCapacity,
   signedOut,
   workspaces,
   ...runtime
@@ -154,8 +152,8 @@ export function AgentCreateRunSettings({
       </div>
       {draft.kind === "stays_on" ? (
         <Labeled id={whereId} label="Where it works">
-          {atInstanceLimit ? (
-            <LimitCard />
+          {instanceCapacity.reached ? (
+            <LimitCard capacity={instanceCapacity} />
           ) : (
             <WherePicker
               labelId={whereId}

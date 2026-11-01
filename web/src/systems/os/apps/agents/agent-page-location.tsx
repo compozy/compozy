@@ -87,7 +87,7 @@ function PageBody({
       return (
         <AgentWhereItWorks
           actions={profile.placeActions}
-          capped={profile.capped}
+          capacity={profile.capacity}
           places={profile.places}
         />
       );

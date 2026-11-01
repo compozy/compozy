@@ -18,6 +18,7 @@ const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("@/systems/session", () => ({
   canPromptSession: () => true,
+  useMarkSeenOnLeave: () => undefined,
   SessionSidebarLayout: ({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) => (
     <>
       {sidebar}

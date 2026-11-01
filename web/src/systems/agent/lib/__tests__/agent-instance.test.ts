@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import { humanizeAgentSlug, resolveAgentIdentity } from "../agent-identity";
-import { agentFromOrphanInstance } from "../agent-instance-wire";
+import { agentFromOrphanInstance, isOrphanAgent } from "../agent-instance-wire";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
-  agentInstanceLimitReached,
+  agentInstanceCapacity,
+  agentPauseCopy,
   agentInstancesByUrgency,
 } from "../agent-instance";
 
@@ -33,16 +34,21 @@ describe("agentInstancesByUrgency", () => {
   });
 });
 
-describe("agentInstanceLimitReached", () => {
-  it("Should count active and starting, never paused", () => {
-    const active = Array.from({ length: 9 }, () => agentInstanceFixture());
-    expect(agentInstanceLimitReached(active)).toBe(false);
-    expect(agentInstanceLimitReached([...active, agentInstanceFixture({ state: "paused" })])).toBe(
-      false
-    );
-    expect(
-      agentInstanceLimitReached([...active, agentInstanceFixture({ state: "starting" })])
-    ).toBe(true);
+describe("agentInstanceCapacity", () => {
+  it("Should block at the daemon's configured limit, not a fixed number", () => {
+    expect(agentInstanceCapacity({ limit: 25, active: 10 }).reached).toBe(false);
+    expect(agentInstanceCapacity({ limit: 5, active: 5 }).reached).toBe(true);
+  });
+
+  it("Should block nothing before the daemon has answered", () => {
+    expect(agentInstanceCapacity(undefined).reached).toBe(false);
+  });
+});
+
+describe("agentPauseCopy", () => {
+  it("Should say the fatigue limit the daemon applied", () => {
+    const instance = agentInstanceFixture({ pause_reason: "fatigue", fatigue_limit: 3 });
+    expect(agentPauseCopy(instance)).toBe("Paused after 3 failed checks in a row.");
   });
 });
 
@@ -116,6 +122,11 @@ describe("agent identity", () => {
 });
 
 describe("agentFromOrphanInstance", () => {
+  it("Should mark the stand-in as an orphan, so its page stays read-only", () => {
+    expect(isOrphanAgent(agentFromOrphanInstance(agentInstanceFixture()))).toBe(true);
+    expect(isOrphanAgent({ definition_digest: "sha256:abc" })).toBe(false);
+  });
+
   it("Should give an orphan enough of an agent to explain itself", () => {
     const agent = agentFromOrphanInstance(agentInstanceFixture({ label: "Triage Lead" }));
     expect(agent).toMatchObject({ name: "triage", label: "Triage Lead", kind: "stays_on" });

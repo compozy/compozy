@@ -13,6 +13,7 @@ import {
   fetchAgentInstanceOccurrence,
   fetchAgentInstances,
   fetchAgentInstanceAway,
+  type AgentInstanceRef,
 } from "../adapters/agent-instance-api";
 import {
   fetchAgentHeartbeat,
@@ -38,51 +39,52 @@ const CHECK_INS_PER_DAY = 288;
 const OCCURRENCE_POLL_MS = 1_500;
 const GROUPED_CATALOG_PAGE = 100;
 
-/** Every instance, across scopes; `agent_instance.updated` keeps it live between reads. */
-export function agentInstancesOptions() {
+/** Every instance a view sees, across scopes; `agent_instance.updated` keeps it live between reads. */
+export function agentInstancesOptions(view: string, profiles: readonly string[]) {
   return queryOptions({
-    queryKey: agentKeys.instances(),
-    queryFn: ({ signal }) => fetchAgentInstances(signal),
+    queryKey: agentKeys.instanceList(view, profiles),
+    queryFn: ({ signal }) => fetchAgentInstances(profiles, signal),
     staleTime: 30_000,
     retry: false,
+    enabled: profiles.length > 0,
   });
 }
 
 /** One read per visit: the digest holds still until the operator leaves and it's marked seen. */
-export function agentInstanceAwayOptions(id: string) {
+export function agentInstanceAwayOptions(ref: AgentInstanceRef) {
   return queryOptions({
-    queryKey: agentKeys.instanceAway(id),
-    queryFn: ({ signal }) => fetchAgentInstanceAway(id, signal),
+    queryKey: agentKeys.instanceAway(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceAway(ref, signal),
     staleTime: Infinity,
     gcTime: 0,
     retry: false,
   });
 }
 
-export function agentInstanceCheckInsOptions(id: string) {
+export function agentInstanceCheckInsOptions(ref: AgentInstanceRef) {
   return queryOptions({
-    queryKey: agentKeys.instanceCheckIns(id),
-    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(id, CHECK_INS_SHOWN, signal),
+    queryKey: agentKeys.instanceCheckIns(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal),
     staleTime: 30_000,
     retry: false,
   });
 }
 
 /** All of today's check-ins for Check-ins' strip; the hover card keeps its short read. */
-export function agentInstanceDayCheckInsOptions(id: string) {
+export function agentInstanceDayCheckInsOptions(ref: AgentInstanceRef) {
   return queryOptions({
-    queryKey: agentKeys.instanceDayCheckIns(id),
-    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(id, CHECK_INS_PER_DAY, signal),
+    queryKey: agentKeys.instanceDayCheckIns(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_PER_DAY, signal),
     staleTime: 30_000,
     retry: false,
   });
 }
 
 /** Polls a check started by Run it for real until the daemon says it finished. */
-export function agentInstanceOccurrenceOptions(id: string, occurrence: string) {
+export function agentInstanceOccurrenceOptions(ref: AgentInstanceRef, occurrence: string) {
   return queryOptions({
-    queryKey: agentKeys.instanceOccurrence(id, occurrence),
-    queryFn: ({ signal }) => fetchAgentInstanceOccurrence(id, occurrence, signal),
+    queryKey: agentKeys.instanceOccurrence(ref.id, occurrence),
+    queryFn: ({ signal }) => fetchAgentInstanceOccurrence(ref, occurrence, signal),
     retry: false,
     refetchInterval: query =>
       query.state.data?.state === "finished" || query.state.error ? false : OCCURRENCE_POLL_MS,
@@ -91,10 +93,20 @@ export function agentInstanceOccurrenceOptions(id: string, occurrence: string) {
 
 const REPORTS_SHOWN = 10;
 
-export function agentInstanceReportsOptions(id: string) {
+export function agentInstanceReportsOptions(ref: AgentInstanceRef) {
   return queryOptions({
-    queryKey: agentKeys.instanceReports(id),
-    queryFn: ({ signal }) => fetchAgentInstanceReports(id, REPORTS_SHOWN, signal),
+    queryKey: agentKeys.instanceReports(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceReports(ref, REPORTS_SHOWN, signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** Every report that may not have reached the agent, however old: state is filtered server-side. */
+export function agentInstanceIndeterminateReportsOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceIndeterminateReports(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceReports(ref, undefined, signal, "indeterminate"),
     staleTime: 30_000,
     retry: false,
   });

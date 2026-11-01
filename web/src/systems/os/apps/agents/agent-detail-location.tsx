@@ -14,6 +14,7 @@ import {
 import {
   AgentProfileHome,
   agentFromOrphanInstance,
+  isAgentNotFound,
   useAgentInstances,
   useAgentMemorySummary,
   useAgentProfile,
@@ -113,12 +114,15 @@ export function AgentDetailLocation({ name, search }: { name: string; search: Ag
   const page = useAgentDetail(name);
   const navigate = useNavigate();
   const { bindingSearch } = useAgentWindowScope();
+  // Only a definition that's truly gone falls back: a failed read says it failed.
+  const definitionGone = isAgentNotFound(page.agentError);
   const orphan = useAgentInstances().find(instance => instance.agent_name === name);
   useAgentDetailTopbar(page, name);
 
   if (page.agentLoading) return <AgentDetailLoading />;
   // A deleted definition keeps its instances; the home says why they can't resume.
-  const agent = page.agent ?? (orphan ? agentFromOrphanInstance(orphan) : undefined);
+  const agent =
+    page.agent ?? (orphan && definitionGone ? agentFromOrphanInstance(orphan) : undefined);
   if (!agent) {
     return <AgentNotFound error={page.agentError} name={name} onBack={page.onBackToAgents} />;
   }

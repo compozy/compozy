@@ -14,6 +14,7 @@ export type {
   AgentGroupedCatalogItem,
   AgentInstanceCheckIn,
   AgentInstancePayload,
+  AgentInstanceWirePayload,
   AgentMCPServer,
   AgentPayload,
   AgentResponse,
@@ -54,6 +55,7 @@ export { AgentWhatItDoesEditor } from "./components/agent-editors/agent-what-it-
 export { AgentInstanceApiError } from "./adapters/agent-instance-api";
 export {
   AgentApiError,
+  isAgentNotFound,
   AgentDigestConflictError,
   AgentTargetExistsError,
   createAgent,
@@ -198,8 +200,8 @@ export {
   buildAgentTeamFilterFields,
   matchesAgentFilters,
   matchesAgentFocus,
-  AGENT_PAUSE_PLAIN,
-  AGENT_PAUSE_SHORT,
+  agentPausePlain,
+  agentPauseShort,
   type AgentTeamFocus,
   type AgentTeamMember,
   type AgentTeamPlace,
@@ -331,17 +333,19 @@ export {
   applyAgentInstanceUpdate,
   invalidateAgentInstances,
   useAgentInstanceActions,
+  useAgentInstanceCapacity,
   useAgentInstances,
   useCreateAgentInstance,
   useStaysOnAgents,
 } from "./hooks/use-agent-instances";
 export {
-  ACTIVE_INSTANCE_LIMIT,
-  AGENT_PAUSE_COPY,
+  agentPauseCopy,
   GLOBAL_SCOPE,
   agentAvatarAppearance,
   agentInstanceAvatarState,
-  agentInstanceLimitReached,
+  agentInstanceBinding,
+  agentInstanceCapacity,
+  type AgentInstanceCapacity,
   agentInstanceResumeBlocked,
   agentInstancesByUrgency,
   agentScopeLabel,
@@ -353,6 +357,7 @@ export { agentFromOrphanInstance } from "./lib/agent-instance-wire";
 export {
   agentInstanceAwayOptions,
   agentInstanceCheckInsOptions,
+  agentInstanceIndeterminateReportsOptions,
   agentInstanceReportsOptions,
 } from "./lib/query-options";
-export { markAgentInstanceSeen } from "./adapters/agent-instance-api";
+export { markAgentInstanceSeen, type AgentInstanceRef } from "./adapters/agent-instance-api";

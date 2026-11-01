@@ -57,6 +57,10 @@ export async function fetchAgentAggregate(
 
 export type AgentApiErrorKind = "digest_conflict" | "target_exists" | "generic";
 
+export function isAgentNotFound(error: unknown) {
+  return error instanceof AgentApiError && error.status === 404;
+}
+
 export class AgentApiError extends Error {
   status: number;
   readonly kind: AgentApiErrorKind;

@@ -44,7 +44,7 @@ import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 // The instance row isn't under test here, and these suites count catalog reads.
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: async () => [],
+  fetchAgentInstances: async () => ({ instances: [], capacity: {} }),
 }));
 
 function counts(all: number, working = 0, needsYou = 0) {

@@ -13,8 +13,11 @@ import {
 } from "../../mocks/team-fixtures";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import {
+  agentAddablePlaces,
   agentNowLine,
   agentOverallState,
+  agentPausePlain,
+  agentPauseShort,
   agentPulse,
   agentStaysOn,
   agentUsageLine,
@@ -26,6 +29,28 @@ import {
 
 const build = (items = teamItems(), instances = teamInstances()) =>
   buildAgentTeam({ items, instances, workspaces: TEAM_WORKSPACES });
+
+describe("agentAddablePlaces", () => {
+  const places = [{ id: "@user" }, { id: "ws-a" }, { id: "ws-b" }];
+
+  it("Should offer every place for a user-level definition", () => {
+    expect(agentAddablePlaces(places, ["@user", "ws-a"])).toEqual(places);
+  });
+
+  it("Should offer a repository-defined agent only where it resolves", () => {
+    expect(agentAddablePlaces(places, ["ws-b"])).toEqual([{ id: "ws-b" }]);
+  });
+});
+
+describe("agentPausePlain", () => {
+  it("Should state the configured fatigue limit, not a fixed one", () => {
+    const instance = agentInstanceFixture({ pause_reason: "fatigue", fatigue_limit: 3 });
+    expect(agentPausePlain(instance)).toBe(
+      "It stopped itself after 3 check-ins in a row went wrong."
+    );
+    expect(agentPauseShort(instance)).toBe("Stopped after 3 failed check-ins");
+  });
+});
 
 describe("buildAgentTeam", () => {
   it("Should give each agent one member with the places it works", () => {
@@ -58,6 +83,24 @@ describe("buildAgentTeam", () => {
     expect(team).toHaveLength(1);
     expect(team[0]).toMatchObject({ agent: null, kind: "stays_on" });
     expect(agentNowLine(team[0]!, null).text).toBe("Its setup was deleted");
+  });
+
+  it("Should never read a paused instance with a failure report as working", () => {
+    const team = build(
+      [teamItemFixture()],
+      [
+        agentInstanceFixture({
+          state: "paused",
+          pause_reason: "fatigue",
+          needs_attention: true,
+          now: "",
+        }),
+      ]
+    );
+    expect(agentNowLine(team[0]!, null)).toEqual({
+      text: "Stopped after 10 failed check-ins",
+      tone: "paused",
+    });
   });
 
   it("Should keep the section of a definition that stopped being stays-on", () => {

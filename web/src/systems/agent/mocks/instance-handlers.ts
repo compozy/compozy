@@ -8,6 +8,7 @@ import type {
   AgentInstanceAway,
   AgentInstanceReport,
 } from "../types";
+import { agentInstanceHoldsSlot } from "../lib/agent-instance";
 import { agentInstanceFixture } from "./instance-fixtures";
 
 let instancesState: AgentInstancePayload[] = [];
@@ -16,12 +17,19 @@ let digestState: AgentInstanceCheckDigestItem[] = [];
 let activityState: AgentActivityPayload | null = null;
 let reportsState: AgentInstanceReport[] = [];
 let awayState: AgentInstanceAway | null = null;
+let capacityLimit = 10;
 
 export function resetAgentInstanceMock(): void {
   instancesState = [];
   checkInsState = [];
   digestState = [];
   activityState = null;
+  capacityLimit = 10;
+}
+
+/** `agents.stays_on.max_active_instances`, as the list envelope reports it. */
+export function seedAgentInstanceLimit(limit: number): void {
+  capacityLimit = limit;
 }
 
 /** Without a seed the activity route answers 404, the way a daemon without it does. */
@@ -66,9 +74,6 @@ export const instanceHandlers: HttpHandler[] = [
       : HttpResponse.json({ code: "not_found" }, { status: 404 })
   ),
   http.get("*/api/agent-instances/:id/reports", () =>
-    HttpResponse.json({ reports: [], next_cursor: "" })
-  ),
-  http.get("*/api/agent-instances/:id/reports", () =>
     HttpResponse.json({ reports: reportsState, next_cursor: "" })
   ),
   http.get("*/api/agent-instances/:id/away", () =>
@@ -78,7 +83,12 @@ export const instanceHandlers: HttpHandler[] = [
   ),
   http.post("*/api/agent-instances/:id/away", () => new HttpResponse(null, { status: 204 })),
   http.get("*/api/agent-instances", () =>
-    HttpResponse.json({ instances: instancesState, next_cursor: "" })
+    HttpResponse.json({
+      instances: instancesState,
+      next_cursor: "",
+      max_active_instances: capacityLimit,
+      active_count: instancesState.filter(agentInstanceHoldsSlot).length,
+    })
   ),
   http.post("*/api/agent-instances", async ({ request }) => {
     const { agent, workspace } = (await request.json()) as { agent: string; workspace: string };

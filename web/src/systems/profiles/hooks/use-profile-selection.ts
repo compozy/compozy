@@ -5,7 +5,8 @@ import { useSelector } from "@xstate/store-react";
 import { notifyUser } from "@/lib/user-feedback";
 
 import { putProfileSelection } from "../adapters/profiles-api";
-import { PERMANENT_PROFILE } from "../lib/profile-rows";
+import { PERMANENT_PROFILE, actingProfile, isArchived } from "../lib/profile-rows";
+import { profileViewKey } from "../lib/profile-scope";
 import { profileKeys } from "../lib/query-keys";
 import { profileSelectionOptions } from "../lib/query-options";
 import {
@@ -16,6 +17,7 @@ import {
   setProfileView,
 } from "../stores/profile-view-store";
 import { PROFILE_AGGREGATE, type ProfileView } from "../types";
+import { useProfiles } from "./use-profiles";
 
 /** The remembered Global choice — daemon state, cached for instant render. */
 export function useRememberedProfile(enabled = true) {
@@ -52,6 +54,38 @@ export function useActiveProfileView(enabled = true): ProfileView {
 export function useCurrentProfileName(): string {
   const local = useSelector(profileViewStore, state => state.context.view);
   return local?.kind === "profile" ? local.profile : PERMANENT_PROFILE;
+}
+
+/** A view of routes that serve one profile at a time, for leaves rendered in every row. */
+export interface ProfilePerProfileScope {
+  /** Cache-key segment: a profile name, or the reserved `@all`. */
+  key: string;
+  /** The profiles to read one by one. Empty under the aggregate until the list resolves. */
+  names: readonly string[];
+  /** The profile anything created right now belongs to. */
+  destination: string;
+}
+
+/**
+ * The store's view, plus the two daemon reads only the aggregate needs: its profiles, without the
+ * archived ones that refuse reads, and the remembered choice new work lands in.
+ */
+export function useProfilePerProfileScope(): ProfilePerProfileScope {
+  const view = useSelector(profileViewStore, state => state.context.view) ?? {
+    kind: "profile" as const,
+    profile: PERMANENT_PROFILE,
+  };
+  const aggregate = view.kind === "aggregate";
+  const remembered = useRememberedProfile(aggregate);
+  const profiles = useProfiles(aggregate);
+  return {
+    key: profileViewKey(view),
+    names:
+      view.kind === "aggregate"
+        ? (profiles.data ?? []).flatMap(row => (isArchived(row) ? [] : [row.name]))
+        : [view.profile],
+    destination: actingProfile(view, remembered.data?.profile),
+  };
 }
 
 async function rememberProfileView(view: ProfileView): Promise<ProfileView> {

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockCreateAgent,
   mockCreateInstance,
-  mockInstances,
+  mockCapacity,
   mockDuplicateAgent,
   mockNavigate,
   mockSettingsProviders,
@@ -18,7 +18,7 @@ const {
 } = vi.hoisted(() => ({
   mockCreateAgent: vi.fn(),
   mockCreateInstance: vi.fn(),
-  mockInstances: { current: [] as unknown[] },
+  mockCapacity: { current: { limit: 10, active: 0, reached: false } },
   mockDuplicateAgent: vi.fn(),
   mockNavigate: vi.fn(),
   mockSettingsProviders: {
@@ -85,7 +85,7 @@ vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
 }));
 
 vi.mock("../use-agent-instances", () => ({
-  useAgentInstances: () => mockInstances.current,
+  useAgentInstanceCapacity: () => mockCapacity.current,
   useCreateAgentInstance: () => ({ mutateAsync: mockCreateInstance }),
 }));
 
@@ -102,7 +102,6 @@ vi.mock("../use-agents", () => ({
 }));
 
 import { useAgentCreateDialog } from "../use-agent-create-dialog";
-import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 
 const activeWorkspace = {
   id: "ws_alpha",
@@ -151,7 +150,7 @@ describe("useAgentCreateDialog", () => {
   afterEach(() => act(() => resetProfileViews()));
   beforeEach(() => {
     resetProfileViews();
-    mockInstances.current = [];
+    mockCapacity.current = { limit: 10, active: 0, reached: false };
     mockCreateInstance.mockReset();
     mockCreateInstance.mockResolvedValue({});
     mockCreateAgent.mockReset();
@@ -355,9 +354,7 @@ describe("useAgentCreateDialog", () => {
   });
 
   it("Should create the agent unstarted at the limit", async () => {
-    mockInstances.current = Array.from({ length: 10 }, (_, index) =>
-      agentInstanceFixture({ id: `ainst-${index}` })
-    );
+    mockCapacity.current = { limit: 10, active: 10, reached: true };
     const { result } = renderAgentCreateDialog();
 
     fillStaysOn(result, "ws_alpha");

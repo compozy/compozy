@@ -114,7 +114,7 @@ describe("StaysOnRow", () => {
 
   it("Should create the main session again when it was lost", async () => {
     const user = userEvent.setup();
-    const instance = agentInstanceFixture({ main_session_id: null });
+    const instance = agentInstanceFixture({ main_session_id: "" });
     mockApi.ensureMain.mockResolvedValue({ ...instance, main_session_id: "sess-rebuilt" });
     const { onOpenSession } = renderRow([instance]);
 
@@ -159,6 +159,6 @@ describe("StaysOnRow", () => {
     });
     await user.click(await screen.findByRole("menuitem", { name: "Pause" }));
 
-    await waitFor(() => expect(mockApi.pause.mock.calls[0]?.[0]).toBe(instance.id));
+    await waitFor(() => expect(mockApi.pause.mock.calls[0]?.[0]).toBe(instance));
   });
 });

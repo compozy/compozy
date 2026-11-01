@@ -14,6 +14,8 @@ export function agentInstanceFixture(
     label: "Triage Lead",
     provider: "claude",
     resolved_appearance: generated("triage"),
+    profile_id: "default",
+    profile_name: "default",
     workspace_id: "ws-compozy",
     scope: "compozy",
     state: "active",
@@ -25,6 +27,11 @@ export function agentInstanceFixture(
     checks_enabled: true,
     last_wake_at: "2026-10-31T23:00:00Z",
     next_wake_at: "2026-10-31T23:30:00Z",
+    quiet_streak: 0,
+    failure_streak: 0,
+    fatigue_limit: 10,
+    created_at: "2026-10-30T09:00:00Z",
+    updated_at: "2026-10-31T23:00:00Z",
     ...overrides,
   };
 }

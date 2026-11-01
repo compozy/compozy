@@ -45,6 +45,8 @@ export interface CheckInSettings {
     summary?: string;
     /** The file's own spelling, reused until the slider moves off `stop`. */
     interval: { text: string | null; stop: number };
+    /** The file names its sources; otherwise every source stays implicit until one turns off. */
+    listsSources: boolean;
   };
 }
 
@@ -58,15 +60,21 @@ export function localTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+/** No file means the daemon's own timer policy: all day, every source. */
 export function blankCheckIns({ defaultStop, timezone }: CheckInDefaults): CheckInSettings {
   return {
     stop: defaultStop,
-    hours: [9, 18],
-    lunch: true,
-    looksAt: ["task", "session_health", "sessions_idle"],
+    hours: ALL_DAY,
+    lunch: false,
+    looksAt: LOOK_AT_IDS,
     also: "",
     timezone,
-    kept: { version: 1, enabled: true, interval: { text: null, stop: -1 } },
+    kept: {
+      version: 1,
+      enabled: true,
+      interval: { text: null, stop: -1 },
+      listsSources: false,
+    },
   };
 }
 
@@ -151,8 +159,9 @@ export interface ParsedCheckIns {
   block: FileBlock | null;
 }
 
+/** No `include` means every source; an explicit empty list means none. */
 function readInclude(context: FrontmatterMap) {
-  const include = context.include ?? [];
+  const include = context.include ?? LOOK_AT_IDS;
   if (!Array.isArray(include)) return null;
   const items = include as readonly FrontmatterValue[];
   const known: readonly string[] = LOOK_AT_IDS;
@@ -193,6 +202,7 @@ function readSettings(
       enabled: data.enabled !== false,
       ...(typeof data.summary === "string" ? { summary: data.summary } : {}),
       interval: { text, stop },
+      listsSources: context.include !== undefined && context.include !== null,
     },
   };
 }
@@ -236,7 +246,12 @@ export function composeCheckInsFile(settings: CheckInSettings) {
         active_hours: allDay ? [] : [window(hours)],
         quiet_windows: settings.lunch ? [window(LUNCH)] : [],
       },
-      context: { include: [...settings.looksAt] },
+      context: {
+        include:
+          !kept.listsSources && settings.looksAt.length === LOOK_AT_IDS.length
+            ? undefined
+            : [...settings.looksAt],
+      },
     },
   });
 }
@@ -275,6 +290,7 @@ export function everyLabel(stop: number) {
 export function scheduleSummary(settings: CheckInSettings, on: boolean) {
   if (!on) return "Off";
   const [start, end] = settings.hours;
+  if (start === ALL_DAY[0] && end === ALL_DAY[1]) return `${everyLabel(settings.stop)}, all day`;
   return `${everyLabel(settings.stop)}, ${formatClock(start)} to ${formatClock(end)}`;
 }
 

@@ -283,9 +283,9 @@ describe("Check-ins", () => {
     seedAgentInstanceMock([
       agentInstanceFixture({
         agent_name: agent.name,
-        checks_enabled: undefined,
-        last_wake_at: null,
-        next_wake_at: null,
+        checks_enabled: false,
+        last_wake_at: "",
+        next_wake_at: "",
       }),
     ]);
     const user = userEvent.setup();
@@ -296,6 +296,47 @@ describe("Check-ins", () => {
         "true"
       )
     );
+  });
+
+  it("Should not claim a report for a real run that delivered nothing", async () => {
+    serveHeartbeat(heartbeatPayload());
+    seedAgentInstanceMock([agentInstanceFixture({ agent_name: agent.name })]);
+    server.use(
+      http.get("*/api/agent-instances/:id/occurrences/:occurrence", () =>
+        HttpResponse.json({ state: "finished", result: "skipped", reason: "duplicate_suppressed" })
+      )
+    );
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    await user.click(await screen.findByRole("button", { name: "Try it now" }));
+    await user.click(await screen.findByRole("button", { name: "Run it for real" }));
+
+    expect(await screen.findByText("It already told you this recently.")).toBeTruthy();
+    expect(screen.queryByText("Done. It told you in its main chat.")).toBeNull();
+  });
+
+  it("Should turn checks on without writing a file the operator never chose", async () => {
+    serveHeartbeat(heartbeatPayload({ present: false }));
+    const puts: unknown[] = [];
+    server.use(
+      http.put("*/api/agents/:name/heartbeat", async ({ request }) => {
+        puts.push(await request.json());
+        return HttpResponse.json({});
+      })
+    );
+    seedAgentInstanceMock([
+      agentInstanceFixture({ agent_name: agent.name, checks_enabled: false, last_wake_at: "" }),
+    ]);
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+    await user.click(await screen.findByRole("button", { name: "Turn on check-ins" }));
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Check-ins" }).getAttribute("aria-checked")).toBe(
+        "true"
+      )
+    );
+    expect(puts).toEqual([]);
   });
 
   it("Should map reasons from real check-ins and a dry run's digest", async () => {

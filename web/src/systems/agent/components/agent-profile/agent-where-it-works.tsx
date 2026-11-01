@@ -6,7 +6,7 @@ import { Alert, AlertDescription, Button, Empty, SearchInput, Section } from "@c
 
 import { agentCanResume, agentPlacesByAttention } from "../../lib/agent-profile";
 import type { AgentTeamPlace } from "../../lib/agent-team";
-import { ACTIVE_INSTANCE_LIMIT } from "../../lib/agent-instance";
+import type { AgentInstanceCapacity } from "../../lib/agent-instance";
 import { AgentScopePicker } from "../agent-add-pickers";
 import type { AgentAddPlaceActions } from "../agent-team/agent-team-parts";
 import { AgentPlaceCard, type AgentPlaceActions } from "./agent-place-card";
@@ -29,7 +29,7 @@ export function AgentAddPlace({
   const taken = new Set(places.map(place => place.scope));
   return (
     <AgentScopePicker
-      capped={add.capped}
+      capacity={add.capacity}
       onPick={place => add.onAdd(name, place)}
       onSignIn={add.onSignIn}
       scopes={add.places.filter(place => !taken.has(place.id))}
@@ -98,11 +98,11 @@ export function AgentWorkingNow({
 export function AgentWhereItWorks({
   places,
   actions,
-  capped,
+  capacity,
 }: {
   places: readonly AgentTeamPlace[];
   actions: AgentPlaceActions;
-  capped: boolean;
+  capacity: AgentInstanceCapacity;
 }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
@@ -111,11 +111,11 @@ export function AgentWhereItWorks({
   );
   return (
     <div className="@container flex flex-col gap-4 py-2">
-      {capped ? (
+      {capacity.reached ? (
         <Alert variant="warning">
           <AlertDescription>
-            You already have {ACTIVE_INSTANCE_LIMIT} agents running, which is your limit. Pause one
-            to start another.
+            You already have {capacity.active} agents running, which is your limit. Pause one to
+            start another.
           </AlertDescription>
         </Alert>
       ) : null}
