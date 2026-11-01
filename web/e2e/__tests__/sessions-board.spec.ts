@@ -275,6 +275,14 @@ test("E2E-006: Done pages 50 cards with Load more and archived sessions stay in 
     await expect(body.getByTestId(`session-board-card-${id}`)).toBeVisible();
     await expect(done.getByTestId(`session-board-card-${id}`)).toHaveCount(0);
   }
+  // The shelf scrolls sideways, so it clips on every axis: a card's 2 px focus ring must fit inside.
+  const clipBox = (await body.boundingBox())!;
+  const cardBox = (await body
+    .getByTestId(`session-board-card-${seeded.archived[0]}`)
+    .boundingBox())!;
+  expect(cardBox.y - clipBox.y).toBeGreaterThanOrEqual(2);
+  expect(cardBox.x - clipBox.x).toBeGreaterThanOrEqual(2);
+  expect(clipBox.y + clipBox.height - (cardBox.y + cardBox.height)).toBeGreaterThanOrEqual(2);
   await browserArtifacts.captureScreenshot("sessions-board-archive", appPage);
 });
 

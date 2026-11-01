@@ -126,7 +126,7 @@ export function SessionsBoardShelfBar({
       </button>
       {open ? (
         <div
-          className="flex items-start gap-2 overflow-x-auto px-4 pb-4"
+          className="flex items-start gap-2 overflow-x-auto px-4 pt-1 pb-4"
           data-testid={`${testId}-body`}
           id={bodyId}
         >
