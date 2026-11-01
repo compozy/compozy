@@ -31,10 +31,12 @@ var (
 	// emphasized label, bold opened against a word, or a plain notice label after
 	// a sentence end or against a word.
 	automaticTitleAppendix = regexp.MustCompile(
-		`(\*{1,2}[^*]+:\*{1,2}|\*\*[^*]+\*\*:|_{1,2}[^_]+:_{1,2})` +
+		`(\*{1,2}[^*\s][^*]*:\*{1,2}|\*\*[^*]+\*\*:|_{1,2}[^_\s][^_]*:_{1,2})` +
 			`|[\p{L}\p{N}](\*\*\p{Lu})` +
 			`|(?:[\p{Ll}\p{N}]|[.!?]\s+)((?:Notice|Note|Reminder|Warning|Disclaimer)\s*:)`,
 	)
+	// automaticTitleLink matches a Markdown link or image and captures its text.
+	automaticTitleLink = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
 	// automaticTitleFence matches an opening or closing code fence line.
 	automaticTitleFence = regexp.MustCompile("^(?:`{3,}|~{3,})[\\w+-]*$")
 )
@@ -165,6 +167,7 @@ func cleanAutomaticTitlePass(line string) string {
 			}
 		}
 	}
+	candidate = automaticTitleLink.ReplaceAllString(candidate, "$1")
 	candidate = stripAutomaticTitleMarkup(candidate)
 	if strings.HasSuffix(candidate, ":") {
 		// A trailing colon introduces the answer on a later line.

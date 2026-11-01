@@ -428,7 +428,7 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 					testutil.Context(t),
 					autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"},
 				)
-				if err == nil || title != "" {
+				if err == nil || title != "" || !strings.Contains(err.Error(), "no usable title") {
 					t.Fatalf("Generate() = %q, %v, want an unusable-title error", title, err)
 				}
 				if len(sessions.stops) != 1 || sessions.stops[0].cause != session.CauseFailed {
