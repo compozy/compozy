@@ -354,6 +354,33 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	}
 }
 
+func TestProviderNativePermissionRequestMarksShellExecution(t *testing.T) {
+	t.Parallel()
+	title := "Run gh pr checks 1 --watch"
+	permissionRequest := func(kind acpsdk.ToolKind) acpsdk.RequestPermissionRequest {
+		return acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{Title: &title, Kind: &kind}}
+	}
+
+	t.Run("Should mark an execute permission whatever its provider title", func(t *testing.T) {
+		t.Parallel()
+		request, handled, err := decodeProviderNativePermissionRequest(permissionRequest(acpsdk.ToolKindExecute))
+		if err != nil || !handled || !request.Execute {
+			t.Fatalf("decode = %+v, %v, %v, want a handled execute request", request, handled, err)
+		}
+		if clone := cloneToolExecutionRequest(request); !clone.Execute {
+			t.Fatalf("clone = %+v, want Execute preserved", clone)
+		}
+	})
+
+	t.Run("Should leave a file permission unmarked", func(t *testing.T) {
+		t.Parallel()
+		request, _, err := decodeProviderNativePermissionRequest(permissionRequest(acpsdk.ToolKindRead))
+		if err != nil || request.Execute {
+			t.Fatalf("decode = %+v, %v, want an unmarked read", request, err)
+		}
+	})
+}
+
 func TestStartWithToolGatewayPreservesPermissiveSessionMode(t *testing.T) {
 	t.Parallel()
 

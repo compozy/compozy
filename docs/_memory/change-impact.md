@@ -4884,6 +4884,8 @@ Extensibility: the hidden `compozy __internal shell-wait-hook` verb is internal 
 extension `tool.pre_call` hooks are unchanged, and a guard denial precedes them. Config and data: no
 key, DTO, route, or schema change, so there is no migration. Provider behavior changes for agents only:
 foreground waits are refused when the session can call both tools, and input-only, verdict-only, Pi,
-and policy-narrowed sessions are unaffected. Workspace isolation is unchanged. Official skill and Web
+and policy-narrowed sessions are unaffected. Codex gets prompt guidance only for sandbox-allowed
+commands: they reach neither the permission callback nor ACP terminal/create. Workspace isolation is
+unchanged. Official skill and Web
 docs: `skills/compozy/references/{terminal,native-tools}.md` and `sessions/monitors.mdx`. QA:
 RT-session-monitor-wake step 10.

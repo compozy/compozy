@@ -123,11 +123,12 @@ these waits in provider shells and the refusal names the exact replacement call.
 checks --watch`, `gh run watch`, `watch`, `tail -f`, a `sleep` of 5 seconds or more, and polling loops,
 including behind `timeout`, `env`, `nohup`, `bash -c`, or an absolute path such as `/bin/sleep`. A
 shorter `sleep`, `gh pr checks` without `--watch`, and text that only mentions these commands stay
-allowed. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell. Other providers are
-checked when they ask permission for a shell command or create an ACP terminal, so a provider running
-with approvals off, such as Codex under `approve-all`, relies on the runtime guidance alone and its
-refusal may not carry the reason. When policy withholds either tool there is no guard and a shell wait
-stays allowed. The guard fails open: any hook failure lets the command run.
+allowed. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell, including inside its
+Agent subagents. Other providers have no such hook here: CompozyOS can only refuse a wait when the
+provider asks permission for a shell command or creates an ACP terminal. Codex runs sandbox-allowed
+commands without either step, so for Codex the runtime guidance is normally the only redirect. When
+policy withholds either tool there is no guard and a shell wait stays allowed. The guard fails open:
+any hook failure lets the command run.
 
 Processes opened by an agent inherit the originating session and agent identity for managed CLI
 commands. `exec` environment overrides cannot replace that identity. A persistent terminal keeps its

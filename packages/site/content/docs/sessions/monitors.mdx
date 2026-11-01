@@ -28,11 +28,11 @@ An agent that waits inside its own shell keeps the turn busy, so the session loo
 CompozyOS can't supervise the wait. When a session can use monitors, CompozyOS refuses these commands
 and tells the agent the exact call to make instead:
 
-| Refused                                                  | The agent is told to                                 |
-| -------------------------------------------------------- | ---------------------------------------------------- |
-| `gh pr checks --watch`, `gh run watch`, `watch`, `tail -f` | run it in a terminal and put a monitor on it         |
-| `while`, `until`, or `for` loops that `sleep` to poll    | run the loop in a terminal and put a monitor on it   |
-| `sleep` for 5 seconds or more                            | set a timer monitor                                  |
+| Refused                                                    | The agent is told to                               |
+| ---------------------------------------------------------- | -------------------------------------------------- |
+| `gh pr checks --watch`, `gh run watch`, `watch`, `tail -f` | run it in a terminal and put a monitor on it       |
+| `while`, `until`, or `for` loops that `sleep` to poll      | run the loop in a terminal and put a monitor on it |
+| `sleep` for 5 seconds or more                              | set a timer monitor                                |
 
 Shorter sleeps, `gh pr checks` without `--watch`, and text that only mentions these commands still
 run. The check also sees through `timeout`, `env`, `bash -c`, and paths such as `/bin/sleep`.
@@ -40,10 +40,10 @@ run. The check also sees through `timeout`, `env`, `bash -c`, and paths such as 
 What each provider gets:
 
 - **Claude Code:** a hook refuses the command before it runs.
-- **Codex and other ACP providers:** the command is refused when the provider asks for permission to
-  run it or opens a terminal through CompozyOS. With approvals off (`approve-all`) there is no such
-  step, so the agent has only its instructions. The refusal may also reach the agent without the
-  suggested call.
+- **Codex and other ACP providers:** there is no hook, so the agent mostly relies on its
+  instructions. CompozyOS can refuse a wait only when the provider asks for permission to run the
+  command or opens a terminal through CompozyOS. Codex runs commands its sandbox allows without doing
+  either, so those waits are not refused.
 - **Sessions without the monitor or terminal tools:** nothing is refused, because a shell wait is the
   only wait they have.
 
