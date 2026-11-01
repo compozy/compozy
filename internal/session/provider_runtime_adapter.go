@@ -13,13 +13,22 @@ import (
 
 type providerRuntimeAdapter struct {
 	strategy acp.RuntimeApplicationStrategy
-	compile  func(acp.StartOpts) (acp.StartOpts, error)
+	// liveApply records when a session_config change sent to a live process takes effect;
+	// empty means the conservative next-turn default.
+	liveApply acp.RuntimeLiveApplication
+	compile   func(acp.StartOpts) (acp.StartOpts, error)
 }
 
 var providerRuntimeAdapters = map[string]providerRuntimeAdapter{
 	cursorRuntimeProvider: {
 		strategy: acp.RuntimeApplicationLaunchArg,
 		compile:  compileCursorRuntime,
+	},
+	// claude-agent-acp applies set_config_option to the running Agent SDK query
+	// (applyFlagSettings/setModel) without an in-flight guard.
+	runtimeProviderClaude: {
+		strategy:  acp.RuntimeApplicationSessionConfig,
+		liveApply: acp.RuntimeLiveApplyNextStep,
 	},
 }
 
@@ -51,6 +60,20 @@ func RuntimeStrategyForProvider(providerID string) acp.RuntimeApplicationStrateg
 		return acp.RuntimeApplicationSessionConfig
 	}
 	return adapter.strategy
+}
+
+// RuntimeLiveApplyForProvider reports when a live session_config change reaches the agent.
+// Providers that apply runtime controls outside session config report none: their change
+// waits for the next prompt's process binding.
+func RuntimeLiveApplyForProvider(providerID string) acp.RuntimeLiveApplication {
+	if RuntimeStrategyForProvider(providerID) != acp.RuntimeApplicationSessionConfig {
+		return ""
+	}
+	adapter, ok := providerRuntimeAdapters[strings.TrimSpace(providerID)]
+	if ok && adapter.liveApply != "" {
+		return adapter.liveApply
+	}
+	return acp.RuntimeLiveApplyNextTurn
 }
 
 func compileCursorRuntime(opts acp.StartOpts) (acp.StartOpts, error) {

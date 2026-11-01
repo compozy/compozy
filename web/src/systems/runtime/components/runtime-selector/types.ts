@@ -60,6 +60,9 @@ export type RuntimeAvailability = "live" | "stale" | "unavailable";
 export type RuntimeReasoningSource = "acp" | "catalog";
 export type RuntimeProviderStrategy = "session_config" | "launch_arg" | "provider_managed";
 
+/** When a selection change reaches a live session: the agent's next step or its next turn. */
+export type RuntimeProviderLiveApply = "next_step" | "next_turn";
+
 /** One ACP select value as advertised by the active session. */
 export interface RuntimeACPOptionValue {
   value: string;
@@ -128,6 +131,8 @@ export interface RuntimeProviderOption {
   needs_auth?: boolean;
   /** How this provider applies model/config controls at runtime. */
   runtime_strategy?: RuntimeProviderStrategy;
+  /** Omitted when a change waits for the next message's process binding. */
+  runtime_live_apply?: RuntimeProviderLiveApply;
 }
 
 /**

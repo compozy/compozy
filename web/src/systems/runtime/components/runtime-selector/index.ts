@@ -18,6 +18,7 @@ export {
   type RuntimeModelConfiguration,
   type RuntimeModelOption,
   type RuntimeProviderOption,
+  type RuntimeProviderLiveApply,
   type RuntimeProviderStrategy,
   type RuntimeSelectorValue,
 } from "./types";

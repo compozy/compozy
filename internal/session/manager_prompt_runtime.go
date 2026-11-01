@@ -30,6 +30,11 @@ func (m *Manager) ensurePromptRuntime(
 	requested *RuntimeSelection,
 	reservedProcess *AgentProcess,
 ) (*AgentProcess, error) {
+	// A live selection apply and prompt admission never reconfigure the same process at once.
+	if err := session.lockRuntimeApply(ctx); err != nil {
+		return nil, fmt.Errorf("session: wait for runtime configuration: %w", err)
+	}
+	defer session.unlockRuntimeApply()
 	selection, err := normalizePromptRuntimeSelection(session, requested)
 	if err != nil {
 		return nil, err
@@ -105,6 +110,10 @@ func (m *Manager) configureOrReplacePromptRuntime(
 func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 	if snapshot.process == nil || snapshot.runtimeStrategy != acp.RuntimeApplicationSessionConfig {
 		return false
+	}
+	// A failed live rollback left the provider config unconfirmed, including the model.
+	if snapshot.configUnverified {
+		return true
 	}
 	caps, selection := snapshot.process.CapsSnapshot(), snapshot.selection
 	if selection.ReasoningEffort != "" {

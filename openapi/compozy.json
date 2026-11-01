@@ -25519,6 +25519,13 @@
           "name": {
             "type": "string"
           },
+          "runtime_live_apply": {
+            "enum": [
+              "next_step",
+              "next_turn"
+            ],
+            "type": "string"
+          },
           "runtime_provider": {
             "type": "string"
           },

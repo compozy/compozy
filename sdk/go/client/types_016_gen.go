@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// SessionCommandsResponse is a daemon API value.
+type SessionCommandsResponse struct {
+	Commands []SessionCommandPayload `json:"commands"`
+	Revision string                  `json:"revision"`
+}
+
+// SessionCompactRequest is a daemon API value.
+type SessionCompactRequest struct{}
+
 // SessionCompactResponse is a daemon API value.
 type SessionCompactResponse struct {
 	SessionID string `json:"session_id"`
@@ -430,19 +439,3 @@ type SessionInputResponse struct {
 
 // SessionInputStatus is a daemon API value.
 type SessionInputStatus string
-
-// SessionInspectResponse is a daemon API value.
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// SessionInteractionsResponse is a daemon API value.
-type SessionInteractionsResponse struct {
-	Interactions []PendingInteractionPayload `json:"interactions"`
-}

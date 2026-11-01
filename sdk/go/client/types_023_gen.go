@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// TaskDashboardStatusBreakdownPayload is a daemon API value.
+type TaskDashboardStatusBreakdownPayload struct {
+	Status       TaskStatus `json:"status"`
+	Count        int        `json:"count"`
+	SharePercent int        `json:"share_percent"`
+}
+
 // TaskDashboardTotalsPayload is a daemon API value.
 type TaskDashboardTotalsPayload struct {
 	TasksTotal             int `json:"tasks_total"`

@@ -267,6 +267,10 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 			string(contract.ProviderRuntimeStrategyLaunchArg),
 			string(contract.ProviderRuntimeStrategyProviderManaged),
 		},
+		reflect.TypeFor[contract.ProviderRuntimeLiveApply](): {
+			string(contract.ProviderRuntimeLiveApplyNextStep),
+			string(contract.ProviderRuntimeLiveApplyNextTurn),
+		},
 		reflect.TypeFor[contract.SettingsMCPAuthBeginMode](): {
 			string(contract.SettingsMCPAuthBeginModeAutomatic),
 			string(contract.SettingsMCPAuthBeginModeManual),

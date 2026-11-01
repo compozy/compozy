@@ -14271,6 +14271,8 @@ export interface components {
       harness?: string;
       home_policy?: string;
       name: string;
+      /** @enum {string} */
+      runtime_live_apply?: "next_step" | "next_turn";
       runtime_provider?: string;
       /** @enum {string} */
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
