@@ -439,7 +439,7 @@ describe("SessionList selection", () => {
     const user = userEvent.setup();
     const setSort = vi.fn();
     renderList({ view: { ...view, sort: "created", setSort } });
-    await user.click(screen.getByRole("button", { name: "Sort by: Created" }));
+    await user.click(screen.getByRole("button", { name: "View options" }));
     const choices = await screen.findAllByRole("menuitemradio");
     expect(choices.map(choice => choice.textContent)).toEqual([
       "Created",
@@ -802,6 +802,39 @@ describe("SessionList subagents", () => {
       "data-segment",
       "subagents"
     );
+  });
+
+  // Invariant (#1132): Expand all opens a row's only list and keeps one list per row.
+  it("Should open only a childless row's subagents under Expand all", async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () => subagentPage(0, 1));
+    renderList({
+      sessions: [
+        row("solo", summary(0, 1)),
+        row("parent", summary(1, 1)),
+        row("plain", { lineage: lineage("parent") }),
+      ],
+      view: { ...view, foldAll: "expanded" },
+    });
+
+    expect(await screen.findByTestId("session-sidebar-subagents-solo")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-plain")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-subagents-parent")).toBeNull();
+  });
+
+  // Invariant (#1132): Collapse all folds rows the store has no flag for; an opened row stays open.
+  it("Should fold every thread under Collapse all except one opened by hand", () => {
+    renderList({
+      sessions: [
+        row("one", {}),
+        row("one-child", { lineage: lineage("one") }),
+        row("two", {}),
+        row("two-child", { lineage: lineage("two") }),
+      ],
+      view: { ...view, foldAll: "collapsed", openThreadIds: ["two"] },
+    });
+
+    expect(screen.queryByTestId("session-sidebar-session-one-child")).toBeNull();
+    expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
   });
 
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
@@ -2562,23 +2595,38 @@ describe("SessionList breadth and Group by", () => {
   });
 
   // #952: Sort and Group by are two explicit controls; Group by exists only where a grouping applies.
-  it("Should offer Group by as its own control only where a grouping applies", async () => {
+  it("Should offer Group by in View options only where a grouping applies", async () => {
     const user = userEvent.setup();
     const setGroupBy = vi.fn();
     const flat = renderList({ view: { ...view, groupByOptions: ["none"], setGroupBy } });
-    expect(screen.getByRole("button", { name: /^Sort by/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Group by/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Sort|Group) by/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Created" })).toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-group-by-none")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
     flat.update(sessions, { ...view, groupByOptions: ["none", "project"], setGroupBy });
-    await user.click(screen.getByRole("button", { name: "Group by: None" }));
+    await user.click(screen.getByRole("button", { name: "View options" }));
     expect(await screen.findByTestId("session-sidebar-group-by-none")).toHaveAttribute(
       "aria-checked",
       "true"
     );
     expect(screen.queryByTestId("session-sidebar-group-by-profile")).not.toBeInTheDocument();
-    // The Group by menu holds only groupings; sorts live behind their own icon.
-    expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-group-by-project"));
     expect(setGroupBy).toHaveBeenCalledWith("project");
+  });
+
+  // #1132: the label names what the action will do, and the action reports the opposite state.
+  it.each([
+    { foldAll: null, label: "Collapse all", next: "collapsed" },
+    { foldAll: "expanded", label: "Collapse all", next: "collapsed" },
+    { foldAll: "collapsed", label: "Expand all", next: "expanded" },
+  ] as const)("Should offer $label while foldAll is $foldAll", async ({ foldAll, label, next }) => {
+    const user = userEvent.setup();
+    const setFoldAll = vi.fn();
+    renderList({ view: { ...view, foldAll, setFoldAll } });
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    await user.click(await screen.findByRole("menuitem", { name: label }));
+    expect(setFoldAll).toHaveBeenCalledWith(next);
   });
 
   // #1085: "Show empty projects" belongs to project grouping and reports the operator's choice.
@@ -2595,7 +2643,7 @@ describe("SessionList breadth and Group by", () => {
         sessions: [],
         view: grouped({ showEmptyProjects: checked, setShowEmptyProjects }),
       });
-      await user.click(screen.getByRole("button", { name: "Group by: Project" }));
+      await user.click(screen.getByRole("button", { name: "View options" }));
       const toggle = await screen.findByRole("menuitemcheckbox", { name: "Show empty projects" });
       expect(toggle).toHaveAttribute("aria-checked", String(checked));
       await user.click(toggle);
@@ -2606,7 +2654,7 @@ describe("SessionList breadth and Group by", () => {
         [],
         grouped({ groupBy: "none", storedGroupBy: "none", groups: [], setShowEmptyProjects })
       );
-      await user.click(screen.getByRole("button", { name: "Group by: None" }));
+      await user.click(screen.getByRole("button", { name: "View options" }));
       expect(await screen.findByRole("menuitemradio", { name: "Project" })).toBeInTheDocument();
       expect(screen.queryByRole("menuitemcheckbox", { name: "Show empty projects" })).toBeNull();
     }

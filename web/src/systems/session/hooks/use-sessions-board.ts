@@ -24,7 +24,9 @@ import {
 } from "../lib/session-list-preferences";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
 import type { SessionListFilters } from "../types";
+import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";
+import { useProjectFolderGroups } from "./use-workspace-layout";
 
 /**
  * Which read of a page failed. `initial`: nothing loaded, so the error takes
@@ -67,6 +69,9 @@ export interface SessionsBoardColumnView extends SessionsBoardPage {
 export interface SessionsBoardLane {
   group: SessionListGroupSpec;
   filters: SessionListFilters;
+  /** The same fold as this group in the window's List. */
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
 export interface SessionsBoardView {
@@ -170,12 +175,15 @@ export function useSessionsBoard({
   hideChildren,
   sort,
   groupBy,
+  showEmptyProjects = false,
   enabled = true,
 }: {
   scope: DataScope | null;
   hideChildren: boolean;
   sort: SessionListSort;
   groupBy: SessionListGroupBy;
+  /** Lanes for projects with no sessions too, as the window's List shows them. */
+  showEmptyProjects?: boolean;
   enabled?: boolean;
 }): SessionsBoardView {
   const { params, aggregate } = useProfileReadScope();
@@ -198,6 +206,16 @@ export function useSessionsBoard({
     // Lane membership and totals count the rows the lane's columns read.
     population,
   });
+  const arranged = useProjectFolderGroups({
+    groups: grouping.groups,
+    groupBy: effectiveGroupBy,
+    breadth,
+    lens: params,
+    workspaces: registeredWorkspaces,
+    showEmptyProjects,
+    enabled: active,
+  });
+  const folds = useSessionGroupFolds(scope, effectiveGroupBy);
   const archive = useSessionsBoardPage({ ...base, ...sessionListShelfFilters("archive") }, active);
   const later = useSessionsBoardPage({ ...base, ...sessionListShelfFilters("later") }, active);
   const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
@@ -206,9 +224,11 @@ export function useSessionsBoard({
   return {
     columns: grouped ? [] : columns,
     lanes: grouped
-      ? grouping.groups.map(group => ({
+      ? arranged.groups.map(group => ({
           group,
           filters: sessionCatalogScopedFilters(group.scope, shared, group.lens),
+          collapsed: folds.isCollapsed(group.key),
+          onToggle: () => folds.toggle(group.key),
         }))
       : null,
     lanesLoading: grouping.loading,

@@ -27,7 +27,7 @@ import { SessionListCreateMenu } from "./session-list-create-menu";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 
 /** Collapsed header signal: needs-you outranks working; an open group shows its rows instead. */
-function GroupSignal({ group }: { group: SessionListGroupSpec }) {
+export function SessionListGroupSignal({ group }: { group: SessionListGroupSpec }) {
   if (group.needsYou > 0) {
     return (
       <StatusDot
@@ -141,7 +141,7 @@ export function SessionListGroupHeader({
             <span className="flex min-w-0 flex-1 items-center">
               <SessionListGroupIdentity group={group} />
             </span>
-            {collapsed ? <GroupSignal group={group} /> : null}
+            {collapsed ? <SessionListGroupSignal group={group} /> : null}
             <span className="font-mono text-micro text-faint">{group.total}</span>
           </button>
           <SessionListCreateMenu

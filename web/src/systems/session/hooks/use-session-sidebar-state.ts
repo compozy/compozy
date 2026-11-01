@@ -8,13 +8,20 @@ import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
 import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
 import {
+  mergeSessionSidebarPreferences,
+  migrateSessionSidebarPreferences,
+  prunedSessionSidebarScopes,
+  type SessionSidebarContext,
+} from "../lib/session-sidebar-persistence";
+import {
   DEFAULT_SCOPE_STATE,
   isRecord,
-  normalizedCollapsedFlags,
-  normalizedScopeState,
+  sessionFoldSet,
   toggledFlag,
   toggledGroup,
   withoutFalseFlag,
+  type SessionFoldAll,
+  type SessionFoldSet,
   type SessionSidebarScopeState,
   type SessionWindowViewMode,
 } from "../lib/session-sidebar-scope";
@@ -25,24 +32,7 @@ import {
   SESSION_SIDEBAR_DEFAULT_WIDTH,
 } from "../lib/session-sidebar-width";
 
-export type { SessionSidebarScopeState, SessionWindowViewMode };
-
-interface SessionSidebarContext {
-  /**
-   * Keyed by window scope (the window id, or `shell` outside a window). The
-   * shell entry is the last-used state: every gesture also writes it, and a
-   * window with no entry of its own starts from it.
-   */
-  byScope: Record<string, SessionSidebarScopeState>;
-  /**
-   * The window-manager partition (workspace + profile) whose snapshot listed
-   * each window scope. A snapshot only lists its own partition's windows, so a
-   * prune may drop only entries it owns: switching workspace or profile must
-   * not erase the other partition's windows, which are still saved. An entry
-   * no snapshot has listed yet is never pruned.
-   */
-  partitionByScope: Record<string, string>;
-}
+export type { SessionFoldAll, SessionFoldSet, SessionSidebarScopeState, SessionWindowViewMode };
 
 export const SESSION_SIDEBAR_STORAGE_KEY = "compozy:session:sidebar:v1";
 
@@ -83,34 +73,6 @@ function scopeBaseState(
     : { ...state, ...NO_WINDOW_ORDER };
 }
 
-function mergeSessionSidebarPreferences(
-  persisted: Partial<SessionSidebarContext>,
-  current: SessionSidebarContext
-): SessionSidebarContext {
-  if (!isRecord(persisted.byScope)) {
-    return current;
-  }
-  const byScope = { ...current.byScope };
-  for (const [scopeId, state] of Object.entries(persisted.byScope)) {
-    const scope = normalizedScopeState(state);
-    // The shell's filter was never a choice (`withScopeState`): a `false` stored by the old
-    // default must not reach new windows.
-    byScope[scopeId] =
-      scopeId === SHELL_WORKTREE_SCOPE
-        ? { ...scope, hideChildren: DEFAULT_SCOPE_STATE.hideChildren }
-        : scope;
-  }
-  const partitionByScope = { ...current.partitionByScope };
-  if (isRecord(persisted.partitionByScope)) {
-    for (const [scopeId, partition] of Object.entries(persisted.partitionByScope)) {
-      if (typeof partition === "string" && scopeId !== SHELL_WORKTREE_SCOPE) {
-        partitionByScope[scopeId] = partition;
-      }
-    }
-  }
-  return { byScope, partitionByScope };
-}
-
 /**
  * Writes one scope and makes it the last-used state new windows inherit. The
  * board view, its filter, and the order and grouping stay with their window: a
@@ -137,37 +99,6 @@ function withScopeState(
     ...context,
     byScope: { ...context.byScope, [SHELL_WORKTREE_SCOPE]: shell, [scopeId]: next },
   };
-}
-
-/**
- * Live scopes are claimed for the snapshot's partition; a closed scope is
- * dropped only when that same partition claimed it. `undefined` = no change.
- */
-function prunedSessionSidebarScopes(
-  context: SessionSidebarContext,
-  partition: string,
-  liveScopeIds: readonly string[]
-): SessionSidebarContext | undefined {
-  const live = new Set(liveScopeIds);
-  const byScope = { ...context.byScope };
-  const partitionByScope = { ...context.partitionByScope };
-  let changed = false;
-  // Claim before seeding: a window can appear in the snapshot a commit
-  // before its rail mounts and seeds an entry.
-  for (const scopeId of live) {
-    if (partitionByScope[scopeId] !== partition) {
-      partitionByScope[scopeId] = partition;
-      changed = true;
-    }
-  }
-  for (const [scopeId, owner] of Object.entries(partitionByScope)) {
-    if (owner === partition && !live.has(scopeId)) {
-      delete partitionByScope[scopeId];
-      delete byScope[scopeId];
-      changed = true;
-    }
-  }
-  return changed ? { byScope, partitionByScope } : undefined;
 }
 
 export const sessionSidebarLogic = createStoreLogic({
@@ -230,6 +161,16 @@ export const sessionSidebarLogic = createStoreLogic({
         ...state,
         showEmptyProjects: event.show,
       })),
+    /** Every fold follows the choice again: older exceptions end here. Board columns are apart. */
+    foldAllChanged: (context, event: { scopeId: string; foldAll: Exclude<SessionFoldAll, null> }) =>
+      withScopeState(context, event.scopeId, state => ({
+        ...state,
+        foldAll: event.foldAll,
+        collapsedThreads: {},
+        subagentThreads: {},
+        collapsedFolders: {},
+        collapsedGroups: {},
+      })),
     widthChanged: (context, event: { scopeId: string; width: number }) => {
       const width = normalizeSessionSidebarWidth(event.width);
       if (width === null) {
@@ -267,7 +208,11 @@ export const sessionSidebarLogic = createStoreLogic({
       }
       return withScopeState(context, event.scopeId, state => ({
         ...state,
-        collapsedFolders: toggledFlag(state.collapsedFolders, event.folderId),
+        collapsedFolders: toggledFlag(
+          state.collapsedFolders,
+          event.folderId,
+          state.foldAll === "collapsed"
+        ),
       }));
     },
     groupToggled: (context, event: { scopeId: string; groupId: string }) => {
@@ -276,7 +221,11 @@ export const sessionSidebarLogic = createStoreLogic({
       }
       return withScopeState(context, event.scopeId, state => ({
         ...state,
-        collapsedGroups: toggledGroup(state.collapsedGroups, event.groupId),
+        collapsedGroups: toggledGroup(
+          state.collapsedGroups,
+          event.groupId,
+          state.foldAll === "collapsed"
+        ),
       }));
     },
     groupLensResolved: (context, event: { from: string; to: string }) => {
@@ -326,33 +275,7 @@ export const sessionSidebarLogic = createStoreLogic({
   },
 });
 
-/**
- * Schema 3 keys the rail by window scope. Schema 2 was one global rail for
- * every window: it becomes the shell (last-used) entry, so every existing and
- * new window starts exactly where the operator left the old global rail.
- * Older blobs (schema 0, unversioned) persisted the whole context on every
- * transition — collapsing a thread wrote the old closed default back as
- * `open: false` — so their `open` is not a choice the operator made: drop it
- * and keep the per-thread collapse.
- */
 const SESSION_SIDEBAR_SCHEMA_VERSION = 3;
-
-// Runs only for a blob older than the current schema (the persist extension
-// skips it on a version match); the merge normalizes every scope entry.
-function migrateSessionSidebarPreferences(
-  persisted: unknown,
-  version: string | number
-): SessionSidebarContext {
-  const legacy = isRecord(persisted) ? persisted : {};
-  const shell =
-    version === 2
-      ? legacy
-      : { collapsedThreads: normalizedCollapsedFlags(legacy.collapsedThreads) };
-  return {
-    byScope: { [SHELL_WORKTREE_SCOPE]: shell as unknown as SessionSidebarScopeState },
-    partitionByScope: {},
-  };
-}
 
 export const sessionSidebarStore = sessionSidebarLogic.createStore().with(
   persist({
@@ -430,14 +353,23 @@ export interface UseSessionSidebarStateResult {
   toggle: () => void;
   setOpen: (open: boolean) => void;
   collapsedThreadIds: string[];
+  /** Threads opened one by one, which stay open under Collapse all. */
+  openThreadIds: string[];
   /** Parent sessions whose subagent list is open. */
   subagentThreadIds: string[];
   /** Shows one list under a session row, or folds its branch (`null`). */
   setThreadBranch: (sessionId: string, segment: SessionThreadSegment | null) => void;
   collapsedFolderIds: string[];
+  /** Which folders are folded, `foldAll` included. */
+  folderFolds: SessionFoldSet;
   toggleFolder: (folderId: string) => void;
   collapsedGroupIds: string[];
+  /** Which groups are folded, `foldAll` included. */
+  groupFolds: SessionFoldSet;
   toggleGroup: (groupId: string) => void;
+  /** The last Collapse all or Expand all in this window. */
+  foldAll: SessionFoldAll;
+  setFoldAll: (foldAll: Exclude<SessionFoldAll, null>) => void;
   /** Project grouping lists projects with no sessions too (#1085); new windows inherit it. */
   showEmptyProjects: boolean;
   setShowEmptyProjects: (show: boolean) => void;
@@ -474,15 +406,20 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     setOpen: (nextOpen: boolean) =>
       sessionSidebarStore.trigger.sidebarVisibilityChanged({ scopeId, open: nextOpen }),
     collapsedThreadIds: flaggedIds(state.collapsedThreads),
+    openThreadIds: Object.keys(state.collapsedThreads).filter(id => !state.collapsedThreads[id]),
     subagentThreadIds: flaggedIds(state.subagentThreads),
     setThreadBranch: (sessionId: string, segment: SessionThreadSegment | null) =>
       sessionSidebarStore.trigger.threadBranchChanged({ scopeId, sessionId, segment }),
     collapsedFolderIds: flaggedIds(state.collapsedFolders),
+    folderFolds: sessionFoldSet(state.collapsedFolders, state.foldAll),
     toggleFolder: (folderId: string) =>
       sessionSidebarStore.trigger.folderToggled({ scopeId, folderId }),
     collapsedGroupIds: flaggedIds(state.collapsedGroups),
+    groupFolds: sessionFoldSet(state.collapsedGroups, state.foldAll),
     toggleGroup: (groupId: string) =>
       sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
+    foldAll: state.foldAll,
+    setFoldAll: foldAll => sessionSidebarStore.trigger.foldAllChanged({ scopeId, foldAll }),
     showEmptyProjects: state.showEmptyProjects,
     setShowEmptyProjects: (show: boolean) =>
       sessionSidebarStore.trigger.showEmptyProjectsChanged({ scopeId, show }),

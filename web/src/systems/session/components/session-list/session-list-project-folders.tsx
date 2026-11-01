@@ -58,8 +58,7 @@ export function SessionListProjectFolders({
   testIdPrefix,
 }: SessionListProjectFoldersProps) {
   const dnd = useProjectFoldersDnd(layout, tree);
-  const { collapsedFolderIds, toggleFolder } = useSessionSidebarState();
-  const collapsed = new Set(collapsedFolderIds);
+  const { folderFolds: collapsed, toggleFolder } = useSessionSidebarState();
   const ranks = new Map(projectGroupTreeGroups(tree).map((group, index) => [group.key, index]));
   const draggingFoldered = dnd.dragging?.kind === "project" && dnd.dragging.folderId !== null;
   // Every folder takes a project, including one hidden because its projects are empty (#1085).

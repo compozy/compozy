@@ -17,6 +17,7 @@ import { BRANCH_NODE, BRANCH_RAIL } from "./session-list-branch-rail";
 import { SessionListBranchToggle } from "./session-list-branch-toggle";
 import { SessionListRow, type SessionListRowProps } from "./session-list-row";
 import { SessionListSubagentBranch } from "./session-list-subagent-branch";
+import type { SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
 /** Folder, order, and drag wiring a row carries (folder and order verbs on roots only). */
 export type SessionThreadRootLayout = Pick<
@@ -35,7 +36,7 @@ export interface SessionListThreadProps {
   /** The root's child sessions are folded away. */
   collapsed: boolean;
   /** Sessions whose subagent list is open. */
-  subagentThreads: ReadonlySet<string>;
+  subagentThreads: SessionSubagentFolds;
   onThreadBranchChange: SessionThreadBranchChange;
   onSelectSession: (session: SessionListTarget) => void;
   selection?: SessionRowSelection;
@@ -184,7 +185,10 @@ export const SessionListThread = memo(SessionListThreadView, (prev, next) => {
   return (
     sameOwner(prev.owner, next.owner) &&
     [next.session, ...next.childSessions].every(
-      row => prev.subagentThreads.has(row.id) === next.subagentThreads.has(row.id)
+      row =>
+        prev.subagentThreads.has(row.id) === next.subagentThreads.has(row.id) &&
+        prev.subagentThreads.whenChildless?.has(row.id) ===
+          next.subagentThreads.whenChildless?.has(row.id)
     )
   );
 });
@@ -222,7 +226,7 @@ function SessionListBranchRow({
   session: SessionPayload;
   childSessions: readonly SessionPayload[];
   collapsed: boolean;
-  subagentThreads: ReadonlySet<string>;
+  subagentThreads: SessionSubagentFolds;
   onThreadBranchChange: SessionThreadBranchChange;
   currentSessionId: string | undefined;
   onSelectSession: (session: SessionListTarget) => void;
@@ -235,7 +239,9 @@ function SessionListBranchRow({
     hasChildren: childSessions.length > 0,
     hasSubagents: subagentCounts !== null,
     collapsed,
-    subagentsOpen: subagentThreads.has(session.id),
+    subagentsOpen:
+      subagentThreads.has(session.id) ||
+      (childSessions.length === 0 && subagentThreads.whenChildless?.has(session.id) === true),
   });
   if (childSessions.length === 0 && subagentCounts === null) return row(undefined);
 

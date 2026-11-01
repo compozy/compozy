@@ -16,11 +16,12 @@ import {
 } from "../../hooks/use-session-list-dnd";
 import { sessionHasOwnPlacement } from "../../lib/session-folders";
 import { SessionListThread } from "./session-list-thread";
+import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
 export interface SessionListThreadListProps {
   threads: readonly SessionThreadModel[];
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
   currentSessionId?: string;
   /** Resolves each row's owner. Absent in a scoped list. */
   ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;

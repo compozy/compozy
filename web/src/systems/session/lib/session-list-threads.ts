@@ -1,6 +1,7 @@
 import type { SessionPayload } from "../types";
 import { getSessionDisplayTitle } from "./session-display-title";
 import { buildSessionTree, filterThreadSessions, isSubagentSession } from "./session-hierarchy";
+import type { SessionFoldSet } from "./session-sidebar-scope";
 
 export interface SessionThreadModel {
   session: SessionPayload;
@@ -64,7 +65,7 @@ export function countThreadSessions(threads: readonly SessionThreadModel[]): num
 /** The ids of the rows on screen in order: a collapsed thread keeps only its root and a revealed subagent. */
 export function threadVisibleOrder(
   threads: readonly SessionThreadModel[],
-  collapsedThreads: ReadonlySet<string>
+  collapsedThreads: SessionFoldSet
 ): string[] {
   return threads.flatMap(thread => [
     thread.session.id,

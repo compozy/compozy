@@ -5,10 +5,9 @@ import { Button, type TopbarSlotValue } from "@compozy/ui";
 
 import {
   SESSION_BOARD_SORTS,
-  SessionGroupByMenu,
   SessionsBoard,
   SessionsBoardSelection,
-  SessionSortMenu,
+  SessionViewOptionsMenu,
   SessionViewToggle,
   sessionBoardSort,
 } from "@/systems/session";
@@ -43,7 +42,7 @@ const SessionRenameDialog = lazy(() =>
 /**
  * The session window in Kanban mode (US-011): the body becomes the board for
  * the workspace / All projects scope and publishes its own head — "Sessions",
- * the view toggle, Group by, Sort by, "Hide child sessions" and "New session".
+ * the view toggle, View options, "Hide child sessions" and "New session".
  * A card opens its session in the drawer beside the board (#1052): the window keeps
  * that session as its own, so List, a reload and a restore all show the same one. Its
  * context menu and `…` run the same verbs as a session list row. Cards select like list
@@ -66,6 +65,7 @@ export function SessionBoardWindow({
     view,
     setView,
     order,
+    sidebar,
     board,
     lifecycle,
     actions,
@@ -81,17 +81,22 @@ export function SessionBoardWindow({
     overflow: <SessionViewToggle onValueChange={setView} value={view.view} />,
     actions: (
       <>
-        <SessionGroupByMenu
-          onValueChange={order.setGroupBy}
-          options={board.groupByOptions}
-          testId="sessions-board-group-by"
-          value={board.groupBy}
-        />
-        <SessionSortMenu
-          onValueChange={order.setSort}
-          options={SESSION_BOARD_SORTS}
-          testId="sessions-board-sort"
-          value={sessionBoardSort(order.sort)}
+        <SessionViewOptionsMenu
+          allCollapsed={sidebar.foldAll === "collapsed"}
+          groupBy={board.groupBy}
+          groupByOptions={board.groupByOptions}
+          onAllCollapsedChange={
+            board.lanes === null
+              ? undefined
+              : collapsed => sidebar.setFoldAll(collapsed ? "collapsed" : "expanded")
+          }
+          onGroupByChange={order.setGroupBy}
+          onShowEmptyProjectsChange={sidebar.setShowEmptyProjects}
+          onSortChange={order.setSort}
+          showEmptyProjects={sidebar.showEmptyProjects}
+          sort={sessionBoardSort(order.sort)}
+          sortOptions={SESSION_BOARD_SORTS}
+          testId="sessions-board"
         />
         <Button
           aria-pressed={view.hideChildren}

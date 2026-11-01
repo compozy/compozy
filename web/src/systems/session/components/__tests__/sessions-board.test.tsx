@@ -499,6 +499,28 @@ describe("SessionsBoard swimlanes", () => {
       pair: null,
     },
     filters: { workspace_id: workspaceId, sort: "created" as const },
+    collapsed: false,
+    onToggle: vi.fn(),
+  });
+
+  // #1132: a folded lane keeps its name and count, and neither it nor an empty one reads columns.
+  it("Should fold a lane to its header and read no columns for folded or empty lanes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchSessionCatalogPage).mockClear();
+    const folded = { ...lane("ws-alpha", 4), collapsed: true };
+    renderBoard({ ...board(), columns: [], lanes: [folded, lane("ws-beta", 0)] });
+
+    const header = screen.getByTestId("sessions-board-lane-project:ws-alpha-header");
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("sessions-board-lane-project:ws-alpha-count")).toHaveTextContent("4");
+    expect(screen.getByTestId("sessions-board-lane-project:ws-beta-empty")).toHaveTextContent(
+      "No sessions in Beta yet."
+    );
+    expect(screen.queryByRole("region", { name: /Working/ })).toBeNull();
+    expect(fetchSessionCatalogPage).not.toHaveBeenCalled();
+
+    await user.click(header);
+    expect(folded.onToggle).toHaveBeenCalledOnce();
   });
 
   it("Should render one lane per group, each reading the five columns in its own scope", async () => {
@@ -526,7 +548,7 @@ describe("SessionsBoard swimlanes", () => {
     renderBoard({
       ...board(),
       columns: [],
-      lanes: [lane("ws-alpha", 1), lane("ws-beta", 0)],
+      lanes: [lane("ws-alpha", 1), lane("ws-beta", 2)],
       workspaceNameOf: session => names.get(session.workspace_id ?? "") ?? null,
     });
 

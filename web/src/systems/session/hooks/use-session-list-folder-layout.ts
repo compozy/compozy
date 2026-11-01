@@ -41,8 +41,7 @@ export function useSessionListFolderLayout(
   filtering: boolean
 ) {
   const layout = view.layout;
-  const { collapsedFolderIds, toggleFolder } = useSessionSidebarState();
-  const collapsedFolders = new Set(collapsedFolderIds);
+  const { folderFolds: collapsedFolders, toggleFolder } = useSessionSidebarState();
   const sections: SessionListSections | null = layout
     ? buildSessionListSections(threads, layout.folders, {
         filtering,
