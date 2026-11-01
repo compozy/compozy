@@ -58,7 +58,7 @@ Do not use categories or slash strings for hierarchy. They are not runtime seman
 ## Unrestricted Workspace Access
 
 `workspace_access: unrestricted` lets sessions of one agent read and act on every workspace, the
-User scope, and every profile, the way the operator does. It exists for always-on agents that live in
+User scope, and every profile, the way the operator does. It exists for stays-on agents that live in
 the operator's home. It is the only grant vocabulary in CompozyOS (User Scope Work ADR-003, which
 supersedes cross-workspace ADR-007 §1 for this one field); there is no grants table, config section,
 or grant-management tool.
