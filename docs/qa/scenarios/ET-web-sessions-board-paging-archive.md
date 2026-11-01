@@ -43,3 +43,8 @@ full E2E delivery remains owned by PR #983 CI; see the report for fixture limits
 
 QA impact 2026-10-31 (#1075): the fold now applies to every column and persists per window;
 walk ET-web-sessions-board-fold-waiting. Reset to untested.
+
+QA impact 2026-10-31 (#1114): expand the Later and Archive bars in light and dark, then hover and
+Tab onto a card. Its border, rounded corners and focus ring stay complete on every side, and the
+bar still scrolls sideways when the cards overflow. Focused evidence: E2E-006 asserts the geometry
+in the Archive bar; Storybook capture in headless Chromium covers both bars and themes.
