@@ -44,7 +44,7 @@ export interface SessionSidebarScopeState {
   drawerWidth: number | null;
   /** List | Kanban (US-011). Window-only: new windows always open in List. */
   view: SessionWindowViewMode;
-  /** The board's "Hide child sessions" filter, remembered per window. */
+  /** The board's "Hide child sessions" filter: on until turned off, remembered per window. */
   hideChildren: boolean;
   /**
    * Board columns start expanded; a fold is remembered per column id and applies to every
@@ -74,7 +74,7 @@ export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   width: null,
   drawerWidth: null,
   view: "list",
-  hideChildren: false,
+  hideChildren: true,
   collapsedBoardColumns: {},
   sort: null,
   groupBy: null,
@@ -109,7 +109,12 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     width: normalizeSessionSidebarWidth(value.width),
     drawerWidth: normalizeSessionBoardDrawerWidth(value.drawerWidth),
     view: value.view === "kanban" ? "kanban" : "list",
-    hideChildren: value.hideChildren === true,
+    // Absent in blobs written before #1118: the default (on) holds. A stored `false` stays, even
+    // though the old default wrote it for every window: it cannot be told from a real choice.
+    hideChildren:
+      typeof value.hideChildren === "boolean"
+        ? value.hideChildren
+        : DEFAULT_SCOPE_STATE.hideChildren,
     collapsedBoardColumns: normalizedCollapsedFlags(value.collapsedBoardColumns),
     sort: oneOf(SESSION_LIST_SORTS, value.sort),
     groupBy: oneOf(SESSION_LIST_GROUP_BYS, value.groupBy),

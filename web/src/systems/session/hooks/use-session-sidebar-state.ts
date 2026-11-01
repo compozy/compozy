@@ -92,7 +92,13 @@ function mergeSessionSidebarPreferences(
   }
   const byScope = { ...current.byScope };
   for (const [scopeId, state] of Object.entries(persisted.byScope)) {
-    byScope[scopeId] = normalizedScopeState(state);
+    const scope = normalizedScopeState(state);
+    // The shell's filter was never a choice (`withScopeState`): a `false` stored by the old
+    // default must not reach new windows.
+    byScope[scopeId] =
+      scopeId === SHELL_WORKTREE_SCOPE
+        ? { ...scope, hideChildren: DEFAULT_SCOPE_STATE.hideChildren }
+        : scope;
   }
   const partitionByScope = { ...current.partitionByScope };
   if (isRecord(persisted.partitionByScope)) {
@@ -120,7 +126,7 @@ function withScopeState(
   const shell = {
     ...next,
     view: DEFAULT_SCOPE_STATE.view,
-    hideChildren: false,
+    hideChildren: DEFAULT_SCOPE_STATE.hideChildren,
     collapsedBoardColumns: previousShell?.collapsedBoardColumns ?? {},
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,

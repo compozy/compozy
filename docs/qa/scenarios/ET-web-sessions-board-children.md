@@ -4,7 +4,7 @@ area: ET
 title: Child sessions get their own cards, link to their parent, and can be hidden
 persona: Bruno
 journey:
-expected: Every managed child session has its own card in its own column with "↳ <parent title>" in row 3, also when the parent is archived. A parent card shows its direct, non-archived children count with an accent dot when any child needs you; its tooltip lists the children per column. A forked or continued session is top-level: its card shows the fork/continue glyph with the source title ("Forked from <title>" in its accessible name), it is not counted in the source's rollup, and "Hide child sessions" keeps it. "Hide child sessions" (pressed state, remembered per window) removes every child session (provenance, spawn, subagent and recovery lineage) from the cards and from the column counts (`children=exclude` on rows and facets); the existing subagents filter keeps its meaning. Provider-native subagents never get cards.
+expected: Every managed child session has its own card in its own column with "↳ <parent title>" in row 3, also when the parent is archived. A parent card shows its direct, non-archived children count with an accent dot when any child needs you; its tooltip lists the children per column. A forked or continued session is top-level: its card shows the fork/continue glyph with the source title ("Forked from <title>" in its accessible name), it is not counted in the source's rollup, and "Hide child sessions" keeps it. "Hide child sessions" starts pressed in a new window (#1118); turning it off is remembered per window. While pressed it removes every child session (provenance, spawn, subagent and recovery lineage) from the cards and from the column counts (`children=exclude` on rows and facets); the existing subagents filter keeps its meaning. Provider-native subagents never get cards.
 entry_points: SessionBoardCard (session-board-card-children-<id>, session-board-card-parent-<id>); board head sessions-board-hide-children; GET /api/sessions?children=exclude; GET /api/sessions/facets?children=exclude
 qa_status: untested
 bug_ids:
@@ -18,7 +18,7 @@ overlaps: ET-web-sessions-board-toggle; ET-web-session-sidebar-threads
 
 Introduced by the Sessions Kanban spec (US-014, E2E-007, visual contract VC-27, VC-30).
 
-Walk: from an orchestrator session spawn three children (`compozy session new --parent <orchestrator>`), and make one of them ask a question. Open the board: the parent card shows the children count 3 with the accent dot, and its tooltip reads 1 Needs you · 2 Working; the questioning child sits in Needs you with "↳ <orchestrator title>". Press "Hide child sessions": the three child cards leave and the Needs you and Working counts drop by their numbers. Reload; the filter is still on for this window only. Archive the orchestrator: its children keep "↳ <title>".
+Walk: from an orchestrator session spawn three children (`compozy session new --parent <orchestrator>`), and make one of them ask a question. Open the board in a new window: "Hide child sessions" is pressed, no child card shows, and the parent card shows the children count 3 with the accent dot; its tooltip reads 1 Needs you · 2 Working. Press "Hide child sessions": the three child cards join their columns, the Needs you and Working counts rise by their numbers, and the questioning child sits in Needs you with "↳ <orchestrator title>". Reload; the filter is still off for this window only. Archive the orchestrator: its children keep "↳ <title>".
 
 Owning automated coverage: E2E-007 (`web/e2e`), `session-board-card.test.ts` (UT-070 rollup), `sessions-board.test.tsx` (parent link and highlighted rollup render), `use-session-sidebar-state.test.ts` (per-window filter).
 
@@ -48,3 +48,11 @@ continuation stay, and the column counts and `GET /api/sessions/facets?children=
 Owning automated coverage: `TestSessionCatalogBoard` (store SQL filter, totals and rollups),
 `TestManagerBoardCatalog` (active overlay), `session-board-card.test.ts` and
 `sessions-board.test.tsx` (card lineage).
+
+QA impact 2026-10-31 (#1118, default on): a window with no stored state, and a stored entry without
+`hideChildren`, start with the filter on. A stored `false` stays off: the old default wrote it for
+every window that mounted the rail, so windows that existed before the upgrade stay off until turned
+on, while new windows start on because the shell entry never seeds this filter. Walk: seed
+`compozy:session:sidebar:v1` with `byScope.shell.hideChildren: false` and a window whose entry has
+`hideChildren: false`; reload; that window stays off and a new session window shows it on. Owning
+coverage: `use-session-sidebar-state.test.ts` (UT-067 and the upgrade case) and E2E-007.
