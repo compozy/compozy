@@ -79,7 +79,7 @@ func newAgentInstanceOccurrenceCommand(deps commandDeps) *cobra.Command {
 			if !ok {
 				return errors.New("cli: instance occurrences unavailable")
 			}
-			query := url.Values{"all_workspaces": {"true"}, listLimitField: {"100"}}
+			query := url.Values{"all_workspaces": {toolBoolTrue}, listLimitField: {"100"}}
 			for {
 				page, err := instances.ListAgentInstances(cmd.Context(), query)
 				if err != nil {

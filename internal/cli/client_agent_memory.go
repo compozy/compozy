@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -30,23 +31,23 @@ func (c *daemonClient) AgentMemory(
 func agentMemoryRoute(operation string) (string, string, error) {
 	switch operation {
 	case loopInspectKey:
-		return "GET", "", nil
+		return http.MethodGet, "", nil
 	case terminalStreamModeWrite:
-		return "PUT", "", nil
+		return http.MethodPut, "", nil
 	case agentMemoryAddOperation:
-		return "POST", agentMemoryEntriesPath, nil
+		return http.MethodPost, agentMemoryEntriesPath, nil
 	case agentMemoryReplaceOperation:
-		return "PATCH", agentMemoryEntriesPath, nil
+		return http.MethodPatch, agentMemoryEntriesPath, nil
 	case string(gatewayProfileTransactionRemove):
-		return "DELETE", agentMemoryEntriesPath, nil
+		return http.MethodDelete, agentMemoryEntriesPath, nil
 	case agentMemorySearchOperation:
-		return "POST", "/search", nil
+		return http.MethodPost, "/search", nil
 	case cliValidateVerb:
-		return "POST", "/validate", nil
+		return http.MethodPost, "/validate", nil
 	case agentMemoryHistoryOperation:
-		return "GET", "/history", nil
+		return http.MethodGet, "/history", nil
 	case agentMemoryRollbackOperation:
-		return "POST", "/rollback", nil
+		return http.MethodPost, "/rollback", nil
 	default:
 		return "", "", errors.New("unknown agent memory operation")
 	}

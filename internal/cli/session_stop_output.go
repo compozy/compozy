@@ -4,7 +4,7 @@ import "strconv"
 
 func sessionStopBundle(result SessionStopRecord) outputBundle {
 	keys := []string{
-		"session_id",
+		automationSessionIDKey,
 		"state",
 		"verified",
 		"escalated",

@@ -13,7 +13,21 @@ import (
 
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "instance", Short: "Manage stays-on agent instances"}
-	for _, action := range []string{"create", agentListKey, "show", "pause", "resume", workspaceArchiveAction, agentInstanceAdoptAction, "ensure-main", "reports", "check", agentInstanceAwayAction, agentInstanceMarkSeenAction, "check-ins"} {
+	for _, action := range []string{
+		"create",
+		agentListKey,
+		"show",
+		"pause",
+		"resume",
+		workspaceArchiveAction,
+		agentInstanceAdoptAction,
+		"ensure-main",
+		"reports",
+		agentInstanceCheckAction,
+		agentInstanceAwayAction,
+		agentInstanceMarkSeenAction,
+		"check-ins",
+	} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	checks := &cobra.Command{Use: "checks", Short: "Turn proactive checks on or off"}
@@ -35,9 +49,9 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Use = agentListKey
 		cmd.Args = cobra.NoArgs
 	}
-	cmd.Flags().String("workspace", "", "Workspace ID, name, or path")
+	cmd.Flags().String(workspaceSkillSource, "", "Workspace ID, name, or path")
 	cmd.Flags().BoolVar(&options.global, "global", false, "Use the global scope")
-	cmd.MarkFlagsMutuallyExclusive("global", "workspace")
+	cmd.MarkFlagsMutuallyExclusive("global", workspaceSkillSource)
 	if action == agentListKey || action == "reports" || action == "check-ins" {
 		if action != "check-ins" {
 			cmd.Flags().StringVar(&options.state, "state", "", "Filter by state")
@@ -48,9 +62,9 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	if action == agentListKey {
 		cmd.Flags().BoolVar(&options.all, "all-workspaces", false, "Include every workspace")
 		cmd.Flags().StringVar(&options.agent, "agent", "", "Filter by agent name")
-		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", "workspace")
+		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", workspaceSkillSource)
 	}
-	if action == "check" {
+	if action == agentInstanceCheckAction {
 		cmd.Flags().BoolVar(&options.noWait, "no-wait", false, "Return the occurrence ID without waiting")
 		cmd.Flags().BoolVar(&options.dryRun, "dry-run", false, "Inspect gates without running a check")
 	}
@@ -67,7 +81,7 @@ func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, 
 	if strings.HasPrefix(target, "ainst-") {
 		return target, nil
 	}
-	query := url.Values{"workspace": {workspace}, "agent": {target}, listLimitField: {"100"}}
+	query := url.Values{workspaceSkillSource: {workspace}, "agent": {target}, listLimitField: {"100"}}
 	for {
 		result, err := client.ListAgentInstances(cmd.Context(), query)
 		if err != nil {
@@ -155,7 +169,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 	if err != nil {
 		return err
 	}
-	workspace := query.Get("workspace")
+	workspace := query.Get(workspaceSkillSource)
 	if action == agentListKey {
 		query.Set("all_workspaces", strconv.FormatBool(options.all))
 		query.Set("agent", strings.TrimSpace(options.agent))
@@ -174,7 +188,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 		return err
 	}
 
-	if action == "check" || action == "on" || action == agentInstanceChecksOff {
+	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
 		return options.check(cmd, base, action, id)
 	}
 	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction || action == "check-ins" {
@@ -208,7 +222,7 @@ func (options agentInstanceOptions) query(
 		}
 		workspace = query.Workspace
 	}
-	query := url.Values{"workspace": {workspace}}
+	query := url.Values{workspaceSkillSource: {workspace}}
 	if action == agentListKey || action == "reports" || action == "check-ins" {
 		if options.limit < 1 || options.limit > 100 {
 			return nil, errors.New("cli: --limit must be from 1 to 100")
@@ -227,7 +241,7 @@ func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, 
 	if !ok {
 		return errors.New("cli: instance checks unavailable")
 	}
-	if action == "check" {
+	if action == agentInstanceCheckAction {
 		result, err := checks.CheckAgentInstance(cmd.Context(), id, options.dryRun)
 		if err != nil {
 			return err
@@ -301,3 +315,5 @@ const (
 	agentInstanceAwayAction     = "away"
 	agentInstanceMarkSeenAction = "mark-seen"
 )
+
+const agentInstanceCheckAction = "check"

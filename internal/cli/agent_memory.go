@@ -12,7 +12,17 @@ import (
 
 func newAgentMemoryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "memory", Short: "Inspect and manage agent memory (experimental)"}
-	for _, operation := range []string{loopInspectKey, agentMemoryAddOperation, agentMemoryReplaceOperation, string(gatewayProfileTransactionRemove), terminalStreamModeWrite, cliValidateVerb, agentMemorySearchOperation, agentMemoryHistoryOperation, agentMemoryRollbackOperation} {
+	for _, operation := range []string{
+		loopInspectKey,
+		agentMemoryAddOperation,
+		agentMemoryReplaceOperation,
+		string(gatewayProfileTransactionRemove),
+		terminalStreamModeWrite,
+		cliValidateVerb,
+		agentMemorySearchOperation,
+		agentMemoryHistoryOperation,
+		agentMemoryRollbackOperation,
+	} {
 		cmd.AddCommand(newAgentMemoryOperation(deps, operation))
 	}
 	return cmd

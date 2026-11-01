@@ -61,7 +61,7 @@ func sessionInteractionsBundle(response SessionInteractionsRecord) outputBundle 
 		response,
 		response.Interactions,
 		"Pending Session Interactions",
-		[]string{"INTERACTION", cliKindHeader, "REQUEST", cliStatusHeader, "TITLE", "SESSION", "EXPIRES AT"},
+		[]string{"INTERACTION", cliKindHeader, "REQUEST", cliStatusHeader, "TITLE", cliSessionHeader, "EXPIRES AT"},
 		"interactions",
 		[]string{
 			"interaction_id",
@@ -69,7 +69,7 @@ func sessionInteractionsBundle(response SessionInteractionsRecord) outputBundle 
 			"provider_request_id",
 			automationStatusKey,
 			cliOutputTitleKey,
-			"session_id",
+			automationSessionIDKey,
 			"expires_at",
 		},
 		sessionInteractionOutputRow,

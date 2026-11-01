@@ -12,7 +12,7 @@ import (
 
 type profileListRecord struct {
 	Name                   string                                  `json:"name"`
-	Color                  string                                  `json:"color"`
+	Color                  string                                  `json:cliColorKey`
 	Icon                   *string                                 `json:"icon"`
 	Emoji                  *string                                 `json:"emoji"`
 	State                  string                                  `json:"state"`
@@ -76,7 +76,7 @@ func profileListBundle(items []contract.Profile, current string) outputBundle {
 			}
 			return renderToonArray(
 				"profiles",
-				[]string{automationNameKey, "color", stateKey, profileCurrentKey, "work_items"},
+				[]string{automationNameKey, cliColorKey, stateKey, profileCurrentKey, "work_items"},
 				toonRows,
 			), nil
 		},

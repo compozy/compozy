@@ -51,11 +51,12 @@ func (c *daemonClient) MutateAgentInstance(
 ) (contract.AgentInstanceResponse, error) {
 	var result contract.AgentInstanceResponse
 	method, path := http.MethodPost, "/api/agent-instances/"+url.PathEscape(id)
-	if action == workspaceArchiveAction {
+	switch action {
+	case workspaceArchiveAction:
 		method = http.MethodDelete
-	} else if action == "show" {
+	case "show":
 		method = http.MethodGet
-	} else {
+	default:
 		path += "/" + action
 	}
 	var response any = &result

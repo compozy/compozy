@@ -215,9 +215,24 @@ func loopRunNodesOutputBundle(response contract.LoopRunNodesResponse) outputBund
 		response,
 		response.Nodes,
 		"Loop run nodes",
-		[]string{loopRoundHeader, cliStepHeader, strings.ToUpper(stateKey), "ATTEMPT", loopDurationHeader, "SESSION"},
+		[]string{
+			loopRoundHeader,
+			cliStepHeader,
+			strings.ToUpper(stateKey),
+			"ATTEMPT",
+			loopDurationHeader,
+			cliSessionHeader,
+		},
 		"loop_run_nodes",
-		[]string{"generation", loopNodeIDJSONKey, loopItemIndexKey, stateKey, "attempt", "session_id", "cell_task_id"},
+		[]string{
+			loopGenerationKey,
+			loopNodeIDJSONKey,
+			loopItemIndexKey,
+			stateKey,
+			"attempt",
+			automationSessionIDKey,
+			"cell_task_id",
+		},
 		loopRunNodeHumanRow,
 		loopRunNodeTOONRow,
 	)
@@ -227,7 +242,7 @@ func loopRunNodesOutputBundle(response contract.LoopRunNodesResponse) outputBund
 			rows = append(rows, loopRunNodeHumanRow(node))
 		}
 		return renderLoopReadTable(
-			[]string{loopRoundHeader, cliStepHeader, cliStateHeader, "ATTEMPT", loopDurationHeader, "SESSION"},
+			[]string{loopRoundHeader, cliStepHeader, cliStateHeader, "ATTEMPT", loopDurationHeader, cliSessionHeader},
 			rows,
 		), nil
 	}

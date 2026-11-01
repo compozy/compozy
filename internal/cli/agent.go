@@ -326,8 +326,8 @@ func renderAgentHuman(item *AgentRecord) string {
 	base := renderHumanSection("Agent", []keyValue{
 		{Label: automationNameValue, Value: stringOrDash(item.Name)},
 		{Label: "Display name", Value: stringOrDash(item.Label)},
-		{Label: "Description", Value: stringOrDash(item.Description)},
-		{Label: "Kind", Value: stringOrDash(item.Kind)},
+		{Label: extensionMarketplaceDescriptionValue, Value: stringOrDash(item.Description)},
+		{Label: cliOutputKindValue, Value: stringOrDash(item.Kind)},
 		{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
 		{Label: cliCommandValue, Value: stringOrDash(item.Command)},
 		{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
