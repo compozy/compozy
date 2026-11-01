@@ -203,7 +203,9 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		db = openGlobalDBForTest(suite, path)
 		got, err := db.LoadMonitors(ctx)
 		if err != nil || len(got) != 1 || got[0].Monitor != active.Monitor || got[0].Timeout != time.Hour ||
-			got[0].OwnerBinding != active.OwnerBinding || !got[0].OwnerCheckFailedAt.Equal(active.OwnerCheckFailedAt) || got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {
+			got[0].OwnerBinding != active.OwnerBinding ||
+			!got[0].OwnerCheckFailedAt.Equal(active.OwnerCheckFailedAt) ||
+			got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {
 			t.Fatalf("LoadMonitors() = %+v, %v; want %+v", got, err, active)
 		}
 	})
@@ -211,6 +213,8 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		fired := active
 		fired.Monitor.Status, fired.Monitor.Reason, fired.Monitor.ExitCode = monitor.StatusFired, monitor.ReasonExit, &code
 		fired.Monitor.FiredAt, fired.Version = at.Add(time.Minute), 3
+		// A newer write that clears the owner-check anchor must clear it in the store (the upsert updates the column).
+		fired.OwnerCheckFailedAt = time.Time{}
 		if err := db.SaveMonitor(ctx, fired); err != nil {
 			t.Fatal(err)
 		}
@@ -221,8 +225,9 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		}
 		got, err := db.LoadMonitors(ctx)
 		if err != nil || len(got) != 1 || got[0].Monitor.Status != monitor.StatusFired ||
-			got[0].Monitor.ExitCode == nil || *got[0].Monitor.ExitCode != code || !got[0].Monitor.FiredAt.Equal(fired.Monitor.FiredAt) {
-			t.Fatalf("LoadMonitors() = %+v, %v; want the version-3 fired row", got, err)
+			got[0].Monitor.ExitCode == nil || *got[0].Monitor.ExitCode != code ||
+			!got[0].Monitor.FiredAt.Equal(fired.Monitor.FiredAt) || !got[0].OwnerCheckFailedAt.IsZero() {
+			t.Fatalf("LoadMonitors() = %+v, %v; want the version-3 fired row with the anchor cleared", got, err)
 		}
 	})
 	t.Run("Should prune finished monitors past the cutoff and keep occupying ones", func(t *testing.T) {
