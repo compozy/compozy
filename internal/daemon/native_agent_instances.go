@@ -256,10 +256,11 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		}
 		return structuredResult(contract.AgentInstanceSeenResponse{LastSeenAt: at}, "Instance marked seen")
 	case "check_ins":
-		if input.Cursor != "" {
-			return toolspkg.ToolResult{}, errors.New("invalid check-in cursor")
+		result, err := api.CheckIns(ctx, instance.ID, input.Cursor, input.Limit)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
 		}
-		return structuredResult(contract.AgentInstanceCheckInsResponse{CheckIns: []contract.AgentInstanceCheckInPayload{}}, "Instance check-ins")
+		return structuredResult(result, "Instance check-ins")
 	case "pause":
 		instance, err = api.Service.Pause(ctx, instance.ID, "manual")
 	case "resume":

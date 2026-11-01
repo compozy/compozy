@@ -185,6 +185,7 @@ max_bytes_per_session = 268435456
 level = "info"
 
 [agents.stays_on]
+rotation_threshold = 0.8
 max_active_instances = 10
 max_concurrent_triage = 2
 max_proposals = 3

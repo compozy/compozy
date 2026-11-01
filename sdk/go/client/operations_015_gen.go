@@ -11,6 +11,35 @@ import (
 	"strings"
 )
 
+// GetWorktreeStatus Read or refresh worktree status
+func (c *Client) GetWorktreeStatus(ctx context.Context, params GetWorktreeStatusParams) (*WorktreeStatusResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.Forge != nil {
+		query.Set("forge", strconv.FormatBool(*params.Forge))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// HeartbeatAgentTaskRunParams carries the path, query, and header parameters.
+type HeartbeatAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
 // HeartbeatAgentTaskRun Extend a claimed task-run lease for the calling agent
 func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgentTaskRunParams, body AgentTaskHeartbeatRequest) (*AgentTaskLeaseResponse, error) {
 	path := "/api/agent/tasks/{run_id}/heartbeat"
@@ -407,39 +436,4 @@ type ListAgentInstancesParams struct {
 	Cursor        *string `url:"cursor"`
 	Limit         *string `url:"limit"`
 	Profile       *string `url:"profile"`
-}
-
-// ListAgentInstances List agent instances
-func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstancesParams) (*AgentInstanceListResponse, error) {
-	path := "/api/agent-instances"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", *params.AllWorkspaces)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", *params.Limit)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

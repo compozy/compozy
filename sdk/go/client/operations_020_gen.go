@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// ListRolesParams carries the path, query, and header parameters.
+type ListRolesParams struct {
+	Workspace *string `url:"workspace"`
+}
+
 // ListRoles List effective background role configuration
 func (c *Client) ListRoles(ctx context.Context, params ListRolesParams) (*RolesResponse, error) {
 	path := "/api/roles"

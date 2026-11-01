@@ -10,6 +10,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionWindowView } from "../session-window-view";
 
+const instances = vi.hoisted(() => ({ current: [] as { id: string; main_session_id: string }[] }));
+vi.mock("@/systems/agent", () => ({ useAgentInstances: () => instances.current }));
+
 const runtimeProviderSpy = vi.hoisted(() => vi.fn());
 const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
@@ -56,7 +59,19 @@ function renderView(session: Record<string, unknown> | undefined, isLoading = fa
 }
 
 describe("SessionWindowView", () => {
+  it("Should keep a superseded instance session read-only and link to its current main", () => {
+    instances.current = [{ id: "instance", main_session_id: "sess-current" }];
+    renderView({ id: "sess-1", agent_name: "general", scope: "user", instance_id: "instance" });
+    expect(readOnlyTranscriptSpy).toHaveBeenCalled();
+    expect(runtimeProviderSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Open the current one" })).toHaveAttribute(
+      "href",
+      "/session/sess-current"
+    );
+  });
+
   beforeEach(() => {
+    instances.current = [];
     runtimeProviderSpy.mockClear();
     readOnlyTranscriptSpy.mockClear();
   });

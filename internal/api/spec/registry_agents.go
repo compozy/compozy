@@ -4,6 +4,18 @@ import "github.com/compozy/compozy/internal/api/contract"
 
 func registryAgentOperations() []OperationSpec {
 	return []OperationSpec{{
+		Method: httpMethodPost, Path: "/api/agents/draft-instructions", AppAccess: AppAccessDenied,
+		OperationID: "draftAgentInstructions", Summary: "Draft agent instructions without saving a definition",
+		Tags: []string{specAgentsKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters: withProfileSelector(), RequestBody: contract.DraftAgentInstructionsRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Draft instructions", Body: contract.DraftAgentInstructionsResponse{}},
+			{Status: 400, Description: "Invalid draft request", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Provider does not support read-only triage", Body: contract.ErrorPayload{}},
+			{Status: 502, Description: "Instruction drafting failed", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Instruction drafting unavailable", Body: contract.ErrorPayload{}},
+		},
+	}, {
 		Method:      httpMethodPost,
 		Path:        "/api/agents",
 		AppAccess:   AppAccessDenied,

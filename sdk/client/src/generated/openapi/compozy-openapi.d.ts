@@ -468,6 +468,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/draft-instructions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Draft agent instructions without saving a definition */
+    post: operations["draftAgentInstructions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}": {
     parameters: {
       query?: never;
@@ -7667,6 +7684,11 @@ export interface components {
       message: string;
       path: string;
     };
+    AgentDraftRuntime: {
+      model?: string;
+      provider: string;
+      reasoning_effort?: string;
+    };
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       model?: string;
@@ -9305,6 +9327,13 @@ export interface components {
         [key: string]: number;
       };
       total: number;
+    };
+    DraftAgentInstructionsRequest: {
+      goal: string;
+      runtime: components["schemas"]["AgentDraftRuntime"];
+    };
+    DraftAgentInstructionsResponse: {
+      instructions: string;
     };
     DrainStatusResponse: {
       active_session_executions: number;
@@ -14754,6 +14783,7 @@ export interface components {
       folder_id?: string;
       health?: components["schemas"]["SessionHealthPayload"] | null;
       id: string;
+      instance_id?: string;
       later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
@@ -23650,6 +23680,70 @@ export interface operations {
         };
       };
       /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  draftAgentInstructions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftAgentInstructionsRequest"];
+      };
+    };
+    responses: {
+      /** @description Draft instructions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DraftAgentInstructionsResponse"];
+        };
+      };
+      /** @description Invalid draft request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Provider does not support read-only triage */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Instruction drafting failed */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Instruction drafting unavailable */
       503: {
         headers: {
           [name: string]: unknown;

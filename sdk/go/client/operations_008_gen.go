@@ -10,6 +10,53 @@ import (
 	"strings"
 )
 
+// GetAgentActivity Read agent activity across authorized workspaces
+func (c *Client) GetAgentActivity(ctx context.Context, params GetAgentActivityParams) (*AgentActivityResponse, error) {
+	path := "/api/agents/{name}/activity"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", strconv.Itoa(*params.Days))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentActivityResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentContextParams carries the path, query, and header parameters.
+type GetAgentContextParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// GetAgentContext Return the bounded calling-agent situation context
+func (c *Client) GetAgentContext(ctx context.Context, params GetAgentContextParams) (*AgentContextResponse, error) {
+	path := "/api/agent/context"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentContextResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentCoordinatorConfigParams carries the path, query, and header parameters.
+type GetAgentCoordinatorConfigParams struct {
+	XCompozySessionID string  `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string  `url:"X-Compozy-Agent"`
+	Workspace         *string `url:"workspace"`
+}
+
 // GetAgentCoordinatorConfig Read resolved coordinator config for the calling agent workspace
 func (c *Client) GetAgentCoordinatorConfig(ctx context.Context, params GetAgentCoordinatorConfigParams) (*AgentCoordinatorConfigResponse, error) {
 	path := "/api/agent/coordinator/config"
@@ -383,62 +430,4 @@ type GetCmdPaletteRankSignalsParams struct {
 	Workspace   string  `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPaletteRankSignals Get command palette rank signals
-func (c *Client) GetCmdPaletteRankSignals(ctx context.Context, params GetCmdPaletteRankSignalsParams) (*CmdPaletteRankSignalsResponse, error) {
-	path := "/api/cmd-palette/rank-signals"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteRankSignalsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPaletteViewParams carries the path, query, and header parameters.
-type GetCmdPaletteViewParams struct {
-	ID          string  `url:"id"`
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPaletteView Get one declarative command palette view
-func (c *Client) GetCmdPaletteView(ctx context.Context, params GetCmdPaletteViewParams) (*CmdPaletteViewEnvelope, error) {
-	path := "/api/cmd-palette/views/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteViewEnvelope
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetDoctorParams carries the path, query, and header parameters.
-type GetDoctorParams struct {
-	Only    *string `url:"only"`
-	Exclude *string `url:"exclude"`
-	Quiet   *bool   `url:"quiet"`
 }

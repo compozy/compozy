@@ -226,6 +226,8 @@ function ReportBody({
           when={reportClock(data.created_at)}
         />
       );
+    case "rotated":
+      return <RotatedMarker predecessorId={reportPayload(data).sessionId} />;
     case "rotation_deferred":
       return (
         <Marker icon={<History aria-hidden="true" className="size-3" />}>
@@ -253,5 +255,18 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
         <ReportBody agent={agent} data={data} instance={instance} instances={instances} />
       )}
     </div>
+  );
+}
+
+export function RotatedMarker({ predecessorId }: { predecessorId: string | undefined }) {
+  return (
+    <Marker icon={<History aria-hidden="true" className="size-3" />}>
+      This conversation continues from an earlier one.{" "}
+      {predecessorId ? (
+        <a className="underline" href={`/session/${encodeURIComponent(predecessorId)}`}>
+          Read it
+        </a>
+      ) : null}
+    </Marker>
   );
 }

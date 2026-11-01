@@ -3244,6 +3244,8 @@ func TestStaysOnTriageConfiguration(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*StaysOnConfig){
+			func(c *StaysOnConfig) { c.RotationThreshold = 0 },
+			func(c *StaysOnConfig) { c.RotationThreshold = 1.1 },
 			func(c *StaysOnConfig) { c.MaxConcurrentTriage = 0 },
 			func(c *StaysOnConfig) { c.MaxProposals = 21 },
 			func(c *StaysOnConfig) { c.TriageTimeout = 0 },

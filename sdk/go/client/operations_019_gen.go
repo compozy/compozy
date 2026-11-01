@@ -9,6 +9,21 @@ import (
 	"strings"
 )
 
+// ListLoopsAggregateParams carries the path, query, and header parameters.
+type ListLoopsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Q             *string   `url:"q"`
+	Kind          *string   `url:"kind"`
+	Category      *string   `url:"category"`
+	Status        *string   `url:"status"`
+	Sort          *string   `url:"sort"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListLoopsAggregate List Loop catalog entries
 func (c *Client) ListLoopsAggregate(ctx context.Context, params ListLoopsAggregateParams) (*LoopCatalogBatchResponse, error) {
 	path := "/api/loops"
@@ -430,9 +445,4 @@ func (c *Client) ListResourcesByKind(ctx context.Context, params ListResourcesBy
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListRolesParams carries the path, query, and header parameters.
-type ListRolesParams struct {
-	Workspace *string `url:"workspace"`
 }

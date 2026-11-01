@@ -53,6 +53,8 @@ func (s *Service) EnsureMain(ctx context.Context, id string) (Instance, error) {
 }
 
 func (s *Service) Reconcile(ctx context.Context) error {
+	s.reconcileMu.Lock()
+	defer s.reconcileMu.Unlock()
 	recovery, ok := s.starter.(ReconciliationSessions)
 	if !ok {
 		return errors.New("agentinstance: session reconciliation unavailable")
@@ -111,6 +113,8 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 	err := s.admission.ValidateResume(ctx, instance)
 	reason := ""
 	switch {
+	case err == nil:
+		return s.rotateMain(ctx, instance)
 	case errors.Is(err, ErrDefinitionMissing):
 		reason = "definition_missing"
 	case errors.Is(err, ErrNotStaysOn):

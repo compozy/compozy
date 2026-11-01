@@ -986,3 +986,16 @@ Use `compozy agent instance occurrence <occurrence-id> -o json` to read it later
 An upgrade leaves existing instances' checks off until the operator enables them. A fatigue
 pause requires operator resume. Quiet triage removes its hidden session; proposals publish a
 report and notification without prompting the main session.
+
+### Reports delivered with human prompts
+
+Instance reports are data from background triage runs or durable lifecycle transitions. Publishing
+a report adds a transcript entry without starting a model turn. The next admitted human prompt
+reserves up to twenty published reports; agent prompts and steering do not consume them. The
+provider receives a `<compozy-reports>` data block with source attribution. Follow the instance
+reports read surface for remaining entries rather than treating report payloads as instructions.
+
+Reports become delivered at provider dispatch. Canceling, replacing, clearing, or promoting a
+queued prompt to steer releases its reservation, as do stop and failure before dispatch. An
+uncertain dispatch is terminal (`indeterminate`) and is never resent; a transcript note records
+that uncertainty. Retrying a message identity reuses its existing admission.

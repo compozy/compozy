@@ -3819,6 +3819,9 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	}
 	attentionItem["properties"].(map[string]any)["workspace_id"] = map[string]any{"type": "string"}
 	attentionItem["required"] = append(attentionItem["required"].([]any), "workspace_id")
+	interactions := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"].(map[string]any)["get"].(map[string]any)
+	interactions["parameters"] = slices.Insert(interactions["parameters"].([]any), 2, any(map[string]any{"name": "descendants", "in": "query", "description": "Include descendant sessions in the same workspace and profile", "schema": map[string]any{"type": "boolean"}}))
+	addStaysOnAdditiveSchemas(baseline)
 }
 
 // Match historical generic error fields, including payloads that embed them.
@@ -5109,9 +5112,9 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 				props["kind"] = text()
 				props["appearance"] = open()
 				if props["definition_digest"] != nil {
+					props["package_owned"] = map[string]any{"type": "boolean"}
 					props["label"] = text()
 					props["resolved_appearance"] = open()
-					props["package_owned"] = map[string]any{"type": "boolean"}
 					node["required"] = append(node["required"].([]any), "label", "resolved_appearance")
 					slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
 					agentSchema = node
@@ -5208,10 +5211,46 @@ func TestAgentMemoryOpenAPI(t *testing.T) {
 	})
 }
 
+// addStaysOnAdditiveSchemas records the approved instance hooks and B4 approval relay contract.
+func addStaysOnAdditiveSchemas(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addStaysOnAdditiveSchemas(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			addStaysOnAdditiveSchemas(child)
+		}
+		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("session.pre_create")) {
+			for _, event := range []string{"agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted"} {
+				if values[0] == any("subagent.settled") || strings.HasPrefix(values[0].(string), "agent.instance.") {
+					values = slices.Insert(values, slices.Index(values, any("subagent.settled")), any(event))
+				} else {
+					values = insertReasonCode(values, event)
+				}
+			}
+			node["enum"] = values
+		}
+		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
+			node["enum"] = insertReasonCode(values, "held_permission")
+		}
+
+		props, ok := node["properties"].(map[string]any)
+		if ok && props["agent_name"] != nil && props["runtime"] != nil && props["board_column"] != nil {
+			props["instance_id"] = map[string]any{"type": "string"}
+		}
+		if ok && props["interaction_id"] != nil && props["provider_request_id"] != nil {
+			props["expires_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+			props["session_id"] = map[string]any{"type": "string"}
+			node["required"] = append(node["required"].([]any), "session_id")
+			slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+		}
+	}
+}
+
 func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
-	interactions := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"].(map[string]any)["get"].(map[string]any)
-	interactions["parameters"] = slices.Insert(interactions["parameters"].([]any), 2, any(map[string]any{"name": "descendants", "in": "query", "description": "Include descendant sessions in the same workspace and profile", "schema": map[string]any{"type": "boolean"}}))
 
 	facets := baseline["paths"].(map[string]any)["/api/sessions/facets"].(map[string]any)["get"].(map[string]any)
 	facets["parameters"] = append([]any{map[string]any{"name": "exclude_instance_main", "in": "query", "description": "Exclude instance main sessions from board counts", "schema": map[string]any{"type": "boolean"}}}, facets["parameters"].([]any)...)

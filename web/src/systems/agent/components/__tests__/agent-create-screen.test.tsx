@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { draftAgentInstructions } from "../../adapters/agent-instance-api";
+
+vi.mock("../../adapters/agent-instance-api", () => ({ draftAgentInstructions: vi.fn() }));
+
 import { UIProvider } from "@compozy/ui";
 
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
@@ -104,6 +108,31 @@ function renderScreen(props: Partial<AgentCreateScreenProps> = {}) {
 const advancedToggle = () => screen.getByRole("button", { name: "Advanced" });
 
 describe("AgentCreateScreen", () => {
+  it("Should draft instructions with the selected runtime without saving the agent", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    vi.mocked(draftAgentInstructions).mockResolvedValueOnce("Review release readiness.");
+    renderScreen({
+      draft: validDraft({ model: "gpt-5.6-sol", reasoningEffort: "high" }),
+      onSubmit,
+    });
+    await user.click(screen.getByTestId("agent-fill-with-ai"));
+    await user.type(
+      screen.getByRole("textbox", { name: "What should this agent do?" }),
+      "Review releases"
+    );
+    await user.click(screen.getByRole("button", { name: "Write it" }));
+    expect(await screen.findByText("Instructions added")).toBeInTheDocument();
+    expect(draftAgentInstructions).toHaveBeenCalledWith(
+      {
+        goal: "Review releases",
+        runtime: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "high" },
+      },
+      expect.any(AbortSignal)
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("Should show one screen with the fields, How it works and a live preview", () => {
     renderScreen();
 

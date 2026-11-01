@@ -257,6 +257,21 @@ func (q *Queries) IsInstanceMainSession(ctx context.Context, mainSessionID sql.N
 	return exists, err
 }
 
+const isSupersededInstanceSession = `-- name: IsSupersededInstanceSession :one
+SELECT EXISTS (
+ SELECT 1 FROM sessions s JOIN agent_instances i ON i.id=s.instance_id
+ WHERE s.id=?1 AND i.main_session_id IS NOT NULL
+ AND i.main_session_id<>s.id
+)
+`
+
+func (q *Queries) IsSupersededInstanceSession(ctx context.Context, sessionID string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isSupersededInstanceSession, sessionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listAgentInstances = `-- name: ListAgentInstances :many
 SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE profile_id = ?1
 AND (?2 = 1 OR workspace_id = ?3)

@@ -625,3 +625,47 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentInstanceCheckIns(t *testing.T) {
+	t.Run("Should return persisted check-ins and a usable next cursor", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"event-a", "event-b"} {
+			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer','skipped','quiet','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`, id, instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Authority: agentinstance.Authority{Callers: db.Instances()}}
+		fixture.Engine.GET("/instances/:id/check-ins", fixture.Handlers.ListAgentInstanceCheckIns)
+		cursor := ""
+		for _, want := range []string{"event-b", "event-a"} {
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/instances/"+instance.ID+"/check-ins?limit=1&cursor="+cursor, nil))
+			var body contract.AgentInstanceCheckInsResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != 200 || len(body.CheckIns) != 1 || body.CheckIns[0].ID != want {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+			cursor = body.NextCursor
+		}
+		if cursor != "" {
+			t.Fatalf("terminal cursor = %s", cursor)
+		}
+	})
+}

@@ -161,7 +161,8 @@ const (
 	// ToolIDWorktreeRemove removes one worktree after safety evaluation.
 	ToolIDWorktreeRemove ToolID = "compozy__worktree_remove"
 	// ToolIDAgentCreate authors one AGENT.md definition at global or workspace scope.
-	ToolIDAgentCreate ToolID = "compozy__agent_create"
+	ToolIDAgentCreate            ToolID = "compozy__agent_create"
+	ToolIDAgentDraftInstructions ToolID = "compozy__agent_draft_instructions"
 	// ToolIDProviderModelsList lists the daemon provider model catalog.
 	ToolIDProviderModelsList ToolID = "compozy__provider_models_list"
 	// ToolIDProviderModelsRefresh refreshes one or more provider model catalog sources.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -227,6 +228,222 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 			rows, err = db.ListPendingInteractions(t.Context(), "child-report", []string{tc.status})
 			if err != nil || len(rows) != 1 {
 				t.Fatalf("transition rows = %#v, %v", rows, err)
+			}
+		})
+	}
+}
+
+func TestInstanceReportPromptReservation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		human     bool
+		operation string
+		want      int
+		exit      string
+	}{
+		{"Should reserve at most twenty published reports for a human prompt", true, store.SessionPromptOperationPrompt, 20, ""},
+		{"Should not reserve reports for agent prompts", false, store.SessionPromptOperationPrompt, 0, ""},
+		{"Should not reserve reports for steering", true, store.SessionPromptOperationSteer, 0, ""},
+
+		{"Should release reports when canceled", true, store.SessionPromptOperationPrompt, 20, "cancel"},
+		{"Should release reports when cleared", true, store.SessionPromptOperationPrompt, 20, "clear"},
+		{"Should release reports when replaced", true, store.SessionPromptOperationPrompt, 20, "replace"},
+		{"Should release reports when promoted to steer", true, store.SessionPromptOperationPrompt, 20, "steer"},
+		{"Should release reports when stopped", true, store.SessionPromptOperationPrompt, 20, "stop"},
+		{"Should deliver reports once at provider dispatch", true, store.SessionPromptOperationPrompt, 20, "dispatch"},
+		{"Should fence uncertain report delivery", true, store.SessionPromptOperationPrompt, 20, "indeterminate"},
+		{"Should release reports after start failure", true, store.SessionPromptOperationPrompt, 20, "start-failure"},
+		{"Should release reservations on restart", true, store.SessionPromptOperationPrompt, 20, "restart"},
+		{"Should fence dispatch interrupted by restart", true, store.SessionPromptOperationPrompt, 20, "restart-dispatched"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "reserve", "sess-reserve")
+			now := time.Now().UTC()
+			instance, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: workspace, AgentName: "coder",
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instances SET state='active', main_session_id=? WHERE id=?", main, instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			for i := range 23 {
+				report, err := db.InstanceReports().AppendReport(ctx, instance.ID, agentinstance.ReportInput{
+					SourceKey: fmt.Sprintf(
+						"occ:reserve-%d",
+						i,
+					),
+					Kind:    "failure",
+					Payload: []byte(`{"reason":"failed","detail":"test"}`),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if i < 22 {
+					if err := db.InstanceReports().MarkReportPublished(ctx, report.ID, main, int64(i+1)); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			req := promptAdmissionRequest(workspace, main, "reports", now)
+			req.HumanIngress, req.Operation = tc.human, tc.operation
+			if tc.operation == store.SessionPromptOperationSteer {
+				req.Mode = store.SessionInputQueueModeSteer
+			}
+			first, created, err := db.ClaimSessionPromptAdmission(ctx, req)
+			if err != nil || !created {
+				t.Fatalf("admission: %#v %v %v", first, created, err)
+			}
+			reports, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "reserved", Limit: 100})
+			if err != nil || len(reports) != tc.want {
+				t.Fatalf("reserved: %d, want %d: %v", len(reports), tc.want, err)
+			}
+			for _, report := range reports {
+				if report.PromptAdmissionID != first.ID || report.EventSeq == 0 {
+					t.Fatalf("invalid reservation: %#v", report)
+				}
+			}
+			replayed, createdAgain, replayErr := db.ClaimSessionPromptAdmission(ctx, req)
+			if replayErr != nil || createdAgain || replayed.ID != first.ID {
+				t.Fatalf("replay: %#v %v %v", replayed, createdAgain, replayErr)
+			}
+			again, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "reserved", Limit: 100})
+			if err != nil || len(again) != tc.want {
+				t.Fatalf("replayed reservation: %d, want %d: %v", len(again), tc.want, err)
+			}
+
+			if tc.exit == "dispatch" || tc.exit == "indeterminate" || tc.exit == "start-failure" {
+				if err := db.CommitSessionPromptDispatch(ctx, workspace, main, req.IdempotencyKey, now); err != nil {
+					t.Fatal(err)
+				}
+				wantState, wantCount := "delivered", 20
+				if tc.exit != "start-failure" {
+					delivered, err := db.DispatchSessionReports(ctx, workspace, main, []string{req.MessageID}, now)
+					if err != nil || len(delivered) != 20 {
+						t.Fatalf("dispatch: %d %v", len(delivered), err)
+					}
+					duplicate, err := db.DispatchSessionReports(ctx, workspace, main, []string{req.MessageID}, now)
+					if err != nil || len(duplicate) != 0 {
+						t.Fatalf("duplicate dispatch: %d %v", len(duplicate), err)
+					}
+				}
+				if tc.exit != "dispatch" {
+					if err := db.MarkSessionPromptAdmissionIndeterminate(
+						ctx,
+						workspace,
+						main,
+						req.IdempotencyKey,
+						"driver failed",
+						now,
+					); err != nil {
+						t.Fatal(err)
+					}
+					wantState = "indeterminate"
+					if tc.exit == "start-failure" {
+						wantState, wantCount = "pending", 23
+					}
+				}
+				rows, err := db.InstanceReports().
+					ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: wantState, Limit: 100})
+				if err != nil || len(rows) != wantCount {
+					t.Fatalf("state %s: %d, want %d: %v", wantState, len(rows), wantCount, err)
+				}
+				return
+			}
+			if tc.exit == "restart" || tc.exit == "restart-dispatched" {
+				state, count := "pending", 23
+				if tc.exit == "restart-dispatched" {
+					if err := db.CommitSessionPromptDispatch(
+						ctx,
+						workspace,
+						main,
+						req.IdempotencyKey,
+						now,
+					); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := db.DispatchSessionReports(
+						ctx,
+						workspace,
+						main,
+						[]string{req.MessageID},
+						now,
+					); err != nil {
+						t.Fatal(err)
+					}
+					state, count = "indeterminate", 20
+				}
+				if _, err := db.FailStaleDispatchingSessionInputs(ctx, now); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := db.InstanceReports().
+					ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: state, Limit: 100})
+				if err != nil || len(rows) != count {
+					t.Fatalf("restart: %d %v", len(rows), err)
+				}
+				return
+			}
+			if tc.exit != "" {
+				_, entry, _, _, err := db.EnqueueAdmittedSessionInput(ctx, req, store.SessionInputQueueInsert{
+					ID:        "queued-reports",
+					SessionID: main,
+					Text:      req.AuthoredText,
+					Mode:      store.SessionInputQueueModeQueue,
+					QueueCap:  10,
+					Now:       now,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				replacement := store.SessionInputQueueInsert{
+					ID:           "replacement",
+					Text:         req.AuthoredText,
+					TargetTurnID: "turn-live",
+					QueueCap:     10,
+					Now:          now,
+				}
+				switch tc.exit {
+				case "cancel":
+					_, err = db.CancelSessionInput(ctx, main, entry.ID, now)
+				case "clear":
+					_, err = db.ClearSessionInputs(
+						ctx,
+						store.SessionInputClearRequest{
+							SessionID: main,
+							ActorKind: "human",
+							ActorID:   "operator",
+							Now:       now,
+						},
+					)
+				case "replace":
+					_, _, err = db.ReplaceSessionInput(ctx, main, entry.ID, replacement)
+				case "steer":
+					_, _, err = db.PromoteSessionInputToSteer(ctx, main, entry.ID, replacement)
+				case "stop":
+					_, err = db.CancelPendingSessionInputs(ctx, main, entry.SessionGeneration+1, now)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				pending, err := db.InstanceReports().
+					ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+				if err != nil || len(pending) != 23 {
+					t.Fatalf("released reports: %d, want 23: %v", len(pending), err)
+				}
+				for _, report := range pending {
+					if report.PromptAdmissionID != "" {
+						t.Fatalf("retained admission: %s", report.PromptAdmissionID)
+					}
+				}
 			}
 		})
 	}

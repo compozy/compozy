@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/compozy/compozy/internal/hooks"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -49,13 +50,15 @@ type MainSessionStarter interface {
 }
 
 type Service struct {
-	changed   func(Instance)
-	hooks     LifecycleHooks
-	store     InstanceStore
-	admission Admission
-	starter   MainSessionStarter
-	limit     int
-	now       func() time.Time
+	reconcileMu sync.Mutex
+	rotator     MainSessionRotator
+	changed     func(Instance)
+	hooks       LifecycleHooks
+	store       InstanceStore
+	admission   Admission
+	starter     MainSessionStarter
+	limit       int
+	now         func() time.Time
 }
 
 type Option func(*Service)

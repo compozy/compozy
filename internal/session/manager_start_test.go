@@ -126,6 +126,17 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		if err != nil || caller.InstanceID != instance.ID {
 			t.Fatalf("instance binding: %#v, %v", caller, err)
 		}
+		status, statusErr := h.manager.Status(t.Context(), created.ID)
+		if statusErr != nil || status.InstanceID != instance.ID || created.InstanceID != instance.ID {
+			t.Fatalf("instance status: %#v, %v", status, statusErr)
+		}
+		rows, listErr := db.ListSessions(t.Context(), store.SessionListQuery{
+			ID:        created.ID,
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if listErr != nil || len(rows) != 1 || rows[0].InstanceID != instance.ID {
+			t.Fatalf("instance catalog: %#v, %v", rows, listErr)
+		}
 		if created.RuntimeStatus != RuntimeStatusUnbound || len(h.driver.startCalls) != 0 {
 			t.Fatalf("accepted main launched a provider: %#v", created)
 		}
@@ -910,6 +921,38 @@ func TestSessionInitiatorInheritance(t *testing.T) {
 				t.Fatalf("child initiator = %#v", child.Info())
 			}
 			parent = child
+		}
+	})
+}
+
+func TestInstanceRotationAdmissionGuard(t *testing.T) {
+	t.Run("Should keep admission open after failed publication and close it after success", func(t *testing.T) {
+		t.Parallel()
+		target := &Session{State: StateActive}
+		refused := errors.New("CAS failed")
+		if err := target.publishInstanceRotation(func() error { return refused }); !errors.Is(err, refused) {
+			t.Fatal(err)
+		}
+		if target.rotationSuperseded {
+			t.Fatal("failed publication closed admission")
+		}
+		if err := target.publishInstanceRotation(func() error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+		target.mu.Lock()
+		_, err := target.beginExclusivePromptSetupLocked()
+		target.mu.Unlock()
+		if !errors.Is(err, store.ErrSessionSuperseded) {
+			t.Fatalf("prompt setup = %v", err)
+		}
+	})
+	t.Run("Should refuse publication while a turn is active", func(t *testing.T) {
+		t.Parallel()
+		target := &Session{State: StateActive, currentTurnID: "turn"}
+		called := false
+		err := target.publishInstanceRotation(func() error { called = true; return nil })
+		if !errors.Is(err, ErrPromptInProgress) || called {
+			t.Fatalf("publication = %v, called %v", err, called)
 		}
 	})
 }

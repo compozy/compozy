@@ -5,6 +5,7 @@
         "activity",
         "create",
         "delete",
+        "draft-instructions",
         "duplicate",
         "info",
         "list",

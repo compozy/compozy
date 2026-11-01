@@ -308,6 +308,55 @@ func (q *Queries) ListInflightInstanceWakes(ctx context.Context) ([]AgentInstanc
 	return items, nil
 }
 
+const listInstanceCheckIns = `-- name: ListInstanceCheckIns :many
+SELECT e.id, e.result, e.reason, e.created_at FROM agent_heartbeat_wake_events e
+WHERE e.instance_id=?1
+AND (?2='' OR (e.created_at, e.id) <
+ (SELECT c.created_at, c.id FROM agent_heartbeat_wake_events c WHERE c.instance_id=?1 AND c.id=?2))
+ORDER BY e.created_at DESC, e.id DESC LIMIT ?3
+`
+
+type ListInstanceCheckInsParams struct {
+	InstanceID string `json:"instance_id"`
+	Cursor     any    `json:"cursor"`
+	PageLimit  int64  `json:"page_limit"`
+}
+
+type ListInstanceCheckInsRow struct {
+	ID        string `json:"id"`
+	Result    string `json:"result"`
+	Reason    string `json:"reason"`
+	CreatedAt string `json:"created_at"`
+}
+
+func (q *Queries) ListInstanceCheckIns(ctx context.Context, arg ListInstanceCheckInsParams) ([]ListInstanceCheckInsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listInstanceCheckIns, arg.InstanceID, arg.Cursor, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListInstanceCheckInsRow{}
+	for rows.Next() {
+		var i ListInstanceCheckInsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Result,
+			&i.Reason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const scheduleInstanceChecks = `-- name: ScheduleInstanceChecks :exec
 UPDATE agent_instance_wake_state SET next_wake_at=?1
 WHERE instance_id=?2

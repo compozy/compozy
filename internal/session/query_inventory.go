@@ -125,6 +125,7 @@ func (m *Manager) inventorySessionInfo(
 	}
 	info := sessionInfoFromMeta(&meta)
 	if row, ok := rows[id]; ok {
+		info.InstanceID = row.InstanceID
 		info.TranscriptEpoch = row.TranscriptEpoch
 		if row.Attention != nil {
 			applyAttentionToInfo(info, *row.Attention)

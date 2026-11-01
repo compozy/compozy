@@ -30,6 +30,7 @@ const (
 )
 
 var (
+	ErrSessionSuperseded                  = errors.New("session_superseded")
 	ErrSessionPromptAdmissionInProgress   = errors.New("store: session prompt admission is in progress")
 	ErrSessionPromptIdempotencyConflict   = errors.New("store: session prompt idempotency conflict")
 	ErrSessionPromptMessageConflict       = errors.New("store: session prompt message identity conflict")

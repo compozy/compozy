@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -2572,6 +2573,205 @@ func TestInstanceSeen(t *testing.T) {
 		got, err := db.Instances().LastSeen(ctx, instance.ID, "first")
 		if err != nil || got == nil || !got.Equal(at.Add(time.Second)) {
 			t.Fatalf("reopened seen = %v, %v", got, err)
+		}
+	})
+}
+
+func TestInstanceCheckIns(t *testing.T) {
+	t.Run("Should page real wake events in chronological order within one instance", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "check-ins", "sess-check-ins")
+		repo := db.Instances()
+		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index, id := range []string{"z-old", "a-new"} {
+			at := time.Date(2026, 10, 1, index, 0, 0, 0, time.UTC)
+			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?)`, id, workspace, "coder", instance.ID, "timer", "skipped", "quiet", store.FormatTimestamp(at), store.FormatTimestamp(at.Add(time.Hour)))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err := repo.ListCheckIns(t.Context(), instance.ID, "", 1)
+		if err != nil || len(rows) != 1 || rows[0].ID != "a-new" || rows[0].Reason != "quiet" {
+			t.Fatalf("first page = %#v, %v", rows, err)
+		}
+		rows, err = repo.ListCheckIns(t.Context(), instance.ID, rows[0].ID, 1)
+		if err != nil || len(rows) != 1 || rows[0].ID != "z-old" {
+			t.Fatalf("second page = %#v, %v", rows, err)
+		}
+		rows, err = repo.ListCheckIns(t.Context(), "other-instance", "", 10)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("foreign events = %#v, %v", rows, err)
+		}
+	})
+}
+
+func TestInstanceSupersededAdmission(t *testing.T) {
+	t.Run("Should fence new prompts by the current pointer while preserving prior receipts", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "rotate-admit", "sess-rotate-old")
+		_, successor := registerHeartbeatWorkspaceAndSession(t, db, "rotate-successor", "sess-rotate-new")
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		req := promptAdmissionRequest(workspace, main, "before-rotation", now)
+		first, created, err := db.ClaimSessionPromptAdmission(t.Context(), req)
+		if err != nil || !created {
+			t.Fatalf("initial admission = %#v, %v", first, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", successor, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		replay, created, err := db.ClaimSessionPromptAdmission(t.Context(), req)
+		if err != nil || created || replay.ID != first.ID {
+			t.Fatalf("replay = %#v, %v", replay, err)
+		}
+		_, created, err = db.ClaimSessionPromptAdmission(t.Context(), promptAdmissionRequest(workspace, main, "after-rotation", now.Add(time.Second)))
+		if !errors.Is(err, store.ErrSessionSuperseded) || created {
+			t.Fatalf("superseded admission = %v, %v", created, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", main, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, created, err = db.ClaimSessionPromptAdmission(t.Context(), promptAdmissionRequest(workspace, main, "current-again", now.Add(2*time.Second)))
+		if err != nil || !created {
+			t.Fatalf("current pointer admission = %v, %v", created, err)
+		}
+	})
+}
+
+func TestInstanceRotationPublication(t *testing.T) {
+	for _, scenario := range []string{"publish", "stale pointer", "new admission", "busy predecessor", "busy successor", "pending interaction", "live descendant", "pending child delivery", "open child wake", "armed reply watch", "fired reply watch"} {
+		t.Run("Should fence rotation publication for "+scenario, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "rotation-old", "sess-rotation-old")
+			_, next := registerHeartbeatWorkspaceAndSession(t, db, "rotation-new", "sess-rotation-new")
+			if _, err := db.DB().ExecContext(t.Context(), "UPDATE sessions SET workspace_id=? WHERE id=?", workspace, next); err != nil {
+				t.Fatal(err)
+			}
+			repo := db.Instances()
+			instance, err := repo.Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			count, err := repo.RotationAdmissionCount(t.Context(), main)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := agentinstance.RotationPublication{InstanceID: instance.ID, PredecessorID: main, SuccessorID: next, AdmissionCount: count}
+			switch scenario {
+			case "stale pointer":
+				_, err = db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", next, instance.ID)
+			case "new admission":
+				_, _, err = db.ClaimSessionPromptAdmission(t.Context(), promptAdmissionRequest(workspace, main, "rotation-race", time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)))
+			case "busy predecessor", "busy successor":
+				id := main
+				if scenario == "busy successor" {
+					id = next
+				}
+				_, err = db.DB().ExecContext(t.Context(), `UPDATE sessions SET activity_json='{"turn_id":"busy"}' WHERE id=?`, id)
+			case "pending interaction":
+				_, err = db.DB().ExecContext(t.Context(), `INSERT INTO session_pending_interactions (interaction_id,session_id,kind,provider_request_id,status,created_at) VALUES ('interaction',?,'permission','req','pending','2026-11-01T00:00:00Z')`, main)
+
+			case "armed reply watch", "fired reply watch":
+				state := "armed"
+				if scenario == "fired reply watch" {
+					state = "fired"
+				}
+				_, err = db.DB().ExecContext(t.Context(), `INSERT INTO session_prompt_reply_watches
+                    (id,workspace_id,sender_session_id,target_workspace_id,target_session_id,message_id,admission_id,hop,state,outcome,created_at)
+                    VALUES ('rotation-watch',?,?,?,?,'msg-watch','adm-watch',1,?,'unknown','2026-11-01T00:00:00Z')`, workspace, main, workspace, next, state)
+			case "pending child delivery":
+				now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+				row := reserveSubagent(t, db.SessionRepo, workspace, main, "late-result", now)
+				finalizeSubagent(t, db.SessionRepo, row.ID, now)
+			case "open child wake":
+				_, err = db.DB().ExecContext(t.Context(), `INSERT INTO session_subagent_wakes
+                    (wake_message_id,workspace_id,parent_session_id,state,route,created_at,updated_at)
+                    VALUES ('late-wake',?,?,'open','queue','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`, workspace, main)
+			case "live descendant":
+				_, child := registerHeartbeatWorkspaceAndSession(t, db, "rotation-child", "sess-rotation-child")
+				_, err = db.DB().ExecContext(t.Context(), "UPDATE sessions SET parent_session_id=? WHERE id=?", main, child)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = repo.PublishRotation(t.Context(), req)
+			if scenario == "publish" && err != nil {
+				t.Fatal(err)
+			}
+			if scenario != "publish" && !errors.Is(err, agentinstance.ErrRotationChanged) {
+				t.Fatalf("publication = %v", err)
+			}
+			got, err := repo.Get(t.Context(), instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := main
+			if scenario == "publish" || scenario == "stale pointer" {
+				want = next
+			}
+			if got.MainSessionID != want {
+				t.Fatalf("pointer = %s, want %s", got.MainSessionID, want)
+			}
+			if scenario != "publish" {
+				var stamped sql.NullString
+				if err := db.DB().QueryRowContext(t.Context(), "SELECT instance_id FROM sessions WHERE id=?", next).Scan(&stamped); err != nil {
+					t.Fatal(err)
+				}
+				if stamped.Valid {
+					t.Fatalf("failed publication left successor stamped: %s", stamped.String)
+				}
+			}
+		})
+	}
+}
+
+func TestInstanceRotationCandidate(t *testing.T) {
+	t.Run("Should reserve only one live successor without changing the main pointer", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		repo := db.Instances()
+		instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := store.SessionInfo{ID: "main", ProfileID: store.DefaultProfileID, AgentName: "coder", State: "active", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}
+		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := repo.BindMain(t.Context(), instance.ID, info.ID); err != nil {
+			t.Fatal(err)
+		}
+		info.ID = "candidate"
+		info.State = "starting"
+		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); err != nil {
+			t.Fatal(err)
+		}
+		got, err := repo.Get(t.Context(), instance.ID)
+		if err != nil || got.MainSessionID != "main" {
+			t.Fatalf("main pointer = %#v, %v", got, err)
+		}
+		info.ID = "another-candidate"
+		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); !errors.Is(err, agentinstance.ErrStarting) {
+			t.Fatalf("concurrent candidate = %v", err)
+		}
+		pending, err := repo.SupersededSessions(t.Context(), instance.ID)
+		if err != nil || len(pending) != 1 || pending[0] != "candidate" {
+			t.Fatalf("cleanup = %v, %v", pending, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), "UPDATE sessions SET state='stopped' WHERE id='candidate'"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); err != nil {
+			t.Fatalf("retry candidate = %v", err)
 		}
 	})
 }

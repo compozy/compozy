@@ -340,6 +340,9 @@ import type {
   DownloadTerminalRecordingData,
   DownloadTerminalRecordingErrors,
   DownloadTerminalRecordingResponses,
+  DraftAgentInstructionsData,
+  DraftAgentInstructionsErrors,
+  DraftAgentInstructionsResponses,
   DrainDaemonData,
   DrainDaemonErrors,
   DrainDaemonResponses,
@@ -2001,6 +2004,33 @@ export class agents extends HeyApiClient {
       responseStyle: "data",
       url: "/api/agents/catalog",
       ...options,
+    });
+  }
+
+  /**
+   * Draft agent instructions without saving a definition
+   */
+  public draftAgentInstructions<ThrowOnError extends boolean = true>(
+    options: Options<DraftAgentInstructionsData, ThrowOnError>
+  ): RequestResult<
+    DraftAgentInstructionsResponses,
+    DraftAgentInstructionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      DraftAgentInstructionsResponses,
+      DraftAgentInstructionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/draft-instructions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

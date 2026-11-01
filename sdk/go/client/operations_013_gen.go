@@ -9,6 +9,77 @@ import (
 	"strings"
 )
 
+// GetSettingsObservability Read the observability settings section
+func (c *Client) GetSettingsObservability(ctx context.Context) (*SettingsObservabilityResponse, error) {
+	path := "/api/settings/observability"
+	var out SettingsObservabilityResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsPersonaParams carries the path, query, and header parameters.
+type GetSettingsPersonaParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetSettingsPersona Read profile-layerable persona defaults
+func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
+	path := "/api/settings/persona"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsPersonaResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsProviderParams carries the path, query, and header parameters.
+type GetSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
+// GetSettingsProvider Read one settings-backed provider
+func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsProviderResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsProviderUsage Read the provider usage settings section
+func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProviderUsageResponse, error) {
+	path := "/api/settings/provider-usage"
+	var out SettingsProviderUsageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsRestartStatusParams carries the path, query, and header parameters.
+type GetSettingsRestartStatusParams struct {
+	OperationID string `url:"operation_id"`
+}
+
 // GetSettingsRestartStatus Get the persisted status for one daemon restart operation
 func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSettingsRestartStatusParams) (*RestartActionStatus, error) {
 	path := "/api/settings/actions/restart/{operation_id}"
@@ -364,24 +435,4 @@ func (c *Client) GetTaskExecutionProfile(ctx context.Context, params GetTaskExec
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetTaskInboxParams carries the path, query, and header parameters.
-type GetTaskInboxParams struct {
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Worktree      *string   `url:"worktree"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	Lane          *string   `url:"lane"`
-	Status        *string   `url:"status"`
-	Priority      *string   `url:"priority"`
-	Unread        *bool     `url:"unread"`
-	Query         *string   `url:"query"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

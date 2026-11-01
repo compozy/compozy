@@ -95,19 +95,49 @@ func (h *BaseHandlers) MarkAgentInstanceSeen(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {
-	if _, ok := h.instanceTarget(c, "reports"); !ok {
+	instance, ok := h.instanceTarget(c, "reports")
+	if !ok {
 		return
 	}
+	limit := 50
 	if raw := c.Query("limit"); raw != "" {
-		limit, err := strconv.Atoi(raw)
-		if err != nil || limit < 1 || limit > 100 {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 1 || value > 100 {
 			h.respondError(c, 422, errors.New("limit must be from 1 to 100"))
 			return
 		}
+		limit = value
 	}
-	if c.Query("cursor") != "" {
-		h.respondError(c, 422, errors.New("invalid check-in cursor"))
+	response, err := h.AgentInstances.CheckIns(c.Request.Context(), instance.ID, c.Query("cursor"), limit)
+	if err != nil {
+		h.instanceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.AgentInstanceCheckInsResponse{CheckIns: []contract.AgentInstanceCheckInPayload{}})
+	c.JSON(http.StatusOK, response)
+}
+
+func (api *AgentInstanceAPI) CheckIns(ctx context.Context, id, cursor string, limit int) (contract.AgentInstanceCheckInsResponse, error) {
+	response := contract.AgentInstanceCheckInsResponse{CheckIns: []contract.AgentInstanceCheckInPayload{}}
+	if limit == 0 {
+		limit = 50
+	}
+	if limit < 1 || limit > 100 {
+		return response, errors.New("limit must be from 1 to 100")
+	}
+	reader, ok := api.Store.(agentinstance.CheckInReader)
+	if !ok {
+		return response, errors.New("instance check-in storage unavailable")
+	}
+	rows, err := reader.ListCheckIns(ctx, id, cursor, limit+1)
+	if err != nil {
+		return response, err
+	}
+	if len(rows) > limit {
+		rows = rows[:limit]
+		response.NextCursor = rows[len(rows)-1].ID
+	}
+	for _, row := range rows {
+		response.CheckIns = append(response.CheckIns, contract.AgentInstanceCheckInPayload{ID: row.ID, Result: row.Result, Reason: row.Reason, CreatedAt: row.CreatedAt})
+	}
+	return response, nil
 }

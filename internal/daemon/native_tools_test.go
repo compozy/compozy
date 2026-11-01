@@ -10453,6 +10453,12 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			t.Fatal(err)
 		}
 		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
+		if err := registry.RegisterSession(t.Context(), store.SessionInfo{
+			ID: "sess-approval", AgentName: "general", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
+			State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+		}); err != nil {
+			t.Fatal(err)
+		}
 		state.sessions = &fakeSessionManager{infos: []*session.Info{{
 			ID: "sess-approval", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: session.StateActive,

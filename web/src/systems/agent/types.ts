@@ -154,14 +154,8 @@ export interface AgentInstanceOccurrence {
   report_id?: string;
 }
 
-export interface DraftAgentInstructionsParams {
-  goal: string;
-  runtime: { provider: string; model?: string };
-}
-
-export interface DraftAgentInstructionsResponse {
-  instructions: string;
-}
+export type DraftAgentInstructionsParams = OperationRequestBody<"draftAgentInstructions">;
+export type DraftAgentInstructionsResponse = OperationResponse<"draftAgentInstructions", 200>;
 
 /** `_dx.md` Agent activity. Hand-typed until the route lands in the OpenAPI document. */
 export interface AgentActivityPayload {

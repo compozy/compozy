@@ -11,6 +11,11 @@ const (
 )
 
 var workspaceTools = []toolspkg.Descriptor{
+	nativeDescriptor(toolspkg.ToolIDAgentDraftInstructions, "agent_draft_instructions", "Draft Agent Instructions",
+		"Generate instruction text under read-only triage without saving an agent definition.",
+		`{"type":"object","required":["goal","runtime"],"properties":{"goal":{"type":"string","minLength":1},"runtime":{"type":"object","required":["provider"],"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string"},"reasoning_effort":{"type":"string"}},"additionalProperties":false}},"additionalProperties":false}`,
+		toolspkg.RiskMutating, false, false, false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace}, []string{"agent", "draft"}, []string{"fill with AI", "draft instructions"}),
 	workspaceArchiveDescriptor(
 		toolspkg.ToolIDWorkspaceArchive,
 		"workspace_archive",

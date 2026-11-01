@@ -71,3 +71,10 @@ FROM agent_heartbeat_wake_events e
 LEFT JOIN agent_instance_reports r ON r.instance_id=e.instance_id AND r.source_key='occ:' || e.occurrence_id
 WHERE e.instance_id=sqlc.arg(instance_id) AND e.occurrence_id=sqlc.arg(occurrence_id) AND e.occurrence_id<>''
 LIMIT 1;
+
+-- name: ListInstanceCheckIns :many
+SELECT e.id, e.result, e.reason, e.created_at FROM agent_heartbeat_wake_events e
+WHERE e.instance_id=sqlc.arg(instance_id)
+AND (sqlc.arg(cursor)='' OR (e.created_at, e.id) <
+ (SELECT c.created_at, c.id FROM agent_heartbeat_wake_events c WHERE c.instance_id=sqlc.arg(instance_id) AND c.id=sqlc.arg(cursor)))
+ORDER BY e.created_at DESC, e.id DESC LIMIT sqlc.arg(page_limit);

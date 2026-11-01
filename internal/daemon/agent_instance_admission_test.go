@@ -4,11 +4,16 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -297,6 +302,329 @@ func TestInstanceMainReadModel(t *testing.T) {
 		projectInstanceMain(&payload, &session.Info{State: session.StateActive, PendingClarifyCount: 1})
 		if payload.Activity != "waiting" {
 			t.Fatalf("activity = %q", payload.Activity)
+		}
+	})
+}
+
+type rotationEligibilityFixture struct {
+	staticLoopSessionEventReader
+	info     *session.Info
+	monitors []monitor.Monitor
+	ready    bool
+}
+
+func (f rotationEligibilityFixture) Status(context.Context, string) (*session.Info, error) {
+	return f.info, nil
+}
+func (f rotationEligibilityFixture) List(string) []monitor.Monitor { return f.monitors }
+func (f rotationEligibilityFixture) RotationAdmissionCount(context.Context, string) (int64, error) {
+	return 7, nil
+}
+func (f rotationEligibilityFixture) RotationPersistenceReady(context.Context, string) (bool, error) {
+	return f.ready, nil
+}
+
+func TestInstanceRotationEligibility(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		used    int64
+		unknown bool
+		compact bool
+		monitor monitor.Status
+		blocked bool
+		want    bool
+	}{
+		{name: "Should rotate at the configured threshold", used: 80, want: true},
+		{name: "Should wait below the threshold", used: 79},
+		{name: "Should wait for known context usage", unknown: true},
+		{name: "Should leave compaction to the provider", used: 90, compact: true},
+		{name: "Should wait for active monitors", used: 90, monitor: monitor.StatusActive},
+		{name: "Should wait for monitors retrying delivery", used: 90, monitor: monitor.StatusDelivering},
+		{name: "Should ignore completed monitor history", used: 90, monitor: monitor.StatusFired, want: true},
+		{name: "Should wait for persisted dependencies", used: 90, blocked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			size := int64(100)
+			f := rotationEligibilityFixture{info: &session.Info{State: session.StateActive}, ready: !tc.blocked}
+			if !tc.unknown {
+				f.events = []store.SessionEvent{managedGoalContextEvent(t, 1, acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{ContextUsed: &tc.used, ContextSize: &size}})}
+			}
+			if tc.compact {
+				f.info.AdvertisedCommands = []store.SessionAdvertisedCommand{{Name: "compact"}}
+			}
+			if tc.monitor != "" {
+				f.monitors = []monitor.Monitor{{Status: tc.monitor}}
+			}
+			r := instanceMainRotator{sessions: f, store: f, monitors: f, threshold: 0.8, now: time.Now}
+			got, err := r.Eligible(t.Context(), agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"})
+			if err != nil || got.Eligible != tc.want || got.Publication.AdmissionCount != 7 {
+				t.Fatalf("eligibility = %#v, %v", got, err)
+			}
+		})
+	}
+}
+
+func (f rotationEligibilityFixture) SupersededSessions(context.Context, string) ([]string, error) {
+	return nil, nil
+}
+func (f rotationEligibilityFixture) Stop(context.Context, string) error { return nil }
+
+type rotationFlowFixture struct {
+	rotationEligibilityFixture
+	agentinstance.ReportStore
+	startErr, publishErr, stopErr error
+	published                     bool
+	stopped                       []string
+	reports                       []agentinstance.ReportInput
+}
+
+func (f *rotationFlowFixture) StartSuccessor(context.Context, agentinstance.Instance, string) (string, error) {
+	return "candidate", f.startErr
+}
+func (f *rotationFlowFixture) PublishRotation(context.Context, agentinstance.RotationPublication) error {
+	if f.publishErr != nil {
+		return f.publishErr
+	}
+	f.published = true
+	return nil
+}
+func (f *rotationFlowFixture) PublishInstanceRotation(_ context.Context, _ string, publish func() error) error {
+	return publish()
+}
+func (f *rotationFlowFixture) RetireSession(_ string, publish func() error) error { return publish() }
+func (f *rotationFlowFixture) Stop(_ context.Context, id string) error {
+	f.stopped = append(f.stopped, id)
+	return f.stopErr
+}
+func (f *rotationFlowFixture) SupersededSessions(context.Context, string) ([]string, error) {
+	if f.published {
+		return []string{"main"}, nil
+	}
+	return nil, nil
+}
+func (f *rotationFlowFixture) AppendReport(_ context.Context, _ string, input agentinstance.ReportInput) (agentinstance.Report, error) {
+	if err := input.Validate(); err != nil {
+		return agentinstance.Report{}, err
+	}
+	f.reports = append(f.reports, input)
+	return agentinstance.Report{}, nil
+}
+
+func TestInstanceRotationFlow(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		start, publish, stop bool
+	}{
+		{name: "Should publish a successor and stop only the predecessor"},
+		{name: "Should stop a failed candidate and report without publication", start: true},
+		{name: "Should stop a candidate when publication is refused", publish: true},
+		{name: "Should retain publication when predecessor cleanup fails", stop: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := &rotationFlowFixture{}
+			failure := errors.New("injected boundary failure")
+			if tc.start {
+				f.startErr = failure
+			}
+			if tc.publish {
+				f.publishErr = failure
+			}
+			if tc.stop {
+				f.stopErr = failure
+			}
+			r := instanceMainRotator{sessions: f, store: f, monitors: f, starter: f, reports: f, now: func() time.Time { return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC) }}
+			err := r.Rotate(t.Context(), agentinstance.Instance{ID: "instance", MainSessionID: "main"}, agentinstance.RotationDecision{Eligible: true, Publication: agentinstance.RotationPublication{InstanceID: "instance", PredecessorID: "main"}})
+			failed := tc.start || tc.publish || tc.stop
+			if (err != nil) != failed {
+				t.Fatalf("rotation error = %v", err)
+			}
+			wantPublished := !tc.start && !tc.publish
+			wantStopped := "candidate"
+			if wantPublished {
+				wantStopped = "main"
+			}
+			if f.published != wantPublished || len(f.stopped) != 1 || f.stopped[0] != wantStopped {
+				t.Fatalf("published %v stopped %v", f.published, f.stopped)
+			}
+			if wantPublished && len(f.reports) != 0 {
+				t.Fatal("post-publication cleanup generated a pre-publication failure report")
+			}
+			if !wantPublished && (len(f.reports) != 1 || f.reports[0].Kind != "rotation_failed") {
+				t.Fatalf("failure reports = %v", f.reports)
+			}
+		})
+	}
+}
+
+func (f rotationEligibilityFixture) RotationWaitingSince(_ context.Context, _, _ string, now time.Time) (time.Time, error) {
+	return now, nil
+}
+func (f rotationEligibilityFixture) ClearRotationWait(context.Context, string, string) error {
+	return nil
+}
+
+func TestInstanceRotationDeferral(t *testing.T) {
+	t.Run("Should preserve waiting across reopen and report only once after one hour", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "rotation.db")
+		db, err := globaldb.OpenGlobalDB(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = db.RegisterInstanceSession(t.Context(), store.SessionInfo{ID: "main", ProfileID: store.DefaultProfileID, AgentName: "coder", State: "active", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}, instance.ID, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, err = db.Instances().BindMain(t.Context(), instance.ID, "main")
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		r := instanceMainRotator{store: db.Instances(), reports: db.InstanceReports(), now: func() time.Time { return now }}
+		if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		db, err = globaldb.OpenGlobalDB(t.Context(), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.store, r.reports = db.Instances(), db.InstanceReports()
+		now = now.Add(time.Hour - time.Second)
+		if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
+			t.Fatal(err)
+		}
+		reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+		if err != nil || len(reports) != 0 {
+			t.Fatalf("early reports = %v, %v", reports, err)
+		}
+		now = now.Add(time.Second)
+		for range 2 {
+			if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
+				t.Fatal(err)
+			}
+		}
+		reports, err = db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+		if err != nil || len(reports) != 1 || reports[0].Kind != "rotation_deferred" {
+			t.Fatalf("reports = %v, %v", reports, err)
+		}
+		if err := r.recordRotationDeferral(t.Context(), instance, true); err != nil {
+			t.Fatal(err)
+		}
+		since, err := db.Instances().RotationWaitingSince(t.Context(), instance.ID, "main", now)
+		if err != nil || !since.Equal(now) {
+			t.Fatalf("new waiting interval = %v, %v", since, err)
+		}
+	})
+}
+
+func TestInstanceLateChildReentry(t *testing.T) {
+	t.Run("Should resolve a stopped predecessor to the current instance main", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = db.RegisterInstanceSession(t.Context(), store.SessionInfo{
+			ID: "successor", ProfileID: store.DefaultProfileID, AgentName: "coder",
+			State: "active", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user",
+		}, instance.ID, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().BindMain(t.Context(), instance.ID, "successor"); err != nil {
+			t.Fatal(err)
+		}
+		bridge := harnessReentryBridge{ctx: t.Context(), store: db, sessions: &fakeSessionManager{infos: []*session.Info{
+			{ID: "predecessor", InstanceID: instance.ID, State: session.StateStopped},
+			{ID: "successor", InstanceID: instance.ID, State: session.StateActive, AgentName: "coder"},
+		}}}
+		metadata := detachedHarnessRunMetadata{}
+		metadata.WakeTarget.SessionID = "predecessor"
+		target := bridge.resolveWakeTargetSnapshot(metadata)
+		if target.Missing || target.SessionID != "successor" || target.State != session.StateActive {
+			t.Fatalf("wake target = %+v, want active successor", target)
+		}
+		item := harnessSyntheticWake{targetSessionID: "predecessor"}
+		if !bridge.refreshWakeTarget(&item) || item.targetSessionID != "successor" {
+			t.Fatalf("queued wake = %+v, want successor at dispatch", item)
+		}
+		if bridge.refreshWakeTarget(&item) {
+			t.Fatal("unchanged pointer unexpectedly rerouted wake")
+		}
+	})
+}
+
+func TestNativeInstanceCheckIns(t *testing.T) {
+	t.Run("Should page persisted wake events through the native tool without leaking another instance", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		var instances []agentinstance.Instance
+		for _, agent := range []string{"coder", "reviewer"} {
+			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+				AgentName: agent, ProfileID: store.DefaultProfileID,
+				CreatedByKind: "human", PermissionCeiling: "{}",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			instances = append(instances, instance)
+		}
+		for index, id := range []string{"event-a", "event-b", "event-other"} {
+			instance := instances[0]
+			if index == 2 {
+				instance = instances[1]
+			}
+			_, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+				(id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at)
+				VALUES (?,'',?,?,'timer','skipped','quiet','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`,
+				id, instance.AgentName, instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		api := &core.AgentInstanceAPI{Store: db.Instances(), Authority: agentinstance.Authority{Callers: db.Instances()}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }}}
+		cursor := ""
+		for _, want := range []string{"event-b", "event-a"} {
+			input, err := json.Marshal(nativeInstanceInput{ID: instances[0].ID, Limit: 1, Cursor: cursor})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{
+				Operator: true, ProfileID: store.DefaultProfileID,
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceCheckIns, Input: input})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var body contract.AgentInstanceCheckInsResponse
+			if err := json.Unmarshal(result.Structured, &body); err != nil {
+				t.Fatal(err)
+			}
+			if len(body.CheckIns) != 1 || body.CheckIns[0].ID != want || body.CheckIns[0].Reason != "quiet" || body.CheckIns[0].Result != "skipped" {
+				t.Fatalf("native check-ins = %+v, want %s", body, want)
+			}
+			cursor = body.NextCursor
+		}
+		if cursor != "" {
+			t.Fatalf("terminal cursor = %q", cursor)
 		}
 	})
 }

@@ -66,6 +66,22 @@ const PROPOSAL: SessionReportData = {
 };
 
 describe("SessionReportPart", () => {
+  it("Should link a rotated conversation to its persisted predecessor", async () => {
+    render(
+      <SessionReportPart
+        data={{ ...PROPOSAL, kind: "rotated", payload: { session_id: "sess-before" } }}
+      />,
+      { wrapper: harness(null) }
+    );
+    expect(
+      await screen.findByText(/This conversation continues from an earlier one/)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read it" })).toHaveAttribute(
+      "href",
+      "/session/sess-before"
+    );
+  });
+
   beforeEach(() => {
     reads.instances.mockResolvedValue([INSTANCE]);
     reads.reports.mockResolvedValue([]);

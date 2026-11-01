@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -371,6 +372,80 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		}
 		if err := service.Shutdown(t.Context()); err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+func TestDraftInstructionsPolicy(t *testing.T) {
+	for _, timeout := range []bool{false, true} {
+		name := "Should return instructions under read-only policy and delete the temporary session"
+		if timeout {
+			name = "Should delete the temporary session after drafting times out"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			ctx := t.Context()
+			if timeout {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				events := make(chan acp.AgentEvent)
+				var once sync.Once
+				h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) { return events, nil }
+				h.driver.cancelHook = func(_ *fakeProcess) error { once.Do(func() { close(events) }); return nil }
+			}
+			text, err := h.manager.DraftInstructions(ctx, DraftInstructionsRequest{Goal: "Review incoming requests", WorkspaceID: h.workspaceID})
+
+			if timeout {
+				if !errors.Is(err, ErrAgentDraftFailed) || !errors.Is(err, context.DeadlineExceeded) || text != "" {
+					t.Fatalf("timeout draft = %q, %v", text, err)
+				}
+			} else if err != nil || text != "reply" {
+				t.Fatalf("draft = %q, %v", text, err)
+			}
+			if timeout && len(h.promptMessages()) != 1 {
+				t.Fatal("deadline expired before the provider prompt")
+			}
+			if sessions := h.manager.List(); len(sessions) != 0 {
+				t.Fatalf("temporary sessions remain: %v", sessions)
+			}
+			var count int
+			if err := h.db.DB().QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sessions").Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count != 0 {
+				t.Fatalf("persisted temporary sessions: %d", count)
+			}
+			for _, opts := range h.startCallsSnapshot() {
+				if opts.ExecutionPolicy != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
+					t.Fatalf("unsafe launch: policy %s, MCP servers %d", opts.ExecutionPolicy, len(opts.MCPServers))
+				}
+			}
+		})
+	}
+
+	t.Run("Should reject providers without read-only triage support", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		starts := make(chan acp.StartOpts, 1)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			starts <- opts
+			return nil, acp.ErrTriageUnsupported
+		}
+		text, err := h.manager.DraftInstructions(t.Context(), DraftInstructionsRequest{
+			Goal: "Review incoming requests", WorkspaceID: h.workspaceID,
+		})
+		if !errors.Is(err, acp.ErrTriageUnsupported) || text != "" {
+			t.Fatalf("draft = %q, %v; want triage unsupported", text, err)
+		}
+		select {
+		case opts := <-starts:
+			if opts.ExecutionPolicy != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
+				t.Fatalf("launch policy = %s, MCP servers = %d", opts.ExecutionPolicy, len(opts.MCPServers))
+			}
+		default:
+			t.Fatal("provider was not started")
 		}
 	})
 }

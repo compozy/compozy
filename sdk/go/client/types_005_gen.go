@@ -239,6 +239,17 @@ type DoctorSummaryPayload struct {
 	CountsBySeverity map[string]int `json:"counts_by_severity"`
 }
 
+// DraftAgentInstructionsRequest is a daemon API value.
+type DraftAgentInstructionsRequest struct {
+	Goal    string            `json:"goal"`
+	Runtime AgentDraftRuntime `json:"runtime"`
+}
+
+// DraftAgentInstructionsResponse is a daemon API value.
+type DraftAgentInstructionsResponse struct {
+	Instructions string `json:"instructions"`
+}
+
 // DragAwayPolicy is a daemon API value.
 type DragAwayPolicy string
 
@@ -433,13 +444,4 @@ type ExtensionContentsPayload struct {
 	Hooks      int `json:"hooks"`
 	Loops      int `json:"loops"`
 	Agents     int `json:"agents"`
-}
-
-// ExtensionDeclaredProfilePayload is a daemon API value.
-type ExtensionDeclaredProfilePayload struct {
-	Name                   string                         `json:"name"`
-	Exists                 bool                           `json:"exists"`
-	CreatedByExtension     bool                           `json:"created_by_extension"`
-	NeedsSetup             bool                           `json:"needs_setup"`
-	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }

@@ -79,3 +79,10 @@ UPDATE sessions SET instance_id = NULL
 WHERE instance_id = sqlc.arg(instance_id) AND archived_at IS NOT NULL
 AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id = sqlc.arg(instance_id)
 AND i.state = 'starting' AND i.main_session_id IS NULL);
+
+-- name: IsSupersededInstanceSession :one
+SELECT EXISTS (
+ SELECT 1 FROM sessions s JOIN agent_instances i ON i.id=s.instance_id
+ WHERE s.id=sqlc.arg(session_id) AND i.main_session_id IS NOT NULL
+ AND i.main_session_id<>s.id
+);

@@ -27,6 +27,10 @@ func (n *daemonNativeTools) workspaceToolBindings(
 			call:         n.workspaceDescribe,
 			availability: describeAvailability,
 		},
+		toolspkg.ToolIDAgentDraftInstructions: {
+			call:         n.agentDraftInstructions,
+			availability: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),
+		},
 		toolspkg.ToolIDAgentCreate: {
 			call:         n.agentCreate,
 			availability: agentCreateAvailability,

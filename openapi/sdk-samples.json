@@ -771,6 +771,13 @@
             "resource": "workspaces",
             "app_access": "denied"
         },
+        "draftAgentInstructions": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.draftAgentInstructions({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DraftAgentInstructions(ctx, client.DraftAgentInstructionsParams{}, client.DraftAgentInstructionsRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "drainDaemon": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.diagnostics.drainDaemon();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DrainDaemon(ctx)\nif err != nil { return err }\nfmt.Println(result)",

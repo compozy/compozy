@@ -585,6 +585,23 @@
         ],
         "type": "object"
       },
+      "AgentDraftRuntime": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "reasoning_effort": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
       "AgentEffectiveRuntimePayload": {
         "properties": {
           "acp_options": {
@@ -6829,6 +6846,32 @@
         "required": [
           "counts_by_severity",
           "total"
+        ],
+        "type": "object"
+      },
+      "DraftAgentInstructionsRequest": {
+        "properties": {
+          "goal": {
+            "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/AgentDraftRuntime"
+          }
+        },
+        "required": [
+          "goal",
+          "runtime"
+        ],
+        "type": "object"
+      },
+      "DraftAgentInstructionsResponse": {
+        "properties": {
+          "instructions": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "instructions"
         ],
         "type": "object"
       },
@@ -25865,6 +25908,9 @@
             ]
           },
           "id": {
+            "type": "string"
+          },
+          "instance_id": {
             "type": "string"
           },
           "later": {
@@ -50456,6 +50502,93 @@
           "agents"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agents/draft-instructions": {
+      "post": {
+        "operationId": "draftAgentInstructions",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftAgentInstructionsRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftAgentInstructionsResponse"
+                }
+              }
+            },
+            "description": "Draft instructions"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid draft request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Provider does not support read-only triage"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Instruction drafting failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Instruction drafting unavailable"
+          }
+        },
+        "summary": "Draft agent instructions without saving a definition",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

@@ -45,6 +45,9 @@ func (c AgentsConfig) Validate() error {
 	if c.StaysOn.MaxConcurrentTriage < 1 || c.StaysOn.MaxProposals < 1 || c.StaysOn.MaxProposals > 20 || c.StaysOn.TriageTimeout <= 0 || c.StaysOn.MaxInterval <= 0 {
 		return fmt.Errorf("agents.stays_on requires positive triage limits and max_proposals between 1 and 20")
 	}
+	if !(c.StaysOn.RotationThreshold > 0 && c.StaysOn.RotationThreshold <= 1) {
+		return fmt.Errorf("agents.stays_on.rotation_threshold must be greater than zero and at most one")
+	}
 	if c.StaysOn.MaxActiveInstances <= 0 {
 		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
 	}

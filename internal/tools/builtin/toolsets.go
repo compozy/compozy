@@ -141,6 +141,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDWorkspaceInfo.String(),
 			toolspkg.ToolIDWorkspaceDescribe.String(),
 			toolspkg.ToolIDAgentCreate.String(),
+			toolspkg.ToolIDAgentDraftInstructions.String(),
 		},
 	},
 	{

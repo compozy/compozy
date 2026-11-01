@@ -9,6 +9,84 @@ import (
 	"strings"
 )
 
+// GetSessionByID Get one session snapshot by id
+func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams) (*SessionResponse, error) {
+	path := "/api/sessions/{session_id}"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.IncludeHealth != nil {
+		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionCommandsParams carries the path, query, and header parameters.
+type GetSessionCommandsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// GetSessionCommands List commands available to a session
+func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionCommandsParams) (*SessionCommandsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/commands"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionCommandsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionGoalParams carries the path, query, and header parameters.
+type GetSessionGoalParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// GetSessionGoal Get the newest visible session Goal
+func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionGoalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionHealthParams carries the path, query, and header parameters.
+type GetSessionHealthParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// GetSessionHealth Read metadata-only session health and wake eligibility
+func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthParams) (*SessionHealthResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/health"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionHealthResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionHistoryParams carries the path, query, and header parameters.
 type GetSessionHistoryParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -367,75 +445,4 @@ func (c *Client) GetSettingsMarketplace(ctx context.Context) (*SettingsMarketpla
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSettingsObservability Read the observability settings section
-func (c *Client) GetSettingsObservability(ctx context.Context) (*SettingsObservabilityResponse, error) {
-	path := "/api/settings/observability"
-	var out SettingsObservabilityResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsPersonaParams carries the path, query, and header parameters.
-type GetSettingsPersonaParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// GetSettingsPersona Read profile-layerable persona defaults
-func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
-	path := "/api/settings/persona"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsPersonaResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsProviderParams carries the path, query, and header parameters.
-type GetSettingsProviderParams struct {
-	Name string `url:"name"`
-}
-
-// GetSettingsProvider Read one settings-backed provider
-func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
-	path := "/api/settings/providers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out SettingsProviderResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsProviderUsage Read the provider usage settings section
-func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProviderUsageResponse, error) {
-	path := "/api/settings/provider-usage"
-	var out SettingsProviderUsageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsRestartStatusParams carries the path, query, and header parameters.
-type GetSettingsRestartStatusParams struct {
-	OperationID string `url:"operation_id"`
 }

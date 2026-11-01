@@ -332,6 +332,7 @@ func projectSessionCatalogPage(
 	for index := range sessions {
 		stored := &sessions[index]
 		if active := activeByID[stored.ID]; active != nil {
+			active.InstanceID = stored.InstanceID
 			infos = append(infos, active)
 			continue
 		}

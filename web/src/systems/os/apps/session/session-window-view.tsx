@@ -1,5 +1,6 @@
 import { lazy, Suspense, ViewTransition } from "react";
-import { AlertCircle } from "@compozy/ui/icons";
+import { useAgentInstances } from "@/systems/agent";
+import { AlertCircle, History } from "@compozy/ui/icons";
 
 import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
@@ -37,6 +38,10 @@ export function SessionWindowView({
   isLoading: boolean;
   error: Error | null;
 }) {
+  const instances = useAgentInstances();
+  const instance = instances.find(row => row.id === session?.instance_id);
+  const currentSessionId = instance?.main_session_id;
+  const superseded = Boolean(currentSessionId && currentSessionId !== session?.id);
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
   if (isLoading) return <SessionWindowSkeleton />;
@@ -45,6 +50,32 @@ export function SessionWindowView({
   }
 
   const resolvedAgentName = session.agent_name || name;
+  if (superseded && currentSessionId) {
+    return (
+      <>
+        <SessionReadOnlyTranscript
+          session={session}
+          agentName={resolvedAgentName}
+          liveTailEnabled={false}
+        />
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-6 pt-2 pb-5">
+          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg bg-surface-2 px-3 py-2.5 shadow-hairline-inset">
+            <History aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 text-small-body text-muted-foreground">
+              This conversation moved on. You can read it here.
+            </span>
+            <a
+              className="text-small-body text-fg underline"
+              href={`/session/${encodeURIComponent(currentSessionId)}`}
+            >
+              Open the current one
+            </a>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   // A User-scope session has no workspace but is live work; only legacy sessions without
   // any scope fall back to the read-only history.
   const runtimeWorkspaceId = session.scope === "user" ? USER_SCOPE_SELECTOR : sessionWorkspaceId;

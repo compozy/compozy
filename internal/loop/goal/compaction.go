@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/session/contextusage"
 )
 
 func (e *Executor) recoverFromMaxTokens(
@@ -64,14 +65,16 @@ func (e *Executor) maybeCompactBeforeWork(
 		boundary, recoveryErr := e.reseedOrEscalate(ctx, segment, segment.lastResult)
 		return boundary, true, recoveryErr
 	}
-	if float64(usage.Used)/float64(usage.Size) < segment.checkpoint.ContextNudgeRatio {
+	if contextusage.DecideMaintenance(usage.Known, usage.Used, usage.Size,
+		segment.checkpoint.ContextNudgeRatio, false) == contextusage.MaintenanceNone {
 		return nil, false, nil
 	}
 	command, hasCompact, err := e.context.CompactionCommand(ctx, segment.binding)
 	if err != nil {
 		return nil, false, nil
 	}
-	if !hasCompact {
+	if contextusage.DecideMaintenance(usage.Known, usage.Used, usage.Size,
+		segment.checkpoint.ContextNudgeRatio, hasCompact) == contextusage.MaintenanceRotate {
 		boundary, recoveryErr := e.reseedOrEscalate(ctx, segment, segment.lastResult)
 		return boundary, true, recoveryErr
 	}

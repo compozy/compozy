@@ -45,6 +45,7 @@ func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	agents.GET("/catalog", handlers.ListAgentCatalog)
 	agents.GET("/aggregate", handlers.ListAgentAggregate)
 	agents.POST("", handlers.CreateAgent)
+	agents.POST("/draft-instructions", handlers.DraftAgentInstructions)
 	agents.PUT("/:name", handlers.UpdateAgent)
 	agents.DELETE("/:name", handlers.DeleteAgent)
 	agents.POST("/:name/duplicate", handlers.DuplicateAgent)

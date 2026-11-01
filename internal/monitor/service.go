@@ -76,6 +76,7 @@ type Service struct {
 
 	mu          sync.Mutex
 	stopped     bool
+	retired     map[string]struct{}
 	sessions    map[string]map[string]*entry
 	occupied    int
 	perTerminal map[string]int
@@ -169,6 +170,9 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now time.Time) (Monitor, error) {
 	if s.stopped {
 		return Monitor{}, ErrStopped
+	}
+	if _, retired := s.retired[item.state.SessionID]; retired {
+		return Monitor{}, ErrSessionGone
 	}
 	s.sweepLocked(now)
 	if err := s.admitLocked(item); err != nil {

@@ -3,6 +3,7 @@ package config
 import "time"
 
 type StaysOnConfig struct {
+	RotationThreshold   float64       `toml:"rotation_threshold"`
 	ApprovalTimeout     time.Duration `toml:"approval_timeout"`
 	MaxConcurrentTriage int           `toml:"max_concurrent_triage"`
 	MaxProposals        int           `toml:"max_proposals"`
@@ -12,6 +13,7 @@ type StaysOnConfig struct {
 }
 
 type staysOnOverlay struct {
+	RotationThreshold   *float64       `toml:"rotation_threshold"`
 	ApprovalTimeout     *time.Duration `toml:"approval_timeout"`
 	MaxConcurrentTriage *int           `toml:"max_concurrent_triage"`
 	MaxProposals        *int           `toml:"max_proposals"`
@@ -21,6 +23,9 @@ type staysOnOverlay struct {
 }
 
 func (o staysOnOverlay) Apply(dst *StaysOnConfig) {
+	if o.RotationThreshold != nil {
+		dst.RotationThreshold = *o.RotationThreshold
+	}
 	if o.ApprovalTimeout != nil {
 		dst.ApprovalTimeout = *o.ApprovalTimeout
 	}

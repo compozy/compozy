@@ -414,7 +414,7 @@ func TestPromptInputCompositeIntegrationAgentMemory(t *testing.T) {
 		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}
 		catalog := newResourceCatalog(cloneAgentDef)
 		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: "triage", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
-		provider := agentMemoryPromptSectionProvider{store: memory, catalog: catalog}
+		provider := agentMemoryPromptSectionProvider{store: memory, catalog: func() *resourceCatalog[compozyconfig.AgentDef] { return catalog }}
 		startup := session.StartupPromptContext{ProfileID: store.DefaultProfileID}
 		key := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "user", Agent: "triage"}
 		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)

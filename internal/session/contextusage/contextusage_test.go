@@ -1,6 +1,7 @@
 package contextusage
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -370,4 +371,34 @@ func TestTurns(t *testing.T) {
 			t.Fatal("reduction reordered caller input")
 		}
 	})
+}
+
+func TestDecideMaintenance(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		known      bool
+		used, size int64
+		threshold  float64
+		compact    bool
+		want       MaintenanceAction
+	}{
+		{"Should ignore unknown usage", false, 90, 100, .8, false, MaintenanceNone},
+		{"Should ignore missing capacity", true, 90, 0, .8, false, MaintenanceNone},
+		{"Should ignore invalid usage", true, -1, 100, .8, false, MaintenanceNone},
+		{"Should respect disabled maintenance", true, 90, 100, 0, false, MaintenanceNone},
+		{"Should ignore invalid threshold", true, 90, 100, math.NaN(), false, MaintenanceNone},
+		{"Should wait below threshold", true, 79, 100, .8, false, MaintenanceNone},
+		{"Should compact at threshold", true, 80, 100, .8, true, MaintenanceCompact},
+		{"Should rotate at threshold without compaction", true, 80, 100, .8, false, MaintenanceRotate},
+		{"Should prefer compaction above capacity", true, 110, 100, .8, true, MaintenanceCompact},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := DecideMaintenance(tt.known, tt.used, tt.size, tt.threshold, tt.compact); got != tt.want {
+				t.Fatalf("maintenance = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }

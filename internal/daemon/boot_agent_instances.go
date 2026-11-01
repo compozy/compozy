@@ -44,6 +44,14 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	service, err := agentinstance.NewService(
 		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
+		agentinstance.WithMainSessionRotator(&instanceMainRotator{
+			sessions: manager, store: repo, monitors: state.sessionMonitors,
+			starter: instanceMainSessions{sessions: manager, attempts: repo}, reports: provider.InstanceReports(), now: d.now,
+			threshold: state.cfg.Agents.StaysOn.RotationThreshold,
+			changed: func(instance agentinstance.Instance) {
+				manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
+			},
+		}),
 		agentinstance.WithMainSessions(instanceMainSessions{sessions: manager, attempts: repo}),
 		agentinstance.WithActiveLimit(state.cfg.Agents.StaysOn.MaxActiveInstances),
 		agentinstance.WithClock(d.now),

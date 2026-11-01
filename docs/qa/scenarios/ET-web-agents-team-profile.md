@@ -39,3 +39,10 @@ Steps:
 9. Open an extension-owned agent. The definition is read-only with its owner named; places and
    memory stay editable.
 10. Mention an agent in the composer. The chip shows its avatar and name, and nothing starts.
+
+Check-in history validation: after two persisted wake events, read the instance's
+`check-ins` CLI command and `compozy__agent_instance_check_ins` with `limit=1`.
+Follow `next_cursor` and confirm newest-first ordering, no duplicate rows, and an
+empty final cursor. An instance in another workspace must never expose those events.
+The HTTP and native reads share the same persisted-event reader. The browser walk
+remains pending; SQLite-backed handler and repository tests cover the read path.

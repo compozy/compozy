@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ExtensionDeclaredProfilePayload is a daemon API value.
+type ExtensionDeclaredProfilePayload struct {
+	Name                   string                         `json:"name"`
+	Exists                 bool                           `json:"exists"`
+	CreatedByExtension     bool                           `json:"created_by_extension"`
+	NeedsSetup             bool                           `json:"needs_setup"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
 // ExtensionEnablePreviewPayload is a daemon API value.
 type ExtensionEnablePreviewPayload struct {
 	MissingInputs               []string                    `json:"missing_inputs"`

@@ -52,5 +52,8 @@ func (m *Manager) persistInstanceAcceptedStart(ctx context.Context, instanceID s
 	); err != nil {
 		return fmt.Errorf("session: register instance main %q: %w", session.ID, err)
 	}
+	session.mu.Lock()
+	session.InstanceID = instanceID
+	session.mu.Unlock()
 	return m.finishSessionCatalogPersistence(ctx, session)
 }

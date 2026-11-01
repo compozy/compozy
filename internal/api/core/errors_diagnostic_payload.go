@@ -21,6 +21,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
 	for code, target := range map[string]error{
+		"session_superseded":         store.ErrSessionSuperseded,
 		"agent_kind_immutable":       compozyconfig.ErrAgentKindImmutable,
 		"agent_kind_invalid":         compozyconfig.ErrAgentKindInvalid,
 		"agent_display_name_invalid": compozyconfig.ErrAgentDisplayNameInvalid,

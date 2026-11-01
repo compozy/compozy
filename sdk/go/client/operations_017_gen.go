@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// ListAutomationSuggestions List consent-first automation suggestions for one workspace
+func (c *Client) ListAutomationSuggestions(ctx context.Context, params ListAutomationSuggestionsParams) (*AutomationSuggestionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/automation/suggestions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AutomationSuggestionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAutomationSuggestionsAggregateParams carries the path, query, and header parameters.
+type ListAutomationSuggestionsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Status        *string   `url:"status"`
+}
+
 // ListAutomationSuggestionsAggregate List consent-first automation suggestions for one workspace
 func (c *Client) ListAutomationSuggestionsAggregate(ctx context.Context, params ListAutomationSuggestionsAggregateParams) (*AutomationSuggestionsResponse, error) {
 	path := "/api/automation/suggestions"
@@ -400,32 +425,4 @@ type ListGoalTurnsParams struct {
 	Item        *int    `url:"item"`
 	AfterSeq    *int    `url:"after_seq"`
 	Limit       *int    `url:"limit"`
-}
-
-// ListGoalTurns List Goal turns in run-wide sequence order
-func (c *Client) ListGoalTurns(ctx context.Context, params ListGoalTurnsParams) (*GoalTurnPage, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Node != nil {
-		query.Set("node", *params.Node)
-	}
-	if params.Item != nil {
-		query.Set("item", strconv.Itoa(*params.Item))
-	}
-	if params.AfterSeq != nil {
-		query.Set("after_seq", strconv.Itoa(*params.AfterSeq))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GoalTurnPage
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

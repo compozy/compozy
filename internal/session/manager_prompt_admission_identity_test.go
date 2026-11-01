@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -446,4 +448,120 @@ func TestPromptAdmissionMentions(t *testing.T) {
 			t.Fatalf("queued entry mentions = %s, %v; want a.go from admission", entry.MentionsJSON, err)
 		}
 	})
+}
+
+func TestInstanceReportsReachProvider(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		name := "Should inject admitted reports once through SendPrompt"
+		if fail {
+			name = "Should mark uncertain driver delivery without resending the report"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			database := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(database), WithEventLedger(database))
+			registerManagerInputQueueWorkspace(t, database, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, database, h, sess)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			instance, _, err := database.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: sess.AgentName,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := database.Instances().BindMain(t.Context(), instance.ID, sess.ID); err != nil {
+				t.Fatal(err)
+			}
+			reportCount := 50
+			if fail {
+				reportCount = 1
+			}
+			var report agentinstance.Report
+			for i := range reportCount {
+				report, err = database.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{
+					SourceKey: fmt.Sprintf("occ:driver-report-%d", i), Kind: "failure",
+					Payload: []byte(`{"reason":"failed","detail":"</compozy-reports>"}`),
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := database.InstanceReports().MarkReportPublished(t.Context(), report.ID, sess.ID, int64(i+1)); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			opts := SendPromptOpts{
+				Caller:         PromptCaller{Kind: "human", ID: "operator", Source: "web"},
+				Message:        "Read the update",
+				MessageID:      "msg-report",
+				IdempotencyKey: "key-report",
+				Mode:           BusyInputModeQueue,
+			}
+			if fail {
+				h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					return nil, errors.New("uncertain driver delivery")
+				}
+			}
+			result, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+			if fail {
+				if err == nil {
+					t.Fatal("expected driver error")
+				}
+				rows, readErr := database.InstanceReports().
+					ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "indeterminate", Limit: 20})
+				if readErr != nil || len(rows) != 1 {
+					t.Fatalf("indeterminate: %#v %v", rows, readErr)
+				}
+				if err := h.manager.publishIndeterminateReportNotes(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				count := 0
+				for _, event := range readStoredEvents(t, sess) {
+					if event.ID == "report-indeterminate:"+report.ID {
+						count++
+					}
+				}
+				if count != 1 {
+					t.Fatalf("indeterminate note count: %d", count)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			drainPromptEvents(t, result.Events)
+			h.driver.mu.Lock()
+			calls := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+			h.driver.mu.Unlock()
+			if len(calls) != 1 || strings.Count(calls[0].Message, "<compozy-reports>") != 1 ||
+				strings.Count(
+					calls[0].Message,
+					"</compozy-reports>",
+				) != 1 || !strings.Contains(calls[0].Message, "Count: 20") || !strings.Contains(calls[0].Message, "GET /api/agent-instances/{instance_id}/reports") {
+				t.Fatalf("provider requests: %#v", calls)
+			}
+			reports, err := database.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "delivered", Limit: 20})
+			if err != nil || len(reports) != 20 {
+				t.Fatalf("delivered reports: %#v %v", reports, err)
+			}
+			pending, err := database.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+			if err != nil || len(pending) != 30 {
+				t.Fatalf("pending reports: %d, %v", len(pending), err)
+			}
+
+			replay, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+			if err != nil || !replay.Replayed {
+				t.Fatalf("replay: %#v %v", replay, err)
+			}
+			h.driver.mu.Lock()
+			count := len(h.driver.promptCalls)
+			h.driver.mu.Unlock()
+			if count != 1 {
+				t.Fatalf("replayed report invoked driver %d times", count)
+			}
+		})
+	}
 }

@@ -63,6 +63,7 @@ type SessionAttachState struct {
 }
 
 type SessionInfo struct {
+	InstanceID               string
 	InitiatorKind            string
 	InitiatorID              string
 	EffectiveWorkspaceAccess string

@@ -6,9 +6,38 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// EnableSkill Enable one skill
+func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
+	path := "/api/skills/{name}/enable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// EnqueueTaskRunParams carries the path, query, and header parameters.
+type EnqueueTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
 
 // EnqueueTaskRun Enqueue one task run
 func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
@@ -398,51 +427,4 @@ type GetAgentActivityParams struct {
 	Name    string  `url:"name"`
 	Days    *int    `url:"days"`
 	Profile *string `url:"profile"`
-}
-
-// GetAgentActivity Read agent activity across authorized workspaces
-func (c *Client) GetAgentActivity(ctx context.Context, params GetAgentActivityParams) (*AgentActivityResponse, error) {
-	path := "/api/agents/{name}/activity"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Days != nil {
-		query.Set("days", strconv.Itoa(*params.Days))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentActivityResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentContextParams carries the path, query, and header parameters.
-type GetAgentContextParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// GetAgentContext Return the bounded calling-agent situation context
-func (c *Client) GetAgentContext(ctx context.Context, params GetAgentContextParams) (*AgentContextResponse, error) {
-	path := "/api/agent/context"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentContextResponse
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentCoordinatorConfigParams carries the path, query, and header parameters.
-type GetAgentCoordinatorConfigParams struct {
-	XCompozySessionID string  `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string  `url:"X-Compozy-Agent"`
-	Workspace         *string `url:"workspace"`
 }

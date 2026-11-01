@@ -211,6 +211,13 @@ type AgentDiagnosticPayload struct {
 	Message   string `json:"message"`
 }
 
+// AgentDraftRuntime is a daemon API value.
+type AgentDraftRuntime struct {
+	Provider        string `json:"provider"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
 // AgentEffectiveRuntimePayload is a daemon API value.
 type AgentEffectiveRuntimePayload struct {
 	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
@@ -439,9 +446,4 @@ type AgentMemoryDocument struct {
 	Content string            `json:"content"`
 	Digest  string            `json:"digest"`
 	Budget  AgentMemoryBudget `json:"budget"`
-}
-
-// AgentMemoryHistoryResponse is a daemon API value.
-type AgentMemoryHistoryResponse struct {
-	Revisions []AgentMemoryRevision `json:"revisions"`
 }

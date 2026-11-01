@@ -263,6 +263,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, store.ErrSessionNotAttachable),
 		errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
 		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
+		errors.Is(err, store.ErrSessionSuperseded),
 		errors.Is(err, store.ErrSessionPromptAdmissionInProgress),
 		errors.Is(err, store.ErrSessionPromptIdempotencyConflict),
 		errors.Is(err, store.ErrSessionPromptMessageConflict),

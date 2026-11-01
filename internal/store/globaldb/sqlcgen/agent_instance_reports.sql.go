@@ -10,6 +10,36 @@ import (
 	"database/sql"
 )
 
+const deliverPromptReport = `-- name: DeliverPromptReport :execrows
+UPDATE agent_instance_reports SET state = 'delivered', delivered_at = ?1
+WHERE id = ?2 AND state = 'reserved'
+`
+
+type DeliverPromptReportParams struct {
+	Now sql.NullString `json:"now"`
+	ID  string         `json:"id"`
+}
+
+func (q *Queries) DeliverPromptReport(ctx context.Context, arg DeliverPromptReportParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deliverPromptReport, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const failPromptReports = `-- name: FailPromptReports :exec
+UPDATE agent_instance_reports SET
+ state = CASE WHEN state = 'reserved' THEN 'pending' ELSE 'indeterminate' END,
+ prompt_admission_id = CASE WHEN state = 'reserved' THEN '' ELSE prompt_admission_id END
+WHERE prompt_admission_id = ?1 AND state IN ('reserved', 'delivered')
+`
+
+func (q *Queries) FailPromptReports(ctx context.Context, admissionID string) error {
+	_, err := q.db.ExecContext(ctx, failPromptReports, admissionID)
+	return err
+}
+
 const getAgentInstanceReportBySource = `-- name: GetAgentInstanceReportBySource :one
 SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports WHERE source_key = ? AND instance_id = ?
 `
@@ -125,6 +155,89 @@ func (q *Queries) ListAgentInstanceReports(ctx context.Context, arg ListAgentIns
 	return items, nil
 }
 
+const listIndeterminatePromptReports = `-- name: ListIndeterminatePromptReports :many
+SELECT r.id, r.created_at, a.session_id, a.turn_id FROM agent_instance_reports r
+JOIN session_prompt_admissions a ON a.id = r.prompt_admission_id
+WHERE r.state = 'indeterminate' AND r.id > ?1
+ORDER BY r.id LIMIT 100
+`
+
+type ListIndeterminatePromptReportsRow struct {
+	ID        string `json:"id"`
+	CreatedAt string `json:"created_at"`
+	SessionID string `json:"session_id"`
+	TurnID    string `json:"turn_id"`
+}
+
+func (q *Queries) ListIndeterminatePromptReports(ctx context.Context, afterID string) ([]ListIndeterminatePromptReportsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listIndeterminatePromptReports, afterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIndeterminatePromptReportsRow{}
+	for rows.Next() {
+		var i ListIndeterminatePromptReportsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.SessionID,
+			&i.TurnID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPromptReports = `-- name: ListPromptReports :many
+SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports WHERE prompt_admission_id = ?1
+ORDER BY created_at, id
+`
+
+func (q *Queries) ListPromptReports(ctx context.Context, admissionID string) ([]AgentInstanceReport, error) {
+	rows, err := q.db.QueryContext(ctx, listPromptReports, admissionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentInstanceReport{}
+	for rows.Next() {
+		var i AgentInstanceReport
+		if err := rows.Scan(
+			&i.ID,
+			&i.InstanceID,
+			&i.SourceKey,
+			&i.Kind,
+			&i.Payload,
+			&i.Fingerprint,
+			&i.State,
+			&i.PromptAdmissionID,
+			&i.EventSessionID,
+			&i.EventSeq,
+			&i.CreatedAt,
+			&i.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnpublishedAgentInstanceReports = `-- name: ListUnpublishedAgentInstanceReports :many
 SELECT r.id, r.instance_id, r.source_key, r.kind, r.payload, r.fingerprint, r.state, r.prompt_admission_id, r.event_session_id, r.event_seq, r.created_at, r.delivered_at, i.main_session_id FROM agent_instance_reports r
 JOIN agent_instances i ON i.id = r.instance_id
@@ -205,5 +318,70 @@ type MarkAgentInstanceReportPublishedParams struct {
 
 func (q *Queries) MarkAgentInstanceReportPublished(ctx context.Context, arg MarkAgentInstanceReportPublishedParams) error {
 	_, err := q.db.ExecContext(ctx, markAgentInstanceReportPublished, arg.SessionID, arg.EventSeq, arg.ID)
+	return err
+}
+
+const recoverReservedPromptReports = `-- name: RecoverReservedPromptReports :exec
+UPDATE agent_instance_reports SET state = 'pending', prompt_admission_id = '' WHERE state = 'reserved'
+`
+
+func (q *Queries) RecoverReservedPromptReports(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, recoverReservedPromptReports)
+	return err
+}
+
+const recoverUncertainPromptReports = `-- name: RecoverUncertainPromptReports :exec
+UPDATE agent_instance_reports SET state = 'indeterminate'
+WHERE state = 'delivered' AND prompt_admission_id IN (
+ SELECT id FROM session_prompt_admissions WHERE state = 'dispatch_committed'
+)
+`
+
+func (q *Queries) RecoverUncertainPromptReports(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, recoverUncertainPromptReports)
+	return err
+}
+
+const releaseCanceledSessionReports = `-- name: ReleaseCanceledSessionReports :exec
+UPDATE agent_instance_reports SET state = 'pending', prompt_admission_id = ''
+WHERE state = 'reserved' AND prompt_admission_id IN (
+ SELECT prompt_admission_id FROM session_input_queue
+ WHERE session_id = ?1 AND status = 'canceled'
+)
+`
+
+func (q *Queries) ReleaseCanceledSessionReports(ctx context.Context, sessionID string) error {
+	_, err := q.db.ExecContext(ctx, releaseCanceledSessionReports, sessionID)
+	return err
+}
+
+const releasePromptReports = `-- name: ReleasePromptReports :exec
+UPDATE agent_instance_reports SET state = 'pending', prompt_admission_id = ''
+WHERE prompt_admission_id = ?1 AND state = 'reserved'
+`
+
+func (q *Queries) ReleasePromptReports(ctx context.Context, admissionID string) error {
+	_, err := q.db.ExecContext(ctx, releasePromptReports, admissionID)
+	return err
+}
+
+const reservePromptReports = `-- name: ReservePromptReports :exec
+UPDATE agent_instance_reports SET state = 'reserved', prompt_admission_id = ?1
+WHERE id IN (
+ SELECT r.id FROM agent_instance_reports r
+ JOIN agent_instances i ON i.id = r.instance_id
+ WHERE i.main_session_id = ?2
+ AND r.event_session_id = ?2 AND r.event_seq > 0 AND r.state = 'pending'
+ ORDER BY r.created_at, r.id LIMIT 20
+)
+`
+
+type ReservePromptReportsParams struct {
+	AdmissionID string         `json:"admission_id"`
+	SessionID   sql.NullString `json:"session_id"`
+}
+
+func (q *Queries) ReservePromptReports(ctx context.Context, arg ReservePromptReportsParams) error {
+	_, err := q.db.ExecContext(ctx, reservePromptReports, arg.AdmissionID, arg.SessionID)
 	return err
 }

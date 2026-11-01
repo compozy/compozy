@@ -39,7 +39,11 @@ export function useAgentFillWithAi({
       const instructions = await draftAgentInstructions(
         {
           goal: brief.trim(),
-          runtime: { provider: model.provider, ...(model.model ? { model: model.model } : {}) },
+          runtime: {
+            provider: model.provider,
+            ...(model.model ? { model: model.model } : {}),
+            ...(model.reasoning_effort ? { reasoning_effort: model.reasoning_effort } : {}),
+          },
         },
         controller.signal
       );

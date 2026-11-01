@@ -185,6 +185,9 @@ func (g *SessionRepo) replacePendingSessionInput(
 		}); cancelErr != nil {
 			return fmt.Errorf("store: cancel replaced session input: %w", cancelErr)
 		}
+		if err := queries.ReleasePromptReports(ctx, existing.PromptAdmissionID); err != nil {
+			return err
+		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, replacement)
 		if insertErr != nil {
 			return insertErr

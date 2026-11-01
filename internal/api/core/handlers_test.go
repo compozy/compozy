@@ -2669,6 +2669,32 @@ func TestLogsEndpointsRequireObserver(t *testing.T) {
 func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should stream a durable instance report through the HTTP route", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		var calls atomic.Int32
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) { return testutil.NewSessionInfo(id), nil },
+			EventsFn: func(_ context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
+				if calls.Add(1) != 1 {
+					close(done)
+					return nil, nil
+				}
+				return []store.SessionEvent{{ID: "report:arpt-http", SessionID: id, Sequence: 1, TurnID: "report:arpt-http", Type: "session.report", AgentName: "coder", Content: `{"report_id":"arpt-http","instance_id":"ainst-http","kind":"failure","payload":{"reason":"failed","detail":"triage failed"},"created_at":"2026-11-01T00:00:00Z"}`, Timestamp: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.SetStreamDone(done)
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&limit=200", nil)
+		if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "text/event-stream") {
+			t.Fatalf("HTTP stream: %d %v", response.Code, response.Header())
+		}
+		body := response.Body.String()
+		if !strings.Contains(body, "session.report") || !strings.Contains(body, "arpt-http") || !strings.Contains(body, "ainst-http") {
+			t.Fatalf("missing report in SSE: %s", body)
+		}
+	})
+
 	t.Run("Should stream session events and expose observe endpoints", func(t *testing.T) {
 		t.Parallel()
 
@@ -6293,4 +6319,46 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 			t.Fatalf("copy: %#v", copied.Agent)
 		}
 	})
+}
+
+type draftInstructionsSessions struct {
+	testutil.StubSessionManager
+	err error
+}
+
+var _ core.AgentInstructionsDrafter = draftInstructionsSessions{}
+
+func (s draftInstructionsSessions) DraftInstructions(_ context.Context, req session.DraftInstructionsRequest) (string, error) {
+	if req.Goal != "Review requests" || req.Provider != "codex" {
+		return "", errors.New("unexpected draft request")
+	}
+	return "Review requests and report outcomes.", s.err
+}
+
+func TestDraftAgentInstructionsEndpoint(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		body   string
+	}{
+		{"Should return draft instructions", nil, 200, `"instructions":"Review requests and report outcomes."`},
+		{"Should report unsupported triage", acp.ErrTriageUnsupported, 422, `"code":"triage_unsupported"`},
+		{"Should report drafting failure", errors.New("provider failed"), 502, `"code":"agent_draft_failed"`},
+		{"Should report drafting timeout", errors.Join(session.ErrAgentDraftFailed, context.DeadlineExceeded), 502, `"code":"agent_draft_failed"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.Sessions = draftInstructionsSessions{err: tc.err}
+			fixture.Engine.POST("/agents/draft-instructions", fixture.Handlers.DraftAgentInstructions)
+			response := httptest.NewRecorder()
+			request := httptest.NewRequestWithContext(t.Context(), "POST", "/agents/draft-instructions", strings.NewReader(`{"goal":"Review requests","runtime":{"provider":"codex"}}`))
+			request.Header.Set("Content-Type", "application/json")
+			fixture.Engine.ServeHTTP(response, request)
+			if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.body) {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+		})
+	}
 }

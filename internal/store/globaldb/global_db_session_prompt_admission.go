@@ -154,7 +154,7 @@ func (g *SessionRepo) CompleteSessionPromptAdmission(
 			return completeErr
 		}
 		admission = completed
-		return nil
+		return sqlcgen.New(exec).ReleasePromptReports(ctx, completed.ID)
 	})
 	if err != nil {
 		return store.SessionPromptAdmission{}, err
@@ -207,7 +207,16 @@ func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 			if affected != 1 {
 				return promptAdmissionCASFailure(ctx, exec, workspaceID, sessionID, idempotencyKey)
 			}
-			return nil
+			admission, err := sqlcgen.New(exec).GetSessionPromptAdmissionByIdempotencyKey(ctx,
+				sqlcgen.GetSessionPromptAdmissionByIdempotencyKeyParams{
+					WorkspaceID:    workspaceID,
+					SessionID:      sessionID,
+					IdempotencyKey: idempotencyKey,
+				})
+			if err != nil {
+				return err
+			}
+			return sqlcgen.New(exec).FailPromptReports(ctx, admission.ID)
 		},
 	)
 }
@@ -230,6 +239,13 @@ func claimSessionPromptAdmission(
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.SessionPromptAdmission{}, false, err
+	}
+	superseded, err := queries.IsSupersededInstanceSession(ctx, req.SessionID)
+	if err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+	if superseded {
+		return store.SessionPromptAdmission{}, false, store.ErrSessionSuperseded
 	}
 	message, err := queries.GetSessionPromptAdmissionByMessageID(
 		ctx,
@@ -277,6 +293,18 @@ func claimSessionPromptAdmission(
 		TurnID:                req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
 	}); err != nil {
 		return store.SessionPromptAdmission{}, false, fmt.Errorf("store: insert session prompt admission: %w", err)
+	}
+	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt &&
+		req.Mode != store.SessionInputQueueModeSteer {
+		if err := queries.ReservePromptReports(
+			ctx,
+			sqlcgen.ReservePromptReportsParams{
+				AdmissionID: req.ID,
+				SessionID:   sql.NullString{String: req.SessionID, Valid: true},
+			},
+		); err != nil {
+			return store.SessionPromptAdmission{}, false, fmt.Errorf("store: reserve prompt reports: %w", err)
+		}
 	}
 	created, err := queries.GetSessionPromptAdmissionByIdempotencyKey(
 		ctx,

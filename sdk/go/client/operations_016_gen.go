@@ -9,6 +9,41 @@ import (
 	"strings"
 )
 
+// ListAgentInstances List agent instances
+func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstancesParams) (*AgentInstanceListResponse, error) {
+	path := "/api/agent-instances"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", *params.AllWorkspaces)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", *params.Limit)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAgentMemoryHistoryParams carries the path, query, and header parameters.
 type ListAgentMemoryHistoryParams struct {
 	Name      string  `url:"name"`
@@ -407,29 +442,4 @@ func (c *Client) ListAutomationRuns(ctx context.Context, params ListAutomationRu
 type ListAutomationSuggestionsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Status      *string `url:"status"`
-}
-
-// ListAutomationSuggestions List consent-first automation suggestions for one workspace
-func (c *Client) ListAutomationSuggestions(ctx context.Context, params ListAutomationSuggestionsParams) (*AutomationSuggestionsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/automation/suggestions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AutomationSuggestionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationSuggestionsAggregateParams carries the path, query, and header parameters.
-type ListAutomationSuggestionsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Status        *string   `url:"status"`
 }

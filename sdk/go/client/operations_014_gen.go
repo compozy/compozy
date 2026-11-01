@@ -9,6 +9,26 @@ import (
 	"strings"
 )
 
+// GetTaskInboxParams carries the path, query, and header parameters.
+type GetTaskInboxParams struct {
+	Scope         *string   `url:"scope"`
+	Workspace     *string   `url:"workspace"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Worktree      *string   `url:"worktree"`
+	OwnerKind     *string   `url:"owner_kind"`
+	OwnerRef      *string   `url:"owner_ref"`
+	Lane          *string   `url:"lane"`
+	Status        *string   `url:"status"`
+	Priority      *string   `url:"priority"`
+	Unread        *bool     `url:"unread"`
+	Query         *string   `url:"query"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // GetTaskInbox Get the observer-backed task inbox
 func (c *Client) GetTaskInbox(ctx context.Context, params GetTaskInboxParams) (*TaskInboxResponse, error) {
 	path := "/api/observe/tasks/inbox"
@@ -415,33 +435,4 @@ type GetWorktreeStatusParams struct {
 	WorktreeID  string `url:"worktree_id"`
 	Refresh     *bool  `url:"refresh"`
 	Forge       *bool  `url:"forge"`
-}
-
-// GetWorktreeStatus Read or refresh worktree status
-func (c *Client) GetWorktreeStatus(ctx context.Context, params GetWorktreeStatusParams) (*WorktreeStatusResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.Refresh != nil {
-		query.Set("refresh", strconv.FormatBool(*params.Refresh))
-	}
-	if params.Forge != nil {
-		query.Set("forge", strconv.FormatBool(*params.Forge))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// HeartbeatAgentTaskRunParams carries the path, query, and header parameters.
-type HeartbeatAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
 }

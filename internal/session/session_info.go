@@ -36,6 +36,7 @@ func (s *Session) infoLocked() *Info {
 	}
 
 	return &Info{
+		InstanceID:    s.InstanceID,
 		InitiatorKind: s.InitiatorKind, InitiatorID: s.InitiatorID,
 		LeaderKernelToken:        leaderKernelToken,
 		runtimeStrategy:          s.runtimeStrategyLocked(),

@@ -26,6 +26,19 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__agent_draft_instructions",
+    "native_name": "agent_draft_instructions",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9904608624de860f076dce01757263163679980d2d46eeafea3a63e46bd52d49",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__agent_heartbeat_status",
     "native_name": "agent_heartbeat_status",
     "toolsets": [

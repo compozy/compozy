@@ -174,6 +174,12 @@ export type AgentDiagnosticPayload = {
   path: string;
 };
 
+export type AgentDraftRuntime = {
+  model?: string;
+  provider: string;
+  reasoning_effort?: string;
+};
+
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   model?: string;
@@ -1838,6 +1844,15 @@ export type DoctorSummaryPayload = {
     [key: string]: number;
   };
   total: number;
+};
+
+export type DraftAgentInstructionsRequest = {
+  goal: string;
+  runtime: AgentDraftRuntime;
+};
+
+export type DraftAgentInstructionsResponse = {
+  instructions: string;
 };
 
 export type DrainStatusResponse = {
@@ -7095,6 +7110,7 @@ export type SessionPayload = {
   folder_id?: string;
   health?: SessionHealthPayload | null;
   id: string;
+  instance_id?: string;
   later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
@@ -14598,6 +14614,53 @@ export type ListAgentCatalogResponses = {
 };
 
 export type ListAgentCatalogResponse = ListAgentCatalogResponses[keyof ListAgentCatalogResponses];
+
+export type DraftAgentInstructionsData = {
+  /**
+   * JSON request body
+   */
+  body: DraftAgentInstructionsRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/draft-instructions";
+};
+
+export type DraftAgentInstructionsErrors = {
+  /**
+   * Invalid draft request
+   */
+  400: ErrorPayload;
+  /**
+   * Provider does not support read-only triage
+   */
+  422: ErrorPayload;
+  /**
+   * Instruction drafting failed
+   */
+  502: ErrorPayload;
+  /**
+   * Instruction drafting unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DraftAgentInstructionsError =
+  DraftAgentInstructionsErrors[keyof DraftAgentInstructionsErrors];
+
+export type DraftAgentInstructionsResponses = {
+  /**
+   * Draft instructions
+   */
+  200: DraftAgentInstructionsResponse;
+};
+
+export type DraftAgentInstructionsResponse2 =
+  DraftAgentInstructionsResponses[keyof DraftAgentInstructionsResponses];
 
 export type DeleteAgentData = {
   body?: never;

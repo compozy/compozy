@@ -92,7 +92,8 @@ func (p ReportPublisher) Sweep(ctx context.Context) error {
 
 func (r ReportInput) Validate() error {
 	prefix, suffix, ok := strings.Cut(r.SourceKey, ":")
-	if !ok || strings.TrimSpace(suffix) == "" || (prefix != "occ" && prefix != "interaction" && prefix != "turn") {
+	rotation := prefix == "rotation" && (r.Kind == "rotation_failed" || r.Kind == "rotation_deferred")
+	if !ok || strings.TrimSpace(suffix) == "" || (!rotation && prefix != "occ" && prefix != "interaction" && prefix != "turn") {
 		return errors.New("agentinstance: invalid report source key")
 	}
 	if len(r.Payload) == 0 || len(r.Payload) > 65536 || !r.Payload.IsValid() {

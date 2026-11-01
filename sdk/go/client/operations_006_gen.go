@@ -340,6 +340,28 @@ func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadT
 	return &out, nil
 }
 
+// DraftAgentInstructionsParams carries the path, query, and header parameters.
+type DraftAgentInstructionsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// DraftAgentInstructions Draft agent instructions without saving a definition
+func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
+	path := "/api/agents/draft-instructions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DraftAgentInstructionsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DrainDaemon Stop admitting new work
 func (c *Client) DrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
 	path := "/api/drain"
@@ -406,34 +428,4 @@ type EnableSkillParams struct {
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
 	ForAgent  *string `url:"for_agent"`
-}
-
-// EnableSkill Enable one skill
-func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
-	path := "/api/skills/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnqueueTaskRunParams carries the path, query, and header parameters.
-type EnqueueTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

@@ -21,6 +21,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	shellquote "github.com/kballard/go-shellquote"
 
@@ -3797,4 +3798,66 @@ func TestBootArchivedWorkspaceIntegration(t *testing.T) {
 	if err != nil || retainedRun.Status != looppkg.StatusFailed {
 		t.Fatalf("recovered archived Loop = %#v, %v", retainedRun, err)
 	}
+}
+
+func TestBootRecoversInstanceReports(t *testing.T) {
+	t.Run("Should publish an orphaned report exactly once across daemon boots", func(t *testing.T) {
+		// integrationHomePaths sets the isolated daemon environment.
+		home := integrationHomePaths(t)
+		cfg := testConfig(t, home)
+		command := daemonSessionStopHelperCommand(t)
+		cfg.Defaults.Provider = acpmock.ProviderName
+		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationAgentDef(t, home, "coder", command)
+		d := newTestDaemon(t, home, &cfg)
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		main, err := d.sessions.Create(t.Context(), session.CreateOpts{AgentName: "coder", WorkspacePath: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := main.Info()
+		if err := d.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		db, err := globaldb.OpenGlobalDB(t.Context(), home.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "occ:boot-recovery", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"persisted before crash"}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			d = newTestDaemon(t, home, &cfg)
+			if err := d.boot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			events, err := d.sessions.Events(t.Context(), main.ID, store.EventQuery{Type: "session.report", Limit: 100})
+			if err != nil || len(events) != 1 || events[0].ID != "report:"+report.ID {
+				t.Fatalf("boot report events: %#v, %v", events, err)
+			}
+			rows, err := d.registry.(*globaldb.GlobalDB).InstanceReports().UnpublishedReports(t.Context(), "", 100)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("unpublished reports after boot: %#v, %v", rows, err)
+			}
+			if err := d.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 }

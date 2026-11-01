@@ -43,7 +43,13 @@ func (g *SessionRepo) RegisterInstanceSession(
 			return lookupErr
 		}
 		if lookupErr == nil && existing != info.ID {
-			return agentinstance.ErrStarting
+			allowed, err := sqlcgen.New(exec).CanRegisterRotationCandidate(ctx, instanceID)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return agentinstance.ErrStarting
+			}
 		}
 		if identity == nil {
 			_, lookupErr := sqlcgen.New(exec).GetSessionWorkspaceID(ctx, info.ID)

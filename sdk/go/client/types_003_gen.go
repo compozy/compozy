@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// ApprovalState is a daemon API value.
+type ApprovalState string
+
 // ApproveLoopRunRequest is a daemon API value.
 type ApproveLoopRunRequest struct {
 	GateID   string           `json:"gate_id"`

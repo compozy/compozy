@@ -77,3 +77,9 @@ CREATE TABLE agent_instance_seen (
     last_seen_at TEXT NOT NULL,
     PRIMARY KEY (instance_id, operator_id)
 );
+
+CREATE TABLE agent_instance_rotation_wait (
+    instance_id TEXT PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
+    main_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    started_at TEXT NOT NULL
+);

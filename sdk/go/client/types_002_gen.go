@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// AgentMemoryHistoryResponse is a daemon API value.
+type AgentMemoryHistoryResponse struct {
+	Revisions []AgentMemoryRevision `json:"revisions"`
+}
+
 // AgentMemoryRemoveRequest is a daemon API value.
 type AgentMemoryRemoveRequest struct {
 	Match string `json:"match"`
@@ -443,6 +448,3 @@ type ApprovalOutcome string
 
 // ApprovalPolicy is a daemon API value.
 type ApprovalPolicy string
-
-// ApprovalState is a daemon API value.
-type ApprovalState string

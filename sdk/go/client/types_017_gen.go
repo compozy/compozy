@@ -381,6 +381,7 @@ type SessionOwner struct {
 
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
+	InstanceID               string                           `json:"instance_id,omitempty"`
 	Diagnostics              []DiagnosticItem                 `json:"diagnostics,omitempty"`
 	WorktreeBinding          *WorktreeBindingAvailability     `json:"worktree_binding,omitempty"`
 	Branch                   string                           `json:"branch,omitempty"`
