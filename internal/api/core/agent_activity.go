@@ -2,6 +2,7 @@ package core
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"net/http"
 	"slices"
@@ -64,26 +65,13 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		BusyByHour:    []agentinstance.ActivityHour{},
 	}
 	for workspace := range allowed {
-		if !actor.Operator {
-			if h.WorkspaceAccess == nil {
-				continue
-			}
-			decision, err := h.WorkspaceAccess.Authorize(
-				c.Request.Context(),
-				workspaceaccess.Request{
-					Actor:    actor,
-					Target:   workspaceaccess.ScopeTarget(workspace, scope.ProfileID),
-					ReadOnly: true,
-					Seam:     workspaceaccess.SeamTool,
-				},
-			)
-			if err != nil {
-				h.respondError(c, 500, err)
-				return
-			}
-			if !decision.Allowed {
-				continue
-			}
+		visible, err := h.authorizeAgentActivityWorkspace(c.Request.Context(), actor, scope.ProfileID, workspace)
+		if err != nil {
+			h.respondError(c, 500, err)
+			return
+		}
+		if !visible {
+			continue
 		}
 		activity, err := reader.ReadActivity(
 			c.Request.Context(),
@@ -107,33 +95,7 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 			}
 			label = resolved.Name
 		}
-		for _, cost := range activity.CostByProject {
-			cost.Scope = label
-			result.CostByProject = append(result.CostByProject, cost)
-		}
-		for _, day := range activity.ReportsByDay {
-			index := slices.IndexFunc(
-				result.ReportsByDay,
-				func(item agentinstance.ActivityDay) bool { return item.Day == day.Day },
-			)
-			if index < 0 {
-				result.ReportsByDay = append(result.ReportsByDay, day)
-			} else {
-				result.ReportsByDay[index].Quiet += day.Quiet
-				result.ReportsByDay[index].Told += day.Told
-				result.ReportsByDay[index].NeededYou += day.NeededYou
-			}
-		}
-		for _, hour := range activity.BusyByHour {
-			index := slices.IndexFunc(result.BusyByHour, func(item agentinstance.ActivityHour) bool {
-				return item.Weekday == hour.Weekday && item.Hour == hour.Hour
-			})
-			if index < 0 {
-				result.BusyByHour = append(result.BusyByHour, hour)
-			} else {
-				result.BusyByHour[index].Events += hour.Events
-			}
-		}
+		mergeAgentActivity(&result, activity, label)
 	}
 	slices.SortFunc(result.ReportsByDay, func(a, b agentinstance.ActivityDay) int { return cmp.Compare(a.Day, b.Day) })
 	slices.SortFunc(
@@ -147,4 +109,54 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		return cmp.Compare(a.Hour, b.Hour)
 	})
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *BaseHandlers) authorizeAgentActivityWorkspace(
+	ctx context.Context,
+	actor workspaceaccess.ActorRef,
+	profileID, workspaceID string,
+) (bool, error) {
+	if actor.Operator {
+		return true, nil
+	}
+	if h.WorkspaceAccess == nil {
+		return false, nil
+	}
+	decision, err := h.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{
+		Actor:    actor,
+		Target:   workspaceaccess.ScopeTarget(workspaceID, profileID),
+		ReadOnly: true,
+		Seam:     workspaceaccess.SeamTool,
+	})
+	return decision.Allowed, err
+}
+
+func mergeAgentActivity(result *agentinstance.Activity, activity agentinstance.Activity, label string) {
+	for _, cost := range activity.CostByProject {
+		cost.Scope = label
+		result.CostByProject = append(result.CostByProject, cost)
+	}
+	for _, day := range activity.ReportsByDay {
+		index := slices.IndexFunc(
+			result.ReportsByDay,
+			func(item agentinstance.ActivityDay) bool { return item.Day == day.Day },
+		)
+		if index < 0 {
+			result.ReportsByDay = append(result.ReportsByDay, day)
+		} else {
+			result.ReportsByDay[index].Quiet += day.Quiet
+			result.ReportsByDay[index].Told += day.Told
+			result.ReportsByDay[index].NeededYou += day.NeededYou
+		}
+	}
+	for _, hour := range activity.BusyByHour {
+		index := slices.IndexFunc(result.BusyByHour, func(item agentinstance.ActivityHour) bool {
+			return item.Weekday == hour.Weekday && item.Hour == hour.Hour
+		})
+		if index < 0 {
+			result.BusyByHour = append(result.BusyByHour, hour)
+		} else {
+			result.BusyByHour[index].Events += hour.Events
+		}
+	}
 }

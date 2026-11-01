@@ -53,17 +53,7 @@ func (h *BaseHandlers) instanceFacetRows(
 				return nil, err
 			}
 			for _, row := range rows {
-				workspace := query.WorkspaceID
-				if workspace == userScopeWorkspaceRef {
-					workspace = ""
-				}
-				if !query.AllWorkspaces && row.WorkspaceID != workspace {
-					continue
-				}
-				if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, row.WorkspaceID) {
-					continue
-				}
-				if query.AgentName != "" && row.AgentName != query.AgentName {
+				if !instanceMatchesSessionQuery(&row, query) {
 					continue
 				}
 				if err := h.AgentInstances.Authority.Authorize(c.Request.Context(), actor, row, "list"); err != nil {
@@ -126,4 +116,18 @@ func addInstanceFacets(response *contract.SessionCatalogFacetsResponse, rows []c
 		func(a, b contract.SessionProfileFacetsPayload) int { return cmp.Compare(a.ProfileID, b.ProfileID) },
 	)
 
+}
+
+func instanceMatchesSessionQuery(row *agentinstance.Instance, query session.ListQuery) bool {
+	workspace := query.WorkspaceID
+	if workspace == userScopeWorkspaceRef {
+		workspace = ""
+	}
+	if !query.AllWorkspaces && row.WorkspaceID != workspace {
+		return false
+	}
+	if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, row.WorkspaceID) {
+		return false
+	}
+	return query.AgentName == "" || row.AgentName == query.AgentName
 }
