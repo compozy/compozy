@@ -90,7 +90,7 @@ func (d *TriageDispatcher) Dispatch(
 	if err != nil {
 		if errors.Is(err, acp.ErrTriageUnsupported) {
 			return heartbeat.TriageOutcome{
-				Result: "failed",
+				Result: string(BadgeFailed),
 				Reason: "triage_unsupported",
 				Report: &agentinstance.ReportInput{
 					Kind: "failure",
@@ -118,28 +118,18 @@ func (d *TriageDispatcher) Dispatch(
 	if err != nil {
 		return outcome, err
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			return outcome, ctx.Err()
-		case event, open := <-events:
-			if open {
-				if event.Type == acp.EventTypePermission &&
-					(event.Decision == string(acp.PermissionDecisionRejectOnce) || event.Decision == string(acp.PermissionDecisionRejectAlways)) {
-					deniedCalls++
-				}
-				continue
-			}
-			result, err := (managerSubagentRuntime{m: d.Manager}).Result(ctx, child.ID)
-			if err != nil {
-				return outcome, err
-			}
-			if !result.Completed || result.Error != "" {
-				return outcome, fmt.Errorf("session: triage turn did not complete successfully")
-			}
-			return heartbeat.TriageReplyOutcome(result.Text, digest, d.MaxProposals), nil
-		}
+	deniedCalls, err = waitTriageEvents(ctx, events)
+	if err != nil {
+		return outcome, err
 	}
+	result, err := (managerSubagentRuntime{m: d.Manager}).Result(ctx, child.ID)
+	if err != nil {
+		return outcome, err
+	}
+	if !result.Completed || result.Error != "" {
+		return outcome, fmt.Errorf("session: triage turn did not complete successfully")
+	}
+	return heartbeat.TriageReplyOutcome(result.Text, digest, d.MaxProposals), nil
 }
 
 func (d *TriageDispatcher) cleanup(ctx context.Context, id, workspaceID string, quiet bool) error {
@@ -195,4 +185,23 @@ func (m *Manager) SweepTriageSessions(ctx context.Context, cutoff time.Time) err
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func waitTriageEvents(ctx context.Context, events <-chan acp.AgentEvent) (int64, error) {
+	var deniedCalls int64
+	for {
+		select {
+		case <-ctx.Done():
+			return deniedCalls, ctx.Err()
+		case event, open := <-events:
+			if !open {
+				return deniedCalls, nil
+			}
+			if event.Type == acp.EventTypePermission &&
+				(event.Decision == string(acp.PermissionDecisionRejectOnce) ||
+					event.Decision == string(acp.PermissionDecisionRejectAlways)) {
+				deniedCalls++
+			}
+		}
+	}
 }

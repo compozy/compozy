@@ -136,12 +136,8 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		replayed.TargetInLater = parked && replayed.Status == store.SessionPromptResultStatusQueued
 		return *replayed, nil
 	}
-	if reader, ok := m.promptAdmissionStore.(interface {
-		CheckSessionSuperseded(context.Context, string) error
-	}); ok {
-		if err := reader.CheckSessionSuperseded(ctx, preparation.request.target); err != nil {
-			return SendPromptResult{}, err
-		}
+	if err := m.checkPromptAdmissionSuperseded(ctx, preparation.request.target); err != nil {
+		return SendPromptResult{}, err
 	}
 
 	if !found {
@@ -423,4 +419,13 @@ func (m *Manager) interruptAdmittedPrompt(
 	result.Replayed = !created
 	m.replyWatchSendResult(ctx, admission, nil)
 	return result, nil
+}
+
+func (m *Manager) checkPromptAdmissionSuperseded(ctx context.Context, sessionID string) error {
+	if reader, ok := m.promptAdmissionStore.(interface {
+		CheckSessionSuperseded(context.Context, string) error
+	}); ok {
+		return reader.CheckSessionSuperseded(ctx, sessionID)
+	}
+	return nil
 }

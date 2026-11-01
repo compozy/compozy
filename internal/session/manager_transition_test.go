@@ -734,7 +734,6 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 				t.Fatal("canceled permission retained the live approval badge")
 			}
 		})
-
 	}
 
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {

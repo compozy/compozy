@@ -16,13 +16,7 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	if ctx == nil {
 		return store.SessionCatalogFacetResult{}, fmt.Errorf("%w: context is required", ErrListQueryInvalid)
 	}
-	query.Search = ""
-	query.Badges = nil
-	query.Columns = nil
-	query.AttentionOnly = false
-	query.Cursor = ""
-	query.Limit = DefaultListLimit
-	normalized, err := normalizeListQuery(query)
+	normalized, err := normalizeCatalogFacetQuery(query)
 	if err != nil {
 		return store.SessionCatalogFacetResult{}, err
 	}
@@ -112,4 +106,14 @@ func addSessionFacet(facets *store.SessionCatalogFacets, badge Badge) {
 	if badge == BadgeIdle {
 		facets.Idle++
 	}
+}
+
+func normalizeCatalogFacetQuery(query ListQuery) (ListQuery, error) {
+	query.Search = ""
+	query.Badges = nil
+	query.Columns = nil
+	query.AttentionOnly = false
+	query.Cursor = ""
+	query.Limit = DefaultListLimit
+	return normalizeListQuery(query)
 }

@@ -38,11 +38,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
 	}
-	sessionID, err := m.createSessionID(opts.DesiredSessionID)
-	if err != nil {
-		return sessionStartSpec{}, err
-	}
-	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, location.workspace.ID, opts)
+	sessionID, lineage, err := m.createSessionLineage(ctx, sessionType, location.workspace.ID, &opts)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
@@ -54,16 +50,9 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	initiatorKind, initiatorID := string(opts.Origin.Kind), opts.Origin.ID
-	if lineage != nil && lineage.RootSessionID != "" && lineage.RootSessionID != sessionID {
-		root, err := m.readMetaWithContext(ctx, lineage.RootSessionID)
-		if err != nil && !errors.Is(err, ErrSessionNotFound) {
-			return sessionStartSpec{}, fmt.Errorf("session: resolve root initiator: %w", err)
-		}
-		initiatorKind, initiatorID = "", ""
-		if err == nil {
-			initiatorKind, initiatorID = root.InitiatorKind, root.InitiatorID
-		}
+	initiatorKind, initiatorID, err := m.resolveCreateInitiator(ctx, opts.Origin, sessionID, lineage)
+	if err != nil {
+		return sessionStartSpec{}, err
 	}
 	return sessionStartSpec{
 		initiatorKind: initiatorKind, initiatorID: initiatorID,
@@ -215,4 +204,37 @@ func ResolveSessionCWD(root string, requested string) (string, error) {
 		)
 	}
 	return target, nil
+}
+
+func (m *Manager) createSessionLineage(
+	ctx context.Context,
+	sessionType Type,
+	workspaceID string,
+	opts *CreateOpts,
+) (string, *store.SessionLineage, error) {
+	sessionID, err := m.createSessionID(opts.DesiredSessionID)
+	if err != nil {
+		return "", nil, err
+	}
+	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, workspaceID, *opts)
+	return sessionID, lineage, err
+}
+
+func (m *Manager) resolveCreateInitiator(
+	ctx context.Context,
+	origin workspaceaccess.Origin,
+	sessionID string,
+	lineage *store.SessionLineage,
+) (string, string, error) {
+	if lineage == nil || lineage.RootSessionID == "" || lineage.RootSessionID == sessionID {
+		return string(origin.Kind), origin.ID, nil
+	}
+	root, err := m.readMetaWithContext(ctx, lineage.RootSessionID)
+	if errors.Is(err, ErrSessionNotFound) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("session: resolve root initiator: %w", err)
+	}
+	return root.InitiatorKind, root.InitiatorID, nil
 }

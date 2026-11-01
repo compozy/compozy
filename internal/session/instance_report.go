@@ -111,7 +111,10 @@ func (m *Manager) reportExhaustedContext(ctx context.Context, sessionID string, 
 		message += " " + strings.ToLower(event.Failure.Summary)
 	}
 	exhausted := false
-	for _, phrase := range []string{"context_length_exceeded", "context window exceeded", "context window is full", "maximum context length", "prompt is too long", "prompt too long"} {
+	for _, phrase := range []string{
+		"context_length_exceeded", "context window exceeded", "context window is full",
+		"maximum context length", "prompt is too long", "prompt too long",
+	} {
 		exhausted = exhausted || strings.Contains(message, phrase)
 	}
 	if !exhausted {

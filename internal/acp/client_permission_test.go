@@ -218,7 +218,7 @@ func TestTriagePolicy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.Outcome.Cancelled == nil {
+			if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
 				t.Fatalf("write outcome=%+v", response.Outcome)
 			}
 		}

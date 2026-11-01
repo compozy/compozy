@@ -649,7 +649,7 @@ func TestTriageDispatcher(t *testing.T) {
 			MaxProposals: 2,
 			StopTimeout:  time.Second,
 		}
-		denied := errors.New("occurrence cancelled")
+		denied := errors.New("occurrence canceled")
 		var id string
 		_, err := dispatcher.Dispatch(
 			t.Context(),
