@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 )
@@ -27,17 +26,6 @@ func (s *Service) saveNow(record Record) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), storeTimeout)
 	defer cancel()
 	return s.store.SaveMonitor(ctx, record)
-}
-
-// save persists a state change after the fact. A failure leaves the previous durable
-// state, which Recover treats conservatively, so it is logged rather than propagated.
-func (s *Service) save(record Record) {
-	if err := s.saveNow(record); err != nil {
-		s.logger.Log(s.ctx, slog.LevelWarn, "monitor.persist_failed",
-			"event", "monitor.persist_failed", "monitor_id", record.Monitor.ID,
-			"session_id", record.Monitor.SessionID, "status", record.Monitor.Status,
-			"canceled", errors.Is(err, context.Canceled))
-	}
 }
 
 // pruneStore drops durable finished monitors past retention, at most once per sweepInterval.
@@ -159,7 +147,7 @@ func (s *Service) flushPending() int {
 		s.mu.Lock()
 		record := s.decideLocked(item)
 		s.mu.Unlock()
-		_ = s.persistDecision(item, record, 1)
+		s.writeDecision(item, record, 1)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -173,5 +161,14 @@ func (s *Service) flushDurable(ctx context.Context) {
 			return
 		}
 		time.Sleep(saveRetryBackoff << attempt)
+	}
+}
+
+// writeDecision persists a decision whose failure needs no caller reaction: persistDecision already
+// logs it and keeps the decision queued for the background retry and the shutdown flush.
+func (s *Service) writeDecision(item *entry, record Record, attempts int) {
+	if err := s.persistDecision(item, record, attempts); err != nil {
+		s.logger.Log(s.ctx, slog.LevelDebug, "monitor.decision_unconfirmed",
+			"monitor_id", record.Monitor.ID, "queued", !s.confirmed(item))
 	}
 }

@@ -1174,7 +1174,8 @@ func TestServiceLifecycleLoggingOfFailureAndInterruption(t *testing.T) {
 			}
 			if failed == nil || failed["level"] != "WARN" || failed["cause"] != causeSessionGone ||
 				strings.Contains(output.String(), "private-detail") {
-				t.Fatalf("wake_failed row = %+v, want a WARN with cause %s and no raw error", failed, causeSessionGone)
+				t.Fatalf("wake_failed row = %+v, want a WARN with cause %s and no raw error",
+					failed, causeSessionGone)
 			}
 		})
 	})
@@ -1235,14 +1236,16 @@ func TestServiceUnconfirmedDecisionsReachTheStore(t *testing.T) {
 			store.setFail(true)
 			service.CancelSession("sess-r")
 			if store.status(created.ID) != StatusActive {
-				t.Fatalf("durable status = %s, want the stale active row while the store is down", store.status(created.ID))
+				t.Fatalf("durable status = %s, want the stale active row while the store is down",
+					store.status(created.ID))
 			}
 			store.setFail(false)
 			if err := service.Shutdown(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			if store.status(created.ID) != StatusCanceled {
-				t.Fatalf("durable status = %s, want the stop cancellation flushed at shutdown", store.status(created.ID))
+				t.Fatalf("durable status = %s, want the stop cancellation flushed at shutdown",
+					store.status(created.ID))
 			}
 		})
 	})
@@ -1315,7 +1318,8 @@ func TestServiceRecoveryRetriesTransientOwnerFailures(t *testing.T) {
 			synctest.Wait()
 			got := waker.notifications()
 			if len(got) != 1 || got[0].Monitor.ID != created.ID || store.status(created.ID) != StatusFired {
-				t.Fatalf("notifications = %+v status = %s, want one wake after the owner recovered", got, store.status(created.ID))
+				t.Fatalf("notifications = %+v status = %s, want one wake after the owner recovered",
+					got, store.status(created.ID))
 			}
 		})
 	})
@@ -1338,12 +1342,14 @@ func TestServiceRecoveryRetriesTransientOwnerFailures(t *testing.T) {
 				t.Fatal(err)
 			}
 			if store.status(created.ID) != StatusActive {
-				t.Fatalf("durable status = %s, want the row untouched while the owner is retried", store.status(created.ID))
+				t.Fatalf("durable status = %s, want the row untouched while the owner is retried",
+					store.status(created.ID))
 			}
 			time.Sleep(10 * time.Minute)
 			synctest.Wait()
 			if store.status(created.ID) != StatusInterrupted || len(waker.notifications()) != 0 {
-				t.Fatalf("status = %s wakes = %d, want interrupted without a wake", store.status(created.ID), len(waker.notifications()))
+				t.Fatalf("status = %s wakes = %d, want interrupted without a wake",
+					store.status(created.ID), len(waker.notifications()))
 			}
 		})
 	})
@@ -1376,8 +1382,9 @@ func TestServiceRecoveryCapsRestoredHistory(t *testing.T) {
 				id := fmt.Sprintf("mon-%012d", i)
 				store.records[id] = Record{
 					Monitor: Monitor{
-						ID: id, SessionID: "sess-r", Kind: KindTimer, Description: "done", Status: StatusFired,
-						CreatedAt: now, DeadlineAt: now.Add(time.Minute), FiredAt: now.Add(time.Duration(i) * time.Second),
+						ID: id, SessionID: "sess-r", Kind: KindTimer, Description: "done",
+						Status: StatusFired, CreatedAt: now, DeadlineAt: now.Add(time.Minute),
+						FiredAt: now.Add(time.Duration(i) * time.Second),
 					},
 					WorkspaceID: "ws-1", Version: 3,
 				}
@@ -1432,7 +1439,7 @@ func (w *gatedWaker) WakeSession(context.Context, Notification) error {
 }
 
 func TestServiceInterruptionLogging(t *testing.T) {
-	t.Run("Should not report an admitted wake as interrupted when its owner was suspended mid-delivery", func(t *testing.T) {
+	t.Run("Should not report an admitted wake as interrupted after its owner was suspended", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			var output bytes.Buffer
 			store := newMemoryStore()
@@ -1455,7 +1462,8 @@ func TestServiceInterruptionLogging(t *testing.T) {
 				t.Fatal(err)
 			}
 			if strings.Contains(output.String(), "monitor.interrupted") || store.status(created.ID) != StatusFired {
-				t.Fatalf("status = %s log:\n%s\nwant fired and no interrupted entry", store.status(created.ID), output.String())
+				t.Fatalf("status = %s log:\n%s\nwant fired and no interrupted entry",
+					store.status(created.ID), output.String())
 			}
 		})
 	})

@@ -172,6 +172,6 @@ func (s *Service) settle(item *entry, status Status, cause string) {
 	sessionID := item.state.SessionID
 	s.pruneSessionLocked(sessionID, s.now())
 	s.mu.Unlock()
-	_ = s.persistDecision(item, record, 1)
+	s.writeDecision(item, record, 1)
 	s.notify(sessionID)
 }

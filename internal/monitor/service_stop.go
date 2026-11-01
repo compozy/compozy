@@ -76,7 +76,7 @@ func (s *Service) cancelSession(sessionID string) int {
 	for _, d := range decisions {
 		// The bucket is gone, so the pending queue (retried in the background and flushed at shutdown)
 		// is what keeps a failed write from reviving the monitor after a restart.
-		_ = s.persistDecision(d.item, d.record, saveRetries)
+		s.writeDecision(d.item, d.record, saveRetries)
 	}
 	return canceled
 }

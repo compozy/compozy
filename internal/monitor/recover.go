@@ -180,7 +180,7 @@ func (s *Service) closeRecovered(item *entry, status Status, reason string) {
 		s.bucketLocked(item.state.SessionID)[item.state.ID] = item
 	}
 	s.mu.Unlock()
-	_ = s.persistDecision(item, record, saveRetries)
+	s.writeDecision(item, record, saveRetries)
 }
 
 func (s *Service) rearm(item *entry) {
