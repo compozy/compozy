@@ -330,7 +330,7 @@ export class RoutingCoordinator {
     const win = this.manager.getState().windows[windowId];
     if (!win || (sessionId !== undefined && win.instanceKey !== sessionId)) return false;
     const route = { pathname: SESSION_EMPTY_PATH, search: {} };
-    const retargetToken = ++this.nextUserRetargetToken;
+    const retargetToken = this.nextUserRetargetToken;
     if (!(await this.manager.retargetWindow(windowId, "", route).completion)) return false;
     const current = retargetToken === this.nextUserRetargetToken;
     if (current && this.manager.getState().focusedId === windowId) this.pushRoute(route);

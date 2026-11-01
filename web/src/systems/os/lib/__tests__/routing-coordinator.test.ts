@@ -1057,6 +1057,31 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
+  it("Should keep the history entry of a retarget pending while a background window retires", async () => {
+    const focused = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const background = windowFixture("session", "/agents/coder/sessions/gone", "gone");
+    const { coordinator, router, store } = createCoordinator([background, focused]);
+    coordinator.completeHydration();
+    let finishRetarget = (_done: boolean) => {};
+    const pending = new Promise<boolean>(resolve => (finishRetarget = resolve));
+    store.spies.retargetWindow.mockImplementationOnce(() => ({
+      accepted: true,
+      completion: pending,
+    }));
+    const next = route("/agents/coder/sessions/sess-b");
+
+    const retargeting = coordinator.userRetarget(focused.id, {
+      app: "session",
+      instanceKey: "sess-b",
+      route: next,
+    });
+    await coordinator.userRetireSession(background.id, "gone");
+    finishRetarget(true);
+    await retargeting;
+
+    expect(router.navigate).toHaveBeenCalledWith(next);
+  });
+
   it("Should retire a session tab onto the empty route without closing the window", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const { coordinator, router, store } = createCoordinator([current]);
