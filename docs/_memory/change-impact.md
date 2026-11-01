@@ -61,7 +61,9 @@ read scheduled the next one.
 - **Web:** the per-worktree stream coalesces lifecycle and terminal frames into one
   scope reread per quiet window (150 ms, with a 1 s ceiling so a steady trickle of
   frames cannot defer it) and pays a pending reread when the connection goes away, so
-  the retained-history replay on first connect costs one reread.
+  the retained-history replay on first connect costs one reread. Each settled exit-plan
+  read rereads the status key (a cached read that emits nothing), so the status strip
+  follows the status the plan read persisted.
 - **Isolation / persistence / native tools / extensions / hooks / config:** none.
 - **Docs / official skill:** `worktrees/agent-surface.mdx` states which paths emit the
   frame; `ET-worktree-hook-event-contract` records the quiet read. `skills/compozy/` has

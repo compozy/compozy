@@ -113,23 +113,39 @@ describe("useWorktreeStream", () => {
     });
   });
 
-  it("Should reread within the ceiling while frames keep landing inside the quiet window", () => {
+  it("Should reread the worktree scope once when the stream opens", () => {
     const { source, invalidate } = setup();
-    const spacingMs = WORKTREE_REREAD_COALESCE_MS - 50;
-    const framesToCeiling = Math.ceil(WORKTREE_REREAD_MAX_WAIT_MS / spacingMs);
 
     act(() => {
-      for (let sequence = 1; sequence <= framesToCeiling; sequence += 1) {
-        source.emit("worktree.status_refreshed", statusFrame(sequence));
-        vi.advanceTimersByTime(spacingMs);
-      }
+      source.emit("open");
     });
-    expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS);
+    expect(invalidate).not.toHaveBeenCalled();
 
     act(() => {
       vi.advanceTimersByTime(WORKTREE_REREAD_COALESCE_MS);
     });
     expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS);
+  });
+
+  it("Should reread once per ceiling while frames keep landing inside the quiet window", () => {
+    const { source, invalidate } = setup();
+    const spacingMs = WORKTREE_REREAD_COALESCE_MS - 50;
+    // Two ceiling periods: a ceiling that fires once and never re-arms rereads only once.
+    const ceilingPeriods = 2;
+    const frames = Math.ceil((WORKTREE_REREAD_MAX_WAIT_MS * ceilingPeriods) / spacingMs);
+
+    act(() => {
+      for (let sequence = 1; sequence <= frames; sequence += 1) {
+        source.emit("worktree.status_refreshed", statusFrame(sequence));
+        vi.advanceTimersByTime(spacingMs);
+      }
+    });
+    expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS * ceilingPeriods);
+
+    act(() => {
+      vi.advanceTimersByTime(WORKTREE_REREAD_COALESCE_MS);
+    });
+    expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS * ceilingPeriods);
   });
 
   it("Should reread again for a frame that arrives after the quiet window", () => {
