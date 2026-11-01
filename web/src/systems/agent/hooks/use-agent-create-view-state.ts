@@ -33,8 +33,13 @@ export function agentCreateNameIssue(
   return { kind: "taken", suggestion: `${name || slug} ${Date.now()}` };
 }
 
-function hasEntries(draft: AgentCreateDialogDraft) {
-  return draft.displayName !== "" || draft.description !== "" || draft.prompt !== "";
+/** Text copied from a duplicate's source isn't entered data: only a change from it is. */
+function hasEntries(draft: AgentCreateDialogDraft, seed: AgentCreateEntrySeed) {
+  return (
+    draft.displayName !== "" ||
+    draft.description !== seed.description ||
+    draft.prompt !== seed.prompt
+  );
 }
 
 /** A field speaks up only once the person has touched it. */
@@ -56,8 +61,14 @@ function shownCreateErrors(
   } as Record<string, string | undefined>;
 }
 
+export type AgentCreateEntrySeed = Pick<AgentCreateDialogDraft, "description" | "prompt">;
+
+const NO_ENTRY_SEED: AgentCreateEntrySeed = { description: "", prompt: "" };
+
 interface AgentCreateViewStateArgs {
   draft: AgentCreateDialogDraft;
+  /** What the draft opened with; a blank create starts from nothing. */
+  entrySeed?: AgentCreateEntrySeed | null;
   providerOptions: readonly RuntimeProviderOption[];
   providersError: string | null;
   providersLoading: boolean;
@@ -73,6 +84,7 @@ interface AgentCreateViewStateArgs {
 /** What the screen derives from the draft: the name's issue, sign-in, and the errors worth showing. */
 export function useAgentCreateViewState({
   draft,
+  entrySeed,
   providerOptions,
   providersError,
   providersLoading,
@@ -93,7 +105,7 @@ export function useAgentCreateViewState({
     Boolean(providersError || providersLoading) ||
     providerOptions.length === 0 ||
     draft.provider.trim().length > 0;
-  const dirty = !startFailure && hasEntries(draft);
+  const dirty = !startFailure && hasEntries(draft, entrySeed ?? NO_ENTRY_SEED);
   const dismiss = () => {
     if (isSubmitting) return;
     setAdvancedOpen(false);

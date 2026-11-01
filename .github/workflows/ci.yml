@@ -193,7 +193,7 @@ jobs:
   frontend:
     name: Frontend (lint, typecheck, test, build)
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:

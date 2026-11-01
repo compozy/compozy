@@ -7,6 +7,7 @@ import { PROFILE_IDENTITY_SWATCHES, useProfileReadScope } from "@/systems/profil
 import { useAgents, useCreateAgent, useDuplicateAgent } from "./use-agents";
 import { useAgentInstanceCapacity, useCreateAgentInstance } from "./use-agent-instances";
 import { agentCreateDialogLogic, type AgentCreateOutcome } from "./agent-create-dialog-logic";
+import type { AgentCreateEntrySeed } from "./use-agent-create-view-state";
 import type { AgentInstanceCapacity } from "../lib/agent-instance";
 import {
   AGENT_PLACE_LATER,
@@ -53,6 +54,8 @@ export interface AgentCreateDialogState {
   workspaceName: string | null;
   mode: "create" | "duplicate";
   duplicateSourceName: string | null;
+  /** The duplicate source's copied text; closing asks only once it changes. */
+  entrySeed: AgentCreateEntrySeed | null;
   /** Slugs this scope already holds, so a conflict shows before submit. */
   takenNames: ReadonlySet<string>;
   /** Every project, for Where it works. */
@@ -282,6 +285,10 @@ export function useAgentCreateDialog({
     mode: flow.status === "closed" ? "create" : flow.kind,
     duplicateSourceName:
       flow.status !== "closed" && flow.kind === "duplicate" ? flow.source.name : null,
+    entrySeed:
+      flow.status !== "closed" && flow.kind === "duplicate"
+        ? { description: flow.source.description ?? "", prompt: flow.source.prompt ?? "" }
+        : null,
     openDialog,
     openForDuplicate,
     onDraftChange,

@@ -276,9 +276,7 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
 
     const childWin = sessionWindow(appPage, child!.id);
     await expect(childWin).toBeVisible();
-    await expect(childWin.getByTestId("session-origin-pill")).toHaveText(
-      `Continued from ${sourceAgent}`
-    );
+    await expect(childWin.getByTestId("session-origin-pill")).toHaveText("Continued from Alpha");
     await expect(childWin.getByTestId("session-origin-divider")).toContainText("Continued from");
     await browserArtifacts.captureScreenshot("continue-child-window", appPage);
 

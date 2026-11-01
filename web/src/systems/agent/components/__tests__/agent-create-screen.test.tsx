@@ -222,6 +222,31 @@ describe("AgentCreateScreen", () => {
     expect(onEmptyClose).toHaveBeenCalledWith(false);
   });
 
+  it("Should close an untouched duplicate on Escape, and confirm once its copied text changes", async () => {
+    const entrySeed = { description: "Copied", prompt: "Copied instructions" };
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    const { unmount } = renderScreen({
+      draft: validDraft({ displayName: "", ...entrySeed }),
+      entrySeed,
+      onOpenChange,
+    });
+
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    unmount();
+
+    const onEditedClose = vi.fn();
+    renderScreen({
+      draft: validDraft({ displayName: "", ...entrySeed, prompt: "Changed" }),
+      entrySeed,
+      onOpenChange: onEditedClose,
+    });
+    await user.keyboard("{Escape}");
+    expect(onEditedClose).not.toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: "Discard" })).toBeInTheDocument();
+  });
+
   it("Should show Where it works only for Stays on, and say what the primary will do", async () => {
     const user = userEvent.setup();
     renderScreen({ draft: validDraft() });
