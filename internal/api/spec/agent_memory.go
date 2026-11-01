@@ -9,14 +9,38 @@ func agentMemoryOperations() []OperationSpec {
 		request, response           any
 	}{
 		{httpMethodGet, "", "getAgentMemory", "Inspect agent memory", nil, contract.AgentMemoryDocument{}},
-		{"PUT", "", "putAgentMemory", "Replace memory with a digest check", contract.AgentMemoryWriteRequest{}, contract.AgentMemoryDocument{}},
-		{httpMethodPost, agentMemoryEntriesSuffix, "addAgentMemory", "Add a dated memory entry", contract.AgentMemoryAddRequest{}, contract.AgentMemoryDocument{}},
-		{httpMethodPatch, agentMemoryEntriesSuffix, "replaceAgentMemory", "Replace matching memory text", contract.AgentMemoryReplaceRequest{}, contract.AgentMemoryDocument{}},
-		{httpMethodDelete, agentMemoryEntriesSuffix, "removeAgentMemory", "Remove matching memory entries", contract.AgentMemoryRemoveRequest{}, contract.AgentMemoryRemoveResponse{}},
-		{httpMethodPost, "/search", "searchAgentMemory", "Search agent notes and accessible sessions", contract.AgentMemorySearchRequest{}, contract.AgentMemorySearchResponse{}},
-		{httpMethodPost, "/validate", "validateAgentMemory", "Validate proposed memory content", contract.AgentMemoryValidateRequest{}, contract.AgentMemoryValidateResponse{}},
-		{httpMethodGet, "/history", "listAgentMemoryHistory", "List the last fifty memory revisions", nil, contract.AgentMemoryHistoryResponse{}},
-		{httpMethodPost, "/rollback", "rollbackAgentMemory", "Restore a memory revision", contract.AgentMemoryRollbackRequest{}, contract.AgentMemoryDocument{}},
+		{
+			"PUT", "", "putAgentMemory", "Replace memory with a digest check",
+			contract.AgentMemoryWriteRequest{}, contract.AgentMemoryDocument{},
+		},
+		{
+			httpMethodPost, agentMemoryEntriesSuffix, "addAgentMemory", "Add a dated memory entry",
+			contract.AgentMemoryAddRequest{}, contract.AgentMemoryDocument{},
+		},
+		{
+			httpMethodPatch, agentMemoryEntriesSuffix, "replaceAgentMemory", "Replace matching memory text",
+			contract.AgentMemoryReplaceRequest{}, contract.AgentMemoryDocument{},
+		},
+		{
+			httpMethodDelete, agentMemoryEntriesSuffix, "removeAgentMemory", "Remove matching memory entries",
+			contract.AgentMemoryRemoveRequest{}, contract.AgentMemoryRemoveResponse{},
+		},
+		{
+			httpMethodPost, "/search", "searchAgentMemory", "Search agent notes and accessible sessions",
+			contract.AgentMemorySearchRequest{}, contract.AgentMemorySearchResponse{},
+		},
+		{
+			httpMethodPost, "/validate", "validateAgentMemory", "Validate proposed memory content",
+			contract.AgentMemoryValidateRequest{}, contract.AgentMemoryValidateResponse{},
+		},
+		{
+			httpMethodGet, "/history", "listAgentMemoryHistory", "List the last fifty memory revisions",
+			nil, contract.AgentMemoryHistoryResponse{},
+		},
+		{
+			httpMethodPost, "/rollback", "rollbackAgentMemory", "Restore a memory revision",
+			contract.AgentMemoryRollbackRequest{}, contract.AgentMemoryDocument{},
+		},
 	} {
 		operations = append(operations, OperationSpec{
 			Method:      item.method,

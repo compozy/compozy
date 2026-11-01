@@ -5449,5 +5449,4 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 		stream["oneOf"].([]any),
 		map[string]any{"type": "object", "properties": props, "required": required},
 	)
-
 }
