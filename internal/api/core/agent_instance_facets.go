@@ -21,7 +21,10 @@ func instanceMainIDs(instances []contract.AgentInstancePayload) []string {
 	return ids
 }
 
-func (h *BaseHandlers) instanceFacetRows(c *gin.Context, query session.ListQuery) ([]contract.AgentInstancePayload, error) {
+func (h *BaseHandlers) instanceFacetRows(
+	c *gin.Context,
+	query session.ListQuery,
+) ([]contract.AgentInstancePayload, error) {
 	if h.AgentInstances == nil {
 		return nil, nil
 	}
@@ -50,17 +53,7 @@ func (h *BaseHandlers) instanceFacetRows(c *gin.Context, query session.ListQuery
 				return nil, err
 			}
 			for _, row := range rows {
-				workspace := query.WorkspaceID
-				if workspace == "@user" {
-					workspace = ""
-				}
-				if !query.AllWorkspaces && row.WorkspaceID != workspace {
-					continue
-				}
-				if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, row.WorkspaceID) {
-					continue
-				}
-				if query.AgentName != "" && row.AgentName != query.AgentName {
+				if !instanceMatchesSessionQuery(&row, query) {
 					continue
 				}
 				if err := h.AgentInstances.Authority.Authorize(c.Request.Context(), actor, row, "list"); err != nil {
@@ -90,15 +83,27 @@ func addInstanceFacets(response *contract.SessionCatalogFacetsResponse, rows []c
 			continue
 		}
 		response.Facets.InstancesNeedingAttention++
-		workspace := slices.IndexFunc(response.ByWorkspace, func(item contract.SessionWorkspaceFacetsPayload) bool { return item.WorkspaceID == row.WorkspaceID })
+		workspace := slices.IndexFunc(
+			response.ByWorkspace,
+			func(item contract.SessionWorkspaceFacetsPayload) bool { return item.WorkspaceID == row.WorkspaceID },
+		)
 		if workspace < 0 {
-			response.ByWorkspace = append(response.ByWorkspace, contract.SessionWorkspaceFacetsPayload{WorkspaceID: row.WorkspaceID})
+			response.ByWorkspace = append(
+				response.ByWorkspace,
+				contract.SessionWorkspaceFacetsPayload{WorkspaceID: row.WorkspaceID},
+			)
 			workspace = len(response.ByWorkspace) - 1
 		}
 		response.ByWorkspace[workspace].Facets.InstancesNeedingAttention++
-		profile := slices.IndexFunc(response.ByProfile, func(item contract.SessionProfileFacetsPayload) bool { return item.ProfileID == row.ProfileID })
+		profile := slices.IndexFunc(
+			response.ByProfile,
+			func(item contract.SessionProfileFacetsPayload) bool { return item.ProfileID == row.ProfileID },
+		)
 		if profile < 0 {
-			response.ByProfile = append(response.ByProfile, contract.SessionProfileFacetsPayload{ProfileID: row.ProfileID})
+			response.ByProfile = append(
+				response.ByProfile,
+				contract.SessionProfileFacetsPayload{ProfileID: row.ProfileID},
+			)
 			profile = len(response.ByProfile) - 1
 		}
 		response.ByProfile[profile].Facets.InstancesNeedingAttention++
@@ -106,6 +111,22 @@ func addInstanceFacets(response *contract.SessionCatalogFacetsResponse, rows []c
 	slices.SortFunc(response.ByWorkspace, func(a, b contract.SessionWorkspaceFacetsPayload) int {
 		return cmp.Compare(a.WorkspaceID, b.WorkspaceID)
 	})
-	slices.SortFunc(response.ByProfile, func(a, b contract.SessionProfileFacetsPayload) int { return cmp.Compare(a.ProfileID, b.ProfileID) })
+	slices.SortFunc(
+		response.ByProfile,
+		func(a, b contract.SessionProfileFacetsPayload) int { return cmp.Compare(a.ProfileID, b.ProfileID) },
+	)
+}
 
+func instanceMatchesSessionQuery(row *agentinstance.Instance, query session.ListQuery) bool {
+	workspace := query.WorkspaceID
+	if workspace == userScopeWorkspaceRef {
+		workspace = ""
+	}
+	if !query.AllWorkspaces && row.WorkspaceID != workspace {
+		return false
+	}
+	if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, row.WorkspaceID) {
+		return false
+	}
+	return query.AgentName == "" || row.AgentName == query.AgentName
 }

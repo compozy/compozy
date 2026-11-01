@@ -51,16 +51,8 @@ func (m *Manager) acceptSessionStart(
 		}
 	}()
 
-	if err := m.refreshStartLineage(acceptCtx, spec); err != nil {
+	if err := m.refreshAcceptedStartAuthority(acceptCtx, spec, &runtime); err != nil {
 		return nil, err
-	}
-	if err := m.applyInstanceCeiling(acceptCtx, spec, &runtime.agent); err != nil {
-		return nil, err
-	}
-	// Refresh reads persisted lineage on resume; materialize afterwards so legacy
-	// derived sessions are repaired without treating computed grants as create input.
-	if err := spec.materializeRootDelegationPolicy(runtime.agentDef, runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
-		return nil, fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
 	}
 
 	storage, err := m.prepareSessionStartStorage(spec)
@@ -152,4 +144,28 @@ func (m *Manager) persistAcceptedStart(ctx context.Context, spec *sessionStartSp
 		return m.persistSessionMetadataOnly(session)
 	}
 	return m.persistSessionLifecycleState(ctx, session, true)
+}
+
+func (m *Manager) refreshAcceptedStartAuthority(
+	acceptCtx context.Context,
+	spec *sessionStartSpec,
+	runtime *sessionStartRuntime,
+) error {
+	if err := m.refreshStartLineage(acceptCtx, spec); err != nil {
+		return err
+	}
+	if err := m.applyInstanceCeiling(acceptCtx, spec, &runtime.agent); err != nil {
+		return err
+	}
+	// Refresh reads persisted lineage on resume; materialize afterwards so legacy
+	// derived sessions are repaired without treating computed grants as create input.
+	if err := spec.materializeRootDelegationPolicy(
+		runtime.agentDef,
+		runtime.agent,
+		m.toolsetCatalog,
+		m.toolUniverse,
+	); err != nil {
+		return fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
+	}
+	return nil
 }

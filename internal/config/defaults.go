@@ -38,7 +38,13 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Agent: DefaultAgentName,
 		},
 		Agents: AgentsConfig{
-			StaysOn:   StaysOnConfig{RotationThreshold: 0.8, MaxActiveInstances: 10, ApprovalTimeout: 12 * time.Hour, MaxProposals: 2, TriageTimeout: 10 * time.Minute},
+			StaysOn: StaysOnConfig{
+				RotationThreshold:  0.8,
+				MaxActiveInstances: 10,
+				ApprovalTimeout:    12 * time.Hour,
+				MaxProposals:       2,
+				TriageTimeout:      10 * time.Minute,
+			},
 			Soul:      DefaultSoulConfig(),
 			Heartbeat: DefaultHeartbeatConfig(),
 		},

@@ -56,7 +56,10 @@ func (r instanceDefinitions) InstanceDefinition(
 	if err != nil {
 		return instanceDefinition{}, err
 	}
-	policy := store.SessionPermissionPolicy{Tools: tools, WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...)}
+	policy := store.SessionPermissionPolicy{
+		Tools:          tools,
+		WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...),
+	}
 	for _, skill := range resolved.Skills {
 		if !slices.Contains(agent.Skills.Disabled, skill.Name) {
 			policy.Skills = append(policy.Skills, skill.Name)

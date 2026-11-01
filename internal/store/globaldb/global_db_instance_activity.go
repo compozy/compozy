@@ -10,17 +10,31 @@ import (
 
 var _ agentinstance.ActivityReader = (*InstanceRepo)(nil)
 
-func (r *InstanceRepo) ReadActivity(ctx context.Context, query agentinstance.ActivityQuery) (result agentinstance.Activity, err error) {
-	result = agentinstance.Activity{ReportsByDay: []agentinstance.ActivityDay{}, CostByProject: []agentinstance.ActivityCost{}, BusyByHour: []agentinstance.ActivityHour{}}
+func (r *InstanceRepo) ReadActivity(
+	ctx context.Context,
+	query agentinstance.ActivityQuery,
+) (result agentinstance.Activity, err error) {
+	result = agentinstance.Activity{
+		ReportsByDay:  []agentinstance.ActivityDay{},
+		CostByProject: []agentinstance.ActivityCost{},
+		BusyByHour:    []agentinstance.ActivityHour{},
+	}
 	if err := r.checkReady(ctx, "instance activity"); err != nil {
 		return result, err
 	}
 	if query.ProfileID == "" || query.AgentName == "" || query.Since.IsZero() {
 		return result, errors.New("activity requires profile, agent and time window")
 	}
-	clauses := []store.Clause{store.StringClause("profile_id", query.ProfileID), store.StringClause("agent_name", query.AgentName)}
+	clauses := []store.Clause{
+		store.StringClause("profile_id", query.ProfileID),
+		store.StringClause("agent_name", query.AgentName),
+	}
 	// dynamic-sql: the shared scope clauses apply to daily usage and instance report projections.
-	statement, args := instanceActivitySQL(query.WorkspaceID, `SELECT COALESCE(SUM(CASE WHEN cost_currency = 'USD' THEN total_cost ELSE 0 END), 0), COALESCE(SUM(total_tokens), 0) FROM token_usage_daily`, "", append(clauses, store.StringCompareClause("day", ">=", store.LocalDay(query.Since)))...)
+	statement, args := instanceActivitySQL(
+		query.WorkspaceID,
+		`SELECT COALESCE(SUM(CASE WHEN cost_currency = 'USD' THEN total_cost ELSE 0 END), 0), COALESCE(SUM(total_tokens), 0) FROM token_usage_daily`,
+		"",
+		append(clauses, store.StringCompareClause("day", ">=", store.LocalDay(query.Since)))...)
 	cost := agentinstance.ActivityCost{WorkspaceID: query.WorkspaceID}
 	if err := r.db.QueryRowContext(ctx, statement, args...).Scan(&cost.USDEstimate, &cost.Tokens); err != nil {
 		return result, err
@@ -57,7 +71,11 @@ func (r *InstanceRepo) ReadActivity(ctx context.Context, query agentinstance.Act
 	if err := rows.Close(); err != nil {
 		return result, err
 	}
-	statement, args = instanceActivitySQL(query.WorkspaceID, `SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER), CAST(strftime('%H', timestamp, 'localtime') AS INTEGER), COUNT(*) FROM event_summaries`, ` GROUP BY 1, 2 ORDER BY 1, 2`, append(clauses, store.TimeClause("timestamp", ">=", query.Since))...)
+	statement, args = instanceActivitySQL(
+		query.WorkspaceID,
+		`SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER), CAST(strftime('%H', timestamp, 'localtime') AS INTEGER), COUNT(*) FROM event_summaries`,
+		` GROUP BY 1, 2 ORDER BY 1, 2`,
+		append(clauses, store.TimeClause("timestamp", ">=", query.Since))...)
 	hours, err := r.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return result, err

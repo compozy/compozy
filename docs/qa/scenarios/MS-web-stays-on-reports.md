@@ -345,3 +345,14 @@ decision for that proposal while keeping You picked visible. An edit permission 
 session row reads Needs your approval. Race a new turn against an idle prompt and verify that
 the fallback steer returns reserved reports to pending. Owning Web and SQLite race suites passed;
 the live browser walk remains pending.
+
+Backend idle regression: `TestCollectDigest` advances an injected clock from
+10:30 to 11:30 for a session last active at 10:00. The later check must include
+`idle:<session>:<last_seq>`, even though the last event predates the previous
+completed check. A subsequent completed check excludes that same idle crossing.
+
+Proposal-limit regression: configure `agents.stays_on.max_proposals` to 1, 3,
+and 20 and return more proposals than each limit. Persist exactly the configured
+count. The default and example configuration use 2. `TestParseTriageReply` checks
+all limits from 1 through 20; `TestStaysOnTriageConfiguration` validates their
+acceptance and the default. Daemon wiring passes the configured value directly.

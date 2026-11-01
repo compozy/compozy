@@ -47,7 +47,11 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(
 	taskRecord, err := d.tasks.CreateTask(
 		workspaceaccess.WithOrigin(
 			ctx,
-			workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: req.definitionID(), Ceiling: req.grantCeiling()},
+			workspaceaccess.Origin{
+				Kind:    workspaceaccess.ActorAutomation,
+				ID:      req.definitionID(),
+				Ceiling: req.grantCeiling(),
+			},
 		),
 		directTaskSpec(req.Job, preFirePrompt),
 		actor,

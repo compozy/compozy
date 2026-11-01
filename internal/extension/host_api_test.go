@@ -6165,10 +6165,26 @@ func TestHostAPIHiddenTriage(t *testing.T) {
 	t.Run("Should hide triage from extension lists and reject by-id reads and writes", func(t *testing.T) {
 		t.Parallel()
 		env := newHostAPITestEnv(t)
-		env.grant("ext-triage", []string{"sessions/list", "sessions/status", "sessions/stop", "sessions/prompt"}, []string{"session.read", "session.write"})
+		env.grant(
+			"ext-triage",
+			[]string{"sessions/list", "sessions/status", "sessions/stop", "sessions/prompt"},
+			[]string{"session.read", "session.write"},
+		)
 		env.handler.sessions = &recordingHostAPISessionManager{infos: []*session.Info{
-			{ID: "hidden", WorkspaceID: env.workspaceID, ProfileID: store.DefaultProfileID, Type: session.SessionTypeTriage, State: session.StateActive},
-			{ID: "visible", WorkspaceID: env.workspaceID, ProfileID: store.DefaultProfileID, Type: session.SessionTypeUser, State: session.StateActive},
+			{
+				ID:          "hidden",
+				WorkspaceID: env.workspaceID,
+				ProfileID:   store.DefaultProfileID,
+				Type:        session.SessionTypeTriage,
+				State:       session.StateActive,
+			},
+			{
+				ID:          "visible",
+				WorkspaceID: env.workspaceID,
+				ProfileID:   store.DefaultProfileID,
+				Type:        session.SessionTypeUser,
+				State:       session.StateActive,
+			},
 		}}
 		result, err := env.call(t, "ext-triage", "sessions/list", map[string]string{"workspace": env.workspaceID})
 		if err != nil {

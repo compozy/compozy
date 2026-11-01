@@ -166,3 +166,8 @@ archive after stop recovery and verify the instance leaves the active catalog.
 Owning SQLite coverage: `TestInstanceServiceRecreation`.
 
 2026-11-01 walk: row, hover card, context menu, picker, cap, Kanban header and Dashboard dock passed in an isolated lab. Still unwalked: `+N`, collapsed signal, flat-mode switching, the project `+` menu, live pose updates and keyboard paths.
+
+Backend startup regression: `TestBootAgentInstances` uses real SQLite and a
+registered project whose folder is absent. Starting instance services must keep
+the API available, retain the manually paused instance, and log its reconciliation
+error. A missing project must not prevent access to other projects.

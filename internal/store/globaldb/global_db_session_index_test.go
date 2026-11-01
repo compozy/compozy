@@ -95,7 +95,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceID, Limit: 10, Sort: "recent"}
+		query := store.SessionCatalogPageQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceID,
+			Limit:       10,
+			Sort:        "recent",
+		}
 		before, err := db.SessionCatalogFacets(ctx, query)
 		if err != nil {
 			t.Fatal(err)
@@ -105,7 +110,10 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if before.Facets.All != 2 || after.Facets.All != 2 || before.Facets.Board.Done != 2 || after.Facets.Board.Done != 1 || after.ByWorkspace[0].Facets.Board.Done != 1 || after.ByProfile[0].Facets.Board.Done != 1 {
+		if before.Facets.All != 2 || after.Facets.All != 2 || before.Facets.Board.Done != 2 ||
+			after.Facets.Board.Done != 1 ||
+			after.ByWorkspace[0].Facets.Board.Done != 1 ||
+			after.ByProfile[0].Facets.Board.Done != 1 {
 			t.Fatalf("before=%+v after=%+v", before, after)
 		}
 	})

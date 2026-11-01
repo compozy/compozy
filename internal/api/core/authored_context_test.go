@@ -1724,7 +1724,6 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 								)
 							}
 						}
-
 					}
 					foreign := request(
 						http.MethodPost,

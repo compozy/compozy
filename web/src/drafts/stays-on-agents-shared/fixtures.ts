@@ -85,7 +85,7 @@ export const SCOUT: DraftAgent = {
 export const GENERAL: DraftAgent = {
   name: "general",
   label: "General",
-  description: "Compozy's default general-purpose agent",
+  description: "CompozyOS's default general-purpose agent",
   kind: "on_demand",
   provider: "claude",
   model: "claude-opus-5-5",

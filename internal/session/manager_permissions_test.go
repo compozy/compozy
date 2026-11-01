@@ -119,15 +119,23 @@ func TestInstancePermissionMode(t *testing.T) {
 		h := newHarness(t)
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
-		h.manager.SetInstanceCeilingReader(func(_ context.Context, id, _ string) (*store.SessionPermissionPolicy, string, error) {
-			if id == parent.ID {
-				return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
-			}
-			return nil, "", nil
-		})
+		h.manager.SetInstanceCeilingReader(
+			func(_ context.Context, id, _ string) (*store.SessionPermissionPolicy, string, error) {
+				if id == parent.ID {
+					return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
+				}
+				return nil, "", nil
+			},
+		)
 		child, err := h.manager.Create(t.Context(), CreateOpts{
-			AgentName: "coder", Workspace: h.workspaceID, Permissions: compozyconfig.PermissionModeApproveAll,
-			Lineage: &store.SessionLineage{ParentSessionID: parent.ID, Kind: store.LineageKindFork, OriginAgentName: "coder"},
+			AgentName:   "coder",
+			Workspace:   h.workspaceID,
+			Permissions: compozyconfig.PermissionModeApproveAll,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID,
+				Kind:            store.LineageKindFork,
+				OriginAgentName: "coder",
+			},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -148,57 +156,65 @@ func TestInstancePermissionMode(t *testing.T) {
 		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
 		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
 	} {
-		t.Run("Should retain bounded "+string(tc.mode)+" permissions across resume and context replacement", func(t *testing.T) {
-			t.Parallel()
-			h := newHarness(t)
-			h.manager = newManagerWithHarness(t, h)
-			cleanupTestManager(t, h.manager)
-			h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
-				return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
-			})
-			created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Permissions: tc.mode})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := created.Info().EffectivePermissions; got != string(tc.want) {
-				t.Fatalf("launch permissions=%s, want %s", got, tc.want)
-			}
-			if err := h.manager.Stop(t.Context(), created.ID); err != nil {
-				t.Fatal(err)
-			}
-			resumed, err := h.manager.Resume(t.Context(), created.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := resumed.Info().EffectivePermissions; got != string(tc.want) {
-				t.Fatalf("resume permissions=%s, want %s", got, tc.want)
-			}
-			cleared, err := h.manager.ClearConversation(t.Context(), resumed.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(cleared.ID)); err != nil {
-				t.Fatal(err)
-			}
-			if got := cleared.Info().EffectivePermissions; got != string(tc.want) {
-				t.Fatalf("replacement permissions=%s, want %s", got, tc.want)
-			}
-			events, err := h.manager.Prompt(t.Context(), cleared.ID, "Continue within the instance permissions")
-			if err != nil {
-				t.Fatal(err)
-			}
-			collectEvents(t, events)
-			h.driver.mu.Lock()
-			defer h.driver.mu.Unlock()
-			if len(h.driver.startCalls) != 3 {
-				t.Fatalf("provider launches=%d, want 3", len(h.driver.startCalls))
-			}
-			for _, launch := range h.driver.startCalls {
-				if launch.Permissions != tc.want {
-					t.Fatalf("provider permissions=%s, want %s", launch.Permissions, tc.want)
+		t.Run(
+			"Should retain bounded "+string(tc.mode)+" permissions across resume and context replacement",
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				h.manager = newManagerWithHarness(t, h)
+				cleanupTestManager(t, h.manager)
+				h.manager.SetInstanceCeilingReader(
+					func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
+						return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
+					},
+				)
+				created, err := h.manager.Create(
+					t.Context(),
+					CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Permissions: tc.mode},
+				)
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-		})
+				if got := created.Info().EffectivePermissions; got != string(tc.want) {
+					t.Fatalf("launch permissions=%s, want %s", got, tc.want)
+				}
+				if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+					t.Fatal(err)
+				}
+				resumed, err := h.manager.Resume(t.Context(), created.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := resumed.Info().EffectivePermissions; got != string(tc.want) {
+					t.Fatalf("resume permissions=%s, want %s", got, tc.want)
+				}
+				cleared, err := h.manager.ClearConversation(t.Context(), resumed.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(cleared.ID)); err != nil {
+					t.Fatal(err)
+				}
+				if got := cleared.Info().EffectivePermissions; got != string(tc.want) {
+					t.Fatalf("replacement permissions=%s, want %s", got, tc.want)
+				}
+				events, err := h.manager.Prompt(t.Context(), cleared.ID, "Continue within the instance permissions")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+				h.driver.mu.Lock()
+				defer h.driver.mu.Unlock()
+				if len(h.driver.startCalls) != 3 {
+					t.Fatalf("provider launches=%d, want 3", len(h.driver.startCalls))
+				}
+				for _, launch := range h.driver.startCalls {
+					if launch.Permissions != tc.want {
+						t.Fatalf("provider permissions=%s, want %s", launch.Permissions, tc.want)
+					}
+				}
+			},
+		)
 	}
 }
 
@@ -216,8 +232,15 @@ func TestTriageSessionPermissions(t *testing.T) {
 		assertTriage := func() {
 			t.Helper()
 			opts := h.driver.startCalls[len(h.driver.startCalls)-1]
-			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads || len(opts.MCPServers) != 0 || opts.ActivateMCPServers != nil {
-				t.Fatalf("unsafe start opts: policy=%s permissions=%s mcp=%v", opts.ExecutionPolicy, opts.Permissions, opts.MCPServers)
+			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+				len(opts.MCPServers) != 0 ||
+				opts.ActivateMCPServers != nil {
+				t.Fatalf(
+					"unsafe start opts: policy=%s permissions=%s mcp=%v",
+					opts.ExecutionPolicy,
+					opts.Permissions,
+					opts.MCPServers,
+				)
 			}
 		}
 		assertTriage()
@@ -301,7 +324,7 @@ func TestTriageDispatcher(t *testing.T) {
 			var hidden string
 			var exited <-chan struct{}
 			primary := errors.New("occurrence binding failed")
-			outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{
+			outcome, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
 				ID: "cleanup-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
 			}}, heartbeat.CheckDigest{}, func(id string) error {
 				hidden = id
@@ -381,7 +404,7 @@ func TestTriageDispatcher(t *testing.T) {
 		}
 		outcome, err := dispatcher.Dispatch(
 			t.Context(),
-			heartbeat.CheckTarget{Instance: agentinstance.Instance{
+			&heartbeat.CheckTarget{Instance: agentinstance.Instance{
 				ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
 			}},
 			heartbeat.CheckDigest{},
@@ -462,7 +485,11 @@ func TestTriageDispatcher(t *testing.T) {
 			t.Fatal(err)
 		}
 		path := filepath.Join(t.TempDir(), "config.toml")
-		if err := os.WriteFile(path, []byte("[agents.heartbeat.triage_models]\nclaude = \"claude-haiku-4-5\"\n"), 0600); err != nil {
+		if err := os.WriteFile(
+			path,
+			[]byte("[agents.heartbeat.triage_models]\nclaude = \"claude-haiku-4-5\"\n"),
+			0600,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := compozyconfig.ApplyConfigOverlayFile(path, &workspace.Config); err != nil {
@@ -480,26 +507,33 @@ func TestTriageDispatcher(t *testing.T) {
 			}},
 			MaxProposals: 2, StopTimeout: time.Second,
 		}
-		_, err = dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "model-instance", AgentName: "coder", WorkspaceID: h.workspaceID}}, heartbeat.CheckDigest{}, func(id string) error {
-			info, err := h.manager.Status(t.Context(), id)
-			if err != nil {
-				return err
-			}
-			if info.InitiatorKind != "daemon" || info.InitiatorID != "model-instance" {
-				t.Errorf("initiator=%s:%s", info.InitiatorKind, info.InitiatorID)
-			}
-			meta, err := h.manager.readMetaWithContext(t.Context(), id)
-			if err != nil {
-				return err
-			}
-			if meta.InitiatorKind != "daemon" || meta.InitiatorID != "model-instance" {
-				t.Errorf("persisted initiator=%s:%s", meta.InitiatorKind, meta.InitiatorID)
-			}
-			if info.Model != "claude-haiku-4-5" {
-				t.Errorf("triage model=%s", info.Model)
-			}
-			return nil
-		})
+		_, err = dispatcher.Dispatch(
+			t.Context(),
+			&heartbeat.CheckTarget{
+				Instance: agentinstance.Instance{ID: "model-instance", AgentName: "coder", WorkspaceID: h.workspaceID},
+			},
+			heartbeat.CheckDigest{},
+			func(id string) error {
+				info, err := h.manager.Status(t.Context(), id)
+				if err != nil {
+					return err
+				}
+				if info.InitiatorKind != "daemon" || info.InitiatorID != "model-instance" {
+					t.Errorf("initiator=%s:%s", info.InitiatorKind, info.InitiatorID)
+				}
+				meta, err := h.manager.readMetaWithContext(t.Context(), id)
+				if err != nil {
+					return err
+				}
+				if meta.InitiatorKind != "daemon" || meta.InitiatorID != "model-instance" {
+					t.Errorf("persisted initiator=%s:%s", meta.InitiatorKind, meta.InitiatorID)
+				}
+				if info.Model != "claude-haiku-4-5" {
+					t.Errorf("triage model=%s", info.Model)
+				}
+				return nil
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -518,7 +552,9 @@ func TestTriageDispatcher(t *testing.T) {
 		h := newDeriveHarness(t).harness
 		main := createSession(t, h)
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			if strings.Contains(req.Message, "```digest") || strings.Contains(req.Message, "```report") || !strings.Contains(req.Message, `\u0060\u0060\u0060digest`) || !strings.Contains(req.Message, `\u0060\u0060\u0060report`) {
+			if strings.Contains(req.Message, "```digest") || strings.Contains(req.Message, "```report") ||
+				!strings.Contains(req.Message, `\u0060\u0060\u0060digest`) ||
+				!strings.Contains(req.Message, `\u0060\u0060\u0060report`) {
 				t.Errorf("untrusted triage data escaped its JSON fence")
 			}
 			events := make(chan acp.AgentEvent, 3)
@@ -529,9 +565,28 @@ func TestTriageDispatcher(t *testing.T) {
 			close(events)
 			return events, nil
 		}
-		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{reports: []agentinstance.Report{{Payload: []byte("{\"body\":\"```report\"}")}}}, MaxProposals: 2, StopTimeout: time.Second}
+		dispatcher := &TriageDispatcher{
+			Manager: h.manager,
+			Reports: triageTestReports{
+				reports: []agentinstance.Report{{Payload: []byte("{\"body\":\"```report\"}")}},
+			},
+			MaxProposals: 2,
+			StopTimeout:  time.Second,
+		}
 		var hidden string
-		outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID, MainSessionID: main.ID}}, heartbeat.CheckDigest{Items: []heartbeat.DigestItem{{Key: "```digest"}}}, func(id string) error { hidden = id; return nil })
+		outcome, err := dispatcher.Dispatch(
+			t.Context(),
+			&heartbeat.CheckTarget{
+				Instance: agentinstance.Instance{
+					ID:            "instance-test",
+					AgentName:     "coder",
+					WorkspaceID:   h.workspaceID,
+					MainSessionID: main.ID,
+				},
+			},
+			heartbeat.CheckDigest{Items: []heartbeat.DigestItem{{Key: "```digest"}}},
+			func(id string) error { hidden = id; return nil },
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -549,7 +604,8 @@ func TestTriageDispatcher(t *testing.T) {
 		if len(h.driver.promptCalls) != 1 {
 			t.Fatalf("prompts=%d", len(h.driver.promptCalls))
 		}
-		if len(h.driver.startCalls) != 2 || h.driver.startCalls[1].PreferredModel != h.driver.startCalls[0].PreferredModel {
+		if len(h.driver.startCalls) != 2 ||
+			h.driver.startCalls[1].PreferredModel != h.driver.startCalls[0].PreferredModel {
 			t.Fatalf("triage changed the default model: %+v", h.driver.startCalls)
 		}
 	})
@@ -557,8 +613,20 @@ func TestTriageDispatcher(t *testing.T) {
 	t.Run("Should finalize invalid provider output and stop the triage session", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t).harness
-		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second}
-		outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID}}, heartbeat.CheckDigest{}, func(string) error { return nil })
+		dispatcher := &TriageDispatcher{
+			Manager:      h.manager,
+			Reports:      triageTestReports{},
+			MaxProposals: 2,
+			StopTimeout:  time.Second,
+		}
+		outcome, err := dispatcher.Dispatch(
+			t.Context(),
+			&heartbeat.CheckTarget{
+				Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID},
+			},
+			heartbeat.CheckDigest{},
+			func(string) error { return nil },
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -575,10 +643,22 @@ func TestTriageDispatcher(t *testing.T) {
 	t.Run("Should stop the hidden session without prompting when occurrence binding fails", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t).harness
-		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second}
-		denied := errors.New("occurrence cancelled")
+		dispatcher := &TriageDispatcher{
+			Manager:      h.manager,
+			Reports:      triageTestReports{},
+			MaxProposals: 2,
+			StopTimeout:  time.Second,
+		}
+		denied := errors.New("occurrence canceled")
 		var id string
-		_, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID}}, heartbeat.CheckDigest{}, func(sessionID string) error { id = sessionID; return denied })
+		_, err := dispatcher.Dispatch(
+			t.Context(),
+			&heartbeat.CheckTarget{
+				Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID},
+			},
+			heartbeat.CheckDigest{},
+			func(sessionID string) error { id = sessionID; return denied },
+		)
 		if !errors.Is(err, denied) {
 			t.Fatalf("dispatch error=%v", err)
 		}
@@ -595,15 +675,23 @@ func TestTriageDispatcher(t *testing.T) {
 
 type dueTriageEnvironment struct{ target heartbeat.CheckTarget }
 
-var _ heartbeat.CheckEnvironment = dueTriageEnvironment{}
+var _ heartbeat.CheckEnvironment = (*dueTriageEnvironment)(nil)
 
-func (e dueTriageEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
+func (e *dueTriageEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
 	return e.target, nil
 }
-func (dueTriageEnvironment) BeforeCheck(context.Context, heartbeat.CheckTarget, string) (string, error) {
+func (*dueTriageEnvironment) BeforeCheck(context.Context, *heartbeat.CheckTarget, string) (string, error) {
 	return "", nil
 }
-func (dueTriageEnvironment) Collect(context.Context, string, heartbeat.CollectorScope, []string, string, string) (heartbeat.CheckDigest, error) {
+
+func (*dueTriageEnvironment) Collect(
+	context.Context,
+	string,
+	heartbeat.CollectorScope,
+	[]string,
+	string,
+	string,
+) (heartbeat.CheckDigest, error) {
 	return heartbeat.CheckDigest{Fingerprint: "due"}, nil
 }
 
@@ -622,11 +710,13 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.DB().ExecContext(t.Context(), "UPDATE agent_instances SET state='active' WHERE id=?", instance.ID); err != nil {
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instances SET state='active' WHERE id=?", instance.ID); err != nil {
 			t.Fatal(err)
 		}
 		instance.State = "active"
@@ -636,10 +726,35 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 			starts <- opts
 			return nil, acp.ErrTriageUnsupported
 		}
-		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: db.InstanceReports(), MaxProposals: 2, StopTimeout: time.Second}
+		dispatcher := &TriageDispatcher{
+			Manager:      h.manager,
+			Reports:      db.InstanceReports(),
+			MaxProposals: 2,
+			StopTimeout:  time.Second,
+		}
 		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 		instance.CreatedAt = now.Add(-24 * time.Hour)
-		service, err := heartbeat.NewCheckService(t.Context(), db.Instances(), dueTriageEnvironment{target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"}}}, dispatcher, heartbeat.CheckConfig{Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour, Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 10}, func() time.Time { return now })
+		service, err := heartbeat.NewCheckService(
+			t.Context(),
+			db.Instances(),
+			&dueTriageEnvironment{
+				target: heartbeat.CheckTarget{
+					Instance: instance,
+					Policy:   heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
+				},
+			},
+			dispatcher,
+			heartbeat.CheckConfig{
+				Enabled:       true,
+				Interval:      time.Hour,
+				MaxInterval:   24 * time.Hour,
+				Retention:     24 * time.Hour,
+				Timeout:       time.Minute,
+				MaxConcurrent: 1,
+				BatchSize:     10,
+			},
+			func() time.Time { return now },
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -656,7 +771,9 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		}
 		select {
 		case opts := <-starts:
-			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads || len(opts.MCPServers) != 0 || opts.ActivateMCPServers != nil {
+			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+				len(opts.MCPServers) != 0 ||
+				opts.ActivateMCPServers != nil {
 				t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicy, opts.Permissions)
 			}
 		case <-time.After(5 * time.Second):
@@ -664,12 +781,15 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		}
 		deadline := time.Now().Add(5 * time.Second)
 		for {
-			reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			reports, err := db.InstanceReports().
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if len(reports) == 1 {
-				if string(reports[0].Payload) != `{"reason":"triage_unsupported","detail":"The provider does not support read-only triage."}` {
+				if string(
+					reports[0].Payload,
+				) != `{"reason":"triage_unsupported","detail":"The provider does not support read-only triage."}` {
 					t.Fatalf("report=%s", reports[0].Payload)
 				}
 				break
@@ -704,7 +824,10 @@ func TestDraftInstructionsPolicy(t *testing.T) {
 				h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) { return events, nil }
 				h.driver.cancelHook = func(_ *fakeProcess) error { once.Do(func() { close(events) }); return nil }
 			}
-			text, err := h.manager.DraftInstructions(ctx, DraftInstructionsRequest{Goal: "Review incoming requests", WorkspaceID: h.workspaceID})
+			text, err := h.manager.DraftInstructions(
+				ctx,
+				DraftInstructionsRequest{Goal: "Review incoming requests", WorkspaceID: h.workspaceID},
+			)
 
 			if timeout {
 				if !errors.Is(err, ErrAgentDraftFailed) || !errors.Is(err, context.DeadlineExceeded) || text != "" {

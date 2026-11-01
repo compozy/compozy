@@ -11,11 +11,12 @@ import (
 func groupedAgentRows(rows []contract.AgentCatalogItemPayload) []contract.AgentCatalogItemPayload {
 	indexes := make(map[string]int)
 	result := make([]contract.AgentCatalogItemPayload, 0, len(rows))
-	for _, row := range rows {
+	for index := range rows {
+		row := &rows[index]
 		key := row.Agent.Name + "\x00" + row.Agent.DefinitionDigest
 		scope := row.Agent.WorkspaceID
 		if scope == "" {
-			scope = "@user"
+			scope = userScopeWorkspaceRef
 		}
 		if i, ok := indexes[key]; ok {
 			result[i].Scopes = append(result[i].Scopes, scope)
@@ -28,8 +29,9 @@ func groupedAgentRows(rows []contract.AgentCatalogItemPayload) []contract.AgentC
 			continue
 		}
 		indexes[key] = len(result)
-		row.Scopes = []string{scope}
-		result = append(result, row)
+		grouped := *row
+		grouped.Scopes = []string{scope}
+		result = append(result, grouped)
 	}
 	for i := range result {
 		slices.Sort(result[i].Scopes)
@@ -40,12 +42,13 @@ func groupedAgentRows(rows []contract.AgentCatalogItemPayload) []contract.AgentC
 
 func groupAgentCatalogItems(rows []contract.AgentCatalogItemPayload) []contract.GroupedAgentCatalogItemPayload {
 	result := make([]contract.GroupedAgentCatalogItemPayload, 0, len(rows))
-	for _, row := range rows {
+	for index := range rows {
+		row := &rows[index]
 		scopes := row.Scopes
 		if len(scopes) == 0 {
 			scope := row.Agent.WorkspaceID
 			if scope == "" {
-				scope = "@user"
+				scope = userScopeWorkspaceRef
 			}
 			scopes = []string{scope}
 		}
@@ -72,7 +75,8 @@ func filterGroupedAgentRows(
 ) (contract.AgentCatalogFacetsPayload, []contract.AgentCatalogItemPayload) {
 	facets := contract.AgentCatalogFacetsPayload{Total: len(rows), Categories: []string{}}
 	result := make([]contract.AgentCatalogItemPayload, 0, len(rows))
-	for _, row := range rows {
+	for index := range rows {
+		row := &rows[index]
 		metric := session.AgentSessionMetrics{}
 		if row.Sessions != nil {
 			metric.Active = row.Sessions.Active
@@ -87,8 +91,8 @@ func filterGroupedAgentRows(
 		if category := strings.Join(row.Agent.CategoryPath, " / "); category != "" {
 			facets.Categories = append(facets.Categories, category)
 		}
-		if agentMatchesCatalogQuery(row.Agent, metric, available, query) {
-			result = append(result, row)
+		if agentMatchesCatalogQuery(&row.Agent, metric, available, query) {
+			result = append(result, *row)
 		}
 	}
 	slices.Sort(facets.Categories)
@@ -97,7 +101,7 @@ func filterGroupedAgentRows(
 }
 
 func agentCatalogWorkspaceQuery(query agentCatalogQuery) agentCatalogQuery {
-	if query.Group == "agent" {
+	if query.Group == agentCatalogGroupKey {
 		query.Name = ""
 		query.Search = ""
 		query.Category = ""
@@ -107,7 +111,7 @@ func agentCatalogWorkspaceQuery(query agentCatalogQuery) agentCatalogQuery {
 }
 
 func groupAgentCatalogResponse(response *contract.AgentCatalogResponse, query agentCatalogQuery) {
-	if query.Group != "agent" {
+	if query.Group != agentCatalogGroupKey {
 		return
 	}
 	response.Agents = groupedAgentRows(response.Agents)
@@ -115,8 +119,10 @@ func groupAgentCatalogResponse(response *contract.AgentCatalogResponse, query ag
 }
 
 func projectGroupedAgentCatalog(response *contract.AgentCatalogResponse, query agentCatalogQuery) {
-	if query.Group == "agent" {
+	if query.Group == agentCatalogGroupKey {
 		response.Items = groupAgentCatalogItems(response.Agents)
 		response.NextCursor = response.Page.NextCursor
 	}
 }
+
+const agentCatalogGroupKey = "agent"

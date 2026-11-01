@@ -167,21 +167,9 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if h.AgentMemory != nil {
-		origin := resolved.Entry.MemoryOrigin
-		if origin == "" {
-			origin = "user"
-			if resolved.Entry.Origin == contract.AgentOriginWorkspace {
-				origin = "workspace-" + resolved.OperationWorkspace
-			}
-		}
-		if err := h.AgentMemory.Retire(
-			agentmemory.Key{ProfileID: profileScope.ProfileID, Origin: origin, Agent: name},
-			startedAt,
-		); err != nil {
-			h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: retire agent memory: %w", err))
-			return
-		}
+	if err := h.retireAgentDefinitionMemory(&resolved, profileScope.ProfileID, name, startedAt); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
 	}
 	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
@@ -320,76 +308,6 @@ func updateAgentDraft(
 	return draft, nil
 }
 
-func duplicateAgentDraft(
-	source compozyconfig.AgentDef,
-	req contract.DuplicateAgentRequest,
-) (compozyconfig.AgentDefinitionDraft, error) {
-	draft, err := authoredAgentDraftFromDef(source)
-	if err != nil {
-		return compozyconfig.AgentDefinitionDraft{}, err
-	}
-	draft.Name = compozyconfig.NormalizeAgentName(req.Name)
-	label := []rune(source.Label())
-	draft.DisplayName = string(label[:min(len(label), 75)]) + " copy"
-	if req.Kind != "" {
-		draft.Kind = req.Kind
-	}
-	if req.Overrides == nil {
-		return draft, nil
-	}
-	overrides := req.Overrides
-	if err := applyDuplicateAgentIdentity(&draft, overrides); err != nil {
-		return compozyconfig.AgentDefinitionDraft{}, err
-	}
-	if overrides.SessionEnv != nil {
-		draft.SessionEnv = sessionEnvFromPayload(overrides.SessionEnv)
-	}
-	if overrides.Provider != "" {
-		draft.Provider = overrides.Provider
-	}
-	if overrides.Command != "" {
-		draft.Command = overrides.Command
-	}
-	if overrides.Model != "" {
-		draft.Model = overrides.Model
-	}
-	if overrides.ReasoningEffort != "" {
-		draft.ReasoningEffort = string(overrides.ReasoningEffort)
-	}
-	if overrides.ClearSpeed {
-		draft.Speed = ""
-	} else if overrides.Speed != "" {
-		draft.Speed = overrides.Speed
-	}
-	if overrides.ClearACPOptions {
-		draft.ACPOptions = nil
-	} else if len(overrides.ACPOptions) > 0 {
-		draft.ACPOptions = agentACPOptionsFromContract(overrides.ACPOptions)
-	}
-	if len(overrides.Tools) > 0 {
-		draft.Tools = append([]string(nil), overrides.Tools...)
-	}
-	if len(overrides.Toolsets) > 0 {
-		draft.Toolsets = append([]string(nil), overrides.Toolsets...)
-	}
-	if len(overrides.DenyTools) > 0 {
-		draft.DenyTools = append([]string(nil), overrides.DenyTools...)
-	}
-	if overrides.Permissions != "" {
-		draft.Permissions = string(overrides.Permissions)
-	}
-	if len(overrides.CategoryPath) > 0 {
-		draft.CategoryPath = append([]string(nil), overrides.CategoryPath...)
-	}
-	if overrides.Skills != nil {
-		draft.Skills.Disabled = append([]string(nil), overrides.Skills.Disabled...)
-	}
-	if overrides.Prompt != "" {
-		draft.Prompt = overrides.Prompt
-	}
-	return draft, nil
-}
-
 func authoredAgentDraftFromDef(agent compozyconfig.AgentDef) (compozyconfig.AgentDefinitionDraft, error) {
 	contents, err := os.ReadFile(agent.SourcePath)
 	if err != nil {
@@ -495,4 +413,25 @@ func (h *BaseHandlers) logAgentMutationFailure(
 		"outcome", "error",
 		"error", err,
 	)
+}
+
+func (h *BaseHandlers) retireAgentDefinitionMemory(
+	resolved *resolvedAgentDefinition,
+	profileID, name string,
+	at time.Time,
+) error {
+	if h.AgentMemory == nil {
+		return nil
+	}
+	origin := resolved.Entry.MemoryOrigin
+	if origin == "" {
+		origin = "user"
+		if resolved.Entry.Origin == contract.AgentOriginWorkspace {
+			origin = "workspace-" + resolved.OperationWorkspace
+		}
+	}
+	if err := h.AgentMemory.Retire(agentmemory.Key{ProfileID: profileID, Origin: origin, Agent: name}, at); err != nil {
+		return fmt.Errorf("api: retire agent memory: %w", err)
+	}
+	return nil
 }

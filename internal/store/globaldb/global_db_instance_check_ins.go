@@ -11,8 +11,15 @@ import (
 
 var _ agentinstance.CheckInReader = (*InstanceRepo)(nil)
 
-func (r *InstanceRepo) ListCheckIns(ctx context.Context, id, cursor string, limit int) ([]agentinstance.CheckIn, error) {
-	rows, err := r.queries.ListInstanceCheckIns(ctx, sqlcgen.ListInstanceCheckInsParams{InstanceID: id, Cursor: cursor, PageLimit: int64(limit)})
+func (r *InstanceRepo) ListCheckIns(
+	ctx context.Context,
+	id, cursor string,
+	limit int,
+) ([]agentinstance.CheckIn, error) {
+	rows, err := r.queries.ListInstanceCheckIns(
+		ctx,
+		sqlcgen.ListInstanceCheckInsParams{InstanceID: id, Cursor: cursor, PageLimit: int64(limit)},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +29,10 @@ func (r *InstanceRepo) ListCheckIns(ctx context.Context, id, cursor string, limi
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, agentinstance.CheckIn{ID: row.ID, Result: row.Result, Reason: row.Reason, CreatedAt: at})
+		result = append(
+			result,
+			agentinstance.CheckIn{ID: row.ID, Result: row.Result, Reason: row.Reason, CreatedAt: at},
+		)
 	}
 	return result, nil
 }
@@ -32,5 +42,8 @@ func (r *InstanceRepo) CountQuietCheckIns(ctx context.Context, id string, after 
 	if after != nil {
 		timestamp = store.FormatTimestamp(*after)
 	}
-	return r.queries.CountInstanceQuietCheckIns(ctx, sqlcgen.CountInstanceQuietCheckInsParams{InstanceID: id, AfterTime: timestamp})
+	return r.queries.CountInstanceQuietCheckIns(
+		ctx,
+		sqlcgen.CountInstanceQuietCheckInsParams{InstanceID: id, AfterTime: timestamp},
+	)
 }

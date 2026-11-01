@@ -179,7 +179,7 @@ func (p *AgentProcess) emitPermissionEvent(
 		Raw:        CloneRawMessage(raw),
 	}.WithRequestID(requestID).WithResolvedBy(resolvedBy)
 	if len(expiresAt) > 0 {
-		event.ExpiresAt = new(expiresAt[0])
+		event = event.WithExpiresAt(expiresAt[0])
 	}
 	p.emitPromptEvent(event)
 }

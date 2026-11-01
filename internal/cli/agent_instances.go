@@ -3,20 +3,35 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/spf13/cobra"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
 )
 
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "instance", Short: "Manage stays-on agent instances"}
-	for _, action := range []string{"create", "list", "show", "pause", "resume", "archive", "adopt", "ensure-main", "reports", "check", "away", "mark-seen", "check-ins"} {
+	for _, action := range []string{
+		automationCreateKey,
+		agentListKey,
+		"show",
+		"pause",
+		"resume",
+		workspaceArchiveAction,
+		agentInstanceAdoptAction,
+		"ensure-main",
+		agentInstanceReportsAction,
+		agentInstanceCheckAction,
+		agentInstanceAwayAction,
+		agentInstanceMarkSeenAction,
+		agentInstanceCheckInsAction,
+	} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	checks := &cobra.Command{Use: "checks", Short: "Turn proactive checks on or off"}
-	for _, action := range []string{"on", "off"} {
+	for _, action := range []string{"on", agentInstanceChecksOff} {
 		checks.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	parent.AddCommand(checks, newAgentInstanceOccurrenceCommand(deps))
@@ -24,150 +39,40 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
-	var global, all, dryRun, noWait bool
-	var state, cursor, sessionID, agent string
-	var limit int
-	cmd := &cobra.Command{Use: action + " <agent-or-instance-id>", Short: "Manage agent instances: " + action, Args: exactOneNonBlankArg()}
-	if action == "list" {
-		cmd.Use = "list"
+	var options agentInstanceOptions
+	cmd := &cobra.Command{
+		Use:   action + " <agent-or-instance-id>",
+		Short: "Manage agent instances: " + action,
+		Args:  exactOneNonBlankArg(),
+	}
+	if action == agentListKey {
+		cmd.Use = agentListKey
 		cmd.Args = cobra.NoArgs
 	}
-	cmd.Flags().String("workspace", "", "Workspace ID, name, or path")
-	cmd.Flags().BoolVar(&global, "global", false, "Use the global scope")
-	cmd.MarkFlagsMutuallyExclusive("global", "workspace")
-	if action == "list" || action == "reports" || action == "check-ins" {
-		if action != "check-ins" {
-			cmd.Flags().StringVar(&state, "state", "", "Filter by state")
+	cmd.Flags().String(workspaceSkillSource, "", "Workspace ID, name, or path")
+	cmd.Flags().BoolVar(&options.global, "global", false, "Use the global scope")
+	cmd.MarkFlagsMutuallyExclusive("global", workspaceSkillSource)
+	if action == agentListKey || action == agentInstanceReportsAction || action == agentInstanceCheckInsAction {
+		if action != agentInstanceCheckInsAction {
+			cmd.Flags().StringVar(&options.state, "state", "", "Filter by state")
 		}
-		cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from next_cursor")
-		cmd.Flags().IntVar(&limit, "limit", 50, "Page size (1-100)")
+		cmd.Flags().StringVar(&options.cursor, "cursor", "", "Continue from next_cursor")
+		cmd.Flags().IntVar(&options.limit, listLimitField, 50, "Page size (1-100)")
 	}
-	if action == "list" {
-		cmd.Flags().BoolVar(&all, "all-workspaces", false, "Include every workspace")
-		cmd.Flags().StringVar(&agent, "agent", "", "Filter by agent name")
-		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", "workspace")
+	if action == agentListKey {
+		cmd.Flags().BoolVar(&options.all, "all-workspaces", false, "Include every workspace")
+		cmd.Flags().StringVar(&options.agent, "agent", "", "Filter by agent name")
+		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", workspaceSkillSource)
 	}
-	if action == "check" {
-		cmd.Flags().BoolVar(&noWait, "no-wait", false, "Return the occurrence ID without waiting")
-		cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Inspect gates without running a check")
+	if action == agentInstanceCheckAction {
+		cmd.Flags().BoolVar(&options.noWait, "no-wait", false, "Return the occurrence ID without waiting")
+		cmd.Flags().BoolVar(&options.dryRun, "dry-run", false, "Inspect gates without running a check")
 	}
-	if action == "adopt" {
-		cmd.Flags().StringVar(&sessionID, "session", "", "Root session to adopt")
+	if action == agentInstanceAdoptAction {
+		cmd.Flags().StringVar(&options.sessionID, "session", "", "Root session to adopt")
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		base, err := clientFromDeps(deps)
-		if err != nil {
-			return err
-		}
-		client, ok := base.(agentInstancesClient)
-		if !ok {
-			return errors.New("cli: agent instances unavailable")
-		}
-		workspace := "@user"
-		if !global && !all && action != "adopt" {
-			query, err := agentQueryFromCommand(cmd, deps, base)
-			if err != nil {
-				return err
-			}
-			workspace = query.Workspace
-		}
-		query := url.Values{"workspace": {workspace}}
-		if action == "list" || action == "reports" || action == "check-ins" {
-			if limit < 1 || limit > 100 {
-				return errors.New("cli: --limit must be from 1 to 100")
-			}
-			query.Set("limit", strconv.Itoa(limit))
-			if action != "check-ins" {
-				query.Set("state", state)
-			}
-			query.Set("cursor", cursor)
-		}
-		if action == "list" {
-			query.Set("all_workspaces", strconv.FormatBool(all))
-			query.Set("agent", strings.TrimSpace(agent))
-			result, err := client.ListAgentInstances(cmd.Context(), query)
-			if err != nil {
-				return err
-			}
-			return writeInstanceOutput(cmd, result, instanceListText(result))
-		}
-		target := strings.TrimSpace(args[0])
-		if action == "create" {
-			result, err := client.CreateAgentInstance(cmd.Context(), contract.AgentInstanceCreateRequest{Agent: target, Workspace: workspace})
-			if err != nil {
-				return err
-			}
-			return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
-		}
-		if action == "adopt" {
-			if strings.TrimSpace(sessionID) == "" {
-				return errors.New("cli: --session is required")
-			}
-			result, err := client.AdoptAgentInstance(cmd.Context(), contract.AgentInstanceAdoptRequest{Agent: target, SessionID: strings.TrimSpace(sessionID)})
-			if err != nil {
-				return err
-			}
-			return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
-		}
-		id, err := resolveInstanceID(cmd, client, target, workspace)
-		if err != nil {
-			return err
-		}
-
-		if action == "check" || action == "on" || action == "off" {
-			checks, ok := base.(agentInstanceChecksClient)
-			if !ok {
-				return errors.New("cli: instance checks unavailable")
-			}
-			if action == "check" {
-				result, err := checks.CheckAgentInstance(cmd.Context(), id, dryRun)
-				if err != nil {
-					return err
-				}
-				if !noWait && result.OccurrenceID != "" {
-					reader, ok := base.(agentInstanceOccurrenceClient)
-					if !ok {
-						return errors.New("cli: instance occurrences unavailable")
-					}
-					return waitInstanceOccurrence(cmd, reader, id, result.OccurrenceID, defaultPollInterval)
-				}
-				return writeInstanceOutput(cmd, result, fmt.Sprintf("%s%s\n", result.Gate, result.OccurrenceID))
-			}
-			result, err := checks.SetAgentInstanceChecks(cmd.Context(), id, action == "on")
-			if err != nil {
-				return err
-			}
-			return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
-		}
-		if action == "away" || action == "mark-seen" || action == "check-ins" {
-			return writeInstanceRead(cmd, base, action, id, query)
-		}
-		if action == "reports" {
-			result, err := client.AgentInstanceReports(cmd.Context(), id, query)
-			if err != nil {
-				return err
-			}
-			var text strings.Builder
-			for _, report := range result.Reports {
-				fmt.Fprintf(&text, "%s\t%s\t%s\n", report.ID, report.Kind, report.State)
-			}
-			return writeInstanceOutput(cmd, result, text.String())
-		}
-		var before contract.AgentInstanceResponse
-		if action == "archive" {
-			before, err = client.MutateAgentInstance(cmd.Context(), id, "show")
-			if err != nil {
-				return err
-			}
-		}
-		result, err := client.MutateAgentInstance(cmd.Context(), id, action)
-		if err != nil {
-			return err
-		}
-		if action == "archive" {
-			return writeInstanceOutput(cmd, map[string]string{"id": id}, instanceActionText(before.Instance, action))
-		}
-		return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
+		return options.run(cmd, deps, action, args)
 	}
 	return cmd
 }
@@ -176,7 +81,7 @@ func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, 
 	if strings.HasPrefix(target, "ainst-") {
 		return target, nil
 	}
-	query := url.Values{"workspace": {workspace}, "agent": {target}, "limit": {"100"}}
+	query := url.Values{workspaceSkillSource: {workspace}, "agent": {target}, listLimitField: {"100"}}
 	for {
 		result, err := client.ListAgentInstances(cmd.Context(), query)
 		if err != nil {
@@ -209,15 +114,15 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 		scope = "Global"
 	}
 	switch action {
-	case "create", "adopt":
+	case automationCreateKey, agentInstanceAdoptAction:
 		return fmt.Sprintf("%s is stays-on in %s\nMain session: %s\n", label, scope, instance.MainSessionID)
 	case "pause":
 		return fmt.Sprintf("%s paused in %s\n", label, scope)
 	case "resume":
 		return fmt.Sprintf("%s resumed in %s\n", label, scope)
-	case "archive":
+	case workspaceArchiveAction:
 		return fmt.Sprintf("%s archived in %s. Its sessions stay in history.\n", label, scope)
-	case "on", "off":
+	case "on", agentInstanceChecksOff:
 		return fmt.Sprintf("Checks %s for %s in %s\n", action, label, scope)
 	case "ensure-main":
 		return fmt.Sprintf("Main session: %s\n", instance.MainSessionID)
@@ -226,7 +131,13 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 	}
 }
 func instanceText(instance contract.AgentInstancePayload) string {
-	return fmt.Sprintf("%s\t%s\t%s\nMain session: %s\n", instance.ID, instance.AgentName, instance.State, instance.MainSessionID)
+	return fmt.Sprintf(
+		"%s\t%s\t%s\nMain session: %s\n",
+		instance.ID,
+		instance.AgentName,
+		instance.State,
+		instance.MainSessionID,
+	)
 }
 func instanceListText(page contract.AgentInstanceListResponse) string {
 	var text strings.Builder
@@ -238,3 +149,177 @@ func instanceListText(page contract.AgentInstanceListResponse) string {
 	}
 	return text.String()
 }
+
+type agentInstanceOptions struct {
+	global, all, dryRun, noWait     bool
+	state, cursor, sessionID, agent string
+	limit                           int
+}
+
+func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, action string, args []string) error {
+	base, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	client, ok := base.(agentInstancesClient)
+	if !ok {
+		return errors.New("cli: agent instances unavailable")
+	}
+	query, err := options.query(cmd, deps, base, action)
+	if err != nil {
+		return err
+	}
+	workspace := query.Get(workspaceSkillSource)
+	if action == agentListKey {
+		query.Set("all_workspaces", strconv.FormatBool(options.all))
+		query.Set("agent", strings.TrimSpace(options.agent))
+		result, err := client.ListAgentInstances(cmd.Context(), query)
+		if err != nil {
+			return err
+		}
+		return writeInstanceOutput(cmd, result, instanceListText(result))
+	}
+	target := strings.TrimSpace(args[0])
+	if action == automationCreateKey || action == agentInstanceAdoptAction {
+		return options.createOrAdopt(cmd, client, action, target, workspace)
+	}
+	id, err := resolveInstanceID(cmd, client, target, workspace)
+	if err != nil {
+		return err
+	}
+
+	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
+		return options.check(cmd, base, action, id)
+	}
+	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||
+		action == agentInstanceCheckInsAction {
+		return writeInstanceRead(cmd, base, action, id, query)
+	}
+	if action == agentInstanceReportsAction {
+		result, err := client.AgentInstanceReports(cmd.Context(), id, query)
+		if err != nil {
+			return err
+		}
+		var text strings.Builder
+		for _, report := range result.Reports {
+			fmt.Fprintf(&text, "%s\t%s\t%s\n", report.ID, report.Kind, report.State)
+		}
+		return writeInstanceOutput(cmd, result, text.String())
+	}
+	return mutateAgentInstance(cmd, client, action, id)
+}
+
+func (options agentInstanceOptions) query(
+	cmd *cobra.Command,
+	deps commandDeps,
+	base workspaceLookupClient,
+	action string,
+) (url.Values, error) {
+	workspace := "@user"
+	if !options.global && !options.all && action != agentInstanceAdoptAction {
+		query, err := agentQueryFromCommand(cmd, deps, base)
+		if err != nil {
+			return nil, err
+		}
+		workspace = query.Workspace
+	}
+	query := url.Values{workspaceSkillSource: {workspace}}
+	if action == agentListKey || action == agentInstanceReportsAction || action == agentInstanceCheckInsAction {
+		if options.limit < 1 || options.limit > 100 {
+			return nil, errors.New("cli: --limit must be from 1 to 100")
+		}
+		query.Set(listLimitField, strconv.Itoa(options.limit))
+		if action != agentInstanceCheckInsAction {
+			query.Set("state", options.state)
+		}
+		query.Set("cursor", options.cursor)
+	}
+	return query, nil
+}
+
+func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, id string) error {
+	checks, ok := base.(agentInstanceChecksClient)
+	if !ok {
+		return errors.New("cli: instance checks unavailable")
+	}
+	if action == agentInstanceCheckAction {
+		result, err := checks.CheckAgentInstance(cmd.Context(), id, options.dryRun)
+		if err != nil {
+			return err
+		}
+		if !options.noWait && result.OccurrenceID != "" {
+			reader, ok := base.(agentInstanceOccurrenceClient)
+			if !ok {
+				return errors.New("cli: instance occurrences unavailable")
+			}
+			return waitInstanceOccurrence(cmd, reader, id, result.OccurrenceID, defaultPollInterval)
+		}
+		return writeInstanceOutput(cmd, result, fmt.Sprintf("%s%s\n", result.Gate, result.OccurrenceID))
+	}
+	result, err := checks.SetAgentInstanceChecks(cmd.Context(), id, action == "on")
+	if err != nil {
+		return err
+	}
+	return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
+}
+
+func (options agentInstanceOptions) createOrAdopt(
+	cmd *cobra.Command,
+	client agentInstancesClient,
+	action, target, workspace string,
+) error {
+	if action == automationCreateKey {
+		result, err := client.CreateAgentInstance(
+			cmd.Context(),
+			contract.AgentInstanceCreateRequest{Agent: target, Workspace: workspace},
+		)
+		if err != nil {
+			return err
+		}
+		return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
+	}
+	if strings.TrimSpace(options.sessionID) == "" {
+		return errors.New("cli: --session is required")
+	}
+	result, err := client.AdoptAgentInstance(
+		cmd.Context(),
+		contract.AgentInstanceAdoptRequest{Agent: target, SessionID: strings.TrimSpace(options.sessionID)},
+	)
+	if err != nil {
+		return err
+	}
+	return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
+}
+
+func mutateAgentInstance(cmd *cobra.Command, client agentInstancesClient, action, id string) error {
+	var err error
+	var before contract.AgentInstanceResponse
+	if action == workspaceArchiveAction {
+		before, err = client.MutateAgentInstance(cmd.Context(), id, "show")
+		if err != nil {
+			return err
+		}
+	}
+	result, err := client.MutateAgentInstance(cmd.Context(), id, action)
+	if err != nil {
+		return err
+	}
+	if action == workspaceArchiveAction {
+		return writeInstanceOutput(cmd, map[string]string{"id": id}, instanceActionText(before.Instance, action))
+	}
+	return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
+}
+
+const (
+	agentInstanceAdoptAction    = "adopt"
+	agentInstanceChecksOff      = "off"
+	agentInstanceAwayAction     = "away"
+	agentInstanceMarkSeenAction = "mark-seen"
+)
+
+const agentInstanceCheckAction = "check"
+
+const (
+	agentInstanceReportsAction  = "reports"
+	agentInstanceCheckInsAction = "check-ins"
+)

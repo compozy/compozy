@@ -40,7 +40,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: create agent: %w", err)
 			}
-			if err := writeCommandOutput(cmd, agentBundle(agent)); err != nil {
+			if err := writeCommandOutput(cmd, agentBundle(&agent)); err != nil {
 				return fmt.Errorf("cli: write created agent output: %w", err)
 			}
 			return nil
@@ -83,7 +83,7 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: update agent: %w", err)
 			}
-			if err := writeCommandOutput(cmd, agentBundle(agent)); err != nil {
+			if err := writeCommandOutput(cmd, agentBundle(&agent)); err != nil {
 				return fmt.Errorf("cli: write updated agent output: %w", err)
 			}
 			return nil
@@ -149,7 +149,7 @@ func newAgentDuplicateCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("cli: duplicate agent: %w", err)
 			}
-			if err := writeCommandOutput(cmd, agentBundle(agent)); err != nil {
+			if err := writeCommandOutput(cmd, agentBundle(&agent)); err != nil {
 				return fmt.Errorf("cli: write duplicated agent output: %w", err)
 			}
 			return nil

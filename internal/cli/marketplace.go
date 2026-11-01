@@ -193,8 +193,16 @@ func newMarketplaceRefreshCommand(deps commandDeps) *cobra.Command {
 
 func marketplaceListingsBundle(jsonValue any, items []MarketplaceListingRecord) outputBundle {
 	bundle := listBundle(
-		jsonValue, items, "Marketplace Results",
-		[]string{authoredContextSourceValue, "Entry", versionValue, cliInstalledValue, "Description"},
+		jsonValue,
+		items,
+		"Marketplace Results",
+		[]string{
+			authoredContextSourceValue,
+			"Entry",
+			versionValue,
+			cliInstalledValue,
+			extensionMarketplaceDescriptionValue,
+		},
 		marketplaceSkillSource,
 		[]string{automationSourceKey, "entry_id", versionKey, marketplaceInstalledKey, cliDescriptionKey},
 		func(item MarketplaceListingRecord) []string {
@@ -306,7 +314,7 @@ func marketplaceEntryBundle(response MarketplaceEntryRecord) outputBundle {
 
 				{Label: "Entry ID", Value: entry.EntryID},
 				{Label: automationNameValue, Value: entry.Name},
-				{Label: "Description", Value: entry.Description},
+				{Label: extensionMarketplaceDescriptionValue, Value: entry.Description},
 				{Label: versionValue, Value: stringOrDash(entry.Version)},
 				{Label: authoredContextSourceValue, Value: entry.Source},
 				{Label: "Installed", Value: strconv.FormatBool(entry.Installed)},

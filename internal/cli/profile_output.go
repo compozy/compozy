@@ -76,7 +76,7 @@ func profileListBundle(items []contract.Profile, current string) outputBundle {
 			}
 			return renderToonArray(
 				"profiles",
-				[]string{automationNameKey, "color", stateKey, profileCurrentKey, "work_items"},
+				[]string{automationNameKey, cliColorKey, stateKey, profileCurrentKey, "work_items"},
 				toonRows,
 			), nil
 		},

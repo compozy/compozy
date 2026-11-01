@@ -48,7 +48,11 @@ func (h *BaseHandlers) CheckAgentInstance(c *gin.Context) {
 	}
 	response := contract.AgentInstanceCheckResponse{Gate: result.Gate, OccurrenceID: result.OccurrenceID}
 	if result.Digest != nil {
-		response.Digest = &contract.AgentInstanceCheckDigest{ItemKeys: []string{}, Fingerprint: result.Digest.Fingerprint, Diagnostics: result.Digest.Diagnostics}
+		response.Digest = &contract.AgentInstanceCheckDigest{
+			ItemKeys:    []string{},
+			Fingerprint: result.Digest.Fingerprint,
+			Diagnostics: result.Digest.Diagnostics,
+		}
 		for _, item := range result.Digest.Items {
 			response.Digest.ItemKeys = append(response.Digest.ItemKeys, item.Key)
 		}
@@ -118,5 +122,13 @@ func (h *BaseHandlers) GetAgentInstanceOccurrence(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.AgentInstanceOccurrenceResponse{State: result.State, Result: result.Result, Reason: result.Reason, ReportID: result.ReportID})
+	c.JSON(
+		http.StatusOK,
+		contract.AgentInstanceOccurrenceResponse{
+			State:    result.State,
+			Result:   result.Result,
+			Reason:   result.Reason,
+			ReportID: result.ReportID,
+		},
+	)
 }

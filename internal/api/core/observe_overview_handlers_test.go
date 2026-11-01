@@ -141,15 +141,29 @@ func TestPermissionRollupHandler(t *testing.T) {
 	t.Parallel()
 	t.Run("Should preserve profile and unattended filters in daily totals", func(t *testing.T) {
 		t.Parallel()
-		observer := testutil.StubObserver{QueryPermissionDailyRollupsFn: func(_ context.Context, q store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
-			if !q.Unattended || q.AgentName != "coder" || q.ReadScope.ProfileID != store.DefaultProfileID || q.Since.IsZero() || !q.Until.After(q.Since) {
-				t.Fatalf("query = %#v", q)
-			}
-			return []store.PermissionDailyRollup{{Day: "2026-01-01", AgentName: "coder", Decision: "deny", Count: 3}}, nil
-		}}
+		observer := testutil.StubObserver{
+			QueryPermissionDailyRollupsFn: func(_ context.Context, q store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
+				if !q.Unattended || q.AgentName != "coder" || q.ReadScope.ProfileID != store.DefaultProfileID ||
+					q.Since.IsZero() ||
+					!q.Until.After(q.Since) {
+					t.Fatalf("query = %#v", q)
+				}
+				return []store.PermissionDailyRollup{
+					{Day: "2026-01-01", AgentName: "coder", Decision: "deny", Count: 3},
+				}, nil
+			},
+		}
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 		response := httptest.NewRecorder()
-		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/permissions/rollup?days=7&agent=coder&unattended=true", nil))
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(
+				t.Context(),
+				"GET",
+				"/permissions/rollup?days=7&agent=coder&unattended=true",
+				nil,
+			),
+		)
 		var payload contract.PermissionRollupResponse
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatal(err)
@@ -160,15 +174,23 @@ func TestPermissionRollupHandler(t *testing.T) {
 	})
 	t.Run("Should list entries under the same scope and filters", func(t *testing.T) {
 		t.Parallel()
-		observer := testutil.StubObserver{QueryPermissionEntriesFn: func(_ context.Context, q store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
-			if !q.Unattended || q.ReadScope.ProfileID != store.DefaultProfileID || q.Limit != 1000 || q.Since.IsZero() {
-				t.Fatalf("query = %#v", q)
-			}
-			return []store.PermissionLogEntry{{ID: "p1", AgentName: "coder", Decision: "allow", InitiatorKind: "daemon"}}, nil
-		}}
+		observer := testutil.StubObserver{
+			QueryPermissionEntriesFn: func(_ context.Context, q store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+				if !q.Unattended || q.ReadScope.ProfileID != store.DefaultProfileID || q.Limit != 1000 ||
+					q.Since.IsZero() {
+					t.Fatalf("query = %#v", q)
+				}
+				return []store.PermissionLogEntry{
+					{ID: "p1", AgentName: "coder", Decision: "allow", InitiatorKind: "daemon"},
+				}, nil
+			},
+		}
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 		response := httptest.NewRecorder()
-		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/permissions?days=14&unattended=true", nil))
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), "GET", "/permissions?days=14&unattended=true", nil),
+		)
 		var payload contract.PermissionEntriesResponse
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatal(err)
@@ -180,9 +202,17 @@ func TestPermissionRollupHandler(t *testing.T) {
 	for _, query := range []string{"days=0", "days=91", "days=bad", "unattended=bad"} {
 		t.Run("Should reject invalid query "+query, func(t *testing.T) {
 			t.Parallel()
-			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
 			response := httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/permissions/rollup?"+query, nil))
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), "GET", "/permissions/rollup?"+query, nil),
+			)
 			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "error") {
 				t.Fatalf("response = %d %s", response.Code, response.Body.String())
 			}

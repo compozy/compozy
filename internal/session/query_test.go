@@ -41,10 +41,16 @@ func TestManagerListForWorkspace(t *testing.T) {
 		if !ok {
 			t.Fatal("expected SQLite catalog fixture")
 		}
-		if _, err := db.DB().ExecContext(t.Context(), "UPDATE sessions SET session_type='triage' WHERE id='sess-read-000'"); err != nil {
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE sessions SET session_type='triage' WHERE id='sess-read-000'"); err != nil {
 			t.Fatal(err)
 		}
-		manager.sessions["live-triage"] = &Session{ID: "live-triage", WorkspaceID: "ws-read-00", Type: SessionTypeTriage, State: StateActive}
+		manager.sessions["live-triage"] = &Session{
+			ID:          "live-triage",
+			WorkspaceID: "ws-read-00",
+			Type:        SessionTypeTriage,
+			State:       StateActive,
+		}
 		infos, err := manager.ListForWorkspace(t.Context(), "ws-read-00")
 		if err != nil || len(infos) != 1 || infos[0].ID != "sess-read-001" {
 			t.Fatalf("public workspace sessions=%v, %v", infos, err)

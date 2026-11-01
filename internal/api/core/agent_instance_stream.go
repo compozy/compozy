@@ -11,7 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *BaseHandlers) writeInstanceCatalogEvent(c *gin.Context, writer FlushWriter, event session.CatalogEvent, actor workspaceaccess.ActorRef) error {
+func (h *BaseHandlers) writeInstanceCatalogEvent(
+	c *gin.Context,
+	writer FlushWriter,
+	event session.CatalogEvent,
+	actor workspaceaccess.ActorRef,
+) error {
 	api := h.AgentInstances
 	if api == nil {
 		return nil
@@ -51,5 +56,8 @@ func (h *BaseHandlers) writeInstanceCatalogEvent(c *gin.Context, writer FlushWri
 	if err != nil {
 		return err
 	}
-	return WriteSSE(writer, SSEMessage{ID: strconv.FormatInt(event.Sequence, 10), Name: "agent_instance.updated", Data: payload})
+	return WriteSSE(
+		writer,
+		SSEMessage{ID: strconv.FormatInt(event.Sequence, 10), Name: "agent_instance.updated", Data: payload},
+	)
 }

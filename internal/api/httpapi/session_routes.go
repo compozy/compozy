@@ -37,12 +37,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/interactions", handlers.ListSessionInteractions)
 	workspaceSessions.GET("/:session_id/pending-interactions", handlers.ListSessionInteractions)
 	workspaceSessions.GET("/:session_id/inspect", handlers.InspectSession)
-	workspaceSessions.DELETE("/:session_id", handlers.DeleteSession)
-	workspaceSessions.POST("/:session_id/stop", handlers.StopSession)
-	workspaceSessions.POST("/:session_id/archive", handlers.ArchiveSession)
-	workspaceSessions.POST("/:session_id/later", handlers.MoveSessionToLater)
-	workspaceSessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
-	workspaceSessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
+	registerSessionLifecycleRoutes(workspaceSessions, handlers)
 	workspaceSessions.POST("/:session_id/move", handlers.MoveSession)
 	workspaceSessions.POST("/:session_id/attach", handlers.AttachSession)
 	workspaceSessions.POST("/:session_id/worktree-fork", handlers.ForkSessionToWorktree)
@@ -126,4 +121,13 @@ func registerSessionPromptRoutes(workspaceSessions gin.IRouter, handlers *Handle
 	workspaceSessions.PUT("/:session_id/prompt/queue/:queue_entry_id", handlers.replaceSessionInput)
 	workspaceSessions.POST("/:session_id/prompt/queue/:queue_entry_id/steer", handlers.promoteSessionInput)
 	workspaceSessions.DELETE("/:session_id/prompt/queue/:queue_entry_id", handlers.cancelQueuedSessionPrompt)
+}
+
+func registerSessionLifecycleRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.DELETE("/:session_id", handlers.DeleteSession)
+	sessions.POST("/:session_id/stop", handlers.StopSession)
+	sessions.POST("/:session_id/archive", handlers.ArchiveSession)
+	sessions.POST("/:session_id/later", handlers.MoveSessionToLater)
+	sessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
+	sessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
 }

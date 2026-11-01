@@ -45,7 +45,8 @@ func (e *EffectivePolicyEvaluator) evaluateCall(d Descriptor, input json.RawMess
 		HookResult:           policyResultAllowed,
 	}
 
-	if e.inputs.TriageReadOnly && (!isReadOnlyAutoApprovable(d) || d.Source.Kind != SourceBuiltin || strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
+	if e.inputs.TriageReadOnly &&
+		(!isReadOnlyAutoApprovable(d) || d.Source.Kind != SourceBuiltin || strings.HasPrefix(string(d.ID), "compozy__terminal_")) {
 		denyDecision(&decision, ReasonPolicyDenied)
 		return decision, nil
 	}

@@ -3,11 +3,12 @@ package session
 import (
 	"context"
 	"fmt"
-	"github.com/compozy/compozy/internal/acp"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/acp"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -56,13 +57,16 @@ func (m *Manager) applyInstanceCeiling(
 	if m.startPermissions(startSpecPermissions(spec, resolved.Permissions)) == compozyconfig.PermissionModeApproveAll {
 		spec.permissions = compozyconfig.PermissionModeApproveReads
 	}
-	spec.workspace.Skills = slices.DeleteFunc(slices.Clone(spec.workspace.Skills), func(skill workspacepkg.SkillPath) bool {
-		name := strings.TrimSpace(skill.Name)
-		if name == "" && skill.Dir != "" {
-			name = filepath.Base(skill.Dir)
-		}
-		return !slices.Contains(policy.Skills, name)
-	})
+	spec.workspace.Skills = slices.DeleteFunc(
+		slices.Clone(spec.workspace.Skills),
+		func(skill workspacepkg.SkillPath) bool {
+			name := strings.TrimSpace(skill.Name)
+			if name == "" && skill.Dir != "" {
+				name = filepath.Base(skill.Dir)
+			}
+			return !slices.Contains(policy.Skills, name)
+		},
+	)
 	spec.lineage = store.NormalizeSessionLineage(spec.sessionID, spec.lineage)
 	spec.lineage.PermissionPolicy = policy
 	spec.origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, Ceiling: grant}
@@ -78,7 +82,10 @@ func validateInstanceLaunch(spec *sessionStartSpec, before, after acp.StartOpts)
 		return fmt.Errorf("%w: instance hook changed permission mode", ErrValidation)
 	}
 	for _, server := range after.MCPServers {
-		if !slices.ContainsFunc(before.MCPServers, func(allowed compozyconfig.MCPServer) bool { return allowed.Name == server.Name }) {
+		if !slices.ContainsFunc(
+			before.MCPServers,
+			func(allowed compozyconfig.MCPServer) bool { return allowed.Name == server.Name },
+		) {
 			return fmt.Errorf("%w: instance hook added MCP server", ErrValidation)
 		}
 	}

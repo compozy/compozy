@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/hooks"
 	"time"
+
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 type StartOutcome struct {
@@ -34,7 +35,7 @@ func (s *Service) EnsureMain(ctx context.Context, id string) (Instance, error) {
 	if instance.State == "starting" {
 		return Instance{}, ErrStarting
 	}
-	if instance.PauseReason == "manual" {
+	if instance.PauseReason == pauseReasonManual {
 		return Instance{}, ErrPaused
 	}
 	if err := s.admission.ValidateResume(ctx, instance); err != nil {

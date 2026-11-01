@@ -111,7 +111,7 @@ func normalizeRuntimeSpeed(
 }
 
 func normalizeCreateRuntimeOptions(
-	opts CreateOpts,
+	opts *CreateOpts,
 ) (speedpkg.Speed, []acp.SessionConfigOptionSelection, error) {
 	requestedSpeed, err := normalizeRuntimeSpeed(opts.Speed, "")
 	if err != nil {

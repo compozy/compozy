@@ -546,7 +546,7 @@ func TestReparentDuringStartPreparation(t *testing.T) {
 				meta := readMeta(t, source.MetaPath())
 				spec, err = h.manager.prepareResumeStart(t.Context(), &meta)
 			} else {
-				spec, err = h.manager.prepareCreateStart(t.Context(), CreateOpts{
+				spec, err = h.manager.prepareCreateStart(t.Context(), &CreateOpts{
 					AgentName: "coder", Workspace: h.workspaceID,
 					Lineage: &store.SessionLineage{ParentSessionID: source.ID},
 				})

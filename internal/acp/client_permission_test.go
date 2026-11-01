@@ -218,7 +218,7 @@ func TestTriagePolicy(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.Outcome.Cancelled == nil {
+			if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
 				t.Fatalf("write outcome=%+v", response.Outcome)
 			}
 		}
@@ -254,7 +254,8 @@ func TestTriagePolicy(t *testing.T) {
 			t.Fatalf("denial events=%+v", events)
 		}
 		for _, event := range events {
-			if event.RequestIDValue() == "" || event.Type != EventTypePermission || event.Decision != string(decisionRejectOnce) {
+			if event.RequestIDValue() == "" || event.Type != EventTypePermission ||
+				event.Decision != string(decisionRejectOnce) {
 				t.Fatalf("denial=%+v", event)
 			}
 		}

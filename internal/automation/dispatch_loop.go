@@ -112,7 +112,11 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	result, err := d.loopStarter.StartLoop(
 		workspaceaccess.WithOrigin(
 			ctx,
-			workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: req.definitionID(), Ceiling: req.grantCeiling()},
+			workspaceaccess.Origin{
+				Kind:    workspaceaccess.ActorAutomation,
+				ID:      req.definitionID(),
+				Ceiling: req.grantCeiling(),
+			},
 		),
 		LoopStartRequest{
 			ProfileID:       req.profileID(),

@@ -80,14 +80,23 @@ func (m *Manager) heldPermissionSignals(_ context.Context, id string) ([]WorkSig
 	now := m.now().UTC()
 	signals := make([]WorkSignal, 0)
 	for _, interaction := range target.PendingInteractions {
-		if interaction.Kind != store.PendingInteractionKindPermission || interaction.Status != store.PendingInteractionStatusPending {
+		if interaction.Kind != store.PendingInteractionKindPermission ||
+			interaction.Status != store.PendingInteractionStatusPending {
 			continue
 		}
 		since := interaction.CreatedAt
 		if since.IsZero() {
 			since = now
 		}
-		signals = append(signals, WorkSignal{Kind: WorkSignalHeldPermission, Ref: interaction.InteractionID, Since: since, ValidUntil: now.Add(2 * m.supervision.ActivityHeartbeatInterval)})
+		signals = append(
+			signals,
+			WorkSignal{
+				Kind:       WorkSignalHeldPermission,
+				Ref:        interaction.InteractionID,
+				Since:      since,
+				ValidUntil: now.Add(2 * m.supervision.ActivityHeartbeatInterval),
+			},
+		)
 	}
 	return signals, nil
 }

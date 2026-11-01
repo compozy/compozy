@@ -1903,19 +1903,32 @@ func TestProactiveCheckTick(t *testing.T) {
 		t.Parallel()
 		base := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 		source := &fakeTaskSource{}
-		sessions := &fakeSessionSource{sessions: []SessionSnapshot{sessionSnapshot("sess-1", "ws-1", "active", false, nil, base)}}
+		sessions := &fakeSessionSource{
+			sessions: []SessionSnapshot{sessionSnapshot("sess-1", "ws-1", "active", false, nil, base)},
+		}
 		waker := &fakeWaker{}
 		failure := errors.New("check storage unavailable")
 		calls := 0
-		scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)), WithWakeCooldown(0), WithProactiveChecks(func(ctx context.Context) error {
-			if ctx != t.Context() {
-				t.Error("tick lost cycle context")
-			}
-			calls++
-			return failure
-		}))
+		scheduler := newTestScheduler(
+			t,
+			source,
+			sessions,
+			waker,
+			WithClock(clockwork.NewFakeClockAt(base)),
+			WithWakeCooldown(0),
+			WithProactiveChecks(func(ctx context.Context) error {
+				if ctx != t.Context() {
+					t.Error("tick lost cycle context")
+				}
+				calls++
+				return failure
+			}),
+		)
 		for i := range 2 {
-			setPendingRunsForWakeCooldownContract(source, workSnapshot("task-1", fmt.Sprintf("run-%d", i), taskpkg.ScopeWorkspace, "ws-1", nil, base))
+			setPendingRunsForWakeCooldownContract(
+				source,
+				workSnapshot("task-1", fmt.Sprintf("run-%d", i), taskpkg.ScopeWorkspace, "ws-1", nil, base),
+			)
 			result, err := scheduler.RunOnce(t.Context())
 			if !errors.Is(err, failure) {
 				t.Fatalf("cycle error=%v", err)

@@ -138,18 +138,7 @@ func sessionCatalogListOperation() OperationSpec {
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),
 		),
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SessionCatalogResponse{}},
-			{Status: 400, Description: "Invalid session list query or cursor", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: "Paged session catalog or workspace resolver is unavailable",
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
+		Responses: sessionCatalogListResponses(),
 	}
 }
 
@@ -332,5 +321,20 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			{Status: 503, Description: "Session catalog facets are unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
+	}
+}
+
+func sessionCatalogListResponses() []ResponseSpec {
+	return []ResponseSpec{
+		{Status: 200, Description: "OK", Body: contract.SessionCatalogResponse{}},
+		{Status: 400, Description: "Invalid session list query or cursor", Body: contract.ErrorPayload{}},
+		{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+		{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+		{
+			Status:      503,
+			Description: "Paged session catalog or workspace resolver is unavailable",
+			Body:        contract.ErrorPayload{},
+		},
+		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 	}
 }

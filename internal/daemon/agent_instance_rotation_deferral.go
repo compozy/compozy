@@ -8,7 +8,11 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 )
 
-func (r *instanceMainRotator) recordRotationDeferral(ctx context.Context, instance agentinstance.Instance, eligible bool) error {
+func (r *instanceMainRotator) recordRotationDeferral(
+	ctx context.Context,
+	instance agentinstance.Instance,
+	eligible bool,
+) error {
 	if eligible {
 		return r.store.ClearRotationWait(ctx, instance.ID, instance.MainSessionID)
 	}
@@ -17,10 +21,20 @@ func (r *instanceMainRotator) recordRotationDeferral(ctx context.Context, instan
 	if err != nil || now.Sub(since) < time.Hour {
 		return err
 	}
-	payload, err := json.Marshal(map[string]string{"reason": "dependencies_pending", "since": since.UTC().Format(time.RFC3339Nano)})
+	payload, err := json.Marshal(
+		map[string]string{"reason": "dependencies_pending", "since": since.UTC().Format(time.RFC3339Nano)},
+	)
 	if err != nil {
 		return err
 	}
-	_, err = r.reports.AppendReport(ctx, instance.ID, agentinstance.ReportInput{SourceKey: "rotation:deferred:" + instance.ID + ":" + instance.MainSessionID, Kind: "rotation_deferred", Payload: payload})
+	_, err = r.reports.AppendReport(
+		ctx,
+		instance.ID,
+		agentinstance.ReportInput{
+			SourceKey: "rotation:deferred:" + instance.ID + ":" + instance.MainSessionID,
+			Kind:      "rotation_deferred",
+			Payload:   payload,
+		},
+	)
 	return err
 }

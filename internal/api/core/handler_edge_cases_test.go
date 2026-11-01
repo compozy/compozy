@@ -1671,11 +1671,29 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 				}
 			})
 			repo := db.Instances()
-			own, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			own, _, err := repo.AdmitCreate(
+				t.Context(),
+				agentinstance.Instance{
+					AgentName:         "coder",
+					ProfileID:         store.DefaultProfileID,
+					CreatedByKind:     "human",
+					PermissionCeiling: "{}",
+				},
+				10,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			foreign, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "other", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			foreign, _, err := repo.AdmitCreate(
+				t.Context(),
+				agentinstance.Instance{
+					AgentName:         "other",
+					ProfileID:         store.DefaultProfileID,
+					CreatedByKind:     "human",
+					PermissionCeiling: "{}",
+				},
+				10,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1685,18 +1703,33 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			close(events)
 			manager := testutil.StubSessionManager{
 				StatusFn: func(context.Context, string) (*session.Info, error) {
-					return &session.Info{ID: "caller", AgentName: "coder", ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
+					return &session.Info{
+						ID:        "caller",
+						AgentName: "coder",
+						ProfileID: store.DefaultProfileID,
+						State:     session.StateActive,
+					}, nil
 				},
 				SubscribeCatalogFn: func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error) {
 					return events, func() {}, nil
 				},
 			}
 			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: repo, Authority: agentinstance.Authority{Callers: instanceAPIInputs{instance: own}}}
-			fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
-				return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant}, nil
-			}}
-			req := httptest.NewRequestWithContext(t.Context(), "GET", "/sessions/catalog-stream?all_workspaces=true", nil)
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+				Store:     repo,
+				Authority: agentinstance.Authority{Callers: instanceAPIInputs{instance: own}},
+			}
+			fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+				AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+					return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant}, nil
+				},
+			}
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				"GET",
+				"/sessions/catalog-stream?all_workspaces=true",
+				nil,
+			)
 			if !operator {
 				req.Header.Set(agentidentity.HeaderSessionID, "caller")
 				req.Header.Set(agentidentity.HeaderAgent, "coder")
@@ -1704,7 +1737,8 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			response := httptest.NewRecorder()
 			fixture.Engine.ServeHTTP(response, req)
 			body := response.Body.String()
-			if response.Code != 200 || !strings.Contains(body, own.ID) || strings.Contains(body, foreign.ID) != operator {
+			if response.Code != 200 || !strings.Contains(body, own.ID) ||
+				strings.Contains(body, foreign.ID) != operator {
 				t.Fatalf("stream %d: %s", response.Code, body)
 			}
 		})
@@ -2206,14 +2240,25 @@ func TestBaseHandlersHiddenTriage(t *testing.T) {
 		t.Run("Should refuse triage through "+route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()
 			manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
-				return &session.Info{ID: "hidden", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-hidden", Type: session.SessionTypeTriage, State: session.StateActive}, nil
+				return &session.Info{
+					ID:          "hidden",
+					ProfileID:   store.DefaultProfileID,
+					WorkspaceID: "ws-hidden",
+					Type:        session.SessionTypeTriage,
+					State:       session.StateActive,
+				}, nil
 			}, StopFn: func(context.Context, string) error { t.Error("public stop reached triage"); return nil }, SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 				t.Error("public prompt reached triage")
 				return session.SendPromptResult{}, nil
 			}}
-			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
-				return workspacepkg.Workspace{ID: "ws-hidden"}, nil
-			}})
+			fixture := newHandlerFixture(
+				t,
+				manager,
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{ID: "ws-hidden"}, nil
+				}},
+			)
 			fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
 				if _, ok := fixture.Handlers.DispatchSessionPrompt(c); ok {
 					t.Error("triage prompt admitted")

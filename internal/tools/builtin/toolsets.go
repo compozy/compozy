@@ -121,7 +121,11 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDAgentInstanceArchive.String(),
 			toolspkg.ToolIDAgentInstanceEnsureMain.String(),
 			toolspkg.ToolIDAgentInstanceReports.String(),
-			toolspkg.ToolIDAgentActivity.String(), toolspkg.ToolIDAgentInstanceGet.String(), toolspkg.ToolIDAgentInstanceAway.String(), toolspkg.ToolIDAgentInstanceSeen.String(), toolspkg.ToolIDAgentInstanceCheckIns.String(),
+			toolspkg.ToolIDAgentActivity.String(),
+			toolspkg.ToolIDAgentInstanceGet.String(),
+			toolspkg.ToolIDAgentInstanceAway.String(),
+			toolspkg.ToolIDAgentInstanceSeen.String(),
+			toolspkg.ToolIDAgentInstanceCheckIns.String(),
 		},
 	},
 	{

@@ -1607,17 +1607,30 @@ func TestSupervisionHeldPermission(t *testing.T) {
 		target := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
 		installAbsentWorkSources(h.manager)
-		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)})
+		h.manager.SetWorkSignalSources(
+			WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)},
+		)
 		markTurnInFlight(target)
 		target.mu.Lock()
-		target.PendingInteractions = []store.PendingInteraction{{InteractionID: "held", Kind: store.PendingInteractionKindPermission, Status: store.PendingInteractionStatusPending, CreatedAt: now}}
+		target.PendingInteractions = []store.PendingInteraction{
+			{
+				InteractionID: "held",
+				Kind:          store.PendingInteractionKindPermission,
+				Status:        store.PendingInteractionStatusPending,
+				CreatedAt:     now,
+			},
+		}
 		target.mu.Unlock()
 		now = now.Add(11 * time.Hour)
 		if err := h.manager.Supervise(t.Context(), now); err != nil {
 			t.Fatal(err)
 		}
 		info := target.Info()
-		if info.State != StateActive || info.Supervision.QuietWarning != nil || !slices.ContainsFunc(info.Supervision.WorkSignals, func(signal WorkSignal) bool { return signal.Kind == WorkSignalHeldPermission && signal.Ref == "held" }) {
+		if info.State != StateActive || info.Supervision.QuietWarning != nil ||
+			!slices.ContainsFunc(
+				info.Supervision.WorkSignals,
+				func(signal WorkSignal) bool { return signal.Kind == WorkSignalHeldPermission && signal.Ref == "held" },
+			) {
 			t.Fatalf("held supervision = %#v", info.Supervision)
 		}
 		target.mu.Lock()
@@ -1626,7 +1639,10 @@ func TestSupervisionHeldPermission(t *testing.T) {
 		if err := h.manager.Supervise(t.Context(), now); err != nil {
 			t.Fatal(err)
 		}
-		if slices.ContainsFunc(target.Info().Supervision.WorkSignals, func(signal WorkSignal) bool { return signal.Kind == WorkSignalHeldPermission }) {
+		if slices.ContainsFunc(
+			target.Info().Supervision.WorkSignals,
+			func(signal WorkSignal) bool { return signal.Kind == WorkSignalHeldPermission },
+		) {
 			t.Fatal("resolved permission retained a work signal")
 		}
 	})

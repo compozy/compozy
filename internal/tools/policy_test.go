@@ -428,7 +428,11 @@ func TestTriageToolPolicy(t *testing.T) {
 		inputs.TriageReadOnly = true
 		inputs.SystemPermissionMode = PermissionModeApproveAll
 		inputs.ApprovalAvailable = true
-		evaluator, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{read.ID, write.ID, terminal.ID, external.ID})
+		evaluator, err := NewEffectivePolicyEvaluator(
+			inputs,
+			ToolsetCatalog{},
+			[]ToolID{read.ID, write.ID, terminal.ID, external.ID},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

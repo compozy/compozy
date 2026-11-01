@@ -125,7 +125,11 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
-		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: spec.Task.ID, Ceiling: spec.Task.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      spec.Task.ID,
+			Ceiling: spec.Task.GrantCeiling,
+		},
 		ProfileID: spec.Task.ProfileID,
 		AgentName: taskSessionAgentName(spec.Task),
 		Provider:  "",

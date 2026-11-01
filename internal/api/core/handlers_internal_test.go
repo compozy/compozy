@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/listcursor"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/compozy/compozy/internal/listcursor"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
@@ -171,14 +172,25 @@ func TestAgentIdentityGroupedPaging(t *testing.T) {
 		rows := make([]contract.AgentCatalogItemPayload, 0, 1000)
 		for i := range 500 {
 			for _, scope := range []string{"a", "b"} {
-				rows = append(rows, contract.AgentCatalogItemPayload{Agent: contract.AgentPayload{Name: fmt.Sprintf("agent-%03d", i), DefinitionDigest: "digest", WorkspaceID: scope}})
+				rows = append(
+					rows,
+					contract.AgentCatalogItemPayload{
+						Agent: contract.AgentPayload{
+							Name:             fmt.Sprintf("agent-%03d", i),
+							DefinitionDigest: "digest",
+							WorkspaceID:      scope,
+						},
+					},
+				)
 			}
 		}
 		grouped := groupedAgentRows(rows)
 		seen := make(map[string]bool)
 		paging := aggregateAgentPaging{fingerprint: "identity-paging", limit: 50}
 		for {
-			response := contract.AgentCatalogResponse{Agents: append([]contract.AgentCatalogItemPayload(nil), grouped...)}
+			response := contract.AgentCatalogResponse{
+				Agents: append([]contract.AgentCatalogItemPayload(nil), grouped...),
+			}
 			if err := paging.finish(&response); err != nil {
 				t.Fatal(err)
 			}
@@ -195,7 +207,13 @@ func TestAgentIdentityGroupedPaging(t *testing.T) {
 				break
 			}
 			paging.cursor = response.Page.NextCursor
-			after, err := listcursor.Decode[aggregateAgentPosition](paging.cursor, 1, "agents_aggregate", paging.fingerprint, listcursor.DefaultMaxEncodedSize)
+			after, err := listcursor.Decode[aggregateAgentPosition](
+				paging.cursor,
+				1,
+				"agents_aggregate",
+				paging.fingerprint,
+				listcursor.DefaultMaxEncodedSize,
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

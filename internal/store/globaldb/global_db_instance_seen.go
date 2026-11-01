@@ -20,7 +20,10 @@ func (r *InstanceRepo) LastSeen(ctx context.Context, instance, operator string) 
 	if instance == "" || operator == "" {
 		return nil, errors.New("instance and operator are required")
 	}
-	raw, err := r.queries.GetAgentInstanceSeen(ctx, sqlcgen.GetAgentInstanceSeenParams{InstanceID: instance, OperatorID: operator})
+	raw, err := r.queries.GetAgentInstanceSeen(
+		ctx,
+		sqlcgen.GetAgentInstanceSeenParams{InstanceID: instance, OperatorID: operator},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -41,7 +44,14 @@ func (r *InstanceRepo) MarkSeen(ctx context.Context, instance, operator string, 
 	if instance == "" || operator == "" || at.IsZero() {
 		return time.Time{}, errors.New("instance operator and timestamp are required")
 	}
-	raw, err := r.queries.MarkAgentInstanceSeen(ctx, sqlcgen.MarkAgentInstanceSeenParams{InstanceID: instance, OperatorID: operator, LastSeenAt: store.FormatTimestamp(at)})
+	raw, err := r.queries.MarkAgentInstanceSeen(
+		ctx,
+		sqlcgen.MarkAgentInstanceSeenParams{
+			InstanceID: instance,
+			OperatorID: operator,
+			LastSeenAt: store.FormatTimestamp(at),
+		},
+	)
 	if err != nil {
 		return time.Time{}, err
 	}

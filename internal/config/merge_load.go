@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -242,10 +243,7 @@ func (o soulOverlay) Apply(dst *SoulConfig) {
 
 func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
 	if o.TriageModels != nil {
-		dst.TriageModels = make(map[string]string, len(o.TriageModels))
-		for provider, model := range o.TriageModels {
-			dst.TriageModels[provider] = model
-		}
+		dst.TriageModels = maps.Clone(o.TriageModels)
 	}
 	if o.MaxInterval != nil {
 		dst.MaxInterval = *o.MaxInterval

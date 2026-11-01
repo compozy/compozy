@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+
 	"github.com/compozy/compozy/internal/heartbeat"
 
 	"github.com/compozy/compozy/internal/admission"

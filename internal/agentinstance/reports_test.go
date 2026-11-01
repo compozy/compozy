@@ -50,7 +50,12 @@ func (w *reportWriterStub) Publish(_ context.Context, session string, r Report) 
 func TestReportPublisher(t *testing.T) {
 	t.Run("Should continue beyond failed publications and retry them on the next sweep", func(t *testing.T) {
 		t.Parallel()
-		store := &reportStoreStub{rows: []ReportPublication{{Report: Report{ID: "a"}, MainSessionID: "main"}, {Report: Report{ID: "b"}, MainSessionID: "successor"}}}
+		store := &reportStoreStub{
+			rows: []ReportPublication{
+				{Report: Report{ID: "a"}, MainSessionID: "main"},
+				{Report: Report{ID: "b"}, MainSessionID: "successor"},
+			},
+		}
 		writer := &reportWriterStub{fail: "a"}
 		publisher := ReportPublisher{Store: store, Writer: writer, BatchSize: 1}
 		if err := publisher.Sweep(t.Context()); err == nil {

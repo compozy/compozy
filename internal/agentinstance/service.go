@@ -3,9 +3,10 @@ package agentinstance
 import (
 	"context"
 	"errors"
-	"github.com/compozy/compozy/internal/hooks"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -114,7 +115,7 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Instance, bool
 
 func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error) {
 	switch reason {
-	case "manual", "fatigue", "definition_not_stays_on", "definition_missing":
+	case pauseReasonManual, "fatigue", "definition_not_stays_on", "definition_missing":
 	default:
 		return Instance{}, errors.New("agentinstance: invalid pause reason")
 	}

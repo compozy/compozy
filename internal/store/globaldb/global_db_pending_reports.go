@@ -11,7 +11,12 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-func appendPendingInteractionReport(ctx context.Context, exec globalSQLExecutor, interaction store.PendingInteraction, transition store.PendingInteractionTransition) error {
+func appendPendingInteractionReport(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	interaction store.PendingInteraction,
+	transition store.PendingInteractionTransition,
+) error {
 	var input agentinstance.ReportInput
 	var payload any
 	switch {
