@@ -1012,6 +1012,21 @@ func TestCollectDigest(t *testing.T) {
 }
 
 func TestParseTriageReply(t *testing.T) {
+	t.Run("Should honor every supported proposal limit", func(t *testing.T) {
+		t.Parallel()
+		proposals := make([]string, 21)
+		for i := range proposals {
+			proposals[i] = fmt.Sprintf(`{"title":"Proposal %d","body":"Review work","item_keys":[]}`, i)
+		}
+		reply := `{"proposals":[` + strings.Join(proposals, ",") + `]}`
+		for limit := 1; limit <= 20; limit++ {
+			got, err := ParseTriageReply(reply, CheckDigest{}, limit)
+			if err != nil || len(got) != limit {
+				t.Fatalf("limit %d: proposals=%v, error=%v", limit, got, err)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		title   string
