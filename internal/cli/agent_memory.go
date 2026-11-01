@@ -19,9 +19,7 @@ func newAgentMemoryCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command {
-	var input authoredBodyInput
-	var until, expectedDigest string
-	var includeSessions bool
+	var options agentMemoryOptions
 	count := 1
 	use := operation + " <agent>"
 	switch operation {
@@ -64,42 +62,9 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			var body any
-			switch operation {
-			case "add":
-				body = contract.AgentMemoryAddRequest{Text: args[1], Until: until}
-			case "replace":
-				body = contract.AgentMemoryReplaceRequest{Match: args[1], Text: args[2]}
-			case "remove":
-				body = contract.AgentMemoryRemoveRequest{Match: args[1]}
-			case "search":
-				body = contract.AgentMemorySearchRequest{Query: args[1], IncludeSessions: includeSessions}
-			case "rollback":
-				body = contract.AgentMemoryRollbackRequest{Revision: args[1]}
-			case "write", "validate":
-				content, err := readAuthoredBody(cmd, input, operation == "write")
-				if err != nil {
-					return err
-				}
-				if operation == "write" {
-					if !cmd.Flags().Changed("expected-digest") {
-						return errors.New("--expected-digest is required; inspect memory before writing")
-					}
-					body = contract.AgentMemoryWriteRequest{Content: content, ExpectedDigest: expectedDigest}
-				} else {
-					if !cmd.Flags().Changed("file") && !input.stdin {
-						current, err := client.AgentMemory(cmd.Context(), args[0], query, "inspect", nil)
-						if err != nil {
-							return err
-						}
-						var doc contract.AgentMemoryDocument
-						if err := json.Unmarshal(current, &doc); err != nil {
-							return err
-						}
-						content = doc.Content
-					}
-					body = contract.AgentMemoryValidateRequest{Content: content}
-				}
+			body, err := options.requestBody(cmd, client, query, operation, args)
+			if err != nil {
+				return err
 			}
 			result, err := client.AgentMemory(cmd.Context(), args[0], query, operation, body)
 			if err != nil {
@@ -111,14 +76,15 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 	addWorkspaceFlag(cmd)
 	switch operation {
 	case "add":
-		cmd.Flags().StringVar(&until, "until", "", "Optional expiry date (YYYY-MM-DD)")
+		cmd.Flags().StringVar(&options.until, "until", "", "Optional expiry date (YYYY-MM-DD)")
 	case "search":
-		cmd.Flags().BoolVar(&includeSessions, "include-sessions", false, "Include accessible session transcripts")
+		cmd.Flags().
+			BoolVar(&options.includeSessions, "include-sessions", false, "Include accessible session transcripts")
 	case "write", "validate":
-		addAuthoredBodyFlags(cmd, &input)
+		addAuthoredBodyFlags(cmd, &options.input)
 	}
 	if operation == "write" {
-		cmd.Flags().StringVar(&expectedDigest, "expected-digest", "", "Digest returned by inspect")
+		cmd.Flags().StringVar(&options.expectedDigest, "expected-digest", "", "Digest returned by inspect")
 	}
 	return cmd
 }
@@ -171,4 +137,58 @@ func agentMemoryBundle(operation string, raw json.RawMessage) outputBundle {
 		}
 	}
 	return outputBundle{jsonValue: raw, human: human, toon: human}
+}
+
+type agentMemoryOptions struct {
+	input           authoredBodyInput
+	until           string
+	expectedDigest  string
+	includeSessions bool
+}
+
+func (options agentMemoryOptions) requestBody(
+	cmd *cobra.Command,
+	client DaemonClient,
+	query AgentQuery,
+	operation string,
+	args []string,
+) (any, error) {
+	var body any
+	switch operation {
+	case "add":
+		body = contract.AgentMemoryAddRequest{Text: args[1], Until: options.until}
+	case "replace":
+		body = contract.AgentMemoryReplaceRequest{Match: args[1], Text: args[2]}
+	case "remove":
+		body = contract.AgentMemoryRemoveRequest{Match: args[1]}
+	case "search":
+		body = contract.AgentMemorySearchRequest{Query: args[1], IncludeSessions: options.includeSessions}
+	case "rollback":
+		body = contract.AgentMemoryRollbackRequest{Revision: args[1]}
+	case "write", "validate":
+		content, err := readAuthoredBody(cmd, options.input, operation == "write")
+		if err != nil {
+			return nil, err
+		}
+		if operation == "write" {
+			if !cmd.Flags().Changed("expected-digest") {
+				return nil, errors.New("--expected-digest is required; inspect memory before writing")
+			}
+			body = contract.AgentMemoryWriteRequest{Content: content, ExpectedDigest: options.expectedDigest}
+		} else {
+			if !cmd.Flags().Changed("file") && !options.input.stdin {
+				current, err := client.AgentMemory(cmd.Context(), args[0], query, "inspect", nil)
+				if err != nil {
+					return nil, err
+				}
+				var doc contract.AgentMemoryDocument
+				if err := json.Unmarshal(current, &doc); err != nil {
+					return nil, err
+				}
+				content = doc.Content
+			}
+			body = contract.AgentMemoryValidateRequest{Content: content}
+		}
+	}
+	return body, nil
 }
