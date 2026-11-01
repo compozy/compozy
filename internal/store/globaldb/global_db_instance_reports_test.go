@@ -420,8 +420,8 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 					"COMPOZY_B4_CRASH_TRANSITION="+string(encoded),
 				)
 				output, childErr := child.CombinedOutput()
-				var exitErr *exec.ExitError
-				if !errors.As(childErr, &exitErr) || exitErr.ExitCode() != 23 {
+				exitErr, ok := errors.AsType[*exec.ExitError](childErr)
+				if !ok || exitErr.ExitCode() != 23 {
 					t.Fatalf("crash child: %v: %s", childErr, output)
 				}
 				db, err = OpenGlobalDB(t.Context(), path)
@@ -588,11 +588,25 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 			}
 
 			if tc.exit == "live-steer" {
-				_, _, _, err := db.StageAdmittedSessionSteer(ctx, req, store.SessionInputQueueInsert{ID: "live-reports", Delivery: store.SessionInputDeliveryInterruptThenPrompt, SessionID: main, Text: req.AuthoredText, Mode: store.SessionInputQueueModeSteer, TargetTurnID: "turn-live", QueueCap: 10, Now: now})
+				_, _, _, err := db.StageAdmittedSessionSteer(
+					ctx,
+					req,
+					store.SessionInputQueueInsert{
+						ID:           "live-reports",
+						Delivery:     store.SessionInputDeliveryInterruptThenPrompt,
+						SessionID:    main,
+						Text:         req.AuthoredText,
+						Mode:         store.SessionInputQueueModeSteer,
+						TargetTurnID: "turn-live",
+						QueueCap:     10,
+						Now:          now,
+					},
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
-				pending, err := db.InstanceReports().ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+				pending, err := db.InstanceReports().
+					ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
 				if err != nil || len(pending) != 23 {
 					t.Fatalf("steer pending=%d err=%v", len(pending), err)
 				}
@@ -706,10 +720,14 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 				case "steer":
 					_, _, err = db.PromoteSessionInputToSteer(ctx, main, entry.ID, replacement)
 				case "task-cancel":
-					err = db.withTaskMutationTransactionForTest(ctx, "cancel task input", func(tx *taskMutationTxStore) error {
-						_, err := tx.InvalidateForceRunInputs(ctx, main, now)
-						return err
-					})
+					err = db.withTaskMutationTransactionForTest(
+						ctx,
+						"cancel task input",
+						func(tx *taskMutationTxStore) error {
+							_, err := tx.InvalidateForceRunInputs(ctx, main, now)
+							return err
+						},
+					)
 				case "stop":
 					_, err = db.CancelPendingSessionInputs(ctx, main, entry.SessionGeneration+1, now)
 				}

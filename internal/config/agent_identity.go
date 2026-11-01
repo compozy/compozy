@@ -113,18 +113,18 @@ func ValidateAgentAppearance(a map[string]any) error {
 	if !appearanceVersionOne(a["version"]) {
 		return ErrAgentAppearanceInvalid
 	}
-	color, _ := a["color"].(string)
+	color := agentAppearanceString(a["color"])
 	if !agentColorPattern.MatchString(color) {
 		return ErrAgentAppearanceInvalid
 	}
-	icon, _ := a["icon"].(string)
-	emoji, _ := a["emoji"].(string)
+	icon := agentAppearanceString(a["icon"])
+	emoji := agentAppearanceString(a["emoji"])
 	if icon != "" && emoji != "" {
 		return ErrAgentAppearanceInvalid
 	}
 	switch a["avatar"] {
 	case "generated":
-		seed, _ := a["seed"].(string)
+		seed := agentAppearanceString(a["seed"])
 		if strings.TrimSpace(seed) == "" || !appearanceVersionOne(a["generation"]) || icon != "" || emoji != "" {
 			return ErrAgentAppearanceInvalid
 		}
@@ -191,4 +191,11 @@ func appearanceVersionOne(value any) bool {
 	default:
 		return false
 	}
+}
+
+func agentAppearanceString(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return ""
 }

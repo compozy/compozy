@@ -31,16 +31,17 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	catalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
 	})
+	definitions := instanceDefinitions{
+		workspaces: state.workspaceResolver,
+		profiles:   state.profiles,
+		agents:     catalog,
+		sessions:   manager,
+	}
 	admission := &instanceAdmission{
-		definitions: instanceDefinitions{
-			workspaces: state.workspaceResolver,
-			profiles:   state.profiles,
-			agents:     catalog,
-			sessions:   manager,
-		},
-		callers:  repo,
-		sessions: instanceSessionReader{sessions: manager},
-		reach:    instanceWorkspaceReach{policy: state.accessPolicy},
+		definitions: definitions,
+		callers:     repo,
+		sessions:    instanceSessionReader{sessions: manager},
+		reach:       instanceWorkspaceReach{policy: state.accessPolicy},
 	}
 	service, err := agentinstance.NewService(
 		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
@@ -77,7 +78,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
 		FatigueLimit:       state.cfg.Agents.Heartbeat.FatigueLimit,
 		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
-			return admission.definitions.(instanceDefinitions).instancePayload(ctx, instance, repo)
+			return definitions.instancePayload(ctx, instance, repo)
 		},
 		Authority: agentinstance.Authority{Callers: repo},
 	}
