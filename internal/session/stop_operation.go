@@ -172,8 +172,10 @@ func (m *Manager) failStopPreparation(run *sessionStopRun, err error) {
 	close(run.done)
 }
 
+// uncommittedGuardedStop reports a guarded run that failed before committing. A run
+// that settled an earlier recovered stop never commits, but its result stands.
 func (r *sessionStopRun) uncommittedGuardedStop() bool {
-	return r.guard != nil && !r.stopCommitted
+	return r.guard != nil && !r.stopCommitted && r.prepareErr != nil
 }
 
 // notifyCommitted runs the callback at most once. Nil receivers are unguarded stops.

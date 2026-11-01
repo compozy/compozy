@@ -1025,6 +1025,31 @@ func TestStopIfParentStopped(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return a completed guarded settlement to a later stop", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		h.mustStop(t, worker.ID)
+
+		settled := &sessionStopRun{
+			ready:   closedSignalChan(),
+			done:    closedSignalChan(),
+			guard:   h.manager.parentStopGuard,
+			outcome: StopOutcome{FinalState: StateStopped, Verified: true},
+		}
+		h.manager.mu.Lock()
+		h.manager.stopRuns[worker.ID] = settled
+		h.manager.mu.Unlock()
+
+		// Treating the settled run as failed would spin until this context expires.
+		ctx, cancel := context.WithTimeout(testutil.Context(t), time.Second)
+		defer cancel()
+		if err := h.manager.Stop(ctx, worker.ID); err != nil {
+			t.Fatalf("Stop() after a guarded settlement error = %v", err)
+		}
+	})
+
 	t.Run("Should guard a child still starting", func(t *testing.T) {
 		t.Parallel()
 		h := newSpawnReparentHarness(t)
