@@ -909,3 +909,31 @@ func testHomePaths(t *testing.T) compozyconfig.HomePaths {
 	}
 	return homePaths
 }
+
+func TestInstanceReportPublication(t *testing.T) {
+	t.Run("Should publish once across stop and retry without starting a prompt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		report := InstanceReportEvent{ID: "arpt-publication", InstanceID: "ainst-publication", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider unavailable"}`), CreatedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+		first, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
+		if err != nil || first <= 0 {
+			t.Fatalf("publish: %d %v", first, err)
+		}
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		retry, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
+		if err != nil || retry != first {
+			t.Fatalf("retry: %d %v, want %d", retry, err, first)
+		}
+		if _, ok := h.manager.Get(active.ID); ok {
+			t.Fatal("report restarted the session")
+		}
+		report.ID = "arpt-stopped"
+		next, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
+		if err != nil || next <= first {
+			t.Fatalf("stopped publication: %d %v", next, err)
+		}
+	})
+}

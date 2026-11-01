@@ -9,6 +9,145 @@ import (
 	"strings"
 )
 
+// ListResources List desired-state resources on the local operator control plane
+func (c *Client) ListResources(ctx context.Context, params ListResourcesParams) (*ResourcesResponse, error) {
+	path := "/api/resources"
+	query := url.Values{}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.ScopeKind != nil {
+		query.Set("scope_kind", *params.ScopeKind)
+	}
+	if params.ScopeID != nil {
+		query.Set("scope_id", *params.ScopeID)
+	}
+	if params.OwnerKind != nil {
+		query.Set("owner_kind", *params.OwnerKind)
+	}
+	if params.OwnerID != nil {
+		query.Set("owner_id", *params.OwnerID)
+	}
+	if params.SourceKind != nil {
+		query.Set("source_kind", *params.SourceKind)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListResourcesByKindParams carries the path, query, and header parameters.
+type ListResourcesByKindParams struct {
+	Kind       string  `url:"kind"`
+	ScopeKind  *string `url:"scope_kind"`
+	ScopeID    *string `url:"scope_id"`
+	OwnerKind  *string `url:"owner_kind"`
+	OwnerID    *string `url:"owner_id"`
+	SourceKind *string `url:"source_kind"`
+	SourceID   *string `url:"source_id"`
+	Limit      *int    `url:"limit"`
+}
+
+// ListResourcesByKind List one desired-state resource kind on the local operator control plane
+func (c *Client) ListResourcesByKind(ctx context.Context, params ListResourcesByKindParams) (*ResourcesResponse, error) {
+	path := "/api/resources/{kind}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	query := url.Values{}
+	if params.ScopeKind != nil {
+		query.Set("scope_kind", *params.ScopeKind)
+	}
+	if params.ScopeID != nil {
+		query.Set("scope_id", *params.ScopeID)
+	}
+	if params.OwnerKind != nil {
+		query.Set("owner_kind", *params.OwnerKind)
+	}
+	if params.OwnerID != nil {
+		query.Set("owner_id", *params.OwnerID)
+	}
+	if params.SourceKind != nil {
+		query.Set("source_kind", *params.SourceKind)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListRolesParams carries the path, query, and header parameters.
+type ListRolesParams struct {
+	Workspace *string `url:"workspace"`
+}
+
+// ListRoles List effective background role configuration
+func (c *Client) ListRoles(ctx context.Context, params ListRolesParams) (*RolesResponse, error) {
+	path := "/api/roles"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RolesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionClarificationsParams carries the path, query, and header parameters.
+type ListSessionClarificationsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ListSessionClarifications List the live pending clarification for a session
+func (c *Client) ListSessionClarifications(ctx context.Context, params ListSessionClarificationsParams) (*ClarificationsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out ClarificationsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionEventsParams carries the path, query, and header parameters.
+type ListSessionEventsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	Since         *string `url:"since"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Type          *string `url:"type"`
+	AgentName     *string `url:"agent_name"`
+	TurnID        *string `url:"turn_id"`
+	Archive       *string `url:"archive"`
+}
+
 // ListSessionEvents List persisted session events
 func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEventsParams) (*SessionEventsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/events"
@@ -305,53 +444,4 @@ type ListSessionToolsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	AgentName   *string `url:"agent_name"`
-}
-
-// ListSessionTools List session-callable registry tools
-func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionsParams carries the path, query, and header parameters.
-type ListSessionsParams struct {
-	WorkspaceID   *string   `url:"workspace_id"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	IncludeHealth *bool     `url:"include_health"`
-	SkipTotal     *bool     `url:"skip_total"`
-	State         *string   `url:"state"`
-	Type          *string   `url:"type"`
-	Agent         *string   `url:"agent"`
-	Subagents     *string   `url:"subagents"`
-	Children      *string   `url:"children"`
-	Parent        *string   `url:"parent"`
-	Root          *string   `url:"root"`
-	Worktree      *string   `url:"worktree"`
-	Q             *string   `url:"q"`
-	SearchFields  *string   `url:"search_fields"`
-	Resumable     *bool     `url:"resumable"`
-	Attention     *bool     `url:"attention"`
-	BoardColumn   *[]string `url:"board_column"`
-	Badge         *string   `url:"badge"`
-	Archive       *string   `url:"archive"`
-	Later         *string   `url:"later"`
-	Sort          *string   `url:"sort"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

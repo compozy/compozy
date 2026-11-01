@@ -25,6 +25,9 @@ import type {
   AdmitCmdPaletteViewSessionEventData,
   AdmitCmdPaletteViewSessionEventErrors,
   AdmitCmdPaletteViewSessionEventResponses,
+  AdoptAgentInstanceData,
+  AdoptAgentInstanceErrors,
+  AdoptAgentInstanceResponses,
   AdoptWorktreeData,
   AdoptWorktreeErrors,
   AdoptWorktreeResponses,
@@ -49,6 +52,9 @@ import type {
   ApproveTaskData,
   ApproveTaskErrors,
   ApproveTaskResponses,
+  ArchiveAgentInstanceData,
+  ArchiveAgentInstanceErrors,
+  ArchiveAgentInstanceResponses,
   ArchiveProfileData,
   ArchiveProfileErrors,
   ArchiveProfileResponses,
@@ -171,6 +177,9 @@ import type {
   ControlTerminalRecordingResponses,
   CreateAgentData,
   CreateAgentErrors,
+  CreateAgentInstanceData,
+  CreateAgentInstanceErrors,
+  CreateAgentInstanceResponses,
   CreateAgentResponses,
   CreateAppTokenData,
   CreateAppTokenErrors,
@@ -343,6 +352,9 @@ import type {
   EnqueueTaskRunData,
   EnqueueTaskRunErrors,
   EnqueueTaskRunResponses,
+  EnsureAgentInstanceMainData,
+  EnsureAgentInstanceMainErrors,
+  EnsureAgentInstanceMainResponses,
   ExchangeSettingsMCPAuthData,
   ExchangeSettingsMCPAuthErrors,
   ExchangeSettingsMCPAuthResponses,
@@ -399,6 +411,9 @@ import type {
   GetAgentHeartbeatStatusData,
   GetAgentHeartbeatStatusErrors,
   GetAgentHeartbeatStatusResponses,
+  GetAgentInstanceData,
+  GetAgentInstanceErrors,
+  GetAgentInstanceResponses,
   GetAgentMeData,
   GetAgentMeErrors,
   GetAgentMeResponses,
@@ -738,6 +753,12 @@ import type {
   ListAgentHeartbeatHistoryData,
   ListAgentHeartbeatHistoryErrors,
   ListAgentHeartbeatHistoryResponses,
+  ListAgentInstanceReportsData,
+  ListAgentInstanceReportsErrors,
+  ListAgentInstanceReportsResponses,
+  ListAgentInstancesData,
+  ListAgentInstancesErrors,
+  ListAgentInstancesResponses,
   ListAgentsAggregateData,
   ListAgentsAggregateErrors,
   ListAgentsAggregateResponses,
@@ -1002,6 +1023,9 @@ import type {
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
+  PauseAgentInstanceData,
+  PauseAgentInstanceErrors,
+  PauseAgentInstanceResponses,
   PauseLoopNodeData,
   PauseLoopNodeErrors,
   PauseLoopNodeResponses,
@@ -1230,6 +1254,9 @@ import type {
   RespondLoopRequestData,
   RespondLoopRequestErrors,
   RespondLoopRequestResponses,
+  ResumeAgentInstanceData,
+  ResumeAgentInstanceErrors,
+  ResumeAgentInstanceResponses,
   ResumeLoopNodeData,
   ResumeLoopNodeErrors,
   ResumeLoopNodeResponses,
@@ -1522,294 +1549,192 @@ class HeyApiRegistry<T> {
   }
 }
 
-export class agent extends HeyApiClient {
-  /**
-   * Return the bounded calling-agent situation context
-   */
-  public getAgentContext<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentContextData, ThrowOnError>
-  ): RequestResult<GetAgentContextResponses, GetAgentContextErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetAgentContextResponses,
-      GetAgentContextErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/context",
-      ...options,
-    });
-  }
-
-  /**
-   * Read resolved coordinator config for the calling agent workspace
-   */
-  public getAgentCoordinatorConfig<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentCoordinatorConfigData, ThrowOnError>
-  ): RequestResult<
-    GetAgentCoordinatorConfigResponses,
-    GetAgentCoordinatorConfigErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetAgentCoordinatorConfigResponses,
-      GetAgentCoordinatorConfigErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/coordinator/config",
-      ...options,
-    });
-  }
-
-  /**
-   * Resolve the calling agent session
-   */
-  public getAgentMe<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentMeData, ThrowOnError>
-  ): RequestResult<GetAgentMeResponses, GetAgentMeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetAgentMeResponses,
-      GetAgentMeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/me",
-      ...options,
-    });
-  }
-
-  /**
-   * Notify live operator clients from the calling agent
-   */
-  public notifyOperator<ThrowOnError extends boolean = true>(
-    options: Options<NotifyOperatorData, ThrowOnError>
-  ): RequestResult<NotifyOperatorResponses, NotifyOperatorErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      NotifyOperatorResponses,
-      NotifyOperatorErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/notify",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Inspect the resolved Soul read model for the calling agent
-   */
-  public getAgentSoul<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentSoulData, ThrowOnError>
-  ): RequestResult<GetAgentSoulResponses, GetAgentSoulErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetAgentSoulResponses,
-      GetAgentSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/soul",
-      ...options,
-    });
-  }
-
-  /**
-   * Validate a proposed Soul body or the calling agent's current Soul
-   */
-  public validateAgentSoul<ThrowOnError extends boolean = true>(
-    options: Options<ValidateAgentSoulData, ThrowOnError>
-  ): RequestResult<ValidateAgentSoulResponses, ValidateAgentSoulErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ValidateAgentSoulResponses,
-      ValidateAgentSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/soul/validate",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Spawn a narrowed child session for the calling agent
-   */
-  public spawnAgentSession<ThrowOnError extends boolean = true>(
-    options: Options<SpawnAgentSessionData, ThrowOnError>
-  ): RequestResult<SpawnAgentSessionResponses, SpawnAgentSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      SpawnAgentSessionResponses,
-      SpawnAgentSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/spawn",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Atomically claim the next matching task run for the calling agent
-   */
-  public claimNextAgentTask<ThrowOnError extends boolean = true>(
-    options: Options<ClaimNextAgentTaskData, ThrowOnError>
-  ): RequestResult<ClaimNextAgentTaskResponses, ClaimNextAgentTaskErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ClaimNextAgentTaskResponses,
-      ClaimNextAgentTaskErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/tasks/claim-next",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Complete a claimed task run for the calling agent
-   */
-  public completeAgentTaskRun<ThrowOnError extends boolean = true>(
-    options: Options<CompleteAgentTaskRunData, ThrowOnError>
-  ): RequestResult<
-    CompleteAgentTaskRunResponses,
-    CompleteAgentTaskRunErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      CompleteAgentTaskRunResponses,
-      CompleteAgentTaskRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/tasks/{run_id}/complete",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Fail a claimed task run for the calling agent
-   */
-  public failAgentTaskRun<ThrowOnError extends boolean = true>(
-    options: Options<FailAgentTaskRunData, ThrowOnError>
-  ): RequestResult<FailAgentTaskRunResponses, FailAgentTaskRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      FailAgentTaskRunResponses,
-      FailAgentTaskRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/tasks/{run_id}/fail",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Extend a claimed task-run lease for the calling agent
-   */
-  public heartbeatAgentTaskRun<ThrowOnError extends boolean = true>(
-    options: Options<HeartbeatAgentTaskRunData, ThrowOnError>
-  ): RequestResult<
-    HeartbeatAgentTaskRunResponses,
-    HeartbeatAgentTaskRunErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      HeartbeatAgentTaskRunResponses,
-      HeartbeatAgentTaskRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/tasks/{run_id}/heartbeat",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Release a claimed task run for the calling agent
-   */
-  public releaseAgentTaskRun<ThrowOnError extends boolean = true>(
-    options: Options<ReleaseAgentTaskRunData, ThrowOnError>
-  ): RequestResult<ReleaseAgentTaskRunResponses, ReleaseAgentTaskRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ReleaseAgentTaskRunResponses,
-      ReleaseAgentTaskRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/tasks/{run_id}/release",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Start a claimed task run under the calling agent's lease
-   */
-  public startAgentTaskRun<ThrowOnError extends boolean = true>(
-    options: Options<StartAgentTaskRunData, ThrowOnError>
-  ): RequestResult<StartAgentTaskRunResponses, StartAgentTaskRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      StartAgentTaskRunResponses,
-      StartAgentTaskRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agent/tasks/{run_id}/start",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-}
-
 export class agents extends HeyApiClient {
+  /**
+   * List agent instances
+   */
+  public listAgentInstances<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentInstancesData, ThrowOnError>
+  ): RequestResult<ListAgentInstancesResponses, ListAgentInstancesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAgentInstancesResponses,
+      ListAgentInstancesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a stays-on agent instance
+   */
+  public createAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<CreateAgentInstanceData, ThrowOnError>
+  ): RequestResult<CreateAgentInstanceResponses, CreateAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateAgentInstanceResponses,
+      CreateAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Adopt a root session as an instance
+   */
+  public adoptAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<AdoptAgentInstanceData, ThrowOnError>
+  ): RequestResult<AdoptAgentInstanceResponses, AdoptAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AdoptAgentInstanceResponses,
+      AdoptAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/adopt",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Archive an agent instance
+   */
+  public archiveAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveAgentInstanceData, ThrowOnError>
+  ): RequestResult<
+    ArchiveAgentInstanceResponses,
+    ArchiveAgentInstanceErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      ArchiveAgentInstanceResponses,
+      ArchiveAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Get an agent instance
+   */
+  public getAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentInstanceData, ThrowOnError>
+  ): RequestResult<GetAgentInstanceResponses, GetAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentInstanceResponses,
+      GetAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Ensure the main session exists
+   */
+  public ensureAgentInstanceMain<ThrowOnError extends boolean = true>(
+    options: Options<EnsureAgentInstanceMainData, ThrowOnError>
+  ): RequestResult<
+    EnsureAgentInstanceMainResponses,
+    EnsureAgentInstanceMainErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      EnsureAgentInstanceMainResponses,
+      EnsureAgentInstanceMainErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/ensure-main",
+      ...options,
+    });
+  }
+
+  /**
+   * Pause an agent instance
+   */
+  public pauseAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<PauseAgentInstanceData, ThrowOnError>
+  ): RequestResult<PauseAgentInstanceResponses, PauseAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PauseAgentInstanceResponses,
+      PauseAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/pause",
+      ...options,
+    });
+  }
+
+  /**
+   * List durable instance reports
+   */
+  public listAgentInstanceReports<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentInstanceReportsData, ThrowOnError>
+  ): RequestResult<
+    ListAgentInstanceReportsResponses,
+    ListAgentInstanceReportsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentInstanceReportsResponses,
+      ListAgentInstanceReportsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/reports",
+      ...options,
+    });
+  }
+
+  /**
+   * Resume an agent instance
+   */
+  public resumeAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<ResumeAgentInstanceData, ThrowOnError>
+  ): RequestResult<ResumeAgentInstanceResponses, ResumeAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ResumeAgentInstanceResponses,
+      ResumeAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/resume",
+      ...options,
+    });
+  }
+
   /**
    * List all readable agent definitions, optionally resolved for a workspace
    */
@@ -2286,6 +2211,293 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agents/{name}/soul/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
+export class agent extends HeyApiClient {
+  /**
+   * Return the bounded calling-agent situation context
+   */
+  public getAgentContext<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentContextData, ThrowOnError>
+  ): RequestResult<GetAgentContextResponses, GetAgentContextErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentContextResponses,
+      GetAgentContextErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/context",
+      ...options,
+    });
+  }
+
+  /**
+   * Read resolved coordinator config for the calling agent workspace
+   */
+  public getAgentCoordinatorConfig<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentCoordinatorConfigData, ThrowOnError>
+  ): RequestResult<
+    GetAgentCoordinatorConfigResponses,
+    GetAgentCoordinatorConfigErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentCoordinatorConfigResponses,
+      GetAgentCoordinatorConfigErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/coordinator/config",
+      ...options,
+    });
+  }
+
+  /**
+   * Resolve the calling agent session
+   */
+  public getAgentMe<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentMeData, ThrowOnError>
+  ): RequestResult<GetAgentMeResponses, GetAgentMeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentMeResponses,
+      GetAgentMeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/me",
+      ...options,
+    });
+  }
+
+  /**
+   * Notify live operator clients from the calling agent
+   */
+  public notifyOperator<ThrowOnError extends boolean = true>(
+    options: Options<NotifyOperatorData, ThrowOnError>
+  ): RequestResult<NotifyOperatorResponses, NotifyOperatorErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      NotifyOperatorResponses,
+      NotifyOperatorErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/notify",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Inspect the resolved Soul read model for the calling agent
+   */
+  public getAgentSoul<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentSoulData, ThrowOnError>
+  ): RequestResult<GetAgentSoulResponses, GetAgentSoulErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentSoulResponses,
+      GetAgentSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/soul",
+      ...options,
+    });
+  }
+
+  /**
+   * Validate a proposed Soul body or the calling agent's current Soul
+   */
+  public validateAgentSoul<ThrowOnError extends boolean = true>(
+    options: Options<ValidateAgentSoulData, ThrowOnError>
+  ): RequestResult<ValidateAgentSoulResponses, ValidateAgentSoulErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ValidateAgentSoulResponses,
+      ValidateAgentSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/soul/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Spawn a narrowed child session for the calling agent
+   */
+  public spawnAgentSession<ThrowOnError extends boolean = true>(
+    options: Options<SpawnAgentSessionData, ThrowOnError>
+  ): RequestResult<SpawnAgentSessionResponses, SpawnAgentSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      SpawnAgentSessionResponses,
+      SpawnAgentSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/spawn",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Atomically claim the next matching task run for the calling agent
+   */
+  public claimNextAgentTask<ThrowOnError extends boolean = true>(
+    options: Options<ClaimNextAgentTaskData, ThrowOnError>
+  ): RequestResult<ClaimNextAgentTaskResponses, ClaimNextAgentTaskErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ClaimNextAgentTaskResponses,
+      ClaimNextAgentTaskErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/tasks/claim-next",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Complete a claimed task run for the calling agent
+   */
+  public completeAgentTaskRun<ThrowOnError extends boolean = true>(
+    options: Options<CompleteAgentTaskRunData, ThrowOnError>
+  ): RequestResult<
+    CompleteAgentTaskRunResponses,
+    CompleteAgentTaskRunErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CompleteAgentTaskRunResponses,
+      CompleteAgentTaskRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/tasks/{run_id}/complete",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Fail a claimed task run for the calling agent
+   */
+  public failAgentTaskRun<ThrowOnError extends boolean = true>(
+    options: Options<FailAgentTaskRunData, ThrowOnError>
+  ): RequestResult<FailAgentTaskRunResponses, FailAgentTaskRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      FailAgentTaskRunResponses,
+      FailAgentTaskRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/tasks/{run_id}/fail",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Extend a claimed task-run lease for the calling agent
+   */
+  public heartbeatAgentTaskRun<ThrowOnError extends boolean = true>(
+    options: Options<HeartbeatAgentTaskRunData, ThrowOnError>
+  ): RequestResult<
+    HeartbeatAgentTaskRunResponses,
+    HeartbeatAgentTaskRunErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      HeartbeatAgentTaskRunResponses,
+      HeartbeatAgentTaskRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/tasks/{run_id}/heartbeat",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Release a claimed task run for the calling agent
+   */
+  public releaseAgentTaskRun<ThrowOnError extends boolean = true>(
+    options: Options<ReleaseAgentTaskRunData, ThrowOnError>
+  ): RequestResult<ReleaseAgentTaskRunResponses, ReleaseAgentTaskRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ReleaseAgentTaskRunResponses,
+      ReleaseAgentTaskRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/tasks/{run_id}/release",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Start a claimed task run under the calling agent's lease
+   */
+  public startAgentTaskRun<ThrowOnError extends boolean = true>(
+    options: Options<StartAgentTaskRunData, ThrowOnError>
+  ): RequestResult<StartAgentTaskRunResponses, StartAgentTaskRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      StartAgentTaskRunResponses,
+      StartAgentTaskRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent/tasks/{run_id}/start",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -12197,14 +12409,14 @@ export class Compozy extends HeyApiClient {
     Compozy.__registry.set(this, args?.key);
   }
 
-  private _agent?: agent;
-  get agent(): agent {
-    return (this._agent ??= new agent({ client: this.client }));
-  }
-
   private _agents?: agents;
   get agents(): agents {
     return (this._agents ??= new agents({ client: this.client }));
+  }
+
+  private _agent?: agent;
+  get agent(): agent {
+    return (this._agent ??= new agent({ client: this.client }));
   }
 
   private _appTokens?: appTokens;

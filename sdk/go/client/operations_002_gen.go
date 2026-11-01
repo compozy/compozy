@@ -9,6 +9,52 @@ import (
 	"strings"
 )
 
+// ArchiveTaskParams carries the path, query, and header parameters.
+type ArchiveTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ArchiveTask Archive one task inbox item
+func (c *Client) ArchiveTask(ctx context.Context, params ArchiveTaskParams) (*TaskTriageStateResponse, error) {
+	path := "/api/tasks/{id}/triage/archive"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskTriageStateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ArchiveWorkspaceParams carries the path, query, and header parameters.
+type ArchiveWorkspaceParams struct {
+	ID string `url:"id"`
+}
+
+// ArchiveWorkspace archive a workspace without removing its data
+func (c *Client) ArchiveWorkspace(ctx context.Context, params ArchiveWorkspaceParams) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}/archive"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AttachSessionParams carries the path, query, and header parameters.
+type AttachSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
 // AttachSession Attach to a resumable live session
 func (c *Client) AttachSession(ctx context.Context, params AttachSessionParams, body AttachSessionRequest) (*SessionAttachResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attach"
@@ -397,52 +443,4 @@ func (c *Client) CancelSubagent(ctx context.Context, params CancelSubagentParams
 type CancelTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// CancelTask Cancel one task tree
-func (c *Client) CancelTask(ctx context.Context, params CancelTaskParams, body CancelTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/cancel"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelTaskRunParams carries the path, query, and header parameters.
-type CancelTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// CancelTaskRun Cancel one task run
-func (c *Client) CancelTaskRun(ctx context.Context, params CancelTaskRunParams, body CancelTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/cancel"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelWorktreeCreateParams carries the path, query, and header parameters.
-type CancelWorktreeCreateParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
 }

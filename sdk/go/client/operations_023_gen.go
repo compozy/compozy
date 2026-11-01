@@ -28,6 +28,30 @@ func (c *Client) PatchLoop(ctx context.Context, params PatchLoopParams, body Pat
 	return &out, nil
 }
 
+// PauseAgentInstanceParams carries the path, query, and header parameters.
+type PauseAgentInstanceParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// PauseAgentInstance Pause an agent instance
+func (c *Client) PauseAgentInstance(ctx context.Context, params PauseAgentInstanceParams) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/{id}/pause"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PauseLoopNodeParams carries the path, query, and header parameters.
 type PauseLoopNodeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -416,32 +440,6 @@ func (c *Client) PutAgentSoul(ctx context.Context, params PutAgentSoulParams, bo
 		path += "?" + query.Encode()
 	}
 	var out AgentSoulMutationResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutLoopAnnotationsParams carries the path, query, and header parameters.
-type PutLoopAnnotationsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-}
-
-// PutLoopAnnotations Replace Loop editor annotations
-func (c *Client) PutLoopAnnotations(ctx context.Context, params PutLoopAnnotationsParams, body PutLoopAnnotationsRequest) (*LoopAnnotationsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/annotations"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopAnnotationsResponse
 	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// PutLoopAnnotationsParams carries the path, query, and header parameters.
+type PutLoopAnnotationsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
+// PutLoopAnnotations Replace Loop editor annotations
+func (c *Client) PutLoopAnnotations(ctx context.Context, params PutLoopAnnotationsParams, body PutLoopAnnotationsRequest) (*LoopAnnotationsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/annotations"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopAnnotationsResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PutLoopConfigParams carries the path, query, and header parameters.
 type PutLoopConfigParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -417,26 +443,4 @@ func (c *Client) ReadToolArtifact(ctx context.Context, params ReadToolArtifactPa
 type RecordCmdPaletteUsageParams struct {
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// RecordCmdPaletteUsage Record command palette usage
-func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
-	path := "/api/cmd-palette/usage"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// RecoverTaskParams carries the path, query, and header parameters.
-type RecoverTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

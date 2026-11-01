@@ -42,6 +42,7 @@ type defaultsOverlay struct {
 }
 
 type agentsOverlay struct {
+	StaysOn   staysOnOverlay   `toml:"stays_on"`
 	Soul      soulOverlay      `toml:"soul"`
 	Heartbeat heartbeatOverlay `toml:"heartbeat"`
 }

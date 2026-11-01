@@ -56,6 +56,7 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
+	AgentInstances      func() *core.AgentInstanceAPI
 	WorkspaceAccess     workspaceaccess.Policy
 	Subagents           func() sessionpkg.SubagentService
 	Logger              *slog.Logger

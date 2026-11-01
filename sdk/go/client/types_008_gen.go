@@ -7,6 +7,85 @@ import (
 	"time"
 )
 
+// HeartbeatWakeStatePayload is a daemon API value.
+type HeartbeatWakeStatePayload struct {
+	WorkspaceID      string              `json:"workspace_id,omitempty"`
+	AgentName        string              `json:"agent_name,omitempty"`
+	SessionID        string              `json:"session_id"`
+	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
+	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
+	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
+	CoalescedCount   int                 `json:"coalesced_count"`
+	LastResult       HeartbeatWakeResult `json:"last_result"`
+	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
+	UpdatedAt        time.Time           `json:"updated_at"`
+}
+
+// HookCatalogPayload is a daemon API value.
+type HookCatalogPayload struct {
+	Order        int               `json:"order"`
+	Name         string            `json:"name"`
+	Event        string            `json:"event"`
+	Source       string            `json:"source"`
+	SkillSource  string            `json:"skill_source,omitempty"`
+	Mode         string            `json:"mode"`
+	Required     bool              `json:"required"`
+	Priority     int               `json:"priority"`
+	TimeoutMS    int64             `json:"timeout_ms,omitzero"`
+	ExecutorKind string            `json:"executor_kind,omitempty"`
+	Matcher      HookMatcher       `json:"matcher"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+}
+
+// HookCatalogResponse is a daemon API value.
+type HookCatalogResponse struct {
+	Hooks []HookCatalogPayload `json:"hooks"`
+}
+
+// HookEvent is a daemon API value.
+type HookEvent string
+
+// HookEventPayload is a daemon API value.
+type HookEventPayload struct {
+	Event         string `json:"event"`
+	Family        string `json:"family"`
+	SyncEligible  bool   `json:"sync_eligible"`
+	PayloadSchema string `json:"payload_schema"`
+	PatchSchema   string `json:"patch_schema,omitempty"`
+}
+
+// HookEventsResponse is a daemon API value.
+type HookEventsResponse struct {
+	Events []HookEventPayload `json:"events"`
+}
+
+// HookExecutorKind is a daemon API value.
+type HookExecutorKind string
+
+// HookMatcher is a daemon API value.
+type HookMatcher struct {
+	AgentName        string           `json:"agent_name,omitempty"`
+	AgentType        string           `json:"agent_type,omitempty"`
+	WorkspaceID      string           `json:"workspace_id,omitempty"`
+	WorktreeID       string           `json:"worktree_id,omitempty"`
+	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
+	SessionType      string           `json:"session_type,omitempty"`
+	InputClass       string           `json:"input_class,omitempty"`
+	ACPEventType     string           `json:"acp_event_type,omitempty"`
+	TurnID           string           `json:"turn_id,omitempty"`
+	ToolID           string           `json:"tool_id,omitempty"`
+	ToolName         string           `json:"tool_name,omitempty"`
+	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
+	DecisionClass    string           `json:"decision_class,omitempty"`
+	MessageRole      string           `json:"message_role,omitempty"`
+	MessageDeltaType string           `json:"message_delta_type,omitempty"`
+	Trigger          string           `json:"compaction_trigger,omitempty"`
+	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
+}
+
+// HookMode is a daemon API value.
+type HookMode string
+
 // HookRunPayload is a daemon API value.
 type HookRunPayload struct {
 	HookName      string          `json:"hook_name"`
@@ -361,86 +440,4 @@ type LoopDefinitionPayload struct {
 	Definition         LoopDefinitionDocument       `json:"definition"`
 	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitzero"`
 	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitzero"`
-}
-
-// LoopDiffEndpoint is a daemon API value.
-type LoopDiffEndpoint struct {
-	RunID      string        `json:"run_id"`
-	Generation int64         `json:"generation"`
-	Status     LoopRunStatus `json:"status"`
-	AsOf       bool          `json:"as_of,omitzero"`
-}
-
-// LoopDiffInputRow is a daemon API value.
-type LoopDiffInputRow struct {
-	Key     string        `json:"key"`
-	Base    LoopDiffValue `json:"base"`
-	Against LoopDiffValue `json:"against"`
-}
-
-// LoopDiffNodeRow is a daemon API value.
-type LoopDiffNodeRow struct {
-	NodeID    string        `json:"node_id"`
-	ItemIndex int           `json:"item_index,omitzero"`
-	Change    string        `json:"change"`
-	Base      LoopDiffValue `json:"base,omitzero"`
-	Against   LoopDiffValue `json:"against,omitzero"`
-	Cause     string        `json:"cause,omitempty"`
-}
-
-// LoopDiffResponse is a daemon API value.
-type LoopDiffResponse struct {
-	Kind                 string               `json:"kind"`
-	Base                 LoopDiffEndpoint     `json:"base"`
-	Against              LoopDiffEndpoint     `json:"against"`
-	Inputs               []LoopDiffInputRow   `json:"inputs"`
-	Nodes                []LoopDiffNodeRow    `json:"nodes"`
-	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
-	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
-}
-
-// LoopDiffTerminalRow is a daemon API value.
-type LoopDiffTerminalRow struct {
-	Base    LoopRunStatus `json:"base"`
-	Against LoopRunStatus `json:"against"`
-}
-
-// LoopDiffValue is a daemon API value.
-type LoopDiffValue struct {
-	Inline json.RawMessage `json:"inline,omitempty"`
-	Size   int             `json:"size,omitzero"`
-	Hash   string          `json:"hash,omitempty"`
-}
-
-// LoopEffectSpec is a daemon API value.
-type LoopEffectSpec struct {
-	Emit *LoopEmitSpec  `json:"emit,omitzero"`
-	Tool string         `json:"tool,omitempty"`
-	With map[string]any `json:"with,omitempty"`
-}
-
-// LoopEffectiveConfig is a daemon API value.
-type LoopEffectiveConfig struct {
-	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
-	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
-	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
-	IterationCap       int                   `json:"iteration_cap"`
-	BudgetTokens       int                   `json:"budget_tokens"`
-	BudgetWallSec      int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	NoProgressWindow   int                   `json:"no_progress_window"`
-	FanOutWidth        int                   `json:"fan_out_width"`
-	GateMaxRevisions   int                   `json:"gate_max_revisions"`
-	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
-	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
-	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
-	Environment        LoopEnvironment       `json:"environment"`
-	RequestExpireAfter string                `json:"request_expire_after"`
-	Sources            map[string]string     `json:"sources,omitempty"`
-}
-
-// LoopEmitSpec is a daemon API value.
-type LoopEmitSpec struct {
-	Kind    string         `json:"kind"`
-	Payload map[string]any `json:"payload,omitempty"`
 }

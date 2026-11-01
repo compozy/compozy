@@ -1237,6 +1237,14 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDAgentInstanceArchive, risk: toolspkg.RiskMutating, destructive: true},
+		{id: toolspkg.ToolIDAgentInstanceCreate, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceEnsureMain, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstancePause, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceReports, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceResume, risk: toolspkg.RiskMutating},
+
 		{id: toolspkg.ToolIDProviderUsageList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDProviderUsageRefresh, risk: toolspkg.RiskMutating, openWorld: true},
 		{id: toolspkg.ToolIDSubagentCapabilities, risk: toolspkg.RiskRead, readOnly: true},
@@ -3116,6 +3124,13 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if want := []toolspkg.ToolID{
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
+			toolspkg.ToolIDAgentInstanceArchive,
+			toolspkg.ToolIDAgentInstanceCreate,
+			toolspkg.ToolIDAgentInstanceEnsureMain,
+			toolspkg.ToolIDAgentInstanceList,
+			toolspkg.ToolIDAgentInstancePause,
+			toolspkg.ToolIDAgentInstanceReports,
+			toolspkg.ToolIDAgentInstanceResume,
 			toolspkg.ToolIDSessionHealth,
 		}; !slices.Equal(authoredContext, want) {
 			t.Fatalf("authored context expansion = %#v, want %#v", authoredContext, want)

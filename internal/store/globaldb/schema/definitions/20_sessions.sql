@@ -119,6 +119,7 @@ CREATE TABLE session_health (
 			human_ingress INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
+            instance_id TEXT,
  branch TEXT NOT NULL DEFAULT '',
  effective_workspace_access TEXT NOT NULL DEFAULT '',
 		id             TEXT PRIMARY KEY,

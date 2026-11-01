@@ -38,6 +38,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Agent: DefaultAgentName,
 		},
 		Agents: AgentsConfig{
+			StaysOn:   StaysOnConfig{MaxActiveInstances: 10},
 			Soul:      DefaultSoulConfig(),
 			Heartbeat: DefaultHeartbeatConfig(),
 		},

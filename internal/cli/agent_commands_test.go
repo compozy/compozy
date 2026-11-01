@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1092,6 +1094,55 @@ func TestAgentIdentityFlags(t *testing.T) {
 		if p.DisplayName == nil || *p.DisplayName != "Triage Lead" || p.Kind != "stays_on" ||
 			p.Appearance["avatar"] != "emoji" {
 			t.Fatalf("identity flags: %#v", p)
+		}
+	})
+}
+
+func TestAgentInstanceCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should create a global instance through the HTTP client", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/api/agent-instances" {
+				t.Errorf("request: %s %s", r.Method, r.URL.Path)
+				w.WriteHeader(404)
+				return
+			}
+			var request contract.AgentInstanceCreateRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+				w.WriteHeader(400)
+				return
+			}
+			if request.Agent != "triage" || request.Workspace != "@user" {
+				t.Errorf("request: %#v", request)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(201)
+			if _, err := io.WriteString(w, `{"instance":{"id":"ainst-test","agent_name":"triage","state":"active","main_session_id":"sess-test"}}`); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		target, err := url.Parse(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+			return server.Client().Transport.RoundTrip(r)
+		})}}
+		deps := newWorkspaceTestDeps(t, client)
+		stdout, _, err := executeRootCommand(t, deps, "agent", "instance", "create", "triage", "--global", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var response contract.AgentInstanceResponse
+		if err := json.Unmarshal([]byte(stdout), &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Instance.ID != "ainst-test" || response.Instance.MainSessionID != "sess-test" {
+			t.Fatalf("response: %#v", response)
 		}
 	})
 }

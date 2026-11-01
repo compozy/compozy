@@ -174,6 +174,28 @@ func (c *Client) AdmitCmdPaletteViewSessionEvent(ctx context.Context, params Adm
 	return &out, nil
 }
 
+// AdoptAgentInstanceParams carries the path, query, and header parameters.
+type AdoptAgentInstanceParams struct {
+	Profile *string `url:"profile"`
+}
+
+// AdoptAgentInstance Adopt a root session as an instance
+func (c *Client) AdoptAgentInstance(ctx context.Context, params AdoptAgentInstanceParams, body AgentInstanceAdoptRequest) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/adopt"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AdoptWorktreeParams carries the path, query, and header parameters.
 type AdoptWorktreeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -352,6 +374,26 @@ func (c *Client) ApproveTask(ctx context.Context, params ApproveTaskParams, body
 	return &out, nil
 }
 
+// ArchiveAgentInstanceParams carries the path, query, and header parameters.
+type ArchiveAgentInstanceParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ArchiveAgentInstance Archive an agent instance
+func (c *Client) ArchiveAgentInstance(ctx context.Context, params ArchiveAgentInstanceParams) error {
+	path := "/api/agent-instances/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // ArchiveProfileParams carries the path, query, and header parameters.
 type ArchiveProfileParams struct {
 	Name string `url:"name"`
@@ -400,50 +442,4 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ArchiveTaskParams carries the path, query, and header parameters.
-type ArchiveTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ArchiveTask Archive one task inbox item
-func (c *Client) ArchiveTask(ctx context.Context, params ArchiveTaskParams) (*TaskTriageStateResponse, error) {
-	path := "/api/tasks/{id}/triage/archive"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskTriageStateResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ArchiveWorkspaceParams carries the path, query, and header parameters.
-type ArchiveWorkspaceParams struct {
-	ID string `url:"id"`
-}
-
-// ArchiveWorkspace archive a workspace without removing its data
-func (c *Client) ArchiveWorkspace(ctx context.Context, params ArchiveWorkspaceParams) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/{id}/archive"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AttachSessionParams carries the path, query, and header parameters.
-type AttachSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

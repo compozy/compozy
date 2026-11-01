@@ -94,6 +94,7 @@ type Server struct {
 	heartbeatPurger       core.HeartbeatHistoryPurger
 	heartbeatStatus       core.HeartbeatStatusService
 	heartbeatWake         core.HeartbeatWakeService
+	agentInstances        *core.AgentInstanceAPI
 	sessionHealth         core.SessionHealthReader
 	wakeEvents            core.HeartbeatWakeEventReader
 	skillsRegistry        core.SkillsRegistry
@@ -359,4 +360,8 @@ func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
 	return func(server *Server) {
 		server.wakeEvents = reader
 	}
+}
+
+func WithAgentInstances(api *core.AgentInstanceAPI) Option {
+	return func(server *Server) { server.agentInstances = api }
 }

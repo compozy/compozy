@@ -187,6 +187,63 @@ export type AgentIdentityPayload = {
   session_id: string;
 };
 
+export type AgentInstanceAdoptRequest = {
+  agent: string;
+  session_id: string;
+};
+
+export type AgentInstanceCreateRequest = {
+  agent: string;
+  workspace: string;
+};
+
+export type AgentInstanceListResponse = {
+  instances: Array<AgentInstancePayload>;
+  next_cursor: string;
+};
+
+export type AgentInstancePayload = {
+  agent_name: string;
+  created_at: string;
+  id: string;
+  main_session_id: string;
+  pause_reason: string;
+  profile_id: string;
+  state: string;
+  updated_at: string;
+  workspace_id: string;
+};
+
+export type AgentInstanceProposal = {
+  body: string;
+  item_keys: Array<string>;
+  title: string;
+};
+
+export type AgentInstanceReportPayload = {
+  cause?: string;
+  created_at: string;
+  detail?: string;
+  expired_by?: string;
+  id: string;
+  kind: string;
+  proposals?: Array<AgentInstanceProposal>;
+  reason?: string;
+  session_id?: string;
+  since?: string;
+  state: string;
+  tool?: string;
+};
+
+export type AgentInstanceReportsResponse = {
+  next_cursor: string;
+  reports: Array<AgentInstanceReportPayload>;
+};
+
+export type AgentInstanceResponse = {
+  instance: AgentInstancePayload;
+};
+
 export type AgentLimitsPayload = {
   can_spawn_children: boolean;
   context_section_limit: number;
@@ -12346,6 +12403,579 @@ export type ValueWritable =
   | {
       vault_ref: string;
     };
+
+export type ListAgentInstancesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Workspace reference
+     */
+    workspace?: string;
+    /**
+     * Include all workspaces
+     */
+    all_workspaces?: string;
+    /**
+     * Agent name
+     */
+    agent?: string;
+    /**
+     * Instance state
+     */
+    state?: string;
+    /**
+     * Pagination cursor
+     */
+    cursor?: string;
+    /**
+     * Page size
+     */
+    limit?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances";
+};
+
+export type ListAgentInstancesErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentInstancesError = ListAgentInstancesErrors[keyof ListAgentInstancesErrors];
+
+export type ListAgentInstancesResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceListResponse;
+};
+
+export type ListAgentInstancesResponse =
+  ListAgentInstancesResponses[keyof ListAgentInstancesResponses];
+
+export type CreateAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceCreateRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances";
+};
+
+export type CreateAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type CreateAgentInstanceError = CreateAgentInstanceErrors[keyof CreateAgentInstanceErrors];
+
+export type CreateAgentInstanceResponses = {
+  /**
+   * Existing instance
+   */
+  200: AgentInstanceResponse;
+  /**
+   * Created
+   */
+  201: AgentInstanceResponse;
+};
+
+export type CreateAgentInstanceResponse =
+  CreateAgentInstanceResponses[keyof CreateAgentInstanceResponses];
+
+export type AdoptAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceAdoptRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/adopt";
+};
+
+export type AdoptAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type AdoptAgentInstanceError = AdoptAgentInstanceErrors[keyof AdoptAgentInstanceErrors];
+
+export type AdoptAgentInstanceResponses = {
+  /**
+   * Created
+   */
+  201: AgentInstanceResponse;
+};
+
+export type AdoptAgentInstanceResponse =
+  AdoptAgentInstanceResponses[keyof AdoptAgentInstanceResponses];
+
+export type ArchiveAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}";
+};
+
+export type ArchiveAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ArchiveAgentInstanceError =
+  ArchiveAgentInstanceErrors[keyof ArchiveAgentInstanceErrors];
+
+export type ArchiveAgentInstanceResponses = {
+  /**
+   * Archived
+   */
+  204: void;
+};
+
+export type ArchiveAgentInstanceResponse =
+  ArchiveAgentInstanceResponses[keyof ArchiveAgentInstanceResponses];
+
+export type GetAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}";
+};
+
+export type GetAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentInstanceError = GetAgentInstanceErrors[keyof GetAgentInstanceErrors];
+
+export type GetAgentInstanceResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type GetAgentInstanceResponse = GetAgentInstanceResponses[keyof GetAgentInstanceResponses];
+
+export type EnsureAgentInstanceMainData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/ensure-main";
+};
+
+export type EnsureAgentInstanceMainErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type EnsureAgentInstanceMainError =
+  EnsureAgentInstanceMainErrors[keyof EnsureAgentInstanceMainErrors];
+
+export type EnsureAgentInstanceMainResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type EnsureAgentInstanceMainResponse =
+  EnsureAgentInstanceMainResponses[keyof EnsureAgentInstanceMainResponses];
+
+export type PauseAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/pause";
+};
+
+export type PauseAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type PauseAgentInstanceError = PauseAgentInstanceErrors[keyof PauseAgentInstanceErrors];
+
+export type PauseAgentInstanceResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type PauseAgentInstanceResponse =
+  PauseAgentInstanceResponses[keyof PauseAgentInstanceResponses];
+
+export type ListAgentInstanceReportsData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Filter by pending, reserved, delivered, or indeterminate
+     */
+    state?: string;
+    /**
+     * Pagination cursor
+     */
+    cursor?: string;
+    /**
+     * Page size
+     */
+    limit?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/reports";
+};
+
+export type ListAgentInstanceReportsErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentInstanceReportsError =
+  ListAgentInstanceReportsErrors[keyof ListAgentInstanceReportsErrors];
+
+export type ListAgentInstanceReportsResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceReportsResponse;
+};
+
+export type ListAgentInstanceReportsResponse =
+  ListAgentInstanceReportsResponses[keyof ListAgentInstanceReportsResponses];
+
+export type ResumeAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/resume";
+};
+
+export type ResumeAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ResumeAgentInstanceError = ResumeAgentInstanceErrors[keyof ResumeAgentInstanceErrors];
+
+export type ResumeAgentInstanceResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type ResumeAgentInstanceResponse =
+  ResumeAgentInstanceResponses[keyof ResumeAgentInstanceResponses];
 
 export type GetAgentContextData = {
   body?: never;

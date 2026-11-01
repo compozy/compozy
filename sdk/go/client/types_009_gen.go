@@ -7,6 +7,88 @@ import (
 	"time"
 )
 
+// LoopDiffEndpoint is a daemon API value.
+type LoopDiffEndpoint struct {
+	RunID      string        `json:"run_id"`
+	Generation int64         `json:"generation"`
+	Status     LoopRunStatus `json:"status"`
+	AsOf       bool          `json:"as_of,omitzero"`
+}
+
+// LoopDiffInputRow is a daemon API value.
+type LoopDiffInputRow struct {
+	Key     string        `json:"key"`
+	Base    LoopDiffValue `json:"base"`
+	Against LoopDiffValue `json:"against"`
+}
+
+// LoopDiffNodeRow is a daemon API value.
+type LoopDiffNodeRow struct {
+	NodeID    string        `json:"node_id"`
+	ItemIndex int           `json:"item_index,omitzero"`
+	Change    string        `json:"change"`
+	Base      LoopDiffValue `json:"base,omitzero"`
+	Against   LoopDiffValue `json:"against,omitzero"`
+	Cause     string        `json:"cause,omitempty"`
+}
+
+// LoopDiffResponse is a daemon API value.
+type LoopDiffResponse struct {
+	Kind                 string               `json:"kind"`
+	Base                 LoopDiffEndpoint     `json:"base"`
+	Against              LoopDiffEndpoint     `json:"against"`
+	Inputs               []LoopDiffInputRow   `json:"inputs"`
+	Nodes                []LoopDiffNodeRow    `json:"nodes"`
+	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
+	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
+}
+
+// LoopDiffTerminalRow is a daemon API value.
+type LoopDiffTerminalRow struct {
+	Base    LoopRunStatus `json:"base"`
+	Against LoopRunStatus `json:"against"`
+}
+
+// LoopDiffValue is a daemon API value.
+type LoopDiffValue struct {
+	Inline json.RawMessage `json:"inline,omitempty"`
+	Size   int             `json:"size,omitzero"`
+	Hash   string          `json:"hash,omitempty"`
+}
+
+// LoopEffectSpec is a daemon API value.
+type LoopEffectSpec struct {
+	Emit *LoopEmitSpec  `json:"emit,omitzero"`
+	Tool string         `json:"tool,omitempty"`
+	With map[string]any `json:"with,omitempty"`
+}
+
+// LoopEffectiveConfig is a daemon API value.
+type LoopEffectiveConfig struct {
+	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
+	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
+	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
+	IterationCap       int                   `json:"iteration_cap"`
+	BudgetTokens       int                   `json:"budget_tokens"`
+	BudgetWallSec      int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	NoProgressWindow   int                   `json:"no_progress_window"`
+	FanOutWidth        int                   `json:"fan_out_width"`
+	GateMaxRevisions   int                   `json:"gate_max_revisions"`
+	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
+	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
+	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
+	Environment        LoopEnvironment       `json:"environment"`
+	RequestExpireAfter string                `json:"request_expire_after"`
+	Sources            map[string]string     `json:"sources,omitempty"`
+}
+
+// LoopEmitSpec is a daemon API value.
+type LoopEmitSpec struct {
+	Kind    string         `json:"kind"`
+	Payload map[string]any `json:"payload,omitempty"`
+}
+
 // LoopEnvironment is a daemon API value.
 type LoopEnvironment struct {
 	Mode        LoopEnvironmentMode `json:"mode"`
@@ -351,99 +433,4 @@ type LoopNodeResumeRequest struct {
 	Mode      string          `json:"mode"`
 	ItemIndex *int            `json:"item_index,omitzero"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
-}
-
-// LoopNodeWaitPayload is a daemon API value.
-type LoopNodeWaitPayload struct {
-	LoopRunID         string          `json:"loop_run_id"`
-	Generation        int             `json:"generation"`
-	NodeID            string          `json:"node_id"`
-	ItemIndex         int             `json:"item_index"`
-	Kind              string          `json:"kind"`
-	ResumeAt          *time.Time      `json:"resume_at,omitempty"`
-	NextEscalationAt  *time.Time      `json:"next_escalation_at,omitempty"`
-	EscalationCursor  int             `json:"escalation_cursor"`
-	ClaimState        string          `json:"claim_state"`
-	ClaimedByKind     string          `json:"claimed_by_kind,omitempty"`
-	ClaimedByID       string          `json:"claimed_by_id,omitempty"`
-	ClaimedAt         *time.Time      `json:"claimed_at,omitempty"`
-	AdmissionFailures int             `json:"admission_failures"`
-	Expect            json.RawMessage `json:"expect,omitempty"`
-	IssuedEpoch       int64           `json:"issued_epoch"`
-	CreatedAt         time.Time       `json:"created_at"`
-	AgeSeconds        int64           `json:"age_seconds"`
-}
-
-// LoopPlanNodePreview is a daemon API value.
-type LoopPlanNodePreview struct {
-	ID        string        `json:"id"`
-	Class     LoopNodeClass `json:"class"`
-	Kind      string        `json:"kind"`
-	DependsOn []string      `json:"depends_on,omitempty"`
-}
-
-// LoopPlanPayload is a daemon API value.
-type LoopPlanPayload struct {
-	LoopName             string                     `json:"loop_name"`
-	ResolvedInputs       map[string]any             `json:"resolved_inputs"`
-	InputOrigins         map[string]LoopInputOrigin `json:"input_origins"`
-	Generation           int                        `json:"generation"`
-	Nodes                []LoopPlanNodePreview      `json:"nodes"`
-	Contract             LoopContract               `json:"contract"`
-	MaterializedContract LoopContract               `json:"materialized_contract"`
-	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
-}
-
-// LoopProvenance is a daemon API value.
-type LoopProvenance struct {
-	RunID      string             `json:"run_id"`
-	LoopName   string             `json:"loop_name,omitempty"`
-	Role       LoopProvenanceRole `json:"role"`
-	Generation *int               `json:"generation,omitempty"`
-	NodeID     string             `json:"node_id,omitempty"`
-	ItemIndex  *int               `json:"item_index,omitempty"`
-}
-
-// LoopProvenanceRole is a daemon API value.
-type LoopProvenanceRole string
-
-const (
-	LoopProvenanceRoleCoordinator LoopProvenanceRole = "coordinator"
-	LoopProvenanceRoleCell        LoopProvenanceRole = "cell"
-)
-
-// LoopReattemptStrategy is a daemon API value.
-type LoopReattemptStrategy string
-
-// LoopRequestAggregates is a daemon API value.
-type LoopRequestAggregates struct {
-	Pending int `json:"pending"`
-}
-
-// LoopRequestPayload is a daemon API value.
-type LoopRequestPayload struct {
-	WorkspaceID      string          `json:"workspace_id,omitempty"`
-	ProfileID        string          `json:"profile_id"`
-	LoopRunID        string          `json:"loop_run_id"`
-	LoopName         string          `json:"loop_name,omitempty"`
-	Generation       int             `json:"generation"`
-	NodeID           string          `json:"node_id"`
-	ItemIndex        int             `json:"item_index"`
-	Kind             string          `json:"kind"`
-	State            string          `json:"state"`
-	Prompt           string          `json:"prompt"`
-	Context          json.RawMessage `json:"context"`
-	Expect           json.RawMessage `json:"expect,omitempty"`
-	EditSchema       json.RawMessage `json:"edit_schema,omitempty"`
-	RespondSchema    json.RawMessage `json:"respond_schema,omitempty"`
-	ProposedPreview  json.RawMessage `json:"proposed_preview,omitempty"`
-	Decisions        []string        `json:"decisions"`
-	Agents           string          `json:"agents"`
-	AnsweredDecision string          `json:"answered_decision,omitempty"`
-	ActorKind        string          `json:"actor_kind,omitempty"`
-	ActorID          string          `json:"actor_id,omitempty"`
-	OpenedAt         time.Time       `json:"opened_at"`
-	AnsweredAt       *time.Time      `json:"answered_at,omitempty"`
-	ResolvedAt       *time.Time      `json:"resolved_at,omitempty"`
-	ExpiresAt        *time.Time      `json:"expires_at,omitempty"`
 }

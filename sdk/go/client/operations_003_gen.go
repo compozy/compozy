@@ -10,6 +10,54 @@ import (
 	"strings"
 )
 
+// CancelTask Cancel one task tree
+func (c *Client) CancelTask(ctx context.Context, params CancelTaskParams, body CancelTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/cancel"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelTaskRunParams carries the path, query, and header parameters.
+type CancelTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// CancelTaskRun Cancel one task run
+func (c *Client) CancelTaskRun(ctx context.Context, params CancelTaskRunParams, body CancelTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/cancel"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelWorktreeCreateParams carries the path, query, and header parameters.
+type CancelWorktreeCreateParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
 // CancelWorktreeCreate Cancel a pending worktree creation
 func (c *Client) CancelWorktreeCreate(ctx context.Context, params CancelWorktreeCreateParams) error {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/cancel"
@@ -359,6 +407,28 @@ func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body
 	return &out, nil
 }
 
+// CreateAgentInstanceParams carries the path, query, and header parameters.
+type CreateAgentInstanceParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateAgentInstance Create a stays-on agent instance
+func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CreateAppToken Create an app token and reveal its bearer secret once Experimental: pin the exact SDK version.
 func (c *Client) CreateAppToken(ctx context.Context, body CreateAppTokenRequest) (*AppTokenIssuedResponse, error) {
 	path := "/api/app-tokens"
@@ -372,73 +442,4 @@ func (c *Client) CreateAppToken(ctx context.Context, body CreateAppTokenRequest)
 // CreateAutomationJobParams carries the path, query, and header parameters.
 type CreateAutomationJobParams struct {
 	Profile *string `url:"profile"`
-}
-
-// CreateAutomationJob Create an automation job
-func (c *Client) CreateAutomationJob(ctx context.Context, params CreateAutomationJobParams, body CreateJobRequest) (*JobResponse, error) {
-	path := "/api/automation/jobs"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAutomationTriggerParams carries the path, query, and header parameters.
-type CreateAutomationTriggerParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateAutomationTrigger Create an automation trigger
-func (c *Client) CreateAutomationTrigger(ctx context.Context, params CreateAutomationTriggerParams, body CreateTriggerRequest) (*TriggerResponse, error) {
-	path := "/api/automation/triggers"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TriggerResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateChildTaskParams carries the path, query, and header parameters.
-type CreateChildTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// CreateChildTask Create one child task
-func (c *Client) CreateChildTask(ctx context.Context, params CreateChildTaskParams, body CreateTaskChildRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/children"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateLoopParams carries the path, query, and header parameters.
-type CreateLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

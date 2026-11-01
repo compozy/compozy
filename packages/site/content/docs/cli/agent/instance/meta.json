@@ -1,0 +1,15 @@
+{
+    "title": "Instance",
+    "pages": [
+        "index",
+        "adopt",
+        "archive",
+        "create",
+        "ensure-main",
+        "list",
+        "pause",
+        "reports",
+        "resume",
+        "show"
+    ]
+}

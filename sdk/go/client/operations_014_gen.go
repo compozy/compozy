@@ -11,6 +11,62 @@ import (
 	"strings"
 )
 
+// GetToolset Inspect one named toolset expansion
+func (c *Client) GetToolset(ctx context.Context, params GetToolsetParams) (*ToolsetResponse, error) {
+	path := "/api/toolsets/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsetResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetVaultSecretMetadataParams carries the path, query, and header parameters.
+type GetVaultSecretMetadataParams struct {
+	Ref string `url:"ref"`
+}
+
+// GetVaultSecretMetadata Read redacted vault secret metadata
+func (c *Client) GetVaultSecretMetadata(ctx context.Context, params GetVaultSecretMetadataParams) (*VaultSecretResponse, error) {
+	path := "/api/vault/secrets/metadata"
+	query := url.Values{}
+	query.Set("ref", params.Ref)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out VaultSecretResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetWindowManagerSnapshotParams carries the path, query, and header parameters.
+type GetWindowManagerSnapshotParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetWindowManagerSnapshot Read one workspace window-manager snapshot
 func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowManagerSnapshotParams) (*WindowManagerSnapshot, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager"
@@ -372,54 +428,4 @@ type ListAgentCatalogParams struct {
 	Cursor    *string `url:"cursor"`
 	Limit     *int    `url:"limit"`
 	Profile   *string `url:"profile"`
-}
-
-// ListAgentCatalog List a filtered agent fleet with exact session metrics
-func (c *Client) ListAgentCatalog(ctx context.Context, params ListAgentCatalogParams) (*AgentCatalogResponse, error) {
-	path := "/api/agents/catalog"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Group != nil {
-		query.Set("group", *params.Group)
-	}
-	if params.Name != nil {
-		query.Set("name", *params.Name)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Category != nil {
-		query.Set("category", *params.Category)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentHeartbeatHistoryParams carries the path, query, and header parameters.
-type ListAgentHeartbeatHistoryParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
 }

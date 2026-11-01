@@ -117,6 +117,10 @@ func (s *sessionStartSpec) materializeRootDelegationTools(
 	return nil
 }
 
+func (m *Manager) DelegationTools(resolved compozyconfig.ResolvedAgent) ([]string, error) {
+	return concreteDelegationTools(resolved, m.toolsetCatalog, m.toolUniverse)
+}
+
 func concreteDelegationTools(
 	resolved compozyconfig.ResolvedAgent,
 	catalog toolspkg.ToolsetCatalog,

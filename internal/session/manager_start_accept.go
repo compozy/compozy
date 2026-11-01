@@ -54,6 +54,9 @@ func (m *Manager) acceptSessionStart(
 	if err := m.refreshStartLineage(acceptCtx, spec); err != nil {
 		return nil, err
 	}
+	if err := m.applyInstanceCeiling(acceptCtx, spec, &runtime.agent); err != nil {
+		return nil, err
+	}
 	// Refresh reads persisted lineage on resume; materialize afterwards so legacy
 	// derived sessions are repaired without treating computed grants as create input.
 	if err := spec.materializeRootDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
@@ -142,6 +145,9 @@ func (m *Manager) resolveAcceptedStartRuntime(
 // here: its catalog row is committed later together with its derive receipt, so
 // nothing publishes the child before that transaction.
 func (m *Manager) persistAcceptedStart(ctx context.Context, spec *sessionStartSpec, session *Session) error {
+	if spec.instanceID != "" {
+		return m.persistInstanceAcceptedStart(ctx, spec.instanceID, session)
+	}
 	if spec.deriveReceipt != nil {
 		return m.persistSessionMetadataOnly(session)
 	}

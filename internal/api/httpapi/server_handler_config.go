@@ -70,6 +70,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		heartbeatPurger:       s.heartbeatPurger,
 		heartbeatStatus:       s.heartbeatStatus,
 		heartbeatWake:         s.heartbeatWake,
+		agentInstances:        s.agentInstances,
 		sessionHealth:         s.sessionHealth,
 		wakeEvents:            s.wakeEvents,
 		skillsRegistry:        s.skillsRegistry,

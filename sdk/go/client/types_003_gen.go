@@ -7,6 +7,75 @@ import (
 	"time"
 )
 
+// AutomationSuggestionPayload is a daemon API value.
+type AutomationSuggestionPayload struct {
+	ID          string           `json:"id"`
+	ProfileID   string           `json:"profile_id"`
+	WorkspaceID string           `json:"workspace_id"`
+	Source      SuggestionSource `json:"source"`
+	DedupKey    string           `json:"dedup_key"`
+	Status      SuggestionStatus `json:"status"`
+	Payload     JobPayload       `json:"payload"`
+	CreatedAt   time.Time        `json:"created_at"`
+	ResolvedAt  *time.Time       `json:"resolved_at,omitempty"`
+}
+
+// AutomationSuggestionResponse is a daemon API value.
+type AutomationSuggestionResponse struct {
+	Suggestion AutomationSuggestionPayload `json:"suggestion"`
+}
+
+// AutomationSuggestionsResponse is a daemon API value.
+type AutomationSuggestionsResponse struct {
+	Suggestions []AutomationSuggestionPayload `json:"suggestions"`
+}
+
+// AutonomyMatcher is a daemon API value.
+type AutonomyMatcher struct {
+	TaskID               string `json:"task_id,omitempty"`
+	RunID                string `json:"run_id,omitempty"`
+	LoopRunID            string `json:"loop_run_id,omitempty"`
+	LoopName             string `json:"loop_name,omitempty"`
+	NodeID               string `json:"node_id,omitempty"`
+	WorkflowID           string `json:"workflow_id,omitempty"`
+	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
+	ParentSessionID      string `json:"parent_session_id,omitempty"`
+	RootSessionID        string `json:"root_session_id,omitempty"`
+	ChildSessionID       string `json:"child_session_id,omitempty"`
+	SpawnRole            string `json:"spawn_role,omitempty"`
+	ReleaseReason        string `json:"release_reason,omitempty"`
+}
+
+// Axis is a daemon API value.
+type Axis string
+
+// BackendKind is a daemon API value.
+type BackendKind string
+
+// BackoffSpec is a daemon API value.
+type BackoffSpec struct {
+	Base string `json:"base,omitempty"`
+	Max  string `json:"max,omitempty"`
+}
+
+// Badge is a daemon API value.
+type Badge string
+
+// BindSessionWorktreeRequest is a daemon API value.
+type BindSessionWorktreeRequest struct {
+	Worktree           string  `json:"worktree"`
+	ExpectedWorktreeID *string `json:"expected_worktree_id,omitempty"`
+}
+
+// BindingsConfig is a daemon API value.
+type BindingsConfig struct {
+	TopCenter    string `json:"top_center"`
+	BottomCenter string `json:"bottom_center"`
+}
+
+// BlockKind is a daemon API value.
+type BlockKind string
+
 // BlockedReason is a daemon API value.
 type BlockedReason struct {
 	Source           BlockedSource `json:"source"`
@@ -364,75 +433,3 @@ type CompleteTaskRunRequest struct {
 
 // ConcurrencyPolicy is a daemon API value.
 type ConcurrencyPolicy string
-
-// ConfigApplyRecordPayload is a daemon API value.
-type ConfigApplyRecordPayload struct {
-	ID                string                  `json:"id"`
-	DesiredConfigHash string                  `json:"desired_config_hash"`
-	ActiveConfigHash  string                  `json:"active_config_hash"`
-	Generation        int64                   `json:"generation"`
-	Actor             string                  `json:"actor"`
-	WriteTarget       SettingsWriteTargetKind `json:"write_target,omitempty"`
-	WritePath         string                  `json:"write_path,omitempty"`
-	DiffClass         SettingsApplyLifecycle  `json:"diff_class"`
-	Status            ConfigApplyStatus       `json:"status"`
-	Lifecycle         SettingsApplyLifecycle  `json:"lifecycle"`
-	NextAction        SettingsApplyNextAction `json:"next_action"`
-	Diagnostics       []DiagnosticItem        `json:"diagnostics,omitempty"`
-	CreatedAt         time.Time               `json:"created_at"`
-	AppliedAt         *time.Time              `json:"applied_at,omitempty"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-}
-
-// ConfigApplyRecordsResponse is a daemon API value.
-type ConfigApplyRecordsResponse struct {
-	Entries []ConfigApplyRecordPayload `json:"entries"`
-}
-
-// ConfigApplyStatus is a daemon API value.
-type ConfigApplyStatus string
-
-// ConfigLayerDiagnosticPayload is a daemon API value.
-type ConfigLayerDiagnosticPayload struct {
-	Code    string `json:"code"`
-	Layer   string `json:"layer"`
-	Profile string `json:"profile"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-// ConfigRuntimeStatusPayload is a daemon API value.
-type ConfigRuntimeStatusPayload struct {
-	Status          string                         `json:"status"`
-	Validated       bool                           `json:"validated"`
-	ValidationError string                         `json:"validation_error,omitempty"`
-	HomeDir         string                         `json:"home_dir,omitempty"`
-	ConfigFile      string                         `json:"config_file,omitempty"`
-	RestartRequired bool                           `json:"restart_required"`
-	ApplyState      string                         `json:"apply_state"`
-	Diagnostics     []ConfigLayerDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// Confirmation is a daemon API value.
-type Confirmation struct {
-	Title   string `json:"title"`
-	Body    string `json:"body,omitempty"`
-	Confirm string `json:"confirm"`
-}
-
-// ContextBundle is a daemon API value.
-type ContextBundle struct {
-	Task               Reference           `json:"task"`
-	LatestEventSeq     int64               `json:"latest_event_seq"`
-	CurrentRun         *RunSummary         `json:"current_run,omitzero"`
-	PriorAttempts      []RunSummary        `json:"prior_attempts"`
-	RecentEvents       []TimelineItem      `json:"recent_events"`
-	HandoffSummary     string              `json:"handoff_summary,omitempty"`
-	Limits             RuntimeLimits       `json:"limits"`
-	ExecutionProfile   *ExecutionProfile   `json:"execution_profile,omitzero"`
-	ReviewContinuation *ReviewContinuation `json:"review_continuation,omitzero"`
-	ReviewHistory      []RunReviewSummary  `json:"review_history"`
-}
-
-// ContextKey is a daemon API value.
-type ContextKey string

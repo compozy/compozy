@@ -8,6 +8,7 @@ var userScopeMigrationInventory = []string{
 	"agent_heartbeat_snapshots",
 	"agent_heartbeat_wake_events",
 	"agent_heartbeat_wake_state",
+	"agent_instances",
 	"agent_soul_revisions",
 	"agent_soul_snapshots",
 	"worktrees",

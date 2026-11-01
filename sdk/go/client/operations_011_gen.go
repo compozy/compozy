@@ -9,6 +9,86 @@ import (
 	"strings"
 )
 
+// GetProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) GetProviderUsage(ctx context.Context, params GetProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage/providers/{provider_id}"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetResourceParams carries the path, query, and header parameters.
+type GetResourceParams struct {
+	Kind string `url:"kind"`
+	ID   string `url:"id"`
+}
+
+// GetResource Read one desired-state resource on the local operator control plane
+func (c *Client) GetResource(ctx context.Context, params GetResourceParams) (*ResourceResponse, error) {
+	path := "/api/resources/{kind}/{id}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out ResourceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetRoleParams carries the path, query, and header parameters.
+type GetRoleParams struct {
+	Role      string  `url:"role"`
+	Workspace *string `url:"workspace"`
+}
+
+// GetRole Get effective background role configuration
+func (c *Client) GetRole(ctx context.Context, params GetRoleParams) (*RoleStatusResponse, error) {
+	path := "/api/roles/{role}"
+	path = strings.ReplaceAll(path, "{role}", url.PathEscape(params.Role))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RoleStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetRuntimeIdentity Get the bounded runtime identity
+func (c *Client) GetRuntimeIdentity(ctx context.Context) (*RuntimeIdentityPayload, error) {
+	path := "/api/status/identity"
+	var out RuntimeIdentityPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetScheduler Get scheduler pause state and queue pressure
+func (c *Client) GetScheduler(ctx context.Context) (*SchedulerStatusResponse, error) {
+	path := "/api/scheduler"
+	var out SchedulerStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSchedulerBacklogParams carries the path, query, and header parameters.
 type GetSchedulerBacklogParams struct {
 	Limit         *int    `url:"limit"`
@@ -361,82 +441,6 @@ func (c *Client) GetSessionUsageTurns(ctx context.Context, params GetSessionUsag
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	var out SessionUsageTurnsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsAttentionParams carries the path, query, and header parameters.
-type GetSettingsAttentionParams struct {
-	Scope   *string `url:"scope"`
-	Profile *string `url:"profile"`
-}
-
-// GetSettingsAttention Read the operator attention settings section
-func (c *Client) GetSettingsAttention(ctx context.Context, params GetSettingsAttentionParams) (*SettingsAttentionResponse, error) {
-	path := "/api/settings/attention"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsAttentionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsAutomation Read the automation settings section
-func (c *Client) GetSettingsAutomation(ctx context.Context) (*SettingsAutomationResponse, error) {
-	path := "/api/settings/automation"
-	var out SettingsAutomationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsCmdPaletteParams carries the path, query, and header parameters.
-type GetSettingsCmdPaletteParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// GetSettingsCmdPalette Read command-palette settings
-func (c *Client) GetSettingsCmdPalette(ctx context.Context, params GetSettingsCmdPaletteParams) (*SettingsCmdPaletteResponse, error) {
-	path := "/api/settings/cmd-palette"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsCmdPaletteResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsGeneral Read the general settings section
-func (c *Client) GetSettingsGeneral(ctx context.Context) (*SettingsGeneralResponse, error) {
-	path := "/api/settings/general"
-	var out SettingsGeneralResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

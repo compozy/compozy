@@ -9,6 +9,22 @@ import (
 	"strings"
 )
 
+// RenameGatewayDevice Rename one paired gateway device
+func (c *Client) RenameGatewayDevice(ctx context.Context, params RenameGatewayDeviceParams, body GatewayDeviceRenameRequest) (*GatewayDevicePayload, error) {
+	path := "/api/gateway/devices/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out GatewayDevicePayload
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameProfileParams carries the path, query, and header parameters.
+type RenameProfileParams struct {
+	Name string `url:"name"`
+}
+
 // RenameProfile Rename a profile
 func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
 	path := "/api/profiles/{name}/rename"
@@ -410,34 +426,6 @@ func (c *Client) ResolveWorkspace(ctx context.Context, body ResolveWorkspaceRequ
 
 // RespondLoopRequestParams carries the path, query, and header parameters.
 type RespondLoopRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RespondLoopRequest Answer one Loop human request
-func (c *Client) RespondLoopRequest(ctx context.Context, params RespondLoopRequestParams, body RespondLoopRequest) (*RespondLoopRequestResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/respond"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RespondLoopRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResumeLoopNodeParams carries the path, query, and header parameters.
-type ResumeLoopNodeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
 	NodeID      string  `url:"node_id"`

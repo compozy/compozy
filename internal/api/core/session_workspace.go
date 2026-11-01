@@ -243,6 +243,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, session.ErrSubagentArchiveFollows),
 		errors.Is(err, store.ErrSubagentArchiveFollowsParent),
 		errors.Is(err, store.ErrSessionArchived),
+		errors.Is(err, store.ErrSessionIsInstanceMain),
 		errors.Is(err, session.ErrConversationRewindBusy),
 		errors.Is(err, session.ErrConversationRewindManaged),
 		errors.Is(err, session.ErrConversationRewindFenceConflict),

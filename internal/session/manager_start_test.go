@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -100,6 +101,35 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 // TestCreateAcceptedLogicalRuntimeLifecycle verifies deferred provider binding across creation, prompts, and resume.
 func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should register an instance main before exposing the accepted session", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		db := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, db, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithEventLedger(db))
+		cleanupTestManager(t, h.manager)
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: "coder",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{Session: CreateOpts{
+			InstanceID: instance.ID, AgentName: "coder", Workspace: h.workspaceID,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		caller, err := db.Instances().InstanceCaller(t.Context(), created.ID)
+		if err != nil || caller.InstanceID != instance.ID {
+			t.Fatalf("instance binding: %#v, %v", caller, err)
+		}
+		if created.RuntimeStatus != RuntimeStatusUnbound || len(h.driver.startCalls) != 0 {
+			t.Fatalf("accepted main launched a provider: %#v", created)
+		}
+	})
 
 	t.Run("Should create an active unbound session without starting ACP", func(t *testing.T) {
 		t.Parallel()

@@ -32,9 +32,14 @@ func (m *Manager) prepareSessionLaunch(
 		return acp.StartOpts{}, startupFailure("session provider startup failed", err)
 	}
 	preHookCommand := strings.TrimSpace(startOpts.Command)
+	preHookOpts := startOpts
+	preHookOpts.MCPServers = slices.Clone(startOpts.MCPServers)
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
+	}
+	if err := validateInstanceLaunch(spec, preHookOpts, startOpts); err != nil {
+		return acp.StartOpts{}, err
 	}
 	launchAgent := runtime.agent
 	if strings.TrimSpace(startOpts.Command) != preHookCommand {

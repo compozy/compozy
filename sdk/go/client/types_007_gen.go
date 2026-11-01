@@ -2,7 +2,76 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// GoalCommandOutcome is a daemon API value.
+type GoalCommandOutcome string
+
+// GoalCommandResult is a daemon API value.
+type GoalCommandResult struct {
+	Outcome       GoalCommandOutcome `json:"outcome"`
+	ReasonCode    *GoalReasonCode    `json:"reason_code"`
+	Snapshot      *GoalSnapshot      `json:"snapshot"`
+	ReplacedRunID *string            `json:"replaced_run_id"`
+}
+
+// GoalContextSnapshot is a daemon API value.
+type GoalContextSnapshot struct {
+	State      GoalContextState `json:"state"`
+	Diagnostic string           `json:"diagnostic,omitempty"`
+	Used       *int64           `json:"used"`
+	Size       *int64           `json:"size"`
+	Ratio      *float64         `json:"ratio"`
+	NudgeRatio float64          `json:"nudge_ratio"`
+	ReportedAt *time.Time       `json:"reported_at"`
+}
+
+// GoalContextState is a daemon API value.
+type GoalContextState string
+
+// GoalCriterionResult is a daemon API value.
+type GoalCriterionResult struct {
+	ID             string                  `json:"id"`
+	Type           string                  `json:"type"`
+	Outcome        GoalVerdictOutcome      `json:"outcome"`
+	Passed         bool                    `json:"passed"`
+	Broken         bool                    `json:"broken,omitzero"`
+	ExitCode       *int                    `json:"exit_code,omitzero"`
+	Stdout         string                  `json:"stdout,omitempty"`
+	Stderr         string                  `json:"stderr,omitempty"`
+	Score          *float64                `json:"score,omitzero"`
+	Evidence       json.RawMessage         `json:"evidence,omitempty"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`
+	Payload        json.RawMessage         `json:"payload,omitempty"`
+}
+
+// GoalDiagnosticWarning is a daemon API value.
+type GoalDiagnosticWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// GoalPromptKind is a daemon API value.
+type GoalPromptKind string
+
+// GoalPromptMeta is a daemon API value.
+type GoalPromptMeta struct {
+	Kind          GoalPromptKind `json:"kind"`
+	RunID         string         `json:"run_id"`
+	NodeID        string         `json:"node_id"`
+	Generation    int64          `json:"generation"`
+	ItemIndex     int            `json:"item_index"`
+	Turn          *int           `json:"turn"`
+	PromptAttempt int            `json:"prompt_attempt"`
+	PromptID      string         `json:"prompt_id"`
+}
+
+// GoalReasonCode is a daemon API value.
+type GoalReasonCode string
 
 // GoalSnapshot is a daemon API value.
 type GoalSnapshot struct {
@@ -367,82 +436,3 @@ type HeartbeatWakeResult string
 
 // HeartbeatWakeSource is a daemon API value.
 type HeartbeatWakeSource string
-
-// HeartbeatWakeStatePayload is a daemon API value.
-type HeartbeatWakeStatePayload struct {
-	WorkspaceID      string              `json:"workspace_id,omitempty"`
-	AgentName        string              `json:"agent_name,omitempty"`
-	SessionID        string              `json:"session_id"`
-	PolicySnapshotID string              `json:"policy_snapshot_id,omitempty"`
-	LastWakeAt       *time.Time          `json:"last_wake_at,omitempty"`
-	NextAllowedAt    *time.Time          `json:"next_allowed_at,omitempty"`
-	CoalescedCount   int                 `json:"coalesced_count"`
-	LastResult       HeartbeatWakeResult `json:"last_result"`
-	LastReason       HeartbeatWakeReason `json:"last_reason,omitempty"`
-	UpdatedAt        time.Time           `json:"updated_at"`
-}
-
-// HookCatalogPayload is a daemon API value.
-type HookCatalogPayload struct {
-	Order        int               `json:"order"`
-	Name         string            `json:"name"`
-	Event        string            `json:"event"`
-	Source       string            `json:"source"`
-	SkillSource  string            `json:"skill_source,omitempty"`
-	Mode         string            `json:"mode"`
-	Required     bool              `json:"required"`
-	Priority     int               `json:"priority"`
-	TimeoutMS    int64             `json:"timeout_ms,omitzero"`
-	ExecutorKind string            `json:"executor_kind,omitempty"`
-	Matcher      HookMatcher       `json:"matcher"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-}
-
-// HookCatalogResponse is a daemon API value.
-type HookCatalogResponse struct {
-	Hooks []HookCatalogPayload `json:"hooks"`
-}
-
-// HookEvent is a daemon API value.
-type HookEvent string
-
-// HookEventPayload is a daemon API value.
-type HookEventPayload struct {
-	Event         string `json:"event"`
-	Family        string `json:"family"`
-	SyncEligible  bool   `json:"sync_eligible"`
-	PayloadSchema string `json:"payload_schema"`
-	PatchSchema   string `json:"patch_schema,omitempty"`
-}
-
-// HookEventsResponse is a daemon API value.
-type HookEventsResponse struct {
-	Events []HookEventPayload `json:"events"`
-}
-
-// HookExecutorKind is a daemon API value.
-type HookExecutorKind string
-
-// HookMatcher is a daemon API value.
-type HookMatcher struct {
-	AgentName        string           `json:"agent_name,omitempty"`
-	AgentType        string           `json:"agent_type,omitempty"`
-	WorkspaceID      string           `json:"workspace_id,omitempty"`
-	WorktreeID       string           `json:"worktree_id,omitempty"`
-	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
-	SessionType      string           `json:"session_type,omitempty"`
-	InputClass       string           `json:"input_class,omitempty"`
-	ACPEventType     string           `json:"acp_event_type,omitempty"`
-	TurnID           string           `json:"turn_id,omitempty"`
-	ToolID           string           `json:"tool_id,omitempty"`
-	ToolName         string           `json:"tool_name,omitempty"`
-	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
-	DecisionClass    string           `json:"decision_class,omitempty"`
-	MessageRole      string           `json:"message_role,omitempty"`
-	MessageDeltaType string           `json:"message_delta_type,omitempty"`
-	Trigger          string           `json:"compaction_trigger,omitempty"`
-	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
-}
-
-// HookMode is a daemon API value.
-type HookMode string

@@ -57,6 +57,9 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err := spec.applyDeniedToolsOverride(&resolved); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: apply denied tools for %q: %w", spec.sessionID, err)
 	}
+	if err := m.applyInstanceCeiling(ctx, spec, &resolved); err != nil {
+		return sessionStartRuntime{}, err
+	}
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
 		nativeToolsUnavailable: resolved.Harness == compozyconfig.ProviderHarnessPiACP,

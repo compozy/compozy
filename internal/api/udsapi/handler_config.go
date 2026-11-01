@@ -16,6 +16,7 @@ import (
 )
 
 type handlerConfig struct {
+	agentInstances        *core.AgentInstanceAPI
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService

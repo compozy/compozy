@@ -10,6 +10,28 @@ import (
 	"strings"
 )
 
+// RecordCmdPaletteUsage Record command palette usage
+func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
+	path := "/api/cmd-palette/usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
+// RecoverTaskParams carries the path, query, and header parameters.
+type RecoverTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // RecoverTask Recover one task from needs_attention
 func (c *Client) RecoverTask(ctx context.Context, params RecoverTaskParams, body RecoverTaskRequest) (*TaskResponse, error) {
 	path := "/api/tasks/{id}/recover"
@@ -424,20 +446,4 @@ func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams
 // RenameGatewayDeviceParams carries the path, query, and header parameters.
 type RenameGatewayDeviceParams struct {
 	ID string `url:"id"`
-}
-
-// RenameGatewayDevice Rename one paired gateway device
-func (c *Client) RenameGatewayDevice(ctx context.Context, params RenameGatewayDeviceParams, body GatewayDeviceRenameRequest) (*GatewayDevicePayload, error) {
-	path := "/api/gateway/devices/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out GatewayDevicePayload
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameProfileParams carries the path, query, and header parameters.
-type RenameProfileParams struct {
-	Name string `url:"name"`
 }

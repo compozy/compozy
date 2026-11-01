@@ -24,6 +24,7 @@ import (
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
+	AgentInstances      *core.AgentInstanceAPI
 	Subagents           session.SubagentService
 	SessionMonitors     core.SessionMonitorService
 	SessionProcesses    core.SessionProcessService

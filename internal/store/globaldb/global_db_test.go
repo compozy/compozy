@@ -5220,6 +5220,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"park_reason",
 				"park_until",
 				"later_returned_at",
+				"instance_id",
 			},
 		)
 	})

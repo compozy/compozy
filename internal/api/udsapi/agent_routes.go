@@ -3,6 +3,17 @@ package udsapi
 import "github.com/gin-gonic/gin"
 
 func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
+	instances := api.Group("/agent-instances")
+	instances.POST("", handlers.CreateAgentInstance)
+	instances.GET("", handlers.ListAgentInstances)
+	instances.POST("/adopt", handlers.AdoptAgentInstance)
+	instances.GET("/:id", handlers.GetAgentInstance)
+	instances.GET("/:id/reports", handlers.ListAgentInstanceReports)
+	instances.POST("/:id/pause", handlers.PauseAgentInstance)
+	instances.POST("/:id/resume", handlers.ResumeAgentInstance)
+	instances.POST("/:id/ensure-main", handlers.EnsureAgentInstanceMain)
+	instances.DELETE("/:id", handlers.ArchiveAgentInstance)
+
 	agents := api.Group("/agents")
 	{
 		agents.GET("", handlers.ListAgents)

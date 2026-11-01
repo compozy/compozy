@@ -9,6 +9,7 @@
         "list",
         "update",
         "heartbeat",
+        "instance",
         "soul"
     ]
 }

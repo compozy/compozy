@@ -110,6 +110,13 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionHealth.String(),
 			toolspkg.ToolIDAgentHeartbeatStatus.String(),
 			toolspkg.ToolIDAgentHeartbeatWake.String(),
+			toolspkg.ToolIDAgentInstanceCreate.String(),
+			toolspkg.ToolIDAgentInstanceList.String(),
+			toolspkg.ToolIDAgentInstancePause.String(),
+			toolspkg.ToolIDAgentInstanceResume.String(),
+			toolspkg.ToolIDAgentInstanceArchive.String(),
+			toolspkg.ToolIDAgentInstanceEnsureMain.String(),
+			toolspkg.ToolIDAgentInstanceReports.String(),
 		},
 	},
 	{

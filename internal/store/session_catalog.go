@@ -7,6 +7,7 @@ import (
 )
 
 var (
+	ErrSessionIsInstanceMain = errors.New("session_is_instance_main")
 	// ErrSubagentArchiveFollowsParent rejects independent subagent archive changes.
 	ErrSubagentArchiveFollowsParent = errors.New("store: subagent archive follows parent")
 	// ErrSessionArchived reports an attempt to reactivate an archived session.

@@ -37,6 +37,9 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
+	if c.StaysOn.MaxActiveInstances <= 0 {
+		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
+	}
 	if err := c.Soul.Validate(); err != nil {
 		return err
 	}

@@ -55,6 +55,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		return sessionStartSpec{}, err
 	}
 	return sessionStartSpec{
+		instanceID:               opts.InstanceID,
 		sessionID:                sessionID,
 		origin:                   opts.Origin,
 		profileID:                normalizeCreateProfileID(opts.ProfileID),

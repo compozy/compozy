@@ -7,6 +7,80 @@ import (
 	"time"
 )
 
+// ExtensionRemoveResponse is a daemon API value.
+type ExtensionRemoveResponse struct {
+	Extension ManagedExtensionRemovePayload `json:"extension"`
+}
+
+// ExtensionResponse is a daemon API value.
+type ExtensionResponse struct {
+	Extension ExtensionPayload `json:"extension"`
+}
+
+// ExtensionSecretBindingInput is a daemon API value.
+type ExtensionSecretBindingInput struct {
+	EnvName    string  `json:"env_name"`
+	Value      *string `json:"value,omitzero"`
+	VaultRef   *string `json:"vault_ref,omitzero"`
+	MCPServer  string  `json:"mcp_server,omitempty"`
+	HeaderName string  `json:"header_name,omitempty"`
+}
+
+// ExtensionSecretBindingPayload is a daemon API value.
+type ExtensionSecretBindingPayload struct {
+	EnvName    string `json:"env_name"`
+	Stale      bool   `json:"stale"`
+	MCPServer  string `json:"mcp_server,omitempty"`
+	HeaderName string `json:"header_name,omitempty"`
+}
+
+// ExtensionSecretsPayload is a daemon API value.
+type ExtensionSecretsPayload struct {
+	DeclaredEnv  []string                        `json:"declared_env"`
+	BoundEnvKeys []string                        `json:"bound_env_keys"`
+	Bindings     []ExtensionSecretBindingPayload `json:"bindings"`
+}
+
+// ExtensionTrustReportPayload is a daemon API value.
+type ExtensionTrustReportPayload struct {
+	Decision         string           `json:"decision"`
+	RegistryTier     string           `json:"registry_tier"`
+	ChecksumVerified bool             `json:"checksum_verified"`
+	AllowUnverified  bool             `json:"allow_unverified"`
+	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
+}
+
+// ExtensionUpdateBatchResponse is a daemon API value.
+type ExtensionUpdateBatchResponse struct {
+	Updates []ManagedExtensionUpdatePayload `json:"updates"`
+}
+
+// ExtensionUpdateResponse is a daemon API value.
+type ExtensionUpdateResponse struct {
+	Update ManagedExtensionUpdatePayload `json:"update"`
+}
+
+// ExtensionsResponse is a daemon API value.
+type ExtensionsResponse struct {
+	Extensions []ExtensionPayload `json:"extensions"`
+}
+
+// FSBrowseResponse is a daemon API value.
+type FSBrowseResponse struct {
+	Path    string           `json:"path"`
+	Parent  string           `json:"parent,omitempty"`
+	Home    string           `json:"home,omitempty"`
+	Roots   []string         `json:"roots"`
+	Entries []FSEntryPayload `json:"entries"`
+}
+
+// FSEntryPayload is a daemon API value.
+type FSEntryPayload struct {
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
 // FailTaskRunRequest is a daemon API value.
 type FailTaskRunRequest struct {
 	Error    string          `json:"error"`
@@ -372,69 +446,3 @@ type GoalBlockingIssue struct {
 	ID   string `json:"id"`
 	Note string `json:"note"`
 }
-
-// GoalCommandOutcome is a daemon API value.
-type GoalCommandOutcome string
-
-// GoalCommandResult is a daemon API value.
-type GoalCommandResult struct {
-	Outcome       GoalCommandOutcome `json:"outcome"`
-	ReasonCode    *GoalReasonCode    `json:"reason_code"`
-	Snapshot      *GoalSnapshot      `json:"snapshot"`
-	ReplacedRunID *string            `json:"replaced_run_id"`
-}
-
-// GoalContextSnapshot is a daemon API value.
-type GoalContextSnapshot struct {
-	State      GoalContextState `json:"state"`
-	Diagnostic string           `json:"diagnostic,omitempty"`
-	Used       *int64           `json:"used"`
-	Size       *int64           `json:"size"`
-	Ratio      *float64         `json:"ratio"`
-	NudgeRatio float64          `json:"nudge_ratio"`
-	ReportedAt *time.Time       `json:"reported_at"`
-}
-
-// GoalContextState is a daemon API value.
-type GoalContextState string
-
-// GoalCriterionResult is a daemon API value.
-type GoalCriterionResult struct {
-	ID             string                  `json:"id"`
-	Type           string                  `json:"type"`
-	Outcome        GoalVerdictOutcome      `json:"outcome"`
-	Passed         bool                    `json:"passed"`
-	Broken         bool                    `json:"broken,omitzero"`
-	ExitCode       *int                    `json:"exit_code,omitzero"`
-	Stdout         string                  `json:"stdout,omitempty"`
-	Stderr         string                  `json:"stderr,omitempty"`
-	Score          *float64                `json:"score,omitzero"`
-	Evidence       json.RawMessage         `json:"evidence,omitempty"`
-	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
-	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`
-	Payload        json.RawMessage         `json:"payload,omitempty"`
-}
-
-// GoalDiagnosticWarning is a daemon API value.
-type GoalDiagnosticWarning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// GoalPromptKind is a daemon API value.
-type GoalPromptKind string
-
-// GoalPromptMeta is a daemon API value.
-type GoalPromptMeta struct {
-	Kind          GoalPromptKind `json:"kind"`
-	RunID         string         `json:"run_id"`
-	NodeID        string         `json:"node_id"`
-	Generation    int64          `json:"generation"`
-	ItemIndex     int            `json:"item_index"`
-	Turn          *int           `json:"turn"`
-	PromptAttempt int            `json:"prompt_attempt"`
-	PromptID      string         `json:"prompt_id"`
-}
-
-// GoalReasonCode is a daemon API value.
-type GoalReasonCode string

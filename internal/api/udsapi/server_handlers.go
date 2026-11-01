@@ -77,6 +77,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		HeartbeatAuthoring:           cfg.heartbeatAuthor,
 		HeartbeatHistoryPurger:       cfg.heartbeatPurger,
 		HeartbeatStatus:              cfg.heartbeatStatus,
+		AgentInstances:               cfg.agentInstances,
 		HeartbeatWake:                cfg.heartbeatWake,
 		SessionHealth:                cfg.sessionHealth,
 		HeartbeatWakeEvents:          cfg.wakeEvents,

@@ -52,6 +52,7 @@ const (
 )
 
 type bootState struct {
+	agentInstances      *core.AgentInstanceAPI
 	subagents           session.SubagentService
 	cfg                 compozyconfig.Config
 	logger              *slog.Logger

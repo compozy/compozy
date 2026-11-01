@@ -223,6 +223,7 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 }
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {
+	o.StaysOn.Apply(&dst.StaysOn)
 	o.Soul.Apply(&dst.Soul)
 	o.Heartbeat.Apply(&dst.Heartbeat)
 }

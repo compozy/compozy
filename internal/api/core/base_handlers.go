@@ -28,6 +28,7 @@ type TaskActorContextResolver func(c *gin.Context, action string) (taskpkg.Actor
 
 // BaseHandlerConfig configures a shared handler set for one transport.
 type BaseHandlerConfig struct {
+	AgentInstances               *AgentInstanceAPI
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
@@ -118,6 +119,7 @@ type BaseHandlerConfig struct {
 
 // BaseHandlers contains the shared transport-independent API handler logic.
 type BaseHandlers struct {
+	AgentInstances               *AgentInstanceAPI
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
@@ -234,6 +236,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 
 func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults) *BaseHandlers {
 	return &BaseHandlers{
+		AgentInstances:               cfg.AgentInstances,
 		TransportName:                strings.TrimSpace(cfg.TransportName),
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,

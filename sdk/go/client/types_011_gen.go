@@ -7,6 +7,102 @@ import (
 	"time"
 )
 
+// MarketplaceListingPayload is a daemon API value.
+type MarketplaceListingPayload struct {
+	SourceRef        string                       `json:"source_ref,omitempty"`
+	Icon             string                       `json:"icon,omitempty"`
+	Layout           string                       `json:"layout,omitempty"`
+	Installable      bool                         `json:"installable"`
+	InstallBlocker   string                       `json:"install_blocker,omitempty"`
+	DigestSHA256     string                       `json:"digest_sha256"`
+	NameConflict     *MarketplaceOriginPayload    `json:"name_conflict,omitzero"`
+	EntryID          string                       `json:"entry_id"`
+	Name             string                       `json:"name"`
+	Description      string                       `json:"description"`
+	Version          string                       `json:"version,omitempty"`
+	Author           string                       `json:"author,omitempty"`
+	InstallSlug      string                       `json:"install_slug"`
+	Source           string                       `json:"source"`
+	Tier             string                       `json:"tier,omitempty"`
+	Format           string                       `json:"format,omitempty"`
+	PublishedAt      *time.Time                   `json:"published_at,omitempty"`
+	UpdatedAt        *time.Time                   `json:"updated_at,omitempty"`
+	Installed        bool                         `json:"installed"`
+	InstalledName    string                       `json:"installed_name,omitempty"`
+	InstalledVersion string                       `json:"installed_version,omitempty"`
+	UpdateAvailable  bool                         `json:"update_available"`
+	ManagePath       string                       `json:"manage_path,omitempty"`
+	Trust            *ExtensionTrustReportPayload `json:"trust,omitzero"`
+}
+
+// MarketplaceOriginPayload is a daemon API value.
+type MarketplaceOriginPayload struct {
+	Source    string `json:"source"`
+	SourceRef string `json:"source_ref"`
+	EntryID   string `json:"entry_id"`
+}
+
+// MarketplaceRefreshResponse is a daemon API value.
+type MarketplaceRefreshResponse struct {
+	Sources []MarketplaceRefreshSourcePayload `json:"sources"`
+}
+
+// MarketplaceRefreshSourcePayload is a daemon API value.
+type MarketplaceRefreshSourcePayload struct {
+	Source     string `json:"source"`
+	Outcome    string `json:"outcome"`
+	EntryCount int    `json:"entry_count"`
+	Stale      bool   `json:"stale"`
+	ErrorClass string `json:"error_class,omitempty"`
+}
+
+// MarketplaceServerPayload is a daemon API value.
+type MarketplaceServerPayload struct {
+	Name        string          `json:"name"`
+	Owner       string          `json:"owner"`
+	Scope       string          `json:"scope,omitempty"`
+	Transport   string          `json:"transport"`
+	Launch      string          `json:"launch"`
+	Status      string          `json:"status,omitempty"`
+	RuntimeName string          `json:"runtime_name,omitempty"`
+	Auth        *MCPAuthSummary `json:"auth,omitzero"`
+	Profile     string          `json:"profile,omitempty"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+}
+
+// MarketplaceSourcePayload is a daemon API value.
+type MarketplaceSourcePayload struct {
+	Name         string           `json:"name"`
+	Kind         string           `json:"kind"`
+	Source       string           `json:"source"`
+	Enabled      bool             `json:"enabled"`
+	State        string           `json:"state"`
+	Plugins      int              `json:"plugins"`
+	Installable  int              `json:"installable"`
+	LastReadAt   *time.Time       `json:"last_read_at,omitempty"`
+	ErrorClass   string           `json:"error_class,omitempty"`
+	Error        string           `json:"error,omitempty"`
+	DocumentPath string           `json:"document_path,omitempty"`
+	Owner        string           `json:"owner,omitempty"`
+	Stability    string           `json:"stability"`
+	Diagnostics  []DiagnosticItem `json:"diagnostics"`
+}
+
+// MarketplaceSourcePreviewPayload is a daemon API value.
+type MarketplaceSourcePreviewPayload struct {
+	Name         string           `json:"name"`
+	Owner        string           `json:"owner,omitempty"`
+	DocumentPath string           `json:"document_path"`
+	Plugins      int              `json:"plugins"`
+	Installable  int              `json:"installable"`
+	Diagnostics  []DiagnosticItem `json:"diagnostics"`
+}
+
+// MarketplaceSourceResponse is a daemon API value.
+type MarketplaceSourceResponse struct {
+	Source MarketplaceSourcePayload `json:"source"`
+}
+
 // MarketplaceSourceSummary is a daemon API value.
 type MarketplaceSourceSummary struct {
 	Name       string     `json:"name"`
@@ -349,102 +445,4 @@ type OptionalStringList = json.RawMessage
 type Origin struct {
 	Kind OriginKind `json:"kind"`
 	Ref  string     `json:"ref"`
-}
-
-// OriginKind is a daemon API value.
-type OriginKind string
-
-// OutlineEntry is a daemon API value.
-type OutlineEntry struct {
-	Sequence     int64     `json:"sequence"`
-	TurnID       string    `json:"turn_id"`
-	Preview      string    `json:"preview"`
-	ReplyPreview string    `json:"reply_preview"`
-	At           time.Time `json:"at"`
-}
-
-// OutlineResult is a daemon API value.
-type OutlineResult struct {
-	Entries []OutlineEntry `json:"entries"`
-}
-
-// OverviewAgentSharePayload is a daemon API value.
-type OverviewAgentSharePayload struct {
-	AgentName string  `json:"agent_name"`
-	Tokens    int64   `json:"tokens"`
-	Fraction  float64 `json:"fraction"`
-}
-
-// OverviewAttentionItemPayload is a daemon API value.
-type OverviewAttentionItemPayload struct {
-	NotificationID string    `json:"notification_id,omitempty"`
-	Kind           string    `json:"kind"`
-	Title          string    `json:"title"`
-	Detail         string    `json:"detail,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	WorkspaceID    string    `json:"workspace_id"`
-	OccurredAt     time.Time `json:"occurred_at"`
-	Actions        []string  `json:"actions"`
-}
-
-// OverviewAttentionPayload is a daemon API value.
-type OverviewAttentionPayload struct {
-	Snapshot string                         `json:"snapshot,omitempty"`
-	Total    int                            `json:"total"`
-	ByKind   map[string]int                 `json:"by_kind"`
-	Items    []OverviewAttentionItemPayload `json:"items"`
-}
-
-// OverviewLongestSessionPayload is a daemon API value.
-type OverviewLongestSessionPayload struct {
-	SessionID       string `json:"session_id"`
-	AgentName       string `json:"agent_name"`
-	DurationSeconds int64  `json:"duration_seconds"`
-	Date            string `json:"date"`
-}
-
-// OverviewOutcomeDayPayload is a daemon API value.
-type OverviewOutcomeDayPayload struct {
-	Date      string `json:"date"`
-	Completed int    `json:"completed"`
-	Failed    int    `json:"failed"`
-	Canceled  int    `json:"canceled"`
-}
-
-// OverviewOutcomesPayload is a daemon API value.
-type OverviewOutcomesPayload struct {
-	WindowDays int                         `json:"window_days"`
-	Days       []OverviewOutcomeDayPayload `json:"days"`
-	Completed  int                         `json:"completed"`
-	Failed     int                         `json:"failed"`
-	Canceled   int                         `json:"canceled"`
-	SuccessPct float64                     `json:"success_pct"`
-}
-
-// OverviewProfileUsagePayload is a daemon API value.
-type OverviewProfileUsagePayload struct {
-	ProfileID   string `json:"profile_id"`
-	ProfileName string `json:"profile_name"`
-	Color       string `json:"profile_color"`
-	Icon        string `json:"profile_icon,omitempty"`
-	Emoji       string `json:"profile_emoji,omitempty"`
-	Archived    bool   `json:"profile_archived"`
-	Tokens      int64  `json:"tokens"`
-}
-
-// OverviewPulseBucketPayload is a daemon API value.
-type OverviewPulseBucketPayload struct {
-	Weekday int `json:"weekday"`
-	Hour    int `json:"hour"`
-	Events  int `json:"events"`
-}
-
-// OverviewPulsePayload is a daemon API value.
-type OverviewPulsePayload struct {
-	WindowDays     int                            `json:"window_days"`
-	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
-	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitzero"`
-	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitzero"`
 }

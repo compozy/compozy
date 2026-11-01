@@ -220,6 +220,71 @@ type AgentIdentityPayload struct {
 	Model     string `json:"model,omitempty"`
 }
 
+// AgentInstanceAdoptRequest is a daemon API value.
+type AgentInstanceAdoptRequest struct {
+	Agent     string `json:"agent"`
+	SessionID string `json:"session_id"`
+}
+
+// AgentInstanceCreateRequest is a daemon API value.
+type AgentInstanceCreateRequest struct {
+	Agent     string `json:"agent"`
+	Workspace string `json:"workspace"`
+}
+
+// AgentInstanceListResponse is a daemon API value.
+type AgentInstanceListResponse struct {
+	Instances  []AgentInstancePayload `json:"instances"`
+	NextCursor string                 `json:"next_cursor"`
+}
+
+// AgentInstancePayload is a daemon API value.
+type AgentInstancePayload struct {
+	ID            string    `json:"id"`
+	ProfileID     string    `json:"profile_id"`
+	AgentName     string    `json:"agent_name"`
+	WorkspaceID   string    `json:"workspace_id"`
+	State         string    `json:"state"`
+	PauseReason   string    `json:"pause_reason"`
+	MainSessionID string    `json:"main_session_id"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+// AgentInstanceProposal is a daemon API value.
+type AgentInstanceProposal struct {
+	Title    string   `json:"title"`
+	Body     string   `json:"body"`
+	ItemKeys []string `json:"item_keys"`
+}
+
+// AgentInstanceReportPayload is a daemon API value.
+type AgentInstanceReportPayload struct {
+	ID        string                  `json:"id"`
+	Kind      string                  `json:"kind"`
+	State     string                  `json:"state"`
+	Proposals []AgentInstanceProposal `json:"proposals,omitempty"`
+	Reason    string                  `json:"reason,omitempty"`
+	Detail    string                  `json:"detail,omitempty"`
+	SessionID string                  `json:"session_id,omitempty"`
+	Tool      string                  `json:"tool,omitempty"`
+	ExpiredBy string                  `json:"expired_by,omitempty"`
+	Cause     string                  `json:"cause,omitempty"`
+	Since     string                  `json:"since,omitempty"`
+	CreatedAt time.Time               `json:"created_at"`
+}
+
+// AgentInstanceReportsResponse is a daemon API value.
+type AgentInstanceReportsResponse struct {
+	Reports    []AgentInstanceReportPayload `json:"reports"`
+	NextCursor string                       `json:"next_cursor"`
+}
+
+// AgentInstanceResponse is a daemon API value.
+type AgentInstanceResponse struct {
+	Instance AgentInstancePayload `json:"instance"`
+}
+
 // AgentLimitsPayload is a daemon API value.
 type AgentLimitsPayload struct {
 	MaxChildren           int    `json:"max_children"`
@@ -380,64 +445,4 @@ type AgentSoulFrontmatterPayload struct {
 type AgentSoulHistoryResponse struct {
 	Revisions  []AgentSoulRevisionPayload `json:"revisions"`
 	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
-// AgentSoulMutationResponse is a daemon API value.
-type AgentSoulMutationResponse struct {
-	Soul     AgentSoulPayload         `json:"soul"`
-	Revision AgentSoulRevisionPayload `json:"revision"`
-}
-
-// AgentSoulPayload is a daemon API value.
-type AgentSoulPayload struct {
-	AgentName        string                             `json:"agent_name,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	RevisionID       string                             `json:"revision_id,omitempty"`
-	Digest           string                             `json:"digest,omitempty"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Frontmatter      AgentSoulFrontmatterPayload        `json:"frontmatter"`
-	Body             string                             `json:"body,omitempty"`
-	Truncated        bool                               `json:"truncated,omitempty"`
-	Limits           AuthoredContextLimitsPayload       `json:"limits"`
-	ConfigProvenance AgentSoulConfigProvenancePayload   `json:"config_provenance"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-// AgentSoulPutByPathRequest is a daemon API value.
-type AgentSoulPutByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// AgentSoulRevisionAction is a daemon API value.
-type AgentSoulRevisionAction string
-
-// AgentSoulRevisionPayload is a daemon API value.
-type AgentSoulRevisionPayload struct {
-	ID             string                             `json:"id"`
-	AgentName      string                             `json:"agent_name"`
-	SourcePath     string                             `json:"source_path"`
-	Action         AgentSoulRevisionAction            `json:"action"`
-	PreviousDigest string                             `json:"previous_digest,omitempty"`
-	NewDigest      string                             `json:"new_digest,omitempty"`
-	Diagnostics    []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Actor          AuthoredContextActorPayload        `json:"actor"`
-	Origin         *AuthoredContextActorPayload       `json:"origin,omitempty"`
-	CreatedAt      time.Time                          `json:"created_at"`
-}
-
-// AgentSoulRollbackByPathRequest is a daemon API value.
-type AgentSoulRollbackByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	RevisionID     string `json:"revision_id"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }

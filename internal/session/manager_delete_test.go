@@ -1682,3 +1682,29 @@ func assertDeletedUserSessionCatalogTruth(
 		}
 	}
 }
+
+type instanceProtectedCatalog struct{ *recordingSessionCatalog }
+
+var _ instanceMainGuard = (*instanceProtectedCatalog)(nil)
+
+func (*instanceProtectedCatalog) GuardInstanceMain(context.Context, string) error {
+	return store.ErrSessionIsInstanceMain
+}
+
+func TestInstanceMainRuntimeGuard(t *testing.T) {
+	t.Run("Should refuse archive with stop and delete before stopping an instance main", func(t *testing.T) {
+		t.Parallel()
+		catalog := &instanceProtectedCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Delete(t.Context(), active.ID); !errors.Is(err, store.ErrSessionIsInstanceMain) {
+			t.Fatalf("delete: %v", err)
+		}
+		if _, err := h.manager.ArchiveWithStop(t.Context(), active.WorkspaceID, active.ID); !errors.Is(err, store.ErrSessionIsInstanceMain) {
+			t.Fatalf("archive: %v", err)
+		}
+		if _, ok := h.manager.Get(active.ID); !ok {
+			t.Fatal("refused operation stopped the instance main")
+		}
+	})
+}

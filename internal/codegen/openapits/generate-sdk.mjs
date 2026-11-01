@@ -20,6 +20,12 @@ for (const [job, isStream] of [
   ["sdk", false],
   ["sse", true],
 ]) {
+  const streamPath = resolve(output, job, "core/serverSentEvents.gen.ts");
+  const streamSource = await readFile(streamPath, "utf8");
+  const cancellation = "            void reader.cancel().catch(() => {});";
+  if (streamSource.split(cancellation).length !== 2) {
+    throw new Error(`SDK job ${job} is missing the patched stream cancellation template`);
+  }
   const source = await readFile(resolve(output, job, "sdk.gen.ts"), "utf8");
   const types = await readFile(resolve(output, job, "types.gen.ts"), "utf8");
   const names = new Map();

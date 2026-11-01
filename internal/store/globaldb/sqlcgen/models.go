@@ -66,6 +66,40 @@ type AgentHeartbeatWakeState struct {
 	UpdatedAt        string         `json:"updated_at"`
 }
 
+type AgentInstance struct {
+	ID                string         `json:"id"`
+	ProfileID         string         `json:"profile_id"`
+	AgentName         string         `json:"agent_name"`
+	WorkspaceID       string         `json:"workspace_id"`
+	State             string         `json:"state"`
+	PauseReason       string         `json:"pause_reason"`
+	MainSessionID     sql.NullString `json:"main_session_id"`
+	GrantCeiling      string         `json:"grant_ceiling"`
+	PermissionCeiling string         `json:"permission_ceiling"`
+	ChecksEnabled     int64          `json:"checks_enabled"`
+	Depth             int64          `json:"depth"`
+	CreatedByKind     string         `json:"created_by_kind"`
+	CreatedByID       string         `json:"created_by_id"`
+	CreatedAt         string         `json:"created_at"`
+	UpdatedAt         string         `json:"updated_at"`
+	ArchivedAt        sql.NullString `json:"archived_at"`
+}
+
+type AgentInstanceReport struct {
+	ID                string         `json:"id"`
+	InstanceID        string         `json:"instance_id"`
+	SourceKey         string         `json:"source_key"`
+	Kind              string         `json:"kind"`
+	Payload           string         `json:"payload"`
+	Fingerprint       string         `json:"fingerprint"`
+	State             string         `json:"state"`
+	PromptAdmissionID string         `json:"prompt_admission_id"`
+	EventSessionID    string         `json:"event_session_id"`
+	EventSeq          int64          `json:"event_seq"`
+	CreatedAt         string         `json:"created_at"`
+	DeliveredAt       sql.NullString `json:"delivered_at"`
+}
+
 type AgentSoulRevision struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
@@ -1382,6 +1416,7 @@ type SchedulerPause struct {
 }
 
 type Session struct {
+	InstanceID               sql.NullString `json:"instance_id"`
 	Branch                   string         `json:"branch"`
 	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`

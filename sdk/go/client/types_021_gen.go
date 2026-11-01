@@ -2,10 +2,133 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// SettingsUpdateActor is a daemon API value.
+type SettingsUpdateActor string
+
+// SettingsUpdateAppPayload is a daemon API value.
+type SettingsUpdateAppPayload struct {
+	Status         SettingsUpdateStatusKind `json:"status"`
+	Running        bool                     `json:"running"`
+	CurrentVersion string                   `json:"current_version"`
+	LatestVersion  string                   `json:"latest_version"`
+	ReleaseURL     string                   `json:"release_url"`
+	AttemptID      string                   `json:"attempt_id"`
+	LastError      string                   `json:"last_error"`
+	Message        string                   `json:"message"`
+}
+
+// SettingsUpdateApplyRequest is a daemon API value.
+type SettingsUpdateApplyRequest struct {
+	Targets []SettingsUpdateTarget `json:"targets"`
+}
+
+// SettingsUpdateApplyResponse is a daemon API value.
+type SettingsUpdateApplyResponse struct {
+	Targets     []SettingsUpdateTarget       `json:"targets"`
+	Status      SettingsUpdateApplyStatus    `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
+}
+
+// SettingsUpdateApplyStatus is a daemon API value.
+type SettingsUpdateApplyStatus string
+
+// SettingsUpdateCancelResponse is a daemon API value.
+type SettingsUpdateCancelResponse struct {
+	Status      SettingsUpdateStatusKind     `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
+}
+
+// SettingsUpdateHolderPayload is a daemon API value.
+type SettingsUpdateHolderPayload struct {
+	PID                int                 `json:"pid"`
+	PIDStartTime       time.Time           `json:"pid_start_time"`
+	Surface            SettingsUpdateActor `json:"surface"`
+	ExecutorGeneration string              `json:"executor_generation"`
+	LeaseExpiresAt     time.Time           `json:"lease_expires_at"`
+}
+
+// SettingsUpdateInstallMethod is a daemon API value.
+type SettingsUpdateInstallMethod string
+
+// SettingsUpdateOperationPayload is a daemon API value.
+type SettingsUpdateOperationPayload struct {
+	ID           string                       `json:"id"`
+	Revision     int64                        `json:"revision"`
+	Targets      []SettingsUpdateTarget       `json:"targets"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
+	Phase        SettingsUpdatePhase          `json:"phase"`
+	Percent      int                          `json:"percent"`
+	Holder       *SettingsUpdateHolderPayload `json:"holder"`
+	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
+	StartedAt    time.Time                    `json:"started_at"`
+	LastError    string                       `json:"last_error"`
+}
+
+// SettingsUpdatePhase is a daemon API value.
+type SettingsUpdatePhase string
+
+// SettingsUpdateResponse is a daemon API value.
+type SettingsUpdateResponse struct {
+	Aggregate SettingsUpdateStatusKind        `json:"aggregate"`
+	Operation *SettingsUpdateOperationPayload `json:"operation"`
+	Runtime   SettingsUpdateRuntimePayload    `json:"runtime"`
+	App       *SettingsUpdateAppPayload       `json:"app"`
+}
+
+// SettingsUpdateRuntimePayload is a daemon API value.
+type SettingsUpdateRuntimePayload struct {
+	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
+	Status          SettingsUpdateStatusKind    `json:"status"`
+	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
+	Managed         bool                        `json:"managed"`
+	CurrentVersion  string                      `json:"current_version"`
+	LatestVersion   string                      `json:"latest_version"`
+	ReleaseURL      string                      `json:"release_url"`
+	Recommendation  string                      `json:"recommendation"`
+	RestoredVersion string                      `json:"restored_version"`
+	DaemonRestarted bool                        `json:"daemon_restarted"`
+	Message         string                      `json:"message"`
+	LastError       string                      `json:"last_error"`
+}
+
+// SettingsUpdateStatusKind is a daemon API value.
+type SettingsUpdateStatusKind string
+
+// SettingsUpdateTarget is a daemon API value.
+type SettingsUpdateTarget string
+
+// SettingsUpdateWaitingState is a daemon API value.
+type SettingsUpdateWaitingState string
+
+// SettingsUserScopeKind is a daemon API value.
+type SettingsUserScopeKind string
+
+// SettingsWindowBindingAction is a daemon API value.
+type SettingsWindowBindingAction string
+
+// SettingsWindowDesktopTransition is a daemon API value.
+type SettingsWindowDesktopTransition string
+
+// SettingsWindowDragAwayPolicy is a daemon API value.
+type SettingsWindowDragAwayPolicy string
+
+// SettingsWindowDragModifier is a daemon API value.
+type SettingsWindowDragModifier string
+
+// SettingsWindowFocusPolicy is a daemon API value.
+type SettingsWindowFocusPolicy string
+
+// SettingsWindowManagerBindingPayload is a daemon API value.
+type SettingsWindowManagerBindingPayload struct {
+	TopCenter    SettingsWindowBindingAction `json:"top_center"`
+	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
+}
 
 // SettingsWindowManagerCommandPayload is a daemon API value.
 type SettingsWindowManagerCommandPayload struct {
@@ -320,130 +443,3 @@ type SpawnNewWorktreeRequest struct {
 	BaseRef string `json:"base_ref,omitempty"`
 	Branch  string `json:"branch,omitempty"`
 }
-
-// SpawnPermissionPolicyPayload is a daemon API value.
-type SpawnPermissionPolicyPayload struct {
-	Tools          []string `json:"tools"`
-	Skills         []string `json:"skills"`
-	MCPServers     []string `json:"mcp_servers"`
-	WorkspacePaths []string `json:"workspace_paths"`
-}
-
-// SpawnPermissionRequestPayload is a daemon API value.
-type SpawnPermissionRequestPayload struct {
-	Tools          []string `json:"tools,omitzero"`
-	Skills         []string `json:"skills,omitzero"`
-	MCPServers     []string `json:"mcp_servers,omitzero"`
-	WorkspacePaths []string `json:"workspace_paths,omitzero"`
-}
-
-// SpawnPromptPayload is a daemon API value.
-type SpawnPromptPayload struct {
-	MessageID       string `json:"message_id"`
-	Status          string `json:"status"`
-	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
-	ReplyWatchState string `json:"reply_watch_state,omitempty"`
-	Error           string `json:"error,omitempty"`
-}
-
-// SpawnWorktreePayload is a daemon API value.
-type SpawnWorktreePayload struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Branch  string `json:"branch"`
-	Path    string `json:"path"`
-	BaseSHA string `json:"base_sha,omitempty"`
-	Created bool   `json:"created"`
-}
-
-// Speed is a daemon API value.
-type Speed string
-
-// StartBinding is a daemon API value.
-type StartBinding struct {
-	Kind         StartKind         `json:"kind"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-// StartKind is a daemon API value.
-type StartKind string
-
-// StartTaskRunRequest is a daemon API value.
-type StartTaskRunRequest struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// State is a daemon API value.
-type State string
-
-// Status is a daemon API value.
-type Status string
-
-// StatusPayload is a daemon API value.
-type StatusPayload struct {
-	SchemaVersion    string                           `json:"schema_version"`
-	GeneratedAt      time.Time                        `json:"generated_at"`
-	Daemon           DaemonStatusPayload              `json:"daemon"`
-	Sessions         SessionAggregatePayload          `json:"sessions"`
-	SubprocessHealth SubprocessHealthAggregatePayload `json:"subprocess_health"`
-	Health           ObserveHealthPayload             `json:"health"`
-	Automation       AutomationHealthPayload          `json:"automation"`
-	Tasks            TaskHealthPayload                `json:"tasks"`
-	Providers        []ProviderStatusPayload          `json:"providers,omitempty"`
-	MCPServers       []MCPServerStatusPayload         `json:"mcp_servers,omitempty"`
-	Skills           SkillRuntimeStatusPayload        `json:"skills"`
-	Config           ConfigRuntimeStatusPayload       `json:"config"`
-	LogTail          LogTailStatusPayload             `json:"log_tail"`
-}
-
-// SteerCapability is a daemon API value.
-type SteerCapability string
-
-// SteerDeliveryMode is a daemon API value.
-type SteerDeliveryMode string
-
-const (
-	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
-	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
-	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
-)
-
-// SteerPromptRequest is a daemon API value.
-type SteerPromptRequest struct {
-	Attachments    []PromptAttachmentRef `json:"attachments,omitempty"`
-	Text           string                `json:"text"`
-	MessageID      string                `json:"message_id"`
-	IdempotencyKey string                `json:"idempotency_key"`
-	ExpectedTurnID string                `json:"expected_turn_id,omitempty"`
-}
-
-// StepProgress is a daemon API value.
-type StepProgress struct {
-	Round      int `json:"round"`
-	StepsDone  int `json:"steps_done"`
-	StepsTotal int `json:"steps_total"`
-}
-
-// StopPhase is a daemon API value.
-type StopPhase string
-
-// StopReason is a daemon API value.
-type StopReason string
-
-// StopSessionRequest is a daemon API value.
-type StopSessionRequest struct {
-	Processes SessionProcessPolicy `json:"processes,omitempty"`
-	Wait      *bool                `json:"wait,omitzero"`
-}
-
-// StopWhenSpec is a daemon API value.
-// StopWhenSpec preserves its custom JSON wire representation.
-type StopWhenSpec = json.RawMessage
-
-// StrategyKind is a daemon API value.
-type StrategyKind string
-
-// StrategySpec is a daemon API value.
-// StrategySpec preserves its custom JSON wire representation.
-type StrategySpec = json.RawMessage
