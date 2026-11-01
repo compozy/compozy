@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/workspaceaccess"
-
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -37,51 +35,9 @@ func (h *BaseHandlers) agentMemoryTarget(c *gin.Context) (agentmemory.Key, strin
 	}
 	ref := strings.TrimSpace(c.Query("workspace"))
 	name := pathAgentName(c)
-	callerOrigin := ""
-	credentials := agentCallerCredentialsFromRequest(c)
-	if hasAgentCallerIdentityCredentials(credentials) {
-		caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, "agent.memory", ref)
-		if err != nil {
-			return agentmemory.Key{}, "", err
-		}
-		if caller.Session.AgentName != name || caller.Session.ProfileID != scope.ProfileID {
-			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
-		}
-		if h.AgentInstances == nil {
-			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
-		}
-		if err := h.AgentInstances.Authority.AuthorizeMemory(
-			c.Request.Context(),
-			caller.Session.ID,
-			name,
-			scope.ProfileID,
-		); err != nil {
-			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
-		}
-		var own workspaceAgentEntries
-		if caller.Session.WorkspaceID == "" {
-			own, err = h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)
-		} else {
-			own, err = h.workspaceAgentEntriesWithDiagnostics(
-				c.Request.Context(),
-				caller.Session.WorkspaceID,
-				profileName,
-			)
-		}
-		if err != nil {
-			return agentmemory.Key{}, "", err
-		}
-		for _, entry := range own.Entries {
-			if entry.Def.Name == name {
-				callerOrigin = entry.MemoryOrigin
-			}
-		}
-		if callerOrigin == "" {
-			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
-		}
-		if ref == "" {
-			ref = caller.Session.WorkspaceID
-		}
+	callerOrigin, ref, err := h.agentMemoryCallerOrigin(c, ref, name, scope.ProfileID, profileName)
+	if err != nil {
+		return agentmemory.Key{}, "", err
 	}
 	var entries workspaceAgentEntries
 	if ref == "" {
@@ -160,36 +116,7 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 		var req contract.AgentMemorySearchRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
 			var results []agentmemory.SearchResult
-			results, err = h.AgentMemory.Search(key, req.Query)
-			if err == nil && req.IncludeSessions {
-				actor := workspaceaccess.ActorRef{Kind: workspaceaccess.ActorHuman, Operator: true}
-				credentials := agentCallerCredentialsFromRequest(c)
-				if hasAgentCallerIdentityCredentials(credentials) {
-					caller, callerErr := h.resolveAgentCallerForWorkspace(
-						c.Request.Context(),
-						credentials,
-						"agent.memory.search",
-						"",
-					)
-					if callerErr != nil {
-						err = callerErr
-					} else {
-						actor = workspaceAccessRequestForCaller(caller, "").Actor
-					}
-				}
-				if err == nil {
-					var matches []agentmemory.SearchResult
-					matches, err = SearchAgentMemorySessions(
-						c.Request.Context(),
-						h.Sessions,
-						h.WorkspaceAccess,
-						actor,
-						key.ProfileID,
-						req.Query,
-					)
-					results = append(results, matches...)
-				}
-			}
+			results, err = h.searchAgentMemory(c, key, req)
 			result = agentMemorySearchPayload(results)
 		}
 	case "validate":
@@ -259,3 +186,57 @@ func (e agentMemoryRouteError) Unwrap() error          { return e.cause }
 func (e agentMemoryRouteError) DiagnosticCode() string { return e.code }
 
 const agentMemoryEntriesRoute = "/:name/memory/entries"
+
+func (h *BaseHandlers) agentMemoryCallerOrigin(
+	c *gin.Context,
+	ref, name, profileID, profileName string,
+) (string, string, error) {
+	callerOrigin := ""
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return callerOrigin, ref, nil
+	}
+	caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, "agent.memory", ref)
+	if err != nil {
+		return "", ref, err
+	}
+	if caller.Session.AgentName != name || caller.Session.ProfileID != profileID {
+		return "", ref, errors.New("agent_instance_forbidden")
+	}
+	if h.AgentInstances == nil {
+		return "", ref, errors.New("agent_instance_forbidden")
+	}
+	if err := h.AgentInstances.Authority.AuthorizeMemory(
+		c.Request.Context(),
+		caller.Session.ID,
+		name,
+		profileID,
+	); err != nil {
+		return "", ref, errors.New("agent_instance_forbidden")
+	}
+	var own workspaceAgentEntries
+	if caller.Session.WorkspaceID == "" {
+		own, err = h.globalAgentEntries(c.Request.Context(), profileID, profileName)
+	} else {
+		own, err = h.workspaceAgentEntriesWithDiagnostics(
+			c.Request.Context(),
+			caller.Session.WorkspaceID,
+			profileName,
+		)
+	}
+	if err != nil {
+		return "", ref, err
+	}
+	for _, entry := range own.Entries {
+		if entry.Def.Name == name {
+			callerOrigin = entry.MemoryOrigin
+		}
+	}
+	if callerOrigin == "" {
+		return "", ref, errors.New("agent_instance_forbidden")
+	}
+	if ref == "" {
+		ref = caller.Session.WorkspaceID
+	}
+	return callerOrigin, ref, nil
+}

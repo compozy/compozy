@@ -5,11 +5,13 @@ import (
 	"errors"
 
 	"github.com/compozy/compozy/internal/agentmemory"
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/gin-gonic/gin"
 )
 
 // SearchAgentMemorySessions checks access before reading any transcript.
@@ -97,4 +99,33 @@ func SearchAgentMemorySessions(
 		}
 		q.Cursor = page.NextCursor
 	}
+}
+
+func (h *BaseHandlers) searchAgentMemory(
+	c *gin.Context,
+	key agentmemory.Key,
+	req contract.AgentMemorySearchRequest,
+) ([]agentmemory.SearchResult, error) {
+	results, err := h.AgentMemory.Search(key, req.Query)
+	if err != nil || !req.IncludeSessions {
+		return results, err
+	}
+	actor := workspaceaccess.ActorRef{Kind: workspaceaccess.ActorHuman, Operator: true}
+	credentials := agentCallerCredentialsFromRequest(c)
+	if hasAgentCallerIdentityCredentials(credentials) {
+		caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, "agent.memory.search", "")
+		if err != nil {
+			return results, err
+		}
+		actor = workspaceAccessRequestForCaller(caller, "").Actor
+	}
+	matches, err := SearchAgentMemorySessions(
+		c.Request.Context(),
+		h.Sessions,
+		h.WorkspaceAccess,
+		actor,
+		key.ProfileID,
+		req.Query,
+	)
+	return append(results, matches...), err
 }
