@@ -366,10 +366,18 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 			name   string
 			events []acp.AgentEvent
 		}{
-			{name: "glued in one message", events: []acp.AgentEvent{text("Checkout retry race**Notice:** Stop saying that")}},
+			{
+				name:   "glued in one message",
+				events: []acp.AgentEvent{text("Checkout retry race**Notice:** Stop saying that")},
+			},
 			{name: "streamed in chunks", events: []acp.AgentEvent{text("Checkout retry"), text(" race")}},
 			{name: "in a second message", events: []acp.AgentEvent{
-				messageChunk("m1", "Checkout "), messageChunk("m1", "retry race"), messageChunk("m2", "Stop saying that"),
+				messageChunk(
+					"m1",
+					"Checkout ",
+				),
+				messageChunk("m1", "retry race"),
+				messageChunk("m2", "Stop saying that"),
 			}},
 			{name: "after a tool call", events: []acp.AgentEvent{
 				text("Checkout retry race"), {Type: acp.EventTypeToolCall}, text("Stop saying that"),
@@ -381,9 +389,15 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 
 				sessions := &autoTitleSpawnSessionsStub{events: test.events}
 				generator := newForkedAutoTitleGenerator(
-					sessions, resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}), time.Second, slog.Default(),
+					sessions,
+					resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}),
+					time.Second,
+					slog.Default(),
 				)
-				title, err := generator.Generate(testutil.Context(t), autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"})
+				title, err := generator.Generate(
+					testutil.Context(t),
+					autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"},
+				)
 				if err != nil {
 					t.Fatalf("Generate() error = %v", err)
 				}
@@ -397,18 +411,30 @@ func TestForkedAutoTitleGenerator(t *testing.T) {
 	t.Run("Should fail the attempt when the output has no usable title", func(t *testing.T) {
 		t.Parallel()
 
-		sessions := &autoTitleSpawnSessionsStub{events: []acp.AgentEvent{
-			{Type: acp.EventTypeAgentMessage, Text: "**Notice:** Stop saying that"},
-		}}
-		generator := newForkedAutoTitleGenerator(
-			sessions, resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}), time.Second, slog.Default(),
-		)
-		title, err := generator.Generate(testutil.Context(t), autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"})
-		if err == nil || title != "" {
-			t.Fatalf("Generate() = %q, %v, want an unusable-title error", title, err)
-		}
-		if len(sessions.stops) != 1 || sessions.stops[0].cause != session.CauseFailed {
-			t.Fatalf("StopWithCause() calls = %#v", sessions.stops)
+		for _, output := range []string{"**Notice:** Stop saying that", `"Notice: be brief"`} {
+			t.Run("Should reject "+output, func(t *testing.T) {
+				t.Parallel()
+
+				sessions := &autoTitleSpawnSessionsStub{events: []acp.AgentEvent{
+					{Type: acp.EventTypeAgentMessage, Text: output},
+				}}
+				generator := newForkedAutoTitleGenerator(
+					sessions,
+					resolvedRoleResolver(&ResolvedRole{Enabled: true, Inherit: true}),
+					time.Second,
+					slog.Default(),
+				)
+				title, err := generator.Generate(
+					testutil.Context(t),
+					autoTitleRequest{SessionID: "sess-parent", AgentName: "coder"},
+				)
+				if err == nil || title != "" {
+					t.Fatalf("Generate() = %q, %v, want an unusable-title error", title, err)
+				}
+				if len(sessions.stops) != 1 || sessions.stops[0].cause != session.CauseFailed {
+					t.Fatalf("StopWithCause() calls = %#v", sessions.stops)
+				}
+			})
 		}
 	})
 

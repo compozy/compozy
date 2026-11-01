@@ -28,13 +28,15 @@ var (
 		"(?i)^[*_`~]*\\s*(?:notice|note|reminder|warning|disclaimer)\\s*[*_`~]*\\s*:",
 	)
 	// automaticTitleAppendix matches where text glued after a title begins: an
-	// emphasized label, emphasis opened against a word, or a plain notice label
-	// after a sentence end or against a word.
+	// emphasized label, bold opened against a word, or a plain notice label after
+	// a sentence end or against a word.
 	automaticTitleAppendix = regexp.MustCompile(
-		`(?:^|\s)(\*\*[^*]+:\*\*|\*\*[^*]+\*\*:|__[^_]+:__)` +
+		`(\*{1,2}[^*]+:\*{1,2}|\*\*[^*]+\*\*:|_{1,2}[^_]+:_{1,2})` +
 			`|[\p{L}\p{N}](\*\*\p{Lu})` +
 			`|(?:[\p{Ll}\p{N}]|[.!?]\s+)((?:Notice|Note|Reminder|Warning|Disclaimer)\s*:)`,
 	)
+	// automaticTitleFence matches an opening or closing code fence line.
+	automaticTitleFence = regexp.MustCompile("^(?:`{3,}|~{3,})[\\w+-]*$")
 )
 
 const (
@@ -132,9 +134,26 @@ func CleanAutomaticSessionTitle(output string) string {
 	return ""
 }
 
+// cleanAutomaticTitleLine repeats its pass until the line stops changing, so a
+// title accepted by the generator cannot be rejected when the session applies it.
 func cleanAutomaticTitleLine(line string) string {
-	candidate := automaticTitleBlockPrefix.ReplaceAllString(strings.TrimSpace(line), "")
+	candidate := strings.TrimSpace(line)
+	if automaticTitleFence.MatchString(candidate) {
+		return ""
+	}
+	for {
+		next := cleanAutomaticTitlePass(candidate)
+		if next == candidate {
+			return candidate
+		}
+		candidate = next
+	}
+}
+
+func cleanAutomaticTitlePass(line string) string {
+	candidate := automaticTitleBlockPrefix.ReplaceAllString(line, "")
 	candidate = automaticTitleLabel.ReplaceAllString(candidate, "")
+	candidate = strings.Trim(candidate, automaticTitleEdgeQuotes+" \t")
 	if automaticTitleNoticeLine.MatchString(candidate) {
 		return ""
 	}
