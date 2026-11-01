@@ -42,7 +42,7 @@ type HeartbeatConfigSubsetPayload struct {
 }
 
 type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
+	Include []string `json:"include,omitzero"`
 }
 
 type HeartbeatDeleteRequest struct {

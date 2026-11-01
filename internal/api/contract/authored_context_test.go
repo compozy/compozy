@@ -12,6 +12,26 @@ import (
 )
 
 func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {
+	t.Run("Should distinguish omitted collectors from an explicit empty list on the wire", func(t *testing.T) {
+		t.Parallel()
+		for _, include := range [][]string{nil, {}} {
+			payload := heartbeatPreferencesPayload(heartbeatpkg.Preferences{
+				Context: heartbeatpkg.ContextProjection{Include: include},
+			})
+			encoded, err := json.Marshal(payload.Context)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded HeartbeatContextProjectionPayload
+			if err := json.Unmarshal(encoded, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if (decoded.Include == nil) != (include == nil) {
+				t.Fatalf("include=%#v roundtrip=%s", include, encoded)
+			}
+		}
+	})
+
 	t.Run("Should keep compact Soul context body-free while allowing the full read surface", func(t *testing.T) {
 		t.Parallel()
 

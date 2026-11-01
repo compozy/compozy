@@ -57,6 +57,51 @@ func reportHeartbeatTestMainError(format string, args ...any) {
 func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve disabled collectors through save reload and snapshot rollback", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		body := "---\nversion: 1\nenabled: true\ncontext:\n  include: []\n---\nCheck pending work.\n"
+		created, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: fixture.target, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, found, err := fixture.db.FindHeartbeatSnapshotByDigest(
+			fixture.ctx, fixture.workspaceID, "coder", created.Policy.Digest,
+		)
+		if err != nil || !found {
+			t.Fatalf("reload snapshot: found=%v error=%v", found, err)
+		}
+		envelope, err := snapshot.ResolvedEnvelope()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Preferences.Context.Include == nil || len(envelope.Preferences.Context.Include) != 0 {
+			t.Fatalf("reloaded include=%#v", envelope.Preferences.Context.Include)
+		}
+		second, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target, Body: "Check other work.", ExpectedDigest: created.Policy.Digest,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rolledBack, err := fixture.authoring.Rollback(fixture.ctx, heartbeat.RollbackRequest{
+			Target: fixture.target, TargetDigest: created.Policy.Digest, ExpectedDigest: second.Policy.Digest,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		include := rolledBack.Policy.Preferences.Context.Include
+		if include == nil || len(include) != 0 {
+			t.Fatalf("rollback include=%#v", include)
+		}
+		digest, err := heartbeat.CollectDigest(heartbeat.CollectorScope{MainSessionID: "main"},
+			heartbeat.CollectorFacts{Monitors: []heartbeat.MonitorFact{{ID: "fired", SessionID: "main", Fired: true}}},
+			include, rolledBack.Policy.Digest, rolledBack.Policy.GuidanceMarkdown)
+		if err != nil || len(digest.Items) != 0 {
+			t.Fatalf("disabled collectors: digest=%+v error=%v", digest, err)
+		}
+	})
+
 	t.Run("Should reject nil authoring store", func(t *testing.T) {
 		t.Parallel()
 

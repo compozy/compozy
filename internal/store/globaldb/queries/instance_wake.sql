@@ -78,3 +78,15 @@ WHERE e.instance_id=sqlc.arg(instance_id)
 AND (sqlc.arg(cursor)='' OR (e.created_at, e.id) <
  (SELECT c.created_at, c.id FROM agent_heartbeat_wake_events c WHERE c.instance_id=sqlc.arg(instance_id) AND c.id=sqlc.arg(cursor)))
 ORDER BY e.created_at DESC, e.id DESC LIMIT sqlc.arg(page_limit);
+
+-- name: ResetInstanceWakeStreaks :exec
+UPDATE agent_instance_wake_state SET quiet_streak=0, failure_streak=0 WHERE instance_id=?;
+
+-- name: CountInstanceQuietCheckIns :one
+SELECT count(*) FROM agent_heartbeat_wake_events
+WHERE instance_id=sqlc.arg(instance_id) AND result='quiet'
+AND created_at>sqlc.arg(after_time);
+
+-- name: ResetMainInstanceQuietStreak :exec
+UPDATE agent_instance_wake_state SET quiet_streak=0
+WHERE instance_id IN (SELECT id FROM agent_instances WHERE main_session_id=? AND archived_at IS NULL);

@@ -632,15 +632,16 @@ Do not remove retained directories or bypass a migration refusal. Reserved-name 
 v0.4.0 and are removed in v0.5.0. On data selectors, `global` resolves only a migration-created alias;
 on window-manager surfaces it always means the reserved partition. `@user` always means User.
 
-Proactive checks use `[agents.stays_on]` limits: `max_concurrent_triage = 2`,
-`max_proposals = 2`, `triage_timeout = "2m"`, and `max_interval = "24h"` by default.
+Proactive checks use `[agents.heartbeat]` limits: `max_concurrent_triage = 2` and
+`max_interval = "24h"` (at least `quiet_backoff_cap`). `[agents.stays_on]` retains
+`max_proposals = 2` and `triage_timeout = "10m"`.
 All must be positive; `max_proposals` cannot exceed 20. Changes take effect after daemon
 restart. Cadence, enabled state and event retention use the existing `[agents.heartbeat]`
 settings. Boot settles interrupted checks before scheduler timer traffic starts.
 
 Timer checks double the interval after each three consecutive quiet outcomes, capped by
 `agents.heartbeat.quiet_backoff_cap` (default `"4h"`). Failures back off exponentially, capped
-by `agents.stays_on.max_interval`. `agents.heartbeat.fatigue_limit` (default 10) pauses the
+by `agents.heartbeat.max_interval`. `agents.heartbeat.fatigue_limit` (default 10) pauses the
 instance after consecutive failures; both new settings must be positive. A reported outcome resets the delay to the resolved cadence.
 Finalization persists the delay with the outcome; retries do not compound it. Explicit checks
 update outcome streaks but preserve the timer deadline, as do cancelled occurrences.
@@ -650,3 +651,12 @@ regardless of delivery state. Identity uses sorted unique item keys, or a lowerc
 collapsed whitespace when no keys remain. Body edits do not create a new identity. A batch with
 only duplicates records `duplicate_suppressed` without inserting another report; mixed batches
 retain only new proposals. Deduplication and finalization commit in the same transaction.
+
+`[agents.heartbeat.triage_models]` maps provider names to model IDs for hidden
+proactive checks. It is empty by default. Providers omitted from the map retain
+the agent's model. A more specific configuration layer replaces the map; an empty
+table clears it. Model IDs and provider names must be nonempty and trimmed.
+
+HEARTBEAT.md `context.include` selects proactive collectors. Omitting `context`
+uses all five collectors; an explicit `include: []` disables them and remains
+empty after saving, reloading or rolling back the policy.

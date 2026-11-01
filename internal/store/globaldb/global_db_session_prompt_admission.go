@@ -235,6 +235,13 @@ func claimSessionPromptAdmission(
 	)
 	if err == nil {
 		admission, err := replayPromptAdmissionClaim(ctx, exec, &existing, req)
+		if err == nil && admission.State == store.SessionPromptAdmissionReserved && req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt {
+			reports, readErr := queries.ListPromptReports(ctx, admission.ID)
+			err = readErr
+			if err == nil && len(reports) == 0 {
+				err = queries.ReservePromptReports(ctx, sqlcgen.ReservePromptReportsParams{AdmissionID: admission.ID, SessionID: sql.NullString{String: req.SessionID, Valid: true}})
+			}
+		}
 		return admission, false, err
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -290,6 +297,11 @@ func claimSessionPromptAdmission(
 		TurnID:                req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
 	}); err != nil {
 		return store.SessionPromptAdmission{}, false, fmt.Errorf("store: insert session prompt admission: %w", err)
+	}
+	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt {
+		if err := queries.ResetMainInstanceQuietStreak(ctx, sql.NullString{String: req.SessionID, Valid: true}); err != nil {
+			return store.SessionPromptAdmission{}, false, fmt.Errorf("store: reset instance quiet streak: %w", err)
+		}
 	}
 	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt &&
 		(req.DirectDispatch || req.Mode != store.SessionInputQueueModeSteer) {

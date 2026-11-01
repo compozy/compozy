@@ -3,8 +3,11 @@ package session
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -235,43 +238,319 @@ func TestTriageSessionPermissions(t *testing.T) {
 	})
 }
 
-type triageTestReports struct{}
+type triageTestReports struct {
+	reports  []agentinstance.Report
+	onRecent func(string, int)
+}
 
 var _ TriageReportReader = triageTestReports{}
 
-func (triageTestReports) ListReports(context.Context, agentinstance.ReportQuery) ([]agentinstance.Report, error) {
-	return nil, nil
+func (r triageTestReports) RecentReports(
+	_ context.Context, instanceID string, limit int,
+) ([]agentinstance.Report, error) {
+	if r.onRecent != nil {
+		r.onRecent(instanceID, limit)
+	}
+	return r.reports, nil
 }
 
 func TestTriageDispatcher(t *testing.T) {
+	for _, tc := range []struct{ primaryFailure, stopFailure bool }{
+		{}, {primaryFailure: true}, {stopFailure: true},
+	} {
+		name := "Should preserve a proposal and recover failed cleanup after restart"
+		if tc.primaryFailure {
+			name = "Should preserve the primary failure when cleanup also fails"
+		}
+		if tc.stopFailure {
+			name = "Should preserve a proposal and retry unverified stop cleanup"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			cleanupFailure := errors.New("archive unavailable")
+			if tc.primaryFailure {
+				cleanupFailure = errors.Join(cleanupFailure, context.DeadlineExceeded)
+			}
+			fault := &triageArchiveFault{failure: cleanupFailure}
+			fault.fail.Store(!tc.stopFailure)
+			dh := newDeriveHarness(t, func(db *globaldb.GlobalDB) Option {
+				fault.GlobalDB = db
+				return WithSessionCatalog(fault)
+			}, func(*globaldb.GlobalDB) Option {
+				return WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 5 * time.Millisecond})
+			})
+			h := dh.harness
+			if tc.stopFailure {
+				h.driver.stopHook = func(*fakeProcess) error { return cleanupFailure }
+				h.driver.killHook = func(*fakeProcess) error { return cleanupFailure }
+				h.driver.verifyExitHook = func(*AgentProcess) (bool, error) { return false, cleanupFailure }
+			}
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 2)
+				events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, SessionID: proc.handle.SessionID, TurnID: req.TurnID, Text: `{"proposals":[{"title":"Review","body":"Inspect work","item_keys":[]}]}`}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID, StopReason: string(acp.PromptStopReasonEndTurn), PromptStopReason: acp.PromptStopReasonEndTurn}
+				close(events)
+				return events, nil
+			}
+			dispatcher := &TriageDispatcher{
+				Manager:      h.manager,
+				Reports:      triageTestReports{},
+				MaxProposals: 2,
+				StopTimeout:  time.Second,
+			}
+			var hidden string
+			var exited <-chan struct{}
+			primary := errors.New("occurrence binding failed")
+			outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{
+				ID: "cleanup-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
+			}}, heartbeat.CheckDigest{}, func(id string) error {
+				hidden = id
+				child, ok := h.manager.Get(id)
+				if !ok {
+					return errors.New("triage runtime missing")
+				}
+				exited = child.processHandle().Done()
+				if tc.primaryFailure {
+					return primary
+				}
+				return nil
+			})
+			if !tc.stopFailure && fault.fail.Load() {
+				t.Fatal("archive failure was not exercised")
+			}
+			if tc.primaryFailure {
+				if !errors.Is(err, primary) || errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("error=%v", err)
+				}
+			} else if err != nil || outcome.Result != "reported" || outcome.Report == nil || !strings.Contains(string(outcome.Report.Payload), "Inspect work") {
+				t.Fatalf("outcome=%+v error=%v", outcome, err)
+			}
+			info, err := h.manager.Status(t.Context(), hidden)
+			if err != nil || info.ArchivedAt != nil {
+				t.Fatalf("pending cleanup=%+v error=%v", info, err)
+			}
+			if tc.stopFailure {
+				if info.State != StateStopping {
+					t.Fatalf("unverified state=%s", info.State)
+				}
+				h.driver.mu.Lock()
+				h.driver.stopHook, h.driver.killHook, h.driver.verifyExitHook = nil, nil, nil
+				h.driver.mu.Unlock()
+				if err := h.manager.SweepTriageSessions(t.Context(), info.CreatedAt.Add(-time.Hour)); err != nil {
+					t.Fatal(err)
+				}
+				stopped, err := h.manager.AwaitStopped(t.Context(), hidden)
+				if err != nil || !stopped.Verified || stopped.FinalState != StateStopped {
+					t.Fatalf("recovered stop=%+v error=%v", stopped, err)
+				}
+			} else if info.State != StateStopped {
+				t.Fatalf("state=%s", info.State)
+			}
+			select {
+			case <-exited:
+			default:
+				t.Fatal("triage provider was not stopped")
+			}
+
+			dh.restartManager(t)
+			if err := dh.manager.SweepTriageSessions(t.Context(), info.CreatedAt.Add(-time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			info, err = dh.manager.Status(t.Context(), hidden)
+			if err != nil || info.ArchivedAt == nil {
+				t.Fatalf("recovered archive=%+v error=%v", info, err)
+			}
+			if err := dh.manager.SweepTriageSessions(t.Context(), info.ArchivedAt.Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := dh.manager.Status(t.Context(), hidden); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("expired triage error=%v", err)
+			}
+		})
+	}
+
+	t.Run("Should discard failed triage starts without durable artifacts", func(t *testing.T) {
+		t.Parallel()
+		dh := newDeriveHarness(t)
+		h := dh.harness
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, acp.ErrTriageUnsupported
+		}
+		dispatcher := &TriageDispatcher{
+			Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
+		}
+		outcome, err := dispatcher.Dispatch(
+			t.Context(),
+			heartbeat.CheckTarget{Instance: agentinstance.Instance{
+				ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
+			}},
+			heartbeat.CheckDigest{},
+			func(string) error { t.Error("failed start bound a session"); return nil },
+		)
+		if err != nil || outcome.Reason != "triage_unsupported" {
+			t.Fatalf("outcome=%+v error=%v", outcome, err)
+		}
+		infos, err := h.manager.ListAll(t.Context())
+		if err != nil || len(infos) != 0 {
+			t.Fatalf("sessions=%+v error=%v", infos, err)
+		}
+		rows, err := dh.db.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveInclude,
+		})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("catalog rows=%v error=%v", rows, err)
+		}
+
+		entries, err := os.ReadDir(h.homePaths.SessionsDir)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("directories=%v error=%v", entries, err)
+		}
+	})
+	t.Run("Should archive recovered triage and expire only retained triage", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		ordinary := createSession(t, h)
+		triage, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeTriage,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		dispatcher := &TriageDispatcher{Manager: h.manager}
+		if err := dispatcher.Stop(t.Context(), triage.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(t.Context(), triage.ID)
+		if err != nil || info.ArchivedAt == nil {
+			t.Fatalf("info=%+v error=%v", info, err)
+		}
+		cutoff := *info.ArchivedAt
+		if err := dispatcher.Stop(t.Context(), triage.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.SweepTriageSessions(t.Context(), cutoff.Add(-time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Status(t.Context(), triage.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), ordinary.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Archive(t.Context(), h.workspaceID, ordinary.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.SweepTriageSessions(t.Context(), cutoff.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.Status(t.Context(), triage.ID); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("expired triage error=%v", err)
+		}
+		if _, err := h.manager.Status(t.Context(), ordinary.ID); err != nil {
+			t.Fatalf("ordinary session lost: %v", err)
+		}
+		if err := dispatcher.Stop(t.Context(), triage.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should select the configured triage model from a TOML overlay", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := os.WriteFile(path, []byte("[agents.heartbeat.triage_models]\nclaude = \"claude-haiku-4-5\"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := compozyconfig.ApplyConfigOverlayFile(path, &workspace.Config); err != nil {
+			t.Fatal(err)
+		}
+		h.resolver.upsert(&workspace)
+		recentReads := 0
+		dispatcher := &TriageDispatcher{
+			Manager: h.manager,
+			Reports: triageTestReports{onRecent: func(instanceID string, limit int) {
+				recentReads++
+				if instanceID != "model-instance" || limit != 20 {
+					t.Errorf("recent query=%s limit=%d", instanceID, limit)
+				}
+			}},
+			MaxProposals: 2, StopTimeout: time.Second,
+		}
+		_, err = dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "model-instance", AgentName: "coder", WorkspaceID: h.workspaceID}}, heartbeat.CheckDigest{}, func(id string) error {
+			info, err := h.manager.Status(t.Context(), id)
+			if err != nil {
+				return err
+			}
+			if info.InitiatorKind != "daemon" || info.InitiatorID != "model-instance" {
+				t.Errorf("initiator=%s:%s", info.InitiatorKind, info.InitiatorID)
+			}
+			meta, err := h.manager.readMetaWithContext(t.Context(), id)
+			if err != nil {
+				return err
+			}
+			if meta.InitiatorKind != "daemon" || meta.InitiatorID != "model-instance" {
+				t.Errorf("persisted initiator=%s:%s", meta.InitiatorKind, meta.InitiatorID)
+			}
+			if info.Model != "claude-haiku-4-5" {
+				t.Errorf("triage model=%s", info.Model)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if recentReads != 1 {
+			t.Fatalf("recent report reads=%d", recentReads)
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.startCalls) != 1 || h.driver.startCalls[0].PreferredModel != "claude-haiku-4-5" {
+			t.Fatalf("launches=%+v", h.driver.startCalls)
+		}
+	})
+
 	t.Run("Should delete quiet triage without prompting the main session", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t).harness
 		main := createSession(t, h)
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			events := make(chan acp.AgentEvent, 2)
+			if strings.Contains(req.Message, "```digest") || strings.Contains(req.Message, "```report") || !strings.Contains(req.Message, `\u0060\u0060\u0060digest`) || !strings.Contains(req.Message, `\u0060\u0060\u0060report`) {
+				t.Errorf("untrusted triage data escaped its JSON fence")
+			}
+			events := make(chan acp.AgentEvent, 3)
 			now := time.Now().UTC()
+			events <- acp.AgentEvent{Type: acp.EventTypePermission, TurnID: req.TurnID, Timestamp: now, Decision: string(acp.PermissionDecisionRejectOnce)}.WithRequestID("triage-denial")
 			events <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: now, Text: "NOTHING_TO_REPORT"}
 			events <- acp.AgentEvent{Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: req.TurnID, Timestamp: now, StopReason: string(acp.PromptStopReasonEndTurn), PromptStopReason: acp.PromptStopReasonEndTurn}
 			close(events)
 			return events, nil
 		}
-		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second}
+		dispatcher := &TriageDispatcher{Manager: h.manager, Reports: triageTestReports{reports: []agentinstance.Report{{Payload: []byte("{\"body\":\"```report\"}")}}}, MaxProposals: 2, StopTimeout: time.Second}
 		var hidden string
-		outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID, MainSessionID: main.ID}}, heartbeat.CheckDigest{}, func(id string) error { hidden = id; return nil })
+		outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID, MainSessionID: main.ID}}, heartbeat.CheckDigest{Items: []heartbeat.DigestItem{{Key: "```digest"}}}, func(id string) error { hidden = id; return nil })
 		if err != nil {
 			t.Fatal(err)
 		}
-		if outcome.Result != "quiet" || outcome.Report != nil {
+		if outcome.Result != "quiet" || outcome.Report != nil || outcome.DeniedCalls != 1 {
 			t.Fatalf("outcome=%+v", outcome)
 		}
 		if _, err := h.manager.Status(t.Context(), hidden); err == nil {
 			t.Fatal("quiet session retained")
 		}
+		if err := dispatcher.Stop(t.Context(), hidden); err != nil {
+			t.Fatalf("recover deleted quiet triage: %v", err)
+		}
 		h.driver.mu.Lock()
 		defer h.driver.mu.Unlock()
 		if len(h.driver.promptCalls) != 1 {
 			t.Fatalf("prompts=%d", len(h.driver.promptCalls))
+		}
+		if len(h.driver.startCalls) != 2 || h.driver.startCalls[1].PreferredModel != h.driver.startCalls[0].PreferredModel {
+			t.Fatalf("triage changed the default model: %+v", h.driver.startCalls)
 		}
 	})
 
@@ -477,4 +756,23 @@ func TestDraftInstructionsPolicy(t *testing.T) {
 			t.Fatal("provider was not started")
 		}
 	})
+}
+
+type triageArchiveFault struct {
+	*globaldb.GlobalDB
+	failure error
+	fail    atomic.Bool
+}
+
+var _ store.SessionArchiveStore = (*triageArchiveFault)(nil)
+
+func (f *triageArchiveFault) SetSessionArchived(
+	ctx context.Context,
+	workspaceID, sessionID string,
+	archived bool,
+) (store.SessionInfo, error) {
+	if archived && f.fail.CompareAndSwap(true, false) {
+		return store.SessionInfo{}, f.failure
+	}
+	return f.GlobalDB.SetSessionArchived(ctx, workspaceID, sessionID, archived)
 }

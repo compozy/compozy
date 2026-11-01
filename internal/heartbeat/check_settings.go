@@ -23,7 +23,38 @@ func (s *CheckService) SetChecks(ctx context.Context, id string, enabled bool) (
 		if err != nil {
 			return agentinstance.Instance{}, err
 		}
-		cadence = max(cadence, target.Policy.Preferences.MinInterval)
+		cadence = s.checkInterval(target.Policy)
 	}
 	return storage.SetChecks(ctx, id, enabled, cadence)
+}
+
+func (s *CheckService) checkInterval(policy ResolvedPolicy) time.Duration {
+	if policy.Preferences.MinInterval > 0 {
+		return policy.Preferences.MinInterval
+	}
+	return s.config.Interval
+}
+
+func (s *CheckService) checkBackoff(cadence time.Duration, state InstanceWakeState) time.Duration {
+	if state.FailureStreak > 0 {
+		return CheckBackoff(cadence, s.config.MaxInterval, state.FailureStreak)
+	}
+	maximum := s.config.MaxInterval
+	if s.config.QuietBackoffCap > 0 {
+		maximum = s.config.QuietBackoffCap
+	}
+	return CheckBackoff(cadence, maximum, state.QuietStreak/3)
+}
+
+func CheckBackoff(interval, maximum time.Duration, streak int64) time.Duration {
+	maximum = max(interval, maximum)
+	delay := interval
+	for streak > 0 && delay < maximum {
+		if delay > maximum/2 {
+			return maximum
+		}
+		delay *= 2
+		streak--
+	}
+	return delay
 }

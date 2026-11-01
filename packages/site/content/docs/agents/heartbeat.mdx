@@ -75,8 +75,11 @@ If nothing is claimable, return a concise no-op summary.
 | `preferences.min_interval`    | duration     | optional | Authored minimum interval; clamped to `[agents.heartbeat].min_interval`.                 |
 | `preferences.active_hours`    | array        | optional | IANA timezone allow windows. Multi-window union, midnight crossing supported.            |
 | `preferences.quiet_windows`   | array        | optional | IANA timezone deny windows; subtracted from `active_hours`.                              |
-| `preferences.context.include` | string array | optional | Hints about what context the agent should re-read on wake.                               |
+| `context.include` | string array | optional | Hints about what context the agent should re-read on wake.                               |
 | Body                          | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
+
+Omitting `context` enables all five proactive collectors. An explicit `context: {include: []}`
+disables them and survives save, reload and rollback.
 
 The parser is strict. Forbidden operational fields are explicit. Time-window predicates use IANA
 timezone names; fixed offsets fail validation with `heartbeat_invalid_timezone`. If file

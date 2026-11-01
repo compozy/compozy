@@ -66,7 +66,15 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 		p.setConfigOptions(sessionConfigOptionsFromSDK(notification.Update.ConfigOptionUpdate.ConfigOptions))
 	}
 	if notification.Update.CurrentModeUpdate != nil {
-		p.setConfigOptionCurrent(sessionConfigModeKey, string(notification.Update.CurrentModeUpdate.CurrentModeId))
+		mode := string(notification.Update.CurrentModeUpdate.CurrentModeId)
+		if p.executionPolicy == ExecutionPolicyTriage && triageReadOnlyMode(p.providerName, []string{mode}) == "" {
+			err := fmt.Errorf("%w: provider changed triage mode to %q", ErrTriageUnsupported, mode)
+			if active := p.currentPrompt(); active != nil {
+				active.failIngest(err)
+			}
+			return err
+		}
+		p.setConfigOptionCurrent(sessionConfigModeKey, mode)
 	}
 	event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
 	if err != nil {

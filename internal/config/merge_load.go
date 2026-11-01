@@ -241,6 +241,18 @@ func (o soulOverlay) Apply(dst *SoulConfig) {
 }
 
 func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
+	if o.TriageModels != nil {
+		dst.TriageModels = make(map[string]string, len(o.TriageModels))
+		for provider, model := range o.TriageModels {
+			dst.TriageModels[provider] = model
+		}
+	}
+	if o.MaxInterval != nil {
+		dst.MaxInterval = *o.MaxInterval
+	}
+	if o.MaxConcurrentTriage != nil {
+		dst.MaxConcurrentTriage = *o.MaxConcurrentTriage
+	}
 	if o.QuietBackoffCap != nil {
 		dst.QuietBackoffCap = *o.QuietBackoffCap
 	}

@@ -59,6 +59,15 @@ func (p *AgentProcess) triagePermission(request acpsdk.RequestPermissionRequest)
 			decision = decisionAllowOnce
 		}
 	}
+	if decision == decisionRejectOnce {
+		p.emitTriageDenial(string(request.ToolCall.ToolCallId))
+	}
 	outcome, _ := selectPermissionOutcome(request.Options, decision)
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}
+}
+
+func (p *AgentProcess) emitTriageDenial(toolCallID string) {
+	turnID := p.activeTurnID()
+	requestID := p.nextPermissionRequestID(turnID, acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{ToolCallId: acpsdk.ToolCallId(toolCallID)}})
+	p.emitPermissionEvent(p.SessionID, turnID, requestID, "Read-only triage", toolCallID, "", decisionRejectOnce, "triage", nil)
 }

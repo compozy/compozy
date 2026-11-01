@@ -7,6 +7,7 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 )
 
 const admitInstanceWake = `-- name: AdmitInstanceWake :execrows
@@ -72,6 +73,24 @@ UPDATE agent_instance_wake_state SET occurrence_cancelled=1 WHERE instance_id=? 
 func (q *Queries) CancelInstanceWake(ctx context.Context, instanceID string) error {
 	_, err := q.db.ExecContext(ctx, cancelInstanceWake, instanceID)
 	return err
+}
+
+const countInstanceQuietCheckIns = `-- name: CountInstanceQuietCheckIns :one
+SELECT count(*) FROM agent_heartbeat_wake_events
+WHERE instance_id=?1 AND result='quiet'
+AND created_at>?2
+`
+
+type CountInstanceQuietCheckInsParams struct {
+	InstanceID string `json:"instance_id"`
+	AfterTime  string `json:"after_time"`
+}
+
+func (q *Queries) CountInstanceQuietCheckIns(ctx context.Context, arg CountInstanceQuietCheckInsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countInstanceQuietCheckIns, arg.InstanceID, arg.AfterTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const finishInstanceWake = `-- name: FinishInstanceWake :execrows
@@ -355,6 +374,25 @@ func (q *Queries) ListInstanceCheckIns(ctx context.Context, arg ListInstanceChec
 		return nil, err
 	}
 	return items, nil
+}
+
+const resetInstanceWakeStreaks = `-- name: ResetInstanceWakeStreaks :exec
+UPDATE agent_instance_wake_state SET quiet_streak=0, failure_streak=0 WHERE instance_id=?
+`
+
+func (q *Queries) ResetInstanceWakeStreaks(ctx context.Context, instanceID string) error {
+	_, err := q.db.ExecContext(ctx, resetInstanceWakeStreaks, instanceID)
+	return err
+}
+
+const resetMainInstanceQuietStreak = `-- name: ResetMainInstanceQuietStreak :exec
+UPDATE agent_instance_wake_state SET quiet_streak=0
+WHERE instance_id IN (SELECT id FROM agent_instances WHERE main_session_id=? AND archived_at IS NULL)
+`
+
+func (q *Queries) ResetMainInstanceQuietStreak(ctx context.Context, mainSessionID sql.NullString) error {
+	_, err := q.db.ExecContext(ctx, resetMainInstanceQuietStreak, mainSessionID)
+	return err
 }
 
 const scheduleInstanceChecks = `-- name: ScheduleInstanceChecks :exec

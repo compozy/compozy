@@ -426,7 +426,7 @@ type HeartbeatConfigSubsetPayload struct {
 
 // HeartbeatContextProjectionPayload is a daemon API value.
 type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
+	Include []string `json:"include,omitzero"`
 }
 
 // HeartbeatDeleteByPathRequest is a daemon API value.

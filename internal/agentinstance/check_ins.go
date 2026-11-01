@@ -13,5 +13,6 @@ type CheckIn struct {
 }
 
 type CheckInReader interface {
+	CountQuietCheckIns(context.Context, string, *time.Time) (int64, error)
 	ListCheckIns(context.Context, string, string, int) ([]CheckIn, error)
 }

@@ -180,3 +180,162 @@ Deadline and generic provider errors do not enter this classification. The repor
 uses fixed descriptive text, avoiding propagation of raw provider error content.
 
 2026-11-01 walk: report entry, proposal pick, While you were away, relayed approval and its failed answer passed, and reports reach `delivered` on the next human prompt. Still unwalked: expired, provider-ended and interrupted approvals, rotation and the superseded state.
+
+Cadence remediation: configure a 5-minute minimum and 30-minute default, then author
+10 minutes in HEARTBEAT.md. Enabling checks must schedule ten minutes ahead; a
+failed timer check must back off from ten minutes, not from the default. The real
+SQLite case in `TestInstanceChecksToggle` passes with `-race`; the browser walk
+remains pending with this scenario.
+
+Direct prompt recovery: fail the first runtime bind after a published report is
+reserved. Verify that the report returns to pending immediately, then restore the
+provider and retry both with the original key and with a new key. Each successful
+prompt delivers at most twenty reports, once. `TestInstanceReportsReachProvider`
+now covers both retry identities using the session harness and real SQLite.
+
+Heartbeat configuration: set `max_interval` and `max_concurrent_triage` under
+`[agents.heartbeat]`, restart, and verify unchanged-digest timing and concurrent
+triage admission use those values. The old stays_on spellings were unreleased
+and are removed. `max_interval` must be at least `quiet_backoff_cap`.
+
+Triage model selection: configure a model under `[agents.heartbeat.triage_models]`
+for the agent's provider, then run a proactive check and inspect the hidden session's
+runtime model. The main session retains its model. Remove the provider entry to
+restore the agent's default. `TestTriageDispatcher` exercises the TOML-to-launch path.
+
+Fatigue resume: accumulate quiet backoff and enough failed checks to trigger fatigue,
+then resume as operator. Both quiet and failure streaks reset atomically with resume;
+one subsequent failure must leave the instance active. `TestInstanceCheckFatigue`
+exercises the full wake/admission/finalization/resume sequence against SQLite.
+
+Default busy preference: leave busy mode at `steer` and send an ordinary prompt to
+an idle main session. It must receive pending reports, capped at twenty. If a direct
+admission races into actual steering, all its reports return to pending in the same
+transaction as steer staging. The session and SQLite report suites cover both paths.
+
+Quiet output contract: return `NOTHING_TO_REPORT` for silence. An empty proposals
+array, fenced or unfenced, must finalize as `triage_output_invalid`, with a failure
+report rather than incrementing quiet streaks. A valid fenced proposal remains
+accepted. Parser and outcome suites cover these distinctions.
+
+Quiet triage recovery: interrupt the daemon after quiet triage deletes its session
+but before the occurrence finishes. Restart and verify boot succeeds, the held
+slot is released, and the occurrence records `triage_interrupted` once. A missing
+triage session is already stopped; other stop failures remain errors.
+
+First automatic check: create or adopt an instance with standing instructions and
+verify the next scheduler tick schedules its first check for creation time plus
+the resolved policy interval, without calling the model. Verify the check runs
+when that interval elapses; an explicit manual check remains available immediately.
+
+Session health context: retain stopped and archived sessions alongside an active
+session without a health row. Verify only the active session contributes unknown
+health to the proactive digest. Hidden triage sessions must remain excluded.
+
+Triage data boundary: include triple backticks in a digest key and in a prior
+report body. Verify both are JSON unicode escapes in the provider prompt and
+cannot close the untrusted-data fence. Quiet triage still completes normally.
+
+Global automation context: create a failed user-scope automation with no workspace
+and a failed workspace automation. A Global instance without cross-workspace reach
+must include only the user-scope failure in its proactive digest.
+
+Structured configuration: set the rotation threshold, active-instance cap, proposal
+cap, triage timeout, maximum interval and triage concurrency through config tools.
+Verify the values persist and validate with their declared types. With no timeout
+override, a proactive triage turn has a ten-minute deadline.
+
+Report delivery exits: cancel queued input through a task force-run mutation and
+verify its reserved reports return to pending atomically. After an asynchronous
+provider error, verify delivered reports become indeterminate with one transcript
+note. Automatic prompt recovery must not resend those uncertain reports.
+
+Away quiet count: complete more than one page of quiet checks, along with a failed
+check and a quiet check belonging to another instance. Verify Away counts only
+this instance's quiet events. After marking seen, exclude events at or before the
+seen timestamp; later quiet checks remain visible. Reading Away stays passive.
+
+Triage denial audit: attempt writes, terminal creation and unknown native calls
+from a read-only triage turn. Verify each refusal produces a permission event and
+its count reaches the occurrence's `denied_calls`. Quiet-session deletion and
+failed dispatch must preserve this durable count.
+
+Approval expiry activity: let an ACP approval time out and explicitly decline a
+second approval. Activity must classify the first as No answer and the second as
+declined, with separate daily counts; the permission log records `expired` only
+for the timeout resolution.
+
+Human prompt backoff: accumulate quiet checks, then admit a new human prompt on
+the instance's main session. Verify quiet streak resets while the failure streak
+is preserved. Agent prompts and replaying the same admission must not reset it.
+
+Triage proposal bounds: accept titles through 120 characters and bodies through
+500 characters, including multibyte text. Longer retained proposals produce
+`triage_output_invalid`. Entries beyond `max_proposals` are discarded even when
+their fields are malformed; they must not invalidate accepted proposals.
+Focused parser coverage lives in `TestParseTriageReply`; the live provider walk
+remains part of the trailing integration QA.
+
+Triage initiator audit: a timer check records initiator kind `daemon` and the
+instance ID on its hidden session. Verify triage denials appear in unattended
+permission activity before archived-session retention removes that session.
+
+Triage lifecycle retention: a failed provider start leaves no session row or
+directory. On daemon recovery, stop and archive each interrupted hidden triage
+before finalizing its occurrence. After `wake_event_retention`, supervision deletes
+archived triage while retaining recent triage and ordinary archived sessions.
+The owning Manager regression cases are in `TestTriageDispatcher`; include restart
+and retention in the trailing live-provider QA walk.
+
+Provider command delivery: with pending reports, send an advertised provider
+command such as `/compact keep decisions` in queue mode. The provider receives
+exactly that command and the reports remain pending. A subsequent normal prompt
+receives the reports once; retrying its admission does not resend them.
+
+Agent activity quiet totals: complete more than one page of quiet checks on one
+day and quiet checks on a day without reports. The activity chart includes both
+days, preserves Told and Needed you totals, and excludes other profiles, agents,
+workspaces and checks outside the selected time window. `TestInstanceActivity`
+owns the SQLite aggregate regression; verify the chart in trailing integration QA.
+
+Preflight retry fairness: fail policy resolution, the before-check hook, or digest
+collection on a due timer check. Verify one diagnostic check-in is recorded and
+the next attempt is scheduled after the cadence without changing the completed
+digest or automation cursor. Other due instances must progress with batch size 1;
+manual checks and dry runs must preserve the existing timer deadline.
+
+Skipped-check backoff: accumulate quiet or failed checks, then skip a timer check
+with an empty or unchanged digest, a canceled hook, or a preparation error. Verify
+the next timer keeps the existing backoff and applicable cap, plus its normal
+stagger. Skips must preserve streaks, the completed digest and automation cursor.
+
+Finalized timer cadence: configure a policy minimum longer than the quiet cap or
+maximum backoff. Quiet, reported and failed outcomes must never schedule earlier
+than that minimum. Finalization applies the same instance-derived stagger as
+admission (up to 10% of cadence), with a stable offset across retries. Manual
+checks and replayed finalizations preserve the existing timer deadline.
+
+Hook cancellation detail: return `{"cancel":true,"reason":"maintenance_window"}`
+from `agent.heartbeat.wake.before`. Persisted timer wake events retain `hook_cancelled` with
+`maintenance_window` in `detail`; no triage starts. Reasons are redacted and bounded
+to 300 bytes. Omit `reason` and verify cancellation still applies.
+
+Recent triage reports: seed more than 20 reports, including delivered reports and
+reports with equal timestamps. A check receives the 20 newest reports for its
+instance in descending `(created_at, id)` order. Newer reports from another
+instance stay excluded. Public report history keeps its chronological pagination.
+
+Triage cleanup failures: fail archiving after a completed proposal. The proposal
+is still finalized as reported, and cleanup failure is logged. After recovery,
+supervision retries stopping or archiving hidden triage and applies normal
+retention. A primary dispatch failure remains an error even when cleanup fails.
+
+Read-only triage: a provider `current_mode_update` selecting a writable or unknown
+mode must cancel the active check with an error before applying the mode. Verify
+with `TestTriagePolicy/Should_fail_the_active_triage_run` in the ACP suite.
+
+Collector selection: omit HEARTBEAT.md `context` to use all five collectors;
+set `context: {include: []}` to disable collectors. Save, reload and roll back
+the policy; the explicit empty selection must survive. The owning checks are
+`TestCollectDigest` and
+`TestManagedHeartbeatAuthoringServicePutValidateAndCAS/Should_preserve_disabled_collectors`.

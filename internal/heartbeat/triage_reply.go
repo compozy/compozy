@@ -1,10 +1,12 @@
 package heartbeat
 
 import (
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 )
@@ -30,13 +32,12 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 		return nil, ErrTriageOutputInvalid
 	}
 	var envelope struct {
-		Proposals *[]struct {
-			Title    *string   `json:"title"`
-			Body     *string   `json:"body"`
-			ItemKeys *[]string `json:"item_keys"`
-		} `json:"proposals"`
+		Proposals *[]jsontext.Value `json:"proposals"`
 	}
-	if err := json.Unmarshal([]byte(reply), &envelope, json.RejectUnknownMembers(true)); err != nil || envelope.Proposals == nil {
+	if err := json.Unmarshal([]byte(reply), &envelope, json.RejectUnknownMembers(true)); err != nil {
+		return nil, ErrTriageOutputInvalid
+	}
+	if envelope.Proposals == nil || len(*envelope.Proposals) == 0 {
 		return nil, ErrTriageOutputInvalid
 	}
 	allowed := make(map[string]bool, len(digest.Items))
@@ -44,23 +45,40 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 		allowed[item.Key] = true
 	}
 	proposals := make([]TriageProposal, 0, min(limit, len(*envelope.Proposals)))
-	for _, raw := range *envelope.Proposals {
-		if raw.Title == nil || raw.Body == nil || raw.ItemKeys == nil || strings.TrimSpace(*raw.Title) == "" || strings.TrimSpace(*raw.Body) == "" {
-			return nil, ErrTriageOutputInvalid
-		}
-		if len(proposals) >= limit {
-			continue
+	for _, value := range (*envelope.Proposals)[:min(limit, len(*envelope.Proposals))] {
+		raw, err := parseTriageProposal(value)
+		if err != nil {
+			return nil, err
 		}
 		keys := []string{}
-		for _, key := range *raw.ItemKeys {
+		for _, key := range raw.ItemKeys {
 			if allowed[key] {
 				keys = append(keys, key)
 			}
 		}
 		slices.Sort(keys)
-		proposals = append(proposals, TriageProposal{Title: *raw.Title, Body: *raw.Body, ItemKeys: slices.Compact(keys)})
+		proposals = append(proposals, TriageProposal{Title: raw.Title, Body: raw.Body, ItemKeys: slices.Compact(keys)})
 	}
 	return proposals, nil
+}
+
+func parseTriageProposal(value jsontext.Value) (TriageProposal, error) {
+	var raw struct {
+		Title    *string   `json:"title"`
+		Body     *string   `json:"body"`
+		ItemKeys *[]string `json:"item_keys"`
+	}
+	if err := json.Unmarshal(value, &raw, json.RejectUnknownMembers(true)); err != nil {
+		return TriageProposal{}, ErrTriageOutputInvalid
+	}
+	if raw.Title == nil || raw.Body == nil || raw.ItemKeys == nil {
+		return TriageProposal{}, ErrTriageOutputInvalid
+	}
+	if strings.TrimSpace(*raw.Title) == "" || strings.TrimSpace(*raw.Body) == "" ||
+		utf8.RuneCountInString(*raw.Title) > 120 || utf8.RuneCountInString(*raw.Body) > 500 {
+		return TriageProposal{}, ErrTriageOutputInvalid
+	}
+	return TriageProposal{Title: *raw.Title, Body: *raw.Body, ItemKeys: *raw.ItemKeys}, nil
 }
 
 // TriageReplyOutcome converts provider output to a finalization that satisfies the report contract.

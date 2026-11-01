@@ -28,8 +28,17 @@ func (r *InstanceRepo) ReadActivity(ctx context.Context, query agentinstance.Act
 	if cost.Tokens != 0 || cost.USDEstimate != 0 {
 		result.CostByProject = append(result.CostByProject, cost)
 	}
-	source := `(SELECT r.created_at, r.kind, i.profile_id, i.workspace_id, i.agent_name FROM agent_instance_reports r JOIN agent_instances i ON i.id = r.instance_id)`
-	statement, args = instanceActivitySQL(query.WorkspaceID, `SELECT date(created_at, 'localtime'), SUM(CASE WHEN kind = 'proposal' THEN 1 ELSE 0 END), SUM(CASE WHEN kind != 'proposal' THEN 1 ELSE 0 END) FROM `+source, ` GROUP BY 1 ORDER BY 1`, append(clauses, store.TimeClause("created_at", ">=", query.Since))...)
+	source := `(SELECT r.created_at, r.kind, i.profile_id, i.workspace_id, i.agent_name
+        FROM agent_instance_reports r JOIN agent_instances i ON i.id = r.instance_id
+        UNION ALL
+        SELECT e.created_at, 'quiet', i.profile_id, i.workspace_id, i.agent_name
+        FROM agent_heartbeat_wake_events e JOIN agent_instances i ON i.id = e.instance_id
+        WHERE e.result = 'quiet')`
+	statement, args = instanceActivitySQL(
+		query.WorkspaceID,
+		`SELECT date(created_at, 'localtime'), SUM(CASE WHEN kind = 'proposal' THEN 1 ELSE 0 END), SUM(CASE WHEN kind NOT IN ('proposal', 'quiet') THEN 1 ELSE 0 END), SUM(CASE WHEN kind = 'quiet' THEN 1 ELSE 0 END) FROM `+source,
+		` GROUP BY 1 ORDER BY 1`,
+		append(clauses, store.TimeClause("created_at", ">=", query.Since))...)
 	rows, err := r.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return result, err
@@ -37,7 +46,7 @@ func (r *InstanceRepo) ReadActivity(ctx context.Context, query agentinstance.Act
 	defer func() { err = joinRowsCloseError(rows, err, "instance activity reports") }()
 	for rows.Next() {
 		var day agentinstance.ActivityDay
-		if err := rows.Scan(&day.Day, &day.Told, &day.NeededYou); err != nil {
+		if err := rows.Scan(&day.Day, &day.Told, &day.NeededYou, &day.Quiet); err != nil {
 			return result, err
 		}
 		result.ReportsByDay = append(result.ReportsByDay, day)

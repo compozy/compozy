@@ -441,6 +441,25 @@ func TestAgentInstanceAway(t *testing.T) {
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances(), Reports: db.InstanceReports(), Authority: agentinstance.Authority{Callers: db.Instances()}}
 		at := report.CreatedAt.Add(time.Second)
 		fixture.Handlers.Now = func() time.Time { return at }
+		other, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "other", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range 105 {
+			id, result, timestamp := instance.ID, "quiet", at
+			if i == 102 {
+				timestamp = at.Add(time.Second)
+			}
+			if i == 103 {
+				id = other.ID
+			}
+			if i == 104 {
+				result = "failed"
+			}
+			if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer',?,'quiet',?,?)`, fmt.Sprintf("quiet-%03d", i), id, result, store.FormatTimestamp(timestamp), store.FormatTimestamp(at.Add(time.Hour))); err != nil {
+				t.Fatal(err)
+			}
+		}
 		fixture.Engine.GET("/instances/:id/away", fixture.Handlers.GetAgentInstanceAway)
 		fixture.Engine.POST("/instances/:id/away", fixture.Handlers.MarkAgentInstanceSeen)
 		for _, method := range []string{"GET", "POST", "GET"} {
@@ -454,7 +473,7 @@ func TestAgentInstanceAway(t *testing.T) {
 				t.Fatal(err)
 			}
 			if method == "GET" && body.LastSeenAt == nil {
-				if len(body.Reports) != 1 || body.Reports[0].ID != report.ID || body.QuietCheckIns != 1 {
+				if body.QuietCheckIns != 104 || len(body.Reports) != 1 || body.Reports[0].ID != report.ID {
 					t.Fatalf("unseen body = %+v", body)
 				}
 				seen, err := db.Instances().LastSeen(t.Context(), instance.ID, agentinstance.LocalOperator)
@@ -462,7 +481,10 @@ func TestAgentInstanceAway(t *testing.T) {
 					t.Fatalf("GET changed seen: %v %v", seen, err)
 				}
 			} else {
-				if body.LastSeenAt == nil || !body.LastSeenAt.Equal(at) || len(body.Reports) != 0 || body.QuietCheckIns != 0 {
+				if method == "GET" && body.QuietCheckIns != 1 {
+					t.Fatalf("quiet after seen=%d", body.QuietCheckIns)
+				}
+				if body.LastSeenAt == nil || !body.LastSeenAt.Equal(at) || len(body.Reports) != 0 {
 					t.Fatalf("seen body = %+v", body)
 				}
 			}

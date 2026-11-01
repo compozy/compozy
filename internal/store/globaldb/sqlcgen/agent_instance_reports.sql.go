@@ -241,6 +241,53 @@ func (q *Queries) ListPromptReports(ctx context.Context, admissionID string) ([]
 	return items, nil
 }
 
+const listRecentAgentInstanceReports = `-- name: ListRecentAgentInstanceReports :many
+SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at FROM agent_instance_reports
+WHERE instance_id = ?1
+ORDER BY created_at DESC, id DESC LIMIT ?2
+`
+
+type ListRecentAgentInstanceReportsParams struct {
+	InstanceID string `json:"instance_id"`
+	PageLimit  int64  `json:"page_limit"`
+}
+
+func (q *Queries) ListRecentAgentInstanceReports(ctx context.Context, arg ListRecentAgentInstanceReportsParams) ([]AgentInstanceReport, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentAgentInstanceReports, arg.InstanceID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentInstanceReport{}
+	for rows.Next() {
+		var i AgentInstanceReport
+		if err := rows.Scan(
+			&i.ID,
+			&i.InstanceID,
+			&i.SourceKey,
+			&i.Kind,
+			&i.Payload,
+			&i.Fingerprint,
+			&i.State,
+			&i.PromptAdmissionID,
+			&i.EventSessionID,
+			&i.EventSeq,
+			&i.CreatedAt,
+			&i.DeliveredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUnpublishedAgentInstanceReports = `-- name: ListUnpublishedAgentInstanceReports :many
 SELECT r.id, r.instance_id, r.source_key, r.kind, r.payload, r.fingerprint, r.state, r.prompt_admission_id, r.event_session_id, r.event_seq, r.created_at, r.delivered_at, r.recovery_noted, i.main_session_id FROM agent_instance_reports r
 JOIN agent_instances i ON i.id = r.instance_id

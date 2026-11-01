@@ -20,6 +20,8 @@ func DefaultSoulConfig() SoulConfig {
 // DefaultHeartbeatConfig returns built-in Agent Heartbeat wake-policy limits.
 func DefaultHeartbeatConfig() HeartbeatConfig {
 	return HeartbeatConfig{
+		MaxInterval:                  24 * time.Hour,
+		MaxConcurrentTriage:          2,
 		QuietBackoffCap:              4 * time.Hour,
 		FatigueLimit:                 10,
 		Enabled:                      true,
@@ -42,7 +44,7 @@ func (c AgentsConfig) Validate() error {
 	if c.StaysOn.ApprovalTimeout < time.Minute || c.StaysOn.ApprovalTimeout > 72*time.Hour {
 		return fmt.Errorf("agents.stays_on.approval_timeout must be between 1m and 72h")
 	}
-	if c.StaysOn.MaxConcurrentTriage < 1 || c.StaysOn.MaxProposals < 1 || c.StaysOn.MaxProposals > 20 || c.StaysOn.TriageTimeout <= 0 || c.StaysOn.MaxInterval <= 0 {
+	if c.StaysOn.MaxProposals < 1 || c.StaysOn.MaxProposals > 20 || c.StaysOn.TriageTimeout <= 0 {
 		return fmt.Errorf("agents.stays_on requires positive triage limits and max_proposals between 1 and 20")
 	}
 	if !(c.StaysOn.RotationThreshold > 0 && c.StaysOn.RotationThreshold <= 1) {
@@ -89,6 +91,17 @@ func (c SoulConfig) Validate() error {
 
 // Validate ensures HEARTBEAT.md limits and timing bounds are internally consistent.
 func (c HeartbeatConfig) Validate() error {
+	for provider, model := range c.TriageModels {
+		if strings.TrimSpace(provider) == "" || provider != strings.TrimSpace(provider) || strings.TrimSpace(model) == "" || model != strings.TrimSpace(model) {
+			return fmt.Errorf("agents.heartbeat.triage_models requires nonempty trimmed provider and model names")
+		}
+	}
+	if c.MaxConcurrentTriage < 1 {
+		return fmt.Errorf("agents.heartbeat.max_concurrent_triage must be positive")
+	}
+	if c.MaxInterval < c.QuietBackoffCap {
+		return fmt.Errorf("agents.heartbeat.max_interval must be at least quiet_backoff_cap")
+	}
 	if c.QuietBackoffCap <= 0 {
 		return fmt.Errorf("agents.heartbeat.quiet_backoff_cap must be positive")
 	}

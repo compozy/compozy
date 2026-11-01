@@ -67,6 +67,10 @@ var (
 		"defaults.provider":                                        ConfigValueString,
 		configDefaultsModelPath:                                    ConfigValueString,
 		configDefaultsReasoningEffortPath:                          ConfigValueString,
+		"agents.stays_on.rotation_threshold":                       ConfigValueFloat,
+		"agents.stays_on.max_active_instances":                     ConfigValueInt,
+		"agents.stays_on.max_proposals":                            ConfigValueInt,
+		"agents.stays_on.triage_timeout":                           ConfigValueDuration,
 		"agents.stays_on.approval_timeout":                         ConfigValueDuration,
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
@@ -82,6 +86,8 @@ var (
 		"agents.heartbeat.allow_active_hours_preferences":          ConfigValueBool,
 		toolSurfaceAgentsHeartbeatWakeEventRetentionPath:           ConfigValueDuration,
 		"agents.heartbeat.quiet_backoff_cap":                       ConfigValueDuration,
+		"agents.heartbeat.max_interval":                            ConfigValueDuration,
+		"agents.heartbeat.max_concurrent_triage":                   ConfigValueInt,
 		"agents.heartbeat.fatigue_limit":                           ConfigValueInt,
 		toolSurfaceAgentsHeartbeatSessionHealthStaleAfterPath:      ConfigValueDuration,
 		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath: ConfigValueDuration,
@@ -226,6 +232,10 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 	policy := PathPolicy{Segments: clean, Kind: ConfigValueString}
 	if kind, ok := sessionEnvMutationKind(clean); ok {
 		policy.Kind = kind
+		return policy, nil
+	}
+	if len(clean) == 4 && clean[0] == "agents" && clean[1] == "heartbeat" && clean[2] == "triage_models" {
+		policy.Kind = ConfigValueString
 		return policy, nil
 	}
 	joined := strings.Join(clean, ".")

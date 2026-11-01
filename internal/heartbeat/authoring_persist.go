@@ -228,7 +228,7 @@ func heartbeatFrontmatterForRollback(front Frontmatter) map[string]any {
 	if len(preferences) > 0 {
 		payload["preferences"] = preferences
 	}
-	if len(front.Context.Include) > 0 {
+	if front.Context.Include != nil {
 		payload["context"] = map[string]any{"include": slices.Clone(front.Context.Include)}
 	}
 	return payload

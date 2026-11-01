@@ -74,7 +74,8 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 		if sweeper, ok := state.registry.(heartbeatWakeSweeper); ok {
 			_, sweepErr = sweeper.SweepHeartbeatWakeEvents(ctx, d.now(), 1000)
 		}
-		return errors.Join(registryErr, supervisionErr, sweepErr)
+		triageErr := manager.SweepTriageSessions(ctx, d.now().Add(-state.cfg.Agents.Heartbeat.WakeEventRetention))
+		return errors.Join(registryErr, supervisionErr, sweepErr, triageErr)
 	}, interval, func(err error) { state.logger.Error("session supervision failed", "error", err) })
 	if startErr := worker.Start(ctx); startErr != nil {
 		return fmt.Errorf("daemon: start session supervision: %w", startErr)

@@ -34,7 +34,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	dispatcher := &session.TriageDispatcher{Manager: manager, Reports: provider.InstanceReports(), MaxProposals: min(cfg.MaxProposals, 2), StopTimeout: state.cfg.Session.Supervision.StopGrace}
 	service, err := heartbeat.NewCheckService(ctx, provider.Instances(), environment, dispatcher, heartbeat.CheckConfig{
-		QuietBackoffCap: hb.QuietBackoffCap, FatigueLimit: hb.FatigueLimit, Enabled: hb.Enabled, Interval: hb.DefaultInterval, MaxInterval: cfg.MaxInterval, Retention: hb.WakeEventRetention, Timeout: cfg.TriageTimeout, MaxConcurrent: cfg.MaxConcurrentTriage, BatchSize: hb.MaxWakesPerCycle,
+		QuietBackoffCap: hb.QuietBackoffCap, FatigueLimit: hb.FatigueLimit, Enabled: hb.Enabled, Interval: hb.DefaultInterval, MaxInterval: hb.MaxInterval, Retention: hb.WakeEventRetention, Timeout: cfg.TriageTimeout, MaxConcurrent: hb.MaxConcurrentTriage, BatchSize: hb.MaxWakesPerCycle,
 	}, d.now)
 	if err != nil {
 		return fmt.Errorf("daemon: create proactive checks: %w", err)

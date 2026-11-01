@@ -169,6 +169,9 @@ func stageAdmittedSessionSteerInTransaction(
 	if err != nil || replayed {
 		return err
 	}
+	if err := sqlcgen.New(exec).ReleasePromptReports(ctx, claimed.ID); err != nil {
+		return err
+	}
 	superseded, err := cancelPriorAdmittedSessionSteers(ctx, exec, queueReq, admissionReq.Now)
 	if err != nil {
 		return err

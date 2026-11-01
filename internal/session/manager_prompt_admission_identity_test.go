@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -452,17 +454,34 @@ func TestPromptAdmissionMentions(t *testing.T) {
 }
 
 func TestInstanceReportsReachProvider(t *testing.T) {
-	for _, fail := range []bool{false, true} {
+	for _, scenario := range []string{
+		"success", "provider_command", "default_busy_mode", "dispatch_failure",
+		"async_failure", "async_recovery", "startup_failure_new_key", "startup_failure_same_key",
+	} {
+		fail := scenario == "dispatch_failure" || strings.HasPrefix(scenario, "async_")
 		name := "Should inject admitted reports once through SendPrompt"
 		if fail {
 			name = "Should mark uncertain driver delivery without resending the report"
 		}
-		t.Run(name, func(t *testing.T) {
+		t.Run(name+" "+scenario, func(t *testing.T) {
 			t.Parallel()
 			database := openManagerInputQueueStore(t)
 			h := newHarness(t, WithSessionInputQueueStore(database), WithEventLedger(database))
 			registerManagerInputQueueWorkspace(t, database, h)
-			sess := createSession(t, h)
+			var sess *Session
+			if strings.HasPrefix(scenario, "startup_failure") {
+				created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var ok bool
+				sess, ok = h.manager.Get(created.ID)
+				if !ok {
+					t.Fatal("logical session missing")
+				}
+			} else {
+				sess = createSession(t, h)
+			}
 			registerManagerInputQueueSession(t, database, h, sess)
 			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
 			instance, _, err := database.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
@@ -502,14 +521,89 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 				IdempotencyKey: "key-report",
 				Mode:           BusyInputModeQueue,
 			}
+			if scenario == "default_busy_mode" {
+				opts.Mode = ""
+			}
+			if strings.HasPrefix(scenario, "startup_failure") {
+				h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) { return nil, errors.New("runtime unavailable") }
+				if _, err := h.manager.SendPrompt(t.Context(), sess.ID, opts); err == nil || !strings.Contains(err.Error(), "runtime unavailable") {
+					t.Fatalf("expected runtime failure, got %v", err)
+				}
+				pending, err := database.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+				if err != nil || len(pending) != reportCount {
+					t.Fatalf("pending after failed start=%d err=%v", len(pending), err)
+				}
+				h.driver.startHook = nil
+				if scenario == "startup_failure_new_key" {
+					opts.MessageID += "-retry"
+					opts.IdempotencyKey += "-retry"
+				}
+			}
 			if fail {
 				h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 					return nil, errors.New("uncertain driver delivery")
 				}
 			}
+			if strings.HasPrefix(scenario, "async_") {
+				h.manager.promptRecoveryDelays = []time.Duration{0}
+				var attempts atomic.Int32
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent, 1)
+					event := acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Error: "delivery lost"}
+					if scenario == "async_recovery" {
+						if attempts.Add(1) == 1 {
+							event.Failure = &store.SessionFailure{Kind: store.FailureTransport, Summary: "delivery lost"}
+						} else {
+							if strings.Contains(req.Message, "<compozy-reports>") {
+								t.Error("recovery resent uncertain reports")
+							}
+							event = acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+						}
+					}
+					events <- event
+					close(events)
+					return events, nil
+				}
+			}
+			if scenario == "provider_command" {
+				sess.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+				commandOpts := opts
+				commandOpts.Message = "/compact keep decisions"
+				commandOpts.MessageID = "msg-command"
+				commandOpts.IdempotencyKey = "key-command"
+				commandOpts.AllowCommands = true
+				commandResult, err := h.manager.SendPrompt(t.Context(), sess.ID, commandOpts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				drainPromptEvents(t, commandResult.Events)
+				h.driver.mu.Lock()
+				commandCalls := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+				h.driver.mu.Unlock()
+				if len(commandCalls) != 1 || !commandCalls[0].AgentCommand ||
+					commandCalls[0].Message != commandOpts.Message {
+					t.Fatalf("provider command=%+v", commandCalls)
+				}
+				pending, err := database.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{
+					InstanceID: instance.ID, State: "pending", Limit: 100,
+				})
+				if err != nil || len(pending) != reportCount {
+					t.Fatalf("pending after command=%d error=%v", len(pending), err)
+				}
+			}
+
 			result, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+			if strings.HasPrefix(scenario, "async_") {
+				if err != nil {
+					t.Fatal(err)
+				}
+				events := collectEvents(t, result.Events)
+				if scenario == "async_recovery" && countAgentEvents(events, acp.EventTypeRuntimeRecoverySucceeded) != 1 {
+					t.Fatalf("recovery events=%+v", events)
+				}
+			}
 			if fail {
-				if err == nil {
+				if err == nil && !strings.HasPrefix(scenario, "async_") {
 					t.Fatal("expected driver error")
 				}
 				rows, readErr := database.InstanceReports().
@@ -579,6 +673,9 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			h.driver.mu.Lock()
 			calls := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
 			h.driver.mu.Unlock()
+			if scenario == "provider_command" {
+				calls = calls[1:]
+			}
 			if len(calls) != 1 || strings.Count(calls[0].Message, "<compozy-reports>") != 1 ||
 				strings.Count(
 					calls[0].Message,
@@ -604,6 +701,9 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			h.driver.mu.Lock()
 			count := len(h.driver.promptCalls)
 			h.driver.mu.Unlock()
+			if scenario == "provider_command" {
+				count--
+			}
 			if count != 1 {
 				t.Fatalf("replayed report invoked driver %d times", count)
 			}

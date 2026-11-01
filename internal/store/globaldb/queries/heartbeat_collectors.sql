@@ -23,12 +23,14 @@ WHERE s.profile_id = sqlc.arg(profile_id)
   AND s.workspace_id IN (SELECT value FROM json_each(sqlc.arg(workspaces)))
   AND COALESCE(s.instance_id, '') <> sqlc.arg(instance_id)
   AND s.session_type <> 'triage'
+  AND s.state IN ('starting', 'active', 'stopping')
+  AND s.archived_at IS NULL
 ORDER BY s.id;
 
 -- name: ListInstanceCollectorAutomations :many
 SELECT id, profile_id, workspace_id, status, ended_at
 FROM automation_runs
 WHERE profile_id = sqlc.arg(profile_id) AND status = 'failed'
-  AND workspace_id IN (SELECT value FROM json_each(sqlc.arg(workspaces)))
+  AND COALESCE(workspace_id, '') IN (SELECT value FROM json_each(sqlc.arg(workspaces)))
   AND ended_at IS NOT NULL
 ORDER BY ended_at, id;

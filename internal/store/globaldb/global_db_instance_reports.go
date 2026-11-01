@@ -57,6 +57,30 @@ func (r *InstanceReportRepo) ListReports(ctx context.Context, q agentinstance.Re
 	if err != nil {
 		return nil, err
 	}
+	return instanceReports(rows)
+}
+
+func (r *InstanceReportRepo) RecentReports(
+	ctx context.Context,
+	instanceID string,
+	limit int,
+) ([]agentinstance.Report, error) {
+	if err := r.checkReady(ctx, "recent instance reports"); err != nil {
+		return nil, err
+	}
+	if instanceID == "" || limit < 1 || limit > 100 {
+		return nil, errors.New("recent reports require instance and limit from 1 to 100")
+	}
+	rows, err := r.queries.ListRecentAgentInstanceReports(ctx, sqlcgen.ListRecentAgentInstanceReportsParams{
+		InstanceID: instanceID, PageLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return instanceReports(rows)
+}
+
+func instanceReports(rows []sqlcgen.AgentInstanceReport) ([]agentinstance.Report, error) {
 	result := make([]agentinstance.Report, 0, len(rows))
 	for _, row := range rows {
 		report, err := instanceReport(row)

@@ -237,7 +237,7 @@ func resolveStatusTarget(ctx context.Context, target AuthoringTarget) (resolvedA
 }
 
 func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarget, error) {
-	if target.Config == (compozyconfig.HeartbeatConfig{}) {
+	if target.Config.IsZero() {
 		target.Config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	normalized, err := normalizeAuthoringTarget(target)

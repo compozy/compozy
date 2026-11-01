@@ -15,7 +15,7 @@ type HeartbeatTimeWindowPayload struct {
 
 // HeartbeatContextProjectionPayload captures authored context projection hints.
 type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
+	Include []string `json:"include,omitzero"`
 }
 
 // HeartbeatFrontmatterPreferencesPayload captures authored preference hints before config bounds.

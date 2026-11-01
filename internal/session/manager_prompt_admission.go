@@ -213,12 +213,17 @@ func (m *Manager) submitAdmittedDirectPrompt(
 	if replayed != nil {
 		return *replayed, nil
 	}
-	defer func() { m.replyWatchSendResult(ctx, admission, sendErr) }()
+	committed := false
+	defer func() {
+		if sendErr != nil && !committed {
+			sendErr = errors.Join(sendErr, m.releaseUndispatchedReports(ctx, admission))
+		}
+		m.replyWatchSendResult(ctx, admission, sendErr)
+	}()
 	req, err = bindPromptAdmissionRequest(req, admission)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	committed := false
 	req.commitDispatch = func(dispatchCtx context.Context) error {
 		if err := m.commitPromptAdmissionDispatch(dispatchCtx, admission); err != nil {
 			return err

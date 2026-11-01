@@ -170,6 +170,30 @@ func TestPermissionWaitResolution(t *testing.T) {
 }
 
 func TestTriagePolicy(t *testing.T) {
+	t.Run("Should fail the active triage run when the provider leaves read only mode", func(t *testing.T) {
+		t.Parallel()
+		for _, mode := range []string{"default", "plan", "full-access", ""} {
+			p := &AgentProcess{SessionID: "provider", executionPolicy: ExecutionPolicyTriage}
+			canceled := false
+			active, err := p.beginPrompt("triage", 16, func() { canceled = true })
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = p.handleSessionUpdate(mustMarshalJSON(map[string]any{
+				"sessionId": "provider", "update": map[string]any{
+					"sessionUpdate": "current_mode_update", "currentModeId": mode,
+				},
+			}))
+			if !errors.Is(err, ErrTriageUnsupported) || !canceled {
+				t.Fatalf("mode %q: error=%v canceled=%v", mode, err, canceled)
+			}
+			events := drainObservedPrompt(p, active)
+			if len(events) != 1 || events[0].Type != EventTypeError {
+				t.Fatalf("mode %q: events=%+v", mode, events)
+			}
+		}
+	})
+
 	t.Run("Should reject writes and unknown calls before any approval gateway", func(t *testing.T) {
 		t.Parallel()
 		policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveAll, t.TempDir())
@@ -186,6 +210,7 @@ func TestTriagePolicy(t *testing.T) {
 				},
 			),
 		}
+		active := beginObservedPrompt(t, p)
 		for _, kind := range []*acpsdk.ToolKind{nil, new(acpsdk.ToolKindEdit), new(acpsdk.ToolKindExecute)} {
 			response, err := p.resolvePermissionRequest(t.Context(), acpsdk.RequestPermissionRequest{
 				ToolCall: acpsdk.ToolCallUpdate{Kind: kind},
@@ -223,6 +248,15 @@ func TestTriagePolicy(t *testing.T) {
 			ErrPermissionDenied,
 		) {
 			t.Fatalf("unknown err=%v", err)
+		}
+		events := drainObservedPrompt(p, active)
+		if len(events) != 6 {
+			t.Fatalf("denial events=%+v", events)
+		}
+		for _, event := range events {
+			if event.RequestIDValue() == "" || event.Type != EventTypePermission || event.Decision != string(decisionRejectOnce) {
+				t.Fatalf("denial=%+v", event)
+			}
 		}
 		if err := New().ConfigureRuntime(t.Context(), p, RuntimeConfig{}); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("runtime err=%v", err)

@@ -961,17 +961,54 @@ func TestCollectDigest(t *testing.T) {
 }
 
 func TestParseTriageReply(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		title   string
+		body    string
+		wantErr bool
+	}{
+		{"Should accept character limits with multibyte text", strings.Repeat("界", 120), strings.Repeat("界", 500), false},
+		{"Should reject oversized titles", strings.Repeat("界", 121), "details", true},
+		{"Should reject oversized bodies", "title", strings.Repeat("界", 501), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reply := `{"proposals":[{"title":"` + tc.title + `","body":"` + tc.body + `","item_keys":[]}]}`
+			proposals, err := ParseTriageReply(reply, CheckDigest{}, 1)
+			if tc.wantErr {
+				if !errors.Is(err, ErrTriageOutputInvalid) {
+					t.Fatalf("error=%v", err)
+				}
+				return
+			}
+			if err != nil || len(proposals) != 1 || proposals[0].Title != tc.title || proposals[0].Body != tc.body {
+				t.Fatalf("proposals=%+v error=%v", proposals, err)
+			}
+		})
+	}
+	t.Run("Should discard malformed proposals beyond the limit", func(t *testing.T) {
+		t.Parallel()
+		for _, extra := range []string{`{}`, `{"title":42}`, `null`, `"invalid"`} {
+			proposals, err := ParseTriageReply(
+				`{"proposals":[{"title":"first","body":"details","item_keys":[]},`+extra+`]}`,
+				CheckDigest{}, 1,
+			)
+			if err != nil || len(proposals) != 1 || proposals[0].Title != "first" {
+				t.Fatalf("extra=%s proposals=%+v error=%v", extra, proposals, err)
+			}
+		}
+	})
 	t.Run("Should reject responses outside the proposal contract", func(t *testing.T) {
 		t.Parallel()
-		for _, reply := range []string{"", "nothing_to_report", "[]", "null", "{}", `{"proposals":null}`, `{"proposals":[{"title":"x"}]}`, `{"proposals":[],"extra":true}`, `{"proposals":[]} {"proposals":[]}`, "Explanation\nNOTHING_TO_REPORT", `{"proposals":[],"proposals":[]}`} {
+		for _, reply := range []string{`{"proposals":[]}`, "```json\n{\"proposals\":[]}\n```", "", "nothing_to_report", "[]", "null", "{}", `{"proposals":null}`, `{"proposals":[{"title":"x"}]}`, `{"proposals":[],"extra":true}`, `{"proposals":[]} {"proposals":[]}`, "Explanation\nNOTHING_TO_REPORT", `{"proposals":[],"proposals":[]}`} {
 			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
 				t.Errorf("reply %q: %v", reply, err)
 			}
 		}
 	})
-	t.Run("Should accept silence and a single JSON fence", func(t *testing.T) {
+	t.Run("Should accept the quiet sentinel", func(t *testing.T) {
 		t.Parallel()
-		for _, reply := range []string{"  NOTHING_TO_REPORT\n", "```json\n{\"proposals\":[]}\n```"} {
+		for _, reply := range []string{"NOTHING_TO_REPORT", "  NOTHING_TO_REPORT\n"} {
 			proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
 			if err != nil || len(proposals) != 0 {
 				t.Fatalf("proposals=%v error=%v", proposals, err)
@@ -993,8 +1030,10 @@ func TestParseTriageReply(t *testing.T) {
 
 func TestTriageReplyOutcome(t *testing.T) {
 	for _, tc := range []struct{ name, reply, result, reason string }{
+		{"Should accept one JSON fence containing proposals", "```json\n{\"proposals\":[{\"title\":\"Review\",\"body\":\"Inspect task\",\"item_keys\":[]}]}\n```", "reported", "reported"},
 		{"Should finish silence without a report", "NOTHING_TO_REPORT", "quiet", "quiet"},
 		{"Should publish valid proposals", `{"proposals":[{"title":"Investigate","body":"A task is blocked.","item_keys":[]}]}`, "reported", "reported"},
+		{"Should reject an empty proposal array as silence", `{"proposals":[]}`, "failed", "triage_output_invalid"},
 		{"Should report malformed output as failure", "not json", "failed", "triage_output_invalid"},
 		{"Should reject oversized report payloads", `{"proposals":[{"title":"Title","body":"` + strings.Repeat("x", 65536) + `","item_keys":[]}]}`, "failed", "triage_output_invalid"},
 		{"Should reject empty proposal text before persistence", `{"proposals":[{"title":" ","body":"details","item_keys":[]}]}`, "failed", "triage_output_invalid"},

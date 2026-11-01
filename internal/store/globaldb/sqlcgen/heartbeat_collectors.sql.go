@@ -14,7 +14,7 @@ const listInstanceCollectorAutomations = `-- name: ListInstanceCollectorAutomati
 SELECT id, profile_id, workspace_id, status, ended_at
 FROM automation_runs
 WHERE profile_id = ?1 AND status = 'failed'
-  AND workspace_id IN (SELECT value FROM json_each(?2))
+  AND COALESCE(workspace_id, '') IN (SELECT value FROM json_each(?2))
   AND ended_at IS NOT NULL
 ORDER BY ended_at, id
 `
@@ -95,6 +95,8 @@ WHERE s.profile_id = ?1
   AND s.workspace_id IN (SELECT value FROM json_each(?2))
   AND COALESCE(s.instance_id, '') <> ?3
   AND s.session_type <> 'triage'
+  AND s.state IN ('starting', 'active', 'stopping')
+  AND s.archived_at IS NULL
 ORDER BY s.id
 `
 

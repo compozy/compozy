@@ -187,7 +187,13 @@ level = "info"
 [agents.stays_on]
 rotation_threshold = 0.8
 max_active_instances = 10
-max_concurrent_triage = 2
 max_proposals = 3
-triage_timeout = "2m"
+triage_timeout = "10m"
+
+[agents.heartbeat]
+max_concurrent_triage = 2
 max_interval = "24h"
+
+[agents.heartbeat.triage_models]
+# Providers omitted here use the agent's own model.
+# claude = "claude-haiku-5-5"

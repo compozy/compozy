@@ -104,6 +104,9 @@ func (r *InstanceRepo) Resume(ctx context.Context, id string, limit int, operato
 			if _, err := q.ResumeAgentInstance(ctx, sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(r.now())}); err != nil {
 				return err
 			}
+			if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {
+				return err
+			}
 			row, err = q.GetAgentInstance(ctx, id)
 			if err != nil {
 				return err

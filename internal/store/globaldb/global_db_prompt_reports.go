@@ -130,3 +130,9 @@ func (g *SessionRepo) FailSessionReports(
 func (g *SessionRepo) MarkIndeterminateReportNoted(ctx context.Context, id string) error {
 	return g.queries.MarkIndeterminateReportNoted(ctx, id)
 }
+
+func (g *SessionRepo) ReleaseUndispatchedReports(ctx context.Context, admissionID string) error {
+	return g.withImmediateTransaction(ctx, "release undispatched reports", func(exec globalSQLExecutor) error {
+		return sqlcgen.New(exec).ReleasePromptReports(ctx, admissionID)
+	})
+}

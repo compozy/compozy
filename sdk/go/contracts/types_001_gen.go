@@ -201,6 +201,7 @@ type AgentHeartbeatWakeParams struct {
 }
 
 type AgentHeartbeatWakePatch struct {
+	Reason string            `json:"reason,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 	Cancel bool              `json:"cancel,omitempty"`
 }

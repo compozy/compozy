@@ -223,6 +223,7 @@ func (p *AgentProcess) interceptProviderNativeTool(
 	request ToolExecutionRequest,
 ) (ToolExecutionRequest, error) {
 	if p != nil && p.executionPolicy == ExecutionPolicyTriage && (!request.ReadOnly || request.Execute) {
+		p.emitTriageDenial("")
 		return ToolExecutionRequest{}, ErrPermissionDenied
 	}
 	normalized := cloneToolExecutionRequest(request)

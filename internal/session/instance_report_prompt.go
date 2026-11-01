@@ -25,6 +25,9 @@ func (m *Manager) injectPromptReports(
 		request.Message = strings.TrimSuffix(request.Message, state.reportBlock)
 		state.reportBlock = ""
 	}
+	if request.BypassesContext() {
+		return nil
+	}
 	dispatcher, ok := m.promptAdmissionStore.(promptReportDispatcher)
 	if !ok || len(state.reportMessageIDs) == 0 {
 		return nil
@@ -87,4 +90,16 @@ func (m *Manager) failDispatchedReports(ctx context.Context, session *Session, s
 		return err
 	}
 	return m.publishIndeterminateReportNotes(cleanupCtx)
+}
+
+func (m *Manager) releaseUndispatchedReports(ctx context.Context, admission store.SessionPromptAdmission) error {
+	owner, ok := m.promptAdmissionStore.(interface {
+		ReleaseUndispatchedReports(context.Context, string) error
+	})
+	if !ok {
+		return nil
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	return owner.ReleaseUndispatchedReports(cleanupCtx, admission.ID)
 }

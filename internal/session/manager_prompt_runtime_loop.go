@@ -228,6 +228,12 @@ func (m *Manager) handlePromptPumpEvent(
 			session.processHandle(),
 			m.normalizeEvent(session, turnState.turnID, event),
 		)
+		if recoveryCandidate.Type == acp.EventTypeError {
+			if err := m.failDispatchedReports(ctx, session, turnState); err != nil {
+				failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
+				return failure, errorText, true
+			}
+		}
 		if promptEventIsRecoverable(recoveryCandidate) && promptRecoveryAllowed(loop) {
 			recovered, err := m.attemptPromptRecovery(ctx, session, turnState, loop, recoveryCandidate)
 			if err != nil {

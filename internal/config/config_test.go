@@ -92,6 +92,8 @@ max_body_bytes = 16384
 context_projection_bytes = 1024
 
 [agents.heartbeat]
+max_interval = "12h"
+max_concurrent_triage = 3
 enabled = true
 max_body_bytes = 24576
 context_projection_bytes = 2048
@@ -237,6 +239,9 @@ agent = "claude"
 	}
 	if got, want := cfg.Agents.Heartbeat.MinInterval, 10*time.Minute; got != want {
 		t.Fatalf("Load() Agents.Heartbeat.MinInterval = %s, want %s", got, want)
+	}
+	if cfg.Agents.Heartbeat.MaxInterval != 12*time.Hour || cfg.Agents.Heartbeat.MaxConcurrentTriage != 3 {
+		t.Fatalf("loaded proactive limits: %+v", cfg.Agents.Heartbeat)
 	}
 	if got, want := cfg.Agents.Heartbeat.DefaultInterval, 45*time.Minute; got != want {
 		t.Fatalf("Load() Agents.Heartbeat.DefaultInterval = %s, want %s", got, want)
@@ -595,6 +600,51 @@ func TestSoulConfigValidation(t *testing.T) {
 }
 
 func TestHeartbeatConfigDefaultsAndValidation(t *testing.T) {
+	t.Run("Should replace triage model overrides and reject blank models", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultHeartbeatConfig()
+		if len(cfg.TriageModels) != 0 {
+			t.Fatal("default model override")
+		}
+		models := map[string]string{"claude": "haiku"}
+		heartbeatOverlay{TriageModels: models}.Apply(&cfg)
+		models["claude"] = "changed"
+		if cfg.TriageModels["claude"] != "haiku" {
+			t.Fatal("overlay map aliased")
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		cfg.TriageModels["claude"] = " "
+		if cfg.Validate() == nil {
+			t.Fatal("blank model accepted")
+		}
+		heartbeatOverlay{TriageModels: map[string]string{}}.Apply(&cfg)
+		if len(cfg.TriageModels) != 0 {
+			t.Fatal("empty overlay did not clear models")
+		}
+	})
+	t.Run("Should apply proactive interval and concurrency bounds under heartbeat", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultHeartbeatConfig()
+		interval, concurrency := 8*time.Hour, 3
+		heartbeatOverlay{MaxInterval: &interval, MaxConcurrentTriage: &concurrency}.Apply(&cfg)
+		if cfg.MaxInterval != interval || cfg.MaxConcurrentTriage != concurrency {
+			t.Fatalf("overlay=%+v", cfg)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		cfg.MaxConcurrentTriage = 0
+		if cfg.Validate() == nil {
+			t.Fatal("accepted zero concurrency")
+		}
+		cfg.MaxConcurrentTriage = concurrency
+		cfg.MaxInterval = cfg.QuietBackoffCap - time.Second
+		if cfg.Validate() == nil {
+			t.Fatal("accepted maximum below quiet backoff cap")
+		}
+	})
 	t.Run("Should default merge and validate the fatigue limit", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultHeartbeatConfig()
@@ -3240,16 +3290,17 @@ func TestStaysOnTriageConfiguration(t *testing.T) {
 	t.Run("Should reject unsafe triage limits while accepting defaults", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})
+		if cfg.Agents.StaysOn.TriageTimeout != 10*time.Minute {
+			t.Fatalf("triage timeout=%v", cfg.Agents.StaysOn.TriageTimeout)
+		}
 		if err := cfg.Agents.Validate(); err != nil {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*StaysOnConfig){
 			func(c *StaysOnConfig) { c.RotationThreshold = 0 },
 			func(c *StaysOnConfig) { c.RotationThreshold = 1.1 },
-			func(c *StaysOnConfig) { c.MaxConcurrentTriage = 0 },
 			func(c *StaysOnConfig) { c.MaxProposals = 21 },
 			func(c *StaysOnConfig) { c.TriageTimeout = 0 },
-			func(c *StaysOnConfig) { c.MaxInterval = -time.Second },
 		} {
 			candidate := cfg.Agents
 			mutate(&candidate.StaysOn)

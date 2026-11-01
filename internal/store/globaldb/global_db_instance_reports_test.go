@@ -118,6 +118,67 @@ func TestInstanceReports(t *testing.T) {
 		)
 	}
 
+	t.Run("Should read the newest bounded reports without changing chronological pages", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		start := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"recent", "foreign"} {
+			_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+                (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+                VALUES (?,?,?,'active','human','operator',?,?)`, id, store.DefaultProfileID, id,
+				store.FormatTimestamp(start), store.FormatTimestamp(start))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 29; i >= 0; i-- {
+				at := start.Add(time.Duration(i/2) * time.Minute)
+				if id == "foreign" {
+					at = at.Add(24 * time.Hour)
+				}
+				state := "pending"
+				if i%2 == 0 {
+					state = "delivered"
+				}
+				reportID := fmt.Sprintf("%s-%02d", id, i)
+				_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instance_reports
+                    (id,instance_id,source_key,kind,payload,state,created_at)
+                    VALUES (?,?,?,'failure','{"reason":"failed","detail":"Details"}',?,?)`,
+					reportID, id, "occ:"+reportID, state, store.FormatTimestamp(at))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		repo := db.InstanceReports()
+		recent, err := repo.RecentReports(ctx, "recent", 20)
+		if err != nil || len(recent) != 20 {
+			t.Fatalf("recent=%+v error=%v", recent, err)
+		}
+		for i, report := range recent {
+			if report.ID != fmt.Sprintf("recent-%02d", 29-i) || report.InstanceID != "recent" {
+				t.Fatalf("recent row %d=%+v", i, report)
+			}
+		}
+		page, err := repo.ListReports(ctx, agentinstance.ReportQuery{InstanceID: "recent", Limit: 20})
+		if err != nil || len(page) != 20 {
+			t.Fatalf("page=%+v error=%v", page, err)
+		}
+		for i, report := range page {
+			if report.ID != fmt.Sprintf("recent-%02d", i) {
+				t.Fatalf("chronological row %d=%+v", i, report)
+			}
+		}
+		for _, limit := range []int{0, 101} {
+			if _, err := repo.RecentReports(ctx, "recent", limit); err == nil {
+				t.Fatalf("accepted limit=%d", limit)
+			}
+		}
+		if _, err := repo.RecentReports(ctx, "", 20); err == nil {
+			t.Fatal("accepted empty instance")
+		}
+	})
+
 	t.Run("Should persist deduplicated reports and fence publication across main session changes", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -447,11 +508,13 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 		{"Should reserve at most twenty published reports for a human prompt", true, store.SessionPromptOperationPrompt, 20, ""},
 		{"Should not reserve reports for agent prompts", false, store.SessionPromptOperationPrompt, 0, ""},
 		{"Should not reserve reports for steering", true, store.SessionPromptOperationSteer, 0, ""},
+		{"Should release direct reservations when the prompt becomes a live steer", true, store.SessionPromptOperationPrompt, 20, "live-steer"},
 
 		{"Should release reports when canceled", true, store.SessionPromptOperationPrompt, 20, "cancel"},
 		{"Should release reports when cleared", true, store.SessionPromptOperationPrompt, 20, "clear"},
 		{"Should release reports when replaced", true, store.SessionPromptOperationPrompt, 20, "replace"},
 		{"Should release reports when promoted to steer", true, store.SessionPromptOperationPrompt, 20, "steer"},
+		{"Should release reports when a task invalidates queued input", true, store.SessionPromptOperationPrompt, 20, "task-cancel"},
 		{"Should release reports when stopped", true, store.SessionPromptOperationPrompt, 20, "stop"},
 		{"Should deliver reports once at provider dispatch", true, store.SessionPromptOperationPrompt, 20, "dispatch"},
 		{"Should fence uncertain report delivery", true, store.SessionPromptOperationPrompt, 20, "indeterminate"},
@@ -496,9 +559,10 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 			}
 			req := promptAdmissionRequest(workspace, main, "reports", now)
 			req.HumanIngress, req.Operation = tc.human, tc.operation
-			if tc.operation == store.SessionPromptOperationSteer {
+			if tc.operation == store.SessionPromptOperationSteer || tc.exit == "live-steer" {
 				req.Mode = store.SessionInputQueueModeSteer
 			}
+			req.DirectDispatch = tc.exit == "live-steer"
 			first, created, err := db.ClaimSessionPromptAdmission(ctx, req)
 			if err != nil || !created {
 				t.Fatalf("admission: %#v %v %v", first, created, err)
@@ -523,6 +587,17 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 				t.Fatalf("replayed reservation: %d, want %d: %v", len(again), tc.want, err)
 			}
 
+			if tc.exit == "live-steer" {
+				_, _, _, err := db.StageAdmittedSessionSteer(ctx, req, store.SessionInputQueueInsert{ID: "live-reports", Delivery: store.SessionInputDeliveryInterruptThenPrompt, SessionID: main, Text: req.AuthoredText, Mode: store.SessionInputQueueModeSteer, TargetTurnID: "turn-live", QueueCap: 10, Now: now})
+				if err != nil {
+					t.Fatal(err)
+				}
+				pending, err := db.InstanceReports().ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+				if err != nil || len(pending) != 23 {
+					t.Fatalf("steer pending=%d err=%v", len(pending), err)
+				}
+				return
+			}
 			if tc.exit == "dispatch" || tc.exit == "indeterminate" || tc.exit == "start-failure" {
 				if err := db.CommitSessionPromptDispatch(ctx, workspace, main, req.IdempotencyKey, now); err != nil {
 					t.Fatal(err)
@@ -630,6 +705,11 @@ func TestInstanceReportPromptReservation(t *testing.T) {
 					_, _, err = db.ReplaceSessionInput(ctx, main, entry.ID, replacement)
 				case "steer":
 					_, _, err = db.PromoteSessionInputToSteer(ctx, main, entry.ID, replacement)
+				case "task-cancel":
+					err = db.withTaskMutationTransactionForTest(ctx, "cancel task input", func(tx *taskMutationTxStore) error {
+						_, err := tx.InvalidateForceRunInputs(ctx, main, now)
+						return err
+					})
 				case "stop":
 					_, err = db.CancelPendingSessionInputs(ctx, main, entry.SessionGeneration+1, now)
 				}

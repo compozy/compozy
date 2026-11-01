@@ -2,6 +2,8 @@ package globaldb
 
 import (
 	"context"
+	"time"
+
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -23,4 +25,12 @@ func (r *InstanceRepo) ListCheckIns(ctx context.Context, id, cursor string, limi
 		result = append(result, agentinstance.CheckIn{ID: row.ID, Result: row.Result, Reason: row.Reason, CreatedAt: at})
 	}
 	return result, nil
+}
+
+func (r *InstanceRepo) CountQuietCheckIns(ctx context.Context, id string, after *time.Time) (int64, error) {
+	timestamp := ""
+	if after != nil {
+		timestamp = store.FormatTimestamp(*after)
+	}
+	return r.queries.CountInstanceQuietCheckIns(ctx, sqlcgen.CountInstanceQuietCheckInsParams{InstanceID: id, AfterTime: timestamp})
 }

@@ -1,6 +1,9 @@
 package hooks
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // DispatchAgentPreStart runs the agent.pre_start hook pipeline.
 func (h *Hooks) DispatchAgentPreStart(ctx context.Context, payload AgentPreStartPayload) (AgentPreStartPayload, error) {
@@ -107,14 +110,21 @@ func (h *Hooks) DispatchAgentHeartbeatPolicyResolved(
 }
 
 // DispatchAgentHeartbeatWakeBefore runs the agent.heartbeat.wake.before hook pipeline.
-func (h *Hooks) DispatchAgentHeartbeatWakeBefore(ctx context.Context, payload AgentHeartbeatWakeBeforePayload) (AgentHeartbeatWakeBeforePayload, error) {
+func (h *Hooks) DispatchAgentHeartbeatWakeBefore(
+	ctx context.Context,
+	payload AgentHeartbeatWakeBeforePayload,
+) (AgentHeartbeatWakeBeforePayload, error) {
 	proactive := payload.Source == "timer" || payload.Source == "instance_check"
 	return h.executeDispatch(ctx, HookAgentHeartbeatWakeBefore, payload,
 		dispatchConfig[AgentHeartbeatWakeBeforePayload, AgentHeartbeatWakePatch]{
-			match:   matchAgentHeartbeatWakeBefore,
-			apply:   applyNoop[AgentHeartbeatWakeBeforePayload, AgentHeartbeatWakePatch],
-			denied:  func(patch AgentHeartbeatWakePatch) bool { return proactive && !payload.DryRun && patch.Cancel },
-			denyErr: func(AgentHeartbeatWakeBeforePayload, dispatchReport) error { return ErrHeartbeatWakeCancelled },
+			match:  matchAgentHeartbeatWakeBefore,
+			apply:  applyNoop[AgentHeartbeatWakeBeforePayload, AgentHeartbeatWakePatch],
+			denied: func(patch AgentHeartbeatWakePatch) bool { return proactive && !payload.DryRun && patch.Cancel },
+			denyErr: func(_ AgentHeartbeatWakeBeforePayload, report dispatchReport) error {
+				return errors.Join(ErrHeartbeatWakeCancelled, hookDeniedByError(
+					HookAgentHeartbeatWakeBefore, report.DenySource, report.DenyReason,
+				))
+			},
 		})
 }
 

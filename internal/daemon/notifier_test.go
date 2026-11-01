@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
@@ -28,6 +30,19 @@ import (
 
 func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve proactive hook cancellation reasons", func(t *testing.T) {
+		t.Parallel()
+		for _, reason := range []string{"maintenance_window", ""} {
+			notifier := newHooksNotifier(discardLogger(), nil)
+			notifier.setRuntime(heartbeatCancelTestRuntime{fakeHookRuntime: &fakeHookRuntime{}, failure: errors.Join(
+				hookspkg.ErrHeartbeatWakeCancelled, &hookspkg.DeniedError{Reason: reason},
+			)}, nil)
+			got, err := beforeInstanceCheck(t.Context(), notifier, heartbeat.CheckTarget{}, "timer")
+			if err != nil || got == "" || (reason != "" && got != reason) {
+				t.Fatalf("reason=%q error=%v", got, err)
+			}
+		}
+	})
 
 	t.Run("Should dispatch lifecycle agent and stream events in order", func(t *testing.T) {
 		t.Parallel()
@@ -1813,4 +1828,16 @@ func workspaceResolvedForTest(id string, root string) workspacepkg.ResolvedWorks
 		RootDir:     root,
 		WorkspaceID: id,
 	}
+}
+
+type heartbeatCancelTestRuntime struct {
+	*fakeHookRuntime
+	failure error
+}
+
+func (r heartbeatCancelTestRuntime) DispatchAgentHeartbeatWakeBefore(
+	_ context.Context,
+	payload hookspkg.AgentHeartbeatWakeBeforePayload,
+) (hookspkg.AgentHeartbeatWakeBeforePayload, error) {
+	return payload, r.failure
 }

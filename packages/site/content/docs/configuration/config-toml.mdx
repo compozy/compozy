@@ -2766,18 +2766,18 @@ See [User scope](/docs/user-scope) for the walkthrough.
 
 ### Proactive checks
 
-The `[agents.stays_on]` section bounds proactive checks. These settings apply after a daemon restart.
+The `[agents.stays_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
 
 | Key | Default | Constraint |
 | --- | --- | --- |
 | `rotation_threshold` | `0.8` | Greater than 0, at most 1 |
 | `max_active_instances` | `10` | Positive |
-| `max_concurrent_triage` | `2` | Positive |
-| `max_proposals` | `3` | 1–20 |
-| `triage_timeout` | `"2m"` | Positive duration |
-| `max_interval` | `"24h"` | Positive duration |
+| `max_proposals` | `2` | 1–20 |
+| `triage_timeout` | `"10m"` | Positive duration |
 
-Checks use the existing `[agents.heartbeat]` enablement, default interval, batch size, and wake event retention settings.
+Checks use `[agents.heartbeat]` for `max_concurrent_triage` (default 2, positive) and
+`max_interval` (default `"24h"`, at least `quiet_backoff_cap`), alongside enablement,
+default interval, batch size, and wake event retention.
 Interrupted occurrences are finalized before the scheduler begins checking due instances.
 
 Consecutive quiet or failed timer checks double the delay up to `max_interval`. A reported
@@ -2787,3 +2787,15 @@ moving the timer deadline. Retrying an already committed outcome does not increa
 Repeated proposals are suppressed for 24 hours within the same instance, including proposals
 already delivered. Matching uses item keys, or the normalized title when there are no keys.
 New proposals in a mixed batch are retained. A fully repeated batch produces no new report.
+
+### Triage models
+
+`[agents.heartbeat.triage_models]` selects a model per provider for hidden proactive
+checks. The default empty map uses the agent's model. A provider omitted from the
+map also uses the agent's model. A more specific layer replaces the map; an empty
+table clears the overrides. Provider names and model IDs must be nonempty and trimmed.
+
+```toml
+[agents.heartbeat.triage_models]
+claude = "claude-haiku-5-5"
+```

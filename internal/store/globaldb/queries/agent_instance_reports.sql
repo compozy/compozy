@@ -12,6 +12,11 @@ AND (sqlc.arg(report_state) = '' OR state = sqlc.arg(report_state))
 AND (created_at > sqlc.arg(after_created_at) OR (created_at = sqlc.arg(after_created_at) AND id > sqlc.arg(after_id)))
 ORDER BY created_at, id LIMIT sqlc.arg(page_limit);
 
+-- name: ListRecentAgentInstanceReports :many
+SELECT * FROM agent_instance_reports
+WHERE instance_id = sqlc.arg(instance_id)
+ORDER BY created_at DESC, id DESC LIMIT sqlc.arg(page_limit);
+
 -- name: ListUnpublishedAgentInstanceReports :many
 SELECT r.*, i.main_session_id FROM agent_instance_reports r
 JOIN agent_instances i ON i.id = r.instance_id

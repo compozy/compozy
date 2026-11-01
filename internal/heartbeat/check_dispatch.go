@@ -29,10 +29,12 @@ func (s *CheckService) dispatch(target CheckTarget, digest CheckDigest, occurren
 		if errors.Is(ctx.Err(), context.Canceled) {
 			reason = "triage_interrupted"
 		}
+		deniedCalls := outcome.DeniedCalls
 		outcome = failedTriage(reason)
+		outcome.DeniedCalls = deniedCalls
 	}
 	now := s.now()
-	req := FinishRequest{QuietBackoffCap: s.config.QuietBackoffCap, FatigueLimit: int64(s.config.FatigueLimit), Interval: max(s.config.Interval, target.Policy.Preferences.MinInterval), MaxInterval: s.config.MaxInterval, InstanceID: target.Instance.ID, OccurrenceID: occurrence, Source: source,
+	req := FinishRequest{QuietBackoffCap: s.config.QuietBackoffCap, FatigueLimit: int64(s.config.FatigueLimit), Interval: s.checkInterval(target.Policy), MaxInterval: s.config.MaxInterval, InstanceID: target.Instance.ID, OccurrenceID: occurrence, Source: source,
 		Result: outcome.Result, Reason: outcome.Reason, Detail: outcome.Detail, DeniedCalls: outcome.DeniedCalls,
 		Digest: digest.Fingerprint, AutomationCursor: digest.AutomationCursor,
 		Now: now, ExpiresAt: now.Add(s.config.Retention), Report: outcome.Report,

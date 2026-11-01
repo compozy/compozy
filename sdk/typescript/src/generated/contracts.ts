@@ -348,6 +348,7 @@ export interface AgentHeartbeatWakeParams {
 }
 
 export interface AgentHeartbeatWakePatch {
+  reason?: string;
   labels?: Record<string, string>;
   cancel?: boolean;
 }

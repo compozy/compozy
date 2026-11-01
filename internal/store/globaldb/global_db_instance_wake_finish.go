@@ -79,7 +79,11 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if req.Result == "quiet" && req.QuietBackoffCap > 0 {
 				maximum = req.QuietBackoffCap
 			}
-			req.NextWakeAt = req.Now.Add(instanceCheckBackoff(req.Interval, maximum, streak))
+			req.NextWakeAt = heartbeat.NextCheckTime(
+				req.Now,
+				heartbeat.CheckBackoff(req.Interval, maximum, streak),
+				req.InstanceID,
+			)
 		}
 		if req.Report != nil {
 			report := *req.Report
@@ -122,16 +126,4 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 		return err
 	})
 	return changed, err
-}
-
-func instanceCheckBackoff(interval, maximum time.Duration, streak int64) time.Duration {
-	delay := min(interval, maximum)
-	for streak > 0 && delay < maximum {
-		if delay > maximum/2 {
-			return maximum
-		}
-		delay *= 2
-		streak--
-	}
-	return delay
 }

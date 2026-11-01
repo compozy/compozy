@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -108,7 +109,7 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	}
 	target, err := s.environment.ResolveCheck(ctx, state.InstanceID)
 	if err != nil {
-		return CheckResult{}, err
+		return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, s.config.Interval, err)
 	}
 	if manual && !dryRun && target.Instance.State == "paused" {
 		return CheckResult{}, agentinstance.ErrPaused
@@ -121,33 +122,51 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 		return CheckResult{Gate: "no_slot"}, nil
 	}
 	now := s.now()
-	cadence := max(s.config.Interval, target.Policy.Preferences.MinInterval)
-	skip := func(reason string) (CheckResult, error) {
+	cadence := s.checkInterval(target.Policy)
+	if !manual && state.NextWakeAt == "" && state.LastWakeAt == "" {
+		firstCheck := target.Instance.CreatedAt.Add(cadence)
+		if firstCheck.After(now) {
+			_, err := s.store.Skip(ctx, SkipRequest{InstanceID: state.InstanceID, ExpectedDue: state.NextWakeAt, Reason: "cooldown_active", Now: now, NextWakeAt: firstCheck, ExpiresAt: now.Add(s.config.Retention)})
+			return CheckResult{Gate: "cooldown_active"}, err
+		}
+	}
+	skip := func(reason, detail string) (CheckResult, error) {
 		if manual || dryRun {
 			return CheckResult{Gate: reason}, nil
 		}
-		_, err := s.store.Skip(ctx, SkipRequest{InstanceID: state.InstanceID, ExpectedDue: state.NextWakeAt, Reason: reason, Now: now, NextWakeAt: nextCheckTime(now, cadence, state.InstanceID), ExpiresAt: now.Add(s.config.Retention)})
+		_, err := s.store.Skip(
+			ctx,
+			SkipRequest{
+				InstanceID:  state.InstanceID,
+				ExpectedDue: state.NextWakeAt,
+				Reason:      reason,
+				Detail:      diagnostics.RedactAndBound(detail, 300),
+				Now:         now,
+				NextWakeAt:  NextCheckTime(now, s.checkBackoff(cadence, state), state.InstanceID),
+				ExpiresAt:   now.Add(s.config.Retention),
+			},
+		)
 		return CheckResult{Gate: reason}, err
 	}
 	if !s.config.Enabled {
-		return skip("heartbeat_disabled")
+		return skip("heartbeat_disabled", "")
 	}
 	if (!dryRun && target.Instance.State != "active") || target.Instance.ArchivedAt != nil || !target.Instance.ChecksEnabled {
-		return skip("heartbeat_disabled")
+		return skip("heartbeat_disabled", "")
 	}
 	if target.Gate != "" {
-		return skip(target.Gate)
+		return skip(target.Gate, "")
 	}
 	if !target.Policy.Enabled {
-		return skip("policy_disabled")
+		return skip("policy_disabled", "")
 	}
 	if allowed, err := target.Policy.Preferences.AllowsAt(now); err != nil {
 		return CheckResult{}, err
 	} else if !allowed {
-		return skip("quiet_window")
+		return skip("quiet_window", "")
 	}
 	if target.MainPrompting {
-		return skip("session_prompt_active")
+		return skip("session_prompt_active", "")
 	}
 	source := "timer"
 	if manual {
@@ -156,10 +175,10 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if !dryRun {
 		reason, err := s.environment.BeforeCheck(ctx, target, source)
 		if err != nil {
-			return CheckResult{}, err
+			return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
 		}
 		if reason != "" {
-			return skip("hook_cancelled")
+			return skip("hook_cancelled", reason) //nolint:misspell // Matches the persisted wake reason.
 		}
 	}
 	target.Scope.Now = now
@@ -172,13 +191,13 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	}
 	digest, err := s.environment.Collect(ctx, state.InstanceID, target.Scope, target.Policy.Preferences.Context.Include, target.Policy.Digest, target.Policy.GuidanceMarkdown)
 	if err != nil {
-		return CheckResult{}, err
+		return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
 	}
 	if len(digest.Items) == 0 && strings.TrimSpace(target.Policy.GuidanceMarkdown) == "" {
-		return skip("digest_empty")
+		return skip("digest_empty", "")
 	}
 	if !manual && digest.Fingerprint == state.LastDigest && now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval {
-		return skip("digest_unchanged")
+		return skip("digest_unchanged", "")
 	}
 	if dryRun {
 		return CheckResult{Gate: "would_run", Digest: &digest}, nil
@@ -192,7 +211,11 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if s.closed {
 		return CheckResult{}, errors.New("heartbeat: checks are stopped")
 	}
-	admitted, err := s.store.Admit(ctx, AdmitRequest{InstanceID: state.InstanceID, OccurrenceID: occurrence, Now: now, NextWakeAt: nextCheckTime(now, cadence, state.InstanceID), ManualCheck: manual, MaxConcurrent: s.config.MaxConcurrent})
+	admitted, err := s.store.Admit(ctx, AdmitRequest{
+		InstanceID: state.InstanceID, OccurrenceID: occurrence, Now: now,
+		NextWakeAt:  NextCheckTime(now, cadence, state.InstanceID),
+		ManualCheck: manual, MaxConcurrent: s.config.MaxConcurrent,
+	})
 	if err != nil {
 		return CheckResult{}, err
 	}
@@ -202,7 +225,7 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	s.wg.Go(func() { s.dispatch(target, digest, occurrence, source) })
 	return CheckResult{OccurrenceID: occurrence}, nil
 }
-func nextCheckTime(now time.Time, cadence time.Duration, id string) time.Time {
+func NextCheckTime(now time.Time, cadence time.Duration, id string) time.Time {
 	hash := sha256.Sum256([]byte(id))
 	return now.Add(cadence + time.Duration(binary.LittleEndian.Uint64(hash[:8])%1000)*(cadence/10000))
 }
@@ -222,4 +245,29 @@ func (s *CheckService) flush(ctx context.Context) error {
 		s.mu.Unlock()
 	}
 	return nil
+}
+
+func (s *CheckService) rescheduleCheckFailure(
+	ctx context.Context,
+	state InstanceWakeState,
+	passive bool,
+	cadence time.Duration,
+	cause error,
+) error {
+	if passive {
+		return cause
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.config.Timeout)
+	defer cancel()
+	now := s.now()
+	_, err := s.store.Skip(cleanupCtx, SkipRequest{
+		InstanceID:  state.InstanceID,
+		ExpectedDue: state.NextWakeAt,
+		Reason:      "triage_failed",
+		Detail:      "The check could not be prepared; retry scheduled.",
+		Now:         now,
+		NextWakeAt:  NextCheckTime(now, s.checkBackoff(cadence, state), state.InstanceID),
+		ExpiresAt:   now.Add(s.config.Retention),
+	})
+	return errors.Join(cause, err)
 }

@@ -60,6 +60,7 @@ func (p *AgentProcess) interceptWriteTextFileRequest(
 	request acpsdk.WriteTextFileRequest,
 ) (acpsdk.WriteTextFileRequest, error) {
 	if p != nil && p.executionPolicy == ExecutionPolicyTriage {
+		p.emitTriageDenial("")
 		return acpsdk.WriteTextFileRequest{}, ErrPermissionDenied
 	}
 	if p == nil || p.toolGateway == nil {
@@ -103,6 +104,7 @@ func (p *AgentProcess) interceptCreateTerminalRequest(
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalRequest, error) {
 	if p != nil && p.executionPolicy == ExecutionPolicyTriage {
+		p.emitTriageDenial("")
 		return acpsdk.CreateTerminalRequest{}, ErrPermissionDenied
 	}
 	if p == nil || p.toolGateway == nil {
