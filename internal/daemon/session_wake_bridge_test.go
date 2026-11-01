@@ -348,8 +348,9 @@ func TestMonitorSessionWaker(t *testing.T) {
 			admittedErr: errors.New("ledger unavailable"),
 		}
 		err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
-		if err == nil || errors.Is(err, monitorpkg.ErrSessionGone) || manager.calls != 0 {
-			t.Fatalf("WakeSession() error = %v calls = %d, want a transient error and no enqueue", err, manager.calls)
+		if err == nil || errors.Is(err, monitorpkg.ErrSessionGone) ||
+			!strings.Contains(err.Error(), "read monitor wake ledger") || manager.calls != 0 {
+			t.Fatalf("WakeSession() error = %v calls = %d, want a ledger-read error and no enqueue", err, manager.calls)
 		}
 	})
 

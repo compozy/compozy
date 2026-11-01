@@ -20,10 +20,15 @@ func (e *entry) recordLocked() Record {
 
 // saveNow persists a record and reports failure to the caller.
 func (s *Service) saveNow(record Record) error {
+	return s.saveWithin(context.WithoutCancel(s.ctx), record)
+}
+
+// saveWithin persists a record under ctx, bounded by storeTimeout.
+func (s *Service) saveWithin(ctx context.Context, record Record) error {
 	if s.store == nil {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), storeTimeout)
+	ctx, cancel := context.WithTimeout(ctx, storeTimeout)
 	defer cancel()
 	return s.store.SaveMonitor(ctx, record)
 }
@@ -70,9 +75,14 @@ func (s *Service) decideLocked(item *entry) Record {
 // overlapping writes finish in. A decision that is still unconfirmed is queued for background retries
 // and a final flush at shutdown, so it never depends on a later caller to land.
 func (s *Service) persistDecision(item *entry, record Record, attempts int) error {
+	return s.persistDecisionWithin(context.WithoutCancel(s.ctx), item, record, attempts)
+}
+
+// persistDecisionWithin is persistDecision under ctx, so a shutdown flush honors its deadline.
+func (s *Service) persistDecisionWithin(ctx context.Context, item *entry, record Record, attempts int) error {
 	var err error
 	for attempt := range max(attempts, 1) {
-		if err = s.saveNow(record); err == nil {
+		if err = s.saveWithin(ctx, record); err == nil {
 			break
 		}
 		if attempt+1 < attempts {
@@ -123,7 +133,7 @@ func (s *Service) retryDurable() {
 			return
 		case <-s.retryKick:
 		}
-		for s.flushPending() > 0 {
+		for s.flushPending(context.WithoutCancel(s.ctx)) > 0 {
 			timer := time.NewTimer(durableRetryInterval)
 			select {
 			case <-s.ctx.Done():
@@ -135,8 +145,8 @@ func (s *Service) retryDurable() {
 	}
 }
 
-// flushPending rewrites every unconfirmed decision once and returns how many remain.
-func (s *Service) flushPending() int {
+// flushPending rewrites every unconfirmed decision once, stopping at ctx, and returns how many remain.
+func (s *Service) flushPending(ctx context.Context) int {
 	s.mu.Lock()
 	items := make([]*entry, 0, len(s.pending))
 	for _, item := range s.pending {
@@ -144,10 +154,15 @@ func (s *Service) flushPending() int {
 	}
 	s.mu.Unlock()
 	for _, item := range items {
+		if ctx.Err() != nil {
+			break
+		}
 		s.mu.Lock()
 		record := s.decideLocked(item)
 		s.mu.Unlock()
-		s.writeDecision(item, record, 1)
+		if err := s.persistDecisionWithin(ctx, item, record, 1); err != nil {
+			s.logger.Log(s.ctx, slog.LevelDebug, "monitor.decision_unconfirmed", "monitor_id", record.Monitor.ID)
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -157,10 +172,16 @@ func (s *Service) flushPending() int {
 // flushDurable is the shutdown flush: it retries unconfirmed decisions a few times within ctx.
 func (s *Service) flushDurable(ctx context.Context) {
 	for attempt := range saveRetries {
-		if s.flushPending() == 0 || ctx.Err() != nil {
+		if s.flushPending(ctx) == 0 || ctx.Err() != nil {
 			return
 		}
-		time.Sleep(saveRetryBackoff << attempt)
+		timer := time.NewTimer(saveRetryBackoff << attempt)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
 	}
 }
 

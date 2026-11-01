@@ -67,8 +67,9 @@ Persistence can keep operator-stop cancellation, so it is implemented.
    `undelivered` (queued the same way) rather than waking from an outcome a restart could not reproduce.
    A wake whose queue entry was already admitted (queued, dispatching, or sent) is not replayed after a
    restart: the daemon waker checks the queue ledger first; a failed or canceled entry may be admitted again.
-   Transient owner-resume failures at boot are retried with backoff before a monitor is recorded
-   `interrupted`. Lifecycle logs go through a bounded queue (1024; info entries drop with a
+   Transient owner-resume failures at boot are retried with backoff for the monitor's lifetime (at least the
+   15-minute delivery window) while it stays listed, active, and cancelable, so an owner stopped in that window
+   cancels the monitor; only then is it recorded `interrupted`. Lifecycle logs go through a bounded queue (1024; info entries drop with a
    `monitor.log_dropped` count, never inline under a lock).
 6. **Remote-wait guidance.** Tool descriptor, official skill, and site monitors page state there is no
    polling kind: run the bounded watch command via `terminal_exec`, monitor that terminal, set
@@ -131,8 +132,10 @@ The saved earlier walks (`evidence-defects/`) found two real defects that unit t
 Real daemon built from this branch (`bin/compozy`, `acpmock-driver`) in an isolated home with its own ports
 and socket (never the default daemon), `acpmock` agents calling the real hosted native tools over MCP.
 All paths below are relative to `docs/qa/reports/artifacts/2026-11-01-issue-1128/`. The lab binaries were
-built from commit `e6e92dea8` (see `build-commit.txt`); later commits only change documentation and saved
-evidence. The `scripts/` directory holds the fail-closed replay scripts used for this run.
+built from commit `e6e92dea8` (see `build-commit.txt`). Later commits change documentation and evidence and
+review fixes outside the exercised paths (retry horizon and cancelability of a monitor whose owner check is
+failing, the warning bound of the log queue, the shutdown flush deadline); the exercised restart paths (resumed
+owner, typed ineligible owner, operator-stopped owner) are unchanged. The `scripts/` directory holds the fail-closed replay scripts used for this run.
 
 **A. Long external wait + duplicate registration** (`external-wait/`). A terminal polling an external marker
 file; the agent called `compozy__monitor_create` twice with the identical condition and ended its turn.

@@ -921,7 +921,7 @@ func TestServiceRecoveryHonorsOwnerAuthority(t *testing.T) {
 			&OwnerIneligibleError{Reason: "disabled"}, StatusInterrupted, "owner_disabled", true,
 		},
 		{
-			"Should record an interrupted monitor when the owner cannot be resumed", errors.New("resume failed"),
+			"Should record an interrupted monitor when the owner stays unresumable", errors.New("resume failed"),
 			StatusInterrupted, "owner_resume_failed", true,
 		},
 	}
@@ -936,7 +936,8 @@ func TestServiceRecoveryHonorsOwnerAuthority(t *testing.T) {
 				}
 				owners.err = tc.ownerErr
 				second := restartService(t, first, store, owners, nil, waker, "sess-r")
-				time.Sleep(2 * time.Minute)
+				// An untyped owner error is retried for the monitor's lifetime (at least the retry window).
+				time.Sleep(deliveryRetryWindow + 5*time.Minute)
 				synctest.Wait()
 				if got := waker.notifications(); len(got) != 0 {
 					t.Fatalf("owner without authority was woken: %+v", got)
@@ -1324,7 +1325,7 @@ func TestServiceRecoveryRetriesTransientOwnerFailures(t *testing.T) {
 		})
 	})
 
-	t.Run("Should record interrupted only after the retries are exhausted", func(t *testing.T) {
+	t.Run("Should stay active through a long owner outage, then record interrupted", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			store, waker := newMemoryStore(), &recordingWaker{}
 			owners := &flakyOwners{failures: 1000}
@@ -1344,6 +1345,11 @@ func TestServiceRecoveryRetriesTransientOwnerFailures(t *testing.T) {
 			if store.status(created.ID) != StatusActive {
 				t.Fatalf("durable status = %s, want the row untouched while the owner is retried",
 					store.status(created.ID))
+			}
+			time.Sleep(10 * time.Minute)
+			synctest.Wait()
+			if listed := second.List("sess-r"); len(listed) != 1 || listed[0].Status != StatusActive {
+				t.Fatalf("listed = %+v, want the monitor still active and visible during the outage", listed)
 			}
 			time.Sleep(10 * time.Minute)
 			synctest.Wait()
@@ -1404,7 +1410,7 @@ func TestServiceRecoveryCapsRestoredHistory(t *testing.T) {
 }
 
 func TestServiceLogQueueIsBounded(t *testing.T) {
-	t.Run("Should drop info entries past the bound without blocking or emitting inline", func(t *testing.T) {
+	t.Run("Should drop entries past the bounds without blocking or emitting inline", func(t *testing.T) {
 		queue := newLogQueue()
 		for range maxQueuedLifecycleEntries + 10 {
 			if !queue.push(lifecycleEntry{level: slog.LevelInfo, event: "monitor.reused"}) {
@@ -1417,11 +1423,19 @@ func TestServiceLogQueueIsBounded(t *testing.T) {
 		if !queue.push(lifecycleEntry{level: slog.LevelWarn, event: "monitor.wake_failed"}) {
 			t.Fatal("push() = false for a warning")
 		}
-		if queue.takeDropped() != 10 {
-			t.Fatal("dropped count did not record the 10 discarded entries")
-		}
 		if got := len(queue.items); got != maxQueuedLifecycleEntries+1 {
-			t.Fatalf("queued = %d, want the warning kept past the bound", got)
+			t.Fatalf("queued = %d, want the warning kept in its reserve", got)
+		}
+		for range maxQueuedWarningEntries {
+			if !queue.push(lifecycleEntry{level: slog.LevelWarn, event: "monitor.wake_failed"}) {
+				t.Fatal("push() = false for a warning, want a silent drop past the warning bound")
+			}
+		}
+		if got := len(queue.items); got != maxQueuedWarningEntries {
+			t.Fatalf("queued = %d, want the warning backlog capped at %d", got, maxQueuedWarningEntries)
+		}
+		if queue.takeDropped() == 0 {
+			t.Fatal("dropped count did not record the discarded entries")
 		}
 	})
 }
@@ -1501,6 +1515,37 @@ func TestServiceInterruptionLogging(t *testing.T) {
 			}
 			if !strings.Contains(output.String(), "monitor.interrupted") {
 				t.Fatalf("log missing monitor.interrupted for the recovered delivery:\n%s", output.String())
+			}
+		})
+	})
+}
+
+func TestServiceOwnerStopDuringRecoveryCancelsTheMonitor(t *testing.T) {
+	t.Run("Should cancel a monitor whose owner is stopped while its resume is being retried", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			owners := &flakyOwners{failures: 1000}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			second := newDurableService(t, store, owners, nil, waker)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			second.CancelSession("sess-r")
+			owners.mu.Lock()
+			owners.failures = 0
+			owners.mu.Unlock()
+			time.Sleep(20 * time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 || store.status(created.ID) != StatusCanceled {
+				t.Fatalf("notifications = %+v status = %s, want canceled and silent", got, store.status(created.ID))
 			}
 		})
 	})

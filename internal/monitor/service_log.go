@@ -31,9 +31,12 @@ type logQueue struct {
 }
 
 // maxQueuedLifecycleEntries bounds the backlog behind a stalled log destination. Past it, info-level
-// entries are counted and dropped (never emitted synchronously under a service lock); warnings and
-// errors are rare and still queue.
-const maxQueuedLifecycleEntries = 1024
+// entries are counted and dropped (never emitted synchronously under a service lock). Warnings and
+// errors keep a reserve of the same size above the bound and are counted and dropped past that too.
+const (
+	maxQueuedLifecycleEntries = 1024
+	maxQueuedWarningEntries   = 2 * maxQueuedLifecycleEntries
+)
 
 func newLogQueue() *logQueue { return &logQueue{ready: make(chan struct{}, 1)} }
 
@@ -44,7 +47,11 @@ func (q *logQueue) push(entry lifecycleEntry) bool {
 		q.mu.Unlock()
 		return false
 	}
-	if len(q.items) >= maxQueuedLifecycleEntries && entry.level < slog.LevelWarn {
+	limit := maxQueuedLifecycleEntries
+	if entry.level >= slog.LevelWarn {
+		limit = maxQueuedWarningEntries
+	}
+	if len(q.items) >= limit {
 		q.dropped++
 		q.mu.Unlock()
 		return true

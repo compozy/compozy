@@ -102,8 +102,28 @@ func (s *Service) bucketLocked(sessionID string) map[string]*entry {
 
 func (s *Service) recoverOne(ctx context.Context, item *entry, verdicts map[string]error) {
 	if !s.applyOwnerOutcome(item, s.ownerVerdict(ctx, item, verdicts)) {
-		s.wg.Go(func() { s.retryOwnerResume(item) })
+		s.registerRecovering(item)
 	}
+}
+
+// registerRecovering keeps a monitor whose owner could not be checked yet listed, counted, and
+// cancelable while the check is retried, so an owner stopped in that window cancels it before it can
+// restart its watch.
+func (s *Service) registerRecovering(item *entry) {
+	s.mu.Lock()
+	if s.stopped {
+		s.mu.Unlock()
+		return
+	}
+	retryCtx, cancel := context.WithCancel(s.ctx)
+	item.cancel, item.recovering = cancel, true
+	s.bucketLocked(item.state.SessionID)[item.state.ID] = item
+	s.occupied++
+	if item.terminalKey != "" {
+		s.perTerminal[item.terminalKey]++
+	}
+	s.mu.Unlock()
+	s.wg.Go(func() { s.retryOwnerResume(retryCtx, item) })
 }
 
 // applyOwnerOutcome acts on a definitive owner outcome and reports false for a transient failure,
@@ -124,28 +144,35 @@ func (s *Service) applyOwnerOutcome(item *entry, err error) bool {
 	return true
 }
 
-// Transient owner-resume failures (a store read, a provider hiccup) are retried with backoff before
-// the monitor is recorded as interrupted, so one bad moment at boot does not drop a wake.
+// Transient owner-resume failures (a store read, a provider hiccup) are retried with backoff for as
+// long as the monitor itself would have lived (at least deliveryRetryWindow), so an outage at boot
+// does not drop a wake; only then is the monitor recorded as interrupted.
 const (
-	ownerResumeRetries    = 5
 	ownerResumeBackoff    = 2 * time.Second
 	ownerResumeBackoffMax = 30 * time.Second
 )
 
-func (s *Service) retryOwnerResume(item *entry) {
+func (s *Service) retryOwnerResume(ctx context.Context, item *entry) {
+	horizon := item.state.DeadlineAt
+	if floor := s.now().Add(deliveryRetryWindow); floor.After(horizon) {
+		horizon = floor
+	}
 	backoff := ownerResumeBackoff
-	for range ownerResumeRetries {
+	for s.now().Before(horizon) {
 		timer := time.NewTimer(backoff)
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			timer.Stop()
 			return
 		case <-timer.C:
 		}
 		backoff = min(backoff*2, ownerResumeBackoffMax)
-		ctx, cancel := context.WithTimeout(s.ctx, storeTimeout*6)
-		err := s.owners.Resume(ctx, item.state.SessionID, item.binding)
+		resumeCtx, cancel := context.WithTimeout(ctx, storeTimeout*6)
+		err := s.owners.Resume(resumeCtx, item.state.SessionID, item.binding)
 		cancel()
+		if ctx.Err() != nil {
+			return
+		}
 		if s.applyOwnerOutcome(item, err) {
 			s.notify(item.state.SessionID)
 			return
@@ -171,6 +198,21 @@ func (s *Service) ownerVerdict(ctx context.Context, item *entry, verdicts map[st
 
 func (s *Service) closeRecovered(item *entry, status Status, reason string) {
 	s.mu.Lock()
+	if item.recovering {
+		// Cancel or an owner stop may already have ended it; otherwise return its slots and stop the retry.
+		if !item.occupies() {
+			s.mu.Unlock()
+			return
+		}
+		item.recovering = false
+		if !item.released {
+			s.releaseLocked(item)
+		}
+		item.cancel()
+		if status == StatusCanceled {
+			delete(s.sessions[item.state.SessionID], item.state.ID)
+		}
+	}
 	item.state.Status = status
 	item.state.Reason = reason
 	item.state.FiredAt = s.now()
@@ -189,13 +231,23 @@ func (s *Service) rearm(item *entry) {
 		s.mu.Unlock()
 		return
 	}
+	if item.recovering {
+		// Already registered while retried; a monitor canceled in that window stays canceled.
+		if !item.occupies() {
+			s.mu.Unlock()
+			return
+		}
+		item.recovering = false
+		item.cancel()
+	} else {
+		s.bucketLocked(item.state.SessionID)[item.state.ID] = item
+		s.occupied++
+		if item.terminalKey != "" {
+			s.perTerminal[item.terminalKey]++
+		}
+	}
 	runCtx, cancel := context.WithCancel(s.ctx)
 	item.cancel = cancel
-	s.bucketLocked(item.state.SessionID)[item.state.ID] = item
-	s.occupied++
-	if item.terminalKey != "" {
-		s.perTerminal[item.terminalKey]++
-	}
 	state := item.state
 	s.logLifecycle("monitor.recovered", state, "registered")
 	s.mu.Unlock()
