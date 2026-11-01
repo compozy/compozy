@@ -91,7 +91,7 @@ func (h *BaseHandlers) listAgentAggregate(c *gin.Context, breadth WorkspaceBread
 			&resolved,
 			userAgentNames,
 			metrics,
-			available && query.Group != "agent",
+			available && query.Group != agentCatalogGroupKey,
 		)
 		response.SessionsAvailable = response.SessionsAvailable && available
 		query.Limit = len(agents) + 1

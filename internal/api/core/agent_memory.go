@@ -17,10 +17,10 @@ import (
 
 func (h *BaseHandlers) RegisterAgentMemoryRoutes(agents gin.IRouter) {
 	for _, route := range []struct{ method, path, operation string }{
-		{"GET", "/:name/memory", "read"}, {"PUT", "/:name/memory", "write"},
-		{"POST", "/:name/memory/entries", "add"}, {"PATCH", "/:name/memory/entries", "replace"},
-		{"DELETE", "/:name/memory/entries", "remove"}, {"POST", "/:name/memory/search", "search"},
-		{"POST", "/:name/memory/validate", "validate"}, {"GET", "/:name/memory/history", "history"},
+		{http.MethodGet, "/:name/memory", "read"}, {"PUT", "/:name/memory", "write"},
+		{"POST", agentMemoryEntriesRoute, "add"}, {"PATCH", agentMemoryEntriesRoute, "replace"},
+		{"DELETE", agentMemoryEntriesRoute, "remove"}, {"POST", "/:name/memory/search", "search"},
+		{"POST", "/:name/memory/validate", "validate"}, {http.MethodGet, "/:name/memory/history", "history"},
 		{"POST", "/:name/memory/rollback", "rollback"},
 	} {
 		agents.Handle(route.method, route.path, func(c *gin.Context) { h.agentMemoryOperation(c, route.operation) })
@@ -257,3 +257,5 @@ var _ diagnosticCodeCarrier = agentMemoryRouteError{}
 func (e agentMemoryRouteError) Error() string          { return e.cause.Error() }
 func (e agentMemoryRouteError) Unwrap() error          { return e.cause }
 func (e agentMemoryRouteError) DiagnosticCode() string { return e.code }
+
+const agentMemoryEntriesRoute = "/:name/memory/entries"

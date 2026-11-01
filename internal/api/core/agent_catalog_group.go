@@ -15,7 +15,7 @@ func groupedAgentRows(rows []contract.AgentCatalogItemPayload) []contract.AgentC
 		key := row.Agent.Name + "\x00" + row.Agent.DefinitionDigest
 		scope := row.Agent.WorkspaceID
 		if scope == "" {
-			scope = "@user"
+			scope = userScopeWorkspaceRef
 		}
 		if i, ok := indexes[key]; ok {
 			result[i].Scopes = append(result[i].Scopes, scope)
@@ -45,7 +45,7 @@ func groupAgentCatalogItems(rows []contract.AgentCatalogItemPayload) []contract.
 		if len(scopes) == 0 {
 			scope := row.Agent.WorkspaceID
 			if scope == "" {
-				scope = "@user"
+				scope = userScopeWorkspaceRef
 			}
 			scopes = []string{scope}
 		}
@@ -97,7 +97,7 @@ func filterGroupedAgentRows(
 }
 
 func agentCatalogWorkspaceQuery(query agentCatalogQuery) agentCatalogQuery {
-	if query.Group == "agent" {
+	if query.Group == agentCatalogGroupKey {
 		query.Name = ""
 		query.Search = ""
 		query.Category = ""
@@ -107,7 +107,7 @@ func agentCatalogWorkspaceQuery(query agentCatalogQuery) agentCatalogQuery {
 }
 
 func groupAgentCatalogResponse(response *contract.AgentCatalogResponse, query agentCatalogQuery) {
-	if query.Group != "agent" {
+	if query.Group != agentCatalogGroupKey {
 		return
 	}
 	response.Agents = groupedAgentRows(response.Agents)
@@ -115,8 +115,10 @@ func groupAgentCatalogResponse(response *contract.AgentCatalogResponse, query ag
 }
 
 func projectGroupedAgentCatalog(response *contract.AgentCatalogResponse, query agentCatalogQuery) {
-	if query.Group == "agent" {
+	if query.Group == agentCatalogGroupKey {
 		response.Items = groupAgentCatalogItems(response.Agents)
 		response.NextCursor = response.Page.NextCursor
 	}
 }
+
+const agentCatalogGroupKey = "agent"

@@ -54,7 +54,7 @@ func (h *BaseHandlers) instanceFacetRows(
 			}
 			for _, row := range rows {
 				workspace := query.WorkspaceID
-				if workspace == "@user" {
+				if workspace == userScopeWorkspaceRef {
 					workspace = ""
 				}
 				if !query.AllWorkspaces && row.WorkspaceID != workspace {

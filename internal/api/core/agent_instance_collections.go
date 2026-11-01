@@ -148,7 +148,7 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		return
 	}
 	workspaceID := ""
-	if ref := c.Query("workspace"); ref != "" && ref != "@user" {
+	if ref := c.Query("workspace"); ref != "" && ref != userScopeWorkspaceRef {
 		resolved, err := h.Workspaces.Resolve(c.Request.Context(), ref)
 		if err != nil {
 			h.respondError(c, 422, err)

@@ -49,7 +49,7 @@ type agentCatalogCursor struct {
 
 // ListAgentCatalog returns a scoped fleet page with exact session metrics.
 func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
-	if c.Query("group") == "agent" && agentWorkspaceRef(c) == "" {
+	if c.Query("group") == agentCatalogGroupKey && agentWorkspaceRef(c) == "" {
 		if !h.requireAggregateSurface(c) {
 			return
 		}
@@ -129,7 +129,7 @@ func (h *BaseHandlers) agentCatalogSessionMetrics(
 }
 
 func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
-	if group := c.Query("group"); group != "" && group != "agent" {
+	if group := c.Query("group"); group != "" && group != agentCatalogGroupKey {
 		return agentCatalogQuery{}, fmt.Errorf("%w: group must be agent", errAgentCatalogQueryInvalid)
 	}
 	limit, err := ParseOptionalInt(c.Query("limit"))

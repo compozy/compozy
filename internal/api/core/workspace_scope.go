@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/events"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 
@@ -139,7 +140,7 @@ func MissingWorkspaceDiagnostics(workspaceID string) []contract.DiagnosticItem {
 	}
 	return []contract.DiagnosticItem{{
 		ID: "workspace_root_missing:" + workspaceID, Code: workspaceRootMissingCode,
-		Severity: "warn", Category: "session", DataFreshness: "live",
+		Severity: "warn", Category: events.ComponentSession, DataFreshness: "live",
 		Title:    "Workspace folder is missing",
 		Message:  "The workspace folder is missing. Session state is retained; stop and archive remain available.",
 		Evidence: map[string]any{"workspace_id": workspaceID},
