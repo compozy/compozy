@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -56,25 +57,9 @@ func (n *daemonNativeTools) setSessionArchived(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if archived && input.WithChildren {
-		// The tree would include the caller, whose turn is executing this call.
-		within, err := n.nativeCallerWithinHierarchy(ctx, scope.SessionID, input.SessionID)
-		if err != nil {
+	if archived {
+		if err := n.refuseCallerArchive(ctx, req.ToolID, scope.SessionID, input); err != nil {
 			return toolspkg.ToolResult{}, err
-		}
-		if within {
-			return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
-		}
-	}
-	if archived && input.Stop {
-		// Stopping the caller, or an ancestor whose stop cascades to it, would
-		// cancel the turn executing this call, as session_stop refuses for self.
-		within, err := n.nativeCallerWithinSession(ctx, scope.SessionID, input.SessionID)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		if within {
-			return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
 		}
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, input.SessionID); err != nil {
@@ -96,25 +81,8 @@ func (n *daemonNativeTools) setSessionArchived(
 	} else {
 		info, err = executeSessionArchive(ctx, manager, workspaceID, input, archived)
 	}
-	if archived && input.Stop && err != nil {
-		n.continueSessionProcessCleanup(input.SessionID, input.Processes, err)
-		for _, member := range members {
-			n.continueSessionProcessCleanup(member.ID, input.Processes, err)
-		}
-	}
-	if errors.Is(err, session.ErrSessionTreeContainsCaller) {
-		return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
-	}
-	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeSessionArchiveStopFailed,
-			req.ToolID,
-			err.Error(),
-			err,
-		)
-	}
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, n.sessionArchiveError(req.ToolID, input, members, err, archived)
 	}
 	if archived {
 		// Every member is attempted: the tree is archived and no later call retries it.
@@ -128,6 +96,58 @@ func (n *daemonNativeTools) setSessionArchived(
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+// refuseCallerArchive denies an archive whose stop or tree reaches the caller,
+// which would cancel the turn executing this call.
+func (n *daemonNativeTools) refuseCallerArchive(
+	ctx context.Context,
+	toolID toolspkg.ToolID,
+	callerID string,
+	input sessionArchiveInput,
+) error {
+	if input.WithChildren {
+		within, err := n.nativeCallerWithinHierarchy(ctx, callerID, input.SessionID)
+		if err != nil {
+			return err
+		}
+		if within {
+			return nativeSelfTargetError(toolID)
+		}
+	}
+	if input.Stop {
+		// As session_stop refuses for self: the caller, or an ancestor whose stop cascades to it.
+		within, err := n.nativeCallerWithinSession(ctx, callerID, input.SessionID)
+		if err != nil {
+			return err
+		}
+		if within {
+			return nativeSelfTargetError(toolID)
+		}
+	}
+	return nil
+}
+
+func (n *daemonNativeTools) sessionArchiveError(
+	toolID toolspkg.ToolID,
+	input sessionArchiveInput,
+	members []*session.Info,
+	err error,
+	archived bool,
+) error {
+	if archived && input.Stop {
+		n.continueSessionProcessCleanup(input.SessionID, input.Processes, err)
+		for _, member := range members {
+			n.continueSessionProcessCleanup(member.ID, input.Processes, err)
+		}
+	}
+	if errors.Is(err, session.ErrSessionTreeContainsCaller) {
+		return nativeSelfTargetError(toolID)
+	}
+	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
+		return toolspkg.NewToolError(toolspkg.ErrorCodeSessionArchiveStopFailed, toolID, err.Error(), err)
+	}
+	return err
 }
 
 // archiveSessionTree returns the tree as it stands after a failure, so cleanup
@@ -154,7 +174,9 @@ func (n *daemonNativeTools) archiveSessionTree(
 		Stop: input.Stop, RefuseMember: callerID,
 	})
 	if err != nil {
-		descendants, readErr := manager.Descendants(context.WithoutCancel(ctx), workspaceID, input.SessionID)
+		readCtx, cancelRead := context.WithTimeout(context.WithoutCancel(ctx), sessionprocess.CaptureTimeout)
+		defer cancelRead()
+		descendants, readErr := manager.Descendants(readCtx, workspaceID, input.SessionID)
 		return nil, descendants, errors.Join(err, readErr)
 	}
 	return tree.Root, tree.Descendants, nil

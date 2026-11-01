@@ -7,7 +7,6 @@ import {
 } from "../lib/session-batch-feedback";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { isSessionUnavailable } from "../adapters/session-api-errors";
 import { useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
@@ -21,6 +20,7 @@ import {
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
   readSessionChoiceTargets,
+  sessionBatchCoverage,
   sessionChildrenChoice,
   sessionChildrenScope,
   sessionTreeBatchOrder,
@@ -41,8 +41,10 @@ import { useSessionDeleteTrees } from "./use-session-delete-trees";
 import {
   archiveTarget,
   descendantsOf,
+  sessionArchiveChoiceState,
   reportActionError,
   reportDeletedSessions,
+  settleTreeTarget,
 } from "./session-lifecycle-helpers";
 import { useSessionReparent } from "./use-session-reparent";
 import { useSessionLaterActions } from "./use-session-later-actions";
@@ -96,11 +98,12 @@ export function useSessionLifecycleActions(
     deleteTarget?.openedAt ?? Infinity
   );
   const deleteSession = deleteSessions?.[0] ?? null;
-  const { trees: deleteTrees, settled: deleteTreesSettled } = useSessionDeleteTrees(
-    deleteTarget?.sessions
-  );
+  const deleteRead = useSessionDeleteTrees(deleteTarget?.sessions);
+  const deleteTrees = deleteRead.trees;
   const deleteScope = sessionChildrenScope("delete", deleteTarget?.sessions ?? [], deleteTrees);
-  const includedDeleteTrees = deleteChildren ? deleteTrees : undefined;
+  // Only what the dialog shows is sent: with no choice on screen, a delete stays single-session.
+  const includedDeleteTrees =
+    deleteChildren && deleteScope.members.length > 0 ? deleteTrees : undefined;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
   const [processChoice, setProcessChoice] = useState<{
     action: "stop" | "archive";
@@ -135,9 +138,13 @@ export function useSessionLifecycleActions(
     laterSessionId: later.pendingSessionId,
   });
 
+  /** A host's follow-up failing does not undo an archive the daemon confirmed. */
   const notifyArchived = async (session: SessionPayload, trees?: SessionTrees) => {
     const archived = [session, ...(trees?.get(session.id) ?? [])];
-    await Promise.all(archived.map(target => onArchiveSuccess?.(target)));
+    const results = await Promise.allSettled(archived.map(target => onArchiveSuccess?.(target)));
+    for (const result of results) {
+      if (result.status === "rejected") reportActionError("archive", result.reason);
+    }
   };
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
@@ -153,10 +160,7 @@ export function useSessionLifecycleActions(
     if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
     batchRunning.current = true;
     setBatchAction(action);
-    const coveredBy =
-      trees && (action === "archive" || action === "delete")
-        ? sessionChildrenScope(action, sessions, trees).coveredBy
-        : new Map<string, string>();
+    const coveredBy = sessionBatchCoverage(action, sessions, trees);
     return runSessionBatch({
       action,
       ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
@@ -165,7 +169,7 @@ export function useSessionLifecycleActions(
       execute: async id => {
         const session = sessions.find(candidate => candidate.id === id)!;
         if (action === "delete" || action === "archive") {
-          try {
+          await settleTreeTarget(action, coveredBy.has(id), async () => {
             if (readErrors.has(id)) throw readErrors.get(id);
             if (action === "delete")
               await remove.mutateAsync({ ...session, ...policy, ...descendantsOf(session, trees) });
@@ -173,11 +177,7 @@ export function useSessionLifecycleActions(
               await archive.mutateAsync(archiveTarget(session, processes, trees));
               await notifyArchived(session, trees);
             }
-          } catch (error) {
-            // Its root target's tree already took it, even if the root then failed.
-            if (action === "delete" && coveredBy.has(id) && isSessionUnavailable(error)) return;
-            throw error;
-          }
+          });
           return;
         }
         if (readErrors.has(id)) throw readErrors.get(id);
@@ -367,13 +367,11 @@ export function useSessionLifecycleActions(
     );
   };
 
-  const archiveChoice = processChoice?.scope
-    ? sessionChildrenChoice(processChoice.scope, archiveChildren, setArchiveChildren)
-    : undefined;
-  const processTargets = [
-    ...(processChoice?.sessions ?? []),
-    ...(archiveChoice?.included ? (processChoice?.scope?.reached ?? []) : []),
-  ];
+  const { archiveChoice, processTargets } = sessionArchiveChoiceState(
+    processChoice,
+    archiveChildren,
+    setArchiveChildren
+  );
 
   return {
     batchResults,
@@ -435,12 +433,10 @@ export function useSessionLifecycleActions(
       sessions: deleteSessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
-      childSessions: sessionChildrenChoice(
-        deleteScope,
-        deleteChildren,
-        setDeleteChildren,
-        !deleteTreesSettled
-      ),
+      childSessions: sessionChildrenChoice(deleteScope, deleteChildren, setDeleteChildren, {
+        pending: !deleteRead.settled,
+        onRetry: deleteRead.onRetry,
+      }),
       onOpenChange: open => {
         if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
           deleteConfirmation.current++;

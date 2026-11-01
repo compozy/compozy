@@ -1155,6 +1155,27 @@ describe("session actions", () => {
       expect(archiveSession).not.toHaveBeenCalled();
       expect(result.current.processDialog.open).toBe(false);
     });
+
+    it("sends a plain delete when the checked choice is no longer on screen", async () => {
+      vi.mocked(listSessionDescendants).mockResolvedValue([child]);
+      const client = treeClient();
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(client),
+      });
+      act(() => result.current.actions.onDelete(createdSession));
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.pending).toBe(false));
+      act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
+      vi.mocked(listSessionDescendants).mockResolvedValue([]);
+      await act(() =>
+        client.invalidateQueries({
+          queryKey: sessionKeys.descendants(createdSession.id, createdSession.profile_name),
+        })
+      );
+      await waitFor(() => expect(result.current.deleteDialog.childSessions).toBeUndefined());
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(1));
+      expect(deleteSessionTree).not.toHaveBeenCalled();
+    });
   });
 
   // Invariant: deletion choices follow newer detail evidence, not a frozen catalog row.

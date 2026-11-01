@@ -295,6 +295,7 @@ A session's child sessions are the rows nested under it in the session list; con
 
 - Archive confirmation: title "Archive this session?" or "Archive {N} sessions?"; body "This session has {N} child session(s)." or "These sessions have {N} child session(s)."; button "Archive session" or "Archive {N} sessions". While processes run, the process choice asks instead and carries the same checkbox.
 - Checkbox: "Also archive {N} child session(s)", checked by default. In the delete dialogs "Also delete {N} child session(s)", unchecked by default because deletion cannot be undone. Subagents always follow an archived parent, so archive does not count them.
+- Failed count read: "Couldn't read child sessions." with "Try again". Archive reports the read error and does not run.
 
 ### Session Later Terms
 

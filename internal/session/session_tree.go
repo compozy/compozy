@@ -30,8 +30,8 @@ type ArchiveTreeOptions struct {
 	RefuseMember string
 }
 
-// SessionTree is a session with its hierarchy descendants, shallowest first.
-type SessionTree struct {
+// Tree is a session with its hierarchy descendants, shallowest first.
+type Tree struct {
 	Root        *Info
 	Descendants []*Info
 }
@@ -59,7 +59,7 @@ func (m *Manager) ArchiveWithChildren(
 	workspaceID string,
 	sessionID string,
 	opts ArchiveTreeOptions,
-) (*SessionTree, error) {
+) (*Tree, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	treeStore, err := m.sessionTreeStore()
 	if err != nil {
@@ -79,7 +79,7 @@ func (m *Manager) ArchiveWithChildren(
 	if err != nil {
 		return nil, err
 	}
-	tree := &SessionTree{
+	tree := &Tree{
 		Root:        sessionInfoFromCatalog(&archived.Root),
 		Descendants: sessionInfosFromCatalog(archived.Descendants),
 	}
@@ -159,8 +159,8 @@ func (m *Manager) DeleteWithChildren(
 			}
 			return append(deleted, sessionID), nil
 		}
-		for i := len(descendants) - 1; i >= 0; i-- {
-			id := descendants[i].ID
+		for _, descendant := range slices.Backward(descendants) {
+			id := descendant.ID
 			if err := m.Delete(ctx, id); err != nil {
 				if errors.Is(err, ErrSessionNotFound) {
 					continue

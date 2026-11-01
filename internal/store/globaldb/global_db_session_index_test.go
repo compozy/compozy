@@ -2558,9 +2558,18 @@ func TestGlobalDBSessionTree(t *testing.T) {
 		if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET state='active' WHERE id='grandchild'`); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.ArchiveSessionTree(ctx, workspace, parent); !errors.Is(err, store.ErrSessionArchiveRequiresStopped) {
+		if _, err := db.ArchiveSessionTree(
+			ctx,
+			workspace,
+			parent,
+		); !errors.Is(
+			err,
+			store.ErrSessionArchiveRequiresStopped,
+		) {
 			t.Fatalf("live member = %v", err)
-		} else if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](err); !ok ||
+		} else if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](
+			err,
+		); !ok ||
 			live.SessionID != "grandchild" {
 			t.Fatalf("live member = %#v, want grandchild", live)
 		}

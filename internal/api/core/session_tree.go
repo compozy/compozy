@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -91,7 +92,9 @@ func (h *BaseHandlers) continueTreeProcessCleanup(
 	if policy != contract.SessionProcessesTerminate {
 		return
 	}
-	descendants, readErr := tree.Descendants(context.WithoutCancel(c.Request.Context()), root.WorkspaceID, root.ID)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), sessionprocess.CaptureTimeout)
+	defer cancel()
+	descendants, readErr := tree.Descendants(ctx, root.WorkspaceID, root.ID)
 	if readErr != nil && h.Logger != nil {
 		h.Logger.Warn("Read session tree for process cleanup", "session_id", root.ID, "error", readErr)
 	}

@@ -11,6 +11,7 @@ import type { SessionPayload } from "../types";
 export function useSessionDeleteTrees(sessions: readonly SessionPayload[] | undefined): {
   trees: SessionTrees;
   settled: boolean;
+  onRetry?: () => void;
 } {
   const reads = useQueries({
     queries: (sessions ?? []).map(session => ({
@@ -24,5 +25,10 @@ export function useSessionDeleteTrees(sessions: readonly SessionPayload[] | unde
     const descendants = reads[index]?.data;
     if (descendants) trees.set(session.id, descendants);
   });
-  return { trees, settled: reads.every(read => read.isSuccess && !read.isFetching) };
+  const failed = reads.filter(read => read.isError && !read.isFetching);
+  return {
+    trees,
+    settled: reads.every(read => read.isSuccess && !read.isFetching),
+    ...(failed.length > 0 ? { onRetry: () => failed.forEach(read => void read.refetch()) } : {}),
+  };
 }

@@ -2,7 +2,12 @@ import { toast } from "@compozy/ui";
 
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import type { SessionBatchResult } from "../lib/session-batch";
-import type { SessionTrees } from "../lib/session-tree";
+import { isSessionUnavailable } from "../adapters/session-api-errors";
+import {
+  sessionChildrenChoice,
+  type SessionChildrenScope,
+  type SessionTrees,
+} from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleAction } from "./session-lifecycle-types";
 
@@ -27,6 +32,36 @@ export function archiveTarget(
 /** Trees mean the operator included children, even if this target's read found none. */
 export function descendantsOf(session: SessionPayload, trees?: SessionTrees) {
   return trees ? { descendants: trees.get(session.id) ?? [] } : {};
+}
+
+/** Its root target's tree may have taken a covered target, even if that root then failed. */
+export async function settleTreeTarget(
+  action: "archive" | "delete",
+  covered: boolean,
+  run: () => Promise<void>
+): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    if (action !== "delete" || !covered || !isSessionUnavailable(error)) throw error;
+  }
+}
+
+/** The process dialog's child choice, and the sessions its process count covers. */
+export function sessionArchiveChoiceState(
+  processChoice: { sessions: readonly SessionPayload[]; scope?: SessionChildrenScope } | null,
+  included: boolean,
+  onIncludedChange: (included: boolean) => void
+) {
+  const scope = processChoice?.scope;
+  const archiveChoice = scope
+    ? sessionChildrenChoice(scope, included, onIncludedChange)
+    : undefined;
+  const processTargets = [
+    ...(processChoice?.sessions ?? []),
+    ...(archiveChoice?.included ? (scope?.reached ?? []) : []),
+  ];
+  return { archiveChoice, processTargets };
 }
 
 /** Preserve the daemon message, falling back only when the failure has no useful text. */

@@ -16075,12 +16075,12 @@ func (m *nativeTreeSessions) Descendants(context.Context, string, string) ([]*se
 
 func (m *nativeTreeSessions) ArchiveWithChildren(
 	_ context.Context, _ string, id string, opts session.ArchiveTreeOptions,
-) (*session.SessionTree, error) {
+) (*session.Tree, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	m.calls = append(m.calls, opts)
-	return &session.SessionTree{Root: &session.Info{ID: id, WorkspaceID: "ws-native"}}, nil
+	return &session.Tree{Root: &session.Info{ID: id, WorkspaceID: "ws-native"}}, nil
 }
 
 func (m *nativeTreeSessions) DeleteWithChildren(context.Context, string, string) ([]string, error) {

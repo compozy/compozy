@@ -19,6 +19,8 @@ export interface SessionChildrenChoice {
   includedProcessCount: number;
   /** The count may be stale: a yes waits for the read to settle. */
   pending: boolean;
+  /** Present once that read failed, so the wait has a way out. */
+  onRetryRead?: () => void;
   onIncludedChange: (included: boolean) => void;
 }
 
@@ -78,12 +80,12 @@ export function sessionTreeBatchOrder<T extends Pick<SessionPayload, "id">>(
   ];
 }
 
-/** A failed read rejects: without the count the verb cannot offer the operator's choice. */
+/** Each root's tree or its read error: a partial map would read as "no children". */
 export async function readSessionTrees(
   queryClient: QueryClient,
   sessions: readonly SessionPayload[]
-): Promise<SessionTrees> {
-  const reads = await Promise.all(
+) {
+  const reads = await Promise.allSettled(
     sessions.map(async session => {
       const options = sessionDescendantsOptions(session);
       // An already-running read may predate the click; let it settle before refreshing.
@@ -94,39 +96,68 @@ export async function readSessionTrees(
       return queryClient.fetchQuery({ ...options, staleTime: 0 });
     })
   );
-  return new Map(reads.map((descendants, index) => [sessions[index]!.id, descendants]));
+  const trees = new Map<string, readonly SessionPayload[]>();
+  const errors = new Map<string, unknown>();
+  reads.forEach((read, index) => {
+    const id = sessions[index]!.id;
+    if (read.status === "fulfilled") trees.set(id, read.value);
+    else errors.set(id, read.reason);
+  });
+  return { trees, errors };
 }
 
-/** Fresh targets, then their trees: a stop has no children to offer. */
+/**
+ * Fresh targets, then their trees; a stop has no children to offer. A root whose tree cannot be
+ * read joins the read errors, so it fails on its own without its children going unasked.
+ */
 export async function readSessionChoiceTargets(
   queryClient: QueryClient,
   action: "stop" | "archive",
   sessions: readonly SessionPayload[]
 ) {
   const current = await readCurrentSessions(queryClient, sessions);
-  const trees: SessionTrees =
-    action === "archive" ? await readSessionTrees(queryClient, current.sessions) : new Map();
-  return { current, trees };
+  if (action === "stop") return { current, trees: new Map() as SessionTrees };
+  const { trees, errors } = await readSessionTrees(queryClient, current.sessions);
+  if (sessions.length === 1 && errors.size > 0) throw errors.values().next().value;
+  return {
+    current: {
+      sessions: current.sessions.filter(session => !errors.has(session.id)),
+      errors: new Map([...current.errors, ...errors]),
+    },
+    trees,
+  };
 }
 
 export function sessionChildrenChoice(
   scope: SessionChildrenScope,
   included: boolean,
   onIncludedChange: (included: boolean) => void,
-  pending = false
+  read: { pending: boolean; onRetry?: () => void } = { pending: false }
 ): SessionChildrenChoice | undefined {
   if (scope.members.length === 0) return undefined;
   return {
     count: scope.members.length,
     included,
     includedProcessCount: included ? sessionsRunningProcesses(scope.reached) : 0,
-    pending,
+    pending: read.pending,
+    ...(read.onRetry ? { onRetryRead: read.onRetry } : {}),
     onIncludedChange,
   };
 }
 
 export function childSessionCountLabel(count: number): string {
   return `${count} child ${count === 1 ? "session" : "sessions"}`;
+}
+
+/** The batch position and skip rule a tree opt-in adds to archive and delete. */
+export function sessionBatchCoverage(
+  action: string,
+  sessions: readonly SessionPayload[],
+  trees?: SessionTrees
+): ReadonlyMap<string, string> {
+  return trees && (action === "archive" || action === "delete")
+    ? sessionChildrenScope(action, sessions, trees).coveredBy
+    : new Map<string, string>();
 }
 
 /** COPY.md: the include-children confirmation when nothing else needs an answer. */

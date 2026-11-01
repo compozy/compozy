@@ -25,7 +25,7 @@ type SessionTreeManager interface {
 		workspaceID string,
 		sessionID string,
 		opts session.ArchiveTreeOptions,
-	) (*session.SessionTree, error)
+	) (*session.Tree, error)
 	// DeleteWithChildren deletes the descendants, then the session, returning
 	// the ids deleted before any failure.
 	DeleteWithChildren(ctx context.Context, workspaceID string, sessionID string) ([]string, error)
