@@ -1,6 +1,9 @@
 package tools
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 var _ ProjectionAvailabilityProvider = (*MCPProvider)(nil)
 
@@ -31,6 +34,7 @@ func (p *MCPProvider) ProjectionAvailability(ctx context.Context, scope Scope, i
 			availability = handle.Availability(ctx, scope)
 			sources[key] = availability
 		}
+		availability.ReasonCodes = slices.Clone(availability.ReasonCodes)
 		result[descriptor.ID] = availability
 	}
 	return result

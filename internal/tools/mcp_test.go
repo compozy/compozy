@@ -1307,6 +1307,14 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 						t.Fatal("auth withdrawal retained executable tool")
 					}
 				}
+				if len(views) != 114 {
+					t.Fatalf("diagnostic tools = %d, want 114", len(views))
+				}
+				original := views[1].Availability.ReasonCodes[0]
+				views[0].Availability.ReasonCodes[0] = ReasonBackendUnhealthy
+				if views[1].Availability.ReasonCodes[0] != original {
+					t.Fatal("mutating one tool's reasons changed a sibling view")
+				}
 			} else if len(views) != 0 {
 				t.Fatal("auth withdrawal retained hosted tools")
 			}
