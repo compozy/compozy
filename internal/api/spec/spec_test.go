@@ -5298,13 +5298,18 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	walk(baseline)
 	props := map[string]any{}
 	required := []any{}
-	for _, name := range []string{"activity", "agent_name", "created_at", "id", "label", "main_session_id", "needs_attention", "now", "pause_reason", "profile_id", "provider", "resolved_appearance", "scope", "state", "updated_at", "workspace_id"} {
+	for _, name := range []string{"activity", "agent_name", "checks_enabled", "created", "created_at", "failure_streak", "fatigue_limit", "id", "label", "last_wake_at", "main_session_id", "needs_attention", "next_wake_at", "now", "pause_reason", "profile_id", "provider", "quiet_streak", "resolved_appearance", "scope", "state", "updated_at", "workspace_id"} {
 		props[name] = map[string]any{"type": "string"}
 		required = append(required, name)
 	}
 	props["created_at"] = map[string]any{"type": "string", "format": "date-time"}
 	props["updated_at"] = map[string]any{"type": "string", "format": "date-time"}
 	props["needs_attention"] = map[string]any{"type": "boolean"}
+	props["checks_enabled"] = map[string]any{"type": "boolean"}
+	props["created"] = map[string]any{"type": "boolean"}
+	props["failure_streak"] = map[string]any{"type": "integer", "format": "int64"}
+	props["quiet_streak"] = map[string]any{"type": "integer", "format": "int64"}
+	props["fatigue_limit"] = map[string]any{"type": "integer"}
 	props["resolved_appearance"] = map[string]any{"type": "object", "additionalProperties": map[string]any{}}
 	stream := baseline["paths"].(map[string]any)["/api/sessions/catalog-stream"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["text/event-stream"].(map[string]any)["schema"].(map[string]any)
 	stream["oneOf"] = append(stream["oneOf"].([]any), map[string]any{"type": "object", "properties": props, "required": required})

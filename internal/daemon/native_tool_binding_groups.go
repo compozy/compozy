@@ -102,7 +102,7 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionRuntimeClear,
 			availability: runtimeAvailability,
 		},
-		toolspkg.ToolIDSessionPending: {call: n.sessionPending, availability: availability},
+		toolspkg.ToolIDSessionPendingInteractions: {call: n.sessionPending, availability: availability},
 		toolspkg.ToolIDSessionStatus: {
 			call:         n.sessionStatus,
 			availability: availability,

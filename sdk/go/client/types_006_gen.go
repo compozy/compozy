@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ExtensionContentsPayload is a daemon API value.
+type ExtensionContentsPayload struct {
+	Skills     int `json:"skills"`
+	MCPServers int `json:"mcp_servers"`
+	Hooks      int `json:"hooks"`
+	Loops      int `json:"loops"`
+	Agents     int `json:"agents"`
+}
+
 // ExtensionDeclaredProfilePayload is a daemon API value.
 type ExtensionDeclaredProfilePayload struct {
 	Name                   string                         `json:"name"`
@@ -438,13 +447,4 @@ type GatewayAuditPayload struct {
 	Auth             GatewayAuditAuthPayload      `json:"auth"`
 	DeviceHighlights GatewayDeviceHighlights      `json:"device_highlights"`
 	Findings         []GatewayAuditFindingPayload `json:"findings"`
-}
-
-// GatewayDeviceHighlights is a daemon API value.
-type GatewayDeviceHighlights struct {
-	Active         int      `json:"active"`
-	Revoked        int      `json:"revoked"`
-	Stale          int      `json:"stale"`
-	RecentlyPaired int      `json:"recently_paired"`
-	StaleDeviceIDs []string `json:"stale_device_ids"`
 }

@@ -73,7 +73,7 @@ func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinsta
 	}
 	return r.Get(ctx, id)
 }
-func (r *InstanceRepo) Resume(ctx context.Context, id string, limit int) (agentinstance.Instance, error) {
+func (r *InstanceRepo) Resume(ctx context.Context, id string, limit int, operator bool) (agentinstance.Instance, error) {
 	if err := r.checkReady(ctx, "resume instance"); err != nil {
 		return agentinstance.Instance{}, err
 	}
@@ -86,6 +86,9 @@ func (r *InstanceRepo) Resume(ctx context.Context, id string, limit int) (agenti
 		}
 		if row.ArchivedAt.Valid {
 			return agentinstance.ErrNotFound
+		}
+		if !operator && (row.PauseReason == "manual" || row.PauseReason == "fatigue") {
+			return agentinstance.ErrForbidden
 		}
 		if row.State == "starting" {
 			return agentinstance.ErrStarting
@@ -140,7 +143,7 @@ func (r *InstanceRepo) List(ctx context.Context, query agentinstance.ListQuery) 
 	if query.AllWorkspaces {
 		all = 1
 	}
-	rows, err := r.queries.ListAgentInstances(ctx, sqlcgen.ListAgentInstancesParams{ProfileID: query.ProfileID, WorkspaceID: query.WorkspaceID, AllWorkspaces: all, AfterID: query.AfterID, PageLimit: int64(query.Limit)})
+	rows, err := r.queries.ListAgentInstances(ctx, sqlcgen.ListAgentInstancesParams{ProfileID: query.ProfileID, WorkspaceID: query.WorkspaceID, AllWorkspaces: all, AfterID: query.AfterID, AgentName: query.AgentName, State: query.State, PageLimit: int64(query.Limit)})
 	if err != nil {
 		return nil, err
 	}
@@ -153,4 +156,19 @@ func (r *InstanceRepo) List(ctx context.Context, query agentinstance.ListQuery) 
 		result = append(result, instance)
 	}
 	return result, nil
+}
+
+func (r *InstanceRepo) CountActive(ctx context.Context, profileID string) (int64, error) {
+	if err := r.checkReady(ctx, "count active instances"); err != nil {
+		return 0, err
+	}
+	return r.queries.CountActiveAgentInstances(ctx, profileID)
+}
+
+func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (bool, error) {
+	if err := r.checkReady(ctx, "read instance attention"); err != nil {
+		return false, err
+	}
+	value, err := r.queries.InstanceNeedsAttention(ctx, instanceID)
+	return value.Bool, err
 }

@@ -887,18 +887,27 @@
       },
       "AgentInstanceListResponse": {
         "properties": {
+          "active_count": {
+            "format": "int64",
+            "type": "integer"
+          },
           "instances": {
             "items": {
               "$ref": "#/components/schemas/AgentInstancePayload"
             },
             "type": "array"
           },
+          "max_active_instances": {
+            "type": "integer"
+          },
           "next_cursor": {
             "type": "string"
           }
         },
         "required": [
+          "active_count",
           "instances",
+          "max_active_instances",
           "next_cursor"
         ],
         "type": "object"
@@ -931,9 +940,22 @@
           "agent_name": {
             "type": "string"
           },
+          "checks_enabled": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "boolean"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "failure_streak": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fatigue_limit": {
+            "type": "integer"
           },
           "id": {
             "type": "string"
@@ -941,11 +963,17 @@
           "label": {
             "type": "string"
           },
+          "last_wake_at": {
+            "type": "string"
+          },
           "main_session_id": {
             "type": "string"
           },
           "needs_attention": {
             "type": "boolean"
+          },
+          "next_wake_at": {
+            "type": "string"
           },
           "now": {
             "type": "string"
@@ -958,6 +986,10 @@
           },
           "provider": {
             "type": "string"
+          },
+          "quiet_streak": {
+            "format": "int64",
+            "type": "integer"
           },
           "resolved_appearance": {
             "additionalProperties": {},
@@ -980,15 +1012,22 @@
         "required": [
           "activity",
           "agent_name",
+          "checks_enabled",
+          "created",
           "created_at",
+          "failure_streak",
+          "fatigue_limit",
           "id",
           "label",
+          "last_wake_at",
           "main_session_id",
           "needs_attention",
+          "next_wake_at",
           "now",
           "pause_reason",
           "profile_id",
           "provider",
+          "quiet_streak",
           "resolved_appearance",
           "scope",
           "state",

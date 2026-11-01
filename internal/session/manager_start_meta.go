@@ -44,6 +44,7 @@ func sessionStartSpecFromMeta(
 		cwd:                      cwd,
 		sessionType:              normalizeSessionType(Type(meta.SessionType)),
 		lineage:                  store.NormalizeSessionLineage(meta.ID, meta.Lineage),
+		preserveDelegationPolicy: meta.Lineage != nil,
 		createdAt:                meta.CreatedAt,
 		soulSnapshotID:           strings.TrimSpace(meta.SoulSnapshotID),
 		soulDigest:               strings.TrimSpace(meta.SoulDigest),

@@ -65,8 +65,11 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	state.agentInstances = &core.AgentInstanceAPI{
 		Service: service, Store: repo, Reports: provider.InstanceReports(),
+		WakeState: repo.WakeState, CountActive: repo.CountActive,
+		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
+		FatigueLimit:       state.cfg.Agents.Heartbeat.FatigueLimit,
 		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
-			return admission.definitions.(instanceDefinitions).instancePayload(ctx, instance, provider.InstanceReports(), repo)
+			return admission.definitions.(instanceDefinitions).instancePayload(ctx, instance, repo)
 		},
 		Authority: agentinstance.Authority{Callers: repo},
 	}

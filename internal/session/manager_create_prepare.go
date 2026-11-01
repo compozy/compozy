@@ -93,6 +93,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		runtimeMode:              strings.TrimSpace(opts.RuntimeMode),
 		sessionType:              sessionType,
 		lineage:                  lineage,
+		preserveDelegationPolicy: opts.Lineage != nil,
 		allowedToolsOverride:     append([]string(nil), opts.AllowedToolsOverride...),
 		deniedToolsOverride:      append([]string(nil), opts.DeniedToolsOverride...),
 		creationProfile:          cloneCreationProfile(opts.CreationProfile),

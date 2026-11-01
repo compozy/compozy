@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// PutLoopAnnotationsRequest is a daemon API value.
+type PutLoopAnnotationsRequest struct {
+	Annotations []LoopAnnotationPayload `json:"annotations"`
+}
+
+// PutLoopConfigRequest is a daemon API value.
+type PutLoopConfigRequest struct {
+	Config LoopConfig `json:"config"`
+}
+
+// PutLoopInputDefaultRequest is a daemon API value.
+type PutLoopInputDefaultRequest struct {
+	Scope LoopInputDefaultsScope `json:"scope"`
+	Value any                    `json:"value"`
+}
+
+// PutLoopInputDefaultsRequest is a daemon API value.
+type PutLoopInputDefaultsRequest struct {
+	Scope  LoopInputDefaultsScope `json:"scope"`
+	Values map[string]any         `json:"values"`
+}
+
 // PutResourceRequest is a daemon API value.
 type PutResourceRequest struct {
 	Scope           ResourceScope   `json:"scope"`
@@ -426,20 +448,3 @@ type ReviewContinuation struct {
 
 // ReviewDecision is a daemon API value.
 type ReviewDecision string
-
-// ReviewPolicy is a daemon API value.
-type ReviewPolicy string
-
-// ReviewProfile is a daemon API value.
-type ReviewProfile struct {
-	AgentName             string               `json:"agent_name,omitempty"`
-	Provider              string               `json:"provider,omitempty"`
-	Model                 string               `json:"model,omitempty"`
-	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
-	Speed                 Speed                `json:"speed,omitempty"`
-	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
-	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
-}

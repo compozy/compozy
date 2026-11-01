@@ -1,7 +1,9 @@
 package session
 
 import (
+	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -10,10 +12,55 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should persist the complete root policy for bounded instance resume", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		additional := t.TempDir()
+		resolved.AdditionalDirs = []string{additional}
+		resolved.Skills = []workspacepkg.SkillPath{{Name: "review"}, {Dir: "/skills/directory"}, {Name: "disabled"}}
+		h.resolver.upsert(&resolved)
+		addHarnessAgent(t, h, compozyconfig.AgentDef{Name: "bounded-coder", Provider: "claude", Prompt: "Review work.", Skills: compozyconfig.AgentSkillsConfig{Disabled: []string{"disabled"}}, MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "test-mcp"}}})
+		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "bounded-coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy := readMeta(t, created.MetaPath()).Lineage.PermissionPolicy
+		want := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{Tools: policy.Tools, Skills: []string{"review", "directory"}, MCPServers: []string{"docs"}, WorkspacePaths: []string{h.workspace, additional}})
+		if !reflect.DeepEqual(policy, want) {
+			t.Fatalf("persisted policy = %+v, want %+v", policy, want)
+		}
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
+			return &policy, "", nil
+		})
+		resumed, err := h.manager.Resume(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), resumed.ID); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(resumed.ID)); err != nil {
+			t.Fatal(err)
+		}
+		if got := resumed.Info().Lineage.PermissionPolicy; !reflect.DeepEqual(got, want) {
+			t.Fatalf("resumed ceiling = %+v, want %+v", got, want)
+		}
+	})
 
 	t.Run("Should produce root lineage for manual sessions", func(t *testing.T) {
 		t.Parallel()
@@ -215,7 +262,13 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 				if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
 					t.Fatalf("lineage tools = %#v, want concrete delegation policy %#v", got, wantTools)
 				}
+				if got := info.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(got, []string{h.workspace}) {
+					t.Fatalf("root workspace paths = %v, want %s", got, h.workspace)
+				}
 				meta := readMeta(t, sess.MetaPath())
+				if got := meta.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(got, []string{h.workspace}) {
+					t.Fatalf("persisted root workspace paths = %v, want %s", got, h.workspace)
+				}
 				if got := meta.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
 					t.Fatalf("persisted lineage tools = %#v, want %#v", got, wantTools)
 				}

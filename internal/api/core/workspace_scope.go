@@ -172,7 +172,7 @@ func (h *BaseHandlers) requireSessionInWorkspace(
 	if err != nil {
 		return nil, err
 	}
-	if info == nil || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
+	if info == nil || info.Type == session.SessionTypeTriage || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
 		return nil, errWorkspaceScopedResourceNotFound
 	}
 	return info, nil
@@ -183,7 +183,7 @@ func (h *BaseHandlers) requireSessionInProfile(
 	info *session.Info,
 	scope profilepkg.ReadScope,
 ) bool {
-	if info == nil || !scope.Matches(info.ProfileID) {
+	if info == nil || info.Type == session.SessionTypeTriage || !scope.Matches(info.ProfileID) {
 		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
 		return false
 	}

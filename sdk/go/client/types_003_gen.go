@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// ApprovalExecutionStatus is a daemon API value.
+type ApprovalExecutionStatus string
+
+// ApprovalGrantDecision is a daemon API value.
+type ApprovalGrantDecision string
+
+// ApprovalGrantManagementScope is a daemon API value.
+type ApprovalGrantManagementScope string
+
+// ApprovalOutcome is a daemon API value.
+type ApprovalOutcome string
+
+// ApprovalPolicy is a daemon API value.
+type ApprovalPolicy string
+
 // ApprovalState is a daemon API value.
 type ApprovalState string
 
@@ -431,12 +446,4 @@ type CmdPaletteCatalogChangedEvent struct {
 	ProfileLens     ProfileLens `json:"profile_lens"`
 	Workspace       WorkspaceID `json:"workspace"`
 	CatalogRevision string      `json:"catalog_revision"`
-}
-
-// CmdPaletteClient is a daemon API value.
-type CmdPaletteClient struct {
-	ClientID   ClientID    `json:"client_id"`
-	Kind       string      `json:"kind"`
-	Workspace  WorkspaceID `json:"workspace"`
-	AttachedAt time.Time   `json:"attached_at"`
 }

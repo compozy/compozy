@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -38,7 +39,7 @@ func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeTo
 	}
 	return bindings
 }
-func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (result toolspkg.ToolResult, callErr error) {
 	var input nativeInstanceInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -47,6 +48,11 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 	if api == nil {
 		return toolspkg.ToolResult{}, errors.New("agent instances unavailable")
 	}
+	defer func() {
+		if message := agentinstance.ErrorMessage(callErr, api.MaxActiveInstances); message != "" {
+			callErr = fmt.Errorf("%w: %s", callErr, message)
+		}
+	}()
 	actor := workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: scope.SessionID,
 		WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName, Operator: scope.Operator}
 	if scope.Operator {
@@ -63,8 +69,18 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 	}
 	action := strings.TrimPrefix(req.ToolID.String(), "compozy__agent_instance_")
 	if !scope.Operator && (action == "create" || action == "archive" || (action == "check" && !input.DryRun)) && !req.ApprovalGranted {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeApprovalRequired, req.ToolID,
-			"instance operation requires operator approval", toolspkg.ErrToolApprovalRequired, toolspkg.ReasonApprovalRequired)
+		approved := false
+		if n.deps.Sessions != nil {
+			info, err := n.deps.Sessions.Status(ctx, scope.SessionID)
+			if err != nil {
+				return toolspkg.ToolResult{}, err
+			}
+			approved = info != nil && info.EffectivePermissions == string(toolspkg.PermissionModeApproveAll)
+		}
+		if !approved {
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeApprovalRequired, req.ToolID,
+				"instance operation requires operator approval", toolspkg.ErrToolApprovalRequired, toolspkg.ReasonApprovalRequired)
+		}
 	}
 	if action == "create" {
 		target, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
@@ -75,7 +91,7 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		instance, _, err := api.Service.Create(ctx, agentinstance.CreateRequest{Agent: input.Agent, Workspace: workspaceID, Profile: scope.ProfileID, Actor: actor})
+		instance, created, err := api.Service.Create(ctx, agentinstance.CreateRequest{Agent: input.Agent, Workspace: workspaceID, Profile: scope.ProfileID, Actor: actor})
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -83,6 +99,7 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
+		payload.Created = created
 		return structuredResult(contract.AgentInstanceResponse{Instance: payload}, "Instance created")
 	}
 	if input.Limit == 0 {
@@ -110,9 +127,10 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 			return toolspkg.ToolResult{}, agentinstance.ErrForbidden
 		}
 	}
-	query := agentinstance.ListQuery{ProfileID: scope.ProfileID, WorkspaceID: workspaceID, AllWorkspaces: input.AllWorkspaces, Limit: input.Limit}
+	query := agentinstance.ListQuery{AgentName: input.Agent, ProfileID: scope.ProfileID, WorkspaceID: workspaceID, AllWorkspaces: input.AllWorkspaces, Limit: input.Limit}
 	if action == "list" {
 		query.AfterID = input.Cursor
+		query.State = input.State
 	}
 	var instance agentinstance.Instance
 	if input.ID != "" && action != "list" {
@@ -129,9 +147,6 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 			}
 			result := contract.AgentInstanceListResponse{Instances: []contract.AgentInstancePayload{}}
 			for _, row := range rows {
-				if input.Agent != "" && row.AgentName != input.Agent {
-					continue
-				}
 				if err := api.Authority.Authorize(ctx, actor, row, "list"); err != nil {
 					if errors.Is(err, agentinstance.ErrForbidden) {
 						continue
@@ -142,18 +157,21 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 					instance = row
 					break
 				}
-				if input.State == "" || row.State == input.State {
-					payload, err := api.Payload(ctx, row)
-					if err != nil {
-						return toolspkg.ToolResult{}, err
-					}
-					result.Instances = append(result.Instances, payload)
+				payload, err := api.Payload(ctx, row)
+				if err != nil {
+					return toolspkg.ToolResult{}, err
 				}
+				result.Instances = append(result.Instances, payload)
 			}
 			if len(rows) == query.Limit {
 				result.NextCursor = rows[len(rows)-1].ID
 			}
 			if action == "list" {
+				metadata, err := api.ListResponse(ctx, scope.ProfileID)
+				if err != nil {
+					return toolspkg.ToolResult{}, err
+				}
+				result.MaxActiveInstances, result.ActiveCount = metadata.MaxActiveInstances, metadata.ActiveCount
 				return structuredResult(result, "Agent instances")
 			}
 			if instance.ID != "" {
@@ -264,7 +282,7 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 	case "pause":
 		instance, err = api.Service.Pause(ctx, instance.ID, "manual")
 	case "resume":
-		instance, err = api.Service.Resume(ctx, instance.ID)
+		instance, err = api.Service.Resume(ctx, instance.ID, actor)
 	case "archive":
 		err = api.Service.Archive(ctx, instance.ID)
 	case "ensure_main":

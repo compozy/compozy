@@ -12,6 +12,7 @@ import (
 
 type ListQuery struct {
 	ProfileID, WorkspaceID, AfterID string
+	AgentName, State                string
 	AllWorkspaces                   bool
 	Limit                           int
 }
@@ -25,7 +26,7 @@ type InstanceStore interface {
 	BindMain(context.Context, string, string) (Instance, error)
 	DeleteUnstarted(context.Context, string) error
 	Pause(context.Context, string, string) (Instance, error)
-	Resume(context.Context, string, int) (Instance, error)
+	Resume(context.Context, string, int, bool) (Instance, error)
 	Archive(context.Context, string) (Instance, error)
 	List(context.Context, ListQuery) ([]Instance, error)
 }
@@ -125,7 +126,7 @@ func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error
 	}
 	return instance, err
 }
-func (s *Service) Resume(ctx context.Context, id string) (Instance, error) {
+func (s *Service) Resume(ctx context.Context, id string, actor workspaceaccess.ActorRef) (Instance, error) {
 	instance, err := s.store.Get(ctx, id)
 	if err != nil {
 		return Instance{}, err
@@ -133,7 +134,7 @@ func (s *Service) Resume(ctx context.Context, id string) (Instance, error) {
 	if err := s.admission.ValidateResume(ctx, instance); err != nil {
 		return Instance{}, err
 	}
-	resumed, err := s.store.Resume(ctx, id, s.limit)
+	resumed, err := s.store.Resume(ctx, id, s.limit, actor.Operator)
 	if err == nil && instance.State != resumed.State {
 		s.notifyLifecycle(ctx, hooks.HookAgentInstanceResumed, resumed)
 	}

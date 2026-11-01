@@ -78,7 +78,6 @@ func (a *instanceAdmission) ResolveCreate(
 			return agentinstance.Instance{}, agentinstance.ErrDepth
 		}
 		result.Depth = 1
-		result.GrantCeiling = workspaceaccess.NarrowGrant(caller.Grant, definition.Grant)
 		policy = agentinstance.IntersectPermissions(caller.PermissionPolicy, definition.Policy)
 		if err := session.ValidatePermissionSubset(caller.PermissionPolicy, policy); err != nil {
 			return agentinstance.Instance{}, err

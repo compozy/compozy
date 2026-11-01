@@ -311,8 +311,10 @@ type AgentInstanceCreateRequest struct {
 
 // AgentInstanceListResponse is a daemon API value.
 type AgentInstanceListResponse struct {
-	Instances  []AgentInstancePayload `json:"instances"`
-	NextCursor string                 `json:"next_cursor"`
+	MaxActiveInstances int                    `json:"max_active_instances"`
+	ActiveCount        int64                  `json:"active_count"`
+	Instances          []AgentInstancePayload `json:"instances"`
+	NextCursor         string                 `json:"next_cursor"`
 }
 
 // AgentInstanceOccurrenceResponse is a daemon API value.
@@ -325,6 +327,13 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
+	Created            bool           `json:"created"`
+	ChecksEnabled      bool           `json:"checks_enabled"`
+	LastWakeAt         string         `json:"last_wake_at"`
+	NextWakeAt         string         `json:"next_wake_at"`
+	QuietStreak        int64          `json:"quiet_streak"`
+	FailureStreak      int64          `json:"failure_streak"`
+	FatigueLimit       int            `json:"fatigue_limit"`
 	Label              string         `json:"label"`
 	Provider           string         `json:"provider"`
 	ResolvedAppearance map[string]any `json:"resolved_appearance"`
@@ -431,19 +440,4 @@ type AgentMeResponse struct {
 type AgentMemoryAddRequest struct {
 	Text  string `json:"text"`
 	Until string `json:"until,omitempty"`
-}
-
-// AgentMemoryBudget is a daemon API value.
-type AgentMemoryBudget struct {
-	Lines    int `json:"lines"`
-	MaxLines int `json:"max_lines"`
-	Bytes    int `json:"bytes"`
-	MaxBytes int `json:"max_bytes"`
-}
-
-// AgentMemoryDocument is a daemon API value.
-type AgentMemoryDocument struct {
-	Content string            `json:"content"`
-	Digest  string            `json:"digest"`
-	Budget  AgentMemoryBudget `json:"budget"`
 }

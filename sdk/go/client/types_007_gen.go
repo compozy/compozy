@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// GatewayDeviceHighlights is a daemon API value.
+type GatewayDeviceHighlights struct {
+	Active         int      `json:"active"`
+	Revoked        int      `json:"revoked"`
+	Stale          int      `json:"stale"`
+	RecentlyPaired int      `json:"recently_paired"`
+	StaleDeviceIDs []string `json:"stale_device_ids"`
+}
+
 // GatewayDevicePayload is a daemon API value.
 type GatewayDevicePayload struct {
 	ID            string     `json:"id"`
@@ -433,17 +442,4 @@ type HeartbeatFrontmatterPayload struct {
 	Summary     string                                 `json:"summary,omitempty"`
 	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
 	Context     HeartbeatContextProjectionPayload      `json:"context"`
-}
-
-// HeartbeatFrontmatterPreferencesPayload is a daemon API value.
-type HeartbeatFrontmatterPreferencesPayload struct {
-	MinInterval  string                       `json:"min_interval,omitempty"`
-	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
-}
-
-// HeartbeatHistoryResponse is a daemon API value.
-type HeartbeatHistoryResponse struct {
-	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
 }

@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// LoopInputDefaultResponse is a daemon API value.
+type LoopInputDefaultResponse struct {
+	LoopName string                 `json:"loop_name"`
+	Key      string                 `json:"key"`
+	Scope    LoopInputDefaultsScope `json:"scope"`
+	Present  bool                   `json:"present"`
+	Value    any                    `json:"value,omitempty"`
+}
+
+// LoopInputDefaultsResponse is a daemon API value.
+type LoopInputDefaultsResponse struct {
+	LoopName string                 `json:"loop_name"`
+	Scope    LoopInputDefaultsScope `json:"scope"`
+	Values   map[string]any         `json:"values"`
+}
+
+// LoopInputDefaultsScope is a daemon API value.
+type LoopInputDefaultsScope string
+
 // LoopInputOrigin is a daemon API value.
 type LoopInputOrigin string
 
@@ -425,22 +444,3 @@ type LoopRuntimeMatch struct {
 	Type       string `json:"type,omitempty"`
 	Complexity string `json:"complexity,omitempty"`
 }
-
-// LoopRuntimeProvenance is a daemon API value.
-type LoopRuntimeProvenance struct {
-	Provider   string            `json:"provider,omitempty"`
-	Model      string            `json:"model,omitempty"`
-	Reasoning  string            `json:"reasoning,omitempty"`
-	Speed      string            `json:"speed,omitempty"`
-	ACPOptions map[string]string `json:"acp_options,omitempty"`
-}
-
-// LoopRuntimeRule is a daemon API value.
-type LoopRuntimeRule struct {
-	Match   LoopRuntimeMatch `json:"match"`
-	Runtime LoopRuntimeSpec  `json:"runtime"`
-}
-
-// LoopRuntimeSpec is a daemon API value.
-// LoopRuntimeSpec preserves its custom JSON wire representation.
-type LoopRuntimeSpec = json.RawMessage

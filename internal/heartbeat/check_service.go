@@ -106,16 +106,19 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if !ready {
 		return CheckResult{}, errors.New("heartbeat: checks are not running")
 	}
+	target, err := s.environment.ResolveCheck(ctx, state.InstanceID)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	if manual && !dryRun && target.Instance.State == "paused" {
+		return CheckResult{}, agentinstance.ErrPaused
+	}
 	inflight, err := s.store.Inflight(ctx)
 	if err != nil {
 		return CheckResult{}, err
 	}
 	if state.OccurrenceID != "" || len(inflight) >= s.config.MaxConcurrent {
 		return CheckResult{Gate: "no_slot"}, nil
-	}
-	target, err := s.environment.ResolveCheck(ctx, state.InstanceID)
-	if err != nil {
-		return CheckResult{}, err
 	}
 	now := s.now()
 	cadence := max(s.config.Interval, target.Policy.Preferences.MinInterval)

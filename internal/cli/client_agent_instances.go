@@ -42,7 +42,11 @@ func (c *daemonClient) MutateAgentInstance(ctx context.Context, id, action strin
 	} else {
 		path += "/" + action
 	}
-	err := c.doJSON(ctx, method, path, nil, nil, &result)
+	var response any = &result
+	if action == "archive" {
+		response = nil
+	}
+	err := c.doJSON(ctx, method, path, nil, nil, response)
 	return result, err
 }
 func (c *daemonClient) AgentInstanceReports(ctx context.Context, id string, query url.Values) (contract.AgentInstanceReportsResponse, error) {

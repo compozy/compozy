@@ -7,6 +7,53 @@ import (
 	"time"
 )
 
+// ToolsetResponse is a daemon API value.
+type ToolsetResponse struct {
+	Toolset ToolsetPayload `json:"toolset"`
+}
+
+// ToolsetsResponse is a daemon API value.
+type ToolsetsResponse struct {
+	Toolsets []ToolsetPayload `json:"toolsets"`
+}
+
+// TranscriptDeltaPayload is a daemon API value.
+type TranscriptDeltaPayload struct {
+	SessionID     string  `json:"session_id"`
+	WorkspaceID   string  `json:"workspace_id,omitempty"`
+	WorkspacePath string  `json:"workspace_path,omitempty"`
+	Epoch         int64   `json:"epoch"`
+	Generation    int64   `json:"generation"`
+	Entries       []Entry `json:"entries"`
+	Cursor        int64   `json:"cursor"`
+	MaxSequence   int64   `json:"max_sequence"`
+	HasMore       bool    `json:"has_more"`
+}
+
+// TranscriptMarkerPayload is a daemon API value.
+type TranscriptMarkerPayload struct {
+	Kind       string          `json:"kind"`
+	OccurredAt time.Time       `json:"occurred_at"`
+	Summary    string          `json:"summary"`
+	Evidence   map[string]any  `json:"evidence,omitempty"`
+	Diagnostic json.RawMessage `json:"diagnostic,omitempty"`
+}
+
+// TranscriptSnapshotPayload is a daemon API value.
+type TranscriptSnapshotPayload struct {
+	SessionID          string  `json:"session_id"`
+	WorkspaceID        string  `json:"workspace_id,omitempty"`
+	WorkspacePath      string  `json:"workspace_path,omitempty"`
+	Epoch              int64   `json:"epoch"`
+	Generation         int64   `json:"generation"`
+	Entries            []Entry `json:"entries"`
+	MaxSequence        int64   `json:"max_sequence"`
+	HasOlder           bool    `json:"has_older"`
+	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
+	Reset              bool    `json:"reset"`
+	Reason             string  `json:"reason,omitempty"`
+}
+
 // TriggerPayload is a daemon API value.
 type TriggerPayload struct {
 	ID                   string                    `json:"id"`
@@ -388,59 +435,4 @@ type WebhookDeliveryPayload struct {
 // WebhookDeliveryResponse is a daemon API value.
 type WebhookDeliveryResponse struct {
 	Result WebhookDeliveryPayload `json:"result"`
-}
-
-// Weights is a daemon API value.
-type Weights struct {
-	Version                    int      `json:"version"`
-	FrecencyHalfLifeDays       int      `json:"frecency_half_life_days"`
-	QueryHalfLifeDays          int      `json:"query_half_life_days"`
-	Deadband                   float64  `json:"deadband"`
-	FallbackWeakMatchThreshold float64  `json:"fallback_weak_match_threshold"`
-	MatchAliasExact            float64  `json:"match_alias_exact"`
-	MatchExact                 float64  `json:"match_exact"`
-	MatchPrefix                float64  `json:"match_prefix"`
-	MatchTokenPrefix           float64  `json:"match_token_prefix"`
-	MatchCompactPrefix         float64  `json:"match_compact_prefix"`
-	MatchWordBoundaryMin       float64  `json:"match_word_boundary_min"`
-	MatchWordBoundaryMax       float64  `json:"match_word_boundary_max"`
-	MatchContains              float64  `json:"match_contains"`
-	MatchSubsequenceMin        float64  `json:"match_subsequence_min"`
-	MatchSubsequenceMax        float64  `json:"match_subsequence_max"`
-	SecondaryFieldMultiplier   float64  `json:"secondary_field_multiplier"`
-	SecondaryFieldCap          float64  `json:"secondary_field_cap"`
-	FrecencyScale              float64  `json:"frecency_scale"`
-	FrecencyCap                float64  `json:"frecency_cap"`
-	QueryLearningCap           float64  `json:"query_learning_cap"`
-	ContextBoost               float64  `json:"context_boost"`
-	PromotionCommandFloor      float64  `json:"promotion_command_floor"`
-	PromotionPathFloor         float64  `json:"promotion_path_floor"`
-	PromotionDefaultFloor      float64  `json:"promotion_default_floor"`
-	PromotionTabFloor          float64  `json:"promotion_tab_floor"`
-	GhostMinScore              float64  `json:"ghost_min_score"`
-	MinEntityQueryLength       int      `json:"min_entity_query_length"`
-	MaxQueryLength             int      `json:"max_query_length"`
-	PruneAfterDays             int      `json:"prune_after_days"`
-	PruneThreshold             float64  `json:"prune_threshold"`
-	EntitySectionVisibleCap    int      `json:"entity_section_visible_cap"`
-	DomainViewMountCap         int      `json:"domain_view_mount_cap"`
-	GroupOrder                 []string `json:"group_order"`
-}
-
-// WindowID is a daemon API value.
-type WindowID string
-
-// WindowManagerActor is a daemon API value.
-type WindowManagerActor struct {
-	Kind string `json:"kind,omitempty"`
-	ID   string `json:"id,omitempty"`
-}
-
-// WindowManagerClientContextInput is a daemon API value.
-type WindowManagerClientContextInput struct {
-	ScopeGlobal         bool                         `json:"scope_global"`
-	FocusedSessionState string                       `json:"focused_session_state,omitempty"`
-	WorkspaceTrusted    bool                         `json:"workspace_trusted"`
-	DestinationIntent   *RouteIntent                 `json:"destination_intent,omitzero"`
-	GlobalShortcuts     []GlobalShortcutRegistration `json:"global_shortcuts"`
 }

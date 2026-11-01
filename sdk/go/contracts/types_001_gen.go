@@ -226,7 +226,7 @@ type AgentInstancePayload struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	InstanceID     string    `json:"instance_id"`
 	MainSessionID  string    `json:"main_session_id,omitempty"`
-	PauseReason    string    `json:"pause_reason,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
 }
 
 type AgentLifecyclePatch struct {

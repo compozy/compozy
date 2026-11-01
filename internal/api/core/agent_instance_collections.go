@@ -31,7 +31,7 @@ func (h *BaseHandlers) CreateAgentInstance(c *gin.Context) {
 		return
 	}
 	actor, ok := h.instanceActor(c)
-	if !ok {
+	if !ok || !h.admitInstanceApproval(c, actor, "create") {
 		return
 	}
 	scope, err := h.resolveProfileMutationScope(c)
@@ -71,6 +71,7 @@ func (h *BaseHandlers) CreateAgentInstance(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
+	payload.Created = created
 	c.JSON(status, contract.AgentInstanceResponse{Instance: payload})
 }
 func (h *BaseHandlers) AdoptAgentInstance(c *gin.Context) {
@@ -170,21 +171,20 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 			WorkspaceID:   workspaceID,
 			AllWorkspaces: all,
 			AfterID:       c.Query("cursor"),
-			Limit:         limit,
+			AgentName:     c.Query("agent"), State: c.Query("state"),
+			Limit: limit,
 		},
 	)
 	if err != nil {
 		h.instanceError(c, err)
 		return
 	}
-	result := contract.AgentInstanceListResponse{Instances: make([]contract.AgentInstancePayload, 0, len(rows))}
+	result, err := h.AgentInstances.ListResponse(c.Request.Context(), scope.ProfileID)
+	if err != nil {
+		h.instanceError(c, err)
+		return
+	}
 	for _, row := range rows {
-		if c.Query("agent") != "" && row.AgentName != c.Query("agent") {
-			continue
-		}
-		if c.Query("state") != "" && row.State != c.Query("state") {
-			continue
-		}
 		if err := h.AgentInstances.Authority.Authorize(c.Request.Context(), actor, row, "list"); err != nil {
 			if errors.Is(err, agentinstance.ErrForbidden) {
 				continue

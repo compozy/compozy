@@ -3,6 +3,13 @@ package contract
 import "time"
 
 type AgentInstancePayload struct {
+	Created            bool           `json:"created"`
+	ChecksEnabled      bool           `json:"checks_enabled"`
+	LastWakeAt         string         `json:"last_wake_at"`
+	NextWakeAt         string         `json:"next_wake_at"`
+	QuietStreak        int64          `json:"quiet_streak"`
+	FailureStreak      int64          `json:"failure_streak"`
+	FatigueLimit       int            `json:"fatigue_limit"`
 	Label              string         `json:"label"`
 	Provider           string         `json:"provider"`
 	ResolvedAppearance map[string]any `json:"resolved_appearance"`
@@ -24,8 +31,10 @@ type AgentInstanceResponse struct {
 	Instance AgentInstancePayload `json:"instance"`
 }
 type AgentInstanceListResponse struct {
-	Instances  []AgentInstancePayload `json:"instances"`
-	NextCursor string                 `json:"next_cursor"`
+	MaxActiveInstances int                    `json:"max_active_instances"`
+	ActiveCount        int64                  `json:"active_count"`
+	Instances          []AgentInstancePayload `json:"instances"`
+	NextCursor         string                 `json:"next_cursor"`
 }
 type AgentInstanceCreateRequest struct {
 	Agent     string `json:"agent"`

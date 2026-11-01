@@ -37,6 +37,8 @@ AND NOT EXISTS (SELECT 1 FROM sessions WHERE instance_id = agent_instances.id);
 -- name: ListAgentInstances :many
 SELECT * FROM agent_instances WHERE profile_id = sqlc.arg(profile_id)
 AND (sqlc.arg(all_workspaces) = 1 OR workspace_id = sqlc.arg(workspace_id))
+AND (sqlc.arg(agent_name) = '' OR agent_name = sqlc.arg(agent_name))
+AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))
 AND archived_at IS NULL AND id > sqlc.arg(after_id) ORDER BY id LIMIT sqlc.arg(page_limit);
 
 -- name: IsInstanceMainSession :one
@@ -85,4 +87,19 @@ SELECT EXISTS (
  SELECT 1 FROM sessions s JOIN agent_instances i ON i.id=s.instance_id
  WHERE s.id=sqlc.arg(session_id) AND i.main_session_id IS NOT NULL
  AND i.main_session_id<>s.id
+);
+
+-- name: InstanceNeedsAttention :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT EXISTS (
+ SELECT 1 FROM session_pending_interactions p JOIN instance_sessions s ON p.session_id = s.id
+ WHERE p.status IN ('pending', 'orphaned')
+) OR EXISTS (
+ SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = sqlc.arg(instance_id) AND r.state = 'pending' AND r.kind = 'failure'
 );

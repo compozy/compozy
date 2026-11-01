@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// AgentMemoryBudget is a daemon API value.
+type AgentMemoryBudget struct {
+	Lines    int `json:"lines"`
+	MaxLines int `json:"max_lines"`
+	Bytes    int `json:"bytes"`
+	MaxBytes int `json:"max_bytes"`
+}
+
+// AgentMemoryDocument is a daemon API value.
+type AgentMemoryDocument struct {
+	Content string            `json:"content"`
+	Digest  string            `json:"digest"`
+	Budget  AgentMemoryBudget `json:"budget"`
+}
+
 // AgentMemoryHistoryResponse is a daemon API value.
 type AgentMemoryHistoryResponse struct {
 	Revisions []AgentMemoryRevision `json:"revisions"`
@@ -433,18 +448,3 @@ type AppTokenRevokeResponse struct {
 type AppTokensResponse struct {
 	AppTokens []AppTokenPayload `json:"app_tokens"`
 }
-
-// ApprovalExecutionStatus is a daemon API value.
-type ApprovalExecutionStatus string
-
-// ApprovalGrantDecision is a daemon API value.
-type ApprovalGrantDecision string
-
-// ApprovalGrantManagementScope is a daemon API value.
-type ApprovalGrantManagementScope string
-
-// ApprovalOutcome is a daemon API value.
-type ApprovalOutcome string
-
-// ApprovalPolicy is a daemon API value.
-type ApprovalPolicy string

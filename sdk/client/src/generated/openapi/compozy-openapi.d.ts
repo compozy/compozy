@@ -7765,7 +7765,10 @@ export interface components {
       workspace: string;
     };
     AgentInstanceListResponse: {
+      /** Format: int64 */
+      active_count: number;
       instances: components["schemas"]["AgentInstancePayload"][];
+      max_active_instances: number;
       next_cursor: string;
     };
     AgentInstanceOccurrenceResponse: {
@@ -7777,16 +7780,25 @@ export interface components {
     AgentInstancePayload: {
       activity: string;
       agent_name: string;
+      checks_enabled: boolean;
+      created: boolean;
       /** Format: date-time */
       created_at: string;
+      /** Format: int64 */
+      failure_streak: number;
+      fatigue_limit: number;
       id: string;
       label: string;
+      last_wake_at: string;
       main_session_id: string;
       needs_attention: boolean;
+      next_wake_at: string;
       now: string;
       pause_reason: string;
       profile_id: string;
       provider: string;
+      /** Format: int64 */
+      quiet_streak: number;
       resolved_appearance: {
         [key: string]: unknown;
       };

@@ -154,22 +154,24 @@ func (s instanceReadFailure) Get(context.Context, string) (agentinstance.Instanc
 func TestAgentInstanceErrorResponses(t *testing.T) {
 	// UT-086: domain errors cross the HTTP boundary with stable status and code.
 	for _, tc := range []struct {
-		name   string
-		err    error
-		status int
+		name    string
+		err     error
+		status  int
+		message string
 	}{
-		{"Should report forbidden access", agentinstance.ErrForbidden, 403},
-		{"Should report workspace denial", agentinstance.ErrWorkspaceAccessDenied, 403},
-		{"Should report child adoption", agentinstance.ErrSessionNotRoot, 422},
-		{"Should report mismatched adoption scope", agentinstance.ErrScopeMismatch, 422},
-		{"Should report a manually paused instance", agentinstance.ErrPaused, 409},
-		{"Should report excessive instance depth", agentinstance.ErrDepth, 403},
-		{"Should report a missing instance", agentinstance.ErrNotFound, 404},
-		{"Should report a missing definition", agentinstance.ErrDefinitionMissing, 404},
-		{"Should report an existing instance", agentinstance.ErrExists, 409},
-		{"Should report an instance still starting", agentinstance.ErrStarting, 409},
-		{"Should report the active instance cap", agentinstance.ErrLimit, 429},
-		{"Should report an on demand definition", agentinstance.ErrNotStaysOn, 422},
+		{"Should report forbidden access", agentinstance.ErrForbidden, 403, "An agent can only act on its own instance, within its limits."},
+		{"Should report an archived workspace as a conflict", store.ErrWorkspaceArchived, 409, "This workspace is archived."},
+		{"Should report workspace denial", agentinstance.ErrWorkspaceAccessDenied, 403, "This agent can't reach that workspace."},
+		{"Should report child adoption", agentinstance.ErrSessionNotRoot, 422, "Only root sessions can be adopted."},
+		{"Should report mismatched adoption scope", agentinstance.ErrScopeMismatch, 422, "This session can't be adopted by this agent and profile."},
+		{"Should report a manually paused instance", agentinstance.ErrPaused, 409, "This agent is paused. Dry runs still work."},
+		{"Should report excessive instance depth", agentinstance.ErrDepth, 403, "An instance created by an agent can't create more instances."},
+		{"Should report a missing instance", agentinstance.ErrNotFound, 404, "This agent instance was not found."},
+		{"Should report a missing definition", agentinstance.ErrDefinitionMissing, 404, "This agent's definition is gone. Reinstall it to resume. Its memory is kept."},
+		{"Should report an existing instance", agentinstance.ErrExists, 409, "This agent already runs in that scope."},
+		{"Should report an instance still starting", agentinstance.ErrStarting, 409, "This agent is already starting there."},
+		{"Should report the active instance cap", agentinstance.ErrLimit, 429, "You have 7 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`."},
+		{"Should report an on demand definition", agentinstance.ErrNotStaysOn, 422, "This agent is on-demand. Only stays-on agents have instances."},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -180,7 +182,7 @@ func TestAgentInstanceErrorResponses(t *testing.T) {
 				testutil.StubWorkspaceService{},
 			)
 			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
-				Store: instanceReadFailure{err: fmt.Errorf("repository: %w", tc.err)},
+				MaxActiveInstances: 7, Store: instanceReadFailure{err: fmt.Errorf("repository: %w", tc.err)},
 			}
 			fixture.Engine.GET("/instances/:id", fixture.Handlers.GetAgentInstance)
 			response := httptest.NewRecorder()
@@ -192,7 +194,11 @@ func TestAgentInstanceErrorResponses(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
 			}
-			if response.Code != tc.status || body.Code != tc.err.Error() {
+			wantCode := tc.err.Error()
+			if errors.Is(tc.err, store.ErrWorkspaceArchived) {
+				wantCode = "workspace_archived"
+			}
+			if response.Code != tc.status || body.Code != wantCode || body.Error != tc.message {
 				t.Fatalf("response: status=%d body=%#v, want status=%d code=%s", response.Code, body, tc.status, tc.err)
 			}
 		})
@@ -666,6 +672,242 @@ func TestAgentInstanceCheckIns(t *testing.T) {
 		}
 		if cursor != "" {
 			t.Fatalf("terminal cursor = %s", cursor)
+		}
+	})
+}
+
+func TestAgentInstanceCheckProjection(t *testing.T) {
+	t.Run("Should expose persisted check state and profile capacity across reads and updates", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "projection.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		repo := db.Instances()
+		instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 7)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "other", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 7); err != nil {
+			t.Fatal(err)
+		}
+		const last = "2026-11-01T12:00:00Z"
+		const next = "2026-11-01T13:00:00Z"
+		if _, err := db.DB().ExecContext(t.Context(), `UPDATE agent_instance_wake_state SET last_wake_at=?, next_wake_at=?, quiet_streak=3, failure_streak=2 WHERE instance_id=?`, last, next, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Service: &agentinstance.Service{}, Store: repo, WakeState: repo.WakeState, CountActive: repo.CountActive,
+			MaxActiveInstances: 7, FatigueLimit: 4, CheckSettings: instanceCheckSettingsRepo{repo},
+		}
+		fixture.Engine.GET("/instances", fixture.Handlers.ListAgentInstances)
+		fixture.Engine.GET("/instances/:id", fixture.Handlers.GetAgentInstance)
+		fixture.Engine.PATCH("/instances/:id", fixture.Handlers.UpdateAgentInstance)
+		assertPayload := func(payload contract.AgentInstancePayload, enabled bool) {
+			t.Helper()
+			if payload.ID != instance.ID || payload.ChecksEnabled != enabled || payload.LastWakeAt != last || payload.NextWakeAt != next || payload.QuietStreak != 3 || payload.FailureStreak != 2 || payload.FatigueLimit != 4 {
+				t.Fatalf("unexpected check projection: %+v", payload)
+			}
+		}
+		response := performRequest(t, fixture.Engine, "GET", "/instances?agent=coder&state=starting&limit=1", nil)
+		if response.Code != 200 {
+			t.Fatalf("list: %d %s", response.Code, response.Body.String())
+		}
+		var list contract.AgentInstanceListResponse
+		decodeJSON(t, response.Body.Bytes(), &list)
+		if len(list.Instances) != 1 || list.ActiveCount != 2 || list.MaxActiveInstances != 7 {
+			t.Fatalf("filtered capacity: %+v", list)
+		}
+		assertPayload(list.Instances[0], true)
+		for _, method := range []string{"GET", "PATCH", "GET"} {
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), method, "/instances/"+instance.ID, strings.NewReader(`{"checks_enabled":false}`)))
+			if response.Code != 200 {
+				t.Fatalf("%s: %d %s", method, response.Code, response.Body.String())
+			}
+			var body contract.AgentInstanceResponse
+			decodeJSON(t, response.Body.Bytes(), &body)
+			current, err := repo.Get(t.Context(), instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertPayload(body.Instance, current.ChecksEnabled)
+		}
+		current, err := repo.Get(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if current.ChecksEnabled {
+			t.Fatal("checks remained enabled after PATCH")
+		}
+	})
+}
+
+type instanceCheckSettingsRepo struct{ repo *globaldb.InstanceRepo }
+
+var _ core.AgentInstanceCheckSettings = instanceCheckSettingsRepo{}
+
+func (r instanceCheckSettingsRepo) SetChecks(ctx context.Context, id string, enabled bool) (agentinstance.Instance, error) {
+	return r.repo.SetChecks(ctx, id, enabled, time.Hour)
+}
+
+func TestAgentInstanceApprovalAdmission(t *testing.T) {
+	for _, mode := range []string{"operator", "approve-all", "approve-reads", "deny-all"} {
+		t.Run("Should enforce instance approval for "+mode, func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "approval.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			repo := db.Instances()
+			instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			boundary := instanceAPIInputs{instance: instance}
+			service, err := agentinstance.NewService(agentinstance.WithStore(repo), agentinstance.WithAdmission(boundary), agentinstance.WithMainSessions(boundary), agentinstance.WithActiveLimit(10))
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture := newHandlerFixture(t, testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "caller", AgentName: "coder", ProfileID: store.DefaultProfileID, State: session.StateActive, EffectivePermissions: mode}, nil
+			}}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Service: service, Store: repo, Authority: agentinstance.Authority{Callers: boundary}}
+			fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{Allowed: true}, nil
+			}}
+			fixture.Engine.POST("/instances", fixture.Handlers.CreateAgentInstance)
+			fixture.Engine.DELETE("/instances/:id", fixture.Handlers.ArchiveAgentInstance)
+			allowed := mode == "operator" || mode == "approve-all"
+			for _, operation := range []string{"create", "archive"} {
+				method, path := "POST", "/instances"
+				if operation == "archive" {
+					method, path = "DELETE", path+"/"+instance.ID
+				}
+				req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(`{"agent":"coder","workspace":"@user"}`))
+				if mode != "operator" {
+					req.Header.Set(agentidentity.HeaderSessionID, "caller")
+					req.Header.Set(agentidentity.HeaderAgent, "coder")
+				}
+				response := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(response, req)
+				if !allowed {
+					var body contract.ErrorPayload
+					decodeJSON(t, response.Body.Bytes(), &body)
+					if response.Code != 403 || body.Code != "tool_approval_required" || !strings.Contains(body.Error, "compozy__agent_instance_"+operation) {
+						t.Fatalf("denial: %d %s", response.Code, response.Body.String())
+					}
+				} else if operation == "create" {
+					var body contract.ErrorPayload
+					decodeJSON(t, response.Body.Bytes(), &body)
+					if response.Code != 422 || body.Code != agentinstance.ErrNotStaysOn.Error() {
+						t.Fatalf("definition admission: %d %s", response.Code, response.Body.String())
+					}
+				} else if response.Code != 204 {
+					t.Fatalf("archive: %d %s", response.Code, response.Body.String())
+				}
+			}
+			current, err := repo.Get(t.Context(), instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (current.ArchivedAt != nil) != allowed {
+				t.Fatalf("archive state: %+v", current)
+			}
+		})
+	}
+}
+
+type instanceAPIInputs struct {
+	db *globaldb.GlobalDB
+	agentinstance.Admission
+	instance agentinstance.Instance
+}
+
+func (i instanceAPIInputs) ResolveCreate(_ context.Context, req agentinstance.CreateRequest) (agentinstance.Instance, error) {
+	if i.db != nil {
+		return agentinstance.Instance{AgentName: req.Agent, ProfileID: req.Profile, WorkspaceID: req.Workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, nil
+	}
+	return agentinstance.Instance{}, agentinstance.ErrNotStaysOn
+}
+func (i instanceAPIInputs) Start(ctx context.Context, req agentinstance.StartMainSession) (string, error) {
+	if i.db != nil {
+		info := store.SessionInfo{ID: "sess-api-created-main", ProfileID: req.Instance.ProfileID, AgentName: req.Instance.AgentName, State: "starting", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user"}
+		_, err := i.db.RegisterInstanceSession(ctx, info, req.Instance.ID, nil)
+		return info.ID, err
+	}
+	return "", errors.New("unexpected session start")
+}
+func (i instanceAPIInputs) Stop(context.Context, string) error {
+	return errors.New("unexpected session stop")
+}
+func (i instanceAPIInputs) InstanceCaller(context.Context, string) (agentinstance.Caller, error) {
+	return agentinstance.Caller{InstanceID: i.instance.ID, AgentName: i.instance.AgentName, ProfileID: i.instance.ProfileID}, nil
+}
+
+var _ agentinstance.Admission = instanceAPIInputs{}
+var _ agentinstance.MainSessionStarter = instanceAPIInputs{}
+var _ agentinstance.CallerReader = instanceAPIInputs{}
+
+func TestAgentInstanceCreateResult(t *testing.T) {
+	t.Run("Should distinguish new creation from an idempotent repeat", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "create.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		boundary := instanceAPIInputs{db: db}
+		service, err := agentinstance.NewService(agentinstance.WithStore(db.Instances()), agentinstance.WithAdmission(boundary), agentinstance.WithMainSessions(boundary), agentinstance.WithActiveLimit(1))
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Service: service, Store: db.Instances(), WakeState: db.Instances().WakeState}
+		fixture.Engine.POST("/instances", fixture.Handlers.CreateAgentInstance)
+		id := ""
+		for attempt, status := range []int{201, 200} {
+			response := performRequest(t, fixture.Engine, "POST", "/instances", []byte(`{"agent":"coder","workspace":"@user"}`))
+			if response.Code != status {
+				t.Fatalf("create: %d %s", response.Code, response.Body.String())
+			}
+			var body contract.AgentInstanceResponse
+			decodeJSON(t, response.Body.Bytes(), &body)
+			if body.Instance.Created != (attempt == 0) || body.Instance.MainSessionID != "sess-api-created-main" || body.Instance.State != "active" {
+				t.Fatalf("create response: %+v", body)
+			}
+			if attempt == 0 {
+				id = body.Instance.ID
+			} else if body.Instance.ID != id {
+				t.Fatalf("repeat changed identity: %s / %s", id, body.Instance.ID)
+			}
+			var envelope map[string]map[string]any
+			decodeJSON(t, response.Body.Bytes(), &envelope)
+			if _, exists := envelope["instance"]["created"]; !exists {
+				t.Fatal("created flag omitted")
+			}
+		}
+		var count int
+		if err := db.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM sessions").Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("main sessions = %d", count)
 		}
 	})
 }

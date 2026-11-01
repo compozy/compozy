@@ -97,7 +97,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeInstanceOutput(cmd, result, instanceText(result.Instance))
+			return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
 		}
 		if action == "adopt" {
 			if strings.TrimSpace(sessionID) == "" {
@@ -107,7 +107,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeInstanceOutput(cmd, result, instanceText(result.Instance))
+			return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
 		}
 		id, err := resolveInstanceID(cmd, client, target, workspace)
 		if err != nil {
@@ -137,7 +137,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeInstanceOutput(cmd, result, instanceText(result.Instance))
+			return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
 		}
 		if action == "away" || action == "mark-seen" || action == "check-ins" {
 			return writeInstanceRead(cmd, base, action, id, query)
@@ -153,14 +153,21 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 			}
 			return writeInstanceOutput(cmd, result, text.String())
 		}
+		var before contract.AgentInstanceResponse
+		if action == "archive" {
+			before, err = client.MutateAgentInstance(cmd.Context(), id, "show")
+			if err != nil {
+				return err
+			}
+		}
 		result, err := client.MutateAgentInstance(cmd.Context(), id, action)
 		if err != nil {
 			return err
 		}
 		if action == "archive" {
-			return writeInstanceOutput(cmd, map[string]string{"id": id}, "Instance archived. Its sessions stay in history.\n")
+			return writeInstanceOutput(cmd, map[string]string{"id": id}, instanceActionText(before.Instance, action))
 		}
-		return writeInstanceOutput(cmd, result, instanceText(result.Instance))
+		return writeInstanceOutput(cmd, result, instanceActionText(result.Instance, action))
 	}
 	return cmd
 }
@@ -192,6 +199,31 @@ func writeInstanceOutput(cmd *cobra.Command, value any, human string) error {
 		json:  func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, value) },
 		jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, value) },
 	})
+}
+func instanceActionText(instance contract.AgentInstancePayload, action string) string {
+	label, scope := instance.Label, instance.Scope
+	if label == "" {
+		label = instance.AgentName
+	}
+	if scope == "" {
+		scope = "Global"
+	}
+	switch action {
+	case "create", "adopt":
+		return fmt.Sprintf("%s is stays-on in %s\nMain session: %s\n", label, scope, instance.MainSessionID)
+	case "pause":
+		return fmt.Sprintf("%s paused in %s\n", label, scope)
+	case "resume":
+		return fmt.Sprintf("%s resumed in %s\n", label, scope)
+	case "archive":
+		return fmt.Sprintf("%s archived in %s. Its sessions stay in history.\n", label, scope)
+	case "on", "off":
+		return fmt.Sprintf("Checks %s for %s in %s\n", action, label, scope)
+	case "ensure-main":
+		return fmt.Sprintf("Main session: %s\n", instance.MainSessionID)
+	default:
+		return instanceText(instance)
+	}
 }
 func instanceText(instance contract.AgentInstancePayload) string {
 	return fmt.Sprintf("%s\t%s\t%s\nMain session: %s\n", instance.ID, instance.AgentName, instance.State, instance.MainSessionID)

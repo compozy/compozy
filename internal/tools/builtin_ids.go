@@ -81,9 +81,10 @@ const (
 	ToolIDSessionInputCancel ToolID = "compozy__session_input_cancel"
 	// ToolIDSessionInputPromote atomically promotes queued input to steering.
 	ToolIDSessionInputPromote ToolID = "compozy__session_input_promote"
+	// ToolIDSessionPendingInteractions reads pending questions and approvals.
+	ToolIDSessionPendingInteractions ToolID = "compozy__session_pending_interactions"
 	// ToolIDSessionStatus reads one runtime session snapshot.
-	ToolIDSessionPending ToolID = "compozy__session_pending"
-	ToolIDSessionStatus  ToolID = "compozy__session_status"
+	ToolIDSessionStatus ToolID = "compozy__session_status"
 	// ToolIDSessionHistory reads grouped turn history for one session.
 	ToolIDSessionHistory ToolID = "compozy__session_history"
 	// ToolIDSessionEvents reads persisted events for one session.

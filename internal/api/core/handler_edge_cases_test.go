@@ -10,11 +10,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -26,8 +29,10 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -260,6 +265,7 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	sessions := core.SessionPayloadsForWorkspace([]*session.Info{
 		{ID: "sess-1", WorkspaceID: "ws_alpha"},
 		{ID: "sess-2", WorkspaceID: "ws_beta"},
+		{ID: "hidden-triage", WorkspaceID: "ws_alpha", Type: session.SessionTypeTriage},
 		{
 			ID:          "sess-5",
 			WorkspaceID: "ws_alpha",
@@ -1648,6 +1654,62 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 	t.Parallel()
 
+	for _, operator := range []bool{false, true} {
+		name := "Should filter foreign instance events for a granted agent"
+		if operator {
+			name = "Should retain all in-scope instance events for the operator"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "stream.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			repo := db.Instances()
+			own, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			foreign, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "other", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := make(chan session.CatalogEvent, 2)
+			events <- session.CatalogEvent{Sequence: 1, InstanceID: foreign.ID, ProfileID: store.DefaultProfileID}
+			events <- session.CatalogEvent{Sequence: 2, InstanceID: own.ID, ProfileID: store.DefaultProfileID}
+			close(events)
+			manager := testutil.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{ID: "caller", AgentName: "coder", ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
+				},
+				SubscribeCatalogFn: func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error) {
+					return events, func() {}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: repo, Authority: agentinstance.Authority{Callers: instanceAPIInputs{instance: own}}}
+			fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant}, nil
+			}}
+			req := httptest.NewRequestWithContext(t.Context(), "GET", "/sessions/catalog-stream?all_workspaces=true", nil)
+			if !operator {
+				req.Header.Set(agentidentity.HeaderSessionID, "caller")
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+			}
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(response, req)
+			body := response.Body.String()
+			if response.Code != 200 || !strings.Contains(body, own.ID) || strings.Contains(body, foreign.ID) != operator {
+				t.Fatalf("stream %d: %s", response.Code, body)
+			}
+		})
+	}
+
 	t.Run("Should upgrade a scoped resumable stream and release its subscription on disconnect", func(t *testing.T) {
 		t.Parallel()
 		scopes := make(chan session.CatalogScope, 1)
@@ -2131,4 +2193,36 @@ func (r *detailRelationsReader) SessionPullRequests(
 	[]*session.Info,
 ) (map[string]session.PullRequestProjection, error) {
 	return nil, r.projectionErr
+}
+
+func TestBaseHandlersHiddenTriage(t *testing.T) {
+	for _, route := range []struct{ method, path, body string }{
+		{"GET", "/sessions/hidden", ""},
+		{"GET", "/workspaces/ws-hidden/sessions/hidden", ""},
+		{"POST", "/workspaces/ws-hidden/sessions/hidden/stop", "{}"},
+		{"POST", "/workspaces/ws-hidden/sessions/hidden/archive", "{}"},
+		{"POST", "/workspaces/ws-hidden/sessions/hidden/prompt", `{"message":"Run work","message_id":"msg-hidden","idempotency_key":"hidden-key"}`},
+	} {
+		t.Run("Should refuse triage through "+route.method+" "+route.path, func(t *testing.T) {
+			t.Parallel()
+			manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "hidden", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-hidden", Type: session.SessionTypeTriage, State: session.StateActive}, nil
+			}, StopFn: func(context.Context, string) error { t.Error("public stop reached triage"); return nil }, SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+				t.Error("public prompt reached triage")
+				return session.SendPromptResult{}, nil
+			}}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-hidden"}, nil
+			}})
+			fixture.Engine.POST("/workspaces/:workspace_id/sessions/:session_id/prompt", func(c *gin.Context) {
+				if _, ok := fixture.Handlers.DispatchSessionPrompt(c); ok {
+					t.Error("triage prompt admitted")
+				}
+			})
+			response := performRequest(t, fixture.Engine, route.method, route.path, []byte(route.body))
+			if response.Code != 404 {
+				t.Fatalf("response=%d %s", response.Code, response.Body.String())
+			}
+		})
+	}
 }

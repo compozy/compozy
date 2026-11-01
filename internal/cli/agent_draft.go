@@ -24,7 +24,7 @@ func (c *daemonClient) DraftAgentInstructions(ctx context.Context, request contr
 
 func newAgentDraftCommand(deps commandDeps) *cobra.Command {
 	var runtime contract.AgentDraftRuntime
-	cmd := &cobra.Command{Use: "draft-instructions <goal>", Short: "Draft agent instructions without saving a definition", Args: exactOneNonBlankArg()}
+	cmd := &cobra.Command{Use: "draft <goal>", Short: "Draft agent instructions without saving a definition", Args: exactOneNonBlankArg()}
 	cmd.Flags().StringVar(&runtime.Provider, "provider", "", "Provider for the draft")
 	cmd.Flags().StringVar(&runtime.Model, "model", "", "Model for the draft")
 	cmd.Flags().StringVar(&runtime.ReasoningEffort, "reasoning-effort", "", "Reasoning effort for the draft")

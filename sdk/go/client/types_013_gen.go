@@ -4,6 +4,36 @@ package client
 
 import "time"
 
+// Profile is a daemon API value.
+type Profile struct {
+	ID                     string                         `json:"id"`
+	Name                   string                         `json:"name"`
+	Color                  string                         `json:"color"`
+	Icon                   *string                        `json:"icon"`
+	Emoji                  *string                        `json:"emoji"`
+	State                  string                         `json:"state"`
+	CreatedAt              time.Time                      `json:"created_at"`
+	ArchivedAt             *time.Time                     `json:"archived_at,omitempty"`
+	WorkItems              int                            `json:"work_items,omitzero"`
+	NeedsSetup             bool                           `json:"needs_setup,omitzero"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
+// ProfileCredentialRequirement is a daemon API value.
+type ProfileCredentialRequirement struct {
+	Provider        string `json:"provider"`
+	Slot            string `json:"slot"`
+	SourceExtension string `json:"source_extension"`
+	Missing         bool   `json:"missing"`
+}
+
+// ProfileFolderRef is a daemon API value.
+type ProfileFolderRef struct {
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace"`
+	Path          string `json:"path"`
+}
+
 // ProfileLens is a daemon API value.
 type ProfileLens struct {
 	ID   ProfileLensID `json:"profile_lens_id"`
@@ -418,25 +448,3 @@ type ProviderUsageWindow struct {
 
 // PullRequestState is a daemon API value.
 type PullRequestState string
-
-// PutLoopAnnotationsRequest is a daemon API value.
-type PutLoopAnnotationsRequest struct {
-	Annotations []LoopAnnotationPayload `json:"annotations"`
-}
-
-// PutLoopConfigRequest is a daemon API value.
-type PutLoopConfigRequest struct {
-	Config LoopConfig `json:"config"`
-}
-
-// PutLoopInputDefaultRequest is a daemon API value.
-type PutLoopInputDefaultRequest struct {
-	Scope LoopInputDefaultsScope `json:"scope"`
-	Value any                    `json:"value"`
-}
-
-// PutLoopInputDefaultsRequest is a daemon API value.
-type PutLoopInputDefaultsRequest struct {
-	Scope  LoopInputDefaultsScope `json:"scope"`
-	Values map[string]any         `json:"values"`
-}

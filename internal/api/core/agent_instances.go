@@ -12,18 +12,25 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
 type AgentInstanceAPI struct {
-	ReadPayload   func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
-	CheckSettings AgentInstanceCheckSettings
-	Checks        AgentInstanceChecker
-	Service       *agentinstance.Service
-	Store         agentinstance.InstanceStore
-	Reports       agentinstance.ReportStore
-	Authority     agentinstance.Authority
+	WakeState          func(context.Context, string) (heartbeat.InstanceWakeState, error)
+	CountActive        func(context.Context, string) (int64, error)
+	MaxActiveInstances int
+	FatigueLimit       int
+	ReadPayload        func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
+	CheckSettings      AgentInstanceCheckSettings
+	Checks             AgentInstanceChecker
+	Service            *agentinstance.Service
+	Store              agentinstance.InstanceStore
+	Reports            agentinstance.ReportStore
+	Authority          agentinstance.Authority
 }
 
 func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, bool) {
@@ -110,7 +117,13 @@ func (h *BaseHandlers) ResumeAgentInstance(c *gin.Context) { h.mutateAgentInstan
 func (h *BaseHandlers) EnsureAgentInstanceMain(c *gin.Context) {
 	h.mutateAgentInstance(c, "ensure_main")
 }
-func (h *BaseHandlers) ArchiveAgentInstance(c *gin.Context) { h.mutateAgentInstance(c, "archive") }
+func (h *BaseHandlers) ArchiveAgentInstance(c *gin.Context) {
+	actor, ok := h.instanceActor(c)
+	if !ok || !h.admitInstanceApproval(c, actor, "archive") {
+		return
+	}
+	h.mutateAgentInstance(c, "archive")
+}
 func (h *BaseHandlers) mutateAgentInstance(c *gin.Context, verb string) {
 	instance, ok := h.instanceTarget(c, verb)
 	if !ok {
@@ -121,7 +134,11 @@ func (h *BaseHandlers) mutateAgentInstance(c *gin.Context, verb string) {
 	case "pause":
 		instance, err = h.AgentInstances.Service.Pause(c.Request.Context(), instance.ID, "manual")
 	case "resume":
-		instance, err = h.AgentInstances.Service.Resume(c.Request.Context(), instance.ID)
+		actor, ok := h.instanceActor(c)
+		if !ok {
+			return
+		}
+		instance, err = h.AgentInstances.Service.Resume(c.Request.Context(), instance.ID, actor)
 	case "ensure_main":
 		instance, err = h.AgentInstances.Service.EnsureMain(c.Request.Context(), instance.ID)
 	case "archive":
@@ -210,15 +227,30 @@ func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 func (api *AgentInstanceAPI) Payload(ctx context.Context, i agentinstance.Instance) (contract.AgentInstancePayload, error) {
+	payload := AgentInstancePayload(i)
 	if api.ReadPayload != nil {
-		return api.ReadPayload(ctx, i)
+		var err error
+		payload, err = api.ReadPayload(ctx, i)
+		if err != nil {
+			return payload, err
+		}
 	}
-	return AgentInstancePayload(i), nil
+	payload.FatigueLimit = api.FatigueLimit
+	if api.WakeState != nil {
+		state, err := api.WakeState(ctx, i.ID)
+		if err != nil {
+			return payload, err
+		}
+		payload.LastWakeAt, payload.NextWakeAt = state.LastWakeAt, state.NextWakeAt
+		payload.QuietStreak, payload.FailureStreak = state.QuietStreak, state.FailureStreak
+	}
+	return payload, nil
 }
 
 func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayload {
 	return contract.AgentInstancePayload{
 		Label: i.AgentName, Activity: "unknown", Scope: i.WorkspaceID,
+		ChecksEnabled: i.ChecksEnabled,
 		ID:            i.ID,
 		ProfileID:     i.ProfileID,
 		AgentName:     i.AgentName,
@@ -231,6 +263,10 @@ func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayloa
 	}
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
+		c.JSON(http.StatusConflict, contract.ErrorPayload{Code: "workspace_archived", Error: "This workspace is archived."})
+		return
+	}
 	for _, mapping := range []struct {
 		domain error
 		status int
@@ -249,9 +285,44 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 		{agentinstance.ErrNotStaysOn, http.StatusUnprocessableEntity},
 	} {
 		if errors.Is(err, mapping.domain) {
-			c.JSON(mapping.status, contract.ErrorPayload{Error: err.Error(), Code: mapping.domain.Error()})
+			limit := 0
+			if h.AgentInstances != nil {
+				limit = h.AgentInstances.MaxActiveInstances
+			}
+			c.JSON(mapping.status, contract.ErrorPayload{Error: agentinstance.ErrorMessage(err, limit), Code: mapping.domain.Error()})
 			return
 		}
 	}
 	h.respondError(c, http.StatusInternalServerError, err)
+}
+
+func (api *AgentInstanceAPI) ListResponse(ctx context.Context, profileID string) (contract.AgentInstanceListResponse, error) {
+	result := contract.AgentInstanceListResponse{Instances: []contract.AgentInstancePayload{}, MaxActiveInstances: api.MaxActiveInstances}
+	if api.CountActive != nil {
+		var err error
+		result.ActiveCount, err = api.CountActive(ctx, profileID)
+		if err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+func (h *BaseHandlers) admitInstanceApproval(c *gin.Context, actor workspaceaccess.ActorRef, operation string) bool {
+	if actor.Operator {
+		return true
+	}
+	info, err := h.Sessions.Status(c.Request.Context(), actor.SessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return false
+	}
+	if info != nil && info.EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+		return true
+	}
+	c.JSON(http.StatusForbidden, contract.ErrorPayload{
+		Code:  "tool_approval_required",
+		Error: "operator approval required; use compozy__agent_instance_" + operation,
+	})
+	return false
 }

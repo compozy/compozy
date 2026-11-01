@@ -34,6 +34,23 @@ import (
 
 func TestManagerListForWorkspace(t *testing.T) {
 	t.Parallel()
+	t.Run("Should hide persisted and live triage sessions from workspace reads", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 2, 1)
+		db, ok := manager.sessionCatalog.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("expected SQLite catalog fixture")
+		}
+		if _, err := db.DB().ExecContext(t.Context(), "UPDATE sessions SET session_type='triage' WHERE id='sess-read-000'"); err != nil {
+			t.Fatal(err)
+		}
+		manager.sessions["live-triage"] = &Session{ID: "live-triage", WorkspaceID: "ws-read-00", Type: SessionTypeTriage, State: StateActive}
+		infos, err := manager.ListForWorkspace(t.Context(), "ws-read-00")
+		if err != nil || len(infos) != 1 || infos[0].ID != "sess-read-001" {
+			t.Fatalf("public workspace sessions=%v, %v", infos, err)
+		}
+	})
+
 	t.Run("Should preserve workspace results without reading unrelated metadata", func(t *testing.T) {
 		t.Parallel()
 		manager := newWorkspaceSessionReadFixture(t, 32, 4)

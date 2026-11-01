@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// CmdPaletteClient is a daemon API value.
+type CmdPaletteClient struct {
+	ClientID   ClientID    `json:"client_id"`
+	Kind       string      `json:"kind"`
+	Workspace  WorkspaceID `json:"workspace"`
+	AttachedAt time.Time   `json:"attached_at"`
+}
+
 // CmdPaletteCommand is a daemon API value.
 type CmdPaletteCommand struct {
 	ID                 CommandID       `json:"id"`
@@ -436,13 +444,4 @@ type CreateSessionRequest struct {
 type CreateSupportBundleRequest struct {
 	Yes           bool  `json:"yes"`
 	IncludeStatus *bool `json:"include_status,omitzero"`
-}
-
-// CreateTaskBlockRequest is a daemon API value.
-type CreateTaskBlockRequest struct {
-	Kind      BlockKind       `json:"kind"`
-	Reason    string          `json:"reason"`
-	Details   json.RawMessage `json:"details,omitempty"`
-	ExpiresAt *time.Time      `json:"expires_at,omitempty"`
-	RunID     string          `json:"run_id,omitempty"`
 }

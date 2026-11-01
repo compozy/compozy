@@ -100,7 +100,7 @@ and compare its SESSION and EXPIRES AT columns with `-o json` fields
 absent in JSON and displays a dash in the table. Answer using the displayed
 original session and provider request IDs.
 
-B4 native relay: call `compozy__session_pending` with the main `session_id`,
+B4 native relay: call `compozy__session_pending_interactions` with the main `session_id`,
 its `workspace`, and `descendants: true`. Compare `interactions` with the CLI
 JSON read, including original session/request IDs and optional `expires_at`.
 A foreign workspace must fail before reading interactions.
@@ -162,3 +162,8 @@ main session before completing the provider approval.
 The repository `make codegen-check` passed after retrying with cache access.
 The test-shape checker reports existing cases outside the changed region in
 `handlers_test.go`; both new timeout cases follow the canonical subtest shape.
+
+N-23 canonical surfaces: invoke `compozy__session_pending_interactions` for pending
+requests and `compozy agent draft "<goal>" --provider <provider>` to draft without
+saving. The former unshipped names have no aliases. Native relay and CLI command
+suites cover dispatch and the unchanged HTTP drafting boundary.

@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// HeartbeatFrontmatterPreferencesPayload is a daemon API value.
+type HeartbeatFrontmatterPreferencesPayload struct {
+	MinInterval  string                       `json:"min_interval,omitempty"`
+	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
+}
+
+// HeartbeatHistoryResponse is a daemon API value.
+type HeartbeatHistoryResponse struct {
+	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
+	NextCursor string                     `json:"next_cursor,omitempty"`
+}
+
 // HeartbeatMutationResponse is a daemon API value.
 type HeartbeatMutationResponse struct {
 	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
@@ -433,16 +446,4 @@ type LookupState string
 type LoopAmendmentValueSummary struct {
 	ByteSize    int    `json:"byte_size"`
 	ContentHash string `json:"content_hash"`
-}
-
-// LoopAnnotationPayload is a daemon API value.
-type LoopAnnotationPayload struct {
-	NodeID string  `json:"node_id"`
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
-}
-
-// LoopAnnotationsResponse is a daemon API value.
-type LoopAnnotationsResponse struct {
-	Annotations []LoopAnnotationPayload `json:"annotations"`
 }

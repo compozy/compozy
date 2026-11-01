@@ -1112,7 +1112,7 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 			return err == nil && len(rows) == 2
 		})
 		scope := toolspkg.Scope{SessionID: parent.ID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, ProfileID: parent.Info().ProfileID}
-		nativeResult, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPending, Input: jsonv1.RawMessage(fmt.Sprintf(`{"workspace":%q,"session_id":%q,"descendants":true}`, workspace, parent.ID))})
+		nativeResult, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: jsonv1.RawMessage(fmt.Sprintf(`{"workspace":%q,"session_id":%q,"descendants":true}`, workspace, parent.ID))})
 		if err != nil {
 			t.Fatal(err)
 		}

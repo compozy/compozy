@@ -6,9 +6,11 @@ import (
 	"errors"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -108,6 +111,35 @@ func (i instanceAdmissionInputs) AuthorizeInstanceWorkspace(
 }
 
 func TestInstanceCreateAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name, workspace, wantGrant string
+		operator                   bool
+	}{
+		{name: "Should deny unrestricted inheritance to agent created global instances"},
+		{name: "Should deny unrestricted inheritance to agent created workspace instances", workspace: "workspace"},
+		{name: "Should retain unrestricted for operator created global instances", operator: true, wantGrant: workspaceaccess.Unrestricted},
+		{name: "Should restrict operator created workspace instances", operator: true, workspace: "workspace"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			inputs := instanceAdmissionInputs{
+				definition: instanceDefinition{Kind: "stays_on", Grant: workspaceaccess.Unrestricted},
+				caller:     agentinstance.Caller{AgentName: "coder", ProfileID: "profile", Grant: workspaceaccess.Unrestricted},
+			}
+			admission := &instanceAdmission{definitions: inputs, callers: inputs, reach: inputs}
+			got, err := admission.ResolveCreate(t.Context(), agentinstance.CreateRequest{
+				Agent: "coder", Profile: "profile", Workspace: tc.workspace,
+				Actor: workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller", Operator: tc.operator},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.GrantCeiling != tc.wantGrant {
+				t.Fatalf("grant = %q, want %q", got.GrantCeiling, tc.wantGrant)
+			}
+		})
+	}
+
 	denied := errors.New("workspace_access_denied")
 	for _, tc := range []struct {
 		name, kind, agent, profile string
@@ -176,6 +208,53 @@ func (s nativeInstanceTargetStore) Get(context.Context, string) (agentinstance.I
 }
 
 func TestNativeInstanceAuthority(t *testing.T) {
+	for _, tc := range []struct {
+		id    toolspkg.ToolID
+		input string
+	}{
+		{toolspkg.ToolIDAgentInstancePause, `{"id":"target"}`},
+		{toolspkg.ToolIDAgentInstanceEnsureMain, `{"id":"target"}`},
+		{toolspkg.ToolIDAgentInstanceChecks, `{"id":"target","enabled":false}`},
+		{toolspkg.ToolIDAgentInstanceCheck, `{"id":"target","dry_run":true}`},
+	} {
+		t.Run("Should retain foreign instance denial without approval for "+tc.id.String(), func(t *testing.T) {
+			t.Parallel()
+			api := &core.AgentInstanceAPI{
+				Store:     nativeInstanceTargetStore{target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"}},
+				Authority: agentinstance.Authority{Callers: instanceAdmissionInputs{caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"}}},
+			}
+			inputs := nativeApproveAllPolicyInputs()
+			inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
+			inputs.ApprovalAvailable = false
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI { return api }, Sessions: testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "caller", ProfileID: "profile", AgentName: "coder"}, nil
+			}}}, inputs)
+			_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: tc.id, Input: []byte(tc.input)})
+			if !errors.Is(err, agentinstance.ErrForbidden) {
+				t.Fatalf("foreign instance error=%v", err)
+			}
+		})
+	}
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceCheck} {
+		t.Run("Should admit approve-all without a receipt and still enforce ownership for "+id.String(), func(t *testing.T) {
+			t.Parallel()
+			api := &core.AgentInstanceAPI{
+				Store:     nativeInstanceTargetStore{target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"}},
+				Authority: agentinstance.Authority{Callers: instanceAdmissionInputs{caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"}}},
+			}
+			native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+				AgentInstances: func() *core.AgentInstanceAPI { return api },
+				Sessions: testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{EffectivePermissions: "approve-all"}, nil
+				}},
+			}}
+			_, err := native.agentInstanceCall(t.Context(), toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}, toolspkg.CallRequest{ToolID: id, Input: []byte(`{"id":"target"}`)})
+			if !errors.Is(err, agentinstance.ErrForbidden) {
+				t.Fatalf("ownership after approval admission: %v", err)
+			}
+		})
+	}
+
 	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstanceCreate, toolspkg.ToolIDAgentInstanceArchive} {
 		t.Run("Should require approval for "+id.String(), func(t *testing.T) {
 			t.Parallel()
@@ -625,6 +704,47 @@ func TestNativeInstanceCheckIns(t *testing.T) {
 		}
 		if cursor != "" {
 			t.Fatalf("terminal cursor = %q", cursor)
+		}
+	})
+}
+
+func TestInstanceDefinitionPaths(t *testing.T) {
+	t.Run("Should retain every resolved workspace directory in the instance ceiling", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		root, additional := t.TempDir(), t.TempDir()
+		now := time.Now().UTC()
+		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{ID: "ws-instance-paths", Name: "instance-paths", RootDir: root, AdditionalDirs: []string{additional}, CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home), workspacepkg.WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) { return compozyconfig.DefaultWithHome(home), nil }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		definitions := instanceDefinitions{workspaces: resolver, profiles: nativeProfileReaderStub{}, sessions: manager, agents: stubSessionCommandAgentResolver(func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+			return compozyconfig.AgentDef{Name: name, Kind: "stays_on", Provider: "claude", Prompt: "Review work."}, nil
+		})}
+		definition, err := definitions.InstanceDefinition(t.Context(), store.DefaultProfileID, "ws-instance-paths", "coder")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := resolver.ResolveForProfile(t.Context(), "ws-instance-paths", "default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{WorkspacePaths: append([]string{resolved.RootDir}, resolved.AdditionalDirs...)})
+		if len(want.WorkspacePaths) != 2 || !reflect.DeepEqual(definition.Policy.WorkspacePaths, want.WorkspacePaths) {
+			t.Fatalf("definition paths = %v, want %v", definition.Policy.WorkspacePaths, want.WorkspacePaths)
 		}
 	})
 }

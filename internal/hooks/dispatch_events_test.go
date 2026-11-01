@@ -742,7 +742,7 @@ func TestInstanceHookDispatch(t *testing.T) {
 			if err := runtime.Rebuild(t.Context()); err != nil {
 				t.Fatal(err)
 			}
-			payload := AgentInstancePayload{PayloadBase: PayloadBase{Event: event, Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, SessionContext: SessionContext{ProfileID: "default", WorkspaceID: "workspace", AgentName: "coder", SessionID: "main", State: "paused"}, InstanceID: "instance", MainSessionID: "main", PauseReason: "manual"}
+			payload := AgentInstancePayload{PayloadBase: PayloadBase{Event: event, Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, SessionContext: SessionContext{ProfileID: "default", WorkspaceID: "workspace", AgentName: "coder", SessionID: "main", State: "paused"}, InstanceID: "instance", MainSessionID: "main", Reason: "manual"}
 			got, err := runtime.DispatchAgentInstance(t.Context(), payload)
 			if err != nil {
 				t.Fatal(err)
@@ -752,6 +752,13 @@ func TestInstanceHookDispatch(t *testing.T) {
 			}
 			select {
 			case raw := <-seen:
+				var wire map[string]any
+				if err := json.Unmarshal(raw, &wire); err != nil {
+					t.Fatal(err)
+				}
+				if wire["reason"] != "manual" || wire["pause_reason"] != nil {
+					t.Fatalf("instance hook wire payload: %s", raw)
+				}
 				var delivered AgentInstancePayload
 				if err := json.Unmarshal(raw, &delivered); err != nil {
 					t.Fatal(err)

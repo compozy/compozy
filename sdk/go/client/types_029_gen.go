@@ -4,6 +4,62 @@ package client
 
 import "time"
 
+// WorktreeCleanupResponse is a daemon API value.
+type WorktreeCleanupResponse struct {
+	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
+}
+
+// WorktreeExitAction is a daemon API value.
+type WorktreeExitAction string
+
+// WorktreeExitActionPlan is a daemon API value.
+type WorktreeExitActionPlan struct {
+	Action        WorktreeExitAction `json:"action"`
+	Label         string             `json:"label"`
+	Enabled       bool               `json:"enabled"`
+	BlockedReason string             `json:"blocked_reason,omitempty"`
+	Publish       bool               `json:"publish,omitzero"`
+	URL           string             `json:"url,omitempty"`
+	PRNumber      int                `json:"pr_number,omitzero"`
+}
+
+// WorktreeExitCleanupEvidence is a daemon API value.
+type WorktreeExitCleanupEvidence struct {
+	ForgeState string `json:"forge_state,omitempty"`
+	Stale      bool   `json:"stale,omitzero"`
+	Safe       bool   `json:"safe"`
+	Source     string `json:"source,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+	Blocker    string `json:"blocker,omitempty"`
+	Downgraded bool   `json:"downgraded,omitzero"`
+}
+
+// WorktreeExitCommitScope is a daemon API value.
+type WorktreeExitCommitScope struct {
+	IncludePaths       []string `json:"include_paths,omitempty"`
+	Fingerprint        string   `json:"fingerprint,omitempty"`
+	Complete           bool     `json:"complete,omitzero"`
+	ChangedFiles       int      `json:"changed_files"`
+	Insertions         int      `json:"insertions"`
+	Deletions          int      `json:"deletions"`
+	UntrackedFiles     []string `json:"untracked_files"`
+	UntrackedTotal     int      `json:"untracked_total"`
+	UntrackedTruncated bool     `json:"untracked_truncated,omitzero"`
+}
+
+// WorktreeExitForgeCapabilities is a daemon API value.
+type WorktreeExitForgeCapabilities struct {
+	Provider           string   `json:"provider"`
+	RequestNoun        string   `json:"request_noun"`
+	OpenActionLabel    string   `json:"open_action_label"`
+	ViewActionLabel    string   `json:"view_action_label"`
+	SupportsDraft      bool     `json:"supports_draft"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+}
+
 // WorktreeExitOperationResponse is a daemon API value.
 type WorktreeExitOperationResponse struct {
 	OperationID string `json:"op_id"`

@@ -34,3 +34,109 @@ these controls and notification delivery have been walked in an isolated lab.
 Automated evidence owners: `TestInstanceManualCheckRace`, `TestInstanceWakeMigration`,
 `TestInstanceCheckFatigue`, `TestTriageDispatcher`, `TestInstanceReportPublication`, and
 `TestAgentInstanceCommands`.
+
+B1 contract remediation: configure `agents.stays_on.max_active_instances = 7` and
+`agents.heartbeat.fatigue_limit = 4`. Create two instances in the same profile and
+filter the instance list to one agent. The envelope must still report
+`active_count: 2` and `max_active_instances: 7`. GET, PATCH, native reads and
+`agent_instance.updated` must include the persisted `checks_enabled`, `last_wake_at`,
+`next_wake_at`, `quiet_streak`, `failure_streak`, and configured `fatigue_limit`.
+Turn checks off and refetch; both responses must show false. Empty wake timestamps
+are empty strings and counters are zero before the first check. The focused
+`TestAgentInstanceCheckProjection` exercises shared HTTP/UDS handlers against real
+SQLite; browser/native/SSE scenario execution remains pending.
+
+B1 grant admission: give a depth-zero agent and its definition the unrestricted
+grant, then create its own Global and workspace instances through an approved
+native call. Both instances must persist an empty grant ceiling. Repeat as the
+operator: only the Global instance retains unrestricted. Permission intersections
+remain enforced. `TestInstanceCreateAdmission` covers all four admission outcomes;
+the native runtime walk remains pending.
+
+B1 resume authority: race an own-instance agent resume against an operator pause,
+then against a fatigue pause. Resume must read and authorize the current pause
+reason inside the same write transaction as the cap check and state transition.
+The agent receives `agent_instance_forbidden` and the pause remains; an operator
+can still resume it. `TestInstanceResumeAuthority` injects each pause after the
+service's initial read and verifies both denial and operator recovery with SQLite.
+
+B1 approval admission: with authenticated agent credentials, POST create and DELETE
+archive under approve-reads and deny-all must return `403 tool_approval_required`
+with the corresponding native tool hint and leave persisted instances untouched.
+Operator and approve-all callers proceed through normal definition/ownership checks.
+Native create/archive/real-check must accept approve-all without a per-call receipt,
+while explicit approval remains required for other agent modes. The API regression
+uses real SQLite; native tests retain ownership denial after mode-based admission.
+
+B1 archived workspace errors: attempting instance work in an archived workspace
+must return HTTP/UDS 409 with code `workspace_archived` and the existing recovery
+message. `TestAgentInstanceErrorResponses` owns this error mapping.
+
+D-3 create result: first creation returns HTTP 201 and `instance.created: true`.
+Repeating the same agent/profile/scope returns HTTP 200, `instance.created: false`,
+and the same instance/main IDs even at the active cap. The native create tool
+returns the same boolean. `TestAgentInstanceCreateResult` verifies both HTTP/UDS
+responses and exactly one main session registration against SQLite.
+
+N-21 paused checks: after pausing an instance, a real check must return HTTP/UDS
+409 `agent_instance_paused`; the native call returns the same domain error. A dry
+run remains available and must not mutate wake state or dispatch triage.
+`TestInstanceCheckGates` owns the paused/dry-run behavior with SQLite; the existing
+API error-response suite owns the 409 mapping.
+
+D-6 workspace directories: creating an instance in a workspace with configured
+additional directories preserves the root and every resolved additional directory
+in its permission ceiling. `TestInstanceDefinitionPaths` resolves a persisted
+workspace to verify that admission does not drop the extra paths.
+
+D-4 root policy: start an ordinary root session with enabled skills, MCP servers
+and additional workspace directories, then adopt/restart it as an instance. Its
+persisted policy must retain those capabilities and launch paths. Delegated and
+instance ceilings remain restrictive, including empty categories. The Session
+Manager lineage suite creates a session, reads persisted policy, and resumes it
+under that ceiling; provider process I/O uses the canonical test driver.
+
+N-44 stream authority: an agent with an aggregate workspace grant still receives
+`agent_instance.updated` only for its own instance. Foreign-instance events are
+omitted; the operator retains all in-scope events. The canonical session catalog
+stream suite exercises both identities against stored instances.
+
+N-51 instance reads: with more instances than one page, filter by agent/state and
+verify the first matching page is populated even when matching IDs lie beyond the
+first unfiltered page. HTTP/UDS and native reads apply filters before the SQL
+limit. Payload enrichment reads the main session by ID and one attention aggregate;
+pending interactions in any retained instance session's descendant tree and pending
+failure reports preserve attention without loading the entire session catalog.
+The existing instance isolation/lineage suites own these SQLite invariants.
+
+B1 N-49 contract verification: create/adopt, pause/resume, archive, checks and ensure-main
+CLI output identifies the agent label and scope using the approved DX text. A completed
+reported check prints its proposal count and persisted delivery state. HTTP errors retain
+stable codes and actionable messages, including the configured active limit. Lifecycle
+hooks expose `reason` for pauses. Existing CLI HTTP fixtures, API error and hook dispatch
+suites cover these contracts; this does not claim a provider or browser walkthrough.
+
+B1 D-24: hidden triage sessions must be absent from workspace/session projections and
+extension session lists. Supplying their IDs to public HTTP/UDS, native tools, or
+extension status/prompt/stop endpoints returns not found; internal triage execution
+continues through the Session Manager. The existing SQLite workspace-read, handler,
+native dispatch and extension host suites verify these boundaries.
+
+D-4 follow-up: explicit root resource grants and persisted resource grants, including empty categories,
+remain authoritative across startup/resume. Fresh roots without a supplied policy materialize
+the complete resolved policy. Existing spawn inheritance and permission-refusal suites pass
+without changing their expected grants.
+
+B1 ASTRA-010/D-9: in approve-reads with no approval channel, own-instance pause,
+ensure-main, checks-off and dry-run checks remain callable. Real checks, create and
+archive still require approval. A pre-call hook changing dry-run to real or checks-off
+to checks-on must trigger the stricter decision before execution. Deny-all and explicit
+tool restrictions remain effective; foreign-instance access remains denied by native
+authority. The registry dispatch suite owns the approval matrix and hook escalation
+cases; the native instance suite verifies ownership after registry admission.
+
+D-4 regression follow-up: root native-tool materialization also applies to fork/continue
+roots with no tool budget yet. Resource grants remain preserved. Directory-only skill
+entries use the existing workspace API identity rule (directory basename), including
+instance ceiling filtering. Existing derive and extension host integration suites retain
+their original assertions; the root policy suite additionally covers a directory-only skill.

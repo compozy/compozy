@@ -223,6 +223,9 @@ func sessionInWorkspace(
 	if err != nil {
 		return nil, err
 	}
+	if info != nil && info.Type == session.SessionTypeTriage {
+		return nil, session.ErrSessionNotFound
+	}
 	if info == nil || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
 		return nil, errSessionOutsideWorkspace
 	}

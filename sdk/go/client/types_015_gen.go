@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// ReviewPolicy is a daemon API value.
+type ReviewPolicy string
+
+// ReviewProfile is a daemon API value.
+type ReviewProfile struct {
+	AgentName             string               `json:"agent_name,omitempty"`
+	Provider              string               `json:"provider,omitempty"`
+	Model                 string               `json:"model,omitempty"`
+	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
+	Speed                 Speed                `json:"speed,omitempty"`
+	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
+	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
+}
+
 // ReviewSpec is a daemon API value.
 type ReviewSpec struct {
 	Decisions  []ReviewDecision `json:"decisions,omitempty"`
@@ -429,22 +446,3 @@ type SchedulerBacklogRunPayload struct {
 
 // SchedulerCatchUpPolicy is a daemon API value.
 type SchedulerCatchUpPolicy string
-
-// SchedulerCountersPayload is a daemon API value.
-type SchedulerCountersPayload struct {
-	Cycles              int        `json:"cycles"`
-	WakeAttempts        int        `json:"wake_attempts"`
-	WakeSkipped         int        `json:"wake_skipped"`
-	WakeSucceeded       int        `json:"wake_succeeded"`
-	WakeFailed          int        `json:"wake_failed"`
-	CapacityWaitingRuns int        `json:"capacity_waiting_runs"`
-	SpawnRequested      int        `json:"spawn_requested"`
-	NeedsAttention      int        `json:"needs_attention"`
-	LastCycleAt         *time.Time `json:"last_cycle_at,omitempty"`
-}
-
-// SchedulerDrainRequest is a daemon API value.
-type SchedulerDrainRequest struct {
-	Reason         string `json:"reason,omitempty"`
-	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
-}

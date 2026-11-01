@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// CreateTaskBlockRequest is a daemon API value.
+type CreateTaskBlockRequest struct {
+	Kind      BlockKind       `json:"kind"`
+	Reason    string          `json:"reason"`
+	Details   json.RawMessage `json:"details,omitempty"`
+	ExpiresAt *time.Time      `json:"expires_at,omitempty"`
+	RunID     string          `json:"run_id,omitempty"`
+}
+
 // CreateTaskChildRequest is a daemon API value.
 type CreateTaskChildRequest struct {
 	ID                 string          `json:"id,omitempty"`
@@ -435,13 +444,4 @@ type ExtensionCommandPayload struct {
 type ExtensionCommandsResponse struct {
 	Commands []ExtensionCommandPayload      `json:"commands"`
 	Groups   []ExtensionCommandGroupPayload `json:"groups"`
-}
-
-// ExtensionContentsPayload is a daemon API value.
-type ExtensionContentsPayload struct {
-	Skills     int `json:"skills"`
-	MCPServers int `json:"mcp_servers"`
-	Hooks      int `json:"hooks"`
-	Loops      int `json:"loops"`
-	Agents     int `json:"agents"`
 }

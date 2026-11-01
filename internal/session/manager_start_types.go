@@ -60,6 +60,7 @@ type sessionStartSpec struct {
 	runtimeMode              string
 	sessionType              Type
 	lineage                  *store.SessionLineage
+	preserveDelegationPolicy bool
 	allowedToolsOverride     []string
 	deniedToolsOverride      []string
 	creationProfile          *store.SessionCreationProfile

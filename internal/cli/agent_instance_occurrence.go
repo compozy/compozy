@@ -32,7 +32,11 @@ func waitInstanceOccurrence(cmd *cobra.Command, client agentInstanceOccurrenceCl
 			return err
 		}
 		if result.State == "finished" {
-			return writeInstanceOutput(cmd, result, fmt.Sprintf("Check finished: %s (%s)\n", result.Result, result.Reason))
+			return writeCommandOutput(cmd, outputBundle{jsonValue: result,
+				human: func() (string, error) { return instanceOccurrenceText(cmd.Context(), client, id, result) },
+				json:  func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+				jsonl: func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+			})
 		}
 		select {
 		case <-cmd.Context().Done():
@@ -78,4 +82,35 @@ func newAgentInstanceOccurrenceCommand(deps commandDeps) *cobra.Command {
 			query.Set("cursor", page.NextCursor)
 		}
 	}}
+}
+
+func instanceOccurrenceText(ctx context.Context, client agentInstanceOccurrenceClient, id string, result contract.AgentInstanceOccurrenceResponse) (string, error) {
+	if result.Result != "reported" || result.ReportID == "" {
+		return fmt.Sprintf("Check finished: %s (%s)\n", result.Result, result.Reason), nil
+	}
+	reports, ok := client.(agentInstancesClient)
+	if !ok {
+		return "", errors.New("cli: instance reports unavailable")
+	}
+	query := url.Values{"limit": {"100"}}
+	for {
+		page, err := reports.AgentInstanceReports(ctx, id, query)
+		if err != nil {
+			return "", err
+		}
+		for _, report := range page.Reports {
+			if report.ID != result.ReportID {
+				continue
+			}
+			noun := "proposals"
+			if len(report.Proposals) == 1 {
+				noun = "proposal"
+			}
+			return fmt.Sprintf("Check finished: %d %s %s\n", len(report.Proposals), noun, report.State), nil
+		}
+		if page.NextCursor == "" {
+			return "", errors.New("cli: completed check report not found")
+		}
+		query.Set("cursor", page.NextCursor)
+	}
 }

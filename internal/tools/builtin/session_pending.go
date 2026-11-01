@@ -5,8 +5,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func sessionPendingDescriptor() toolspkg.Descriptor {
-	descriptor := nativeDescriptor(toolspkg.ToolIDSessionPending, "session_pending", "Session Pending Interactions",
+func sessionPendingInteractionsDescriptor() toolspkg.Descriptor {
+	descriptor := nativeDescriptor(toolspkg.ToolIDSessionPendingInteractions, "session_pending_interactions", "Session Pending Interactions",
 		"Read pending questions and approvals, optionally across descendants. Answer using the original session_id and provider_request_id; expires_at is the approval deadline.",
 		`{"type":"object","required":["session_id"],"properties":{"workspace":{"type":"string"},"session_id":{"type":"string"},"descendants":{"type":"boolean"}},"additionalProperties":false}`,
 		toolspkg.RiskRead, true, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDSessions}, []string{"sessions", "approvals"}, []string{"pending interactions", "approval deadline", "relay"})

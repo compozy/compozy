@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// LoopAnnotationPayload is a daemon API value.
+type LoopAnnotationPayload struct {
+	NodeID string  `json:"node_id"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+}
+
+// LoopAnnotationsResponse is a daemon API value.
+type LoopAnnotationsResponse struct {
+	Annotations []LoopAnnotationPayload `json:"annotations"`
+}
+
 // LoopBudget is a daemon API value.
 type LoopBudget struct {
 	Tokens       int                `json:"tokens"`
@@ -428,22 +440,3 @@ type LoopInput struct {
 	Enum        []string      `json:"enum,omitempty"`
 	Default     any           `json:"default,omitempty"`
 }
-
-// LoopInputDefaultResponse is a daemon API value.
-type LoopInputDefaultResponse struct {
-	LoopName string                 `json:"loop_name"`
-	Key      string                 `json:"key"`
-	Scope    LoopInputDefaultsScope `json:"scope"`
-	Present  bool                   `json:"present"`
-	Value    any                    `json:"value,omitempty"`
-}
-
-// LoopInputDefaultsResponse is a daemon API value.
-type LoopInputDefaultsResponse struct {
-	LoopName string                 `json:"loop_name"`
-	Scope    LoopInputDefaultsScope `json:"scope"`
-	Values   map[string]any         `json:"values"`
-}
-
-// LoopInputDefaultsScope is a daemon API value.
-type LoopInputDefaultsScope string

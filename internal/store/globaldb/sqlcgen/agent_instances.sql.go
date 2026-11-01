@@ -246,6 +246,29 @@ func (q *Queries) InsertAgentInstance(ctx context.Context, arg InsertAgentInstan
 	return err
 }
 
+const instanceNeedsAttention = `-- name: InstanceNeedsAttention :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = ?1 AND s.profile_id = i.profile_id
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT EXISTS (
+ SELECT 1 FROM session_pending_interactions p JOIN instance_sessions s ON p.session_id = s.id
+ WHERE p.status IN ('pending', 'orphaned')
+) OR EXISTS (
+ SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = ?1 AND r.state = 'pending' AND r.kind = 'failure'
+)
+`
+
+func (q *Queries) InstanceNeedsAttention(ctx context.Context, instanceID string) (sql.NullBool, error) {
+	row := q.db.QueryRowContext(ctx, instanceNeedsAttention, instanceID)
+	var column_1 sql.NullBool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const isInstanceMainSession = `-- name: IsInstanceMainSession :one
 SELECT EXISTS(SELECT 1 FROM agent_instances WHERE main_session_id = ? AND archived_at IS NULL)
 `
@@ -275,13 +298,17 @@ func (q *Queries) IsSupersededInstanceSession(ctx context.Context, sessionID str
 const listAgentInstances = `-- name: ListAgentInstances :many
 SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE profile_id = ?1
 AND (?2 = 1 OR workspace_id = ?3)
-AND archived_at IS NULL AND id > ?4 ORDER BY id LIMIT ?5
+AND (?4 = '' OR agent_name = ?4)
+AND (?5 = '' OR state = ?5)
+AND archived_at IS NULL AND id > ?6 ORDER BY id LIMIT ?7
 `
 
 type ListAgentInstancesParams struct {
 	ProfileID     string `json:"profile_id"`
 	AllWorkspaces any    `json:"all_workspaces"`
 	WorkspaceID   string `json:"workspace_id"`
+	AgentName     any    `json:"agent_name"`
+	State         any    `json:"state"`
 	AfterID       string `json:"after_id"`
 	PageLimit     int64  `json:"page_limit"`
 }
@@ -291,6 +318,8 @@ func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstances
 		arg.ProfileID,
 		arg.AllWorkspaces,
 		arg.WorkspaceID,
+		arg.AgentName,
+		arg.State,
 		arg.AfterID,
 		arg.PageLimit,
 	)

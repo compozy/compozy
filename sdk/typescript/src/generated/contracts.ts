@@ -373,7 +373,7 @@ export interface AgentInstancePayload {
   updated_at: ISODateTime;
   instance_id: string;
   main_session_id?: string;
-  pause_reason?: string;
+  reason?: string;
 }
 
 export interface AgentLifecyclePatch {

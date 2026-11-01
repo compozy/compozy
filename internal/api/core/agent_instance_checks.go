@@ -91,7 +91,12 @@ func (h *BaseHandlers) UpdateAgentInstance(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: AgentInstancePayload(updated)})
+	payload, err := h.AgentInstances.Payload(c.Request.Context(), updated)
+	if err != nil {
+		h.instanceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: payload})
 }
 
 type AgentInstanceOccurrenceReader interface {

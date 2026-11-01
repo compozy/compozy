@@ -267,7 +267,7 @@ func TestInstanceLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := repo.Resume(t.Context(), first.ID, 1); !errors.Is(err, agentinstance.ErrLimit) {
+			if _, err := repo.Resume(t.Context(), first.ID, 1, true); !errors.Is(err, agentinstance.ErrLimit) {
 				t.Fatalf("resume error: %v", err)
 			}
 			retained, err := repo.Get(t.Context(), first.ID)
@@ -277,7 +277,7 @@ func TestInstanceLifecycle(t *testing.T) {
 			if err := repo.DeleteUnstarted(t.Context(), other.ID); err != nil {
 				t.Fatal(err)
 			}
-			resumed, err := repo.Resume(t.Context(), first.ID, 1)
+			resumed, err := repo.Resume(t.Context(), first.ID, 1, true)
 			if err != nil || resumed.State != "active" || resumed.PauseReason != "" {
 				t.Fatalf("resume: %#v %v", resumed, err)
 			}
@@ -455,6 +455,45 @@ func TestInstanceConcurrentLimit(t *testing.T) {
 }
 
 func TestInstanceWorkspaceIsolation(t *testing.T) {
+	t.Run("Should apply agent and state filters before the instance page cut", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		repo := db.Instances()
+		for n := range 4 {
+			if _, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: fmt.Sprintf("filter-%d", n), PermissionCeiling: "{}", CreatedByKind: "human"}, 10); err != nil {
+				t.Fatal(err)
+			}
+		}
+		all, err := repo.List(t.Context(), agentinstance.ListQuery{ProfileID: store.DefaultProfileID, Limit: 10})
+		if err != nil || len(all) != 4 {
+			t.Fatalf("seed rows=%v err=%v", all, err)
+		}
+		last := all[len(all)-1]
+		if err := db.RegisterSession(t.Context(), store.SessionInfo{ID: "sess-filter-main", ProfileID: store.DefaultProfileID, AgentName: last.AgentName, State: "active", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: last.CreatedAt, UpdatedAt: last.UpdatedAt}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := repo.BindMain(t.Context(), last.ID, "sess-filter-main"); err != nil {
+			t.Fatal(err)
+		}
+		if paused, err := repo.Pause(t.Context(), last.ID, "manual"); err != nil || paused.State != "paused" {
+			t.Fatalf("pause=%+v, %v", paused, err)
+		}
+		for _, query := range []agentinstance.ListQuery{
+			{AgentName: last.AgentName}, {State: "paused"}, {AgentName: last.AgentName, State: "paused"},
+		} {
+			query.ProfileID, query.Limit = store.DefaultProfileID, 1
+			rows, err := repo.List(t.Context(), query)
+			if err != nil || len(rows) != 1 || rows[0].ID != last.ID {
+				t.Fatalf("filtered page %+v: %v, %v", query, rows, err)
+			}
+			query.AfterID = last.ID
+			rows, err = repo.List(t.Context(), query)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("continuation=%v, %v", rows, err)
+			}
+		}
+	})
+
 	t.Run("Should pause one workspace without changing the other instance", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -503,8 +542,9 @@ func TestInstanceWorkspaceIsolation(t *testing.T) {
 
 // instanceServiceAdmission supplies definition I/O while lifecycle writes use SQLite.
 type instanceServiceAdmission struct {
-	input     agentinstance.Instance
-	resumeErr error
+	input          agentinstance.Instance
+	resumeErr      error
+	validateResume func(context.Context, agentinstance.Instance) error
 }
 
 var _ agentinstance.Admission = instanceServiceAdmission{}
@@ -515,7 +555,10 @@ func (a instanceServiceAdmission) ResolveCreate(
 ) (agentinstance.Instance, error) {
 	return a.input, nil
 }
-func (a instanceServiceAdmission) ValidateResume(context.Context, agentinstance.Instance) error {
+func (a instanceServiceAdmission) ValidateResume(ctx context.Context, instance agentinstance.Instance) error {
+	if a.validateResume != nil {
+		return a.validateResume(ctx, instance)
+	}
 	return a.resumeErr
 }
 
@@ -674,7 +717,7 @@ func TestInstanceServiceRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := service.Resume(t.Context(), instance.ID); !errors.Is(err, agentinstance.ErrDefinitionMissing) {
+		if _, err := service.Resume(t.Context(), instance.ID, workspaceaccess.ActorRef{Operator: true}); !errors.Is(err, agentinstance.ErrDefinitionMissing) {
 			t.Fatalf("resume: %v", err)
 		}
 		retained, err := db.Instances().Get(t.Context(), instance.ID)
@@ -1103,6 +1146,32 @@ func TestInstanceCallerLineage(t *testing.T) {
 			}
 			parent = id
 		}
+		attention, err := db.Instances().NeedsAttention(t.Context(), instance.ID)
+		if err != nil || attention {
+			t.Fatalf("initial attention=%v, %v", attention, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO session_pending_interactions (interaction_id,session_id,kind,provider_request_id,status,created_at) VALUES ('instance-attention',?,'permission','provider-request','pending',?)`, parent, store.FormatTimestamp(instance.CreatedAt)); err != nil {
+			t.Fatal(err)
+		}
+		attention, err = db.Instances().NeedsAttention(t.Context(), instance.ID)
+		if err != nil || !attention {
+			t.Fatalf("descendant attention=%v, %v", attention, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), "UPDATE session_pending_interactions SET status='resolved' WHERE interaction_id='instance-attention'"); err != nil {
+			t.Fatal(err)
+		}
+		attention, err = db.Instances().NeedsAttention(t.Context(), instance.ID)
+		if err != nil || attention {
+			t.Fatalf("resolved attention=%v, %v", attention, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_instance_reports (id,instance_id,source_key,kind,payload,created_at) VALUES ('attention-report',?,'attention-report','failure','{}',?)`, instance.ID, store.FormatTimestamp(instance.CreatedAt)); err != nil {
+			t.Fatal(err)
+		}
+		attention, err = db.Instances().NeedsAttention(t.Context(), instance.ID)
+		if err != nil || !attention {
+			t.Fatalf("failure report attention=%v, %v", attention, err)
+		}
+
 	})
 }
 
@@ -1209,7 +1278,7 @@ func TestInstanceLifecycleHooks(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := service.Resume(t.Context(), instance.ID); err != nil {
+		if _, err := service.Resume(t.Context(), instance.ID, workspaceaccess.ActorRef{Operator: true}); err != nil {
 			t.Fatal(err)
 		}
 		if err := service.Archive(t.Context(), instance.ID); err != nil {
@@ -1224,7 +1293,7 @@ func TestInstanceLifecycleHooks(t *testing.T) {
 				t.Fatalf("payload %d: %#v", i, p)
 			}
 		}
-		if recorder.payloads[1].PauseReason != "manual" || recorder.payloads[1].State != "paused" {
+		if recorder.payloads[1].Reason != "manual" || recorder.payloads[1].State != "paused" {
 			t.Fatalf("pause payload: %#v", recorder.payloads[1])
 		}
 	})
@@ -1481,7 +1550,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 		if _, err := repo.Pause(t.Context(), instance.ID, "manual"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := repo.Resume(t.Context(), instance.ID, 10); err != nil {
+		if _, err := repo.Resume(t.Context(), instance.ID, 10, true); err != nil {
 			t.Fatal(err)
 		}
 		if admitted, err := repo.Admit(t.Context(), req); err != nil || admitted {
@@ -1938,6 +2007,54 @@ func TestInstanceChecksToggle(t *testing.T) {
 }
 
 func TestInstanceCheckGates(t *testing.T) {
+	t.Run("Should reject a paused real check while allowing a read-only dry run", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "paused-check", "sess-paused-check")
+		repo := db.Instances()
+		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, err = repo.Pause(t.Context(), instance.ID, "manual")
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		environment := instanceCheckEnvironment{target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"}}}
+		dispatcher := &instanceRecoveryDispatcher{}
+		service, err := heartbeat.NewCheckService(t.Context(), repo, environment, dispatcher, heartbeat.CheckConfig{Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour, Timeout: time.Minute, MaxConcurrent: 2, BatchSize: 10}, func() time.Time { return now })
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		before, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Check(t.Context(), instance.ID, false); !errors.Is(err, agentinstance.ErrPaused) {
+			t.Fatalf("real check error = %v", err)
+		}
+		result, err := service.Check(t.Context(), instance.ID, true)
+		if err != nil || result.Gate != "would_run" || result.Digest == nil {
+			t.Fatalf("dry run = %+v, %v", result, err)
+		}
+		after, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(before, after) || dispatcher.calls.Load() != 0 {
+			t.Fatalf("check mutated wake state or dispatched: before=%+v after=%+v calls=%d", before, after, dispatcher.calls.Load())
+		}
+	})
+
 	for _, tc := range []struct {
 		name, gate, hook, body, reason string
 		failed                         bool
@@ -2774,4 +2891,48 @@ func TestInstanceRotationCandidate(t *testing.T) {
 			t.Fatalf("retry candidate = %v", err)
 		}
 	})
+}
+
+func TestInstanceResumeAuthority(t *testing.T) {
+	for _, reason := range []string{"manual", "fatigue"} {
+		t.Run("Should retain an intervening "+reason+" pause during agent resume", func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "resume-authority", "sess-resume-authority")
+			repo := db.Instances()
+			instance, err := repo.Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := agentinstance.NewService(
+				agentinstance.WithStore(repo),
+				agentinstance.WithAdmission(instanceServiceAdmission{validateResume: func(ctx context.Context, before agentinstance.Instance) error {
+					if before.State != "active" {
+						t.Fatalf("initial state: %+v", before)
+					}
+					_, err := repo.Pause(ctx, before.ID, reason)
+					return err
+				}}),
+				agentinstance.WithMainSessions(&instanceServiceStarter{}),
+				agentinstance.WithActiveLimit(10),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Resume(t.Context(), instance.ID, workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: main}); !errors.Is(err, agentinstance.ErrForbidden) {
+				t.Fatalf("agent resume: %v", err)
+			}
+			current, err := repo.Get(t.Context(), instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if current.State != "paused" || current.PauseReason != reason {
+				t.Fatalf("pause overwritten: %+v", current)
+			}
+			resumed, err := repo.Resume(t.Context(), instance.ID, 10, true)
+			if err != nil || resumed.State != "active" || resumed.PauseReason != "" {
+				t.Fatalf("operator resume: %+v, %v", resumed, err)
+			}
+		})
+	}
 }

@@ -2397,8 +2397,8 @@
     "output_schema_digest": "b3ca0e20ca4da958e5278c1086f08bffb0af88a28f17f5c915285a146e86f39a"
   },
   {
-    "tool_id": "compozy__session_pending",
-    "native_name": "session_pending",
+    "tool_id": "compozy__session_pending_interactions",
+    "native_name": "session_pending_interactions",
     "toolsets": [
       "compozy__sessions"
     ],

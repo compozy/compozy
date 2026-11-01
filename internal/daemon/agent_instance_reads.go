@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"strings"
@@ -14,7 +13,11 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func (r instanceDefinitions) instancePayload(ctx context.Context, instance agentinstance.Instance, reports agentinstance.ReportStore, callers agentinstance.CallerReader) (contract.AgentInstancePayload, error) {
+type instanceAttentionReader interface {
+	NeedsAttention(context.Context, string) (bool, error)
+}
+
+func (r instanceDefinitions) instancePayload(ctx context.Context, instance agentinstance.Instance, attention instanceAttentionReader) (contract.AgentInstancePayload, error) {
 	payload := core.AgentInstancePayload(instance)
 	var resolved workspacepkg.ResolvedWorkspace
 	var err error
@@ -50,51 +53,18 @@ func (r instanceDefinitions) instancePayload(ctx context.Context, instance agent
 		}
 		payload.Provider = runtime.Provider
 	}
-	sessions, err := r.sessions.ListAll(ctx)
-	if err != nil {
-		return payload, err
-	}
-	for _, info := range sessions {
-		if info.ProfileID != instance.ProfileID {
-			continue
+	if instance.MainSessionID != "" {
+		info, err := r.sessions.Status(ctx, instance.MainSessionID)
+		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+			return payload, err
 		}
-		if info.ID == instance.MainSessionID {
+		if info != nil && info.ProfileID == instance.ProfileID {
 			projectInstanceMain(&payload, info)
 		}
-		if info.PendingPermissionCount == 0 && info.PendingClarifyCount == 0 {
-			continue
-		}
-		if info.ID == instance.MainSessionID {
-			payload.NeedsAttention = true
-			continue
-		}
-		caller, err := callers.InstanceCaller(ctx, info.ID)
-		if errors.Is(err, sql.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return payload, err
-		}
-		if caller.InstanceID == instance.ID {
-			payload.NeedsAttention = true
-		}
 	}
-	query := agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100}
-	for {
-		rows, err := reports.ListReports(ctx, query)
-		if err != nil {
-			return payload, err
-		}
-		for _, report := range rows {
-			if report.Kind == "failure" {
-				payload.NeedsAttention = true
-			}
-		}
-		if len(rows) < query.Limit {
-			break
-		}
-		last := rows[len(rows)-1]
-		query.AfterCreatedAt, query.AfterID = last.CreatedAt, last.ID
+	payload.NeedsAttention, err = attention.NeedsAttention(ctx, instance.ID)
+	if err != nil {
+		return payload, err
 	}
 	return payload, nil
 }

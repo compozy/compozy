@@ -44,6 +44,9 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 
 	result := make([]hostAPISessionSummary, 0, len(infos))
 	for _, info := range infos {
+		if info == nil || info.Type == session.SessionTypeTriage {
+			continue
+		}
 		info, err = h.hostAPISessionWithArchiveMetadata(ctx, info)
 		if err != nil {
 			return nil, err

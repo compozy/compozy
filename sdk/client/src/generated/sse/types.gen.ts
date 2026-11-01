@@ -24,15 +24,22 @@ export type ActorIdentity = {
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
+  checks_enabled: boolean;
+  created: boolean;
   created_at: string;
+  failure_streak: number;
+  fatigue_limit: number;
   id: string;
   label: string;
+  last_wake_at: string;
   main_session_id: string;
   needs_attention: boolean;
+  next_wake_at: string;
   now: string;
   pause_reason: string;
   profile_id: string;
   provider: string;
+  quiet_streak: number;
   resolved_appearance: {
     [key: string]: unknown;
   };

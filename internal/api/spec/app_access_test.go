@@ -208,6 +208,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"draftAgentInstructions",
 			"getPermissionRollup",
 			"createAgentInstance", "listAgentInstances", "adoptAgentInstance", "getAgentInstance", "pauseAgentInstance", "resumeAgentInstance", "ensureAgentInstanceMain", "archiveAgentInstance", "listAgentInstanceReports", "getAgentActivity", "getAgentInstanceAway", "markAgentInstanceSeen", "listAgentInstanceCheckIns",
 			"getAgentMemory", "putAgentMemory", "addAgentMemory", "replaceAgentMemory", "removeAgentMemory", "searchAgentMemory", "validateAgentMemory", "listAgentMemoryHistory", "rollbackAgentMemory",

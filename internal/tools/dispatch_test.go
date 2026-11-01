@@ -1716,3 +1716,67 @@ func TestSubagentDelegateObservation(t *testing.T) {
 		}
 	})
 }
+
+func TestInstanceCallApproval(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		id           ToolID
+		input, patch string
+		mode         PermissionMode
+		deny         bool
+		wantCall     bool
+	}{
+		{"pause", ToolIDAgentInstancePause, `{}`, "", PermissionModeApproveReads, false, true},
+		{"ensure main", ToolIDAgentInstanceEnsureMain, `{}`, "", PermissionModeApproveReads, false, true},
+		{"checks off", ToolIDAgentInstanceChecks, `{"enabled":false}`, "", PermissionModeApproveReads, false, true},
+		{"checks on", ToolIDAgentInstanceChecks, `{"enabled":true}`, "", PermissionModeApproveReads, false, false},
+		{"missing enabled", ToolIDAgentInstanceChecks, `{}`, "", PermissionModeApproveReads, false, false},
+		{"dry run", ToolIDAgentInstanceCheck, `{"dry_run":true}`, "", PermissionModeApproveReads, false, true},
+		{"real check", ToolIDAgentInstanceCheck, `{"dry_run":false}`, "", PermissionModeApproveReads, false, false},
+		{"create", ToolIDAgentInstanceCreate, `{}`, "", PermissionModeApproveReads, false, false},
+		{"archive", ToolIDAgentInstanceArchive, `{}`, "", PermissionModeApproveReads, false, false},
+		{"hook escalates dry run", ToolIDAgentInstanceCheck, `{"dry_run":true}`, `{"dry_run":false}`, PermissionModeApproveReads, false, false},
+		{"hook enables checks", ToolIDAgentInstanceChecks, `{"enabled":false}`, `{"enabled":true}`, PermissionModeApproveReads, false, false},
+		{"deny all", ToolIDAgentInstancePause, `{}`, "", PermissionModeDenyAll, false, false},
+		{"explicit deny", ToolIDAgentInstancePause, `{}`, "", PermissionModeApproveReads, true, false},
+	} {
+		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := descriptorWithID(tc.id, "Instance operation")
+			d.Source = SourceRef{Kind: SourceBuiltin, Owner: "daemon"}
+			d.ReadOnly, d.OpenWorld, d.RequiresInteraction = false, false, false
+			d.Risk = RiskMutating
+			d.Destructive = tc.id == ToolIDAgentInstanceArchive
+			d.InputSchema = json.RawMessage(`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"}},"additionalProperties":false}`)
+			provider := providerWithDescriptors(d.Source, d)
+			called := false
+			provider.handles[d.ID].(*registryTestHandle).call = func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			}
+			inputs := PolicyInputs{SystemPermissionMode: tc.mode}
+			if tc.deny {
+				pattern, err := ParseToolPattern(string(tc.id))
+				if err != nil {
+					t.Fatal(err)
+				}
+				inputs.DenyTools = []ToolPattern{pattern}
+			}
+			policy, err := NewEffectivePolicyEvaluator(inputs, ToolsetCatalog{}, []ToolID{d.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			hooks := &recordingHookRunner{pre: func(_ context.Context, req CallRequest) (CallRequest, EffectiveToolDecision, error) {
+				if tc.patch != "" {
+					req.Input = json.RawMessage(tc.patch)
+				}
+				return req, hookAllowedDecision(), nil
+			}}
+			registry := mustDispatchRegistry(t, provider, WithPolicyEvaluator(policy), WithHookRunner(hooks))
+			_, err = registry.Call(t.Context(), Scope{SessionID: "owner"}, CallRequest{ToolID: d.ID, Input: json.RawMessage(tc.input)})
+			if called != tc.wantCall || (err == nil) != tc.wantCall {
+				t.Fatalf("called=%v error=%v want call=%v", called, err, tc.wantCall)
+			}
+		})
+	}
+}

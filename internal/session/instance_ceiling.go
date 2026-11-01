@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/compozy/compozy/internal/acp"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -52,7 +54,11 @@ func (m *Manager) applyInstanceCeiling(
 		spec.permissions = compozyconfig.PermissionModeApproveReads
 	}
 	spec.workspace.Skills = slices.DeleteFunc(slices.Clone(spec.workspace.Skills), func(skill workspacepkg.SkillPath) bool {
-		return !slices.Contains(policy.Skills, skill.Name)
+		name := strings.TrimSpace(skill.Name)
+		if name == "" && skill.Dir != "" {
+			name = filepath.Base(skill.Dir)
+		}
+		return !slices.Contains(policy.Skills, name)
 	})
 	spec.lineage = store.NormalizeSessionLineage(spec.sessionID, spec.lineage)
 	spec.lineage.PermissionPolicy = policy

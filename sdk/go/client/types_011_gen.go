@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// LoopRuntimeProvenance is a daemon API value.
+type LoopRuntimeProvenance struct {
+	Provider   string            `json:"provider,omitempty"`
+	Model      string            `json:"model,omitempty"`
+	Reasoning  string            `json:"reasoning,omitempty"`
+	Speed      string            `json:"speed,omitempty"`
+	ACPOptions map[string]string `json:"acp_options,omitempty"`
+}
+
+// LoopRuntimeRule is a daemon API value.
+type LoopRuntimeRule struct {
+	Match   LoopRuntimeMatch `json:"match"`
+	Runtime LoopRuntimeSpec  `json:"runtime"`
+}
+
+// LoopRuntimeSpec is a daemon API value.
+// LoopRuntimeSpec preserves its custom JSON wire representation.
+type LoopRuntimeSpec = json.RawMessage
+
 // LoopRuntimeValidationItemPayload is a daemon API value.
 type LoopRuntimeValidationItemPayload struct {
 	TaskID string `json:"task_id,omitempty"`
@@ -424,23 +443,3 @@ type NodeAttemptView struct {
 	StartedAt    time.Time  `json:"started_at"`
 	EndedAt      *time.Time `json:"ended_at,omitempty"`
 }
-
-// NodeCancellation is a daemon API value.
-type NodeCancellation struct {
-	Disposition string `json:"disposition"`
-	ActorKind   string `json:"actor_kind,omitempty"`
-	ActorRef    string `json:"actor_ref,omitempty"`
-	Cause       string `json:"cause,omitempty"`
-}
-
-// NodeClass is a daemon API value.
-type NodeClass string
-
-// NodeID is a daemon API value.
-type NodeID string
-
-// NodeKind is a daemon API value.
-type NodeKind string
-
-// NodeState is a daemon API value.
-type NodeState string

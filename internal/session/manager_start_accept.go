@@ -59,7 +59,7 @@ func (m *Manager) acceptSessionStart(
 	}
 	// Refresh reads persisted lineage on resume; materialize afterwards so legacy
 	// derived sessions are repaired without treating computed grants as create input.
-	if err := spec.materializeRootDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
+	if err := spec.materializeRootDelegationPolicy(runtime.agentDef, runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
 		return nil, fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
 	}
 

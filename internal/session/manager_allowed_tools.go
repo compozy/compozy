@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -84,12 +85,13 @@ func (s *sessionStartSpec) applyAllowedToolsOverride(
 	return nil
 }
 
-func (s *sessionStartSpec) materializeRootDelegationTools(
+func (s *sessionStartSpec) materializeRootDelegationPolicy(
+	definition compozyconfig.AgentDef,
 	resolved compozyconfig.ResolvedAgent,
 	catalog toolspkg.ToolsetCatalog,
 	universe []toolspkg.ToolID,
 ) error {
-	if s == nil || !resolved.SessionMCP || strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
+	if s == nil || s.instancePermissionCeiling != nil || strings.EqualFold(s.runtimeMode, RuntimeModeVerdictOnly) {
 		return nil
 	}
 	switch normalizeSessionType(s.sessionType) {
@@ -98,17 +100,37 @@ func (s *sessionStartSpec) materializeRootDelegationTools(
 		return nil
 	}
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
-	if store.HierarchyParentSessionID(lineage) != "" || len(lineage.PermissionPolicy.Tools) > 0 {
+	// Spawned sessions retain their parent-authorized policy.
+	if store.HierarchyParentSessionID(lineage) != "" {
 		return nil
 	}
-	tools, err := concreteDelegationTools(resolved, catalog, universe)
-	if err != nil {
-		return err
+	if len(lineage.PermissionPolicy.Tools) == 0 && resolved.SessionMCP {
+		tools, err := concreteDelegationTools(resolved, catalog, universe)
+		if err != nil {
+			return err
+		}
+		lineage.PermissionPolicy.Tools = tools
 	}
-	if len(tools) == 0 {
+	// Preserve authored resource grants after the existing native-tool materialization.
+	if s.preserveDelegationPolicy {
+		s.lineage = lineage
 		return nil
 	}
-	lineage.PermissionPolicy.Tools = tools
+	lineage.PermissionPolicy.WorkspacePaths = append([]string{s.workspace.RootDir}, s.workspace.AdditionalDirs...)
+	lineage.PermissionPolicy.Skills = nil
+	for _, skill := range s.workspace.Skills {
+		name := strings.TrimSpace(skill.Name)
+		if name == "" && skill.Dir != "" {
+			name = filepath.Base(skill.Dir)
+		}
+		if !slices.Contains(definition.Skills.Disabled, name) {
+			lineage.PermissionPolicy.Skills = append(lineage.PermissionPolicy.Skills, name)
+		}
+	}
+	lineage.PermissionPolicy.MCPServers = nil
+	for _, server := range resolved.MCPServers {
+		lineage.PermissionPolicy.MCPServers = append(lineage.PermissionPolicy.MCPServers, server.Name)
+	}
 	lineage.PermissionPolicy = store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	if err := store.ValidateSessionLineage(s.sessionID, lineage); err != nil {
 		return fmt.Errorf("%w: root delegation lineage policy: %w", ErrValidation, err)

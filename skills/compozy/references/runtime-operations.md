@@ -611,7 +611,7 @@ and the carried context was sent instead. A failed clone request yields `seed: r
 ### Session attention and pending interactions
 
 For Stays on approval relay, use `compozy session pending <main-session-id> --descendants -o json`
-or `compozy__session_pending` with `session_id`, `workspace`, and `descendants: true`.
+or `compozy__session_pending_interactions` with `session_id`, `workspace`, and `descendants: true`.
 HTTP/UDS expose the same read at
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions?descendants=true`.
 Keep each returned original `session_id` and `provider_request_id` when answering. Optional
@@ -1797,3 +1797,64 @@ Operator HTTP/UDS clients can call `POST /api/agent-instances/{id}/check` with
 `gate`. With `dry_run: true`, the service admits nothing and skips hooks. Authenticated
 agents can dry-run their own instance; this HTTP/UDS route requires operator identity
 for real checks. The same profile and workspace boundaries as instance reads apply.
+
+### Instance check state and capacity
+
+Instance responses include `checks_enabled`, `last_wake_at`, `next_wake_at`,
+`quiet_streak`, `failure_streak`, and `fatigue_limit`. Wake timestamps are empty
+strings before scheduling or execution. GET, list, PATCH, native reads and catalog
+instance events share this projection; use the returned state after toggling checks.
+The instance list envelope includes `max_active_instances` and `active_count` for
+the selected profile. The count includes starting and active instances across all
+workspaces, independent of list filters and pagination. `fatigue_limit` reflects
+`agents.heartbeat.fatigue_limit`; the active limit reflects
+`agents.stays_on.max_active_instances`. Clients should use these values for capacity
+and fatigue messaging instead of assuming the defaults.
+
+Authenticated agent create/archive requests over HTTP or UDS require effective
+`approve-all`. Other modes receive `403 tool_approval_required`; use
+`compozy__agent_instance_create` or `compozy__agent_instance_archive` to obtain
+operator approval. Operator requests keep their normal authority. Native create,
+archive and real check accept either an approval receipt or effective approve-all;
+instance ownership, lineage and reach restrictions still apply.
+
+Instance create responses include `instance.created`: true when this request
+created the instance, false for an idempotent existing instance. HTTP/UDS use 201
+and 200 respectively; native create returns the same flag. Ordinary reads return
+false because they do not create an instance.
+
+A real check on a paused instance returns `agent_instance_paused` (HTTP/UDS 409).
+Resume the instance before checking it. Dry runs remain available while paused and
+do not dispatch triage or change wake state.
+
+Root sessions persist their resolved delegation policy for tools, enabled skills,
+MCP servers and workspace directories. Instance creation/adoption uses that
+policy as a ceiling; delegated or instance-owned sessions retain their explicit
+restrictions, including empty categories.
+
+Instance updates on the session catalog stream enforce instance ownership even
+when an agent has an aggregate workspace grant. Operators retain their normal
+profile/workspace-scoped stream view.
+
+Draft agent instructions without saving a definition using
+`compozy agent draft "<goal>" --provider <provider>`. The pending-request native
+read is `compozy__session_pending_interactions`; its CLI counterpart remains
+`compozy session pending <id> --descendants`.
+
+Instance list filters (`agent`, `state`) apply before pagination in HTTP/UDS and
+native reads. Continue with `next_cursor` using the same filters. Attention covers
+pending/orphaned requests in the instance's retained session trees and pending
+failure reports, including work descending from a previous main session.
+
+Instance lifecycle hooks expose the pause cause as `reason`. Instance errors retain their
+stable machine codes alongside actionable messages; the limit message uses the configured
+`agents.stays_on.max_active_instances`. Human CLI mutation output identifies the agent and
+scope, and completed reported checks show proposal count and persisted delivery state.
+
+Triage sessions are internal: public session lists omit them and public by-ID session
+operations return not found, including native tools and extension host APIs.
+
+In `approve-reads`, instance pause, ensure-main, checks-off (`enabled: false`) and
+dry-run checks (`dry_run: true`) do not require an approval handoff. These calls still
+enforce instance ownership, grants and workspace reach. Real checks, create and archive
+retain approval requirements; `deny-all` still requires approval for every call.

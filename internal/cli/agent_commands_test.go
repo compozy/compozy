@@ -1100,6 +1100,71 @@ func TestAgentIdentityFlags(t *testing.T) {
 
 func TestAgentInstanceCommands(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"create", []string{"create", "triage"}, "Triage Lead is stays-on in Global\nMain session: sess-main\n"},
+		{"adopt", []string{"adopt", "triage", "--session", "sess-main"}, "Triage Lead is stays-on in Global\nMain session: sess-main\n"},
+		{"pause", []string{"pause", "ainst-test"}, "Triage Lead paused in Global\n"},
+		{"resume", []string{"resume", "ainst-test"}, "Triage Lead resumed in Global\n"},
+		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
+		{"checks off", []string{"checks", "off", "ainst-test"}, "Checks off for Triage Lead in Global\n"},
+		{"ensure-main", []string{"ensure-main", "ainst-test"}, "Main session: sess-main\n"},
+		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
+	} {
+		t.Run("Should render the approved "+tc.name+" result", func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main"}}`
+				switch r.URL.Path {
+				case "/api/agent-instances", "/api/agent-instances/adopt", "/api/agent-instances/ainst-test/pause", "/api/agent-instances/ainst-test/resume", "/api/agent-instances/ainst-test/ensure-main":
+					if r.Method != http.MethodPost {
+						t.Errorf("unexpected method %s", r.Method)
+					}
+				case "/api/agent-instances/ainst-test":
+					if r.Method == http.MethodDelete {
+						w.WriteHeader(204)
+						return
+					}
+					if r.Method != http.MethodGet && r.Method != http.MethodPatch {
+						t.Errorf("unexpected method %s", r.Method)
+					}
+				case "/api/agent-instances/ainst-test/check":
+					body = `{"occurrence_id":"occ-test"}`
+				case "/api/agent-instances/ainst-test/occurrences/occ-test":
+					body = `{"state":"finished","result":"reported","reason":"reported","report_id":"report-test"}`
+				case "/api/agent-instances/ainst-test/reports":
+					body = `{"reports":[{"id":"report-test","kind":"proposal","state":"delivered","proposals":[{"title":"Review","body":"Review work"}]}]}`
+				default:
+					t.Errorf("unexpected path %s", r.URL.Path)
+					w.WriteHeader(404)
+					return
+				}
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			target, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})}}
+			args := append([]string{"agent", "instance"}, tc.args...)
+			args = append(args, "--global")
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err != nil || stdout != tc.want {
+				t.Fatalf("output=%q err=%v, want %q", stdout, err, tc.want)
+			}
+		})
+	}
+
 	for _, command := range []string{"check", "occurrence"} {
 		t.Run("Should read the completed occurrence through "+command, func(t *testing.T) {
 			t.Parallel()
@@ -1248,4 +1313,43 @@ func TestAgentReadCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAgentDraftCommand(t *testing.T) {
+	t.Run("Should draft instructions through the approved command without saving a definition", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/api/agents/draft-instructions" {
+				t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+				w.WriteHeader(404)
+				return
+			}
+			var request contract.DraftAgentInstructionsRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+				w.WriteHeader(400)
+				return
+			}
+			if request.Goal != "Review work" || request.Runtime.Provider != "claude" {
+				t.Errorf("request = %+v", request)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(contract.DraftAgentInstructionsResponse{Instructions: "Review pending tasks."}); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		target, err := url.Parse(server.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+			return server.Client().Transport.RoundTrip(r)
+		})}}
+		stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), "agent", "draft", "Review work", "--provider", "claude")
+		if err != nil || stdout != "Review pending tasks.\n" {
+			t.Fatalf("draft output=%q err=%v", stdout, err)
+		}
+	})
 }

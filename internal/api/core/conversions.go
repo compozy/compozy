@@ -256,7 +256,7 @@ func runtimeSelectionFromStoreInfo(selection *store.SessionRuntimeSelection) *se
 func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	visible := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
-		if info == nil || isInternalSessionInfo(info.Lineage) {
+		if info == nil || info.Type == session.SessionTypeTriage || isInternalSessionInfo(info.Lineage) {
 			continue
 		}
 		visible = append(visible, info)

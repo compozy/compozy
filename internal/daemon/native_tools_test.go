@@ -16093,7 +16093,7 @@ func TestNativeSessionPending(t *testing.T) {
 				manager.Attention.PendingFn = read
 			}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Workspaces: nativeTestWorkspaceService(t), Sessions: manager}, nativeApproveAllPolicyInputs())
-			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPending, Input: json.RawMessage(fmt.Sprintf(`{"workspace":"ws-1","session_id":"sess-1","descendants":%v}`, descendants))})
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: json.RawMessage(fmt.Sprintf(`{"workspace":"ws-1","session_id":"sess-1","descendants":%v}`, descendants))})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -16104,10 +16104,38 @@ func TestNativeSessionPending(t *testing.T) {
 			if len(response.Interactions) != 1 || response.Interactions[0].SessionID != "child" || response.Interactions[0].ExpiresAt == nil || !response.Interactions[0].ExpiresAt.Equal(deadline) {
 				t.Fatalf("response = %#v", response)
 			}
-			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPending, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`)})
+			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`)})
 			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
 			if calls != 1 {
 				t.Fatalf("read calls = %d", calls)
+			}
+		})
+	}
+}
+
+func TestNativeHiddenTriage(t *testing.T) {
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionPrompt, toolspkg.ToolIDSessionStop, toolspkg.ToolIDSessionStatus} {
+		t.Run("Should refuse triage through "+id.String(), func(t *testing.T) {
+			t.Parallel()
+			base := nativeTestSessionManager("ws-1")
+			base.StatusFn = func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "hidden", WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID, Type: session.SessionTypeTriage, State: session.StateActive}, nil
+			}
+			base.StopFn = func(context.Context, string) error { t.Error("public stop reached triage"); return nil }
+			base.SendPromptFn = func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+				t.Error("public prompt reached triage")
+				return session.SendPromptResult{}, nil
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: base, Workspaces: nativeTestWorkspaceService(t)}, nativeApproveAllPolicyInputs())
+			input := `{"workspace":"ws-1","session_id":"hidden"}`
+			if id == toolspkg.ToolIDSessionPrompt {
+				input = `{"workspace":"ws-1","session_id":"hidden","message":"Run work","message_id":"msg-hidden","idempotency_key":"hidden-key"}`
+			} else if id == toolspkg.ToolIDSessionStop {
+				input = `{"session_id":"hidden"}`
+			}
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)})
+			if !errors.Is(err, session.ErrSessionNotFound) {
+				t.Fatalf("triage error=%v", err)
 			}
 		})
 	}
