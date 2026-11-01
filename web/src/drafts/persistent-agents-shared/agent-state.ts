@@ -8,7 +8,7 @@ export type AgentState =
   | "unknown";
 
 export type AgentAppearance =
-  | { avatar: "generated"; seed: string }
+  | { avatar: "generated"; seed: string; color?: string }
   | { avatar: "icon"; icon: string; color: string }
   | { avatar: "emoji"; emoji: string; color: string };
 

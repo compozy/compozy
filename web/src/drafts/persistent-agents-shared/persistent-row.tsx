@@ -96,6 +96,9 @@ function OpenMenu({
   size: number;
 }) {
   const paused = instance.state === "paused";
+  const blocked =
+    instance.pauseReason === "definition_missing" ||
+    instance.pauseReason === "definition_not_persistent";
   return (
     <DropdownMenu defaultOpen>
       <DropdownMenuTrigger aria-label={spoken(instance)} className={BUTTON}>
@@ -113,7 +116,7 @@ function OpenMenu({
           ) : null}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem disabled={blocked}>
           {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
           {paused ? "Resume" : "Pause"}
         </DropdownMenuItem>

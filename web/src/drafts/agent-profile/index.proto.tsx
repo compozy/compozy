@@ -5,6 +5,7 @@ import { Button } from "@compozy/ui";
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
 import { AgentAppPage, SaveActions } from "../persistent-agents-shared/agent-page";
+import { ScopePicker, type ScopePickerProps } from "../persistent-agents-shared/add-pickers";
 import { GENERAL, ORCHESTRATOR, TRIAGE } from "../persistent-agents-shared/fixtures";
 import { InvalidBanner, NewSessionAction, ProfileHub } from "./hub";
 import { IdentityEditor } from "./identity-editor";
@@ -23,10 +24,15 @@ export const meta = definePrototype({
     { id: "deep-link", label: "S4 · Old section link opens its editor" },
     { id: "identity", label: "S5 · Identity" },
     { id: "identity-avatar", label: "S5 · Avatar popover, Generated" },
+    { id: "identity-avatar-color", label: "S5 · Generated, color picked" },
     { id: "identity-symbol", label: "S5 · Avatar popover, Icon or emoji" },
     { id: "identity-invalid", label: "S5 · Invalid values" },
     { id: "identity-extension", label: "S5 · Read-only extension agent" },
     { id: "where-active", label: "S8 · Scopes" },
+    { id: "where-add-scope", label: "S16 · Add picks a scope" },
+    { id: "where-add-none", label: "S16 · No scope left" },
+    { id: "where-add-cap", label: "S16 · Cap reached" },
+    { id: "where-add-auth", label: "S16 · Provider not authenticated" },
     { id: "where-empty", label: "S8 · Empty" },
     { id: "where-cap", label: "S8 · Cap reached" },
     { id: "where-manual", label: "S8 · Paused by you" },
@@ -64,6 +70,10 @@ function paused(reason: PlaceRow["pauseReason"]): PlaceRow {
 
 const WHERE: Record<string, { places: readonly PlaceRow[]; capped?: boolean }> = {
   "where-active": { places: [COMPOZY, ADVOS, GLOBAL] },
+  "where-add-scope": { places: [COMPOZY, ADVOS] },
+  "where-add-none": { places: [COMPOZY, ADVOS, GLOBAL] },
+  "where-add-cap": { places: [COMPOZY, ADVOS] },
+  "where-add-auth": { places: [COMPOZY, ADVOS] },
   "where-empty": { places: [] },
   "where-cap": { places: [paused("manual"), ADVOS], capped: true },
   "where-manual": { places: [paused("manual"), ADVOS] },
@@ -72,18 +82,36 @@ const WHERE: Record<string, { places: readonly PlaceRow[]; capped?: boolean }> =
   "where-missing": { places: [paused("definition_missing")] },
 };
 
-const ADD = (
-  <Button size="sm" type="button" variant="secondary">
-    <Plus aria-hidden="true" />
-    Add to a workspace
-  </Button>
-);
+const ADD_MODE: Record<string, ScopePickerProps["mode"]> = {
+  "where-add-scope": "scopes",
+  "where-add-none": "none",
+  "where-add-cap": "cap",
+  "where-add-auth": "auth",
+};
+
+function AddAction({ state }: { state: string }) {
+  const mode = ADD_MODE[state];
+  return (
+    <ScopePicker
+      defaultOpen={mode !== undefined}
+      mode={mode ?? "scopes"}
+      provider="Claude"
+      scopes={mode === "none" ? [] : ["reloaddev", "@user"]}
+      trigger={
+        <Button size="sm" type="button" variant="secondary">
+          <Plus aria-hidden="true" />
+          Add to a workspace
+        </Button>
+      }
+    />
+  );
+}
 
 export default function AgentProfileDraft({ state }: PrototypeProps) {
   const where = WHERE[state];
   if (where) {
     return (
-      <AgentAppPage actions={ADD} agent={TRIAGE} leaf="Where it runs">
+      <AgentAppPage actions={<AddAction state={state} />} agent={TRIAGE} leaf="Where it runs">
         <WhereItRuns agent={TRIAGE} {...where} />
       </AgentAppPage>
     );
@@ -118,6 +146,12 @@ export default function AgentProfileDraft({ state }: PrototypeProps) {
       return (
         <AgentAppPage actions={<SaveActions unsaved={1} />} agent={TRIAGE} leaf="Identity">
           <IdentityEditor agent={TRIAGE} popover="generated" />
+        </AgentAppPage>
+      );
+    case "identity-avatar-color":
+      return (
+        <AgentAppPage actions={<SaveActions unsaved={1} />} agent={TRIAGE} leaf="Identity">
+          <IdentityEditor agent={TRIAGE} popover="generated" popoverColor="#4cb782" />
         </AgentAppPage>
       );
     case "identity-symbol":

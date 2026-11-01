@@ -13,9 +13,6 @@ import {
   Pill,
   SearchInput,
   StatusDot,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   cn,
   type ListingViewMode,
   type StatusDotTone,
@@ -28,10 +25,16 @@ import {
   FLEET_ROWS_CLASS,
 } from "@/systems/agent/components/agent-fleet-classes";
 
+import { ScopePicker, type ScopePickerProps } from "./add-pickers";
 import { AgentAvatar } from "./agent-avatar";
 import type { AgentState } from "./agent-state";
 import { DraftShell } from "./draft-shell";
-import { SCOPE_LABEL, type DraftAgent } from "./fixtures";
+import { SCOPE_LABEL, WORKSPACES, type DraftAgent } from "./fixtures";
+
+export interface AddScopeState {
+  agent: string;
+  mode: ScopePickerProps["mode"];
+}
 
 export interface ListedAgent extends DraftAgent {
   /** Where a persistent agent runs, each with its live state. */
@@ -66,23 +69,27 @@ function PlaceChip({ scope, state }: { scope: string; state: AgentState }) {
   );
 }
 
-function AddPlaceButton({ agent }: { agent: ListedAgent }) {
+function AddPlaceButton({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
+  const open = adding?.agent === agent.name;
+  const taken = new Set((agent.places ?? []).map(place => place.scope));
+  const scopes = ["@user", ...WORKSPACES].filter(scope => !taken.has(scope));
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            aria-label={`Add ${agent.label} to a workspace`}
-            size="icon-sm"
-            type="button"
-            variant="quiet"
-          >
-            <Plus aria-hidden="true" />
-          </Button>
-        }
-      />
-      <TooltipContent>Add to a workspace</TooltipContent>
-    </Tooltip>
+    <ScopePicker
+      defaultOpen={open}
+      mode={open ? adding.mode : "scopes"}
+      provider={agent.provider === "codex" ? "Codex" : "Claude"}
+      scopes={open && adding.mode === "none" ? [] : scopes}
+      trigger={
+        <Button
+          aria-label={`Add ${agent.label} to a workspace`}
+          size="icon-sm"
+          type="button"
+          variant="quiet"
+        >
+          <Plus aria-hidden="true" />
+        </Button>
+      }
+    />
   );
 }
 
@@ -106,7 +113,7 @@ function AgentPills({ agent }: { agent: ListedAgent }) {
   );
 }
 
-function CardFoot({ agent }: { agent: ListedAgent }) {
+function CardFoot({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
   if (agent.kind === "persistent") {
     const places = agent.places ?? [];
     return (
@@ -118,7 +125,7 @@ function CardFoot({ agent }: { agent: ListedAgent }) {
             <span className="text-eyebrow tracking-eyebrow text-subtle">Not running</span>
           )}
         </div>
-        <AddPlaceButton agent={agent} />
+        <AddPlaceButton adding={adding} agent={agent} />
       </CatalogCard.Actions>
     );
   }
@@ -133,7 +140,7 @@ function CardFoot({ agent }: { agent: ListedAgent }) {
   );
 }
 
-function AgentCard({ agent }: { agent: ListedAgent }) {
+function AgentCard({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
   return (
     <CatalogCard actionable>
       <div className="flex min-w-0 items-start gap-3">
@@ -157,12 +164,12 @@ function AgentCard({ agent }: { agent: ListedAgent }) {
           </CatalogCard.Description>
         </div>
       </div>
-      <CardFoot agent={agent} />
+      <CardFoot adding={adding} agent={agent} />
     </CatalogCard>
   );
 }
 
-function AgentRow({ agent }: { agent: ListedAgent }) {
+function AgentRow({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
   const places = agent.places ?? [];
   return (
     <ListingRow>
@@ -196,7 +203,7 @@ function AgentRow({ agent }: { agent: ListedAgent }) {
             ) : (
               <span className="text-eyebrow tracking-eyebrow text-subtle">Not running</span>
             )}
-            <AddPlaceButton agent={agent} />
+            <AddPlaceButton adding={adding} agent={agent} />
           </>
         ) : (
           <>
@@ -216,11 +223,13 @@ function Group({
   count,
   agents,
   view,
+  adding,
 }: {
   label: string;
   count: number;
   agents: readonly ListedAgent[];
   view: ListingViewMode;
+  adding?: AddScopeState;
 }) {
   if (agents.length === 0) return null;
   return (
@@ -229,7 +238,7 @@ function Group({
         <div className={cn(FLEET_CARDS_CLASS, "pt-2.5")}>
           {agents.map(agent => (
             <Fragment key={`${agent.name}-${agent.origin ?? ""}`}>
-              <AgentCard agent={agent} />
+              <AgentCard adding={adding} agent={agent} />
             </Fragment>
           ))}
         </div>
@@ -237,7 +246,7 @@ function Group({
         <div className={cn(FLEET_ROWS_CLASS, "mt-2.5")}>
           {agents.map(agent => (
             <Fragment key={`${agent.name}-${agent.origin ?? ""}`}>
-              <AgentRow agent={agent} />
+              <AgentRow adding={adding} agent={agent} />
             </Fragment>
           ))}
         </div>
@@ -255,6 +264,8 @@ export interface AgentsPageProps {
   footer?: ReactNode;
   overlay?: ReactNode;
   onCreate?: () => void;
+  /** Holds one persistent card's `+` picker open for review. */
+  adding?: AddScopeState;
 }
 
 /** The Agents window with its head, toolbar and sections. */
@@ -267,6 +278,7 @@ export function AgentsPage({
   footer,
   overlay,
   onCreate,
+  adding,
 }: AgentsPageProps) {
   const [view, setView] = useState<ListingViewMode>(initialView);
   const [draft, setDraft] = useState(query);
@@ -318,6 +330,7 @@ export function AgentsPage({
         ) : (
           <div className={cn("flex flex-col gap-6")}>
             <Group
+              adding={adding}
               agents={persistent}
               count={counts?.persistent ?? persistent.length}
               label="Persistent"

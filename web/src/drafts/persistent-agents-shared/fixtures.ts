@@ -165,6 +165,14 @@ export const INSTANCES = {
     pauseReason: "manual",
     lastCheck: "2h ago",
   },
+  triageAdvosGone: {
+    id: "ainst-9e4410ab",
+    agent: TRIAGE,
+    scope: "advos",
+    state: "paused",
+    pauseReason: "definition_missing",
+    lastCheck: "2h ago",
+  },
   releaseGlobal: {
     id: "ainst-5b1c92de",
     agent: RELEASE,

@@ -19,7 +19,9 @@ export const meta = definePrototype({
     { id: "icon", label: "Icon" },
     { id: "emoji", label: "Emoji" },
     { id: "badge", label: "With and without badge" },
-    { id: "needs-you", label: "Needs-you mark" },
+    { id: "needs-you", label: "Needs-you triangle" },
+    { id: "tones", label: "Tones per theme" },
+    { id: "color", label: "Color sets the tone" },
     { id: "reduced-motion", label: "Reduced motion" },
     { id: "unknown-appearance", label: "Unknown appearance" },
     { id: "sizes", label: "Sizes 16 to 64" },
@@ -179,6 +181,76 @@ function Ring() {
   );
 }
 
+const TONE_SEEDS = [
+  "general",
+  "orchestrator",
+  "triage",
+  "code-engineer",
+  "code_implementer",
+  "release-captain",
+  "reviewer",
+  "docs",
+  "qa",
+  "researcher",
+  "planner",
+  "designer",
+  "ink-test",
+  "migration-pilot",
+];
+
+const SURFACES = [
+  { label: "Canvas", className: "bg-canvas", ring: "ring-canvas" },
+  { label: "Card", className: "bg-card", ring: "ring-card" },
+  { label: "Sidebar", className: "bg-sunken", ring: "ring-sunken" },
+];
+
+function Tones() {
+  return (
+    <>
+      {SURFACES.map(surface => (
+        <Band key={surface.label} title={surface.label}>
+          <div className={cn("flex flex-wrap gap-4 rounded-lg p-4 shadow-card", surface.className)}>
+            {TONE_SEEDS.map(seed => (
+              <AgentAvatar
+                appearance={{ avatar: "generated", seed }}
+                key={seed}
+                label={seed}
+                provider="claude"
+                quietIdle
+                size={40}
+                surfaceClassName={surface.ring}
+              />
+            ))}
+          </div>
+        </Band>
+      ))}
+    </>
+  );
+}
+
+const COLORS = ["#4ea7fc", "#2aa8a8", "#4cb782", "#c26ad6", "#e56aa2", "#e8b04a", "#b58e5f"];
+
+function Colors() {
+  return (
+    <>
+      {["triage", "orchestrator", "reviewer"].map(seed => (
+        <Band key={seed} title={seed}>
+          {COLORS.map(color => (
+            <Cell key={color} label={color}>
+              <AgentAvatar
+                appearance={{ avatar: "generated", seed, color }}
+                label={seed}
+                quietIdle
+                size={56}
+              />
+            </Cell>
+          ))}
+        </Band>
+      ))}
+    </>
+  );
+}
+
 function Unknown() {
   return (
     <Band title="Unknown appearance falls back to the slug">
@@ -286,6 +358,10 @@ function Content({ state }: { state: string }) {
       return <Badges />;
     case "needs-you":
       return <Ring />;
+    case "tones":
+      return <Tones />;
+    case "color":
+      return <Colors />;
     case "reduced-motion":
       return <Poses still />;
     case "unknown-appearance":

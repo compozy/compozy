@@ -24,6 +24,7 @@ import {
 } from "@/systems/session/mocks/session-row-fixtures";
 import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 
+import { AgentPicker, type AgentPickerProps } from "./add-pickers";
 import { AgentAvatar } from "./agent-avatar";
 import { DraftShell, type DraftTab } from "./draft-shell";
 import { type DraftInstance } from "./fixtures";
@@ -93,6 +94,32 @@ function ProjectAddMenu({ name, open = false }: { name: string; open?: boolean }
   );
 }
 
+function ProjectAddPicker({
+  name,
+  picker,
+}: {
+  name: string;
+  picker: Omit<AgentPickerProps, "name" | "trigger">;
+}) {
+  return (
+    <AgentPicker
+      {...picker}
+      name={name}
+      trigger={
+        <Button
+          aria-label={`Add to ${name}`}
+          className="shrink-0"
+          size="icon-xs"
+          type="button"
+          variant="quiet"
+        >
+          <Icon as={Plus} size="sm" />
+        </Button>
+      }
+    />
+  );
+}
+
 export interface RailGroup {
   name: string;
   count: number;
@@ -101,6 +128,8 @@ export interface RailGroup {
   collapsed?: boolean;
   signal?: boolean;
   menuOpen?: boolean;
+  /** Holds S16's agent picker open on this project's `+`. */
+  picker?: Omit<AgentPickerProps, "name" | "trigger">;
   rowProps?: Partial<PersistentRowProps>;
   badges?: boolean;
   currentRow?: string;
@@ -125,7 +154,11 @@ function Group({ group }: { group: RailGroup }) {
           ) : null}
           <span className="font-mono text-micro text-faint">{group.count}</span>
         </span>
-        <ProjectAddMenu name={group.name} open={group.menuOpen} />
+        {group.picker ? (
+          <ProjectAddPicker name={group.name} picker={group.picker} />
+        ) : (
+          <ProjectAddMenu name={group.name} open={group.menuOpen} />
+        )}
       </div>
       {group.collapsed ? null : (
         <>

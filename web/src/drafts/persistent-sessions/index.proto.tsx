@@ -19,7 +19,7 @@ import {
   TranscriptColumn,
   UserTurn,
 } from "../persistent-agents-shared/transcript";
-import { INSTANCES } from "../persistent-agents-shared/fixtures";
+import { INSTANCES, RELEASE, SCOUT } from "../persistent-agents-shared/fixtures";
 import { KanbanWindow } from "./kanban";
 import { emptyColumns, liveColumns } from "./kanban-columns";
 
@@ -38,6 +38,11 @@ export const meta = definePrototype({
     { id: "sidebar-menu", label: "S10 · Context menu" },
     { id: "sidebar-paused-menu", label: "S10 · Context menu, paused with reason" },
     { id: "sidebar-add-menu", label: "S10 · Project + menu" },
+    { id: "sidebar-definition-menu", label: "S10 · Resume blocked, definition gone" },
+    { id: "add-picker", label: "S16 · Project + picks an agent" },
+    { id: "add-picker-none", label: "S16 · Nothing available" },
+    { id: "add-picker-cap", label: "S16 · Cap reached" },
+    { id: "add-picker-auth", label: "S16 · Provider not authenticated" },
     { id: "sidebar-flat", label: "S10 · Flat mode" },
     { id: "sidebar-spawned", label: "S10 · Spawned sessions, creator badge" },
     { id: "kanban-rows", label: "S15 · Global and project rows" },
@@ -100,6 +105,37 @@ const RAILS: Record<string, SessionRailProps> = {
   },
   "sidebar-add-menu": {
     groups: [{ ...COMPOZY, menuOpen: true }, RELOADDEV, ADVOS],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-definition-menu": {
+    groups: [
+      COMPOZY,
+      {
+        ...ADVOS,
+        instances: [INSTANCES.triageAdvosGone],
+        rowProps: { openMenuFor: INSTANCES.triageAdvosGone.id },
+      },
+    ],
+    top: GLOBAL_ROW,
+  },
+  "add-picker": {
+    groups: [{ ...COMPOZY, picker: { agents: [RELEASE, SCOUT] } }, RELOADDEV, ADVOS],
+    top: GLOBAL_ROW,
+  },
+  "add-picker-none": {
+    groups: [{ ...COMPOZY, picker: { agents: [] } }, RELOADDEV, ADVOS],
+    top: GLOBAL_ROW,
+  },
+  "add-picker-cap": {
+    groups: [{ ...COMPOZY, picker: { agents: [RELEASE, SCOUT], capped: true } }, RELOADDEV, ADVOS],
+    top: GLOBAL_ROW,
+  },
+  "add-picker-auth": {
+    groups: [
+      { ...COMPOZY, picker: { agents: [RELEASE, SCOUT], signedOut: ["codex"] } },
+      RELOADDEV,
+      ADVOS,
+    ],
     top: GLOBAL_ROW,
   },
   "sidebar-flat": {

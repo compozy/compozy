@@ -21,6 +21,7 @@ export const meta = definePrototype({
     { id: "persistent-where", label: "Persistent · Where it runs" },
     { id: "persistent-global", label: "Persistent · Global" },
     { id: "persistent-not-now", label: "Persistent · Not now" },
+    { id: "preselected-scope", label: "S16 · Create new, scope preselected" },
     { id: "slug-conflict", label: "Slug conflict" },
     { id: "no-valid-slug", label: "No valid slug" },
     { id: "discard", label: "Unsaved discard" },
@@ -98,6 +99,14 @@ const WIZARD: Record<string, WizardProps> = {
     back: "persistent-persona",
     primary: "Create agent",
     hint: "Nothing runs until you add it to a workspace.",
+  },
+  "preselected-scope": {
+    kind: "persistent",
+    step: "where",
+    where: "reloaddev",
+    back: "persistent-persona",
+    primary: "Create and start",
+    hint: "Runs while CompozyOS is running on this computer.",
   },
   "slug-conflict": {
     kind: "ephemeral",

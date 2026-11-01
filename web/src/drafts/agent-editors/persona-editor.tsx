@@ -83,16 +83,8 @@ function PersonaForm() {
         <Input defaultValue="Keeps this project's issues moving" id="soul-role" />
       </Field>
       <Field>
-        <FieldLabel>Tone</FieldLabel>
-        <PillGroup
-          items={[
-            { value: "direct", label: "Direct" },
-            { value: "warm", label: "Warm" },
-            { value: "formal", label: "Formal" },
-          ]}
-          onChange={() => undefined}
-          value="direct"
-        />
+        <FieldLabel htmlFor="soul-tone">Tone</FieldLabel>
+        <Input defaultValue="Direct, and quiet when nothing changed" id="soul-tone" />
       </Field>
       <ListField
         label="Principles"

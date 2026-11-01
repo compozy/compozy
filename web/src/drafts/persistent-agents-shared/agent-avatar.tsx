@@ -21,6 +21,7 @@ import {
 import { PROFILE_SPRITE_URL } from "@/systems/profiles/lib/profile-identity";
 
 import { AGENT_STATE_LABEL, type AgentAppearance, type AgentState } from "./agent-state";
+import { BLOB_TONES, blobHue } from "./blob-tones";
 import { useCanvasTheme } from "./use-canvas-theme";
 
 const POSE: Record<AgentState, typeof idle> = {
@@ -84,9 +85,11 @@ function Mark({
         <Blobatar
           animate={state === "working" && !still ? "hover" : undefined}
           expression={POSE[state]}
+          hue={appearance.color ? blobHue(appearance.color) : undefined}
           name={appearance.seed}
           size={Math.round(size * BODY_FILL)}
           title={label}
+          traits={{ tone: [...BLOB_TONES[1][resolvedTheme]] }}
         />
       </span>
     );
@@ -112,13 +115,13 @@ function Mark({
   );
 }
 
-/** A small amber triangle with soft corners, in the slot the signal dot uses. */
+/** A small triangle with soft corners in the Needs you orange, in the signal dot's slot. */
 function NeedsYouMark({ size }: { size: number }) {
   const px = Math.max(8, Math.round(size * 0.3));
   return (
     <svg
       aria-hidden="true"
-      className="absolute -top-0.5 -right-0.5 text-warning"
+      className="absolute -top-0.5 -right-0.5 text-accent"
       height={px}
       viewBox="0 0 12 12"
       width={px}

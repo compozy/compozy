@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
   SymbolPicker,
   Textarea,
+  cn,
   identitySurfaceFor,
   type SymbolValue,
 } from "@compozy/ui";
@@ -37,27 +38,56 @@ const MODE_ITEMS = [
   { value: "symbol" as const, label: "Icon or emoji" },
 ];
 
-function GeneratedPane({ agent }: { agent: DraftAgent }) {
+function GeneratedPane({ agent, initialColor }: { agent: DraftAgent; initialColor?: string }) {
   const [shuffles, setShuffles] = useState(0);
+  const [color, setColor] = useState(initialColor);
   const seed = shuffles === 0 ? agent.name : `${agent.name}-${shuffles}`;
   return (
-    <div className="flex items-center gap-3 rounded-md bg-sunken p-3">
-      <AgentAvatar
-        appearance={{ avatar: "generated", seed }}
-        label={agent.label}
-        quietIdle
-        size={48}
-        surfaceClassName="ring-sunken"
-      />
-      <Button
-        onClick={() => setShuffles(count => count + 1)}
-        size="sm"
-        type="button"
-        variant="secondary"
-      >
-        <Dices aria-hidden="true" />
-        Shuffle
-      </Button>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3 rounded-md bg-sunken p-3">
+        <AgentAvatar
+          appearance={{ avatar: "generated", seed, color }}
+          label={agent.label}
+          quietIdle
+          size={48}
+          surfaceClassName="ring-sunken"
+        />
+        <Button
+          onClick={() => setShuffles(count => count + 1)}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Dices aria-hidden="true" />
+          Shuffle
+        </Button>
+      </div>
+      <fieldset className="flex items-center gap-1.5">
+        <legend className="sr-only">Color</legend>
+        <Button
+          aria-pressed={color === undefined}
+          onClick={() => setColor(undefined)}
+          size="xs"
+          type="button"
+          variant={color === undefined ? "secondary" : "ghost"}
+        >
+          Auto
+        </Button>
+        {PROFILE_IDENTITY_SWATCHES.map(swatch => (
+          <button
+            aria-label={swatch.label}
+            aria-pressed={color === swatch.value}
+            className={cn(
+              "size-5 rounded-full outline-none focus-visible:shadow-focus-ring",
+              color === swatch.value && "ring-2 ring-fg ring-offset-2 ring-offset-popover"
+            )}
+            key={swatch.value}
+            onClick={() => setColor(swatch.value)}
+            style={{ backgroundColor: swatch.value }}
+            type="button"
+          />
+        ))}
+      </fieldset>
     </div>
   );
 }
@@ -83,12 +113,24 @@ function SymbolPane() {
   );
 }
 
-function AvatarPopoverBody({ agent, initial }: { agent: DraftAgent; initial: Mode }) {
+function AvatarPopoverBody({
+  agent,
+  initial,
+  initialColor,
+}: {
+  agent: DraftAgent;
+  initial: Mode;
+  initialColor?: string;
+}) {
   const [mode, setMode] = useState<Mode>(initial);
   return (
     <div className="flex flex-col gap-3">
       <PillGroup items={MODE_ITEMS} onChange={setMode} size="md" value={mode} />
-      {mode === "generated" ? <GeneratedPane agent={agent} /> : <SymbolPane />}
+      {mode === "generated" ? (
+        <GeneratedPane agent={agent} initialColor={initialColor} />
+      ) : (
+        <SymbolPane />
+      )}
     </div>
   );
 }
@@ -96,11 +138,13 @@ function AvatarPopoverBody({ agent, initial }: { agent: DraftAgent; initial: Mod
 export function IdentityEditor({
   agent,
   popover,
+  popoverColor,
   invalid = false,
   readOnly = false,
 }: {
   agent: DraftAgent;
   popover?: Mode;
+  popoverColor?: string;
   invalid?: boolean;
   readOnly?: boolean;
 }) {
@@ -127,7 +171,11 @@ export function IdentityEditor({
             />
           </PopoverTrigger>
           <PopoverContent align="start" className="w-96">
-            <AvatarPopoverBody agent={agent} initial={popover ?? "generated"} />
+            <AvatarPopoverBody
+              agent={agent}
+              initial={popover ?? "generated"}
+              initialColor={popoverColor}
+            />
           </PopoverContent>
         </Popover>
         <div className="flex min-w-0 flex-1 flex-col gap-4">

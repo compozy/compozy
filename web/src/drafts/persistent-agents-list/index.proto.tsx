@@ -28,6 +28,10 @@ export const meta = definePrototype({
     { id: "paused", label: "Paused" },
     { id: "needs-you", label: "Needs you" },
     { id: "many", label: "500 agents" },
+    { id: "add-scope", label: "S16 · Card + picks a scope" },
+    { id: "add-scope-none", label: "S16 · No scope left" },
+    { id: "add-scope-cap", label: "S16 · Cap reached" },
+    { id: "add-scope-auth", label: "S16 · Provider not authenticated" },
   ],
 });
 
@@ -69,6 +73,26 @@ export default function PersistentAgentsListDraft({ state }: PrototypeProps) {
           persistent={LISTED_PERSISTENT}
         />
       );
+    case "add-scope":
+    case "add-scope-none":
+    case "add-scope-cap":
+    case "add-scope-auth": {
+      const mode = (
+        {
+          "add-scope": "scopes",
+          "add-scope-none": "none",
+          "add-scope-cap": "cap",
+          "add-scope-auth": "auth",
+        } as const
+      )[state];
+      return (
+        <AgentsPage
+          adding={{ agent: "triage", mode }}
+          ephemeral={LISTED_EPHEMERAL}
+          persistent={LISTED_PERSISTENT}
+        />
+      );
+    }
     default:
       return <AgentsPage ephemeral={LISTED_EPHEMERAL} persistent={LISTED_PERSISTENT} />;
   }
