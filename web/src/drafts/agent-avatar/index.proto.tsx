@@ -24,7 +24,7 @@ export const meta = definePrototype({
     { id: "color", label: "Color sets the tone" },
     { id: "reduced-motion", label: "Reduced motion" },
     { id: "unknown-appearance", label: "Unknown appearance" },
-    { id: "sizes", label: "Sizes 16 to 64" },
+    { id: "sizes", label: "Sizes 16 to 92" },
     { id: "legibility-16", label: "16 px legibility" },
   ],
 });
@@ -38,14 +38,14 @@ const STATES: readonly AgentState[] = [
   "starting",
   "unknown",
 ];
-const SIZES = [16, 20, 24, 32, 40, 48, 64];
+const SIZES = [16, 20, 24, 32, 40, 48, 64, 92];
 const SEEDS = ["orchestrator", "triage", "general", "code-engineer", "reviewer", "docs"];
 
 function Cell({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex min-w-24 flex-col items-center gap-3 rounded-lg bg-card p-4 shadow-card">
-      <div className="grid h-18 place-items-center">{children}</div>
-      <span className="text-center text-eyebrow tracking-eyebrow text-muted">{label}</span>
+    <div className="flex min-w-0 flex-col items-center gap-4 rounded-xl bg-card px-4 py-6 shadow-card">
+      <div className="grid h-28 place-items-center">{children}</div>
+      <span className="text-center text-small-body text-fg-2">{label}</span>
     </div>
   );
 }
@@ -54,7 +54,38 @@ function Band({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
       <Eyebrow>{title}</Eyebrow>
-      <div className="flex flex-wrap gap-3">{children}</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-3">{children}</div>
+    </section>
+  );
+}
+
+const TEAM: readonly { seed: string; state: AgentState }[] = [
+  { seed: "orchestrator", state: "working" },
+  { seed: "triage", state: "needs-you" },
+  { seed: "reviewer", state: "idle" },
+  { seed: "code-engineer", state: "working" },
+  { seed: "docs", state: "paused" },
+  { seed: "qa", state: "failed" },
+  { seed: "general", state: "idle" },
+  { seed: "researcher", state: "idle" },
+];
+
+/** A whole team at once: the shapes stay distinct and the faces say who needs a look. */
+function Team() {
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-6 rounded-xl bg-card px-10 py-8 shadow-card">
+      {TEAM.map(member => (
+        <AgentAvatar
+          appearance={{ avatar: "generated", seed: member.seed }}
+          key={member.seed}
+          label={member.seed}
+          provider="claude"
+          quietIdle
+          size={112}
+          state={member.state}
+          surfaceClassName="ring-card"
+        />
+      ))}
     </section>
   );
 }
@@ -68,9 +99,10 @@ function Poses({ still = false }: { still?: boolean }) {
             appearance={TRIAGE.appearance}
             label="Triage Lead"
             provider="claude"
-            size={56}
+            size={92}
             state={state}
             still={still}
+            surfaceClassName="ring-card"
           />
         </Cell>
       ))}
@@ -88,7 +120,7 @@ function Symbols({ agent }: { agent: typeof RELEASE }) {
               appearance={agent.appearance}
               label={agent.label}
               provider={agent.provider}
-              size={56}
+              size={92}
               state={state}
             />
           </Cell>
@@ -129,12 +161,12 @@ function Badges() {
               label="Triage Lead"
               provider={provider}
               quietIdle
-              size={56}
+              size={92}
             />
           </Cell>
         ))}
         <Cell label="Provider unknown">
-          <AgentAvatar appearance={TRIAGE.appearance} label="Triage Lead" quietIdle size={56} />
+          <AgentAvatar appearance={TRIAGE.appearance} label="Triage Lead" quietIdle size={92} />
         </Cell>
       </Band>
       <Band title="Badge and signal together">
@@ -143,7 +175,7 @@ function Badges() {
             appearance={TRIAGE.appearance}
             label="Triage Lead"
             provider="claude"
-            size={56}
+            size={92}
             state="working"
           />
         </Cell>
@@ -152,7 +184,7 @@ function Badges() {
             appearance={TRIAGE.appearance}
             label="Triage Lead"
             provider="codex"
-            size={56}
+            size={92}
             state="failed"
           />
         </Cell>
@@ -165,7 +197,7 @@ function Ring() {
   return (
     <Band title="Needs you">
       {[TRIAGE, RELEASE, SCOUT].map(agent =>
-        [24, 32, 56].map(size => (
+        [32, 56, 92].map(size => (
           <Cell key={`${agent.name}-${size}`} label={`${agent.label} · ${size}`}>
             <AgentAvatar
               appearance={agent.appearance}
@@ -241,7 +273,7 @@ function Colors() {
                 appearance={{ avatar: "generated", seed, color }}
                 label={seed}
                 quietIdle
-                size={56}
+                size={92}
               />
             </Cell>
           ))}
@@ -260,7 +292,7 @@ function Unknown() {
           label="Triage Lead"
           provider="claude"
           quietIdle
-          size={56}
+          size={92}
         />
       </Cell>
       <Cell label="No saved appearance">
@@ -269,14 +301,14 @@ function Unknown() {
           label="General"
           provider="claude"
           quietIdle
-          size={56}
+          size={92}
         />
       </Cell>
       <Cell label="Deleted agent">
         <AgentAvatar
           appearance={{ avatar: "generated", seed: "release-captain" }}
           label="Release Captain"
-          size={56}
+          size={92}
           state="unknown"
         />
       </Cell>
@@ -377,7 +409,12 @@ function Content({ state }: { state: string }) {
     case "legibility-16":
       return <Legibility />;
     default:
-      return <Poses />;
+      return (
+        <>
+          <Team />
+          <Poses />
+        </>
+      );
   }
 }
 

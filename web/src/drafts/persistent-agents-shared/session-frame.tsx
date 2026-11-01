@@ -1,5 +1,5 @@
 /** The Sessions app's window: its rail of project groups beside the session pane. */
-import { ChevronRight, MessageSquare, MessageSquarePlus, Plus, UserPlus } from "lucide-react";
+import { MessageSquare, MessageSquarePlus, Plus, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
@@ -8,13 +8,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Eyebrow,
   Icon,
   SearchInput,
-  StatusDot,
-  cn,
   type TopbarSlotValue,
 } from "@compozy/ui";
 
+import { SessionListGroupToggle } from "@/systems/session/components/session-list/session-list-group-toggle";
 import { SessionListRowView } from "@/systems/session/components/session-list/session-list-row-view";
 import { SessionListToolbar } from "@/systems/session/components/session-list/session-list-toolbar";
 import { boardRuntimeFixture } from "@/systems/session/mocks/sessions-board-view-fixtures";
@@ -87,7 +87,10 @@ function ProjectAddMenu({ name, open = false }: { name: string; open?: boolean }
         </DropdownMenuItem>
         <DropdownMenuItem>
           <Icon as={UserPlus} size="sm" />
-          Add persistent agent
+          <span className="flex flex-col">
+            Add persistent agent
+            <span className="text-eyebrow text-subtle">Stays here and checks in on its own</span>
+          </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -126,7 +129,6 @@ export interface RailGroup {
   rows?: readonly string[];
   instances?: readonly DraftInstance[];
   collapsed?: boolean;
-  signal?: boolean;
   menuOpen?: boolean;
   /** Holds S16's agent picker open on this project's `+`. */
   picker?: Omit<AgentPickerProps, "name" | "trigger">;
@@ -135,25 +137,40 @@ export interface RailGroup {
   currentRow?: string;
 }
 
+/** A closed project still shows who wants you, by face rather than a dot. */
+function CollapsedSignal({ instances }: { instances: readonly DraftInstance[] }) {
+  const waiting = instances.filter(instance => instance.state === "needs-you");
+  const lead = waiting[0];
+  if (!lead) return null;
+  return (
+    <span className="flex items-center gap-1">
+      <AgentAvatar
+        appearance={lead.agent.appearance}
+        label={`${lead.agent.label} needs you`}
+        size={20}
+        state="needs-you"
+        surfaceClassName="ring-sunken"
+      />
+      {waiting.length > 1 ? (
+        <span className="text-micro text-muted">+{waiting.length - 1}</span>
+      ) : null}
+    </span>
+  );
+}
+
 function Group({ group }: { group: RailGroup }) {
   const instances = group.instances ?? [];
   return (
     <div className="flex flex-col gap-0.5">
       <div className="flex min-h-7 min-w-0 items-center gap-1 rounded-sm">
-        <span className="flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1">
-          <Icon
-            as={ChevronRight}
-            className={cn("shrink-0 text-faint", !group.collapsed && "rotate-90")}
-            size="sm"
-          />
-          <span className="flex min-w-0 flex-1 items-center">
+        <SessionListGroupToggle
+          collapsed={Boolean(group.collapsed)}
+          count={group.count}
+          identity={
             <WorkspaceBadge identity={{ kind: "project", name: group.name }} variant="chrome" />
-          </span>
-          {group.collapsed && group.signal ? (
-            <StatusDot label="1 needs you" size="sm" tone="accent" />
-          ) : null}
-          <span className="font-mono text-micro text-faint">{group.count}</span>
-        </span>
+          }
+          signal={<CollapsedSignal instances={instances} />}
+        />
         {group.picker ? (
           <ProjectAddPicker name={group.name} picker={group.picker} />
         ) : (
@@ -162,7 +179,12 @@ function Group({ group }: { group: RailGroup }) {
       </div>
       {group.collapsed ? null : (
         <>
-          <PersistentRow className="px-1.5 pb-1" instances={instances} {...group.rowProps} />
+          <PersistentRow
+            className="px-1 pt-1 pb-1.5"
+            instances={instances}
+            scopeName={group.name}
+            {...group.rowProps}
+          />
           {(group.rows ?? []).map(id => (
             <RailRow badge={group.badges} current={id === group.currentRow} id={id} key={id} />
           ))}
@@ -188,9 +210,10 @@ function GlobalRow({
 }: { instances: readonly DraftInstance[] } & Partial<PersistentRowProps>) {
   return (
     <PersistentRow
-      className="px-3 pb-1.5"
+      className="px-3 pb-2"
       instances={instances}
-      label={<span className="pr-1.5 text-micro text-faint">Global</span>}
+      label={<Eyebrow className="pr-1.5 text-faint">Global</Eyebrow>}
+      scopeName="Global"
       {...props}
     />
   );

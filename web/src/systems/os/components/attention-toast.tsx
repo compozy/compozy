@@ -2,7 +2,7 @@ import { Megaphone } from "lucide-react";
 
 import { Button, cn, Icon } from "@compozy/ui";
 
-import { SessionBadgeGlyph } from "@/systems/session";
+import { SessionBadgeGlyph } from "@/systems/session/components/session-badge-mark";
 
 import { finishedDeliveryBody, type AttentionDelivery } from "../lib/attention-delivery";
 
@@ -13,7 +13,7 @@ import { finishedDeliveryBody, type AttentionDelivery } from "../lib/attention-d
  * action, because its landing is a list rather than a session.
  */
 
-function ToastFrame({
+export function ToastFrame({
   mark,
   title,
   body,

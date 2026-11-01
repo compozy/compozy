@@ -2,7 +2,7 @@
 import { ListTree, Plus, SquareKanban } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { Button, StatusDot, cn, type TopbarSlotValue } from "@compozy/ui";
+import { Button, Eyebrow, cn, type TopbarSlotValue } from "@compozy/ui";
 
 import { SessionBoardCardSlot } from "@/systems/session/components/session-board/session-board-card-slot";
 import type { SessionBoardCardProps } from "@/systems/session/components/session-board/session-board-card";
@@ -24,7 +24,7 @@ import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
 import { DraftShell } from "../persistent-agents-shared/draft-shell";
 import type { DraftInstance } from "../persistent-agents-shared/fixtures";
-import { PersistentRow } from "../persistent-agents-shared/persistent-row";
+import { PersistentRow, type PersistentRowProps } from "../persistent-agents-shared/persistent-row";
 import { SPAWNED_BY } from "../persistent-agents-shared/sessions-fixtures";
 
 function DraftBoardCard({ actions: _actions, ...props }: SessionBoardCardProps) {
@@ -51,9 +51,10 @@ export interface KanbanLane {
   name: string;
   instances?: readonly DraftInstance[];
   columns: readonly SessionsBoardColumnView[];
-  signal?: boolean;
   count: number;
+  /** Agents seated before `+N`; the board header has room for a full crew. */
   limit?: number;
+  rowProps?: Partial<PersistentRowProps>;
 }
 
 function withoutChildren(columns: readonly SessionsBoardColumnView[]) {
@@ -76,15 +77,16 @@ function Lane({
 }) {
   return (
     <section aria-label={lane.name} className={SESSIONS_BOARD_LANE}>
-      <header className={cn(SESSIONS_BOARD_LANE_HEADER, "h-9")}>
+      <header className={cn(SESSIONS_BOARD_LANE_HEADER, "min-h-11 gap-3 py-1")}>
         <WorkspaceBadge identity={{ kind: "project", name: lane.name }} variant="chrome" />
         <span className={SESSIONS_BOARD_LANE_COUNT}>{lane.count}</span>
-        {lane.signal ? <StatusDot label="1 needs you" size="sm" tone="accent" /> : null}
         <PersistentRow
-          className="ml-1"
           instances={lane.instances ?? []}
-          limit={lane.limit}
+          layout="band"
+          limit={lane.limit ?? 12}
+          scopeName={lane.name}
           surface="ring-canvas"
+          {...lane.rowProps}
         />
       </header>
       <SessionsBoardColumnsRow
@@ -141,7 +143,9 @@ export function KanbanWindow({
       <PersistentRow
         className="px-1"
         instances={top}
-        label={<span className="pr-1.5 text-micro text-faint">Global</span>}
+        label={<Eyebrow className="pr-1.5 text-faint">Global</Eyebrow>}
+        layout="band"
+        scopeName="Global"
         surface="ring-canvas"
       />
     ) : null;

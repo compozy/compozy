@@ -13,6 +13,8 @@ import {
 
 export interface HomePulseHeatmapProps {
   pulse: HomeOverview["pulse"];
+  /** The section title; a single agent's page names it for that agent. */
+  label?: string;
 }
 
 function cellBackground(events: number, max: number): string | undefined {
@@ -28,7 +30,10 @@ function cellBackground(events: number, max: number): string | undefined {
  * neutral viz ink (magnitude only; no signal colors). Insights render only
  * when the daemon derived them — an empty window drops them entirely.
  */
-export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
+export function HomePulseHeatmap({
+  pulse,
+  label = "When agents were busy",
+}: HomePulseHeatmapProps) {
   const byCell = new Map<string, HomePulseBucket>();
   let max = 0;
   for (const bucket of pulse.buckets) {
@@ -43,7 +48,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
   return (
     <Section
       data-slot="home-pulse"
-      label="When agents were busy"
+      label={label}
       right={<span className="text-eyebrow text-muted">Last 14 days</span>}
     >
       <Panel bodyClassName="p-0">

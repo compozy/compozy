@@ -1,9 +1,12 @@
-/** S10 and S15: the row of main sessions under a project name or in a board header. */
-import { Archive, Bot, HeartPulse, Pause, Play } from "lucide-react";
+/**
+ * S10 and S15: the agents who live in a project. They sit on their own, large enough to read a
+ * face, most urgent first. Anyone who needs you steps out of the row into a line that says so; the
+ * rest open a card on hover or focus, and `+N` opens the whole crew.
+ */
+import { Archive, Bot, ChevronRight, HeartPulse, Pause, Play } from "lucide-react";
 import type { ReactNode } from "react";
 
 import {
-  Button,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -16,15 +19,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+  HoverCard,
+  HoverCardTrigger,
   cn,
 } from "@compozy/ui";
 
+import { AgentHoverCardContent } from "../persistent-sessions/agent-hover-card";
+import { CrewPopover } from "../persistent-sessions/crew-popover";
+import { openMainSession } from "../persistent-sessions/open-main";
 import { AgentAvatar } from "./agent-avatar";
 import { AGENT_STATE_LABEL } from "./agent-state";
 import { PAUSE_COPY, SCOPE_LABEL, type DraftInstance } from "./fixtures";
+import { byUrgency, doingOf } from "./sessions-fixtures";
+
+const AVATAR_PX = 30;
 
 function spoken(instance: DraftInstance) {
   return [
@@ -37,11 +45,11 @@ function spoken(instance: DraftInstance) {
 function Mark({
   instance,
   surface,
-  size,
+  size = AVATAR_PX,
 }: {
   instance: DraftInstance;
   surface: string;
-  size: number;
+  size?: number;
 }) {
   return (
     <AgentAvatar
@@ -57,8 +65,8 @@ function Mark({
   );
 }
 
-const BUTTON =
-  "grid size-8 shrink-0 place-items-center rounded-full outline-none hover:bg-hover focus-visible:shadow-focus-ring";
+const SEAT =
+  "grid size-9 shrink-0 cursor-pointer place-items-center rounded-full outline-none transition-[background-color,translate] duration-base hover:-translate-y-0.5 hover:bg-hover focus-visible:shadow-focus-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0";
 
 function ContextItems({ instance }: { instance: DraftInstance }) {
   const paused = instance.state === "paused";
@@ -74,7 +82,7 @@ function ContextItems({ instance }: { instance: DraftInstance }) {
       </ContextMenuItem>
       <ContextMenuItem>
         <HeartPulse aria-hidden="true" />
-        Heartbeat
+        Check-ins
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem>
@@ -86,23 +94,15 @@ function ContextItems({ instance }: { instance: DraftInstance }) {
 }
 
 /** The same verbs as the context menu, held open for review. */
-function OpenMenu({
-  instance,
-  surface,
-  size,
-}: {
-  instance: DraftInstance;
-  surface: string;
-  size: number;
-}) {
+function OpenMenu({ instance, surface }: { instance: DraftInstance; surface: string }) {
   const paused = instance.state === "paused";
   const blocked =
     instance.pauseReason === "definition_missing" ||
     instance.pauseReason === "definition_not_persistent";
   return (
     <DropdownMenu defaultOpen>
-      <DropdownMenuTrigger aria-label={spoken(instance)} className={BUTTON}>
-        <Mark instance={instance} size={size} surface={surface} />
+      <DropdownMenuTrigger aria-label={spoken(instance)} className={SEAT}>
+        <Mark instance={instance} surface={surface} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuGroup>
@@ -126,7 +126,7 @@ function OpenMenu({
         </DropdownMenuItem>
         <DropdownMenuItem>
           <HeartPulse aria-hidden="true" />
-          Heartbeat
+          Check-ins
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem>
@@ -138,74 +138,108 @@ function OpenMenu({
   );
 }
 
-function AvatarButton({
+function Seat({
   instance,
   surface,
-  size,
+  cardOpen,
   focused,
   current,
 }: {
   instance: DraftInstance;
   surface: string;
-  size: number;
+  cardOpen: boolean;
   focused: boolean;
   current: boolean;
 }) {
   return (
     <ContextMenu>
-      <Tooltip open={focused || undefined}>
+      <HoverCard open={cardOpen || undefined}>
         <ContextMenuTrigger
           render={
-            <TooltipTrigger
+            <HoverCardTrigger
               render={
                 <button
-                  aria-label={spoken(instance)}
                   aria-current={current ? "page" : undefined}
-                  className={cn(BUTTON, focused && "shadow-focus-ring", current && "bg-selected")}
+                  aria-label={spoken(instance)}
+                  className={cn(SEAT, focused && "shadow-focus-ring", current && "bg-selected")}
+                  onClick={() => openMainSession(instance)}
                   type="button"
                 />
               }
             />
           }
         >
-          <Mark instance={instance} size={size} surface={surface} />
+          <Mark instance={instance} surface={surface} />
         </ContextMenuTrigger>
-        <TooltipContent>{spoken(instance)}</TooltipContent>
-      </Tooltip>
+        <AgentHoverCardContent instance={instance} />
+      </HoverCard>
       <ContextItems instance={instance} />
     </ContextMenu>
   );
 }
 
-function Overflow({ hidden }: { hidden: readonly DraftInstance[] }) {
+/** The tap on the shoulder: one agent stepped out of the row, saying what it wants. */
+function NeedsYouLine({
+  instance,
+  others,
+  surface,
+  className,
+}: {
+  instance: DraftInstance;
+  others: number;
+  surface: string;
+  className?: string;
+}) {
+  const more = others === 1 ? "1 more needs you" : `${others} more need you`;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`${hidden.length} more persistent agents`}
+    <ContextMenu>
+      <ContextMenuTrigger
         render={
-          <Button className="shrink-0 rounded-full" size="icon-sm" type="button" variant="quiet" />
+          <button
+            className={cn(
+              "group/needs flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg bg-accent-tint py-1.5 pr-2 pl-1.5 text-left outline-none transition-colors duration-base hover:bg-accent-tint-strong focus-visible:shadow-focus-ring motion-reduce:transition-none",
+              className
+            )}
+            onClick={() => openMainSession(instance)}
+            type="button"
+          />
         }
       >
-        <span className="font-mono text-micro text-muted">+{hidden.length}</span>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {hidden.map(instance => (
-          <DropdownMenuItem key={instance.id}>{spoken(instance)}</DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <Mark instance={instance} size={34} surface={surface} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-body font-medium text-fg-strong">
+            {instance.agent.label} needs you
+          </span>
+          <span className="truncate text-small-body text-muted">
+            {others > 0 ? more : doingOf(instance)}
+          </span>
+        </span>
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 shrink-0 text-subtle transition-transform duration-base group-hover/needs:translate-x-0.5 motion-reduce:transition-none"
+        />
+      </ContextMenuTrigger>
+      <ContextItems instance={instance} />
+    </ContextMenu>
   );
 }
 
 export interface PersistentRowProps {
   instances: readonly DraftInstance[];
-  /** Avatars shown before the rest move into `+N`. */
+  /** Agents seated before the rest move into `+N`. */
   limit?: number;
   label?: ReactNode;
   surface?: string;
-  size?: number;
+  /** `stack` puts the needs-you line above the row (sidebar); `band` beside it (board header). */
+  layout?: "stack" | "band";
+  /** The scope's name, for the crew popover's title. */
+  scopeName?: string;
   openMenuFor?: string;
   focusedId?: string;
+  /** Holds one agent's hover card open for review. */
+  cardFor?: string;
+  /** Holds the crew popover open for review. */
+  crewOpen?: boolean;
   /** The instance whose main session is open in this window. */
   currentId?: string;
   className?: string;
@@ -216,37 +250,69 @@ export function PersistentRow({
   limit = 6,
   label,
   surface = "ring-sunken",
-  size = 24,
+  layout = "stack",
+  scopeName = "this project",
   openMenuFor,
   focusedId,
+  cardFor,
+  crewOpen = false,
   currentId,
   className,
 }: PersistentRowProps) {
   if (instances.length === 0) return null;
-  const shown = instances.slice(0, limit);
-  const hidden = instances.slice(limit);
-  return (
-    <div
-      aria-label="Persistent agents"
-      className={cn("flex min-w-0 items-center gap-0.5", className)}
-      role="toolbar"
-    >
+  const ordered = byUrgency(instances);
+  const waiting = ordered.filter(item => item.state === "needs-you" && item.id !== currentId);
+  const lead = waiting[0];
+  const seated = ordered.filter(item => item !== lead);
+  const shown = seated.slice(0, limit);
+  const hidden = seated.length - shown.length;
+  const row = (
+    <div aria-label="Persistent agents" className="flex min-w-0 items-center gap-1" role="toolbar">
       {label}
       {shown.map(instance =>
         instance.id === openMenuFor ? (
-          <OpenMenu instance={instance} key={instance.id} size={size} surface={surface} />
+          <OpenMenu instance={instance} key={instance.id} surface={surface} />
         ) : (
-          <AvatarButton
+          <Seat
+            cardOpen={instance.id === cardFor || instance.id === focusedId}
             current={instance.id === currentId}
             focused={instance.id === focusedId}
             instance={instance}
             key={instance.id}
-            size={size}
             surface={surface}
           />
         )
       )}
-      {hidden.length > 0 ? <Overflow hidden={hidden} /> : null}
+      {hidden > 0 ? (
+        <CrewPopover
+          defaultOpen={crewOpen}
+          hidden={hidden}
+          instances={instances}
+          scopeName={scopeName}
+        />
+      ) : null}
+    </div>
+  );
+  const callout = lead ? (
+    <NeedsYouLine
+      className={layout === "band" ? "w-72 shrink-0" : undefined}
+      instance={lead}
+      others={waiting.length - 1}
+      surface={surface}
+    />
+  ) : null;
+  if (layout === "band") {
+    return (
+      <div className={cn("flex min-w-0 flex-1 items-center justify-between gap-4", className)}>
+        {row}
+        {callout}
+      </div>
+    );
+  }
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
+      {callout}
+      {shown.length > 0 ? row : null}
     </div>
   );
 }

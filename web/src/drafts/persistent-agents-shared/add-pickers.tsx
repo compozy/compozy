@@ -1,101 +1,284 @@
-/** S16: the two `+` popovers. Each lists only valid choices; Create new opens the wizard. */
-import { Globe, Layers, Plus } from "lucide-react";
+/**
+ * S16: the two `+` popovers, on `CommandSelect` so 50 projects stay one search away. Each lists only
+ * valid choices, and each explains itself when it has none. The create screen shares `PlaceList`.
+ */
+import { Clock3, Globe, Plus, TriangleAlert } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
 import {
-  Alert,
-  AlertDescription,
   Button,
+  CommandEmpty,
+  CommandItem,
+  CommandList,
+  CommandSelect,
+  CommandSelectGroup,
+  CommandSelectShell,
+  CommandSeparator,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  cn,
 } from "@compozy/ui";
 
 import { protoHref } from "@compozy/proto";
 
+import { MORE_PROJECTS } from "../agent-create/model";
+
 import { AgentAvatar } from "./agent-avatar";
-import { SCOPE_LABEL, type DraftAgent } from "./fixtures";
+import type { DraftAgent } from "./fixtures";
 
-const CAP_COPY =
-  "You have 10 active persistent agents. Pause one or raise agents.persistent.max_active_instances.";
+const ACTIVE_LIMIT = 10;
 
-function Choice({
+export function ProjectMark({ name }: { name: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-surface-2 font-mono text-eyebrow font-medium tracking-mono text-fg"
+    >
+      {name.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+function PlaceRow({
+  value,
   leading,
   title,
   detail,
+  selected = false,
   disabled = false,
+  onSelect,
 }: {
+  value: string;
   leading: ReactNode;
   title: string;
   detail?: string;
+  selected?: boolean;
   disabled?: boolean;
+  onSelect?: () => void;
 }) {
   return (
-    <button
-      className={cn(
-        "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left outline-none focus-visible:shadow-focus-ring",
-        disabled ? "opacity-60" : "hover:bg-hover"
-      )}
+    <CommandItem
+      data-checked={selected ? "true" : "false"}
       disabled={disabled}
-      type="button"
+      keywords={[title]}
+      onSelect={onSelect}
+      value={value}
     >
       {leading}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-small-body text-fg">{title}</span>
         {detail ? <span className="truncate text-eyebrow text-subtle">{detail}</span> : null}
       </span>
-    </button>
+    </CommandItem>
+  );
+}
+
+const ICON_WELL = "grid size-button-icon-xs shrink-0 place-items-center rounded-sm bg-surface-2";
+
+export function EverywhereMark() {
+  return (
+    <span aria-hidden="true" className={ICON_WELL}>
+      <Globe className="size-3.5 text-muted" />
+    </span>
+  );
+}
+
+export function LaterMark() {
+  return (
+    <span aria-hidden="true" className={ICON_WELL}>
+      <Clock3 className="size-3.5 text-muted" />
+    </span>
+  );
+}
+
+export interface PlaceListProps {
+  /** Project names; `@user` is Everywhere. */
+  places: readonly string[];
+  value?: string | null;
+  onChange?: (place: string) => void;
+  disabled?: boolean;
+  /** The create screen also offers Decide later. */
+  later?: boolean;
+  heading?: string;
+}
+
+/** Everywhere first, then every project, then the way out. The search box does the rest. */
+export function PlaceList({
+  places,
+  value,
+  onChange,
+  disabled = false,
+  later = false,
+  heading,
+}: PlaceListProps) {
+  const everywhere = places.includes("@user");
+  const projects = places.filter(place => place !== "@user");
+  return (
+    <CommandList className="max-h-72">
+      <CommandEmpty>No projects match your search.</CommandEmpty>
+      {everywhere ? (
+        <CommandSelectGroup heading={heading}>
+          <PlaceRow
+            detail="Not tied to one project"
+            disabled={disabled}
+            leading={<EverywhereMark />}
+            onSelect={() => onChange?.("@user")}
+            selected={value === "@user"}
+            title="Everywhere"
+            value="everywhere"
+          />
+        </CommandSelectGroup>
+      ) : null}
+      {projects.length > 0 ? (
+        <CommandSelectGroup heading="Projects">
+          {projects.map(project => (
+            <PlaceRow
+              disabled={disabled}
+              key={project}
+              leading={<ProjectMark name={project} />}
+              onSelect={() => onChange?.(project)}
+              selected={value === project}
+              title={project}
+              value={project}
+            />
+          ))}
+        </CommandSelectGroup>
+      ) : null}
+      {later ? (
+        <>
+          <CommandSeparator />
+          <CommandSelectGroup>
+            <PlaceRow
+              detail="Create it now, start it later"
+              leading={<LaterMark />}
+              onSelect={() => onChange?.("later")}
+              selected={value === "later"}
+              title="Decide later"
+              value="decide later"
+            />
+          </CommandSelectGroup>
+        </>
+      ) : null}
+    </CommandList>
   );
 }
 
 function PickerFrame({
   trigger,
-  title,
+  search,
   defaultOpen,
   align = "start",
   children,
 }: {
   trigger: ReactElement;
-  title: string;
+  /** Omitted when there's nothing to search: the popover is a plain note. */
+  search?: string;
   defaultOpen: boolean;
   align?: "start" | "end";
   children: ReactNode;
 }) {
+  if (!search) {
+    return (
+      <Popover defaultOpen={defaultOpen}>
+        <PopoverTrigger render={trigger} />
+        <PopoverContent align={align} className="flex w-80 flex-col p-1.5">
+          {children}
+        </PopoverContent>
+      </Popover>
+    );
+  }
   return (
-    <Popover defaultOpen={defaultOpen}>
+    <CommandSelect defaultOpen={defaultOpen}>
       <PopoverTrigger render={trigger} />
-      <PopoverContent align={align} className="flex w-80 flex-col gap-1 p-1.5">
-        <p className="px-2 pt-1 pb-0.5 text-eyebrow text-subtle">{title}</p>
+      <CommandSelectShell align={align} className="w-80" inputPlaceholder={search}>
         {children}
-      </PopoverContent>
-    </Popover>
+      </CommandSelectShell>
+    </CommandSelect>
   );
 }
 
-function CapNotice() {
+/** One cell per agent staying on: the limit is a full bar, not a sentence. */
+export function LimitMeter() {
   return (
-    <Alert className="mb-1" variant="warning">
-      <AlertDescription>{CAP_COPY}</AlertDescription>
-    </Alert>
-  );
-}
-
-function CreateNew({ disabled }: { disabled: boolean }) {
-  return (
-    <Button
-      className="justify-start"
-      disabled={disabled}
-      onClick={() =>
-        window.location.assign(protoHref("agent-create-wizard", "preselected-identity"))
-      }
-      size="sm"
-      type="button"
-      variant="ghost"
+    <span
+      aria-label={`${ACTIVE_LIMIT} of ${ACTIVE_LIMIT} agents are staying on`}
+      className="flex items-center gap-1"
+      role="img"
     >
-      <Plus aria-hidden="true" />
-      Create new
-    </Button>
+      {Array.from({ length: ACTIVE_LIMIT }, (_, index) => (
+        <span className="h-2 flex-1 rounded-xxs bg-warning" key={index} />
+      ))}
+    </span>
+  );
+}
+
+/** The limit, shown as the full meter it is, with the way forward. */
+function LimitNotice() {
+  return (
+    <div className="flex flex-col gap-2 px-2.5 py-2">
+      <LimitMeter />
+      <p className="text-small-body text-muted">
+        <span className="text-fg">
+          {ACTIVE_LIMIT} of {ACTIVE_LIMIT} agents are staying on.
+        </span>{" "}
+        Pause one to make room.
+      </p>
+    </div>
+  );
+}
+
+function SignedOutNotice({ provider }: { provider: string }) {
+  return (
+    <div className="flex items-start gap-2 px-2.5 py-2">
+      <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
+      <p className="min-w-0 flex-1 text-small-body text-muted">
+        <span className="text-fg">{provider} isn't signed in,</span> so this agent can't start yet.
+      </p>
+      <Button size="xs" type="button" variant="secondary">
+        Sign in
+      </Button>
+    </div>
+  );
+}
+
+/** Nothing to pick: says why in a sentence, and offers the one thing left to do. */
+function NothingLeft({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-1 px-2.5 py-2">
+      <p className="text-small-body font-medium text-fg">{title}</p>
+      <p className="text-small-body text-muted">{children}</p>
+      {action ? <div className="mt-2">{action}</div> : null}
+    </div>
+  );
+}
+
+function createNewHref() {
+  return protoHref("agent-create", "from-project");
+}
+
+function CreateNewRow({ disabled }: { disabled: boolean }) {
+  return (
+    <>
+      <CommandSeparator />
+      <CommandSelectGroup>
+        <CommandItem
+          disabled={disabled}
+          onSelect={() => window.location.assign(createNewHref())}
+          value="create new agent"
+        >
+          <Plus aria-hidden="true" className="size-4 shrink-0 text-subtle" />
+          <span className="text-small-body text-fg">Create new</span>
+        </CommandItem>
+      </CommandSelectGroup>
+    </>
   );
 }
 
@@ -123,36 +306,59 @@ export function AgentPicker({
   trigger,
 }: AgentPickerProps) {
   const blocked = new Set(signedOut);
+  const none = agents.length === 0;
   return (
-    <PickerFrame defaultOpen title={`Add to ${name}`} trigger={trigger}>
-      {capped ? <CapNotice /> : null}
-      {agents.map(agent => {
-        const out = blocked.has(agent.provider);
-        return (
-          <Choice
-            detail={out ? `${providerName(agent.provider)} isn't signed in` : agent.description}
-            disabled={capped || out}
-            key={agent.name}
-            leading={
-              <AgentAvatar
-                appearance={agent.appearance}
-                label={agent.label}
-                provider={agent.provider}
-                quietIdle
-                size={24}
-                surfaceClassName="ring-popover"
-              />
-            }
-            title={agent.label}
-          />
-        );
-      })}
-      {agents.length === 0 ? (
-        <p className="px-2 py-1.5 text-small-body text-muted">
-          Every persistent agent already runs here.
-        </p>
-      ) : null}
-      <CreateNew disabled={capped} />
+    <PickerFrame defaultOpen search={none ? undefined : "Search agents…"} trigger={trigger}>
+      {capped ? <LimitNotice /> : null}
+      {none ? (
+        <NothingLeft
+          title={`Add to ${name}`}
+          action={
+            <Button
+              onClick={() => window.location.assign(createNewHref())}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Plus aria-hidden="true" />
+              Create new
+            </Button>
+          }
+        >
+          All your stay-on agents already work here.
+        </NothingLeft>
+      ) : (
+        <CommandList className="max-h-72">
+          <CommandEmpty>No agents match your search.</CommandEmpty>
+          <CommandSelectGroup heading={`Add to ${name}`}>
+            {agents.map(agent => {
+              const out = blocked.has(agent.provider);
+              return (
+                <PlaceRow
+                  detail={
+                    out ? `${providerName(agent.provider)} isn't signed in` : agent.description
+                  }
+                  disabled={capped || out}
+                  key={agent.name}
+                  leading={
+                    <AgentAvatar
+                      appearance={agent.appearance}
+                      label={agent.label}
+                      provider={agent.provider}
+                      quietIdle
+                      size={28}
+                      surfaceClassName="ring-popover"
+                    />
+                  }
+                  title={agent.label}
+                  value={agent.label}
+                />
+              );
+            })}
+          </CommandSelectGroup>
+          <CreateNewRow disabled={capped} />
+        </CommandList>
+      )}
     </PickerFrame>
   );
 }
@@ -174,32 +380,24 @@ export function ScopePicker({
   defaultOpen = false,
   trigger,
 }: ScopePickerProps) {
-  const disabled = mode === "cap" || mode === "auth";
+  const places = scopes.length > 0 ? [...scopes, ...MORE_PROJECTS] : [];
+  const none = places.length === 0;
   return (
-    <PickerFrame align="end" defaultOpen={defaultOpen} title="Add to" trigger={trigger}>
-      {mode === "cap" ? <CapNotice /> : null}
-      {mode === "auth" ? (
-        <Alert className="mb-1" variant="warning">
-          <AlertDescription>
-            {provider} isn't signed in, so this agent can't start.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {scopes.map(scope => {
-        const Icon = scope === "@user" ? Globe : Layers;
-        return (
-          <Choice
-            detail={scope === "@user" ? "Runs in your User scope" : undefined}
-            disabled={disabled}
-            key={scope}
-            leading={<Icon aria-hidden="true" className="size-4 shrink-0 text-muted" />}
-            title={SCOPE_LABEL(scope)}
-          />
-        );
-      })}
-      {scopes.length === 0 ? (
-        <p className="px-2 py-1.5 text-small-body text-muted">Already runs in every scope.</p>
-      ) : null}
+    <PickerFrame
+      align="end"
+      defaultOpen={defaultOpen}
+      search={none ? undefined : "Search projects…"}
+      trigger={trigger}
+    >
+      {mode === "cap" ? <LimitNotice /> : null}
+      {mode === "auth" ? <SignedOutNotice provider={provider} /> : null}
+      {none ? (
+        <NothingLeft title="Nowhere left to add it">
+          This agent already works in all your projects.
+        </NothingLeft>
+      ) : (
+        <PlaceList disabled={mode === "cap" || mode === "auth"} heading="Add to" places={places} />
+      )}
     </PickerFrame>
   );
 }

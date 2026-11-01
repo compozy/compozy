@@ -1,19 +1,9 @@
 /** S12, S13 and S14, shown inside the hosts they change. */
-import { Bell, CircleHelp, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Trash2 } from "lucide-react";
 
-import {
-  Marker,
-  PillGroup,
-  Pill,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  cn,
-} from "@compozy/ui";
+import { Marker, cn } from "@compozy/ui";
+
+import { ToastFrame } from "@/systems/os/components/attention-toast";
 
 import {
   TRIGGER_MENU_ITEMS_CLASS,
@@ -21,12 +11,10 @@ import {
 } from "@/components/assistant-ui/session-composer-trigger-menu-classes";
 
 import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
-import { DraftShell } from "../persistent-agents-shared/draft-shell";
 import {
   CODE_ENGINEER,
   GENERAL,
   ORCHESTRATOR,
-  TRIAGE,
   type DraftAgent,
 } from "../persistent-agents-shared/fixtures";
 import { DraftComposer } from "../persistent-agents-shared/transcript";
@@ -110,139 +98,26 @@ export function DeletedAgentMarker() {
   );
 }
 
-/** Stand-in for `attention-toast`, reading only the `agent_name` an old payload carries. */
+/** The real toast reading only the `agent_name` an old payload carries. */
 export function OldNotification() {
   return (
-    <div className="pointer-events-none absolute top-16 right-4 z-30 flex w-80 items-start gap-3 rounded-lg bg-popover p-3 shadow-pop">
-      <AgentAvatar
-        appearance={{ avatar: "generated", seed: "code_implementer" }}
-        label="Code Implementer"
-        quietIdle
-        size={28}
-        state="unknown"
-        surfaceClassName="ring-popover"
+    <div className="absolute top-14 right-4 z-30 w-80">
+      <ToastFrame
+        body="Migrate tokens is waiting for an answer."
+        mark={
+          <AgentAvatar
+            appearance={{ avatar: "generated", seed: "code_implementer" }}
+            label="Code Implementer"
+            quietIdle
+            size={32}
+            state="unknown"
+            surfaceClassName="ring-popover"
+          />
+        }
+        meta="compozy"
+        testId="os-attention-toast-needs-you"
+        title="Code Implementer needs you"
       />
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-small-body font-medium text-fg">Code Implementer needs you</span>
-        <span className="text-small-body text-muted">Migrate tokens is waiting for an answer.</span>
-      </div>
-      <Bell aria-hidden="true" className="ml-auto size-3.5 shrink-0 text-subtle" />
     </div>
-  );
-}
-
-const ENTRIES = [
-  {
-    when: "23:41",
-    tool: "Read internal/task/store.go",
-    who: TRIAGE,
-    initiator: "Automation",
-    watching: false,
-    decision: "Allowed",
-  },
-  {
-    when: "23:30",
-    tool: "Run make migrate",
-    who: CODE_ENGINEER,
-    initiator: "Daemon",
-    watching: false,
-    decision: "Expired",
-  },
-  {
-    when: "22:12",
-    tool: "Edit web/src/app.tsx",
-    who: GENERAL,
-    initiator: "You",
-    watching: true,
-    decision: "Allowed",
-  },
-  {
-    when: "21:02",
-    tool: "Write docs/notes.md",
-    who: ORCHESTRATOR,
-    initiator: "Extension spec-cycle",
-    watching: false,
-    decision: "Allowed",
-  },
-];
-
-const LEGACY = {
-  when: "Oct 12",
-  tool: "Run bun test",
-  who: GENERAL,
-  initiator: "Unknown",
-  watching: true,
-  decision: "Allowed",
-};
-
-export function AuditScreen({
-  initial,
-  legacy = false,
-}: {
-  initial: "all" | "unattended";
-  legacy?: boolean;
-}) {
-  const [filter, setFilter] = useState<string>(initial);
-  const rows = [...ENTRIES, ...(legacy ? [LEGACY] : [])].filter(
-    row => filter === "all" || !row.watching
-  );
-  return (
-    <DraftShell app="dashboard" sessionBadge={0} title="Activity">
-      <div className="flex flex-col gap-4 p-6">
-        <PillGroup
-          items={[
-            { value: "all", label: "All" },
-            { value: "unattended", label: "Nobody watching" },
-          ]}
-          onChange={setFilter}
-          value={filter}
-        />
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>When</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Agent</TableHead>
-              <TableHead>Started by</TableHead>
-              <TableHead>Decision</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map(row => (
-              <TableRow key={row.tool}>
-                <TableCell className="font-mono text-mono-id">{row.when}</TableCell>
-                <TableCell>{row.tool}</TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-2">
-                    <AgentAvatar
-                      appearance={row.who.appearance}
-                      label={row.who.label}
-                      quietIdle
-                      size={18}
-                    />
-                    {row.who.label}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {row.initiator === "Unknown" ? (
-                    <span className="inline-flex items-center gap-1 text-subtle">
-                      <CircleHelp aria-hidden="true" className="size-3" />
-                      Unknown
-                    </span>
-                  ) : (
-                    row.initiator
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Pill size="sm" tone={row.decision === "Expired" ? "warning" : "neutral"}>
-                    {row.decision}
-                  </Pill>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </DraftShell>
   );
 }

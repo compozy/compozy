@@ -1,295 +1,119 @@
 /** S2's page: the Agents app content, also the host behind the create wizard. */
-import { Plus, Users2 } from "lucide-react";
-import { Fragment, useState, type ReactNode } from "react";
+import { protoHref } from "@compozy/proto";
+import { ListFilter, Plus, Users2 } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import {
   Button,
-  CatalogCard,
   Empty,
-  ListGroup,
+  FiltersWithSearch,
   ListingPage,
-  ListingRow,
   ListingToolbar,
-  Pill,
+  PillGroup,
   SearchInput,
-  StatusDot,
-  cn,
+  type Filter,
   type ListingViewMode,
-  type StatusDotTone,
   type TopbarSlotValue,
 } from "@compozy/ui";
 
-import { AgentFleetNewSessionButton } from "@/systems/agent/components/agent-fleet-new-session-button";
 import {
-  FLEET_CARDS_CLASS,
-  FLEET_ROWS_CLASS,
-} from "@/systems/agent/components/agent-fleet-classes";
-
-import { ScopePicker, type ScopePickerProps } from "./add-pickers";
-import { AgentAvatar } from "./agent-avatar";
+  buildTeamFilterFields,
+  byAttention,
+  matchesFilters,
+  matchesFocus,
+  type TeamFocus,
+} from "../persistent-agents-list/team-filters";
+import { TeamSection, StayOnWelcome } from "../persistent-agents-list/team-section";
+import type { ScopePickerProps } from "./add-pickers";
+import { PROJECTS } from "./agents-fixtures";
 import type { AgentState } from "./agent-state";
 import { DraftShell } from "./draft-shell";
-import { SCOPE_LABEL, WORKSPACES, type DraftAgent } from "./fixtures";
+import type { DraftAgent, PauseReason } from "./fixtures";
 
 export interface AddScopeState {
   agent: string;
   mode: ScopePickerProps["mode"];
 }
 
+export interface ListedPlace {
+  scope: string;
+  state: AgentState;
+  pauseReason?: PauseReason;
+  /** What it's doing there right now, in plain words. */
+  now?: string;
+}
+
 export interface ListedAgent extends DraftAgent {
   /** Where a persistent agent runs, each with its live state. */
-  places?: readonly { scope: string; state: AgentState }[];
-  /** Separates two definitions that share a slug. */
+  places?: readonly ListedPlace[];
+  /** Separates two definitions that share a name. */
   origin?: string;
+  /** Daily activity over the last two weeks. */
+  activity?: readonly number[];
+  recap?: string;
+  lastActive?: string;
 }
 
-const PLACE_DOT: Partial<Record<AgentState, StatusDotTone>> = {
-  working: "success",
-  "needs-you": "accent",
-  failed: "danger",
-  paused: "faint",
-  idle: "faint",
-  starting: "faint",
-};
+const FOCUS: { value: TeamFocus; label: string }[] = [
+  { value: "all", label: "Everyone" },
+  { value: "needs-you", label: "Needs you" },
+  { value: "working", label: "Working" },
+  { value: "paused", label: "Paused" },
+];
 
-function overallState(agent: ListedAgent): AgentState {
-  const states = (agent.places ?? []).map(place => place.state);
-  const order: AgentState[] = ["needs-you", "failed", "working", "paused", "starting"];
-  return order.find(state => states.includes(state)) ?? "idle";
-}
-
-function PlaceChip({ scope, state }: { scope: string; state: AgentState }) {
-  const tone = PLACE_DOT[state];
-  return (
-    <Pill size="sm" tone={state === "needs-you" ? "accent" : "neutral"}>
-      {tone ? <StatusDot size="sm" tone={tone} /> : null}
-      {SCOPE_LABEL(scope)}
-      {state === "paused" ? <span className="text-subtle">Paused</span> : null}
-    </Pill>
-  );
-}
-
-function AddPlaceButton({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
-  const open = adding?.agent === agent.name;
-  const taken = new Set((agent.places ?? []).map(place => place.scope));
-  const scopes = ["@user", ...WORKSPACES].filter(scope => !taken.has(scope));
-  return (
-    <ScopePicker
-      defaultOpen={open}
-      mode={open ? adding.mode : "scopes"}
-      provider={agent.provider === "codex" ? "Codex" : "Claude"}
-      scopes={open && adding.mode === "none" ? [] : scopes}
-      trigger={
-        <Button
-          aria-label={`Add ${agent.label} to a workspace`}
-          size="icon-sm"
-          type="button"
-          variant="quiet"
-        >
-          <Plus aria-hidden="true" />
-        </Button>
-      }
-    />
-  );
-}
-
-function scopeSummary(scopes: readonly string[]) {
-  const named = scopes.map(SCOPE_LABEL);
-  return named.length > 3
-    ? `${named.slice(0, 3).join(" · ")} +${named.length - 3}`
-    : named.join(" · ");
-}
-
-function AgentPills({ agent }: { agent: ListedAgent }) {
-  return (
-    <>
-      {agent.origin ? <Pill size="xs">{agent.origin}</Pill> : null}
-      {agent.invalid ? (
-        <Pill size="sm" tone="warning">
-          Invalid
-        </Pill>
-      ) : null}
-    </>
-  );
-}
-
-function CardFoot({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
-  if (agent.kind === "persistent") {
-    const places = agent.places ?? [];
-    return (
-      <CatalogCard.Actions className="justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {places.length > 0 ? (
-            places.map(place => <PlaceChip key={place.scope} {...place} />)
-          ) : (
-            <span className="text-eyebrow tracking-eyebrow text-subtle">Not running</span>
-          )}
-        </div>
-        <AddPlaceButton adding={adding} agent={agent} />
-      </CatalogCard.Actions>
-    );
-  }
-  return (
-    <CatalogCard.Actions className="justify-between">
-      <span className="min-w-0 truncate text-eyebrow tracking-eyebrow text-subtle">
-        {scopeSummary(agent.scopes)}
-        {agent.active > 0 ? ` · ${agent.active} active` : ""}
-      </span>
-      <AgentFleetNewSessionButton agentName={agent.label} onNewSession={() => undefined} />
-    </CatalogCard.Actions>
-  );
-}
-
-function AgentCard({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
-  return (
-    <CatalogCard actionable>
-      <div className="flex min-w-0 items-start gap-3">
-        <AgentAvatar
-          appearance={agent.appearance}
-          className="m-0.5"
-          label={agent.label}
-          provider={agent.provider}
-          quietIdle
-          size={36}
-          state={agent.kind === "persistent" ? overallState(agent) : "idle"}
-          surfaceClassName="ring-card"
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <CatalogCard.Title className="min-w-0 flex-1">{agent.label}</CatalogCard.Title>
-            <AgentPills agent={agent} />
-          </div>
-          <CatalogCard.Description className="line-clamp-2">
-            {agent.description}
-          </CatalogCard.Description>
-        </div>
-      </div>
-      <CardFoot adding={adding} agent={agent} />
-    </CatalogCard>
-  );
-}
-
-function AgentRow({ agent, adding }: { agent: ListedAgent; adding?: AddScopeState }) {
-  const places = agent.places ?? [];
-  return (
-    <ListingRow>
-      <ListingRow.Link render={<button aria-label={`Open ${agent.label}`} type="button" />}>
-        <ListingRow.Icon className="bg-transparent">
-          <AgentAvatar
-            appearance={agent.appearance}
-            label={agent.label}
-            provider={agent.provider}
-            quietIdle
-            size={24}
-            state={agent.kind === "persistent" ? overallState(agent) : "idle"}
-            surfaceClassName="ring-card"
-          />
-        </ListingRow.Icon>
-        <ListingRow.Main>
-          <ListingRow.Name>
-            <ListingRow.Title>{agent.label}</ListingRow.Title>
-            <AgentPills agent={agent} />
-          </ListingRow.Name>
-          <ListingRow.Meta>
-            <span className="min-w-0 truncate">{agent.description}</span>
-          </ListingRow.Meta>
-        </ListingRow.Main>
-      </ListingRow.Link>
-      <ListingRow.Trail className="gap-2">
-        {agent.kind === "persistent" ? (
-          <>
-            {places.length > 0 ? (
-              places.map(place => <PlaceChip key={place.scope} {...place} />)
-            ) : (
-              <span className="text-eyebrow tracking-eyebrow text-subtle">Not running</span>
-            )}
-            <AddPlaceButton adding={adding} agent={agent} />
-          </>
-        ) : (
-          <>
-            <span className="text-eyebrow tracking-eyebrow text-subtle">
-              {scopeSummary(agent.scopes)}
-            </span>
-            <AgentFleetNewSessionButton agentName={agent.label} onNewSession={() => undefined} />
-          </>
-        )}
-      </ListingRow.Trail>
-    </ListingRow>
-  );
-}
-
-function Group({
-  label,
-  count,
-  agents,
-  view,
-  adding,
-}: {
-  label: string;
-  count: number;
-  agents: readonly ListedAgent[];
-  view: ListingViewMode;
-  adding?: AddScopeState;
-}) {
-  if (agents.length === 0) return null;
-  return (
-    <ListGroup count={count} label={label}>
-      {view === "cards" ? (
-        <div className={cn(FLEET_CARDS_CLASS, "pt-2.5")}>
-          {agents.map(agent => (
-            <Fragment key={`${agent.name}-${agent.origin ?? ""}`}>
-              <AgentCard adding={adding} agent={agent} />
-            </Fragment>
-          ))}
-        </div>
-      ) : (
-        <div className={cn(FLEET_ROWS_CLASS, "mt-2.5")}>
-          {agents.map(agent => (
-            <Fragment key={`${agent.name}-${agent.origin ?? ""}`}>
-              <AgentRow adding={adding} agent={agent} />
-            </Fragment>
-          ))}
-        </div>
-      )}
-    </ListGroup>
-  );
-}
+const FIELDS = buildTeamFilterFields(PROJECTS);
+const FILTER_ID = () => `team-filter-${Math.random().toString(36).slice(2, 8)}`;
 
 export interface AgentsPageProps {
   persistent: readonly ListedAgent[];
   ephemeral: readonly ListedAgent[];
-  counts?: { persistent: number; ephemeral: number };
   initialView?: ListingViewMode;
   query?: string;
-  footer?: ReactNode;
+  /** Filter chips already on, for review. */
+  chips?: readonly Omit<Filter<string>, "id">[];
   overlay?: ReactNode;
   onCreate?: () => void;
   /** Holds one persistent card's `+` picker open for review. */
   adding?: AddScopeState;
 }
 
-/** The Agents window with its head, toolbar and sections. */
+/** The Agents window: a team to meet first, a catalog to search second. */
 export function AgentsPage({
   persistent,
   ephemeral,
-  counts,
   initialView = "cards",
   query = "",
-  footer,
+  chips: initialChips = [],
   overlay,
   onCreate,
   adding,
 }: AgentsPageProps) {
   const [view, setView] = useState<ListingViewMode>(initialView);
   const [draft, setDraft] = useState(query);
-  const total = counts
-    ? counts.persistent + counts.ephemeral
-    : persistent.length + ephemeral.length;
-  const empty = persistent.length === 0 && ephemeral.length === 0;
+  const [focus, setFocus] = useState<TeamFocus>("all");
+  const [chips, setChips] = useState<Filter<string>[]>(() =>
+    initialChips.map(chip => ({ ...chip, id: FILTER_ID() }))
+  );
+  const everyone = [...persistent, ...ephemeral];
+  const shown = (agents: readonly ListedAgent[]) =>
+    agents.filter(agent => matchesFocus(agent, focus) && matchesFilters(agent, draft, chips));
+  const stayOn = [...shown(persistent)].sort(byAttention);
+  const onDemand = shown(ephemeral);
+  const clear = () => {
+    setDraft("");
+    setChips([]);
+    setFocus("all");
+  };
+  const focusItems = FOCUS.flatMap(item => {
+    const count = everyone.filter(agent => matchesFocus(agent, item.value)).length;
+    if (item.value === "all") return [item];
+    return count > 0 ? [{ ...item, badge: count }] : [];
+  });
+  const create = onCreate ?? (() => window.location.assign(protoHref("agent-create")));
   const topbar: TopbarSlotValue = {
-    count: total,
+    count: everyone.length,
     actions: (
-      <Button onClick={onCreate} size="sm" type="button" variant="secondary">
+      <Button onClick={create} size="sm" type="button" variant="secondary">
         <Plus aria-hidden="true" />
         New agent
       </Button>
@@ -304,21 +128,41 @@ export function AgentsPage({
             placeholder="Search agents"
             value={draft}
           />
+          <ListingToolbar.Filters>
+            <FiltersWithSearch<string>
+              allowMultiple={false}
+              fields={FIELDS}
+              filters={chips}
+              onChange={setChips}
+              size="sm"
+              trigger={
+                <Button aria-label="Add filter" size="sm" type="button" variant="quiet">
+                  <ListFilter aria-hidden="true" />
+                  Filter
+                </Button>
+              }
+            />
+          </ListingToolbar.Filters>
         </ListingToolbar.Leading>
         <ListingToolbar.Trailing>
+          {focusItems.length > 1 ? (
+            <PillGroup items={focusItems} onChange={setFocus} size="sm" value={focus} />
+          ) : null}
           <ListingToolbar.ViewToggle onChange={setView} value={view} />
         </ListingToolbar.Trailing>
       </ListingToolbar>
     ),
   };
+  const nothing = stayOn.length === 0 && onDemand.length === 0;
+  const unfiltered = draft === "" && chips.length === 0 && focus === "all";
   return (
     <DraftShell app="agents" glyph={<Users2 />} overlay={overlay} title="Agents" topbar={topbar}>
       <ListingPage>
-        {empty ? (
+        {nothing ? (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
             <Empty
               action={
-                <Button size="sm" type="button" variant="ghost">
+                <Button onClick={clear} size="sm" type="button" variant="ghost">
                   Clear filters
                 </Button>
               }
@@ -328,21 +172,27 @@ export function AgentsPage({
             />
           </div>
         ) : (
-          <div className={cn("flex flex-col gap-6")}>
-            <Group
-              adding={adding}
-              agents={persistent}
-              count={counts?.persistent ?? persistent.length}
-              label="Persistent"
-              view={view}
-            />
-            <Group
-              agents={ephemeral}
-              count={counts?.ephemeral ?? ephemeral.length}
-              label="Ephemeral"
-              view={view}
-            />
-            {footer}
+          <div className="flex flex-col gap-8">
+            {stayOn.length > 0 ? (
+              <TeamSection
+                adding={adding}
+                agents={stayOn}
+                hint="Persistent agents. They stay in their projects and check in by themselves."
+                label="Stay on"
+                view={view}
+              />
+            ) : unfiltered ? (
+              <StayOnWelcome onCreate={create} />
+            ) : null}
+            {onDemand.length > 0 ? (
+              <TeamSection
+                agents={onDemand}
+                hint="Ephemeral agents. They start when you ask and finish with the job."
+                label="On demand"
+                pageSize={12}
+                view={view}
+              />
+            ) : null}
           </div>
         )}
       </ListingPage>

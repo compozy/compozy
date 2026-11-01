@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 
-import { parseTerminalQuote, type TerminalQuote } from "@/systems/terminal/parts";
+import { parseTerminalQuote, type TerminalQuote } from "@/systems/terminal/lib/terminal-quote";
 
 import { peekSessionTerminalQuote } from "./session-terminal-quote";
 

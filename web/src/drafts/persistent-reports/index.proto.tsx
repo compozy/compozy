@@ -1,6 +1,6 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { GENERAL } from "../persistent-agents-shared/fixtures";
+import { GENERAL, TRIAGE } from "../persistent-agents-shared/fixtures";
 import { SessionsWindow } from "../persistent-agents-shared/session-frame";
 import {
   AgentTurn,
@@ -10,14 +10,16 @@ import {
 } from "../persistent-agents-shared/transcript";
 import { AgentAvatar } from "../persistent-agents-shared/agent-avatar";
 import {
-  AuditScreen,
   DeletedAgentMarker,
   MentionComposer,
   OldNotification,
   UnresolvedComposer,
 } from "./identity-views";
+import { ActivityPage } from "./activity-page";
+import { AwayDigest } from "./away-digest";
 import {
   ApprovalDock,
+  ApprovalsWaiting,
   ExpiredApproval,
   FailureReport,
   InterruptedReport,
@@ -25,9 +27,11 @@ import {
   Proposal,
   ProviderEnded,
   RotatedMarker,
-  RotationReport,
+  RotationDeferredMarker,
+  RotationFailedReport,
   SupersededNotice,
 } from "./session-views";
+import { ShoulderTap } from "./report-entry";
 import { RAIL } from "./report-rail";
 
 export const meta = definePrototype({
@@ -36,13 +40,18 @@ export const meta = definePrototype({
   surface: "S11 S12 S13 S14",
   route: "/sessions/sess-81f2a04c1d7e9b30",
   states: [
+    { id: "conversation", label: "S11 · An ordinary day" },
     { id: "proposal", label: "S11 · Proposal" },
+    { id: "proposal-one", label: "S11 · Proposal, after you pick" },
+    { id: "away", label: "S11 · A lot happened while you were away" },
     { id: "failure", label: "S11 · Failure report" },
     { id: "approval", label: "S11 · Relayed child approval" },
     { id: "expired-approval", label: "S11 · Expired approval" },
     { id: "provider-ended", label: "S11 · Provider-ended approval" },
     { id: "interrupted", label: "S11 · Interrupted run" },
     { id: "rotation", label: "S11 · After rotation" },
+    { id: "rotation-failed", label: "S11 · Rotation failed" },
+    { id: "rotation-deferred", label: "S11 · Rotation waiting" },
     { id: "superseded", label: "S11 · Superseded, read-only" },
     { id: "maybe-not-received", label: "S11 · May not have been received" },
     { id: "deleted-agent", label: "S12 · Deleted agent" },
@@ -50,7 +59,9 @@ export const meta = definePrototype({
     { id: "mention-menu", label: "S13 · Agent mention" },
     { id: "mention-unresolved", label: "S13 · Unresolved chip" },
     { id: "audit", label: "S14 · Nobody watching" },
+    { id: "audit-all", label: "S14 · Everything" },
     { id: "audit-unknown", label: "S14 · Unknown initiator" },
+    { id: "audit-empty", label: "S14 · Nothing ran on its own" },
   ],
 });
 
@@ -88,6 +99,27 @@ function DeletedAgentSession({ notify = false }: { notify?: boolean }) {
 
 export default function PersistentReportsDraft({ state }: PrototypeProps) {
   switch (state) {
+    case "conversation":
+      return <MainSession state="working" />;
+    case "proposal-one":
+      return (
+        <MainSession sent="Unblock the token migration">
+          <ShoulderTap
+            agent={TRIAGE}
+            ask=""
+            choices={[]}
+            chosen="Unblock the token migration"
+            when="23:30"
+          />
+        </MainSession>
+      );
+    case "away":
+      return (
+        <MainSession pending={1} state="needs-you">
+          <AwayDigest />
+          <Proposal when="08:02" />
+        </MainSession>
+      );
     case "failure":
       return (
         <MainSession state="failed">
@@ -95,7 +127,11 @@ export default function PersistentReportsDraft({ state }: PrototypeProps) {
         </MainSession>
       );
     case "approval":
-      return <MainSession above={<ApprovalDock />} state="needs-you" />;
+      return (
+        <MainSession above={<ApprovalDock />} pending={2} state="needs-you">
+          <ApprovalsWaiting />
+        </MainSession>
+      );
     case "expired-approval":
       return (
         <MainSession>
@@ -115,18 +151,25 @@ export default function PersistentReportsDraft({ state }: PrototypeProps) {
         </MainSession>
       );
     case "rotation":
+      return <MainSession history={<RotatedMarker />} />;
+    case "rotation-failed":
       return (
         <MainSession>
-          <RotationReport />
-          <RotatedMarker />
+          <RotationFailedReport />
+        </MainSession>
+      );
+    case "rotation-deferred":
+      return (
+        <MainSession>
+          <RotationDeferredMarker />
         </MainSession>
       );
     case "superseded":
       return <MainSession readOnly={<SupersededNotice />} />;
     case "maybe-not-received":
       return (
-        <MainSession>
-          <Proposal footnote="This report may not have been received." />
+        <MainSession state="needs-you">
+          <Proposal footnote="This may not have reached Triage Lead. If you picked one earlier, check its reply first." />
         </MainSession>
       );
     case "deleted-agent":
@@ -138,9 +181,13 @@ export default function PersistentReportsDraft({ state }: PrototypeProps) {
     case "mention-unresolved":
       return <MainSession composer={<UnresolvedComposer />} />;
     case "audit":
-      return <AuditScreen initial="unattended" />;
+      return <ActivityPage initial="unattended" />;
+    case "audit-all":
+      return <ActivityPage initial="all" />;
     case "audit-unknown":
-      return <AuditScreen initial="all" legacy />;
+      return <ActivityPage initial="all" legacy />;
+    case "audit-empty":
+      return <ActivityPage empty initial="unattended" />;
     default:
       return (
         <MainSession state="needs-you">

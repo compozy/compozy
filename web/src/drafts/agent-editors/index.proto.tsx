@@ -1,10 +1,9 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { AgentAppPage, SaveActions } from "../persistent-agents-shared/agent-page";
 import { SCOUT, TRIAGE } from "../persistent-agents-shared/fixtures";
-import { HeartbeatEditor, type HeartbeatState } from "./heartbeat-editor";
-import { MemoryEditor, type MemoryState } from "./memory-editor";
-import { PersonaEditor, type PersonaState } from "./persona-editor";
+import { CheckInsEditor, type CheckInsVariant } from "./checkins-editor";
+import { MemoryEditor, type MemoryVariant } from "./memory-editor";
+import { WhatItDoesEditor, type WhatItDoesVariant } from "./what-it-does-editor";
 
 export const meta = definePrototype({
   title: "Agent editors",
@@ -12,66 +11,51 @@ export const meta = definePrototype({
   surface: "S6 S7 S9",
   route: "/agents/triage",
   states: [
-    { id: "persona", label: "S6 · Form" },
-    { id: "persona-advanced", label: "S6 · Advanced" },
-    { id: "persona-conflict", label: "S6 · Use theirs or Keep mine" },
-    { id: "persona-inexpressible", label: "S6 · Content the form can't express" },
-    { id: "persona-invalid", label: "S6 · Invalid raw content" },
-    { id: "heartbeat", label: "S7 · Heartbeat" },
-    { id: "heartbeat-paused", label: "S7 · Paused" },
-    { id: "heartbeat-fatigue", label: "S7 · Fatigue" },
-    { id: "heartbeat-backoff", label: "S7 · Backoff active" },
-    { id: "heartbeat-no-instances", label: "S7 · No instances" },
-    { id: "heartbeat-floor", label: "S7 · Floor reached" },
-    { id: "heartbeat-test-dry", label: "S7 · Test, dry run" },
-    { id: "heartbeat-test-running", label: "S7 · Test, running" },
-    { id: "heartbeat-advanced", label: "S7 · Advanced" },
-    { id: "memory", label: "S9 · Notes" },
-    { id: "memory-empty", label: "S9 · Empty" },
-    { id: "memory-near-budget", label: "S9 · Near budget" },
-    { id: "memory-full", label: "S9 · Full of undated notes" },
-    { id: "memory-archive", label: "S9 · Archive present" },
-    { id: "memory-conflict", label: "S9 · Conflict" },
-    { id: "memory-expired", label: "S9 · Expired notes" },
-    { id: "memory-advanced", label: "S9 · Advanced" },
+    { id: "what", label: "What it does · Filled" },
+    { id: "what-empty", label: "What it does · Empty" },
+    { id: "what-unsaved", label: "What it does · Unsaved changes" },
+    { id: "what-conflict", label: "What it does · Agent changed it" },
+    { id: "what-advanced", label: "What it does · Advanced" },
+    { id: "what-advanced-only", label: "What it does · File the editor can't show" },
+    { id: "what-invalid", label: "What it does · File has a mistake" },
+    { id: "checkins", label: "Check-ins · On" },
+    { id: "checkins-empty", label: "Check-ins · Never turned on" },
+    { id: "checkins-too-often", label: "Check-ins · Too often" },
+    { id: "checkins-unsaved", label: "Check-ins · Unsaved changes" },
+    { id: "checkins-conflict", label: "Check-ins · Agent changed it" },
+    { id: "checkins-try-running", label: "Check-ins · Trying" },
+    { id: "checkins-try-result", label: "Check-ins · Try result" },
+    { id: "checkins-paused", label: "Check-ins · Paused by you" },
+    { id: "checkins-failed", label: "Check-ins · Stopped after failures" },
+    { id: "checkins-slowed", label: "Check-ins · Slowed down" },
+    { id: "checkins-nowhere", label: "Check-ins · Nowhere to work" },
+    { id: "checkins-advanced", label: "Check-ins · Advanced" },
+    { id: "memory", label: "Memory · Notes" },
+    { id: "memory-empty", label: "Memory · Empty" },
+    { id: "memory-adding", label: "Memory · Adding a note" },
+    { id: "memory-unsaved", label: "Memory · Unsaved changes" },
+    { id: "memory-conflict", label: "Memory · Agent changed it" },
+    { id: "memory-almost-full", label: "Memory · Almost full" },
+    { id: "memory-full", label: "Memory · Full" },
+    { id: "memory-expired", label: "Memory · Expired note" },
+    { id: "memory-advanced", label: "Memory · Advanced" },
   ],
 });
 
 export default function AgentEditorsDraft({ state }: PrototypeProps) {
-  if (state.startsWith("persona")) {
-    const variant = (state.split("-")[1] ?? "form") as PersonaState;
+  const [surface = "what", ...rest] = state.split("-");
+  const variant = rest.join("-") || "filled";
+  if (surface === "memory") {
+    return <MemoryEditor agent={TRIAGE} key={state} variant={variant as MemoryVariant} />;
+  }
+  if (surface === "checkins") {
     return (
-      <AgentAppPage
-        actions={<SaveActions unsaved={variant === "form" ? 0 : 2} />}
-        agent={TRIAGE}
-        leaf="Persona"
-      >
-        <PersonaEditor state={variant} />
-      </AgentAppPage>
+      <CheckInsEditor
+        agent={variant === "nowhere" ? SCOUT : TRIAGE}
+        key={state}
+        variant={variant as CheckInsVariant}
+      />
     );
   }
-  if (state.startsWith("memory")) {
-    const variant = (state.split("-").slice(1).join("-") || "notes") as MemoryState;
-    return (
-      <AgentAppPage
-        actions={<SaveActions unsaved={variant === "conflict" ? 1 : 0} />}
-        agent={TRIAGE}
-        leaf="Memory"
-        width="max-w-5xl"
-      >
-        <MemoryEditor state={variant} />
-      </AgentAppPage>
-    );
-  }
-  const variant = (state.split("-").slice(1).join("-") || "default") as HeartbeatState;
-  return (
-    <AgentAppPage
-      actions={<SaveActions unsaved={variant === "floor" ? 2 : 0} />}
-      agent={variant === "no-instances" ? SCOUT : TRIAGE}
-      leaf="Heartbeat"
-      width="max-w-5xl"
-    >
-      <HeartbeatEditor state={variant} />
-    </AgentAppPage>
-  );
+  return <WhatItDoesEditor agent={TRIAGE} key={state} variant={variant as WhatItDoesVariant} />;
 }

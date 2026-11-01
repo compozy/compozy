@@ -4,6 +4,9 @@ import { useState } from "react";
 
 import {
   Button,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   Field,
   FieldError,
   FieldLabel,
@@ -190,7 +193,7 @@ export function IdentityEditor({
             {invalid ? <FieldError>Display names can have up to 80 characters.</FieldError> : null}
           </Field>
           <Field data-invalid={invalid ? true : undefined}>
-            <FieldLabel htmlFor="identity-description">Description</FieldLabel>
+            <FieldLabel htmlFor="identity-description">What it does</FieldLabel>
             <Textarea
               aria-invalid={invalid ? true : undefined}
               defaultValue={description}
@@ -202,17 +205,28 @@ export function IdentityEditor({
           </Field>
         </div>
       </div>
-      <ImmutableIdentity
-        hint={
-          readOnly
-            ? `${agent.owner} owns this definition. Update the extension to change it.`
-            : "Duplicate this agent to choose another kind."
-        }
-        rows={[
-          { label: "Slug", value: agent.name, mono: true },
-          { label: "Kind", value: agent.kind === "persistent" ? "Persistent" : "Ephemeral" },
-        ]}
-      />
+      <Collapsible>
+        <CollapsibleTrigger className="text-small-body text-muted outline-none hover:text-fg focus-visible:shadow-focus-ring">
+          More details
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-3">
+          <ImmutableIdentity
+            hint={
+              readOnly
+                ? `${agent.owner} looks after this agent. Update it there to change this.`
+                : "Duplicate this agent to make a version that works the other way."
+            }
+            rows={[
+              { label: "Short name", value: agent.name, mono: true },
+              {
+                label: "Works",
+                value:
+                  agent.kind === "persistent" ? "Persistent, stays on" : "Ephemeral, on demand",
+              },
+            ]}
+          />
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }

@@ -1,11 +1,12 @@
 /**
  * The draft app shell: the production `DesktopShell` grid (topbar across the top, rail, inset desk)
  * from the real shell pieces that render from props, around one zoomed window. The wired pieces
- * reach the daemon, so these are faithful stand-ins: `DraftDeck` for `OsWindowDeck`, the rail foot
- * for `OsRailFoot`, and the plain menu row for `DesktopMenubar`'s owned menus.
+ * reach the daemon, so the frame around the real parts is local: `DraftDeck` lays out real
+ * `OsWindowTabView` plates the way `OsWindowDeck` does, `DraftRailFoot` stands in for `OsRailFoot`,
+ * and the plain menu row stands in for `DesktopMenubar`'s owned menus.
  */
 import { Settings } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Icon, Kbd, Pill, ThemeToggle, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
@@ -15,6 +16,11 @@ import { OsDock, OsRailButton } from "@/systems/os/components/os-dock";
 import { OsMenuBar } from "@/systems/os/components/os-menubar";
 import { OsTrafficLights } from "@/systems/os/components/os-traffic-lights";
 import { OsWindowChrome, OsWindowSurface } from "@/systems/os/components/os-window-frame";
+import {
+  OS_WINDOW_DECK_SLOT_CLASS,
+  OS_WINDOW_DECK_STRIP_CLASS,
+} from "@/systems/os/components/os-window-deck-classes";
+import { OsWindowTabView } from "@/systems/os/components/os-window-tab-view";
 import type { OsDockItemData } from "@/systems/os/lib/os-dock-model";
 import { applyTheme } from "@/systems/theme/lib/apply-theme";
 
@@ -71,38 +77,35 @@ export interface DraftTab {
   id: string;
   title: ReactNode;
   glyph?: ReactNode;
+  /** Decisions waiting in that session; the tab counts them. */
+  pending?: number;
 }
 
-/** Stand-in for `OsWindowDeck`, which reads the window manager: same strip, plates and feet. */
+/** `OsWindowDeck` without the window manager: real tabs in the deck's own strip and slots. */
 function DraftDeck({ tabs, activeId }: { tabs: readonly DraftTab[]; activeId: string }) {
   return (
-    <div
-      className="flex h-deck shrink-0 items-end bg-sunken pr-1 shadow-[inset_0_-1px_0_var(--color-line)] select-none"
-      data-slot="os-window-deck"
-    >
+    <div className={OS_WINDOW_DECK_STRIP_CLASS} data-slot="os-window-deck">
       <div
         aria-label="Open tabs"
         className="no-scrollbar flex h-full min-w-0 flex-1 items-end overflow-x-auto px-2.5"
         role="tablist"
       >
         {tabs.map(tab => (
-          <Fragment key={tab.id}>
-            <div className="relative flex w-deck-tab-max min-w-deck-tab">
-              <span
-                aria-selected={tab.id === activeId}
-                className={cn(
-                  "relative inline-flex h-deck-tab min-w-0 flex-1 items-center gap-2 rounded-t-deck-tab pr-1.75 pl-3 text-body font-medium",
-                  tab.id === activeId
-                    ? "z-1 bg-canvas text-fg shadow-[inset_1px_0_0_var(--color-line),inset_-1px_0_0_var(--color-line),inset_0_1px_0_var(--color-line)]"
-                    : "text-muted"
-                )}
-                role="tab"
-              >
-                {tab.glyph}
-                <span className="min-w-0 truncate">{tab.title}</span>
-              </span>
-            </div>
-          </Fragment>
+          <div
+            className={cn(OS_WINDOW_DECK_SLOT_CLASS, "w-deck-tab-max min-w-deck-tab")}
+            data-active={tab.id === activeId ? "" : undefined}
+            data-deck-slot=""
+            key={tab.id}
+          >
+            <OsWindowTabView
+              active={tab.id === activeId}
+              glyph={tab.glyph}
+              label={tab.title}
+              pendingCount={tab.pending}
+              title={tab.title}
+              windowId={tab.id}
+            />
+          </div>
         ))}
       </div>
       <div className="flex h-full shrink-0 items-center pl-2">

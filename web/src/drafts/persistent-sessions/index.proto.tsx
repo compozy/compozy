@@ -8,10 +8,12 @@ import {
 import {
   ADVOS_ROW,
   COMPOZY_ROW,
+  CREW,
   CROWDED,
   EACH_STATE,
   GLOBAL_ROW,
   RELOADDEV_ROW,
+  TWO_NEED_YOU,
 } from "../persistent-agents-shared/sessions-fixtures";
 import {
   AgentTurn,
@@ -21,6 +23,7 @@ import {
 } from "../persistent-agents-shared/transcript";
 import { INSTANCES, RELEASE, SCOUT } from "../persistent-agents-shared/fixtures";
 import { KanbanWindow } from "./kanban";
+import { NeedsYouToast } from "./needs-you-toast";
 import { emptyColumns, liveColumns } from "./kanban-columns";
 
 export const meta = definePrototype({
@@ -30,6 +33,12 @@ export const meta = definePrototype({
   route: "/sessions",
   states: [
     { id: "sidebar-rows", label: "S10 · Global and project rows" },
+    { id: "sidebar-hover", label: "S10 · Hover card, working" },
+    { id: "sidebar-hover-needs", label: "S10 · Hover card, failed" },
+    { id: "sidebar-crew", label: "S10 · Twelve agents in one project" },
+    { id: "sidebar-crew-open", label: "S10 · The whole crew" },
+    { id: "sidebar-two-need-you", label: "S10 · Two agents need you" },
+    { id: "sidebar-toast", label: "S10 · Needs you arrives elsewhere" },
     { id: "sidebar-none", label: "S10 · No instances, no row" },
     { id: "sidebar-overflow", label: "S10 · Overflow +N" },
     { id: "sidebar-collapsed", label: "S10 · Collapsed project signal" },
@@ -46,6 +55,8 @@ export const meta = definePrototype({
     { id: "sidebar-flat", label: "S10 · Flat mode" },
     { id: "sidebar-spawned", label: "S10 · Spawned sessions, creator badge" },
     { id: "kanban-rows", label: "S15 · Global and project rows" },
+    { id: "kanban-crew", label: "S15 · Twelve agents in one project" },
+    { id: "kanban-hover", label: "S15 · Hover card" },
     { id: "kanban-none", label: "S15 · No instances" },
     { id: "kanban-overflow", label: "S15 · Overflow +N" },
     { id: "kanban-attention", label: "S15 · Needing attention" },
@@ -72,15 +83,40 @@ const PLAIN = [COMPOZY, RELOADDEV, ADVOS];
 
 const RAILS: Record<string, SessionRailProps> = {
   "sidebar-rows": { groups: PLAIN, top: GLOBAL_ROW },
+  "sidebar-hover": {
+    groups: [
+      { ...COMPOZY, rowProps: { cardFor: INSTANCES.orchestratorCompozy.id } },
+      RELOADDEV,
+      ADVOS,
+    ],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-hover-needs": {
+    groups: [{ ...COMPOZY, instances: CREW, rowProps: { cardFor: "c-release" } }, RELOADDEV],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-crew": { groups: [{ ...COMPOZY, instances: CREW }, RELOADDEV], top: GLOBAL_ROW },
+  "sidebar-crew-open": {
+    groups: [{ ...COMPOZY, instances: CREW, rowProps: { crewOpen: true } }, RELOADDEV],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-two-need-you": {
+    groups: [{ ...COMPOZY, instances: TWO_NEED_YOU }, RELOADDEV, ADVOS],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-toast": {
+    groups: [{ ...COMPOZY, currentRow: "s4" }, RELOADDEV, ADVOS],
+    top: GLOBAL_ROW,
+  },
   "sidebar-none": {
     groups: PLAIN.map(group => ({ ...group, instances: [] })),
   },
   "sidebar-overflow": {
-    groups: [{ ...COMPOZY, instances: CROWDED, rowProps: { limit: 7 } }, RELOADDEV],
+    groups: [{ ...COMPOZY, instances: CROWDED, rowProps: { limit: 5 } }, RELOADDEV],
     top: GLOBAL_ROW,
   },
   "sidebar-collapsed": {
-    groups: [{ ...COMPOZY, collapsed: true, signal: true }, RELOADDEV, ADVOS],
+    groups: [{ ...COMPOZY, collapsed: true }, RELOADDEV, ADVOS],
     top: GLOBAL_ROW,
   },
   "sidebar-states": {
@@ -88,12 +124,16 @@ const RAILS: Record<string, SessionRailProps> = {
     top: GLOBAL_ROW,
   },
   "sidebar-focus": {
-    groups: [{ ...COMPOZY, rowProps: { focusedId: INSTANCES.triageCompozy.id } }, RELOADDEV, ADVOS],
+    groups: [
+      { ...COMPOZY, rowProps: { focusedId: INSTANCES.orchestratorCompozy.id } },
+      RELOADDEV,
+      ADVOS,
+    ],
     top: GLOBAL_ROW,
   },
   "sidebar-menu": {
     groups: [
-      { ...COMPOZY, rowProps: { openMenuFor: INSTANCES.triageCompozy.id } },
+      { ...COMPOZY, rowProps: { openMenuFor: INSTANCES.orchestratorCompozy.id } },
       RELOADDEV,
       ADVOS,
     ],
@@ -166,7 +206,11 @@ export default function PersistentSessionsDraft({ state }: PrototypeProps) {
   const rail = RAILS[state];
   if (rail) {
     return (
-      <SessionsWindow rail={rail} title="Topbar PR chip — web slice">
+      <SessionsWindow
+        overlay={state === "sidebar-toast" ? <NeedsYouToast /> : undefined}
+        rail={rail}
+        title="Topbar PR chip — web slice"
+      >
         <SessionBody />
       </SessionsWindow>
     );
@@ -179,16 +223,36 @@ export default function PersistentSessionsDraft({ state }: PrototypeProps) {
     case "kanban-overflow":
       return (
         <KanbanWindow
-          lanes={[{ name: "compozy", count: 6, columns: live, instances: CROWDED, limit: 7 }]}
+          lanes={[{ name: "compozy", count: 6, columns: live, instances: CROWDED, limit: 5 }]}
+          top={GLOBAL_ROW}
+        />
+      );
+    case "kanban-crew":
+      return (
+        <KanbanWindow
+          lanes={[{ name: "compozy", count: 6, columns: live, instances: CREW }]}
+          top={GLOBAL_ROW}
+        />
+      );
+    case "kanban-hover":
+      return (
+        <KanbanWindow
+          lanes={[
+            {
+              name: "compozy",
+              count: 6,
+              columns: live,
+              instances: CREW,
+              rowProps: { cardFor: INSTANCES.orchestratorCompozy.id },
+            },
+          ]}
           top={GLOBAL_ROW}
         />
       );
     case "kanban-attention":
       return (
         <KanbanWindow
-          lanes={[
-            { name: "compozy", count: 6, columns: live, instances: COMPOZY_ROW, signal: true },
-          ]}
+          lanes={[{ name: "compozy", count: 6, columns: live, instances: COMPOZY_ROW }]}
           top={GLOBAL_ROW}
         />
       );

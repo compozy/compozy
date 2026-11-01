@@ -1,15 +1,14 @@
-import { Plus } from "lucide-react";
-
-import { Button } from "@compozy/ui";
-
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import type { ComponentProps } from "react";
 
-import { AgentAppPage, SaveActions } from "../persistent-agents-shared/agent-page";
-import { ScopePicker, type ScopePickerProps } from "../persistent-agents-shared/add-pickers";
-import { GENERAL, ORCHESTRATOR, TRIAGE } from "../persistent-agents-shared/fixtures";
-import { InvalidBanner, NewSessionAction, ProfileHub } from "./hub";
-import { IdentityEditor } from "./identity-editor";
-import { WhereItRuns, type PlaceRow } from "./where-it-runs";
+import type { ScopePickerProps } from "../persistent-agents-shared/add-pickers";
+import { AgentAppPage } from "../persistent-agents-shared/agent-page";
+import { TRIAGE } from "../persistent-agents-shared/fixtures";
+import type { IdentityEditor } from "./identity-editor";
+import { PROFILES, type ProfileId, type ProfilePlace } from "./profile-fixtures";
+import { ProfileHome } from "./profile-home";
+import type { ProfilePanel } from "./profile-setup";
+import { AddPlace, WhereItWorks } from "./where-it-works";
 
 export const meta = definePrototype({
   title: "Agent profile",
@@ -17,69 +16,46 @@ export const meta = definePrototype({
   surface: "S4 S5 S8",
   route: "/agents/triage",
   states: [
-    { id: "persistent", label: "S4 · Persistent" },
-    { id: "ephemeral", label: "S4 · Ephemeral" },
-    { id: "extension", label: "S4 · Extension-owned, read-only" },
-    { id: "invalid", label: "S4 · Invalid definition" },
-    { id: "deep-link", label: "S4 · Old section link opens its editor" },
-    { id: "identity", label: "S5 · Identity" },
-    { id: "identity-avatar", label: "S5 · Avatar popover, Generated" },
-    { id: "identity-avatar-color", label: "S5 · Generated, color picked" },
-    { id: "identity-symbol", label: "S5 · Avatar popover, Icon or emoji" },
-    { id: "identity-invalid", label: "S5 · Invalid values" },
-    { id: "identity-extension", label: "S5 · Read-only extension agent" },
-    { id: "where-active", label: "S8 · Scopes" },
-    { id: "where-add-scope", label: "S16 · Add picks a scope" },
-    { id: "where-add-none", label: "S16 · No scope left" },
-    { id: "where-add-cap", label: "S16 · Cap reached" },
-    { id: "where-add-auth", label: "S16 · Provider not authenticated" },
-    { id: "where-empty", label: "S8 · Empty" },
-    { id: "where-cap", label: "S8 · Cap reached" },
-    { id: "where-manual", label: "S8 · Paused by you" },
-    { id: "where-fatigue", label: "S8 · Paused after failures" },
-    { id: "where-not-persistent", label: "S8 · No longer persistent" },
-    { id: "where-missing", label: "S8 · Definition gone" },
+    { id: "persistent", label: "Stay-on, working" },
+    { id: "needs-you", label: "Needs you" },
+    { id: "paused", label: "Paused by you" },
+    { id: "paused-failures", label: "Paused after failures" },
+    { id: "cant-resume", label: "Can't resume" },
+    { id: "no-longer-stay-on", label: "Can't resume, now on demand" },
+    { id: "ephemeral", label: "On demand" },
+    { id: "extension", label: "From an extension" },
+    { id: "no-activity", label: "No activity yet" },
+    { id: "invalid", label: "Can't start" },
+    { id: "many-places", label: "Working in 50 projects" },
+    { id: "deep-link", label: "Old link opens its panel" },
+    { id: "identity", label: "Panel · Name and look" },
+    { id: "identity-avatar", label: "Panel · Picture, Generated" },
+    { id: "identity-avatar-color", label: "Panel · Generated, color picked" },
+    { id: "identity-symbol", label: "Panel · Icon or emoji" },
+    { id: "identity-invalid", label: "Panel · Too long" },
+    { id: "identity-extension", label: "Panel · Read-only" },
+    { id: "where-active", label: "Where it works" },
+    { id: "where-many", label: "Where it works, 50 projects" },
+    { id: "where-add-scope", label: "S16 · Add picks a project" },
+    { id: "where-add-none", label: "S16 · Nowhere left to add" },
+    { id: "where-add-cap", label: "S16 · At the limit" },
+    { id: "where-add-auth", label: "S16 · Not signed in" },
+    { id: "where-empty", label: "Where it works, empty" },
+    { id: "where-cap", label: "Where it works, at the limit" },
   ],
 });
 
-const COMPOZY: PlaceRow = {
-  scope: "compozy",
-  state: "working",
-  last: "12m ago",
-  next: "in 18m",
-  session: "Today, 4 reports",
-};
-const ADVOS: PlaceRow = {
-  scope: "advos",
-  state: "idle",
-  last: "31m ago",
-  next: "in 29m",
-  session: "Yesterday",
-};
-const GLOBAL: PlaceRow = {
-  scope: "@user",
-  state: "idle",
-  last: "2h ago",
-  next: "in 1h",
-  session: "Tuesday",
-};
+const ACTIVE = PROFILES.persistent.places;
 
-function paused(reason: PlaceRow["pauseReason"]): PlaceRow {
-  return { ...COMPOZY, state: "paused", pauseReason: reason, next: undefined, last: "2h ago" };
-}
-
-const WHERE: Record<string, { places: readonly PlaceRow[]; capped?: boolean }> = {
-  "where-active": { places: [COMPOZY, ADVOS, GLOBAL] },
-  "where-add-scope": { places: [COMPOZY, ADVOS] },
-  "where-add-none": { places: [COMPOZY, ADVOS, GLOBAL] },
-  "where-add-cap": { places: [COMPOZY, ADVOS] },
-  "where-add-auth": { places: [COMPOZY, ADVOS] },
+const WHERE: Record<string, { places: readonly ProfilePlace[]; capped?: boolean }> = {
+  "where-active": { places: ACTIVE },
+  "where-many": { places: PROFILES["many-places"].places },
+  "where-add-scope": { places: ACTIVE },
+  "where-add-none": { places: ACTIVE },
+  "where-add-cap": { places: ACTIVE },
+  "where-add-auth": { places: ACTIVE },
   "where-empty": { places: [] },
-  "where-cap": { places: [paused("manual"), ADVOS], capped: true },
-  "where-manual": { places: [paused("manual"), ADVOS] },
-  "where-fatigue": { places: [paused("fatigue"), ADVOS] },
-  "where-not-persistent": { places: [paused("definition_not_persistent")] },
-  "where-missing": { places: [paused("definition_missing")] },
+  "where-cap": { places: PROFILES["paused-failures"].places, capped: true },
 };
 
 const ADD_MODE: Record<string, ScopePickerProps["mode"]> = {
@@ -89,94 +65,50 @@ const ADD_MODE: Record<string, ScopePickerProps["mode"]> = {
   "where-add-auth": "auth",
 };
 
-function AddAction({ state }: { state: string }) {
-  const mode = ADD_MODE[state];
-  return (
-    <ScopePicker
-      defaultOpen={mode !== undefined}
-      mode={mode ?? "scopes"}
-      provider="Claude"
-      scopes={mode === "none" ? [] : ["reloaddev", "@user"]}
-      trigger={
-        <Button size="sm" type="button" variant="secondary">
-          <Plus aria-hidden="true" />
-          Add to a workspace
-        </Button>
-      }
-    />
-  );
-}
+type Identity = Partial<ComponentProps<typeof IdentityEditor>>;
+
+const PANELS: Record<string, { panel: ProfilePanel; identity?: Identity; on?: ProfileId }> = {
+  "deep-link": { panel: "model" },
+  identity: { panel: "identity" },
+  "identity-avatar": { panel: "identity", identity: { popover: "generated" } },
+  "identity-avatar-color": {
+    panel: "identity",
+    identity: { popover: "generated", popoverColor: "#4cb782" },
+  },
+  "identity-symbol": { panel: "identity", identity: { popover: "symbol" } },
+  "identity-invalid": { panel: "identity", identity: { invalid: true } },
+  "identity-extension": { panel: "identity", on: "extension" },
+};
 
 export default function AgentProfileDraft({ state }: PrototypeProps) {
   const where = WHERE[state];
   if (where) {
+    const mode = ADD_MODE[state];
     return (
-      <AgentAppPage actions={<AddAction state={state} />} agent={TRIAGE} leaf="Where it runs">
-        <WhereItRuns agent={TRIAGE} {...where} />
+      <AgentAppPage
+        actions={<AddPlace mode={mode} open={mode !== undefined} places={where.places} primary />}
+        agent={TRIAGE}
+        leaf="Where it works"
+        width="max-w-5xl"
+      >
+        <WhereItWorks {...where} />
       </AgentAppPage>
     );
   }
-  switch (state) {
-    case "ephemeral":
-      return (
-        <AgentAppPage actions={<NewSessionAction />} agent={GENERAL}>
-          <ProfileHub agent={GENERAL} />
-        </AgentAppPage>
-      );
-    case "extension":
-      return (
-        <AgentAppPage actions={<NewSessionAction />} agent={ORCHESTRATOR}>
-          <ProfileHub agent={ORCHESTRATOR} readOnly />
-        </AgentAppPage>
-      );
-    case "invalid":
-      return (
-        <AgentAppPage actions={<NewSessionAction />} agent={TRIAGE}>
-          <ProfileHub agent={TRIAGE} invalid={<InvalidBanner />} />
-        </AgentAppPage>
-      );
-    case "deep-link":
-    case "identity":
-      return (
-        <AgentAppPage actions={<SaveActions unsaved={0} />} agent={TRIAGE} leaf="Identity">
-          <IdentityEditor agent={TRIAGE} />
-        </AgentAppPage>
-      );
-    case "identity-avatar":
-      return (
-        <AgentAppPage actions={<SaveActions unsaved={1} />} agent={TRIAGE} leaf="Identity">
-          <IdentityEditor agent={TRIAGE} popover="generated" />
-        </AgentAppPage>
-      );
-    case "identity-avatar-color":
-      return (
-        <AgentAppPage actions={<SaveActions unsaved={1} />} agent={TRIAGE} leaf="Identity">
-          <IdentityEditor agent={TRIAGE} popover="generated" popoverColor="#4cb782" />
-        </AgentAppPage>
-      );
-    case "identity-symbol":
-      return (
-        <AgentAppPage actions={<SaveActions unsaved={1} />} agent={TRIAGE} leaf="Identity">
-          <IdentityEditor agent={TRIAGE} popover="symbol" />
-        </AgentAppPage>
-      );
-    case "identity-invalid":
-      return (
-        <AgentAppPage actions={<SaveActions unsaved={2} />} agent={TRIAGE} leaf="Identity">
-          <IdentityEditor agent={TRIAGE} invalid />
-        </AgentAppPage>
-      );
-    case "identity-extension":
-      return (
-        <AgentAppPage agent={ORCHESTRATOR} hubState="extension" leaf="Identity">
-          <IdentityEditor agent={ORCHESTRATOR} readOnly />
-        </AgentAppPage>
-      );
-    default:
-      return (
-        <AgentAppPage actions={<NewSessionAction />} agent={TRIAGE}>
-          <ProfileHub agent={TRIAGE} />
-        </AgentAppPage>
-      );
-  }
+  const opened = PANELS[state];
+  const id: ProfileId = opened
+    ? (opened.on ?? "persistent")
+    : ((state in PROFILES ? state : "persistent") as ProfileId);
+  const data = PROFILES[id];
+  return (
+    <AgentAppPage agent={data.agent} width="max-w-6xl">
+      <ProfileHome
+        data={data}
+        identity={opened?.identity}
+        invalid={id === "invalid"}
+        key={state}
+        panel={opened?.panel ?? null}
+      />
+    </AgentAppPage>
+  );
 }
