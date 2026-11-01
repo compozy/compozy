@@ -2,10 +2,11 @@ package core
 
 import (
 	"context"
+	"testing"
+
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/workspaceaccess"
-	"testing"
 )
 
 type memorySessionSearchStub struct {
@@ -13,7 +14,11 @@ type memorySessionSearchStub struct {
 	read []string
 }
 
-func (s *memorySessionSearchStub) TranscriptSearch(_ context.Context, id string, _ transcript.SearchQuery) (transcript.SearchResult, error) {
+func (s *memorySessionSearchStub) TranscriptSearch(
+	_ context.Context,
+	id string,
+	_ transcript.SearchQuery,
+) (transcript.SearchResult, error) {
 	s.read = append(s.read, id)
 	return transcript.SearchResult{Matches: []transcript.SearchMatch{{Snippet: "preview"}}}, nil
 }
@@ -39,11 +44,24 @@ func TestAgentMemorySessionSearch(t *testing.T) {
 				t.Fatalf("invalid scope: %+v", q)
 			}
 			if q.Cursor == "" {
-				return session.ListPage{Sessions: []*session.Info{{ID: "denied", WorkspaceID: "denied", ProfileID: "profile"}}, HasMore: true, NextCursor: "next"}, nil
+				return session.ListPage{
+					Sessions:   []*session.Info{{ID: "denied", WorkspaceID: "denied", ProfileID: "profile"}},
+					HasMore:    true,
+					NextCursor: "next",
+				}, nil
 			}
-			return session.ListPage{Sessions: []*session.Info{{ID: "allowed", WorkspaceID: "allowed", ProfileID: "profile"}}}, nil
+			return session.ListPage{
+				Sessions: []*session.Info{{ID: "allowed", WorkspaceID: "allowed", ProfileID: "profile"}},
+			}, nil
 		}
-		results, err := SearchAgentMemorySessions(t.Context(), s, memorySearchPolicy{}, workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller"}, "profile", "preview")
+		results, err := SearchAgentMemorySessions(
+			t.Context(),
+			s,
+			memorySearchPolicy{},
+			workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller"},
+			"profile",
+			"preview",
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

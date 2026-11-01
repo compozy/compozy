@@ -919,12 +919,27 @@ func TestInstanceReportPublication(t *testing.T) {
 		main := createSession(t, h.harness)
 		next := createSession(t, h.harness)
 		repo := h.db.Instances()
-		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: h.workspaceID, PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+		instance, err := repo.Adopt(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         main.AgentName,
+				WorkspaceID:       h.workspaceID,
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			},
+			main.ID,
+			10,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		reports := h.db.InstanceReports()
-		input := agentinstance.ReportInput{SourceKey: "occ:before-rotation", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"triage outcome"}`)}
+		input := agentinstance.ReportInput{
+			SourceKey: "occ:before-rotation",
+			Kind:      "failure",
+			Payload:   []byte(`{"reason":"failed","detail":"triage outcome"}`),
+		}
 		first, err := reports.AppendReport(t.Context(), instance.ID, input)
 		if err != nil {
 			t.Fatal(err)
@@ -933,7 +948,15 @@ func TestInstanceReportPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := repo.PublishRotation(t.Context(), agentinstance.RotationPublication{InstanceID: instance.ID, PredecessorID: main.ID, SuccessorID: next.ID, AdmissionCount: count}); err != nil {
+		if err := repo.PublishRotation(
+			t.Context(),
+			agentinstance.RotationPublication{
+				InstanceID:     instance.ID,
+				PredecessorID:  main.ID,
+				SuccessorID:    next.ID,
+				AdmissionCount: count,
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		input.SourceKey = "occ:late-triage"
@@ -1027,12 +1050,21 @@ func TestInstanceReportPublication(t *testing.T) {
 		h := newHarness(t)
 		h.manager.attentionWorkspaceMutes = notifyMuteReader{}
 		active := createSession(t, h)
-		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer cancel()
-		report := InstanceReportEvent{ID: "arpt-fatigue", InstanceID: "ainst-fatigue", Kind: "failure", Payload: []byte(`{"reason":"fatigue","detail":"Checks paused"}`), CreatedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+		report := InstanceReportEvent{
+			ID:         "arpt-fatigue",
+			InstanceID: "ainst-fatigue",
+			Kind:       "failure",
+			Payload:    []byte(`{"reason":"fatigue","detail":"Checks paused"}`),
+			CreatedAt:  time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		}
 		first, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
 		if err != nil {
 			t.Fatal(err)
@@ -1052,7 +1084,8 @@ func TestInstanceReportPublication(t *testing.T) {
 			case event := <-events:
 				if event.Name == CatalogEventNameOperatorNotification {
 					count++
-					if event.OperatorNotification == nil || event.OperatorNotification.NotificationID != "report:arpt-fatigue" {
+					if event.OperatorNotification == nil ||
+						event.OperatorNotification.NotificationID != "report:arpt-fatigue" {
 						t.Fatalf("notification=%+v", event)
 					}
 				}
@@ -1070,12 +1103,21 @@ func TestInstanceReportPublication(t *testing.T) {
 		h := newHarness(t)
 		h.manager.attentionWorkspaceMutes = notifyMuteReader{}
 		active := createSession(t, h)
-		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer cancel()
-		report := InstanceReportEvent{ID: "arpt-fatigue", InstanceID: "ainst-fatigue", Kind: "proposal", Payload: []byte(`{"proposals":[{"title":"Review","body":"Review work","item_keys":[]}]}`), CreatedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+		report := InstanceReportEvent{
+			ID:         "arpt-fatigue",
+			InstanceID: "ainst-fatigue",
+			Kind:       "proposal",
+			Payload:    []byte(`{"proposals":[{"title":"Review","body":"Review work","item_keys":[]}]}`),
+			CreatedAt:  time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		}
 		first, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
 		if err != nil {
 			t.Fatal(err)
@@ -1095,7 +1137,8 @@ func TestInstanceReportPublication(t *testing.T) {
 			case event := <-events:
 				if event.Name == CatalogEventNameOperatorNotification {
 					count++
-					if event.OperatorNotification == nil || event.OperatorNotification.NotificationID != "report:arpt-fatigue" {
+					if event.OperatorNotification == nil ||
+						event.OperatorNotification.NotificationID != "report:arpt-fatigue" {
 						t.Fatalf("notification=%+v", event)
 					}
 				}
@@ -1112,7 +1155,13 @@ func TestInstanceReportPublication(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		active := createSession(t, h)
-		report := InstanceReportEvent{ID: "arpt-publication", InstanceID: "ainst-publication", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider unavailable"}`), CreatedAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+		report := InstanceReportEvent{
+			ID:         "arpt-publication",
+			InstanceID: "ainst-publication",
+			Kind:       "failure",
+			Payload:    []byte(`{"reason":"failed","detail":"provider unavailable"}`),
+			CreatedAt:  time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		}
 		first, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
 		if err != nil || first <= 0 {
 			t.Fatalf("publish: %d %v", first, err)
@@ -1180,7 +1229,12 @@ func TestInstanceCatalogUpdates(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer cancel()
-		event := CatalogEvent{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-other", InstanceID: "instance", Name: "agent_instance.updated"}
+		event := CatalogEvent{
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: "ws-other",
+			InstanceID:  "instance",
+			Name:        "agent_instance.updated",
+		}
 		if got := broadcaster.publish(event); got != 0 {
 			t.Fatalf("delivered outside workspace: %d", got)
 		}
@@ -1206,5 +1260,16 @@ type reportPublicationWriter struct{ manager *Manager }
 var _ agentinstance.ReportEventWriter = reportPublicationWriter{}
 
 func (w reportPublicationWriter) Publish(ctx context.Context, id string, report agentinstance.Report) (int64, error) {
-	return w.manager.PublishInstanceReport(ctx, id, InstanceReportEvent{Republished: report.EventSessionID != "", ID: report.ID, InstanceID: report.InstanceID, Kind: report.Kind, Payload: report.Payload, CreatedAt: report.CreatedAt})
+	return w.manager.PublishInstanceReport(
+		ctx,
+		id,
+		InstanceReportEvent{
+			Republished: report.EventSessionID != "",
+			ID:          report.ID,
+			InstanceID:  report.InstanceID,
+			Kind:        report.Kind,
+			Payload:     report.Payload,
+			CreatedAt:   report.CreatedAt,
+		},
+	)
 }

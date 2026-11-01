@@ -49,7 +49,10 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(infos, func(info *Info) bool { return info.Type == SessionTypeTriage || info.WorkspaceID != workspaceID }), nil
+	return slices.DeleteFunc(
+		infos,
+		func(info *Info) bool { return info.Type == SessionTypeTriage || info.WorkspaceID != workspaceID },
+	), nil
 }
 
 // WorkspaceResolver supplies runtime snapshots and inexpensive persisted registrations.

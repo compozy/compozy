@@ -49,7 +49,8 @@ func FormatEntry(now time.Time, scope, text, until string) (string, error) {
 	if utf8.RuneCountInString(text) > MaxEntryCharacters {
 		return "", ErrEntryTooLarge
 	}
-	if strings.TrimSpace(text) == "" || strings.TrimSpace(scope) == "" || strings.ContainsAny(text+scope, "\r\n") || strings.Contains(scope, " · ") {
+	if strings.TrimSpace(text) == "" || strings.TrimSpace(scope) == "" || strings.ContainsAny(text+scope, "\r\n") ||
+		strings.Contains(scope, " · ") {
 		return "", errors.New("invalid memory entry")
 	}
 	entry := "- " + now.Format(time.DateOnly) + " · " + scope + " · " + text

@@ -44,7 +44,16 @@ func (s *Store) Search(key Key, query string) ([]SearchResult, error) {
 				}
 			}
 			if matched > 0 {
-				results = append(results, SearchResult{Source: "memory", File: file, Line: i + 1, Text: line, Score: float64(matched) / float64(len(terms))})
+				results = append(
+					results,
+					SearchResult{
+						Source: "memory",
+						File:   file,
+						Line:   i + 1,
+						Text:   line,
+						Score:  float64(matched) / float64(len(terms)),
+					},
+				)
 			}
 		}
 	}

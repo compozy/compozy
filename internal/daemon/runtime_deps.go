@@ -1,9 +1,10 @@
 package daemon
 
 import (
-	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"time"
+
+	"github.com/compozy/compozy/internal/agentmemory"
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"

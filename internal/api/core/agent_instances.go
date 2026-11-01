@@ -226,7 +226,11 @@ func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, result)
 }
-func (api *AgentInstanceAPI) Payload(ctx context.Context, i agentinstance.Instance) (contract.AgentInstancePayload, error) {
+
+func (api *AgentInstanceAPI) Payload(
+	ctx context.Context,
+	i agentinstance.Instance,
+) (contract.AgentInstancePayload, error) {
 	payload := AgentInstancePayload(i)
 	if api.ReadPayload != nil {
 		var err error
@@ -264,7 +268,10 @@ func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayloa
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 	if errors.Is(err, store.ErrWorkspaceArchived) {
-		c.JSON(http.StatusConflict, contract.ErrorPayload{Code: "workspace_archived", Error: "This workspace is archived."})
+		c.JSON(
+			http.StatusConflict,
+			contract.ErrorPayload{Code: "workspace_archived", Error: "This workspace is archived."},
+		)
 		return
 	}
 	for _, mapping := range []struct {
@@ -289,15 +296,24 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 			if h.AgentInstances != nil {
 				limit = h.AgentInstances.MaxActiveInstances
 			}
-			c.JSON(mapping.status, contract.ErrorPayload{Error: agentinstance.ErrorMessage(err, limit), Code: mapping.domain.Error()})
+			c.JSON(
+				mapping.status,
+				contract.ErrorPayload{Error: agentinstance.ErrorMessage(err, limit), Code: mapping.domain.Error()},
+			)
 			return
 		}
 	}
 	h.respondError(c, http.StatusInternalServerError, err)
 }
 
-func (api *AgentInstanceAPI) ListResponse(ctx context.Context, profileID string) (contract.AgentInstanceListResponse, error) {
-	result := contract.AgentInstanceListResponse{Instances: []contract.AgentInstancePayload{}, MaxActiveInstances: api.MaxActiveInstances}
+func (api *AgentInstanceAPI) ListResponse(
+	ctx context.Context,
+	profileID string,
+) (contract.AgentInstanceListResponse, error) {
+	result := contract.AgentInstanceListResponse{
+		Instances:          []contract.AgentInstancePayload{},
+		MaxActiveInstances: api.MaxActiveInstances,
+	}
 	if api.CountActive != nil {
 		var err error
 		result.ActiveCount, err = api.CountActive(ctx, profileID)

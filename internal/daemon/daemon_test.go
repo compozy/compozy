@@ -10899,10 +10899,16 @@ func (r *recordingRegistry) SaveProcessObservations(
 	return nil
 }
 
-func (r *recordingRegistry) PermissionDailyRollups(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
+func (r *recordingRegistry) PermissionDailyRollups(
+	context.Context,
+	store.PermissionRollupQuery,
+) ([]store.PermissionDailyRollup, error) {
 	return nil, nil
 }
 
-func (r *recordingRegistry) PermissionEntries(context.Context, store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+func (r *recordingRegistry) PermissionEntries(
+	context.Context,
+	store.PermissionEntriesQuery,
+) ([]store.PermissionLogEntry, error) {
 	return nil, nil
 }

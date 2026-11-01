@@ -430,7 +430,8 @@ func appendDecisionReason(decision *EffectiveToolDecision, reason ReasonCode) {
 }
 
 func isOwnAgentMemoryWrite(d Descriptor) bool {
-	if d.Source.Kind != SourceBuiltin || d.Risk != RiskMutating || d.Destructive || d.OpenWorld || d.RequiresInteraction {
+	if d.Source.Kind != SourceBuiltin || d.Risk != RiskMutating || d.Destructive || d.OpenWorld ||
+		d.RequiresInteraction {
 		return false
 	}
 	switch d.ID {

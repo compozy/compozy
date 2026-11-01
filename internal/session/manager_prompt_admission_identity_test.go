@@ -470,7 +470,12 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			registerManagerInputQueueWorkspace(t, database, h)
 			var sess *Session
 			if strings.HasPrefix(scenario, "startup_failure") {
-				created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID}})
+				created, err := h.manager.CreateAccepted(
+					t.Context(),
+					CreateAcceptedOpts{
+						Session: CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID},
+					},
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -526,10 +531,16 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			}
 			if strings.HasPrefix(scenario, "startup_failure") {
 				h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) { return nil, errors.New("runtime unavailable") }
-				if _, err := h.manager.SendPrompt(t.Context(), sess.ID, opts); err == nil || !strings.Contains(err.Error(), "runtime unavailable") {
+				if _, err := h.manager.SendPrompt(
+					t.Context(),
+					sess.ID,
+					opts,
+				); err == nil ||
+					!strings.Contains(err.Error(), "runtime unavailable") {
 					t.Fatalf("expected runtime failure, got %v", err)
 				}
-				pending, err := database.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
+				pending, err := database.InstanceReports().
+					ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 100})
 				if err != nil || len(pending) != reportCount {
 					t.Fatalf("pending after failed start=%d err=%v", len(pending), err)
 				}
@@ -552,7 +563,10 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 					event := acp.AgentEvent{Type: acp.EventTypeError, TurnID: req.TurnID, Error: "delivery lost"}
 					if scenario == "async_recovery" {
 						if attempts.Add(1) == 1 {
-							event.Failure = &store.SessionFailure{Kind: store.FailureTransport, Summary: "delivery lost"}
+							event.Failure = &store.SessionFailure{
+								Kind:    store.FailureTransport,
+								Summary: "delivery lost",
+							}
 						} else {
 							if strings.Contains(req.Message, "<compozy-reports>") {
 								t.Error("recovery resent uncertain reports")
@@ -598,7 +612,8 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 					t.Fatal(err)
 				}
 				events := collectEvents(t, result.Events)
-				if scenario == "async_recovery" && countAgentEvents(events, acp.EventTypeRuntimeRecoverySucceeded) != 1 {
+				if scenario == "async_recovery" &&
+					countAgentEvents(events, acp.EventTypeRuntimeRecoverySucceeded) != 1 {
 					t.Fatalf("recovery events=%+v", events)
 				}
 			}

@@ -130,7 +130,11 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
-		Origin:          workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: string(req.LoopRunID), Ceiling: req.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      string(req.LoopRunID),
+			Ceiling: req.GrantCeiling,
+		},
 		ProfileID:       strings.TrimSpace(req.ProfileID),
 		AgentName:       strings.TrimSpace(agent),
 		Provider:        strings.TrimSpace(runtime.Provider),
@@ -212,7 +216,11 @@ func createOptionsFromProfile(
 		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
 		DeniedToolsOverride:  mergeLoopActionDeniedTools(profile.DeniedTools, loopActionTerminalTools()),
 		// A pinned recreation keeps the loop run's persisted grant ceiling (USW BR-9).
-		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: string(req.LoopRunID), Ceiling: req.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      string(req.LoopRunID),
+			Ceiling: req.GrantCeiling,
+		},
 	}
 	if profile.WorkspaceID == workspaceaccess.UserSelector {
 		opts.Scope = workspacepkg.ScopeUser

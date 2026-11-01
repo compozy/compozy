@@ -4,13 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (n *daemonNativeTools) sessionPending(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) sessionPending(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input struct {
 		Workspace   string `json:"workspace,omitempty"`
 		SessionID   string `json:"session_id"`
@@ -40,5 +45,8 @@ func (n *daemonNativeTools) sessionPending(ctx context.Context, scope toolspkg.S
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(contract.SessionInteractionsResponse{Interactions: core.PendingInteractionPayloadsFromStore(rows)}, fmt.Sprintf("%d pending interactions", len(rows)))
+	return structuredResult(
+		contract.SessionInteractionsResponse{Interactions: core.PendingInteractionPayloadsFromStore(rows)},
+		fmt.Sprintf("%d pending interactions", len(rows)),
+	)
 }

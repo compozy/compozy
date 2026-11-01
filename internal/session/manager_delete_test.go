@@ -1700,7 +1700,14 @@ func TestInstanceMainRuntimeGuard(t *testing.T) {
 		if err := h.manager.Delete(t.Context(), active.ID); !errors.Is(err, store.ErrSessionIsInstanceMain) {
 			t.Fatalf("delete: %v", err)
 		}
-		if _, err := h.manager.ArchiveWithStop(t.Context(), active.WorkspaceID, active.ID); !errors.Is(err, store.ErrSessionIsInstanceMain) {
+		if _, err := h.manager.ArchiveWithStop(
+			t.Context(),
+			active.WorkspaceID,
+			active.ID,
+		); !errors.Is(
+			err,
+			store.ErrSessionIsInstanceMain,
+		) {
 			t.Fatalf("archive: %v", err)
 		}
 		if _, ok := h.manager.Get(active.ID); !ok {

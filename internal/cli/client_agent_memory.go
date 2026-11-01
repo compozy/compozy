@@ -8,7 +8,13 @@ import (
 	"strings"
 )
 
-func (c *daemonClient) AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error) {
+func (c *daemonClient) AgentMemory(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+	operation string,
+	body any,
+) (json.RawMessage, error) {
 	method, path, err := agentMemoryRoute(operation)
 	if err != nil {
 		return nil, err

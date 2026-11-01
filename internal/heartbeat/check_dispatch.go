@@ -34,10 +34,23 @@ func (s *CheckService) dispatch(target CheckTarget, digest CheckDigest, occurren
 		outcome.DeniedCalls = deniedCalls
 	}
 	now := s.now()
-	req := FinishRequest{QuietBackoffCap: s.config.QuietBackoffCap, FatigueLimit: int64(s.config.FatigueLimit), Interval: s.checkInterval(target.Policy), MaxInterval: s.config.MaxInterval, InstanceID: target.Instance.ID, OccurrenceID: occurrence, Source: source,
-		Result: outcome.Result, Reason: outcome.Reason, Detail: outcome.Detail, DeniedCalls: outcome.DeniedCalls,
-		Digest: digest.Fingerprint, AutomationCursor: digest.AutomationCursor,
-		Now: now, ExpiresAt: now.Add(s.config.Retention), Report: outcome.Report,
+	req := FinishRequest{
+		QuietBackoffCap:  s.config.QuietBackoffCap,
+		FatigueLimit:     int64(s.config.FatigueLimit),
+		Interval:         s.checkInterval(target.Policy),
+		MaxInterval:      s.config.MaxInterval,
+		InstanceID:       target.Instance.ID,
+		OccurrenceID:     occurrence,
+		Source:           source,
+		Result:           outcome.Result,
+		Reason:           outcome.Reason,
+		Detail:           outcome.Detail,
+		DeniedCalls:      outcome.DeniedCalls,
+		Digest:           digest.Fingerprint,
+		AutomationCursor: digest.AutomationCursor,
+		Now:              now,
+		ExpiresAt:        now.Add(s.config.Retention),
+		Report:           outcome.Report,
 	}
 	settleCtx, settleCancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.config.Timeout)
 	defer settleCancel()
@@ -60,7 +73,11 @@ func failedTriage(reason string) TriageOutcome {
 	case "triage_interrupted":
 		payload = `{"reason":"triage_interrupted","detail":"The proactive check was interrupted."}`
 	}
-	return TriageOutcome{Result: "failed", Reason: reason, Report: &agentinstance.ReportInput{Kind: "failure", Payload: []byte(payload)}}
+	return TriageOutcome{
+		Result: "failed",
+		Reason: reason,
+		Report: &agentinstance.ReportInput{Kind: "failure", Payload: []byte(payload)},
+	}
 }
 
 // Recover runs before traffic and preserves already committed outcomes.
@@ -90,9 +107,18 @@ func (s *CheckService) Recover(ctx context.Context) error {
 		}
 		outcome := failedTriage("triage_interrupted")
 		if _, err := s.store.Finish(ctx, FinishRequest{
-			QuietBackoffCap: s.config.QuietBackoffCap, FatigueLimit: int64(s.config.FatigueLimit), Interval: s.config.Interval, MaxInterval: s.config.MaxInterval, InstanceID: state.InstanceID, OccurrenceID: state.OccurrenceID, Source: source,
-			Result: outcome.Result, Reason: outcome.Reason, Report: outcome.Report,
-			Now: now, ExpiresAt: now.Add(s.config.Retention),
+			QuietBackoffCap: s.config.QuietBackoffCap,
+			FatigueLimit:    int64(s.config.FatigueLimit),
+			Interval:        s.config.Interval,
+			MaxInterval:     s.config.MaxInterval,
+			InstanceID:      state.InstanceID,
+			OccurrenceID:    state.OccurrenceID,
+			Source:          source,
+			Result:          outcome.Result,
+			Reason:          outcome.Reason,
+			Report:          outcome.Report,
+			Now:             now,
+			ExpiresAt:       now.Add(s.config.Retention),
 		}); err != nil {
 			return err
 		}

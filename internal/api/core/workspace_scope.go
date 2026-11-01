@@ -172,7 +172,8 @@ func (h *BaseHandlers) requireSessionInWorkspace(
 	if err != nil {
 		return nil, err
 	}
-	if info == nil || info.Type == session.SessionTypeTriage || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
+	if info == nil || info.Type == session.SessionTypeTriage ||
+		strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
 		return nil, errWorkspaceScopedResourceNotFound
 	}
 	return info, nil

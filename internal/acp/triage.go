@@ -68,6 +68,19 @@ func (p *AgentProcess) triagePermission(request acpsdk.RequestPermissionRequest)
 
 func (p *AgentProcess) emitTriageDenial(toolCallID string) {
 	turnID := p.activeTurnID()
-	requestID := p.nextPermissionRequestID(turnID, acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{ToolCallId: acpsdk.ToolCallId(toolCallID)}})
-	p.emitPermissionEvent(p.SessionID, turnID, requestID, "Read-only triage", toolCallID, "", decisionRejectOnce, "triage", nil)
+	requestID := p.nextPermissionRequestID(
+		turnID,
+		acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{ToolCallId: acpsdk.ToolCallId(toolCallID)}},
+	)
+	p.emitPermissionEvent(
+		p.SessionID,
+		turnID,
+		requestID,
+		"Read-only triage",
+		toolCallID,
+		"",
+		decisionRejectOnce,
+		"triage",
+		nil,
+	)
 }

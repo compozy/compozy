@@ -24,7 +24,10 @@ type DraftInstructionsRequest struct {
 	ReasoningEffort string
 }
 
-func (m *Manager) DraftInstructions(ctx context.Context, request DraftInstructionsRequest) (instructions string, err error) {
+func (m *Manager) DraftInstructions(
+	ctx context.Context,
+	request DraftInstructionsRequest,
+) (instructions string, err error) {
 	if strings.TrimSpace(request.Goal) == "" {
 		return "", ErrAgentDraftFailed
 	}

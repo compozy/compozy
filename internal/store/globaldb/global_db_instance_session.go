@@ -38,7 +38,8 @@ func (g *SessionRepo) RegisterInstanceSession(
 	}
 	result := store.SessionCreationRegistration{SessionID: info.ID}
 	err := g.withImmediateTransaction(ctx, "register instance session", func(exec globalSQLExecutor) error {
-		existing, lookupErr := sqlcgen.New(exec).GetInstanceMainAttempt(ctx, sql.NullString{String: instanceID, Valid: true})
+		existing, lookupErr := sqlcgen.New(exec).
+			GetInstanceMainAttempt(ctx, sql.NullString{String: instanceID, Valid: true})
 		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
 			return lookupErr
 		}

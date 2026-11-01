@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/agentmemory"
 	"log/slog"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/agentmemory"
 
 	"github.com/compozy/compozy/internal/session"
 

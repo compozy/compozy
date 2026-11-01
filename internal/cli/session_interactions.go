@@ -41,7 +41,11 @@ func newSessionPendingCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			response, err := client.ListSessionPendingInteractions(cmd.Context(), strings.TrimSpace(args[0]), descendants)
+			response, err := client.ListSessionPendingInteractions(
+				cmd.Context(),
+				strings.TrimSpace(args[0]),
+				descendants,
+			)
 			if err != nil {
 				return err
 			}
@@ -60,7 +64,13 @@ func sessionInteractionsBundle(response SessionInteractionsRecord) outputBundle 
 		[]string{"INTERACTION", cliKindHeader, "REQUEST", cliStatusHeader, "TITLE", "SESSION", "EXPIRES AT"},
 		"interactions",
 		[]string{
-			"interaction_id", agentKernelKindKey, "provider_request_id", automationStatusKey, cliOutputTitleKey, "session_id", "expires_at",
+			"interaction_id",
+			agentKernelKindKey,
+			"provider_request_id",
+			automationStatusKey,
+			cliOutputTitleKey,
+			"session_id",
+			"expires_at",
 		},
 		sessionInteractionOutputRow,
 		sessionInteractionOutputRow,

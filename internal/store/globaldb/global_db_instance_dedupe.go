@@ -29,7 +29,12 @@ func deduplicateInstanceProposals(ctx context.Context, q *sqlcgen.Queries, req *
 	}
 	seen := map[string]bool{}
 	cutoff := store.FormatTimestamp(req.Now.Add(-24 * time.Hour))
-	query := sqlcgen.ListAgentInstanceReportsParams{InstanceID: req.InstanceID, ReportState: "", AfterCreatedAt: store.FormatTimestamp(req.Now.Add(-24 * time.Hour)), PageLimit: 100}
+	query := sqlcgen.ListAgentInstanceReportsParams{
+		InstanceID:     req.InstanceID,
+		ReportState:    "",
+		AfterCreatedAt: store.FormatTimestamp(req.Now.Add(-24 * time.Hour)),
+		PageLimit:      100,
+	}
 	for {
 		rows, err := q.ListAgentInstanceReports(ctx, query)
 		if err != nil {

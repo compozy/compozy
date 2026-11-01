@@ -220,11 +220,20 @@ func (g *SessionRepo) ListPendingInteractions(
 	return g.listPendingInteractions(ctx, sessionID, statuses, false)
 }
 
-func (g *SessionRepo) ListDescendantPendingInteractions(ctx context.Context, sessionID string, statuses []string) ([]store.PendingInteraction, error) {
+func (g *SessionRepo) ListDescendantPendingInteractions(
+	ctx context.Context,
+	sessionID string,
+	statuses []string,
+) ([]store.PendingInteraction, error) {
 	return g.listPendingInteractions(ctx, sessionID, statuses, true)
 }
 
-func (g *SessionRepo) listPendingInteractions(ctx context.Context, sessionID string, statuses []string, descendants bool) (interactions []store.PendingInteraction, err error) {
+func (g *SessionRepo) listPendingInteractions(
+	ctx context.Context,
+	sessionID string,
+	statuses []string,
+	descendants bool,
+) (interactions []store.PendingInteraction, err error) {
 	if err := g.checkReady(ctx, "list pending interactions"); err != nil {
 		return nil, err
 	}

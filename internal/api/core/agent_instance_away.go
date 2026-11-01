@@ -125,7 +125,11 @@ func (h *BaseHandlers) ListAgentInstanceCheckIns(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (api *AgentInstanceAPI) CheckIns(ctx context.Context, id, cursor string, limit int) (contract.AgentInstanceCheckInsResponse, error) {
+func (api *AgentInstanceAPI) CheckIns(
+	ctx context.Context,
+	id, cursor string,
+	limit int,
+) (contract.AgentInstanceCheckInsResponse, error) {
 	response := contract.AgentInstanceCheckInsResponse{CheckIns: []contract.AgentInstanceCheckInPayload{}}
 	if limit == 0 {
 		limit = 50
@@ -146,7 +150,15 @@ func (api *AgentInstanceAPI) CheckIns(ctx context.Context, id, cursor string, li
 		response.NextCursor = rows[len(rows)-1].ID
 	}
 	for _, row := range rows {
-		response.CheckIns = append(response.CheckIns, contract.AgentInstanceCheckInPayload{ID: row.ID, Result: row.Result, Reason: row.Reason, CreatedAt: row.CreatedAt})
+		response.CheckIns = append(
+			response.CheckIns,
+			contract.AgentInstanceCheckInPayload{
+				ID:        row.ID,
+				Result:    row.Result,
+				Reason:    row.Reason,
+				CreatedAt: row.CreatedAt,
+			},
+		)
 	}
 	return response, nil
 }

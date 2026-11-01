@@ -18,7 +18,13 @@ type instanceDigestCollector struct {
 	monitors  *monitor.Service
 }
 
-func (c instanceDigestCollector) Collect(ctx context.Context, id string, scope heartbeat.CollectorScope, include []string, policy, instructions string) (heartbeat.CheckDigest, error) {
+func (c instanceDigestCollector) Collect(
+	ctx context.Context,
+	id string,
+	scope heartbeat.CollectorScope,
+	include []string,
+	policy, instructions string,
+) (heartbeat.CheckDigest, error) {
 	scope, facts, err := c.instances.CollectorFacts(ctx, id, scope)
 	if err != nil {
 		return heartbeat.CheckDigest{}, err
@@ -37,7 +43,14 @@ func (c instanceDigestCollector) Collect(ctx context.Context, id string, scope h
 	}
 	if (include == nil || slices.Contains(include, "monitors_fired")) && scope.MainSessionID != "" {
 		for _, item := range c.monitors.List(scope.MainSessionID) {
-			facts.Monitors = append(facts.Monitors, heartbeat.MonitorFact{ID: item.ID, SessionID: item.SessionID, Fired: item.Status == monitor.StatusFired})
+			facts.Monitors = append(
+				facts.Monitors,
+				heartbeat.MonitorFact{
+					ID:        item.ID,
+					SessionID: item.SessionID,
+					Fired:     item.Status == monitor.StatusFired,
+				},
+			)
 		}
 	}
 	return heartbeat.CollectDigest(scope, facts, include, policy, instructions)

@@ -51,7 +51,10 @@ type PermissionRollupQuery struct {
 	Unattended bool
 }
 
-func (c *daemonClient) PermissionRollup(ctx context.Context, query PermissionRollupQuery) (contract.PermissionRollupResponse, error) {
+func (c *daemonClient) PermissionRollup(
+	ctx context.Context,
+	query PermissionRollupQuery,
+) (contract.PermissionRollupResponse, error) {
 	values := url.Values{}
 	values.Set("days", strconv.Itoa(query.Days))
 	values.Set("unattended", strconv.FormatBool(query.Unattended))

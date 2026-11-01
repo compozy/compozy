@@ -2,11 +2,12 @@ package core
 
 import (
 	"errors"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"

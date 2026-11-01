@@ -58,13 +58,25 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 	if h.Now != nil {
 		now = h.Now()
 	}
-	result := agentinstance.Activity{ReportsByDay: []agentinstance.ActivityDay{}, CostByProject: []agentinstance.ActivityCost{}, BusyByHour: []agentinstance.ActivityHour{}}
+	result := agentinstance.Activity{
+		ReportsByDay:  []agentinstance.ActivityDay{},
+		CostByProject: []agentinstance.ActivityCost{},
+		BusyByHour:    []agentinstance.ActivityHour{},
+	}
 	for workspace := range allowed {
 		if !actor.Operator {
 			if h.WorkspaceAccess == nil {
 				continue
 			}
-			decision, err := h.WorkspaceAccess.Authorize(c.Request.Context(), workspaceaccess.Request{Actor: actor, Target: workspaceaccess.ScopeTarget(workspace, scope.ProfileID), ReadOnly: true, Seam: workspaceaccess.SeamTool})
+			decision, err := h.WorkspaceAccess.Authorize(
+				c.Request.Context(),
+				workspaceaccess.Request{
+					Actor:    actor,
+					Target:   workspaceaccess.ScopeTarget(workspace, scope.ProfileID),
+					ReadOnly: true,
+					Seam:     workspaceaccess.SeamTool,
+				},
+			)
 			if err != nil {
 				h.respondError(c, 500, err)
 				return
@@ -73,7 +85,15 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 				continue
 			}
 		}
-		activity, err := reader.ReadActivity(c.Request.Context(), agentinstance.ActivityQuery{ProfileID: scope.ProfileID, WorkspaceID: workspace, AgentName: c.Param("name"), Since: store.LocalDayStart(now, days-1)})
+		activity, err := reader.ReadActivity(
+			c.Request.Context(),
+			agentinstance.ActivityQuery{
+				ProfileID:   scope.ProfileID,
+				WorkspaceID: workspace,
+				AgentName:   c.Param("name"),
+				Since:       store.LocalDayStart(now, days-1),
+			},
+		)
 		if err != nil {
 			h.respondError(c, 500, err)
 			return
@@ -92,7 +112,10 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 			result.CostByProject = append(result.CostByProject, cost)
 		}
 		for _, day := range activity.ReportsByDay {
-			index := slices.IndexFunc(result.ReportsByDay, func(item agentinstance.ActivityDay) bool { return item.Day == day.Day })
+			index := slices.IndexFunc(
+				result.ReportsByDay,
+				func(item agentinstance.ActivityDay) bool { return item.Day == day.Day },
+			)
 			if index < 0 {
 				result.ReportsByDay = append(result.ReportsByDay, day)
 			} else {
@@ -113,7 +136,10 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		}
 	}
 	slices.SortFunc(result.ReportsByDay, func(a, b agentinstance.ActivityDay) int { return cmp.Compare(a.Day, b.Day) })
-	slices.SortFunc(result.CostByProject, func(a, b agentinstance.ActivityCost) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) })
+	slices.SortFunc(
+		result.CostByProject,
+		func(a, b agentinstance.ActivityCost) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) },
+	)
 	slices.SortFunc(result.BusyByHour, func(a, b agentinstance.ActivityHour) int {
 		if a.Weekday != b.Weekday {
 			return cmp.Compare(a.Weekday, b.Weekday)

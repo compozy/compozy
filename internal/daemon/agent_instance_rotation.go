@@ -49,8 +49,13 @@ type instanceMainRotator struct {
 	threshold  float64
 }
 
-func (r *instanceMainRotator) Eligible(ctx context.Context, instance agentinstance.Instance) (decision agentinstance.RotationDecision, err error) {
-	decision = agentinstance.RotationDecision{Publication: agentinstance.RotationPublication{InstanceID: instance.ID, PredecessorID: instance.MainSessionID}}
+func (r *instanceMainRotator) Eligible(
+	ctx context.Context,
+	instance agentinstance.Instance,
+) (decision agentinstance.RotationDecision, err error) {
+	decision = agentinstance.RotationDecision{
+		Publication: agentinstance.RotationPublication{InstanceID: instance.ID, PredecessorID: instance.MainSessionID},
+	}
 	if instance.State != "active" || instance.ArchivedAt != nil || instance.MainSessionID == "" {
 		return decision, nil
 	}
@@ -72,7 +77,13 @@ func (r *instanceMainRotator) Eligible(ctx context.Context, instance agentinstan
 		return decision, err
 	}
 	_, hasCompact := session.ResolveCompactionCommand(info.AdvertisedCommands)
-	if contextusage.DecideMaintenance(usage.Known, usage.Used, usage.Size, r.threshold, hasCompact) != contextusage.MaintenanceRotate {
+	if contextusage.DecideMaintenance(
+		usage.Known,
+		usage.Used,
+		usage.Size,
+		r.threshold,
+		hasCompact,
+	) != contextusage.MaintenanceRotate {
 		return decision, r.store.ClearRotationWait(ctx, instance.ID, instance.MainSessionID)
 	}
 	defer func() {

@@ -62,12 +62,33 @@ type CheckService struct {
 	wg            sync.WaitGroup
 }
 
-func NewCheckService(ctx context.Context, storage InstanceWakeStore, environment CheckEnvironment, dispatcher TriageDispatcher, config CheckConfig, now func() time.Time) (*CheckService, error) {
-	if ctx == nil || storage == nil || environment == nil || dispatcher == nil || now == nil || config.Interval <= 0 || config.MaxInterval <= 0 || config.Retention <= 0 || config.Timeout <= 0 || config.MaxConcurrent < 1 || config.BatchSize < 1 {
+func NewCheckService(
+	ctx context.Context,
+	storage InstanceWakeStore,
+	environment CheckEnvironment,
+	dispatcher TriageDispatcher,
+	config CheckConfig,
+	now func() time.Time,
+) (*CheckService, error) {
+	if ctx == nil || storage == nil || environment == nil || dispatcher == nil || now == nil || config.Interval <= 0 ||
+		config.MaxInterval <= 0 ||
+		config.Retention <= 0 ||
+		config.Timeout <= 0 ||
+		config.MaxConcurrent < 1 ||
+		config.BatchSize < 1 {
 		return nil, errors.New("heartbeat: incomplete check service configuration")
 	}
 	lifetime, cancel := context.WithCancel(ctx)
-	return &CheckService{store: storage, environment: environment, dispatcher: dispatcher, config: config, now: now, ctx: lifetime, cancel: cancel, pending: map[string]FinishRequest{}}, nil
+	return &CheckService{
+		store:       storage,
+		environment: environment,
+		dispatcher:  dispatcher,
+		config:      config,
+		now:         now,
+		ctx:         lifetime,
+		cancel:      cancel,
+		pending:     map[string]FinishRequest{},
+	}, nil
 }
 func (s *CheckService) Shutdown(context.Context) error {
 	s.mu.Lock()
@@ -126,7 +147,17 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if !manual && state.NextWakeAt == "" && state.LastWakeAt == "" {
 		firstCheck := target.Instance.CreatedAt.Add(cadence)
 		if firstCheck.After(now) {
-			_, err := s.store.Skip(ctx, SkipRequest{InstanceID: state.InstanceID, ExpectedDue: state.NextWakeAt, Reason: "cooldown_active", Now: now, NextWakeAt: firstCheck, ExpiresAt: now.Add(s.config.Retention)})
+			_, err := s.store.Skip(
+				ctx,
+				SkipRequest{
+					InstanceID:  state.InstanceID,
+					ExpectedDue: state.NextWakeAt,
+					Reason:      "cooldown_active",
+					Now:         now,
+					NextWakeAt:  firstCheck,
+					ExpiresAt:   now.Add(s.config.Retention),
+				},
+			)
 			return CheckResult{Gate: "cooldown_active"}, err
 		}
 	}
@@ -151,7 +182,8 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if !s.config.Enabled {
 		return skip("heartbeat_disabled", "")
 	}
-	if (!dryRun && target.Instance.State != "active") || target.Instance.ArchivedAt != nil || !target.Instance.ChecksEnabled {
+	if (!dryRun && target.Instance.State != "active") || target.Instance.ArchivedAt != nil ||
+		!target.Instance.ChecksEnabled {
 		return skip("heartbeat_disabled", "")
 	}
 	if target.Gate != "" {
@@ -189,14 +221,22 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 			return CheckResult{}, err
 		}
 	}
-	digest, err := s.environment.Collect(ctx, state.InstanceID, target.Scope, target.Policy.Preferences.Context.Include, target.Policy.Digest, target.Policy.GuidanceMarkdown)
+	digest, err := s.environment.Collect(
+		ctx,
+		state.InstanceID,
+		target.Scope,
+		target.Policy.Preferences.Context.Include,
+		target.Policy.Digest,
+		target.Policy.GuidanceMarkdown,
+	)
 	if err != nil {
 		return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
 	}
 	if len(digest.Items) == 0 && strings.TrimSpace(target.Policy.GuidanceMarkdown) == "" {
 		return skip("digest_empty", "")
 	}
-	if !manual && digest.Fingerprint == state.LastDigest && now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval {
+	if !manual && digest.Fingerprint == state.LastDigest &&
+		now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval {
 		return skip("digest_unchanged", "")
 	}
 	if dryRun {

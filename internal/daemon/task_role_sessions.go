@@ -47,7 +47,11 @@ func (r *taskRoleRuntime) startRoleSession(
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
-		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: activation.TaskID, Ceiling: activation.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      activation.TaskID,
+			Ceiling: activation.GrantCeiling,
+		},
 		ProfileID: activation.ProfileID,
 		AgentName: activation.AgentName,
 		Provider:  activation.Provider,

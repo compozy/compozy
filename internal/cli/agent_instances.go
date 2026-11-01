@@ -3,11 +3,12 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/spf13/cobra"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
 )
 
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
@@ -27,7 +28,11 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	var global, all, dryRun, noWait bool
 	var state, cursor, sessionID, agent string
 	var limit int
-	cmd := &cobra.Command{Use: action + " <agent-or-instance-id>", Short: "Manage agent instances: " + action, Args: exactOneNonBlankArg()}
+	cmd := &cobra.Command{
+		Use:   action + " <agent-or-instance-id>",
+		Short: "Manage agent instances: " + action,
+		Args:  exactOneNonBlankArg(),
+	}
 	if action == "list" {
 		cmd.Use = "list"
 		cmd.Args = cobra.NoArgs
@@ -93,7 +98,10 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		}
 		target := strings.TrimSpace(args[0])
 		if action == "create" {
-			result, err := client.CreateAgentInstance(cmd.Context(), contract.AgentInstanceCreateRequest{Agent: target, Workspace: workspace})
+			result, err := client.CreateAgentInstance(
+				cmd.Context(),
+				contract.AgentInstanceCreateRequest{Agent: target, Workspace: workspace},
+			)
 			if err != nil {
 				return err
 			}
@@ -103,7 +111,10 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 			if strings.TrimSpace(sessionID) == "" {
 				return errors.New("cli: --session is required")
 			}
-			result, err := client.AdoptAgentInstance(cmd.Context(), contract.AgentInstanceAdoptRequest{Agent: target, SessionID: strings.TrimSpace(sessionID)})
+			result, err := client.AdoptAgentInstance(
+				cmd.Context(),
+				contract.AgentInstanceAdoptRequest{Agent: target, SessionID: strings.TrimSpace(sessionID)},
+			)
 			if err != nil {
 				return err
 			}
@@ -226,7 +237,13 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 	}
 }
 func instanceText(instance contract.AgentInstancePayload) string {
-	return fmt.Sprintf("%s\t%s\t%s\nMain session: %s\n", instance.ID, instance.AgentName, instance.State, instance.MainSessionID)
+	return fmt.Sprintf(
+		"%s\t%s\t%s\nMain session: %s\n",
+		instance.ID,
+		instance.AgentName,
+		instance.State,
+		instance.MainSessionID,
+	)
 }
 func instanceListText(page contract.AgentInstanceListResponse) string {
 	var text strings.Builder

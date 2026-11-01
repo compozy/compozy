@@ -5,9 +5,10 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"github.com/compozy/compozy/internal/acp"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/acp"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -60,7 +61,15 @@ func (m *Manager) PublishInstanceReport(
 			return 0, err
 		}
 		if !muted {
-			notification = &OperatorNotification{NotificationID: "report:" + report.ID, SessionID: sessionID, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, Title: title, Body: body, At: report.CreatedAt}
+			notification = &OperatorNotification{
+				NotificationID: "report:" + report.ID,
+				SessionID:      sessionID,
+				ProfileID:      info.ProfileID,
+				WorkspaceID:    info.WorkspaceID,
+				Title:          title,
+				Body:           body,
+				At:             report.CreatedAt,
+			}
 		}
 	}
 	content, err := json.Marshal(report)
@@ -78,7 +87,15 @@ func (m *Manager) PublishInstanceReport(
 	if inserted {
 		m.publishSessionEventByID(ctx, sessionID, persisted)
 		if notification != nil {
-			m.publishSessionCatalogEventCount(CatalogEvent{Name: CatalogEventNameOperatorNotification, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, SessionID: sessionID, OperatorNotification: notification})
+			m.publishSessionCatalogEventCount(
+				CatalogEvent{
+					Name:                 CatalogEventNameOperatorNotification,
+					ProfileID:            info.ProfileID,
+					WorkspaceID:          info.WorkspaceID,
+					SessionID:            sessionID,
+					OperatorNotification: notification,
+				},
+			)
 		}
 		m.PublishInstanceCatalogChanged(info.ProfileID, info.WorkspaceID, report.InstanceID)
 	}

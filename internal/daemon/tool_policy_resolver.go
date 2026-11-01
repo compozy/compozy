@@ -409,7 +409,11 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	return applyConcreteSessionToolPolicy(inputs, info.ID, lineage.PermissionPolicy)
 }
 
-func applyConcreteSessionToolPolicy(inputs *toolspkg.PolicyInputs, sessionID string, ceiling store.SessionPermissionPolicy) error {
+func applyConcreteSessionToolPolicy(
+	inputs *toolspkg.PolicyInputs,
+	sessionID string,
+	ceiling store.SessionPermissionPolicy,
+) error {
 	policy := store.NormalizeSessionPermissionPolicy(ceiling)
 	filtered, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{Tools: policy.Tools})
 	toolspkg.WarnRetiredToolReferences("session:"+sessionID, dropped)

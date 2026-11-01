@@ -143,7 +143,11 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 	return nil
 }
 
-func (p *AgentProcess) expirePendingPermission(pending *pendingPermission, decision permissionDecision, actor string) (permissionDecision, string) {
+func (p *AgentProcess) expirePendingPermission(
+	pending *pendingPermission,
+	decision permissionDecision,
+	actor string,
+) (permissionDecision, string) {
 	p.pendingPermissionMu.Lock()
 	defer p.pendingPermissionMu.Unlock()
 	if p.pendingPermissions[pending.requestID] == pending {

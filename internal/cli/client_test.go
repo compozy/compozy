@@ -5577,13 +5577,25 @@ func TestPermissionRollupClient(t *testing.T) {
 	t.Parallel()
 	t.Run("Should send canonical rollup filters and decode totals", func(t *testing.T) {
 		t.Parallel()
-		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			if req.Method != http.MethodGet || req.URL.Path != "/api/permissions/rollup" || req.URL.Query().Get("days") != "7" || req.URL.Query().Get("agent") != "coder" || req.URL.Query().Get("unattended") != "true" {
-				t.Fatalf("request = %s %s", req.Method, req.URL)
-			}
-			return newHTTPResponse(http.StatusOK, `{"since":"2026-01-01T00:00:00Z","until":"2026-01-07T12:00:00Z","rollups":[{"day":"2026-01-01","agent_name":"coder","decision":"deny","count":3}]}`), nil
-		})}}
-		response, err := client.PermissionRollup(t.Context(), PermissionRollupQuery{Days: 7, Agent: " coder ", Unattended: true})
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodGet || req.URL.Path != "/api/permissions/rollup" ||
+					req.URL.Query().Get("days") != "7" ||
+					req.URL.Query().Get("agent") != "coder" ||
+					req.URL.Query().Get("unattended") != "true" {
+					t.Fatalf("request = %s %s", req.Method, req.URL)
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"since":"2026-01-01T00:00:00Z","until":"2026-01-07T12:00:00Z","rollups":[{"day":"2026-01-01","agent_name":"coder","decision":"deny","count":3}]}`,
+				), nil
+			})},
+		}
+		response, err := client.PermissionRollup(
+			t.Context(),
+			PermissionRollupQuery{Days: 7, Agent: " coder ", Unattended: true},
+		)
 		if err != nil || len(response.Rollups) != 1 || response.Rollups[0].Count != 3 {
 			t.Fatalf("response = %#v, %v", response, err)
 		}

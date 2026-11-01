@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/hooks"
 	"time"
+
+	"github.com/compozy/compozy/internal/hooks"
 )
 
 type StartOutcome struct {

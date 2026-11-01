@@ -126,14 +126,20 @@ func (s StubObserver) QueryTokenStats(
 
 var _ core.Observer = (*StubObserver)(nil)
 
-func (s StubObserver) QueryPermissionDailyRollups(ctx context.Context, q store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
+func (s StubObserver) QueryPermissionDailyRollups(
+	ctx context.Context,
+	q store.PermissionRollupQuery,
+) ([]store.PermissionDailyRollup, error) {
 	if s.QueryPermissionDailyRollupsFn != nil {
 		return s.QueryPermissionDailyRollupsFn(ctx, q)
 	}
 	return nil, nil
 }
 
-func (s StubObserver) QueryPermissionEntries(ctx context.Context, q store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+func (s StubObserver) QueryPermissionEntries(
+	ctx context.Context,
+	q store.PermissionEntriesQuery,
+) ([]store.PermissionLogEntry, error) {
 	if s.QueryPermissionEntriesFn != nil {
 		return s.QueryPermissionEntriesFn(ctx, q)
 	}

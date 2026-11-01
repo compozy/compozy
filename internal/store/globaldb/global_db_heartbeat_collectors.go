@@ -12,7 +12,11 @@ import (
 )
 
 // CollectorFacts resolves identity from durable state and intersects caller reach with the instance ceiling.
-func (r *InstanceRepo) CollectorFacts(ctx context.Context, id string, scope heartbeat.CollectorScope) (heartbeat.CollectorScope, heartbeat.CollectorFacts, error) {
+func (r *InstanceRepo) CollectorFacts(
+	ctx context.Context,
+	id string,
+	scope heartbeat.CollectorScope,
+) (heartbeat.CollectorScope, heartbeat.CollectorFacts, error) {
 	facts := heartbeat.CollectorFacts{}
 	instance, err := r.Get(ctx, id)
 	if err != nil {
@@ -33,21 +37,60 @@ func (r *InstanceRepo) CollectorFacts(ctx context.Context, id string, scope hear
 	if err != nil {
 		return scope, facts, fmt.Errorf("read collector chain: %w", err)
 	}
-	tasks, err := r.queries.ListInstanceCollectorTasks(ctx, sqlcgen.ListInstanceCollectorTasksParams{InstanceID: key, ProfileID: instance.ProfileID, Workspaces: string(encoded)})
+	tasks, err := r.queries.ListInstanceCollectorTasks(
+		ctx,
+		sqlcgen.ListInstanceCollectorTasksParams{
+			InstanceID: key,
+			ProfileID:  instance.ProfileID,
+			Workspaces: string(encoded),
+		},
+	)
 	if err != nil {
 		return scope, facts, fmt.Errorf("collect tasks: %w", err)
 	}
 	for _, row := range tasks {
-		facts.Tasks = append(facts.Tasks, heartbeat.TaskFact{ID: row.ID, RunID: row.RunID, ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID, OwnerKind: "agent_session", OwnerSessionID: row.OwnerRef.String, Status: row.Status})
+		facts.Tasks = append(
+			facts.Tasks,
+			heartbeat.TaskFact{
+				ID:             row.ID,
+				RunID:          row.RunID,
+				ProfileID:      row.ProfileID,
+				WorkspaceID:    row.WorkspaceID,
+				OwnerKind:      "agent_session",
+				OwnerSessionID: row.OwnerRef.String,
+				Status:         row.Status,
+			},
+		)
 	}
-	sessions, err := r.queries.ListInstanceCollectorSessions(ctx, sqlcgen.ListInstanceCollectorSessionsParams{InstanceID: key, ProfileID: instance.ProfileID, Workspaces: string(encoded)})
+	sessions, err := r.queries.ListInstanceCollectorSessions(
+		ctx,
+		sqlcgen.ListInstanceCollectorSessionsParams{
+			InstanceID: key,
+			ProfileID:  instance.ProfileID,
+			Workspaces: string(encoded),
+		},
+	)
 	if err != nil {
 		return scope, facts, fmt.Errorf("collect sessions: %w", err)
 	}
 	for _, row := range sessions {
-		facts.Sessions = append(facts.Sessions, heartbeat.SessionFact{ID: row.ID, ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID, Health: row.Health})
+		facts.Sessions = append(
+			facts.Sessions,
+			heartbeat.SessionFact{
+				ID:          row.ID,
+				ProfileID:   row.ProfileID,
+				WorkspaceID: row.WorkspaceID,
+				Health:      row.Health,
+			},
+		)
 	}
-	runs, err := r.queries.ListInstanceCollectorAutomations(ctx, sqlcgen.ListInstanceCollectorAutomationsParams{ProfileID: sql.NullString{String: instance.ProfileID, Valid: true}, Workspaces: string(encoded)})
+	runs, err := r.queries.ListInstanceCollectorAutomations(
+		ctx,
+		sqlcgen.ListInstanceCollectorAutomationsParams{
+			ProfileID:  sql.NullString{String: instance.ProfileID, Valid: true},
+			Workspaces: string(encoded),
+		},
+	)
 	if err != nil {
 		return scope, facts, fmt.Errorf("collect automations: %w", err)
 	}
@@ -56,7 +99,16 @@ func (r *InstanceRepo) CollectorFacts(ctx context.Context, id string, scope hear
 		if err != nil {
 			return scope, facts, fmt.Errorf("collect automation %s: %w", row.ID, err)
 		}
-		facts.Automations = append(facts.Automations, heartbeat.AutomationFact{ID: row.ID, ProfileID: row.ProfileID.String, WorkspaceID: row.WorkspaceID.String, Status: row.Status, Cursor: store.FormatTimestamp(endedAt) + "|" + row.ID})
+		facts.Automations = append(
+			facts.Automations,
+			heartbeat.AutomationFact{
+				ID:          row.ID,
+				ProfileID:   row.ProfileID.String,
+				WorkspaceID: row.WorkspaceID.String,
+				Status:      row.Status,
+				Cursor:      store.FormatTimestamp(endedAt) + "|" + row.ID,
+			},
+		)
 	}
 	return scope, facts, nil
 }

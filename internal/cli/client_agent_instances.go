@@ -2,9 +2,10 @@ package cli
 
 import (
 	"context"
-	"github.com/compozy/compozy/internal/api/contract"
 	"net/http"
 	"net/url"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 type agentInstancesClient interface {
@@ -17,22 +18,37 @@ type agentInstancesClient interface {
 
 var _ agentInstancesClient = (*daemonClient)(nil)
 
-func (c *daemonClient) ListAgentInstances(ctx context.Context, query url.Values) (contract.AgentInstanceListResponse, error) {
+func (c *daemonClient) ListAgentInstances(
+	ctx context.Context,
+	query url.Values,
+) (contract.AgentInstanceListResponse, error) {
 	var result contract.AgentInstanceListResponse
 	err := c.doJSON(ctx, http.MethodGet, "/api/agent-instances", query, nil, &result)
 	return result, err
 }
-func (c *daemonClient) CreateAgentInstance(ctx context.Context, body contract.AgentInstanceCreateRequest) (contract.AgentInstanceResponse, error) {
+
+func (c *daemonClient) CreateAgentInstance(
+	ctx context.Context,
+	body contract.AgentInstanceCreateRequest,
+) (contract.AgentInstanceResponse, error) {
 	var result contract.AgentInstanceResponse
 	err := c.doJSON(ctx, http.MethodPost, "/api/agent-instances", nil, body, &result)
 	return result, err
 }
-func (c *daemonClient) AdoptAgentInstance(ctx context.Context, body contract.AgentInstanceAdoptRequest) (contract.AgentInstanceResponse, error) {
+
+func (c *daemonClient) AdoptAgentInstance(
+	ctx context.Context,
+	body contract.AgentInstanceAdoptRequest,
+) (contract.AgentInstanceResponse, error) {
 	var result contract.AgentInstanceResponse
 	err := c.doJSON(ctx, http.MethodPost, "/api/agent-instances/adopt", nil, body, &result)
 	return result, err
 }
-func (c *daemonClient) MutateAgentInstance(ctx context.Context, id, action string) (contract.AgentInstanceResponse, error) {
+
+func (c *daemonClient) MutateAgentInstance(
+	ctx context.Context,
+	id, action string,
+) (contract.AgentInstanceResponse, error) {
 	var result contract.AgentInstanceResponse
 	method, path := http.MethodPost, "/api/agent-instances/"+url.PathEscape(id)
 	if action == "archive" {
@@ -49,7 +65,12 @@ func (c *daemonClient) MutateAgentInstance(ctx context.Context, id, action strin
 	err := c.doJSON(ctx, method, path, nil, nil, response)
 	return result, err
 }
-func (c *daemonClient) AgentInstanceReports(ctx context.Context, id string, query url.Values) (contract.AgentInstanceReportsResponse, error) {
+
+func (c *daemonClient) AgentInstanceReports(
+	ctx context.Context,
+	id string,
+	query url.Values,
+) (contract.AgentInstanceReportsResponse, error) {
 	var result contract.AgentInstanceReportsResponse
 	err := c.doJSON(ctx, http.MethodGet, "/api/agent-instances/"+url.PathEscape(id)+"/reports", query, nil, &result)
 	return result, err
@@ -62,13 +83,36 @@ type agentInstanceChecksClient interface {
 
 var _ agentInstanceChecksClient = (*daemonClient)(nil)
 
-func (c *daemonClient) CheckAgentInstance(ctx context.Context, id string, dry bool) (contract.AgentInstanceCheckResponse, error) {
+func (c *daemonClient) CheckAgentInstance(
+	ctx context.Context,
+	id string,
+	dry bool,
+) (contract.AgentInstanceCheckResponse, error) {
 	var result contract.AgentInstanceCheckResponse
-	err := c.doJSON(ctx, http.MethodPost, "/api/agent-instances/"+url.PathEscape(id)+"/check", nil, contract.AgentInstanceCheckRequest{DryRun: dry}, &result)
+	err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/agent-instances/"+url.PathEscape(id)+"/check",
+		nil,
+		contract.AgentInstanceCheckRequest{DryRun: dry},
+		&result,
+	)
 	return result, err
 }
-func (c *daemonClient) SetAgentInstanceChecks(ctx context.Context, id string, enabled bool) (contract.AgentInstanceResponse, error) {
+
+func (c *daemonClient) SetAgentInstanceChecks(
+	ctx context.Context,
+	id string,
+	enabled bool,
+) (contract.AgentInstanceResponse, error) {
 	var result contract.AgentInstanceResponse
-	err := c.doJSON(ctx, http.MethodPatch, "/api/agent-instances/"+url.PathEscape(id), nil, contract.AgentInstanceUpdateRequest{ChecksEnabled: &enabled}, &result)
+	err := c.doJSON(
+		ctx,
+		http.MethodPatch,
+		"/api/agent-instances/"+url.PathEscape(id),
+		nil,
+		contract.AgentInstanceUpdateRequest{ChecksEnabled: &enabled},
+		&result,
+	)
 	return result, err
 }

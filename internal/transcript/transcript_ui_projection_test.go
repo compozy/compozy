@@ -994,8 +994,13 @@ func TestReportProjection(t *testing.T) {
 		messages, err := ToUIMessages([]store.SessionEvent{
 			turn("a1", 1, "Hello "),
 			{
-				ID: "report:arpt-1", SessionID: "s1", TurnID: "report:arpt-1", Sequence: 2, Timestamp: at,
-				Type: ReportEventType, Content: `{"report_id":"arpt-1","instance_id":"ainst-1","kind":"proposal","payload":{"proposals":[{"title":"Unblock","body":"Run 12"}]},"created_at":"2026-11-01T12:00:00Z"}`,
+				ID:        "report:arpt-1",
+				SessionID: "s1",
+				TurnID:    "report:arpt-1",
+				Sequence:  2,
+				Timestamp: at,
+				Type:      ReportEventType,
+				Content:   `{"report_id":"arpt-1","instance_id":"ainst-1","kind":"proposal","payload":{"proposals":[{"title":"Unblock","body":"Run 12"}]},"created_at":"2026-11-01T12:00:00Z"}`,
 			},
 			turn("a2", 3, "again"),
 		})
@@ -1030,7 +1035,9 @@ func TestReportProjection(t *testing.T) {
 	})
 	t.Run("Should leave an undecodable report out", func(t *testing.T) {
 		t.Parallel()
-		messages, err := ToUIMessages([]store.SessionEvent{{ID: "report:x", SessionID: "s1", Sequence: 1, Type: ReportEventType, Content: "{"}})
+		messages, err := ToUIMessages(
+			[]store.SessionEvent{{ID: "report:x", SessionID: "s1", Sequence: 1, Type: ReportEventType, Content: "{"}},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

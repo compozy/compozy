@@ -3,8 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -18,7 +19,11 @@ type instanceAttentionReader interface {
 	NeedsAttention(context.Context, string) (bool, error)
 }
 
-func (r instanceDefinitions) instancePayload(ctx context.Context, instance agentinstance.Instance, attention instanceAttentionReader) (contract.AgentInstancePayload, error) {
+func (r instanceDefinitions) instancePayload(
+	ctx context.Context,
+	instance agentinstance.Instance,
+	attention instanceAttentionReader,
+) (contract.AgentInstancePayload, error) {
 	payload := core.AgentInstancePayload(instance)
 	if err := r.projectInstanceDefinition(ctx, instance, &payload); err != nil {
 		return payload, err
@@ -66,7 +71,11 @@ func projectInstanceMain(payload *contract.AgentInstancePayload, info *session.I
 	}
 }
 
-func (r instanceDefinitions) projectInstanceDefinition(ctx context.Context, instance agentinstance.Instance, payload *contract.AgentInstancePayload) error {
+func (r instanceDefinitions) projectInstanceDefinition(
+	ctx context.Context,
+	instance agentinstance.Instance,
+	payload *contract.AgentInstancePayload,
+) error {
 	var resolved workspacepkg.ResolvedWorkspace
 	var err error
 	if instance.WorkspaceID == "" {

@@ -10,7 +10,12 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-func resolveInstanceCheckPolicy(ctx context.Context, definitions instanceDefinitions, resolver heartbeat.PolicyResolver, target heartbeat.CheckTarget) (heartbeat.CheckTarget, error) {
+func resolveInstanceCheckPolicy(
+	ctx context.Context,
+	definitions instanceDefinitions,
+	resolver heartbeat.PolicyResolver,
+	target heartbeat.CheckTarget,
+) (heartbeat.CheckTarget, error) {
 	instance := target.Instance
 	var workspace workspacepkg.ResolvedWorkspace
 	var err error
@@ -38,7 +43,15 @@ func resolveInstanceCheckPolicy(ctx context.Context, definitions instanceDefinit
 		target.Gate = "definition_not_stays_on"
 		return target, nil
 	}
-	authoring := heartbeat.AuthoringTarget{ProfileID: instance.ProfileID, ProfileName: workspace.ProfileName, WorkspaceID: instance.WorkspaceID, WorkspaceRoot: workspace.RootDir, AgentName: instance.AgentName, AgentPath: agent.SourcePath, Config: workspace.Config.Agents.Heartbeat}
+	authoring := heartbeat.AuthoringTarget{
+		ProfileID:     instance.ProfileID,
+		ProfileName:   workspace.ProfileName,
+		WorkspaceID:   instance.WorkspaceID,
+		WorkspaceRoot: workspace.RootDir,
+		AgentName:     instance.AgentName,
+		AgentPath:     agent.SourcePath,
+		Config:        workspace.Config.Agents.Heartbeat,
+	}
 	policy, err := resolveTimerPolicy(ctx, resolver, authoring)
 	if errors.Is(err, heartbeat.ErrInvalid) || errors.Is(err, heartbeat.ErrPathEscape) {
 		target.Gate = "heartbeat_invalid"
@@ -65,7 +78,11 @@ func timerPolicyRoot(target heartbeat.AuthoringTarget) string {
 	return filepath.Dir(target.AgentPath)
 }
 
-func resolveTimerPolicy(ctx context.Context, resolver heartbeat.PolicyResolver, target heartbeat.AuthoringTarget) (heartbeat.ResolvedPolicy, error) {
+func resolveTimerPolicy(
+	ctx context.Context,
+	resolver heartbeat.PolicyResolver,
+	target heartbeat.AuthoringTarget,
+) (heartbeat.ResolvedPolicy, error) {
 	var policy heartbeat.ResolvedPolicy
 	var found bool
 	var err error
@@ -76,7 +93,14 @@ func resolveTimerPolicy(ctx context.Context, resolver heartbeat.PolicyResolver, 
 		}
 	}
 	if !found {
-		policy, err = heartbeat.Resolve(ctx, heartbeat.ResolveRequest{AgentPath: target.AgentPath, WorkspaceRoot: timerPolicyRoot(target), Config: target.Config})
+		policy, err = heartbeat.Resolve(
+			ctx,
+			heartbeat.ResolveRequest{
+				AgentPath:     target.AgentPath,
+				WorkspaceRoot: timerPolicyRoot(target),
+				Config:        target.Config,
+			},
+		)
 		if err != nil {
 			return policy, err
 		}

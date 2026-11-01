@@ -150,7 +150,8 @@ func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
 	if strings.TrimSpace(event.ProfileID) == "" {
 		return 0
 	}
-	if event.InstanceID == "" && strings.TrimSpace(event.SessionID) == "" && event.Kind != CatalogEventWorkspaceLayout &&
+	if event.InstanceID == "" && strings.TrimSpace(event.SessionID) == "" &&
+		event.Kind != CatalogEventWorkspaceLayout &&
 		(event.Kind != CatalogEventLayout || strings.TrimSpace(event.WorkspaceID) == "") {
 		return 0
 	}
@@ -276,5 +277,12 @@ func sessionAttentionCatalogEvent(event AttentionEvent) CatalogEvent {
 }
 
 func (m *Manager) PublishInstanceCatalogChanged(profileID, workspaceID, instanceID string) {
-	m.publishSessionCatalogEvent(CatalogEvent{ProfileID: profileID, WorkspaceID: workspaceID, InstanceID: instanceID, Name: "agent_instance.updated"})
+	m.publishSessionCatalogEvent(
+		CatalogEvent{
+			ProfileID:   profileID,
+			WorkspaceID: workspaceID,
+			InstanceID:  instanceID,
+			Name:        "agent_instance.updated",
+		},
+	)
 }

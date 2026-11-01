@@ -87,7 +87,8 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 }
 
 func (payload *agentEventPayload) hasStructuredFacts() bool {
-	return payload.expiresAt != nil || payload.promptRuntime != nil || payload.availableCommands != nil || payload.delivery != nil ||
+	return payload.expiresAt != nil || payload.promptRuntime != nil || payload.availableCommands != nil ||
+		payload.delivery != nil ||
 		payload.goal != nil || payload.origin != nil || len(payload.skillInvocations) > 0 ||
 		len(payload.mentions) > 0 || len(payload.attachments) > 0 || payload.nativeTask != nil
 }

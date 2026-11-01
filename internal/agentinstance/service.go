@@ -3,9 +3,10 @@ package agentinstance
 import (
 	"context"
 	"errors"
-	"github.com/compozy/compozy/internal/hooks"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )

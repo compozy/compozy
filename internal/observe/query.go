@@ -38,7 +38,10 @@ func (o *Observer) QueryPermissionLog(
 }
 
 // QueryPermissionEntries returns the newest audit rows in a profile's reach.
-func (o *Observer) QueryPermissionEntries(ctx context.Context, query store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error) {
+func (o *Observer) QueryPermissionEntries(
+	ctx context.Context,
+	query store.PermissionEntriesQuery,
+) ([]store.PermissionLogEntry, error) {
 	return o.registry.PermissionEntries(ctx, query)
 }
 
@@ -129,6 +132,9 @@ func (o *Observer) WriteHookRecord(ctx context.Context, sessionID string, record
 	return nil
 }
 
-func (o *Observer) QueryPermissionDailyRollups(ctx context.Context, query store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error) {
+func (o *Observer) QueryPermissionDailyRollups(
+	ctx context.Context,
+	query store.PermissionRollupQuery,
+) ([]store.PermissionDailyRollup, error) {
 	return o.registry.PermissionDailyRollups(ctx, query)
 }

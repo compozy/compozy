@@ -254,7 +254,8 @@ func TestTriagePolicy(t *testing.T) {
 			t.Fatalf("denial events=%+v", events)
 		}
 		for _, event := range events {
-			if event.RequestIDValue() == "" || event.Type != EventTypePermission || event.Decision != string(decisionRejectOnce) {
+			if event.RequestIDValue() == "" || event.Type != EventTypePermission ||
+				event.Decision != string(decisionRejectOnce) {
 				t.Fatalf("denial=%+v", event)
 			}
 		}

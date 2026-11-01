@@ -2,9 +2,10 @@ package daemon
 
 import (
 	"context"
+	"time"
+
 	"github.com/compozy/compozy/internal/acp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
-	"time"
 )
 
 func instancePermissionWaitResolver(state *bootState) acp.PermissionWaitResolver {

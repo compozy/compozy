@@ -2680,17 +2680,36 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 					close(done)
 					return nil, nil
 				}
-				return []store.SessionEvent{{ID: "report:arpt-http", SessionID: id, Sequence: 1, TurnID: "report:arpt-http", Type: "session.report", AgentName: "coder", Content: `{"report_id":"arpt-http","instance_id":"ainst-http","kind":"failure","payload":{"reason":"failed","detail":"triage failed"},"created_at":"2026-11-01T00:00:00Z"}`, Timestamp: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}}, nil
+				return []store.SessionEvent{
+					{
+						ID:        "report:arpt-http",
+						SessionID: id,
+						Sequence:  1,
+						TurnID:    "report:arpt-http",
+						Type:      "session.report",
+						AgentName: "coder",
+						Content:   `{"report_id":"arpt-http","instance_id":"ainst-http","kind":"failure","payload":{"reason":"failed","detail":"triage failed"},"created_at":"2026-11-01T00:00:00Z"}`,
+						Timestamp: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+					},
+				}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		fixture.Handlers.SetStreamDone(done)
-		response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&limit=200", nil)
-		if response.Code != http.StatusOK || !strings.Contains(response.Header().Get("Content-Type"), "text/event-stream") {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream?frames=raw&limit=200",
+			nil,
+		)
+		if response.Code != http.StatusOK ||
+			!strings.Contains(response.Header().Get("Content-Type"), "text/event-stream") {
 			t.Fatalf("HTTP stream: %d %v", response.Code, response.Header())
 		}
 		body := response.Body.String()
-		if !strings.Contains(body, "session.report") || !strings.Contains(body, "arpt-http") || !strings.Contains(body, "ainst-http") {
+		if !strings.Contains(body, "session.report") || !strings.Contains(body, "arpt-http") ||
+			!strings.Contains(body, "ainst-http") {
 			t.Fatalf("missing report in SSE: %s", body)
 		}
 	})
@@ -4393,7 +4412,13 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		memoryHome := t.TempDir()
 		fixture.Handlers.AgentMemory = agentmemory.NewStore(memoryHome)
 		memoryKey := agentmemory.Key{ProfileID: store.DefaultProfileID, Origin: "workspace-ws-registry", Agent: "coder"}
-		if _, err := fixture.Handlers.AgentMemory.Add(memoryKey, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), "ws-registry", "old agent note", ""); err != nil {
+		if _, err := fixture.Handlers.AgentMemory.Add(
+			memoryKey,
+			time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+			"ws-registry",
+			"old agent note",
+			"",
+		); err != nil {
 			t.Fatal(err)
 		}
 		memoryDir := filepath.Join(memoryHome, "agent-memory", memoryKey.ProfileID, memoryKey.Origin, memoryKey.Agent)
@@ -4405,7 +4430,8 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			t.Fatal(err)
 		}
 		failed := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
-		if failed.Code != http.StatusInternalServerError || !strings.Contains(failed.Body.String(), "retire agent memory") {
+		if failed.Code != http.StatusInternalServerError ||
+			!strings.Contains(failed.Body.String(), "retire agent memory") {
 			t.Fatalf("retirement failure: status=%d body=%s", failed.Code, failed.Body.String())
 		}
 		if _, err := os.Stat(workspacePath); err != nil {
@@ -6353,7 +6379,10 @@ type draftInstructionsSessions struct {
 
 var _ core.AgentInstructionsDrafter = draftInstructionsSessions{}
 
-func (s draftInstructionsSessions) DraftInstructions(_ context.Context, req session.DraftInstructionsRequest) (string, error) {
+func (s draftInstructionsSessions) DraftInstructions(
+	_ context.Context,
+	req session.DraftInstructionsRequest,
+) (string, error) {
 	if req.Goal != "Review requests" || req.Provider != "codex" {
 		return "", errors.New("unexpected draft request")
 	}
@@ -6374,11 +6403,21 @@ func TestDraftAgentInstructionsEndpoint(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
 			fixture.Handlers.Sessions = draftInstructionsSessions{err: tc.err}
 			fixture.Engine.POST("/agents/draft-instructions", fixture.Handlers.DraftAgentInstructions)
 			response := httptest.NewRecorder()
-			request := httptest.NewRequestWithContext(t.Context(), "POST", "/agents/draft-instructions", strings.NewReader(`{"goal":"Review requests","runtime":{"provider":"codex"}}`))
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				"POST",
+				"/agents/draft-instructions",
+				strings.NewReader(`{"goal":"Review requests","runtime":{"provider":"codex"}}`),
+			)
 			request.Header.Set("Content-Type", "application/json")
 			fixture.Engine.ServeHTTP(response, request)
 			if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.body) {

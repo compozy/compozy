@@ -28,12 +28,40 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		if operation.read {
 			risk = toolspkg.RiskRead
 		}
-		result = append(result, nativeDescriptor(operation.id, "agent_instance_"+operation.name,
-			"Agent Instance "+operation.name, "Manage the caller's stays-on agent instance: "+operation.name,
-			agentInstanceInputSchema, risk, operation.read, operation.name == "archive", false,
-			[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext}, []string{"agents", "instances"}, []string{"stays-on instance", operation.name}))
+		result = append(result, nativeDescriptor(
+			operation.id,
+			"agent_instance_"+operation.name,
+			"Agent Instance "+operation.name,
+			"Manage the caller's stays-on agent instance: "+operation.name,
+			agentInstanceInputSchema,
+			risk,
+			operation.read,
+			operation.name == "archive",
+			false,
+			[]toolspkg.ToolsetID{
+				toolspkg.ToolsetIDAuthoredContext,
+			},
+			[]string{"agents", "instances"},
+			[]string{"stays-on instance", operation.name},
+		))
 	}
-	result = append(result, nativeDescriptor(toolspkg.ToolIDAgentActivity, "agent_activity", "Agent Activity", "Read agent activity in an authorized workspace", agentInstanceInputSchema, toolspkg.RiskRead, true, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext}, []string{"agents", "activity"}, []string{"agent activity"}))
+	result = append(
+		result,
+		nativeDescriptor(
+			toolspkg.ToolIDAgentActivity,
+			"agent_activity",
+			"Agent Activity",
+			"Read agent activity in an authorized workspace",
+			agentInstanceInputSchema,
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+			[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
+			[]string{"agents", "activity"},
+			[]string{"agent activity"},
+		),
+	)
 	return result
 }
 

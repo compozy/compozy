@@ -48,7 +48,11 @@ func (m *Manager) resolveSessionStartRuntime(
 		if model := runtimeConfig.Agents.Heartbeat.TriageModels[provider]; model != "" {
 			spec.model, spec.provider = model, resolved.Provider
 			resolved, err = runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
-				Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort, Command: spec.command, SessionEnv: spec.sessionEnv,
+				Provider:   spec.provider,
+				Model:      spec.model,
+				Reasoning:  spec.reasoningEffort,
+				Command:    spec.command,
+				SessionEnv: spec.sessionEnv,
 			})
 			if err != nil {
 				return sessionStartRuntime{}, fmt.Errorf("session: resolve triage model: %w", err)

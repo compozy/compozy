@@ -92,7 +92,9 @@ func (c SoulConfig) Validate() error {
 // Validate ensures HEARTBEAT.md limits and timing bounds are internally consistent.
 func (c HeartbeatConfig) Validate() error {
 	for provider, model := range c.TriageModels {
-		if strings.TrimSpace(provider) == "" || provider != strings.TrimSpace(provider) || strings.TrimSpace(model) == "" || model != strings.TrimSpace(model) {
+		if strings.TrimSpace(provider) == "" || provider != strings.TrimSpace(provider) ||
+			strings.TrimSpace(model) == "" ||
+			model != strings.TrimSpace(model) {
 			return fmt.Errorf("agents.heartbeat.triage_models requires nonempty trimmed provider and model names")
 		}
 	}

@@ -905,14 +905,30 @@ func TestSessionInitiatorInheritance(t *testing.T) {
 	t.Run("Should inherit the root initiator across child generations", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "automation-1"}})
+		parent, err := h.manager.Create(
+			t.Context(),
+			CreateOpts{
+				AgentName: "coder",
+				Workspace: h.workspaceID,
+				Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "automation-1"},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		rootID := parent.ID
 		t.Cleanup(func() { reportSessionStop(t, h, rootID) })
 		for range 2 {
-			child, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem, ProvenanceParentSessionID: parent.ID, Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "daemon"}})
+			child, err := h.manager.Create(
+				t.Context(),
+				CreateOpts{
+					AgentName:                 "coder",
+					Workspace:                 h.workspaceID,
+					Type:                      SessionTypeSystem,
+					ProvenanceParentSessionID: parent.ID,
+					Origin:                    workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "daemon"},
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

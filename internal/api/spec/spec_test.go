@@ -894,7 +894,18 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				if len(stream.OneOf) != 4 {
 					t.Fatalf("session catalog SSE response oneOf = %#v, want four named payloads", stream.OneOf)
 				}
-				assertRequired(t, stream.OneOf[3].Value, "id", "label", "provider", "resolved_appearance", "scope", "activity", "now", "needs_attention")
+				assertRequired(
+					t,
+					stream.OneOf[3].Value,
+					"id",
+					"label",
+					"provider",
+					"resolved_appearance",
+					"scope",
+					"activity",
+					"now",
+					"needs_attention",
+				)
 				catalog := stream.OneOf[0].Value
 				attention := stream.OneOf[1].Value
 				notification := stream.OneOf[2].Value
@@ -3821,7 +3832,18 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	attentionItem["properties"].(map[string]any)["workspace_id"] = map[string]any{"type": "string"}
 	attentionItem["required"] = append(attentionItem["required"].([]any), "workspace_id")
 	interactions := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"].(map[string]any)["get"].(map[string]any)
-	interactions["parameters"] = slices.Insert(interactions["parameters"].([]any), 2, any(map[string]any{"name": "descendants", "in": "query", "description": "Include descendant sessions in the same workspace and profile", "schema": map[string]any{"type": "boolean"}}))
+	interactions["parameters"] = slices.Insert(
+		interactions["parameters"].([]any),
+		2,
+		any(
+			map[string]any{
+				"name":        "descendants",
+				"in":          "query",
+				"description": "Include descendant sessions in the same workspace and profile",
+				"schema":      map[string]any{"type": "boolean"},
+			},
+		),
+	)
 	addStaysOnAdditiveSchemas(baseline)
 }
 
@@ -5082,7 +5104,16 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 			parameter["description"] = "Case-insensitive agent name, label or category search"
 		}
 		if parameter["name"] == "name" {
-			catalog["parameters"] = slices.Insert[[]any, any](parameters, i, map[string]any{"name": "group", "in": "query", "description": "Group identical scoped definitions", "schema": map[string]any{"type": "string", "enum": []any{"agent"}}})
+			catalog["parameters"] = slices.Insert[[]any, any](
+				parameters,
+				i,
+				map[string]any{
+					"name":        "group",
+					"in":          "query",
+					"description": "Group identical scoped definitions",
+					"schema":      map[string]any{"type": "string", "enum": []any{"agent"}},
+				},
+			)
 			break
 		}
 	}
@@ -5117,7 +5148,10 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 					props["label"] = text()
 					props["resolved_appearance"] = open()
 					node["required"] = append(node["required"].([]any), "label", "resolved_appearance")
-					slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+					slices.SortFunc(
+						node["required"].([]any),
+						func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+					)
 					agentSchema = node
 				} else {
 					props["display_name"].(map[string]any)["nullable"] = true
@@ -5160,7 +5194,10 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 			}
 			props["next_cursor"] = map[string]any{"type": "string"}
 			node["required"] = append(node["required"].([]any), "next_cursor")
-			slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+			slices.SortFunc(
+				node["required"].([]any),
+				func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+			)
 			props["items"] = map[string]any{
 				"type": "array",
 				"items": map[string]any{
@@ -5196,7 +5233,8 @@ func TestAgentMemoryOpenAPI(t *testing.T) {
 			if rendered.Extensions["x-stability"] != "experimental" {
 				t.Fatalf("missing stability for %s", operation.OperationID)
 			}
-			if !slices.Contains(operation.Transports, TransportHTTP) || !slices.Contains(operation.Transports, TransportUDS) {
+			if !slices.Contains(operation.Transports, TransportHTTP) ||
+				!slices.Contains(operation.Transports, TransportUDS) {
 				t.Fatalf("missing transport for %s", operation.OperationID)
 			}
 			if operation.AppAccess != AppAccessDenied {
@@ -5245,7 +5283,10 @@ func addStaysOnAdditiveSchemas(value any) {
 			props["expires_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 			props["session_id"] = map[string]any{"type": "string"}
 			node["required"] = append(node["required"].([]any), "session_id")
-			slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+			slices.SortFunc(
+				node["required"].([]any),
+				func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+			)
 		}
 	}
 }
@@ -5284,7 +5325,16 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
 
 	facets := baseline["paths"].(map[string]any)["/api/sessions/facets"].(map[string]any)["get"].(map[string]any)
-	facets["parameters"] = append([]any{map[string]any{"name": "exclude_instance_main", "in": "query", "description": "Exclude instance main sessions from board counts", "schema": map[string]any{"type": "boolean"}}}, facets["parameters"].([]any)...)
+	facets["parameters"] = append(
+		[]any{
+			map[string]any{
+				"name":        "exclude_instance_main",
+				"in":          "query",
+				"description": "Exclude instance main sessions from board counts",
+				"schema":      map[string]any{"type": "boolean"},
+			},
+		},
+		facets["parameters"].([]any)...)
 
 	for path, item := range baseline["paths"].(map[string]any) {
 		get, ok := item.(map[string]any)["get"].(map[string]any)
@@ -5329,24 +5379,52 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				}
 				node["enum"] = values
 			}
-			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("subagent.settled")) && !slices.Contains(values, any("agent.created")) && !slices.Contains(values, any("agent.instance.created")) {
-				node["enum"] = append([]any{"agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted"}, values...)
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("subagent.settled")) &&
+				!slices.Contains(values, any("agent.created")) &&
+				!slices.Contains(values, any("agent.instance.created")) {
+				node["enum"] = append(
+					[]any{
+						"agent.instance.created",
+						"agent.instance.paused",
+						"agent.instance.resumed",
+						"agent.instance.archived",
+						"agent.instance.adopted",
+					},
+					values...)
 			}
-			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent.created")) && !slices.Contains(values, any("agent.instance.created")) {
-				values = append(values, "agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted")
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent.created")) &&
+				!slices.Contains(values, any("agent.instance.created")) {
+				values = append(
+					values,
+					"agent.instance.created",
+					"agent.instance.paused",
+					"agent.instance.resumed",
+					"agent.instance.archived",
+					"agent.instance.adopted",
+				)
 				slices.SortFunc(values, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
 				node["enum"] = values
 			}
-			if props, ok := node["properties"].(map[string]any); ok && props["interaction_id"] != nil && props["provider_request_id"] != nil && props["session_id"] == nil {
+			if props, ok := node["properties"].(map[string]any); ok && props["interaction_id"] != nil &&
+				props["provider_request_id"] != nil &&
+				props["session_id"] == nil {
 				props["expires_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 				props["session_id"] = map[string]any{"type": "string"}
 				node["required"] = append(node["required"].([]any), "session_id")
-				slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
 			}
-			if props, ok := node["properties"].(map[string]any); ok && props["terminal_approvals"] != nil && props["board"] != nil && props["instances_needing_attention"] == nil {
+			if props, ok := node["properties"].(map[string]any); ok && props["terminal_approvals"] != nil &&
+				props["board"] != nil &&
+				props["instances_needing_attention"] == nil {
 				props["instances_needing_attention"] = map[string]any{"type": "integer"}
 				node["required"] = append(node["required"].([]any), "instances_needing_attention")
-				slices.SortFunc(node["required"].([]any), func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
 			}
 		}
 	}
@@ -5367,6 +5445,9 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	props["fatigue_limit"] = map[string]any{"type": "integer"}
 	props["resolved_appearance"] = map[string]any{"type": "object", "additionalProperties": map[string]any{}}
 	stream := baseline["paths"].(map[string]any)["/api/sessions/catalog-stream"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["text/event-stream"].(map[string]any)["schema"].(map[string]any)
-	stream["oneOf"] = append(stream["oneOf"].([]any), map[string]any{"type": "object", "properties": props, "required": required})
+	stream["oneOf"] = append(
+		stream["oneOf"].([]any),
+		map[string]any{"type": "object", "properties": props, "required": required},
+	)
 
 }

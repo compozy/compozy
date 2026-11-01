@@ -22,18 +22,39 @@ func agentMemoryDescriptors() []toolspkg.Descriptor {
 		if item.read {
 			risk = toolspkg.RiskRead
 		}
-		descriptor := nativeDescriptor(item.id, item.name, item.title, item.description, item.schema, risk, item.read, false, false, []toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext}, []string{"agent", "memory"}, []string{"agent memory", "remember notes"})
+		descriptor := nativeDescriptor(
+			item.id,
+			item.name,
+			item.title,
+			item.description,
+			item.schema,
+			risk,
+			item.read,
+			false,
+			false,
+			[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
+			[]string{"agent", "memory"},
+			[]string{"agent memory", "remember notes"},
+		)
 		// Memory identity is always derived from the caller, never selected by input.
 		descriptor.InputSchema = json.RawMessage(item.schema)
 		switch item.id {
 		case toolspkg.ToolIDAgentMemoryAdd:
-			descriptor.OutputSchema = json.RawMessage(`{"type":"object","required":["digest","budget"],"properties":{"digest":{"type":"string"},"budget":{"type":"object","required":["lines","max_lines","bytes","max_bytes"],"properties":{"lines":{"type":"integer"},"max_lines":{"type":"integer"},"bytes":{"type":"integer"},"max_bytes":{"type":"integer"}},"additionalProperties":false}},"additionalProperties":false}`)
+			descriptor.OutputSchema = json.RawMessage(
+				`{"type":"object","required":["digest","budget"],"properties":{"digest":{"type":"string"},"budget":{"type":"object","required":["lines","max_lines","bytes","max_bytes"],"properties":{"lines":{"type":"integer"},"max_lines":{"type":"integer"},"bytes":{"type":"integer"},"max_bytes":{"type":"integer"}},"additionalProperties":false}},"additionalProperties":false}`,
+			)
 		case toolspkg.ToolIDAgentMemoryReplace:
-			descriptor.OutputSchema = json.RawMessage(`{"type":"object","required":["digest"],"properties":{"digest":{"type":"string"}},"additionalProperties":false}`)
+			descriptor.OutputSchema = json.RawMessage(
+				`{"type":"object","required":["digest"],"properties":{"digest":{"type":"string"}},"additionalProperties":false}`,
+			)
 		case toolspkg.ToolIDAgentMemoryRemove:
-			descriptor.OutputSchema = json.RawMessage(`{"type":"object","required":["digest","removed"],"properties":{"digest":{"type":"string"},"removed":{"type":"integer"}},"additionalProperties":false}`)
+			descriptor.OutputSchema = json.RawMessage(
+				`{"type":"object","required":["digest","removed"],"properties":{"digest":{"type":"string"},"removed":{"type":"integer"}},"additionalProperties":false}`,
+			)
 		case toolspkg.ToolIDAgentMemorySearch:
-			descriptor.OutputSchema = json.RawMessage(`{"type":"object","required":["results"],"properties":{"results":{"type":"array","items":{"type":"object","required":["source","text"],"properties":{"source":{"type":"string"},"text":{"type":"string"},"file":{"type":"string"},"line":{"type":"integer"},"score":{"type":"number"},"session_id":{"type":"string"}}}}},"additionalProperties":false}`)
+			descriptor.OutputSchema = json.RawMessage(
+				`{"type":"object","required":["results"],"properties":{"results":{"type":"array","items":{"type":"object","required":["source","text"],"properties":{"source":{"type":"string"},"text":{"type":"string"},"file":{"type":"string"},"line":{"type":"integer"},"score":{"type":"number"},"session_id":{"type":"string"}}}}},"additionalProperties":false}`,
+			)
 		}
 		result = append(result, descriptor)
 	}

@@ -36,7 +36,8 @@ func (m *Manager) prepareInternalSystemProvenance(
 	if lineage != nil {
 		return nil, false, fmt.Errorf("%w: internal system provenance cannot be combined with lineage", ErrValidation)
 	}
-	if normalizeSessionType(sessionType) != SessionTypeSystem && normalizeSessionType(sessionType) != SessionTypeTriage {
+	if normalizeSessionType(sessionType) != SessionTypeSystem &&
+		normalizeSessionType(sessionType) != SessionTypeTriage {
 		return nil, false, fmt.Errorf("%w: internal provenance requires a system session", ErrValidation)
 	}
 
