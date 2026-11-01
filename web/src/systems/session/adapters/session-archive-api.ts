@@ -38,7 +38,7 @@ export async function archiveSession(
   return requireResponseData(data, response, `Failed to archive session "${id}"`).session;
 }
 
-/** Archives a session with its child sessions and names the ones the daemon archived. */
+/** Archives a session with its child sessions, as the daemon reads the tree. */
 export async function archiveSessionTree(
   workspaceId: string,
   id: string,
@@ -46,7 +46,7 @@ export async function archiveSessionTree(
   signal?: AbortSignal,
   stop = false,
   processes?: SessionProcessPolicy
-): Promise<{ session: SessionPayload; descendantIds: readonly string[] }> {
+): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
@@ -65,19 +65,18 @@ export async function archiveSessionTree(
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to archive session "${id}"`, id);
   }
-  const body = requireResponseData(data, response, `Failed to archive session "${id}"`);
-  return { session: body.session, descendantIds: body.archived_descendant_ids ?? [] };
+  return requireResponseData(data, response, `Failed to archive session "${id}"`).session;
 }
 
-/** Deletes a session with its child sessions and names every session the daemon removed. */
+/** Deletes a session with its child sessions, as the daemon reads the tree. */
 export async function deleteSessionTree(
   workspaceId: string,
   id: string,
   profile: string,
   signal?: AbortSignal,
   processes?: SessionProcessPolicy
-): Promise<readonly string[]> {
-  const { data, error, response } = await apiClient.DELETE(
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
@@ -90,8 +89,6 @@ export async function deleteSessionTree(
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to delete session "${id}"`, id);
   }
-  return requireResponseData(data, response, `Failed to delete session "${id}"`)
-    .deleted_session_ids;
 }
 
 /** Lists every child session, recursively; the paginated catalog cannot answer this. */

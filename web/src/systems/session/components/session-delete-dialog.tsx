@@ -93,6 +93,7 @@ export function SessionDeleteDialog({
         ) : null}
         <DialogFooter className="flex-wrap gap-2">
           <SessionDeleteActions
+            childrenPending={childSessions?.included === true && childSessions.pending}
             isDeleting={isDeleting}
             retrying={retrying}
             processChoice={processChoice}

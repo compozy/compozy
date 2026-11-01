@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -13,6 +14,21 @@ import (
 // maxDeleteTreePasses bounds the re-walks that catch children created while a
 // session tree was being deleted.
 const maxDeleteTreePasses = 8
+
+const spawnAdmissionPollInterval = 20 * time.Millisecond
+
+// ErrSessionTreeContainsCaller refuses a tree operation that would reach the
+// session requesting it.
+var ErrSessionTreeContainsCaller = errors.New("session: session tree contains the calling session")
+
+// ArchiveTreeOptions shapes one tree archive.
+type ArchiveTreeOptions struct {
+	// Stop stops live members first; without it a live member refuses the archive.
+	Stop bool
+	// RefuseMember fails the archive, before anything stops, when this session
+	// is in the tree at the moment the tree is fenced against adoption.
+	RefuseMember string
+}
 
 // SessionTree is a session with its hierarchy descendants, shallowest first.
 type SessionTree struct {
@@ -42,7 +58,7 @@ func (m *Manager) ArchiveWithChildren(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
-	stop bool,
+	opts ArchiveTreeOptions,
 ) (*SessionTree, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	treeStore, err := m.sessionTreeStore()
@@ -52,10 +68,10 @@ func (m *Manager) ArchiveWithChildren(
 	var archived store.SessionTreeArchive
 	attempt := func() error {
 		var archiveErr error
-		archived, archiveErr = m.archiveTreeWithResumeGuard(ctx, treeStore, workspaceID, sessionID)
+		archived, archiveErr = m.archiveTreeWithResumeGuard(ctx, treeStore, workspaceID, sessionID, opts.RefuseMember)
 		return archiveErr
 	}
-	if stop {
+	if opts.Stop {
 		err = m.archiveStoppingLiveMembers(ctx, sessionID, attempt)
 	} else {
 		err = attempt()
@@ -67,14 +83,14 @@ func (m *Manager) ArchiveWithChildren(
 		Root:        sessionInfoFromCatalog(&archived.Root),
 		Descendants: sessionInfosFromCatalog(archived.Descendants),
 	}
-	// The archive is committed: every member publishes, and a failed release
-	// returns with the tree so callers still finish the members' cleanup.
-	var releaseErr error
+	// The archive is committed, so a failed watch release does not fail it.
 	for _, member := range slices.Concat([]*Info{tree.Root}, tree.Descendants) {
-		releaseErr = errors.Join(releaseErr, m.releaseArchivedSessionWatches(ctx, member.ID))
+		if err := m.releaseArchivedSessionWatches(ctx, member.ID); err != nil {
+			m.logger.Warn("session: release watches of archived member", "session_id", member.ID, "error", err)
+		}
 		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, member))
 	}
-	return tree, releaseErr
+	return tree, nil
 }
 
 // archiveTreeWithResumeGuard holds lifecycleMu, which adoption also holds, so
@@ -84,6 +100,7 @@ func (m *Manager) archiveTreeWithResumeGuard(
 	treeStore store.SessionTreeStore,
 	workspaceID string,
 	sessionID string,
+	refuseMember string,
 ) (store.SessionTreeArchive, error) {
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
@@ -97,6 +114,9 @@ func (m *Manager) archiveTreeWithResumeGuard(
 		return store.SessionTreeArchive{}, newArchiveRequiresStoppedError(sessionID, nil)
 	}
 	for i := range descendants {
+		if refuseMember != "" && descendants[i].ID == refuseMember {
+			return store.SessionTreeArchive{}, ErrSessionTreeContainsCaller
+		}
 		if m.resumeLifecycle.runs[descendants[i].ID] != nil {
 			return store.SessionTreeArchive{}, &archiveRequiresStoppedError{
 				sessionID: sessionID,
@@ -175,7 +195,9 @@ func (m *Manager) stopDeleteTree(
 				return fmt.Errorf("session: stop %q before delete: %w", id, err)
 			}
 		}
-		m.waitForAdmittedSpawns()
+		if err := m.waitForAdmittedSpawnsContext(ctx); err != nil {
+			return err
+		}
 		descendants, err := treeStore.ListSessionDescendants(ctx, workspaceID, sessionID)
 		if err != nil {
 			return err
@@ -191,6 +213,20 @@ func (m *Manager) stopDeleteTree(
 		}
 	}
 	return fmt.Errorf("session: delete %q: the session tree kept growing", sessionID)
+}
+
+// waitForAdmittedSpawnsContext is waitForAdmittedSpawns for a request: Spawn can
+// hold spawnMu through a slow child start, and a canceled delete stops waiting.
+func (m *Manager) waitForAdmittedSpawnsContext(ctx context.Context) error {
+	for !m.spawnMu.TryLock() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(spawnAdmissionPollInterval):
+		}
+	}
+	m.spawnMu.Unlock()
+	return nil
 }
 
 func (m *Manager) sessionTreeStore() (store.SessionTreeStore, error) {

@@ -1024,10 +1024,7 @@ describe("session actions", () => {
       vi.mocked(fetchSessionById).mockResolvedValue(createdSession);
       vi.mocked(archiveSession).mockResolvedValue(createdSession);
       vi.mocked(deleteSession).mockResolvedValue(undefined);
-      vi.mocked(archiveSessionTree).mockResolvedValue({
-        session: createdSession,
-        descendantIds: [child.id],
-      });
+      vi.mocked(archiveSessionTree).mockResolvedValue(createdSession);
     });
 
     it("archives in one click without children", async () => {
@@ -1103,9 +1100,11 @@ describe("session actions", () => {
       ).toEqual([child.id, createdSession.id].sort());
     });
 
-    it("deletes a tree once when the opt-in covers a selected child", async () => {
+    it("counts a selected child as done when its parent's tree already took it", async () => {
       const grandchild = { ...createdSession, id: "sess-grandchild" };
-      vi.mocked(deleteSessionTree).mockResolvedValue([grandchild.id, child.id, createdSession.id]);
+      vi.mocked(deleteSessionTree).mockImplementation(async (_workspace, id) => {
+        if (id === child.id) throw new SessionApiError("gone", 404);
+      });
       vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) =>
         id === createdSession.id ? [child, grandchild] : []
       );
@@ -1116,35 +1115,16 @@ describe("session actions", () => {
         wrapper: createWrapper(treeClient()),
       });
       act(() => result.current.actions.onDeleteMany?.([child, createdSession]));
-      await waitFor(() => expect(result.current.deleteDialog.childSessions?.count).toBe(1));
-      expect(result.current.deleteDialog.childSessions?.included).toBe(false);
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.pending).toBe(false));
+      expect(result.current.deleteDialog.childSessions).toMatchObject({
+        count: 1,
+        included: false,
+      });
       act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
       act(() => result.current.deleteDialog.onConfirm());
       await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
-      expect(deleteSessionTree).toHaveBeenCalledTimes(1);
       expect(vi.mocked(deleteSessionTree).mock.calls[0]?.[1]).toBe(createdSession.id);
       expect(deleteSession).not.toHaveBeenCalled();
-    });
-
-    it("runs a covered child itself when the daemon did not report taking it", async () => {
-      vi.mocked(deleteSessionTree).mockImplementation(async (_workspace, id) =>
-        id === createdSession.id ? [createdSession.id] : [id]
-      );
-      vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) =>
-        id === createdSession.id ? [child, { ...createdSession, id: "sess-other" }] : []
-      );
-      vi.mocked(fetchSessionById).mockImplementation(async (id: string) =>
-        id === child.id ? child : createdSession
-      );
-      const { result } = renderHook(() => useSessionLifecycleActions(), {
-        wrapper: createWrapper(treeClient()),
-      });
-      act(() => result.current.actions.onDeleteMany?.([child, createdSession]));
-      await waitFor(() => expect(result.current.deleteDialog.childSessions?.count).toBe(1));
-      act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
-      act(() => result.current.deleteDialog.onConfirm());
-      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
-      expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([child.id]);
     });
 
     it("counts a child's processes only while children are included, subagents too", async () => {

@@ -1986,23 +1986,6 @@
         ],
         "type": "object"
       },
-      "ArchiveSessionResponse": {
-        "properties": {
-          "archived_descendant_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "session": {
-            "$ref": "#/components/schemas/SessionPayload"
-          }
-        },
-        "required": [
-          "session"
-        ],
-        "type": "object"
-      },
       "Argument": {
         "properties": {
           "name": {
@@ -5856,20 +5839,6 @@
         },
         "required": [
           "expected_version"
-        ],
-        "type": "object"
-      },
-      "DeleteSessionTreeResponse": {
-        "properties": {
-          "deleted_session_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "deleted_session_ids"
         ],
         "type": "object"
       },
@@ -85893,16 +85862,6 @@
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeleteSessionTreeResponse"
-                }
-              }
-            },
-            "description": "Deleted with with_children"
-          },
           "204": {
             "description": "No Content"
           },
@@ -86310,7 +86269,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArchiveSessionResponse"
+                  "$ref": "#/components/schemas/SessionResponse"
                 }
               }
             },

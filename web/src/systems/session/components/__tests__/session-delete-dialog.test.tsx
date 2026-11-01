@@ -259,7 +259,13 @@ describe("SessionDeleteDialog child sessions", () => {
         open
         sessions={[session]}
         isDeleting={false}
-        childSessions={{ count: 2, included: false, includedProcessCount: 0, onIncludedChange }}
+        childSessions={{
+          count: 2,
+          included: false,
+          includedProcessCount: 0,
+          pending: false,
+          onIncludedChange,
+        }}
         onConfirm={vi.fn()}
         onOpenChange={vi.fn()}
       />
@@ -269,6 +275,26 @@ describe("SessionDeleteDialog child sessions", () => {
     expect(checkbox).not.toBeChecked();
     fireEvent.click(checkbox);
     expect(onIncludedChange).toHaveBeenCalledWith(true);
+  });
+
+  it("holds the confirm while an included tree is still being read", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        childSessions={{
+          count: 1,
+          included: true,
+          includedProcessCount: 0,
+          pending: true,
+          onIncludedChange: vi.fn(),
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("delete-dialog-confirm")).toBeDisabled();
   });
 
   it("asks about the processes included children left running", () => {
@@ -281,6 +307,7 @@ describe("SessionDeleteDialog child sessions", () => {
           count: 1,
           included: true,
           includedProcessCount: 2,
+          pending: false,
           onIncludedChange: vi.fn(),
         }}
         onConfirm={vi.fn()}

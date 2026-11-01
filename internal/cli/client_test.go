@@ -5549,11 +5549,15 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 							if operation == "archive" && (query.Get("stop") == "true") != choice.flag {
 								t.Fatalf("archive stop query: %s", req.URL)
 							}
-							if operation == "archive" && query.Has("with_children") == choice.flag {
-								t.Fatalf("archive with_children query: %s", req.URL)
+							wantChildren := choice.flag
+							if operation == "archive" {
+								wantChildren = !choice.flag
 							}
-							if operation == "delete" && query.Has("with_children") != choice.flag {
-								t.Fatalf("delete with_children query: %s", req.URL)
+							if operation != "stop" && (query.Get("with_children") == "true") != wantChildren {
+								t.Fatalf("with_children query: %s", req.URL)
+							}
+							if operation != "stop" && !wantChildren && query.Has("with_children") {
+								t.Fatalf("with_children query without the opt-in: %s", req.URL)
 							}
 						}
 						if operation == "delete" {

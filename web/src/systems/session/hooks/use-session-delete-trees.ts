@@ -1,15 +1,17 @@
 import { useQueries } from "@tanstack/react-query";
 
-import { sessionDescendantsOptions, type SessionTrees } from "../lib/session-tree";
+import { sessionDescendantsOptions } from "../lib/query-options";
+import type { SessionTrees } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 
 /**
- * Keeps an open delete confirmation's child sessions current from the daemon. Only a settled read
- * counts: a cached tree mid-refetch or after a failure could understate what a yes deletes.
+ * Keeps an open delete confirmation's child sessions current from the daemon. `settled` is false
+ * while a read runs or failed, so a yes never rests on a count that could understate the tree.
  */
-export function useSessionDeleteTrees(
-  sessions: readonly SessionPayload[] | undefined
-): SessionTrees {
+export function useSessionDeleteTrees(sessions: readonly SessionPayload[] | undefined): {
+  trees: SessionTrees;
+  settled: boolean;
+} {
   const reads = useQueries({
     queries: (sessions ?? []).map(session => ({
       ...sessionDescendantsOptions(session),
@@ -19,8 +21,8 @@ export function useSessionDeleteTrees(
   });
   const trees = new Map<string, readonly SessionPayload[]>();
   sessions?.forEach((session, index) => {
-    const read = reads[index];
-    if (read?.isSuccess && !read.isFetching) trees.set(session.id, read.data);
+    const descendants = reads[index]?.data;
+    if (descendants) trees.set(session.id, descendants);
   });
-  return trees;
+  return { trees, settled: reads.every(read => read.isSuccess && !read.isFetching) };
 }

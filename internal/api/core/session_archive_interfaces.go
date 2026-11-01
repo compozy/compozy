@@ -20,7 +20,12 @@ type SessionTreeManager interface {
 	// Descendants lists the session's children recursively.
 	Descendants(ctx context.Context, workspaceID string, sessionID string) ([]*session.Info, error)
 	// ArchiveWithChildren archives the session and its descendants together.
-	ArchiveWithChildren(ctx context.Context, workspaceID string, sessionID string, stop bool) (*session.SessionTree, error)
+	ArchiveWithChildren(
+		ctx context.Context,
+		workspaceID string,
+		sessionID string,
+		opts session.ArchiveTreeOptions,
+	) (*session.SessionTree, error)
 	// DeleteWithChildren deletes the descendants, then the session, returning
 	// the ids deleted before any failure.
 	DeleteWithChildren(ctx context.Context, workspaceID string, sessionID string) ([]string, error)

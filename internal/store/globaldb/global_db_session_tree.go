@@ -17,7 +17,7 @@ func (g *SessionRepo) ListSessionDescendants(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
-) ([]store.SessionInfo, error) {
+) (descendants []store.SessionInfo, err error) {
 	if err := g.checkReady(ctx, "list session descendants"); err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (g *SessionRepo) ListSessionDescendants(
 	if err != nil {
 		return nil, fmt.Errorf("store: begin session descendants read: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() { err = errors.Join(err, rollbackTx(tx, "list session descendants")) }()
 	return sessionTreeDescendants(ctx, tx, workspaceID, sessionID)
 }
 

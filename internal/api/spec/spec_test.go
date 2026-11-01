@@ -3763,25 +3763,6 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		)
 	}
 
-	// #1130: optional archived child ids and a body only with_children deletes return.
-	sessionPath := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	archiveBody := paths[sessionPath+"/archive"].(map[string]any)["post"].(map[string]any)
-	for _, key := range []string{"responses", "200", "content", "application/json", "schema", "properties"} {
-		archiveBody = archiveBody[key].(map[string]any)
-	}
-	archiveBody["archived_descendant_ids"] = map[string]any{
-		"type": "array", "items": map[string]any{"type": "string"},
-	}
-	paths[sessionPath].(map[string]any)["delete"].(map[string]any)["responses"].(map[string]any)["200"] = map[string]any{
-		"description": "Deleted with with_children",
-		"content": map[string]any{"application/json": map[string]any{"schema": map[string]any{
-			"type": "object", "required": []any{"deleted_session_ids"},
-			"properties": map[string]any{
-				"deleted_session_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			},
-		}}},
-	}
-
 	// #953: optional human-readable reason on worktree removal refusals; the
 	// code and risk inventory keep their meaning.
 	refusalProperties := paths[worktreePath].(map[string]any)

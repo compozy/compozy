@@ -91,13 +91,8 @@ func (n *daemonNativeTools) setSessionArchived(
 	}
 	var members []*session.Info
 	var info *session.Info
-	var committedErr error
 	if archived && input.WithChildren {
-		info, members, err = n.archiveSessionTree(ctx, workspaceID, input)
-		if info != nil {
-			// The tree committed; its cleanup runs before this error is reported.
-			committedErr, err = err, nil
-		}
+		info, members, err = n.archiveSessionTree(ctx, scope.SessionID, workspaceID, input)
 	} else {
 		info, err = executeSessionArchive(ctx, manager, workspaceID, input, archived)
 	}
@@ -106,6 +101,9 @@ func (n *daemonNativeTools) setSessionArchived(
 		for _, member := range members {
 			n.continueSessionProcessCleanup(member.ID, input.Processes, err)
 		}
+	}
+	if errors.Is(err, session.ErrSessionTreeContainsCaller) {
+		return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
 	}
 	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -124,7 +122,7 @@ func (n *daemonNativeTools) setSessionArchived(
 		for _, member := range append([]*session.Info{info}, members...) {
 			cleanupErr = errors.Join(cleanupErr, n.finishSessionProcessPolicy(ctx, member, input.Processes))
 		}
-		if cleanupErr = errors.Join(cleanupErr, committedErr); cleanupErr != nil {
+		if cleanupErr != nil {
 			return toolspkg.ToolResult{}, cleanupErr
 		}
 	}
@@ -132,10 +130,11 @@ func (n *daemonNativeTools) setSessionArchived(
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
-// archiveSessionTree returns the descendants even on failure, so cleanup of a
-// stop already accepted still reaches them.
+// archiveSessionTree returns the tree as it stands after a failure, so cleanup
+// of a stop already accepted reaches every member.
 func (n *daemonNativeTools) archiveSessionTree(
 	ctx context.Context,
+	callerID string,
 	workspaceID string,
 	input sessionArchiveInput,
 ) (*session.Info, []*session.Info, error) {
@@ -151,15 +150,14 @@ func (n *daemonNativeTools) archiveSessionTree(
 		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 		defer cancel()
 	}
-	descendants, err := manager.Descendants(ctx, workspaceID, input.SessionID)
+	tree, err := manager.ArchiveWithChildren(ctx, workspaceID, input.SessionID, session.ArchiveTreeOptions{
+		Stop: input.Stop, RefuseMember: callerID,
+	})
 	if err != nil {
-		return nil, nil, err
+		descendants, readErr := manager.Descendants(context.WithoutCancel(ctx), workspaceID, input.SessionID)
+		return nil, descendants, errors.Join(err, readErr)
 	}
-	tree, err := manager.ArchiveWithChildren(ctx, workspaceID, input.SessionID, input.Stop)
-	if tree == nil {
-		return nil, descendants, err
-	}
-	return tree.Root, tree.Descendants, err
+	return tree.Root, tree.Descendants, nil
 }
 
 func executeSessionArchive(

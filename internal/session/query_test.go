@@ -678,11 +678,11 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("ArchiveWithStop(no children) = %#v, %v", lonely, err)
 		}
 
-		if _, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, false); !errors.Is(
+		if _, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, ArchiveTreeOptions{}); !errors.Is(
 			err, ErrSessionArchiveRequiresStopped) {
 			t.Fatalf("ArchiveWithChildren(no stop) error = %v, want a live refusal", err)
 		}
-		tree, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, true)
+		tree, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, ArchiveTreeOptions{Stop: true})
 		if err != nil {
 			t.Fatalf("ArchiveWithChildren(stop) error = %v", err)
 		}
@@ -711,7 +711,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		catalog.setMembers(parent.ID, "sess-orphan-live")
 
-		_, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, true)
+		_, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, ArchiveTreeOptions{Stop: true})
 		if !errors.Is(err, ErrSessionArchiveStopFailed) {
 			t.Fatalf("ArchiveWithChildren(unstoppable child) error = %v, want ErrSessionArchiveStopFailed", err)
 		}

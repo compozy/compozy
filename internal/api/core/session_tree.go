@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"slices"
@@ -63,40 +64,40 @@ func (h *BaseHandlers) archiveSessionTree(
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	ctx := c.Request.Context()
-	descendants, err := tree.Descendants(ctx, workspaceID, root.ID)
+	archived, err := tree.ArchiveWithChildren(
+		c.Request.Context(), workspaceID, root.ID, session.ArchiveTreeOptions{Stop: stop},
+	)
 	if err != nil {
+		h.continueTreeProcessCleanup(c, tree, root, policy, err)
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	archived, err := tree.ArchiveWithChildren(ctx, workspaceID, root.ID, stop)
-	if archived == nil {
-		h.continueProcessCleanup(root.ID, policy, err)
-		for _, member := range descendants {
-			h.continueProcessCleanup(member.ID, policy, err)
-		}
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	// A returned tree is committed, so its process policy runs even when a
-	// follow-up after the commit failed.
 	if !h.finishTreeProcessPolicy(c, slices.Concat([]*session.Info{root}, archived.Descendants), policy) {
 		return
 	}
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+	h.respondArchivedSession(c, archived.Root)
+}
+
+// continueTreeProcessCleanup reads the tree after the failure, so a child that
+// joined while the stop ran is enrolled too.
+func (h *BaseHandlers) continueTreeProcessCleanup(
+	c *gin.Context,
+	tree SessionTreeManager,
+	root *session.Info,
+	policy contract.SessionProcessPolicy,
+	err error,
+) {
+	h.continueProcessCleanup(root.ID, policy, err)
+	if policy != contract.SessionProcessesTerminate {
 		return
 	}
-	payload, err := h.sessionPayloadWithOptionalHealth(ctx, archived.Root, false)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
+	descendants, readErr := tree.Descendants(context.WithoutCancel(c.Request.Context()), root.WorkspaceID, root.ID)
+	if readErr != nil && h.Logger != nil {
+		h.Logger.Warn("Read session tree for process cleanup", "session_id", root.ID, "error", readErr)
 	}
-	ids := make([]string, 0, len(archived.Descendants))
-	for _, member := range archived.Descendants {
-		ids = append(ids, member.ID)
+	for _, member := range descendants {
+		h.continueProcessCleanup(member.ID, policy, err)
 	}
-	c.JSON(http.StatusOK, contract.ArchiveSessionResponse{Session: payload, ArchivedDescendantIDs: ids})
 }
 
 // deleteSessionTree settles the process policy for every session it deleted,
@@ -111,31 +112,13 @@ func (h *BaseHandlers) deleteSessionTree(
 		h.respondError(c, http.StatusServiceUnavailable, errSessionTreeManagerRequired)
 		return
 	}
-	ctx := c.Request.Context()
-	descendants, err := tree.Descendants(ctx, root.WorkspaceID, root.ID)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	members := make(map[string]*session.Info, len(descendants)+1)
-	for _, member := range descendants {
-		members[member.ID] = member
-	}
-	members[root.ID] = root
-	deleted, deleteErr := tree.DeleteWithChildren(ctx, root.WorkspaceID, root.ID)
+	deleted, deleteErr := tree.DeleteWithChildren(c.Request.Context(), root.WorkspaceID, root.ID)
 	if errors.Is(deleteErr, session.ErrDeleteStopAccepted) {
-		for id := range members {
-			h.continueProcessCleanup(id, policy, deleteErr)
-		}
+		h.continueTreeProcessCleanup(c, tree, root, policy, deleteErr)
 	}
 	settled := make([]*session.Info, 0, len(deleted))
 	for _, id := range deleted {
-		member, known := members[id]
-		if !known {
-			// A child created after the read shares the root's owner.
-			member = &session.Info{ID: id, ProfileID: root.ProfileID, WorkspaceID: root.WorkspaceID}
-		}
-		settled = append(settled, member)
+		settled = append(settled, &session.Info{ID: id, ProfileID: root.ProfileID, WorkspaceID: root.WorkspaceID})
 	}
 	if !h.finishTreeProcessPolicy(c, settled, policy) {
 		return
@@ -144,5 +127,5 @@ func (h *BaseHandlers) deleteSessionTree(
 		h.respondError(c, StatusForSessionError(deleteErr), deleteErr)
 		return
 	}
-	c.JSON(http.StatusOK, contract.DeleteSessionTreeResponse{DeletedSessionIDs: deleted})
+	c.Status(http.StatusNoContent)
 }

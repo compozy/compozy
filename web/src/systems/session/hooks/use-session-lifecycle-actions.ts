@@ -96,7 +96,9 @@ export function useSessionLifecycleActions(
     deleteTarget?.openedAt ?? Infinity
   );
   const deleteSession = deleteSessions?.[0] ?? null;
-  const deleteTrees = useSessionDeleteTrees(deleteTarget?.sessions);
+  const { trees: deleteTrees, settled: deleteTreesSettled } = useSessionDeleteTrees(
+    deleteTarget?.sessions
+  );
   const deleteScope = sessionChildrenScope("delete", deleteTarget?.sessions ?? [], deleteTrees);
   const includedDeleteTrees = deleteChildren ? deleteTrees : undefined;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
@@ -133,17 +135,9 @@ export function useSessionLifecycleActions(
     laterSessionId: later.pendingSessionId,
   });
 
-  const notifyArchived = async (
-    session: SessionPayload,
-    descendantIds: readonly string[],
-    trees?: SessionTrees
-  ) => {
-    const known = new Map((trees?.get(session.id) ?? []).map(child => [child.id, child]));
-    await Promise.all(
-      [session, ...descendantIds.map(id => known.get(id) ?? { ...session, id })].map(archived =>
-        onArchiveSuccess?.(archived)
-      )
-    );
+  const notifyArchived = async (session: SessionPayload, trees?: SessionTrees) => {
+    const archived = [session, ...(trees?.get(session.id) ?? [])];
+    await Promise.all(archived.map(target => onArchiveSuccess?.(target)));
   };
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
@@ -163,36 +157,30 @@ export function useSessionLifecycleActions(
       trees && (action === "archive" || action === "delete")
         ? sessionChildrenScope(action, sessions, trees).coveredBy
         : new Map<string, string>();
-    // Ids the daemon reports as done, so a covered target is only skipped on its word.
-    const settled = new Set<string>();
     return runSessionBatch({
       action,
       ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
       previous,
       onProgress: setBatchResults,
       execute: async id => {
-        if (settled.has(id)) return;
         const session = sessions.find(candidate => candidate.id === id)!;
-        try {
-          if (readErrors.has(id)) throw readErrors.get(id);
-          if (action === "delete") {
-            const removed = await remove.mutateAsync({
-              ...session,
-              ...policy,
-              ...descendantsOf(session, trees),
-            });
-            for (const removedId of removed ?? []) settled.add(removedId);
-          } else if (action === "archive") {
-            const archived = await archive.mutateAsync(archiveTarget(session, processes, trees));
-            for (const childId of archived.descendantIds) settled.add(childId);
-            await notifyArchived(session, archived.descendantIds, trees);
+        if (action === "delete" || action === "archive") {
+          try {
+            if (readErrors.has(id)) throw readErrors.get(id);
+            if (action === "delete")
+              await remove.mutateAsync({ ...session, ...policy, ...descendantsOf(session, trees) });
+            else {
+              await archive.mutateAsync(archiveTarget(session, processes, trees));
+              await notifyArchived(session, trees);
+            }
+          } catch (error) {
+            // Its root target's tree already took it, even if the root then failed.
+            if (action === "delete" && coveredBy.has(id) && isSessionUnavailable(error)) return;
+            throw error;
           }
-        } catch (error) {
-          // A partly deleted root may already have taken this covered child.
-          if (action === "delete" && coveredBy.has(id) && isSessionUnavailable(error)) return;
-          throw error;
+          return;
         }
-        if (action === "delete" || action === "archive") return;
+        if (readErrors.has(id)) throw readErrors.get(id);
         if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
@@ -406,7 +394,7 @@ export function useSessionLifecycleActions(
         void askAboutProcesses("archive", [session], (processes, _readErrors, trees) =>
           archive.mutate(archiveTarget(session, processes, trees), {
             onError: error => reportActionError("archive", error),
-            onSuccess: archived => void notifyArchived(session, archived.descendantIds, trees),
+            onSuccess: () => void notifyArchived(session, trees),
           })
         ),
       onUnarchive: session =>
@@ -447,7 +435,12 @@ export function useSessionLifecycleActions(
       sessions: deleteSessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
-      childSessions: sessionChildrenChoice(deleteScope, deleteChildren, setDeleteChildren),
+      childSessions: sessionChildrenChoice(
+        deleteScope,
+        deleteChildren,
+        setDeleteChildren,
+        !deleteTreesSettled
+      ),
       onOpenChange: open => {
         if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
           deleteConfirmation.current++;

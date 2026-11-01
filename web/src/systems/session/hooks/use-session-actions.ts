@@ -198,11 +198,7 @@ export function useDeleteSession(
   // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
     mutationKey: sessionKeys.deletions(),
-    mutationFn: ({
-      processes,
-      descendants,
-      ...session
-    }: DeleteSessionParams): Promise<readonly string[] | void> => {
+    mutationFn: ({ processes, descendants, ...session }: DeleteSessionParams) => {
       const workspaceId = sessionOwnerWorkspace(session.workspace_id);
       if (descendants) {
         return deleteSessionTree(
@@ -226,10 +222,9 @@ export function useDeleteSession(
         queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
       ]);
     },
-    onSuccess: async (data, session) => {
+    onSuccess: async (_data, session) => {
       const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
-      // A tree delete names what the daemon removed, which may differ from the read before it.
-      const targets = (data ?? [session.id]).map(id => ({ ...session, id }));
+      const targets = [session, ...(session.descendants ?? [])];
       await Promise.all(targets.map(target => options.onDeleteSuccess?.(target)));
       for (const { id } of targets) {
         discardComposerDraftAttachments(id);
@@ -288,7 +283,7 @@ export function useArchiveSession() {
         const archived = processes
           ? archiveSession(workspace, id, profile_name, signal, stop ?? false, processes)
           : archiveSession(workspace, id, profile_name, signal, stop ?? false);
-        return archived.then(session => ({ session, descendantIds: [] as readonly string[] }));
+        return archived;
       }),
     onSettled: (_data, _error, { id, workspace_id, descendants }) => {
       for (const target of [{ id }, ...(descendants ?? [])]) {

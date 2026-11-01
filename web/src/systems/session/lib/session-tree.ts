@@ -1,23 +1,10 @@
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
-import { listSessionDescendants } from "../adapters/session-archive-api";
 import type { SessionPayload } from "../types";
-import { sessionKeys } from "./query-keys";
+import { sessionDescendantsOptions } from "./query-options";
 import { readCurrentSessions } from "./session-batch";
 import { isSubagentSession } from "./session-hierarchy";
 import { sessionsRunningProcesses } from "./session-processes";
-
-/** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
-export function sessionDescendantsOptions(
-  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
-) {
-  return queryOptions({
-    queryKey: sessionKeys.descendants(session.id, session.profile_name),
-    queryFn: ({ signal }) =>
-      listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
-    staleTime: 0,
-  });
-}
 
 export type SessionTreeAction = "archive" | "delete";
 
@@ -30,6 +17,8 @@ export interface SessionChildrenChoice {
   included: boolean;
   /** Running processes the choice adds to the targets' own while included. */
   includedProcessCount: number;
+  /** The count may be stale: a yes waits for the read to settle. */
+  pending: boolean;
   onIncludedChange: (included: boolean) => void;
 }
 
@@ -95,9 +84,15 @@ export async function readSessionTrees(
   sessions: readonly SessionPayload[]
 ): Promise<SessionTrees> {
   const reads = await Promise.all(
-    sessions.map(session =>
-      queryClient.fetchQuery({ ...sessionDescendantsOptions(session), staleTime: 0 })
-    )
+    sessions.map(async session => {
+      const options = sessionDescendantsOptions(session);
+      // An already-running read may predate the click; let it settle before refreshing.
+      const existing = queryClient
+        .getQueryCache()
+        .find({ queryKey: options.queryKey, exact: true });
+      if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
+      return queryClient.fetchQuery({ ...options, staleTime: 0 });
+    })
   );
   return new Map(reads.map((descendants, index) => [sessions[index]!.id, descendants]));
 }
@@ -117,13 +112,15 @@ export async function readSessionChoiceTargets(
 export function sessionChildrenChoice(
   scope: SessionChildrenScope,
   included: boolean,
-  onIncludedChange: (included: boolean) => void
+  onIncludedChange: (included: boolean) => void,
+  pending = false
 ): SessionChildrenChoice | undefined {
   if (scope.members.length === 0) return undefined;
   return {
     count: scope.members.length,
     included,
     includedProcessCount: included ? sessionsRunningProcesses(scope.reached) : 0,
+    pending,
     onIncludedChange,
   };
 }

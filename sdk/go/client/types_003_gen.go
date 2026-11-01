@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// BlockKind is a daemon API value.
-type BlockKind string
-
 // BlockedReason is a daemon API value.
 type BlockedReason struct {
 	Source           BlockedSource `json:"source"`

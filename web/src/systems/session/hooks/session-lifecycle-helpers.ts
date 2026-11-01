@@ -24,10 +24,9 @@ export function archiveTarget(
   };
 }
 
-/** Only an included, nonempty tree opts in, so every other request keeps its meaning. */
+/** Trees mean the operator included children, even if this target's read found none. */
 export function descendantsOf(session: SessionPayload, trees?: SessionTrees) {
-  const descendants = trees?.get(session.id);
-  return descendants?.length ? { descendants } : {};
+  return trees ? { descendants: trees.get(session.id) ?? [] } : {};
 }
 
 /** Preserve the daemon message, falling back only when the failure has no useful text. */

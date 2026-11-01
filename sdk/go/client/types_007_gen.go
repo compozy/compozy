@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// GoalSnapshotChangeCause is a daemon API value.
-type GoalSnapshotChangeCause string
-
 // GoalSnapshotChangedPayload is a daemon API value.
 type GoalSnapshotChangedPayload struct {
 	SessionID      string                  `json:"session_id"`
