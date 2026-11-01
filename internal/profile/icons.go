@@ -29,7 +29,7 @@ func isCatalogIcon(slug string) bool {
 	return found
 }
 
-// Remove in v0.5.0 after migrating persisted pre-1.52 Lucide names.
+// Remove in v0.5.0 after migrating persisted pre-1.61 Lucide names.
 func canonicalIcon(slug string) string {
 	switch slug {
 	case "album":
@@ -42,6 +42,14 @@ func canonicalIcon(slug string) string {
 		return "triangles-centerline-dashed-horizontal"
 	case "flip-vertical-2":
 		return "triangles-centerline-dashed-vertical"
+	case "music":
+		return "eighth-notes"
+	case "music-2":
+		return "eighth-note"
+	case "music-3":
+		return "half-note"
+	case "music-4":
+		return "sixteenth-notes"
 	case "trash-2":
 		return "trash"
 	default:

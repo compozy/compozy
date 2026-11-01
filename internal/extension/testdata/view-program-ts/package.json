@@ -11,10 +11,10 @@
     "dependencies": {
         "@compozy/extension-react": "workspace:*",
         "@compozy/extension-sdk": "workspace:*",
-        "react": "19.3.0"
+        "react": "19.3.1"
     },
     "devDependencies": {
-        "@types/node": "26.6.4",
+        "@types/node": "26.6.5",
         "@types/react": "19.3.0",
         "typescript": "7.0.2"
     },

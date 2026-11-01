@@ -102,11 +102,13 @@ audio-lines
 audio-lines-off
 audio-lines-x
 audio-waveform
+avocado
 award
 axe
 axis-3d
 baby
 backpack
+bacon
 badge
 badge-alert
 badge-cent
@@ -157,6 +159,7 @@ beef
 beef-off
 beer
 beer-off
+belarusian-ruble
 bell
 bell-check
 bell-dot
@@ -235,6 +238,7 @@ brackets
 brain
 brain-circuit
 brain-cog
+brain-off
 brick-wall
 brick-wall-fire
 brick-wall-shield
@@ -270,6 +274,7 @@ calendar-arrow-down
 calendar-arrow-up
 calendar-check
 calendar-check-2
+calendar-chevrons-left
 calendar-chevrons-right
 calendar-clock
 calendar-cog
@@ -316,6 +321,7 @@ castle
 cat
 cctv
 cctv-off
+certificate
 chart-area
 chart-bar
 chart-bar-big
@@ -384,6 +390,10 @@ circle-chevron-down
 circle-chevron-left
 circle-chevron-right
 circle-chevron-up
+circle-chevrons-down
+circle-chevrons-left
+circle-chevrons-right
+circle-chevrons-up
 circle-dashed
 circle-dashed-check
 circle-divide
@@ -394,6 +404,7 @@ circle-ellipsis
 circle-equal
 circle-euro
 circle-fading-arrow-up
+circle-fading-play
 circle-fading-plus
 circle-gauge
 circle-minus
@@ -519,6 +530,7 @@ corner-right-up
 corner-up-left
 corner-up-right
 cpu
+cpu-ai
 creative-commons
 credit-card
 credit-card-check
@@ -602,6 +614,8 @@ eclipse
 egg
 egg-fried
 egg-off
+eighth-note
+eighth-notes
 eject
 ellipse
 ellipsis
@@ -745,6 +759,8 @@ folder-symlink
 folder-sync
 folder-tree
 folder-up
+folder-user
+folder-users
 folder-x
 folders
 footprints
@@ -805,6 +821,8 @@ goal
 gpu
 graduation-cap
 grape
+graph-hub
+graph-star
 grid-2x2
 grid-2x2-check
 grid-2x2-plus
@@ -814,8 +832,11 @@ grid-3x3
 grip
 grip-horizontal
 grip-vertical
+groceries
 group
 guitar
+guitar-electric
+half-note
 ham
 hamburger
 hammer
@@ -828,6 +849,7 @@ hand-helping
 hand-metal
 hand-platter
 handbag
+handle-bottom-right
 handshake
 hard-drive
 hard-drive-download
@@ -860,6 +882,7 @@ heater
 helicopter
 hexagon
 highlighter
+hiking-stick
 hop
 hop-off
 hospital
@@ -943,8 +966,10 @@ layout-template
 leaf
 leafy-green
 lectern
+lens
 lens-concave
 lens-convex
+letter-spacing
 letters
 library
 library-big
@@ -957,6 +982,7 @@ line-dot-bottom-vertical
 line-dot-left-horizontal
 line-dot-right-horizontal
 line-dot-top-vertical
+line-height
 line-squiggle
 line-style
 link
@@ -1006,6 +1032,7 @@ mail
 mail-badge
 mail-check
 mail-clock
+mail-dot
 mail-minus
 mail-open
 mail-pen
@@ -1055,6 +1082,7 @@ message-circle-off
 message-circle-plus
 message-circle-question-mark
 message-circle-reply
+message-circle-text
 message-circle-warning
 message-circle-x
 message-square
@@ -1142,10 +1170,6 @@ move-up
 move-up-left
 move-up-right
 move-vertical
-music
-music-2
-music-3
-music-4
 navigation
 navigation-2
 navigation-2-off
@@ -1229,6 +1253,7 @@ pencil-ruler
 pencil-sparkles
 pentagon
 percent
+perfume-bottle
 person-standing
 phi
 philippine-peso
@@ -1236,6 +1261,7 @@ phone
 phone-call
 phone-forwarded
 phone-incoming
+phone-log
 phone-missed
 phone-off
 phone-outgoing
@@ -1392,8 +1418,10 @@ school
 scissors
 scissors-line-dashed
 scooter
+scratch-blocks
 screen-share
 screen-share-off
+screw
 scroll
 scroll-text
 search
@@ -1411,6 +1439,7 @@ separator-vertical
 server
 server-cog
 server-crash
+server-nas
 server-off
 server-plus
 settings
@@ -1429,6 +1458,7 @@ shield-cog
 shield-cog-corner
 shield-ellipsis
 shield-half
+shield-house
 shield-keyhole
 shield-lock
 shield-minus
@@ -1464,6 +1494,7 @@ signature
 signpost
 signpost-big
 siren
+sixteenth-notes
 skip-back
 skip-forward
 skull
@@ -1474,6 +1505,7 @@ sliders-vertical
 smartphone
 smartphone-charging
 smartphone-nfc
+smartphone-user-round
 snail
 snowflake
 soap-dispenser-droplet
@@ -1687,6 +1719,7 @@ timer-reset
 toggle-left
 toggle-right
 toilet
+tombstone
 tool-case
 toolbox
 toothbrush
@@ -1768,13 +1801,16 @@ user-round-minus
 user-round-pen
 user-round-plus
 user-round-search
+user-round-star
 user-round-x
 user-search
 user-shield
 user-star
 user-x
 users
+users-collaboration
 users-round
+users-round-collaboration
 utensils
 utensils-crossed
 utility-pole
@@ -1831,6 +1867,7 @@ whole-word
 wifi
 wifi-cog
 wifi-high
+wifi-lock
 wifi-low
 wifi-off
 wifi-pen

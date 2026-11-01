@@ -33,6 +33,9 @@ function tomorrowAtNine(): Date {
 }
 
 async function pickPreset(user: ReturnType<typeof userEvent.setup>, label: string) {
+  // The dialog focuses the reason editor after mount; that late focus move would
+  // dismiss a popover opened before it lands.
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Reason" })).toHaveFocus());
   await user.click(screen.getByRole("button", { name: /Pick a date/ }));
   await user.click(await screen.findByRole("button", { name: label }));
 }
