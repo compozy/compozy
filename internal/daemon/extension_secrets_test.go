@@ -704,13 +704,13 @@ func (f *extensionSecretVaultFake) ResolveRef(_ context.Context, ref string) (st
 	return value, nil
 }
 
-// ListMetadata models only the Vault I/O boundary used by package retirement.
-func (f *extensionSecretVaultFake) ListMetadata(_ context.Context, prefix string) ([]vault.Metadata, error) {
+// ListExtensionMetadata models the owned-metadata I/O boundary used by package retirement.
+func (f *extensionSecretVaultFake) ListExtensionMetadata(_ context.Context, name string) ([]vault.Metadata, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var entries []vault.Metadata
 	for ref := range f.values {
-		if strings.HasPrefix(ref, prefix) {
+		if vault.ValidateExtensionSecretRefOwner(ref, name) == nil {
 			entries = append(entries, vault.Metadata{Ref: ref, Kind: f.kinds[ref], Present: true})
 		}
 	}

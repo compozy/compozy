@@ -210,3 +210,14 @@ func metadataForRecord(record Record) Metadata {
 		UpdatedAt: record.UpdatedAt,
 	}
 }
+
+// ListExtensionMetadata delegates instance ownership filtering to the owning store without loading unrelated secrets.
+func (s *Service) ListExtensionMetadata(ctx context.Context, name string) ([]Metadata, error) {
+	owner, ok := s.store.(interface {
+		ListExtensionVaultMetadata(context.Context, string) ([]Metadata, error)
+	})
+	if !ok {
+		return nil, errors.New("vault: extension metadata store is unavailable")
+	}
+	return owner.ListExtensionVaultMetadata(ctx, name)
+}

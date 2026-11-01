@@ -165,14 +165,14 @@ func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExten
 }
 
 // The caller holds withPackageMutation's exclusive name lock across every workspace.
-// Enumerate the namespace, then validate exact ownership; encoded workspace paths preclude a name-only prefix.
+// The store filters encoded ownership before materialization; validate it again before deleting.
 func (s *daemonExtensionService) retireUnboundOrphanSecrets(
 	ctx context.Context, name string, retirement *extensionSecretRetirement,
 ) error {
 	if s.secretVault == nil {
 		return nil
 	}
-	entries, err := s.secretVault.ListMetadata(ctx, "vault:extensions/")
+	entries, err := s.secretVault.ListExtensionMetadata(ctx, name)
 	if err != nil {
 		return fmt.Errorf("daemon: list orphan extension secrets: %w", err)
 	}

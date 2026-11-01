@@ -861,7 +861,6 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if entries := health.Entries("tool-ext", "ws-old", "same-bundle"); len(entries) != 0 {
 			t.Fatalf("workspace health after package remove = %v", entries)
 		}
-
 	})
 
 	t.Run("Should restore files version confirmation and runtime after a confirmed update fails", func(t *testing.T) {
@@ -2879,6 +2878,12 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 				if len(items) != 2 || items[0].ID == items[1].ID {
 					t.Fatalf("multi-attachment diagnostics = %v", items)
 				}
+				for i := range items {
+					if items[i].Severity != contract.SeverityWarn {
+						t.Fatalf("multi-attachment severity = %v", items[i].Severity)
+					}
+				}
+
 				ids := []string{items[0].ID, items[1].ID}
 				if !slices.Contains(ids, "doctor.extension.dev-cycle.superseded") ||
 					!slices.Contains(
@@ -2900,5 +2905,29 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 				t.Fatalf("scope remediation = %v, want %s", items, test.want)
 			}
 		})
+	}
+}
+
+// waitForExtensionPackageRefs observes the coordinator signal rather than timing a blocked writer.
+func waitForExtensionPackageRefs(t *testing.T, c *extensionLifecycleCoordinator, name string, want int) {
+	t.Helper()
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	for {
+		c.mu.Lock()
+		got := 0
+		if entry := c.packages[name]; entry != nil {
+			got = entry.refs
+		}
+		changed := c.changed
+		c.mu.Unlock()
+		if got == want {
+			return
+		}
+		select {
+		case <-changed:
+		case <-timer.C:
+			t.Fatalf("package refs for %q did not reach %d", name, want)
+		}
 	}
 }

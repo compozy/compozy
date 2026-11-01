@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 )
@@ -59,4 +60,34 @@ func ExtensionProfileSecretOwnerPrefix(extension, profileID, workspaceID string)
 func ExtensionProfileSecretRef(extension, profileID, workspaceID, envName string) string {
 	return ExtensionProfileSecretOwnerPrefix(extension, profileID, workspaceID) +
 		"env/" + collisionSafeVaultSegment(strings.TrimSpace(envName))
+}
+
+// ExtensionSecretRefOwner decodes the canonical owner segment used by extension lifecycle locks.
+func ExtensionSecretRefOwner(ref string) (string, error) {
+	ref = NormalizeRef(ref)
+	if err := ValidateSecretRefNamespace(ref, "extensions"); err != nil {
+		return "", err
+	}
+	parts := strings.Split(strings.TrimPrefix(ref, "vault:extensions/"), "/")
+	segment := ""
+	switch {
+	case len(parts) >= 3 && parts[0] == "global":
+		segment = parts[1]
+	case len(parts) >= 4 && parts[0] == "ws" && parts[1] != "":
+		segment = parts[2]
+	default:
+		return "", fmt.Errorf("extension secret has no instance-qualified owner")
+	}
+	owner := segment
+	if encoded, ok := strings.CutPrefix(segment, vaultEncodedSegmentPrefix); ok {
+		decoded, err := hex.DecodeString(encoded)
+		if err != nil {
+			return "", fmt.Errorf("invalid encoded extension secret owner: %w", err)
+		}
+		owner = string(decoded)
+	}
+	if owner == "" || collisionSafeVaultSegment(owner) != segment {
+		return "", fmt.Errorf("extension secret owner is not canonical")
+	}
+	return owner, nil
 }

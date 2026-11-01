@@ -37,4 +37,23 @@ func TestExtensionSecretRefUsesInstanceQualifiedCollisionSafeNames(t *testing.T)
 			t.Fatalf("unsafe extension collided with reserved literal %q", wantSegment)
 		}
 	})
+	// Invariant: canonical refs resolve to exactly the owner used by package lifecycle locks.
+	// Owner: Vault ref grammar; canonical suite: TestExtensionSecretRefUsesInstanceQualifiedCollisionSafeNames.
+	t.Run("Should recover canonical owners without accepting ambiguous encodings", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"kit", "encoded-literal", "My Extension!"} {
+			for _, workspace := range []string{"", "Workspace One"} {
+				ref := ExtensionProfileSecretRef(name, "profile-one", workspace, "TOKEN")
+				if got, err := ExtensionSecretRefOwner(ref); err != nil || got != name {
+					t.Fatalf("owner = %q, %v, want %q", got, err, name)
+				}
+			}
+		}
+		for _, ref := range []string{"vault:providers/kit/TOKEN", "vault:extensions/kit/TOKEN", "vault:extensions/global/encoded-zz/env/TOKEN", "vault:extensions/global/encoded-6b6974/env/TOKEN"} {
+			if owner, err := ExtensionSecretRefOwner(ref); err == nil {
+				t.Fatalf("ambiguous owner accepted: %q", owner)
+			}
+		}
+	})
+
 }

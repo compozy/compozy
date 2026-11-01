@@ -40,3 +40,7 @@ During orphan recovery, seed an extension-owned Vault write interrupted before i
 Verify removal collects it across the orphan's workspace namespaces, preserves secrets belonging
 to another extension or an operator, and restores the before-image if removal fails. A delayed MCP
 failure resolved before removal must not reappear after reinstalling the same bundle.
+
+While package retirement holds its mutation lock, issue a generic Vault PUT or DELETE for that
+extension's workspace ref. The request must wait until retirement/rollback completes, then retain
+its newer value or deletion. Refs in other packages must not enter the orphan metadata result set.

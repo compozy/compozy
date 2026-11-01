@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
@@ -29,6 +32,7 @@ import (
 )
 
 func TestExtensionSecrets(t *testing.T) {
+	t.Run("Should serialize generic Vault mutations with package retirement", testExtensionVaultMutationIsolation)
 	t.Run("Should remove all installation state after the second input secret write fails [IT-020]",
 		testExtensionInputInstallRollback)
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
@@ -1463,5 +1467,99 @@ func testOrphanExtensionSecretRetirement(t *testing.T) {
 		if record.Extension == name {
 			t.Fatalf("orphan MCP allocation survived: %s", record.WorkspaceID)
 		}
+	}
+}
+
+// Invariant: generic HTTP Vault mutations wait for retirement and compensation before changing owned refs.
+// Owner: daemon API composition and lifecycle coordinator; canonical suite: TestExtensionSecrets.
+func testExtensionVaultMutationIsolation(t *testing.T) {
+	t.Helper()
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+			const name = "encoded-owner"
+			harness := newExtensionSecretIntegrationHarness(
+				t,
+				extensionSecretIntegrationHarnessOptions{actorReason: "generic vault retirement isolation"},
+			)
+			ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, "ws-guard", "TOKEN")
+			if _, err := harness.vault.PutSecret(
+				t.Context(),
+				ref,
+				extensionpkg.ExtensionEnvBindingKind,
+				"old-value",
+			); err != nil {
+				t.Fatal(err)
+			}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+				Vault: extensionAwareVaultService(harness.vault, harness.service),
+			})
+			engine := gin.New()
+			engine.PUT("/api/vault/secrets", handlers.PutVaultSecret)
+			engine.DELETE("/api/vault/secrets", handlers.DeleteVaultSecret)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			entered, release := make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			defer releaseOnce.Do(func() { close(release) })
+			retired := make(chan error, 1)
+			go func() {
+				retired <- harness.service.lifecycle.withPackageMutation(ctx, []string{name}, func() error {
+					close(entered)
+					select {
+					case <-release:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+					// Model the final restoration while still holding the same production removal lock.
+					_, err := harness.vault.PutSecret(ctx, ref, extensionpkg.ExtensionEnvBindingKind, "restored-value")
+					return err
+				})
+			}()
+			<-entered
+			body, err := json.Marshal(
+				contract.PutVaultSecretRequest{
+					Ref:         ref,
+					Kind:        extensionpkg.ExtensionEnvBindingKind,
+					SecretValue: "new-value",
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(method, "/api/vault/secrets?ref="+url.QueryEscape(ref), bytes.NewReader(body)).
+				WithContext(ctx)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			completed := make(chan struct{})
+			go func() { defer close(completed); engine.ServeHTTP(response, request) }()
+			waitForExtensionPackageRefs(t, harness.service.lifecycle, name, 2)
+			if value, err := harness.vault.ResolveRef(ctx, ref); err != nil || value != "old-value" {
+				t.Fatalf("generic mutation escaped retirement lock: %v", err)
+			}
+			releaseOnce.Do(func() { close(release) })
+			if err := <-retired; err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-completed:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			wantStatus := http.StatusOK
+			if method == http.MethodDelete {
+				wantStatus = http.StatusNoContent
+			}
+			if response.Code != wantStatus {
+				t.Fatalf("Vault mutation status = %d", response.Code)
+			}
+			value, err := harness.vault.ResolveRef(ctx, ref)
+			if method == http.MethodPut && (err != nil || value != "new-value") {
+				t.Fatalf("later write lost: %v", err)
+			}
+			if method == http.MethodDelete && !errors.Is(err, vault.ErrSecretNotFound) {
+				t.Fatalf("later deletion lost: %v", err)
+			}
+		})
 	}
 }

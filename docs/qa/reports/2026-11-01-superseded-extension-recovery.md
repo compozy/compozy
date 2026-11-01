@@ -107,3 +107,15 @@ it passed. `make codegen` and `make codegen-check` passed with the locked Bun de
 explicit pinned tool binaries. An initial generator check exposed missing/patched dependency and
 tool-shim version drift; no unrelated generated changes remain. Focused MCP resolver, registry,
 Doctor and runtime-health race checks are the local verification boundary. CI owns broad gates.
+
+The next review pass added an owner-filtered sqlc metadata query, so orphan recovery does not
+materialize other packages' secret records. The existing ref index bounds the global-owner and
+workspace namespaces; the workspace encoding still requires filtering within its namespace and
+no schema/index migration is introduced. Focused globaldb tests cover exact encoded owners,
+multiple workspaces and neighboring prefixes.
+
+Generic HTTP/UDS Vault PUT/DELETE retain their public ref contract and share the existing package
+mutation lock for extension-owned refs. A focused integration exercises the real core HTTP
+handlers, SQLite Vault and lifecycle coordinator: both mutations wait until restoration completes,
+then their newer write or deletion wins. It uses the existing isolated fixture, not a live server
+or an authorization-boundary end-to-end journey. The orphan cleanup integration was rerun and passed.
