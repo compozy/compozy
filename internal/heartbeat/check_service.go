@@ -24,7 +24,7 @@ type CheckTarget struct {
 }
 type CheckEnvironment interface {
 	ResolveCheck(context.Context, string) (CheckTarget, error)
-	BeforeCheck(context.Context, CheckTarget, string) (string, error)
+	BeforeCheck(context.Context, *CheckTarget, string) (string, error)
 	Collect(context.Context, string, CollectorScope, []string, string, string) (CheckDigest, error)
 }
 type TriageOutcome struct {
@@ -33,7 +33,7 @@ type TriageOutcome struct {
 	Report                 *agentinstance.ReportInput
 }
 type TriageDispatcher interface {
-	Dispatch(context.Context, CheckTarget, CheckDigest, func(string) error) (TriageOutcome, error)
+	Dispatch(context.Context, *CheckTarget, CheckDigest, func(string) error) (TriageOutcome, error)
 	Stop(context.Context, string) error
 }
 type CheckConfig struct {
@@ -205,7 +205,7 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 		source = "instance_check"
 	}
 	if !dryRun {
-		reason, err := s.environment.BeforeCheck(ctx, target, source)
+		reason, err := s.environment.BeforeCheck(ctx, &target, source)
 		if err != nil {
 			return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
 		}
@@ -262,7 +262,7 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if !admitted {
 		return CheckResult{Gate: "no_slot"}, nil
 	}
-	s.wg.Go(func() { s.dispatch(target, digest, occurrence, source) })
+	s.wg.Go(func() { s.dispatch(&target, digest, occurrence, source) })
 	return CheckResult{OccurrenceID: occurrence}, nil
 }
 func NextCheckTime(now time.Time, cadence time.Duration, id string) time.Time {

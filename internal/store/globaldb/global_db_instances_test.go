@@ -1504,7 +1504,7 @@ func TestInstanceWakeMigration(t *testing.T) {
 		service, err := heartbeat.NewCheckService(
 			ctx,
 			db.Instances(),
-			instanceCheckEnvironment{},
+			&instanceCheckEnvironment{},
 			dispatcher,
 			heartbeat.CheckConfig{
 				Enabled:       true,
@@ -1899,14 +1899,14 @@ type instanceCheckEnvironment struct {
 	digest                          heartbeat.CheckDigest
 }
 
-func (e instanceCheckEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
+func (e *instanceCheckEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
 	return e.target, e.resolveErr
 }
-func (e instanceCheckEnvironment) BeforeCheck(context.Context, heartbeat.CheckTarget, string) (string, error) {
+func (e *instanceCheckEnvironment) BeforeCheck(context.Context, *heartbeat.CheckTarget, string) (string, error) {
 	return e.hook, e.hookErr
 }
 
-func (e instanceCheckEnvironment) Collect(
+func (e *instanceCheckEnvironment) Collect(
 	context.Context,
 	string,
 	heartbeat.CollectorScope,
@@ -1925,7 +1925,7 @@ type instanceRecoveryDispatcher struct {
 
 func (d *instanceRecoveryDispatcher) Dispatch(
 	context.Context,
-	heartbeat.CheckTarget,
+	*heartbeat.CheckTarget,
 	heartbeat.CheckDigest,
 	func(string) error,
 ) (heartbeat.TriageOutcome, error) {
@@ -1982,7 +1982,7 @@ func TestInstanceCheckRecovery(t *testing.T) {
 			t.Fatalf("bind=%v %v", ok, err)
 		}
 		dispatcher := &instanceRecoveryDispatcher{}
-		environment := instanceCheckEnvironment{
+		environment := &instanceCheckEnvironment{
 			target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true}},
 		}
 		config := heartbeat.CheckConfig{
@@ -2081,7 +2081,7 @@ func TestInstanceCheckSlotPrefilter(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-		environment := instanceCheckEnvironment{
+		environment := &instanceCheckEnvironment{
 			target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: false}},
 		}
 		config := heartbeat.CheckConfig{
@@ -2263,7 +2263,7 @@ func TestInstanceCheckBackoff(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			environment := instanceCheckEnvironment{target: heartbeat.CheckTarget{
+			environment := &instanceCheckEnvironment{target: heartbeat.CheckTarget{
 				Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true},
 			}}
 			if tc.reason == "digest_unchanged" {
@@ -2776,7 +2776,7 @@ func TestInstanceChecksToggle(t *testing.T) {
 		}
 		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 		repo.now = func() time.Time { return now }
-		environment := instanceCheckEnvironment{
+		environment := &instanceCheckEnvironment{
 			target: heartbeat.CheckTarget{
 				Instance: instance,
 				Policy: heartbeat.ResolvedPolicy{
@@ -2920,7 +2920,7 @@ func TestInstanceCheckGates(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-		environment := instanceCheckEnvironment{
+		environment := &instanceCheckEnvironment{
 			target: heartbeat.CheckTarget{
 				Instance: instance,
 				Policy:   heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
@@ -3011,7 +3011,7 @@ func TestInstanceCheckGates(t *testing.T) {
 				}
 			}
 			failure := errors.New("preflight unavailable")
-			environment := instanceCheckEnvironment{target: heartbeat.CheckTarget{
+			environment := &instanceCheckEnvironment{target: heartbeat.CheckTarget{
 				Instance: target, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
 			}}
 			switch stage {
@@ -3106,7 +3106,7 @@ func TestInstanceCheckGates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		environment := instanceCheckEnvironment{
+		environment := &instanceCheckEnvironment{
 			target: heartbeat.CheckTarget{
 				Instance: instance,
 				Policy: heartbeat.ResolvedPolicy{
@@ -3197,7 +3197,7 @@ func TestInstanceCheckGates(t *testing.T) {
 				t.Fatal(err)
 			}
 			now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-			environment := instanceCheckEnvironment{
+			environment := &instanceCheckEnvironment{
 				target: heartbeat.CheckTarget{
 					Instance: instance,
 					Gate:     tc.gate,
@@ -3443,7 +3443,7 @@ func TestInstanceMissedDueTimes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		environment := instanceCheckEnvironment{
+		environment := &instanceCheckEnvironment{
 			target: heartbeat.CheckTarget{
 				Instance: instance,
 				Policy:   heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Review work"},
@@ -3511,7 +3511,7 @@ var _ heartbeat.TriageDispatcher = (*blockingInstanceDispatcher)(nil)
 
 func (d *blockingInstanceDispatcher) Dispatch(
 	ctx context.Context,
-	_ heartbeat.CheckTarget,
+	_ *heartbeat.CheckTarget,
 	_ heartbeat.CheckDigest,
 	_ func(string) error,
 ) (heartbeat.TriageOutcome, error) {
@@ -3565,7 +3565,7 @@ func TestInstanceManualCheckRace(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			environment := instanceCheckEnvironment{
+			environment := &instanceCheckEnvironment{
 				target: heartbeat.CheckTarget{
 					Instance: instance,
 					Policy:   heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},

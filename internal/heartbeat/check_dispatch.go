@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 )
 
-func (s *CheckService) dispatch(target CheckTarget, digest CheckDigest, occurrence, source string) {
+func (s *CheckService) dispatch(target *CheckTarget, digest CheckDigest, occurrence, source string) {
 	ctx, cancel := context.WithTimeout(s.ctx, s.config.Timeout)
 	defer cancel()
 	outcome, err := s.dispatcher.Dispatch(ctx, target, digest, func(sessionID string) error {

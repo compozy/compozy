@@ -26,7 +26,8 @@ func (e *instanceCheckEnvironment) ResolveCheck(ctx context.Context, id string) 
 	if err != nil {
 		return heartbeat.CheckTarget{}, err
 	}
-	target, err := resolveInstanceCheckPolicy(ctx, e.definitions, e.policies, heartbeat.CheckTarget{Instance: instance})
+	target := heartbeat.CheckTarget{Instance: instance}
+	err = resolveInstanceCheckPolicy(ctx, e.definitions, e.policies, &target)
 	if err != nil || target.Gate != "" {
 		return target, err
 	}
@@ -44,6 +45,6 @@ func (e *instanceCheckEnvironment) ResolveCheck(ctx context.Context, id string) 
 	return target, nil
 }
 
-func (e *instanceCheckEnvironment) BeforeCheck(ctx context.Context, target heartbeat.CheckTarget, source string) (string, error) {
+func (e *instanceCheckEnvironment) BeforeCheck(ctx context.Context, target *heartbeat.CheckTarget, source string) (string, error) {
 	return beforeInstanceCheck(ctx, e.hooks, target, source)
 }

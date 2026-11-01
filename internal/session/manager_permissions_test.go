@@ -324,7 +324,7 @@ func TestTriageDispatcher(t *testing.T) {
 			var hidden string
 			var exited <-chan struct{}
 			primary := errors.New("occurrence binding failed")
-			outcome, err := dispatcher.Dispatch(t.Context(), heartbeat.CheckTarget{Instance: agentinstance.Instance{
+			outcome, err := dispatcher.Dispatch(t.Context(), &heartbeat.CheckTarget{Instance: agentinstance.Instance{
 				ID: "cleanup-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
 			}}, heartbeat.CheckDigest{}, func(id string) error {
 				hidden = id
@@ -404,7 +404,7 @@ func TestTriageDispatcher(t *testing.T) {
 		}
 		outcome, err := dispatcher.Dispatch(
 			t.Context(),
-			heartbeat.CheckTarget{Instance: agentinstance.Instance{
+			&heartbeat.CheckTarget{Instance: agentinstance.Instance{
 				ID: "failed-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
 			}},
 			heartbeat.CheckDigest{},
@@ -509,7 +509,7 @@ func TestTriageDispatcher(t *testing.T) {
 		}
 		_, err = dispatcher.Dispatch(
 			t.Context(),
-			heartbeat.CheckTarget{
+			&heartbeat.CheckTarget{
 				Instance: agentinstance.Instance{ID: "model-instance", AgentName: "coder", WorkspaceID: h.workspaceID},
 			},
 			heartbeat.CheckDigest{},
@@ -576,7 +576,7 @@ func TestTriageDispatcher(t *testing.T) {
 		var hidden string
 		outcome, err := dispatcher.Dispatch(
 			t.Context(),
-			heartbeat.CheckTarget{
+			&heartbeat.CheckTarget{
 				Instance: agentinstance.Instance{
 					ID:            "instance-test",
 					AgentName:     "coder",
@@ -621,7 +621,7 @@ func TestTriageDispatcher(t *testing.T) {
 		}
 		outcome, err := dispatcher.Dispatch(
 			t.Context(),
-			heartbeat.CheckTarget{
+			&heartbeat.CheckTarget{
 				Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID},
 			},
 			heartbeat.CheckDigest{},
@@ -653,7 +653,7 @@ func TestTriageDispatcher(t *testing.T) {
 		var id string
 		_, err := dispatcher.Dispatch(
 			t.Context(),
-			heartbeat.CheckTarget{
+			&heartbeat.CheckTarget{
 				Instance: agentinstance.Instance{ID: "instance-test", AgentName: "coder", WorkspaceID: h.workspaceID},
 			},
 			heartbeat.CheckDigest{},
@@ -675,16 +675,16 @@ func TestTriageDispatcher(t *testing.T) {
 
 type dueTriageEnvironment struct{ target heartbeat.CheckTarget }
 
-var _ heartbeat.CheckEnvironment = dueTriageEnvironment{}
+var _ heartbeat.CheckEnvironment = (*dueTriageEnvironment)(nil)
 
-func (e dueTriageEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
+func (e *dueTriageEnvironment) ResolveCheck(context.Context, string) (heartbeat.CheckTarget, error) {
 	return e.target, nil
 }
-func (dueTriageEnvironment) BeforeCheck(context.Context, heartbeat.CheckTarget, string) (string, error) {
+func (*dueTriageEnvironment) BeforeCheck(context.Context, *heartbeat.CheckTarget, string) (string, error) {
 	return "", nil
 }
 
-func (dueTriageEnvironment) Collect(
+func (*dueTriageEnvironment) Collect(
 	context.Context,
 	string,
 	heartbeat.CollectorScope,
@@ -737,7 +737,7 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		service, err := heartbeat.NewCheckService(
 			t.Context(),
 			db.Instances(),
-			dueTriageEnvironment{
+			&dueTriageEnvironment{
 				target: heartbeat.CheckTarget{
 					Instance: instance,
 					Policy:   heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},

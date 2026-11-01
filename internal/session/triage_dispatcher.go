@@ -49,7 +49,7 @@ func (d *TriageDispatcher) Stop(ctx context.Context, id string) error {
 
 func (d *TriageDispatcher) Dispatch(
 	ctx context.Context,
-	target heartbeat.CheckTarget,
+	target *heartbeat.CheckTarget,
 	digest heartbeat.CheckDigest,
 	bind func(string) error,
 ) (outcome heartbeat.TriageOutcome, err error) {

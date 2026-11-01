@@ -37,7 +37,7 @@ func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {
 			notifier.setRuntime(heartbeatCancelTestRuntime{fakeHookRuntime: &fakeHookRuntime{}, failure: errors.Join(
 				hookspkg.ErrHeartbeatWakeCancelled, &hookspkg.DeniedError{Reason: reason},
 			)}, nil)
-			got, err := beforeInstanceCheck(t.Context(), notifier, heartbeat.CheckTarget{}, "timer")
+			got, err := beforeInstanceCheck(t.Context(), notifier, &heartbeat.CheckTarget{}, "timer")
 			if err != nil || got == "" || (reason != "" && got != reason) {
 				t.Fatalf("reason=%q error=%v", got, err)
 			}
