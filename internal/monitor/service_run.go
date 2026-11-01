@@ -37,8 +37,6 @@ func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (
 		return Outcome{}, false
 	}
 	if err != nil {
-		s.logger.Info("monitor: terminal watch ended without a result",
-			"session_id", spec.SessionID, "terminal_id", spec.TerminalID, "error", err)
 		return Outcome{Reason: ReasonTerminalFailed}, true
 	}
 	return outcome, true
@@ -61,13 +59,10 @@ func (s *Service) deliver(ctx context.Context, notification Notification) {
 			return
 		}
 		if errors.Is(err, ErrSessionGone) || !s.now().Add(backoff).Before(deadline) {
-			s.logger.Warn("monitor: session wake undelivered",
-				"monitor_id", mon.ID, "session_id", mon.SessionID, "reason", notification.Outcome.Reason, "error", err)
 			s.settle(mon.SessionID, mon.ID, StatusUndelivered)
 			return
 		}
-		s.logger.Info("monitor: session wake deferred",
-			"monitor_id", mon.ID, "session_id", mon.SessionID, "retry_in", backoff, "error", err)
+		s.logLifecycle("monitor.wake_deferred", mon, "admission_retry")
 		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
@@ -92,6 +87,7 @@ func (s *Service) markFired(id, sessionID string, outcome Outcome) (Monitor, boo
 	item.state.FiredAt = s.now()
 	item.state.Reason = outcome.Reason
 	item.state.ExitCode = outcome.ExitCode
+	s.logLifecycle("monitor.fired", item.state, outcome.Reason)
 	return item.state, true
 }
 
@@ -103,6 +99,11 @@ func (s *Service) settle(sessionID, id string, status Status) {
 		return
 	}
 	s.finishLocked(item, status, s.now())
+	event := "monitor.wake_queued"
+	if status == StatusUndelivered {
+		event = "monitor.wake_failed"
+	}
+	s.logLifecycle(event, item.state, item.state.Reason)
 	s.pruneSessionLocked(sessionID, s.now())
 	s.mu.Unlock()
 	s.notify(sessionID)

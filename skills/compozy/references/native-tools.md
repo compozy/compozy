@@ -166,7 +166,11 @@ cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
 still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400). A session
-holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. After
+holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. There is no remote
+polling kind: wait on CI or deploys by running the bounded watch command (`gh pr checks --watch`) through
+`terminal_exec`, monitoring that terminal, and setting `timeout_seconds` past the expected wait.
+Registering the same terminal condition (`terminal_id`, `until`, `pattern`, normalized timeout, and description) again returns the existing
+active monitor rather than adding a second wake. After
 `monitor_create`, do not poll or sleep: keep working on steps that do not depend on the monitor, and
 end your turn only when every remaining step waits on a registered monitor or subagent. The wake is a synthetic `monitor`
 message headed `[COMPOZY MONITOR - NOT USER INPUT]` with the monitor id, status (exit code, match,

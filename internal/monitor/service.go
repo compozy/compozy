@@ -85,6 +85,7 @@ type Service struct {
 type entry struct {
 	state       Monitor
 	terminalKey string
+	timeout     time.Duration
 	cancel      context.CancelFunc
 }
 
@@ -154,6 +155,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
 		},
 		terminalKey: terminalKey(normalized),
+		timeout:     normalized.Timeout,
 	}
 
 	s.mu.Lock()
@@ -162,7 +164,9 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if err != nil {
 		return Monitor{}, err
 	}
-	s.notify(created.SessionID)
+	if !created.Reused {
+		s.notify(created.SessionID)
+	}
 	return created, nil
 }
 
@@ -171,6 +175,12 @@ func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now t
 		return Monitor{}, ErrStopped
 	}
 	s.sweepLocked(now)
+	if existing := s.identicalLocked(item); existing != nil {
+		reused := existing.state
+		reused.Reused = true
+		s.logLifecycle("monitor.reused", reused, "registered")
+		return reused, nil
+	}
 	if err := s.admitLocked(item); err != nil {
 		return Monitor{}, err
 	}
@@ -178,6 +188,7 @@ func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now t
 	item.cancel = cancel
 	s.insertLocked(item)
 	created := item.state
+	s.logLifecycle("monitor.created", created, "registered")
 	s.wg.Go(func() {
 		defer cancel()
 		s.run(runCtx, created, spec, watch)
@@ -228,6 +239,7 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 		return state, nil
 	}
 	s.finishLocked(item, StatusCanceled, s.now())
+	s.logLifecycle("monitor.canceled", item.state, "requested")
 	item.cancel()
 	s.pruneSessionLocked(sessionID, s.now())
 	state := item.state
@@ -254,6 +266,7 @@ func (s *Service) cancelSession(sessionID string) int {
 	for _, item := range s.sessions[sessionID] {
 		if item.occupies() {
 			s.finishLocked(item, StatusCanceled, now)
+			s.logLifecycle("monitor.canceled", item.state, "session_stopped")
 			item.cancel()
 			canceled++
 		}
@@ -265,6 +278,15 @@ func (s *Service) cancelSession(sessionID string) int {
 // Shutdown cancels every monitor and waits for watcher goroutines.
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
+	if !s.stopped {
+		for _, bucket := range s.sessions {
+			for _, item := range bucket {
+				if item.occupies() {
+					s.logLifecycle("monitor.interrupted", item.state, "daemon_shutdown")
+				}
+			}
+		}
+	}
 	s.stopped = true
 	s.mu.Unlock()
 	s.cancel()
@@ -296,6 +318,23 @@ func (s *Service) admitLocked(item *entry) error {
 	}
 	if item.terminalKey != "" && s.perTerminal[item.terminalKey] >= MaxActivePerTerminal {
 		return fmt.Errorf("%w: at most %d per terminal", ErrLimit, MaxActivePerTerminal)
+	}
+	return nil
+}
+
+// identicalLocked finds an occupying terminal monitor of the same session with
+// the same condition. Agents retry creation after ambiguous results; without
+// this, each retry would add another wake for one terminal condition.
+func (s *Service) identicalLocked(item *entry) *entry {
+	if item.terminalKey == "" {
+		return nil
+	}
+	for _, existing := range s.sessions[item.state.SessionID] {
+		if existing.occupies() && existing.terminalKey == item.terminalKey &&
+			existing.state.Until == item.state.Until && existing.state.Pattern == item.state.Pattern &&
+			existing.timeout == item.timeout && existing.state.Description == item.state.Description {
+			return existing
+		}
 	}
 	return nil
 }

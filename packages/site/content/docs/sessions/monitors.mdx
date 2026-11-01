@@ -56,7 +56,13 @@ If the check itself fails, the command runs.
 | `terminal` | the terminal's process exits (`until: exit`) or its output matches a pattern (`until: match`) | `timeout_seconds` defaults to 30 minutes, up to 6 hours. A timeout still wakes the agent. |
 | `timer`    | `delay_seconds` have passed                                                                   | 5 seconds to 24 hours                                                                     |
 
-Each session can hold up to 8 active monitors, and each terminal up to 4.
+Each session can hold up to 8 active monitors, and each terminal up to 4. Registering the same
+terminal condition again (same terminal, `until`, pattern, normalized timeout, and description) returns the monitor that is already
+active, so a retried call never adds a second wake.
+
+There is no polling kind for remote state such as CI. The agent runs the bounded watch command
+(for example `gh pr checks <n> --watch`) in a terminal and monitors that terminal, setting
+`timeout_seconds` past the expected wait.
 
 ## Walkthrough: wait for a long command
 

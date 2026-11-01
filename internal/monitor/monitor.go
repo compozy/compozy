@@ -118,6 +118,9 @@ type Monitor struct {
 	FiredAt     time.Time `json:"fired_at,omitzero"`
 	Reason      string    `json:"reason,omitempty"`
 	ExitCode    *int      `json:"exit_code,omitempty"`
+	// Reused marks a Create that returned an already-active identical terminal
+	// monitor instead of registering a duplicate wake. It is not part of the wire shape.
+	Reused bool `json:"-"`
 }
 
 // Outcome is what a fired monitor observed.

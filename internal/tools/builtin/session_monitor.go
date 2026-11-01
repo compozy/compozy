@@ -24,7 +24,10 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"provider-internal background tasks, Monitor, and ScheduleWakeup — those cannot wake a CompozyOS session. "+
 			"After registering, keep working on steps that do not depend on it; end your turn only when every "+
 			"remaining step waits on a registered monitor or subagent. The wake arrives as a "+
-			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn.",
+			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn. "+
+			"Remote state such as CI has no polling kind: run its bounded watch command with compozy__terminal_exec, "+
+			"monitor that terminal, and set timeout_seconds past the expected wait. Registering the same terminal "+
+			"request (including timeout and description) again returns the existing monitor instead of adding a second wake.",
 		monitorCreateInputSchema,
 		toolspkg.RiskMutating,
 		false,

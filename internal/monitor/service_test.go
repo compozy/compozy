@@ -8,9 +8,12 @@ package monitor
 // Boundary IN: terminal watch outcomes, timers, waker refusals. Boundary OUT: Notifications and Monitor state.
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +21,73 @@ import (
 	"testing/synctest"
 	"time"
 )
+
+func TestServiceLifecycleLogging(t *testing.T) {
+	t.Run("Should record lifecycle transitions without private payloads", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			var output bytes.Buffer
+			terminals := &channelTerminals{results: make(chan Outcome, 1)}
+			waker := &recordingWaker{errs: []error{errors.New("private-error")}}
+			service, err := NewService(t.Context(), terminals, waker,
+				WithLogger(slog.New(slog.NewJSONHandler(&output, nil))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			spec := terminalSpec("sess-log")
+			spec.Description = "private-description"
+			spec.Until, spec.Pattern = UntilMatch, "private-pattern"
+			created, err := service.Create(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			terminals.results <- Outcome{Reason: ReasonMatch, Output: "private-output"}
+			time.Sleep(deliveryRetryInitial + time.Second)
+			synctest.Wait()
+			canceled, err := service.Create(t.Context(), timerSpec("sess-log"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Cancel("sess-log", canceled.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Create(t.Context(), timerSpec("sess-log")); err != nil {
+				t.Fatal(err)
+			}
+			if err := service.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(output.String(), "private-") {
+				t.Fatal("lifecycle log contains private payload")
+			}
+			var events []string
+			for _, line := range bytes.Split(bytes.TrimSpace(output.Bytes()), []byte("\n")) {
+				var row map[string]any
+				if err := json.Unmarshal(line, &row); err != nil {
+					t.Fatal(err)
+				}
+				event, ok := row["event"].(string)
+				if !ok || row["session_id"] != "sess-log" || row["monitor_id"] == "" {
+					t.Fatalf("missing lifecycle correlation: %+v", row)
+				}
+				if len(events) < 4 && row["monitor_id"] != created.ID {
+					t.Fatalf("wake correlation changed: %+v", row)
+				}
+				events = append(events, event)
+			}
+			want := []string{"monitor.created", "monitor.fired", "monitor.wake_deferred",
+				"monitor.wake_queued", "monitor.created", "monitor.canceled", "monitor.created", "monitor.interrupted"}
+			if !slices.Equal(events, want) {
+				t.Fatalf("events = %v, want %v", events, want)
+			}
+		})
+	})
+}
 
 type recordingWaker struct {
 	mu    sync.Mutex
@@ -292,7 +362,11 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewService() error = %v", err)
 			}
-			t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+			t.Cleanup(func() {
+				if err := service.Shutdown(context.Background()); err != nil {
+					t.Errorf("Shutdown() error = %v", err)
+				}
+			})
 			if _, err := service.Create(t.Context(), terminalSpec("sess-a")); err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -356,7 +430,11 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewService() error = %v", err)
 			}
-			t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+			t.Cleanup(func() {
+				if err := service.Shutdown(context.Background()); err != nil {
+					t.Errorf("Shutdown() error = %v", err)
+				}
+			})
 			if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -415,8 +493,10 @@ func TestServiceCancelAndLimits(t *testing.T) {
 	t.Run("Should cap active monitors per session and per terminal", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			service := newTestService(t, &channelTerminals{results: make(chan Outcome)}, &recordingWaker{})
-			for range MaxActivePerTerminal {
-				if _, err := service.Create(t.Context(), terminalSpec("sess-a")); err != nil {
+			for i := range MaxActivePerTerminal {
+				spec := terminalSpec("sess-a")
+				spec.Until, spec.Pattern = UntilMatch, fmt.Sprintf("ready-%d", i)
+				if _, err := service.Create(t.Context(), spec); err != nil {
 					t.Fatalf("Create() error = %v", err)
 				}
 			}
@@ -435,6 +515,47 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("Create() for another session error = %v", err)
 			}
 		})
+	})
+
+	t.Run("Should reuse an identical active terminal monitor instead of adding a second wake", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals := &channelTerminals{results: make(chan Outcome, 2)}
+			waker := &recordingWaker{}
+			service := newTestService(t, terminals, waker)
+			first, err := service.Create(t.Context(), terminalSpec("sess-a"))
+			if err != nil || first.Reused {
+				t.Fatalf("first Create() = %+v, %v; want a new monitor", first, err)
+			}
+			again, err := service.Create(t.Context(), terminalSpec("sess-a"))
+			if err != nil || !again.Reused || again.ID != first.ID {
+				t.Fatalf("repeat Create() = %+v, %v; want the reused %s", again, err, first.ID)
+			}
+			terminals.results <- Outcome{Reason: ReasonExit}
+			synctest.Wait()
+			if got := len(waker.notifications()); got != 1 {
+				t.Fatalf("notifications = %d, want exactly one wake for the reused monitor", got)
+			}
+		})
+	})
+
+	t.Run("Should preserve distinct timeout and description requests", func(t *testing.T) {
+		t.Parallel()
+		service := newTestService(t, &channelTerminals{results: make(chan Outcome)}, &recordingWaker{})
+		first, err := service.Create(t.Context(), terminalSpec("sess-distinct"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, change := range []func(*Spec){
+			func(spec *Spec) { spec.Timeout = time.Minute },
+			func(spec *Spec) { spec.Description = "another purpose" },
+		} {
+			spec := terminalSpec("sess-distinct")
+			change(&spec)
+			distinct, err := service.Create(t.Context(), spec)
+			if err != nil || distinct.Reused || distinct.ID == first.ID {
+				t.Fatalf("distinct Create() = %+v, %v", distinct, err)
+			}
+		}
 	})
 
 	t.Run("Should expire finished history after the retention window", func(t *testing.T) {

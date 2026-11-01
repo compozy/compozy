@@ -66,8 +66,16 @@ func (n *daemonNativeTools) monitorCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
 	}
+	if created.Reused {
+		return structuredResult(map[string]any{"monitor": created}, fmt.Sprintf(
+			"Monitor %s already watches this request (status: %s); no duplicate was registered. "+
+				"Continue independent work; end your turn only when every remaining step waits on a monitor or subagent.",
+			created.ID, created.Status,
+		))
+	}
 	preview := fmt.Sprintf(
-		"Monitor %s is active until %s. End your turn now: this session will be woken with a "+
+		"Monitor %s is active until %s. Continue independent work; end your turn only when every remaining "+
+			"step waits on a monitor or subagent. This session will be woken with a "+
 			"[COMPOZY MONITOR] message when it fires. Do not poll or sleep while waiting.",
 		created.ID, created.DeadlineAt.Format(time.RFC3339),
 	)
