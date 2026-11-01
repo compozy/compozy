@@ -23,12 +23,12 @@ func (s *CheckService) SetChecks(ctx context.Context, id string, enabled bool) (
 		if err != nil {
 			return agentinstance.Instance{}, err
 		}
-		cadence = s.checkInterval(target.Policy)
+		cadence = s.checkInterval(&target.Policy)
 	}
 	return storage.SetChecks(ctx, id, enabled, cadence)
 }
 
-func (s *CheckService) checkInterval(policy ResolvedPolicy) time.Duration {
+func (s *CheckService) checkInterval(policy *ResolvedPolicy) time.Duration {
 	if policy.Preferences.MinInterval > 0 {
 		return policy.Preferences.MinInterval
 	}
