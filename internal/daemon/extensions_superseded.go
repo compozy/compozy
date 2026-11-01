@@ -27,7 +27,8 @@ func (s *daemonExtensionService) SupersededBundledDiagnostics(ctx context.Contex
 		}
 	}
 	var items []contract.DiagnosticItem
-	for _, info := range infos {
+	for infoIndex := range infos {
+		info := &infos[infoIndex]
 		successor := extensionpkg.SupersededBundledSuccessor(info.Name)
 		if successor == "" || info.Source != extensionpkg.SourceBundled {
 			continue

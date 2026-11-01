@@ -72,3 +72,16 @@ The first-head lint job reported function length, long lines, missing SQL contex
 blank line. These were repaired with smaller cohesive helpers, context-aware fixture SQL, and
 changed-file formatting. Lifecycle and migration docstrings describe the state-preservation
 boundaries requested by the review warning. No full local lint lane was run.
+
+Greptile's second review (`5730585731`, comment `4437635571`) found that the CLI's global
+removal branch dropped the selected profile. Removal now reuses the existing extension profile
+selection boundary before choosing either transport. `TestExtensionRemovalProfileSelection`
+passed with `-race` for a root flag, environment selection, flag precedence, and a typed unknown
+profile refusal before any removal. The existing scoped-read and extension client transport
+suites passed alongside it. No flags, DTOs or generated contract sources changed.
+
+The second-head lint run reported a single large range-value copy in the new diagnostics owner;
+iteration now uses indexed references. Broad verification remains in CI.
+The existing `TestExtensionCommandRoundTripIntegration` also passed with `-race` after the CLI
+profile fix (36.7 seconds). It exercises the live CLI transport and extension lifecycle fixture;
+its existing integration-service boundaries remain as described by that canonical suite.

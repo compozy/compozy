@@ -220,6 +220,10 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := prepareExtensionProfileRead(cmd, deps, baseClient); err != nil {
+				return err
+			}
+
 			client, supportsDev := baseClient.(extensionDevClient)
 			if global || !supportsDev {
 				item, removeErr := baseClient.RemoveExtension(cmd.Context(), args[0])
