@@ -61,3 +61,62 @@ func projectionAvailabilities(
 	}
 	return availability
 }
+
+// DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.
+func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
+	index, err := r.buildIndex(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]sessionProjectionEntry, 0, len(index.entries))
+	for _, entry := range index.entries {
+		if _, ok := entry.provider.(*MCPProvider); ok {
+			candidates = append(candidates, sessionProjectionEntry{entry: entry})
+		}
+	}
+	batched := projectionAvailabilities(ctx, scope, candidates)
+	views := make([]ToolView, 0, len(index.entries))
+	for _, entry := range index.entries {
+		availability, found := batched[entry.descriptor.ID]
+		if !found {
+			availability = r.availabilityFor(ctx, scope, entry)
+		}
+		view, err := r.viewForAvailability(ctx, scope, evaluator, entry, availability)
+		if err != nil {
+			return nil, err
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+func (r *RuntimeRegistry) viewFor(
+	ctx context.Context,
+	scope Scope,
+	evaluator PolicyEvaluator,
+	entry *registryEntry,
+) (ToolView, error) {
+	return r.viewForAvailability(ctx, scope, evaluator, entry, r.availabilityFor(ctx, scope, entry))
+}
+
+func (r *RuntimeRegistry) viewForAvailability(ctx context.Context, scope Scope, evaluator PolicyEvaluator, entry *registryEntry, availability Availability) (ToolView, error) {
+	decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
+	if err != nil {
+		return ToolView{}, err
+	}
+	decision = applyAvailabilityDecision(decision, availability)
+	descriptor := entry.descriptor
+	if !entry.owned {
+		// Shared native descriptors must not leak mutable fields; index-owned clones already are private.
+		descriptor = cloneDescriptor(descriptor)
+	}
+	return ToolView{
+		Descriptor:   descriptor,
+		Availability: availability,
+		Decision:     decision,
+	}, nil
+}

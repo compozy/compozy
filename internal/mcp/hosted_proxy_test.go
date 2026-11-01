@@ -280,118 +280,147 @@ func TestReconcileHostedTools(t *testing.T) {
 	})
 }
 
-func TestRunHostedProxyUsesPrivateTTLCacheForProjectionChanges(t *testing.T) {
+func TestRunHostedProxyNotifiesToolListChangedForProjectionChanges(t *testing.T) {
 	t.Parallel()
+	t.Run("Should notify and refresh the list after late discovery without repeating unchanged updates", func(t *testing.T) {
+		t.Parallel()
 
-	initial := hostedToolView("compozy__hosted_echo")
-	updated := hostedToolView("compozy__hosted_other")
-	proxyClient := newHostedProxyClientStub(HostedBindResponse{
-		BindID: "bind-1",
-		Scope:  tools.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
-		Tools:  []tools.ToolView{initial},
-		Digest: "initial",
-	})
-	proxyClient.callResult = HostedCallResponse{
-		Result: tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "called"}}},
-	}
-
-	serverReader, clientWriter := io.Pipe()
-	clientReader, serverWriter := io.Pipe()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- RunHostedProxy(ctx, proxyClient, HostedProxyOptions{
-			SessionID: "sess-1",
-			Nonce:     "nonce-1",
-			Stdin:     serverReader,
-			Stdout:    serverWriter,
-			Stderr:    io.Discard,
-			Version:   "test",
+		initial := hostedToolView("compozy__hosted_echo")
+		updated := hostedToolView("compozy__hosted_other")
+		proxyClient := newHostedProxyClientStub(HostedBindResponse{
+			BindID: "bind-1",
+			Scope:  tools.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "codex"},
+			Tools:  []tools.ToolView{initial},
+			Digest: "initial",
 		})
-	}()
+		proxyClient.callResult = HostedCallResponse{
+			Result: tools.ToolResult{Content: []tools.ToolContent{{Type: "text", Text: "called"}}},
+		}
 
-	mcpClient := sdkmcp.NewClient(
-		&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"},
-		&sdkmcp.ClientOptions{Capabilities: &sdkmcp.ClientCapabilities{}},
-	)
-	session, err := mcpClient.Connect(
-		ctx,
-		&sdkmcp.IOTransport{
-			Reader: io.NopCloser(clientReader),
-			Writer: nopWriteCloser{Writer: clientWriter},
-		},
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("Connect() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := session.Close(); closeErr != nil {
-			t.Errorf("session.Close() error = %v", closeErr)
+		serverReader, clientWriter := io.Pipe()
+		clientReader, serverWriter := io.Pipe()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- RunHostedProxy(ctx, proxyClient, HostedProxyOptions{
+				SessionID: "sess-1",
+				Nonce:     "nonce-1",
+				Stdin:     serverReader,
+				Stdout:    serverWriter,
+				Stderr:    io.Discard,
+				Version:   "test",
+			})
+		}()
+
+		changed := make(chan struct{}, 16)
+		mcpClient := sdkmcp.NewClient(
+			&sdkmcp.Implementation{Name: "hosted-proxy-test", Version: "1.0.0"},
+			&sdkmcp.ClientOptions{
+				Capabilities:           &sdkmcp.ClientCapabilities{},
+				ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) { changed <- struct{}{} },
+			},
+		)
+		session, err := mcpClient.Connect(
+			ctx,
+			&sdkmcp.IOTransport{
+				Reader: io.NopCloser(clientReader),
+				Writer: nopWriteCloser{Writer: clientWriter},
+			},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("Connect() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := session.Close(); closeErr != nil {
+				t.Errorf("session.Close() error = %v", closeErr)
+			}
+		})
+
+		if caps := session.InitializeResult().Capabilities.Tools; caps == nil || !caps.ListChanged {
+			t.Fatal("want listChanged advertised")
+		}
+		list, err := session.ListTools(ctx, nil)
+		if err != nil {
+			t.Fatalf("ListTools(initial) error = %v", err)
+		}
+		if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
+			t.Fatalf("initial tools = %#v, want %#v", got, want)
+		}
+
+		result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
+			Name:      "compozy__hosted_echo",
+			Arguments: map[string]any{"message": "hello"},
+			Meta: sdkmcp.Meta{
+				"toolCallId":    "call-1",
+				"approvalToken": "ignored",
+			},
+		})
+		if err != nil {
+			t.Fatalf("CallTool() error = %v", err)
+		}
+		if result == nil || result.IsError {
+			t.Fatalf("CallTool() result = %#v, want non-error result", result)
+		}
+		observedCall := proxyClient.lastCall(t)
+		if observedCall.BindID != "bind-1" || observedCall.ToolName != "compozy__hosted_echo" ||
+			observedCall.ToolCallID != "call-1" {
+			t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
+		}
+
+		proxyClient.emitProjection(t, HostedProjectionResponse{
+			Tools:  []tools.ToolView{updated},
+			Digest: "updated",
+		})
+
+		select {
+		case <-changed:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for tools/list_changed")
+		}
+		list, err = session.ListTools(ctx, nil)
+		if err != nil {
+			t.Fatalf("ListTools(updated) error = %v", err)
+		}
+		if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_other"}; !slices.Equal(got, want) {
+			t.Fatalf("updated tools = %#v, want %#v", got, want)
+		}
+		if got, want := list.CacheScope, "private"; got != want {
+			t.Fatalf("tools/list cache scope = %q, want %q", got, want)
+		}
+		if list.TTLMs <= 0 {
+			t.Fatalf("tools/list TTL = %d, want positive", list.TTLMs)
+		}
+
+		// Drain any coalesced addition/removal notifications before replaying a fallback refresh.
+		select {
+		case <-changed:
+		case <-time.After(100 * time.Millisecond):
+		}
+		for range 3 {
+			proxyClient.emitProjection(t, HostedProjectionResponse{Tools: []tools.ToolView{updated}, Digest: "updated"})
+		}
+		proxyClient.emitProjection(t, HostedProjectionResponse{Tools: []tools.ToolView{updated}, Digest: "same-tools-new-digest"})
+		select {
+		case <-changed:
+			t.Fatal("unchanged tools emitted tools/list_changed")
+		case <-time.After(100 * time.Millisecond):
+		}
+		cancel()
+		if err := session.Close(); err != nil {
+			t.Fatalf("session.Close() error = %v", err)
+		}
+		select {
+		case <-errCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for hosted proxy shutdown")
+		}
+		if got := proxyClient.releaseCount(); got != 1 {
+			t.Fatalf("ReleaseHostedMCP calls = %d, want 1", got)
 		}
 	})
-
-	list, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools(initial) error = %v", err)
-	}
-	if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
-		t.Fatalf("initial tools = %#v, want %#v", got, want)
-	}
-
-	result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
-		Name:      "compozy__hosted_echo",
-		Arguments: map[string]any{"message": "hello"},
-		Meta: sdkmcp.Meta{
-			"toolCallId":    "call-1",
-			"approvalToken": "ignored",
-		},
-	})
-	if err != nil {
-		t.Fatalf("CallTool() error = %v", err)
-	}
-	if result == nil || result.IsError {
-		t.Fatalf("CallTool() result = %#v, want non-error result", result)
-	}
-	observedCall := proxyClient.lastCall(t)
-	if observedCall.BindID != "bind-1" || observedCall.ToolName != "compozy__hosted_echo" ||
-		observedCall.ToolCallID != "call-1" {
-		t.Fatalf("hosted call request = %#v, want bind/tool/toolCallId propagated", observedCall)
-	}
-
-	proxyClient.emitProjection(t, HostedProjectionResponse{
-		Tools:  []tools.ToolView{updated},
-		Digest: "updated",
-	})
-
-	list, err = session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools(cached) error = %v", err)
-	}
-	if got, want := sdkToolNames(list.Tools), []string{"compozy__hosted_echo"}; !slices.Equal(got, want) {
-		t.Fatalf("cached tools = %#v, want %#v until private TTL expires", got, want)
-	}
-	if got, want := list.CacheScope, "private"; got != want {
-		t.Fatalf("tools/list cache scope = %q, want %q", got, want)
-	}
-	if list.TTLMs <= 0 {
-		t.Fatalf("tools/list TTL = %d, want positive", list.TTLMs)
-	}
-
-	cancel()
-	if err := session.Close(); err != nil {
-		t.Fatalf("session.Close() error = %v", err)
-	}
-	select {
-	case <-errCh:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for hosted proxy shutdown")
-	}
-	if got := proxyClient.releaseCount(); got != 1 {
-		t.Fatalf("ReleaseHostedMCP calls = %d, want 1", got)
-	}
 }
 
 func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
@@ -454,6 +483,11 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 		var initialized struct {
 			Result struct {
 				ProtocolVersion string `json:"protocolVersion"`
+				Capabilities    struct {
+					Tools struct {
+						ListChanged bool `json:"listChanged"`
+					} `json:"tools"`
+				} `json:"capabilities"`
 			} `json:"result"`
 			Error json.RawMessage `json:"error"`
 		}
@@ -467,6 +501,9 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 			t.Fatalf("initialize protocol version = %q, want %q", got, want)
 		}
 
+		if !initialized.Result.Capabilities.Tools.ListChanged {
+			t.Fatal("provider protocol must advertise listChanged")
+		}
 		if err := encoder.Encode(map[string]any{
 			"jsonrpc": "2.0",
 			"method":  "notifications/initialized",
@@ -501,6 +538,25 @@ func TestRunHostedProxyProviderProtocolCompatibility(t *testing.T) {
 			t.Fatalf("tools/list tools = %#v, want %#v", got, want)
 		}
 
+		proxyClient.emitProjection(t, HostedProjectionResponse{Tools: []tools.ToolView{hostedToolView("mcp__late__echo")}, Digest: "late"})
+		var notification struct {
+			Method string `json:"method"`
+		}
+		if err := decoder.Decode(&notification); err != nil {
+			t.Fatalf("decode change notification: %v", err)
+		}
+		if notification.Method != "notifications/tools/list_changed" {
+			t.Fatalf("notification = %q", notification.Method)
+		}
+		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": 3, "method": mcpToolsListMethod, "params": map[string]any{}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := decoder.Decode(&listed); err != nil {
+			t.Fatal(err)
+		}
+		if len(listed.Result.Tools) != 1 || listed.Result.Tools[0].Name != "mcp__late__echo" {
+			t.Fatalf("late tools = %#v", listed.Result.Tools)
+		}
 		cancel()
 		if err := clientWriter.Close(); err != nil {
 			t.Errorf("client writer close error = %v", err)
