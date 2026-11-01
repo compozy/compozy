@@ -71,7 +71,10 @@ export function SessionsBoardView({
             selectionRow={{ key: "board", rank: 0 }}
           />
         ) : (
-          <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
+          <>
+            <SessionsBoardLayoutWarning error={board.layoutError} />
+            <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
+          </>
         )}
       </div>
       <SessionsBoardShelfBar
@@ -92,11 +95,11 @@ export function SessionsBoardView({
   );
 }
 
-/** The saved project order failed to load: the retry shows with or without lanes. */
+/** The saved project order failed to load: the retry shows in every state of the lanes. */
 function SessionsBoardLayoutWarning({ error }: { error: SessionsBoardModel["layoutError"] }) {
   if (!error) return null;
   return (
-    <Alert className="w-auto px-2.5 py-2" role="status" variant="warning">
+    <Alert className="mb-2 w-auto px-2.5 py-2" role="status" variant="warning">
       <TriangleAlert aria-hidden="true" />
       <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
       <AlertActions>
@@ -121,20 +124,16 @@ function SessionsBoardLanes({
   if (board.lanesLoading) return <SessionsBoardLanesSkeleton />;
   if (board.lanes === null || board.lanes.length === 0) {
     return (
-      <>
-        <SessionsBoardLayoutWarning error={board.layoutError} />
-        <p
-          className="px-3 py-8 text-center text-small-body text-muted-foreground"
-          data-testid="sessions-board-lanes-empty"
-        >
-          No sessions yet.
-        </p>
-      </>
+      <p
+        className="px-3 py-8 text-center text-small-body text-muted-foreground"
+        data-testid="sessions-board-lanes-empty"
+      >
+        No sessions yet.
+      </p>
     );
   }
   return (
     <div className={SESSIONS_BOARD_LANES} data-testid="sessions-board-lanes">
-      <SessionsBoardLayoutWarning error={board.layoutError} />
       {board.lanes.map((lane, index) =>
         renderLane?.(lane, {
           ...row,
