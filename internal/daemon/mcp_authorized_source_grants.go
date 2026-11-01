@@ -9,10 +9,11 @@ import (
 )
 
 // operatorAuthorizedMCPSourceGrants turns one completed OAuth login into an allow grant bound to
-// the exact extension resource that scope projects, never to a normalized server name. tools.policy.external_default stays the default
-// for every other source; only a credential bound to the current definition counts as consent, so
-// logout, a changed definition, and a disabled extension each withdraw the grant. A status failure
-// grants nothing, which keeps the deny-by-default outcome.
+// the exact extension resource that scope projects, never to a normalized server name.
+// tools.policy.external_default stays the default for every other source; only a credential bound
+// to the current definition counts as consent, so logout, a changed definition, and a disabled
+// extension each withdraw the grant. A status failure grants nothing, which keeps the
+// deny-by-default outcome.
 func operatorAuthorizedMCPSourceGrants(
 	ctx context.Context,
 	state *bootState,

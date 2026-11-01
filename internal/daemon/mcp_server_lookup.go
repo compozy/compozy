@@ -29,6 +29,7 @@ func mcpSourceResource(
 		return source, false, nil
 	}
 	manual, extension := mcpSourceSelection{}, mcpSourceSelection{}
+	var extensionErr error
 	for _, record := range state.mcpServerCatalog.Snapshot() {
 		definitionOwner := mcpDefinitionOwnerManual
 		if record.Owner.Normalize().Kind == extensionResourceOwnerKind {
@@ -42,6 +43,11 @@ func mcpSourceResource(
 		}
 		rank, err := mcpSourceResourceRank(ctx, state, source, record, definitionOwner)
 		if err != nil {
+			// An unreadable extension record only matters if no manual definition answers.
+			if owner == "" && definitionOwner != mcpDefinitionOwnerManual {
+				extensionErr = err
+				continue
+			}
 			return source, false, err
 		}
 		selection := &extension
@@ -53,13 +59,18 @@ func mcpSourceResource(
 	selected := manual
 	// An unqualified name means the operator's own server first; extensions answer only when none exists.
 	if selected.rank == 0 && (owner != "" || !daemonConfigDeclaresMCPServer(state, name)) {
+		if extensionErr != nil {
+			return source, false, extensionErr
+		}
 		selected = extension
 	}
 	if selected.rank == 0 {
 		return source, false, nil
 	}
 	if selected.ambiguous {
-		return source, false, fmt.Errorf("daemon: multiple MCP definitions address %q; pass an explicit owner", name)
+		return source, false, fmt.Errorf(
+			"daemon: multiple MCP definitions address %q; an explicit owner selects between owners", name,
+		)
 	}
 	source.ResourceID = selected.record.ID
 	source.ResourceVersion = fmt.Sprint(selected.record.Version)

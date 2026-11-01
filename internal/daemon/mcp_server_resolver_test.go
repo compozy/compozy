@@ -698,6 +698,22 @@ func TestMCPSourceResourceFindsExtensionServersByName(t *testing.T) {
 			t.Fatalf("config lookup = %#v, %v", target, err)
 		}
 	})
+	t.Run("Should not let an unreadable extension record block the manual server", func(t *testing.T) {
+		t.Parallel()
+		broken := extensionRecord("ext", "linear")
+		broken.Scope = resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile, ID: "invalid"}
+		manual := resources.Record[compozyconfig.MCPServer]{
+			ID: "manual", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: server,
+		}
+		target, err := lookup(t, &bootState{mcpServerCatalog: catalogOf(broken, manual)})
+		if err != nil || target.Owner != mcpDefinitionOwnerManual {
+			t.Fatalf("lookup = %#v, %v", target, err)
+		}
+		if _, err = lookup(t, &bootState{mcpServerCatalog: catalogOf(broken)}); err == nil ||
+			!strings.Contains(err.Error(), "workspace-profile") {
+			t.Fatalf("lookup without a manual server error = %v", err)
+		}
+	})
 	t.Run("Should not resolve an extension enabled for another profile", func(t *testing.T) {
 		t.Parallel()
 		record := extensionRecord("ext", "linear")
