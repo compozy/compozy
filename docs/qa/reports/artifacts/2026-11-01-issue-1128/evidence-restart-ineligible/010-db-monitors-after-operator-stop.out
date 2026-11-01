@@ -1,23 +1,12 @@
 $ dbmon
-id                session_id             kind      terminal_id        status       reason                 exit_code  deadline_at                  fired_at                     binding_len  version
-----------------  ---------------------  --------  -----------------  -----------  ---------------------  ---------  ---------------------------  ---------------------------  -----------  -------
-mon-18b39186f562  sess-7e918cae656d3011  terminal  term-090e7423fffa  fired        exit                   0          2026-11-01T04:10:28.764319Z  2026-11-01T03:44:02.165544Z  457          3      
-mon-5203b4d019d6  sess-353ca5e0a0cd18e2  timer                        canceled     session_stopped                   2026-11-01T03:47:22.493318Z  2026-11-01T03:44:53.514575Z  457          2      
-mon-8168e0956eb1  sess-353ca5e0a0cd18e2  terminal  term-9634570ae0ea  canceled     session_stopped                   2026-11-01T04:14:52.499596Z  2026-11-01T03:44:53.514575Z  457          2      
-mon-1ead7de4e9f6  sess-e8f9e8e2cfc560fe  timer                        canceled     session_stopped                   2026-11-01T03:47:22.816203Z  2026-11-01T03:44:53.214654Z  457          2      
-mon-872d5ffc4c56  sess-f38a13e86a5248cc  timer                        canceled     session_stopped                   2026-11-01T03:51:36.045801Z  2026-11-01T03:49:08.272222Z  457          2      
-mon-7bfe399cd406  sess-f38a13e86a5248cc  terminal  term-979782b3cff4  canceled     session_stopped                   2026-11-01T04:19:06.078598Z  2026-11-01T03:49:08.272222Z  457          2      
-mon-c30f887b5278  sess-cf7782e9e974b64e  timer                        canceled     session_stopped                   2026-11-01T03:51:37.140974Z  2026-11-01T03:49:07.990202Z  457          2      
-mon-266d8cd2cd90  sess-d1835d8e6139ac22  timer                        canceled     session_stopped                   2026-11-01T03:56:27.595867Z  2026-11-01T03:53:59.326486Z  457          2      
-mon-e73af4f9fddb  sess-d1835d8e6139ac22  terminal  term-c15d938fe069  canceled     session_stopped                   2026-11-01T04:23:57.64438Z   2026-11-01T03:53:59.326486Z  457          2      
-mon-9c3607b05128  sess-df9fe8670356893d  timer                        canceled     session_stopped                   2026-11-01T03:56:28.453377Z  2026-11-01T03:53:59.157491Z  457          2      
-mon-4337f22e3a68  sess-a7468c1b8ed98fd0  timer                        interrupted  owner_binding_changed             2026-11-01T04:08:29.149865Z  2026-11-01T04:06:00.663905Z  118          3      
-mon-78837277024f  sess-a7468c1b8ed98fd0  terminal  term-dfab1ed76327  interrupted  owner_binding_changed             2026-11-01T04:35:59.158766Z  2026-11-01T04:06:00.664071Z  118          3      
-mon-226be38391ff  sess-95fcbf7c2ebd5453  timer                        canceled     session_stopped                   2026-11-01T04:08:29.494702Z  2026-11-01T04:05:59.897344Z  457          2      
-mon-42dfb822a121  sess-ffe15feef50905a4  timer                        fired        timer_elapsed                     2026-11-01T04:11:52.183654Z  2026-11-01T04:11:52.186571Z  457          4      
-mon-5421721fcd86  sess-ffe15feef50905a4  terminal  term-71c9c2134198  fired        terminal_unavailable              2026-11-01T04:39:22.188679Z  2026-11-01T04:09:23.530365Z  457          4      
-mon-9053ca792dcf  sess-7605b79ab4a66ba5  timer                        canceled     session_stopped                   2026-11-01T04:11:52.455201Z  2026-11-01T04:09:22.788116Z  457          2      
-mon-e1c009a6cdf2  sess-3fbea1ca67f2d380  timer                        active                                         2026-11-01T04:16:21.73233Z                                457          1      
-mon-97ef10b3a376  sess-3fbea1ca67f2d380  terminal  term-40aa03dfbd41  active                                         2026-11-01T04:43:51.736655Z                               457          1      
-mon-86e35c4e25ed  sess-5611352893904589  timer                        active                                         2026-11-01T04:16:22.013616Z                               457          1      
+id                session_id             kind      terminal_id        status    reason                exit_code  deadline_at                  fired_at                     binding_len  version
+----------------  ---------------------  --------  -----------------  --------  --------------------  ---------  ---------------------------  ---------------------------  -----------  -------
+mon-60ae6ab7068b  sess-895bce8420bad44c  terminal  term-6aade59d29ac  fired     exit                  0          2026-11-01T06:19:34.448935Z  2026-11-01T05:52:55.98703Z   454          3      
+mon-07925dba9174  sess-60907c9f632fad79  timer                        fired     timer_elapsed                    2026-11-01T05:55:33.481848Z  2026-11-01T05:55:33.484067Z  454          3      
+mon-42b0c7f79704  sess-60907c9f632fad79  terminal  term-d1ae3fea576e  fired     terminal_unavailable             2026-11-01T06:23:03.488433Z  2026-11-01T05:53:06.268781Z  454          3      
+mon-e78094e1212c  sess-cde03d41de4735b1  timer                        canceled  session_stopped                  2026-11-01T05:55:33.987513Z  2026-11-01T05:53:04.678486Z  454          2      
+mon-8c7af5e84457  sess-c581523d562fcbb2  timer                        active                                     2026-11-01T05:58:10.370573Z                               454          1      
+mon-4d19be6e25b3  sess-c581523d562fcbb2  terminal  term-f90ee4272f89  active                                     2026-11-01T06:25:40.384584Z                               454          1      
+mon-f47820f7a3de  sess-563d65ba52cc4a3f  timer                        active                                     2026-11-01T05:58:11.209635Z                               454          1      
+
 [exit 0]

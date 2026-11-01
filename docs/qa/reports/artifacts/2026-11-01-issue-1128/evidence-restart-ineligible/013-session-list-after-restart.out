@@ -8,4 +8,5 @@ $ compozy session list --workspace <lab> -o json
     "limit": 50
   }
 }
+
 [exit 0]

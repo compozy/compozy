@@ -30,7 +30,7 @@ $ compozy session new --agent mon-restart --workspace <lab> -o json
     "steer_capability": "none",
     "steer_delivery": "interrupt_fallback"
   },
-  "id": "sess-ffe15feef50905a4",
+  "id": "sess-60907c9f632fad79",
   "profile_id": "00000000000000000000000000",
   "profile_name": "default",
   "profile_color": "#8E8EB5",
@@ -52,7 +52,7 @@ $ compozy session new --agent mon-restart --workspace <lab> -o json
       "speed": "normal"
     }
   },
-  "workspace_id": "ws_93d7060986409c74",
+  "workspace_id": "ws_eaab30503360db34",
   "workspace_path": "<lab>",
   "type": "user",
   "state": "active",
@@ -64,7 +64,7 @@ $ compozy session new --agent mon-restart --workspace <lab> -o json
   "escalated": false,
   "available_commands": [],
   "lineage": {
-    "root_session_id": "sess-ffe15feef50905a4",
+    "root_session_id": "sess-60907c9f632fad79",
     "spawn_depth": 0,
     "auto_stop_on_parent": false,
     "notify_creator": false,
@@ -84,7 +84,8 @@ $ compozy session new --agent mon-restart --workspace <lab> -o json
       "workspace_paths": []
     }
   },
-  "created_at": "2026-11-01T04:09:21.819843Z",
-  "updated_at": "2026-11-01T04:09:21.865569Z"
+  "created_at": "2026-11-01T05:53:02.664102Z",
+  "updated_at": "2026-11-01T05:53:02.729696Z"
 }
+
 [exit 0]

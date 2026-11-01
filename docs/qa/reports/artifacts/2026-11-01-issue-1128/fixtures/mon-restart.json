@@ -65,7 +65,7 @@
               "tool_call_id": "mon-term",
               "raw_input": {
                 "kind": "terminal",
-                "terminal_id": "term-40aa03dfbd41",
+                "terminal_id": "term-f90ee4272f89",
                 "until": "exit",
                 "timeout_seconds": 1800,
                 "description": "terminal lost in restart"

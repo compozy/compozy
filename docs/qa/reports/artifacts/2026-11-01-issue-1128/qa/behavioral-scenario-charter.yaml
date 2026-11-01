@@ -12,7 +12,7 @@
     "required": false
   },
   "schema_version": 1,
-  "startup_situation": "UNFILLED: realistic startup situation for monitor-durable-restart-20261101-033804-503525",
+  "startup_situation": "UNFILLED: realistic startup situation for monitor-durable-head-20261101-054840-692446",
   "task_tree": {
     "dependencies": [],
     "roots": [],

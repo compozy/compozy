@@ -19,7 +19,7 @@
               "tool_call_id": "mon-first",
               "raw_input": {
                 "kind": "terminal",
-                "terminal_id": "term-c83bd23ff4b8",
+                "terminal_id": "term-6aade59d29ac",
                 "until": "exit",
                 "timeout_seconds": 1800,
                 "description": "external condition marker"
@@ -31,7 +31,7 @@
               "tool_call_id": "mon-retry",
               "raw_input": {
                 "kind": "terminal",
-                "terminal_id": "term-c83bd23ff4b8",
+                "terminal_id": "term-6aade59d29ac",
                 "until": "exit",
                 "timeout_seconds": 1800,
                 "description": "external condition marker"

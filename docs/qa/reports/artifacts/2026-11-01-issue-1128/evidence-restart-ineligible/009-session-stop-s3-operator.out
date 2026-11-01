@@ -1,7 +1,7 @@
-$ compozy session stop sess-5611352893904589
+$ compozy session stop sess-563d65ba52cc4a3f
 Session
 =======
-ID:               sess-5611352893904589
+ID:               sess-563d65ba52cc4a3f
 Name:             --
 Agent:            mon-stopped
 Provider:         claude
@@ -18,12 +18,13 @@ Failure Kind:     --
 Failure Summary:  --
 Crash Bundle:     --
 ACP Session:      mon-stopped-session-1
-Created:          2026-11-01T04:13:51Z
-Updated:          2026-11-01T04:13:52Z
-Age:              0s
+Created:          2026-11-01T05:55:40Z
+Updated:          2026-11-01T05:55:41Z
+Age:              1s
 
 Capabilities
 ============
 Supports Load:  true
 Modes:          --
+
 [exit 0]

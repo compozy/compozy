@@ -9,10 +9,11 @@ Redacted:           false
 Lifecycle:          restart-required
 Applied:            false
 Next Action:        restart-daemon
-Apply Record:       cfgapp-af25f1a7e56e65ab
+Apply Record:       cfgapp-c7f3d81339c3e1d1
 Active Generation:  0
 Restart Required:   true
 Restart Scope:      daemon
 Status:             --
 Winning Layer:      --
+
 [exit 0]

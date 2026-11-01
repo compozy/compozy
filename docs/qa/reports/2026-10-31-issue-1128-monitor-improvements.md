@@ -58,11 +58,18 @@ Persistence can keep operator-stop cancellation, so it is implemented.
      and HTTP, with no wake and no held cap slot;
    - an idle owner has no turn boundary, so no restart checkpoint is fabricated: the monitor row carries
      the binding captured at registration, and the stored restart-continuation rules are reused unchanged.
-5. **Decision durability.** `Cancel` confirms its durable write or returns an error and a repeat retries it
-   (the monitor is already canceled in memory and cannot wake); owner-stop cancellations retry the write
-   with bounded backoff; the fired outcome is persisted (with the delivery backoff) before any wake, and a
-   store that stays unavailable for the retry window leaves the monitor `undelivered` rather than waking
-   from an outcome a restart could not reproduce.
+5. **Decision durability.** Cancel, fired, and undelivered outcomes are tracked decisions: each entry keeps
+   the version of its latest decision and the highest version known durable, so confirmation is monotonic
+   whatever order overlapping writes finish in. A decision whose write fails is queued, retried in the
+   background every 5 s, and flushed at shutdown; `Cancel` reports an error until the row is durable (the
+   monitor is already canceled in memory and cannot wake). The fired outcome is persisted (with the delivery
+   backoff) before any wake, and a store that stays unavailable for the retry window leaves the monitor
+   `undelivered` (queued the same way) rather than waking from an outcome a restart could not reproduce.
+   A wake whose queue entry was already admitted (queued, dispatching, or sent) is not replayed after a
+   restart: the daemon waker checks the queue ledger first; a failed or canceled entry may be admitted again.
+   Transient owner-resume failures at boot are retried with backoff before a monitor is recorded
+   `interrupted`. Lifecycle logs go through a bounded queue (1024; info entries drop with a
+   `monitor.log_dropped` count, never inline under a lock).
 6. **Remote-wait guidance.** Tool descriptor, official skill, and site monitors page state there is no
    polling kind: run the bounded watch command via `terminal_exec`, monitor that terminal, set
    `timeout_seconds` past the expected wait.
@@ -80,12 +87,12 @@ Persistence can keep operator-stop cancellation, so it is implemented.
 
 ## Known limits (stated, not hidden)
 
-- A crash between a durable decision and its write can leave the previous durable state. The recovery
-  rules are conservative: a stale `active` row of an owner stopped on purpose is canceled at boot, a stale
-  `delivering` row is re-delivered under the stable id, and `Cancel` reports an unconfirmed write instead
-  of claiming success. A cancellation whose write failed for an owner-stop, then manual resume, then a
-  crash before any retry could still revive that monitor; the write is retried with backoff and failure is
-  logged at error level.
+- A hard crash while the store is unavailable can still leave the previous durable state (graceful
+  shutdowns flush queued decisions). The recovery rules are conservative: a stale `active` row of an owner
+  stopped on purpose is canceled at boot, a stale `delivering` row is re-delivered only if the queue ledger
+  does not already hold its wake, and `Cancel` reports an unconfirmed write instead of claiming success. An
+  owner-stop cancellation whose write failed, followed by a manual resume and a hard crash before the
+  background retry landed, could still revive that monitor; failures are logged at error level.
 - Recovery resumes each eligible owner at boot (same posture as restart continuation), even when its timer
   is far in the future.
 - Terminal output of a monitor that fired before a restart is not retained; the wake says so.
@@ -123,11 +130,13 @@ The saved earlier walks (`evidence-defects/`) found two real defects that unit t
 
 Real daemon built from this branch (`bin/compozy`, `acpmock-driver`) in an isolated home with its own ports
 and socket (never the default daemon), `acpmock` agents calling the real hosted native tools over MCP.
-All paths below are relative to `docs/qa/reports/artifacts/2026-11-01-issue-1128/`.
+All paths below are relative to `docs/qa/reports/artifacts/2026-11-01-issue-1128/`. The lab binaries were
+built from commit `e6e92dea8` (see `build-commit.txt`); later commits only change documentation and saved
+evidence. The `scripts/` directory holds the fail-closed replay scripts used for this run.
 
 **A. Long external wait + duplicate registration** (`external-wait/`). A terminal polling an external marker
 file; the agent called `compozy__monitor_create` twice with the identical condition and ended its turn.
-Marker written after a ~200 s idle; exactly one `monitor` synthetic wake (`scheduler_reason: monitor_exit`);
+Marker written after about 3m22s idle; exactly one `monitor` synthetic wake (`scheduler_reason: monitor_exit`);
 monitor `fired` `exit_code 0`; one `monitor.created`, one `monitor.reused`, one wake.
 
 **B. Restart recovery, eligible owner** (`restart-eligible/`). One session with a 150 s timer and a terminal

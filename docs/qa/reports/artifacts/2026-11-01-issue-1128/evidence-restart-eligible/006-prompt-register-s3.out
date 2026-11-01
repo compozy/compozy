@@ -1,0 +1,12 @@
+$ compozy session prompt sess-cde03d41de4735b1 [watch] register stopped-owner monitor
+Prompt Events
+=============
+Timestamp             Type             Detail                         Stop
+---------             ----             ------                         ----
+2026-11-01T05:53:03Z  tool_call        compozy__monitor_create        --
+2026-11-01T05:53:03Z  tool_result      compozy__monitor_create        --
+2026-11-01T05:53:03Z  agent_message    Registered monitors; waiting.  --
+2026-11-01T05:53:04Z  prompt_delivery  null                           --
+2026-11-01T05:53:04Z  done             null                           end_turn
+
+[exit 0]
