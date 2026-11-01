@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"errors"
+	"github.com/compozy/compozy/internal/hooks"
 	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -48,6 +49,7 @@ type MainSessionStarter interface {
 }
 
 type Service struct {
+	hooks     LifecycleHooks
 	store     InstanceStore
 	admission Admission
 	starter   MainSessionStarter
@@ -91,9 +93,15 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Instance, bool
 		return instance, true, err
 	}
 	if sessionID == "" {
-		return instance, true, errors.New("agentinstance: main session starter returned an empty session id")
+		return instance, true, errors.Join(
+			errors.New("agentinstance: main session starter returned an empty session id"),
+			s.store.DeleteUnstarted(context.WithoutCancel(ctx), instance.ID),
+		)
 	}
 	instance, err = s.store.BindMain(ctx, instance.ID, sessionID)
+	if err == nil {
+		s.notifyLifecycle(ctx, hooks.HookAgentInstanceCreated, instance)
+	}
 	return instance, true, err
 }
 
@@ -103,7 +111,15 @@ func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error
 	default:
 		return Instance{}, errors.New("agentinstance: invalid pause reason")
 	}
-	return s.store.Pause(ctx, id, reason)
+	before, err := s.store.Get(ctx, id)
+	if err != nil {
+		return Instance{}, err
+	}
+	instance, err := s.store.Pause(ctx, id, reason)
+	if err == nil && before.State != instance.State {
+		s.notifyLifecycle(ctx, hooks.HookAgentInstancePaused, instance)
+	}
+	return instance, err
 }
 func (s *Service) Resume(ctx context.Context, id string) (Instance, error) {
 	instance, err := s.store.Get(ctx, id)
@@ -113,12 +129,23 @@ func (s *Service) Resume(ctx context.Context, id string) (Instance, error) {
 	if err := s.admission.ValidateResume(ctx, instance); err != nil {
 		return Instance{}, err
 	}
-	return s.store.Resume(ctx, id, s.limit)
+	resumed, err := s.store.Resume(ctx, id, s.limit)
+	if err == nil && instance.State != resumed.State {
+		s.notifyLifecycle(ctx, hooks.HookAgentInstanceResumed, resumed)
+	}
+	return resumed, err
 }
 func (s *Service) Archive(ctx context.Context, id string) error {
+	before, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
 	instance, err := s.store.Archive(ctx, id)
 	if err != nil {
 		return err
+	}
+	if before.ArchivedAt == nil {
+		s.notifyLifecycle(ctx, hooks.HookAgentInstanceArchived, instance)
 	}
 	if instance.MainSessionID != "" {
 		return s.starter.Stop(ctx, instance.MainSessionID)
@@ -142,7 +169,11 @@ func (s *Service) Adopt(ctx context.Context, req AdoptRequest) (Instance, error)
 	if err != nil {
 		return Instance{}, err
 	}
-	return s.store.Adopt(ctx, input, req.SessionID, s.limit)
+	instance, err := s.store.Adopt(ctx, input, req.SessionID, s.limit)
+	if err == nil {
+		s.notifyLifecycle(ctx, hooks.HookAgentInstanceAdopted, instance)
+	}
+	return instance, err
 }
 
 func WithClock(now func() time.Time) Option {

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -1011,9 +1012,14 @@ func startSubagentIntegrationParent(
 	t *testing.T,
 	manager *session.Manager,
 	workspace string,
+	policies ...store.SessionPermissionPolicy,
 ) (*session.Session, session.SubagentCaller) {
 	t.Helper()
-	parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	opts := session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}
+	if len(policies) > 0 {
+		opts.Lineage = &store.SessionLineage{PermissionPolicy: policies[0]}
+	}
+	parent, err := manager.Create(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4443,6 +4449,116 @@ func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 		waiting, err := reopened.GetSessionInputQueueEntry(t.Context(), target.ID, "inq-waiting")
 		if err != nil || waiting.Status == store.SessionInputQueueStatusFailed {
 			t.Fatalf("waiting = %q, %v; want queued input untouched by the sweep", waiting.Status, err)
+		}
+	})
+}
+
+func TestInstanceNativeCreateJourney(t *testing.T) {
+	t.Run("Should retain a narrower childs ceiling through native creation and context replacement", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = []byte(strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1))
+			if err := os.WriteFile(path, body, 0600); err != nil {
+				t.Fatal(err)
+			}
+		})
+		ws, err := d.registry.GetWorkspace(t.Context(), workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+		allowed := []string{toolspkg.ToolIDAgentInstanceCreate.String(), toolspkg.ToolIDSessionStatus.String()}
+		child, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Instance creator", Mode: "async", Narrowing: &session.SubagentPermissionNarrowing{Tools: allowed}, PermissionMode: compozyconfig.PermissionModeApproveReads})
+		if err != nil || child.ChildSessionID == nil {
+			t.Fatalf("child: %#v %v", child, err)
+		}
+		waitForRuntimeCondition(t, "child ready to create an instance", 15*time.Second, func() bool { current, ok := manager.Get(*child.ChildSessionID); return ok && current.IsPrompting() })
+		childInfo, err := manager.Status(t.Context(), *child.ChildSessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(parent.Info().Lineage.PermissionPolicy.Tools) <= len(childInfo.Lineage.PermissionPolicy.Tools) {
+			t.Fatal("child is not narrower than root")
+		}
+		result, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{SessionID: childInfo.ID, WorkspaceID: workspace, ProfileID: childInfo.ProfileID, AgentName: childInfo.AgentName}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "create-instance"})
+		if err != nil {
+			t.Fatalf("native create: %#v; workspace=%s profile=%s childWorkspace=%s", err, workspace, childInfo.ProfileID, childInfo.WorkspaceID)
+		}
+		var response compozycontract.AgentInstanceResponse
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		id := response.Instance.MainSessionID
+		if id == "" {
+			t.Fatalf("missing main: %s", result.Structured)
+		}
+		waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
+			info, err := manager.Status(t.Context(), id)
+			return err == nil && info.State == session.StateActive
+		})
+		info, err := manager.Status(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.ValidatePermissionSubset(childInfo.Lineage.PermissionPolicy, info.Lineage.PermissionPolicy); err != nil {
+			t.Fatal(err)
+		}
+		if info.EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+			t.Fatal("instance bypasses approvals")
+		}
+		persistedCaller, callerErr := d.registry.(*globaldb.GlobalDB).Instances().InstanceCaller(t.Context(), id)
+		if callerErr != nil {
+			t.Fatal(callerErr)
+		}
+		if !reflect.DeepEqual(info.Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) || !reflect.DeepEqual(persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
+			t.Fatalf("instance lost child ceiling: runtime=%#v stored=%#v child=%#v", info.Lineage.PermissionPolicy, persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy)
+		}
+		initialEvents, err := manager.Prompt(t.Context(), id, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range initialEvents {
+			if event.Type == acp.EventTypeError || event.ToolError() {
+				t.Fatalf("initial prompt failed: %#v", event)
+			}
+		}
+		cleared, err := manager.ClearConversation(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "replacement main active", 15*time.Second, func() bool {
+			info, err := manager.Status(t.Context(), id)
+			return err == nil && (info.State == session.StateActive || info.Failure != nil)
+		})
+		replacement, err := manager.Status(t.Context(), id)
+		if err != nil || replacement.State != session.StateActive {
+			t.Fatalf("replacement failed: %#v %v", replacement, err)
+		}
+		if err := session.ValidatePermissionSubset(childInfo.Lineage.PermissionPolicy, cleared.Info().Lineage.PermissionPolicy); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(cleared.Info().Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
+			t.Fatal("replacement changed child ceiling")
+		}
+		if cleared.Info().EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+			t.Fatal("replacement bypasses approvals")
+		}
+		events, err := manager.Prompt(t.Context(), id, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range events {
+			if event.Type == acp.EventTypeError || event.ToolError() {
+				t.Fatalf("replacement prompt failed: %#v", event)
+			}
+		}
+		retained, err := d.registry.(*globaldb.GlobalDB).Instances().Get(t.Context(), response.Instance.ID)
+		if err != nil || retained.MainSessionID != id {
+			t.Fatalf("instance after prompt: %#v %v", retained, err)
 		}
 	})
 }

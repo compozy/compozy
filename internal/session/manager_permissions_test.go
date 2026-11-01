@@ -1,6 +1,8 @@
 package session
 
 import (
+	"context"
+	"github.com/compozy/compozy/internal/store"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -98,4 +100,64 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 			t.Fatalf("resumed metadata provider auth mode = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestInstancePermissionMode(t *testing.T) {
+	for _, tc := range []struct{ mode, want compozyconfig.PermissionMode }{
+		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveReads},
+		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
+		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
+	} {
+		t.Run("Should retain bounded "+string(tc.mode)+" permissions across resume and context replacement", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager = newManagerWithHarness(t, h)
+			cleanupTestManager(t, h.manager)
+			h.manager.SetInstanceCeilingReader(func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
+				return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
+			})
+			created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Permissions: tc.mode})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := created.Info().EffectivePermissions; got != string(tc.want) {
+				t.Fatalf("launch permissions=%s, want %s", got, tc.want)
+			}
+			if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+				t.Fatal(err)
+			}
+			resumed, err := h.manager.Resume(t.Context(), created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := resumed.Info().EffectivePermissions; got != string(tc.want) {
+				t.Fatalf("resume permissions=%s, want %s", got, tc.want)
+			}
+			cleared, err := h.manager.ClearConversation(t.Context(), resumed.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(cleared.ID)); err != nil {
+				t.Fatal(err)
+			}
+			if got := cleared.Info().EffectivePermissions; got != string(tc.want) {
+				t.Fatalf("replacement permissions=%s, want %s", got, tc.want)
+			}
+			events, err := h.manager.Prompt(t.Context(), cleared.ID, "Continue within the instance permissions")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, events)
+			h.driver.mu.Lock()
+			defer h.driver.mu.Unlock()
+			if len(h.driver.startCalls) != 3 {
+				t.Fatalf("provider launches=%d, want 3", len(h.driver.startCalls))
+			}
+			for _, launch := range h.driver.startCalls {
+				if launch.Permissions != tc.want {
+					t.Fatalf("provider permissions=%s, want %s", launch.Permissions, tc.want)
+				}
+			}
+		})
+	}
 }

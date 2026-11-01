@@ -153,6 +153,9 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		)
 		return
 	}
+	if !h.allowAgentDefinitionDeletion(c, profileScope.ProfileID, resolved.OperationWorkspace, name) {
+		return
+	}
 	unshadowGlobal := h.globalAgentTwinExists(name, resolved.Entry.Def.SourcePath)
 	agentsRoot, err := h.agentDefinitionAgentsRoot(&resolved)
 	if err != nil {

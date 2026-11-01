@@ -26,7 +26,7 @@ func (r *InstanceRepo) BindMain(ctx context.Context, id, sessionID string) (agen
 			return err
 		}
 		if stamped != 1 {
-			return errors.New("session_scope_mismatch")
+			return agentinstance.ErrScopeMismatch
 		}
 		count, err := q.BindAgentInstanceMain(ctx, sqlcgen.BindAgentInstanceMainParams{ID: id, SessionID: sql.NullString{String: sessionID, Valid: true}, UpdatedAt: store.FormatTimestamp(r.now())})
 		if err != nil {

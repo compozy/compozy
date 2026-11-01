@@ -34,3 +34,9 @@ must retain them. Repeat with a future appearance version and unknown nested fie
 409 agent_kind_immutable without writing; duplication with on_demand must succeed. Catalog label search and
 `group=agent` must retain distinct digests and page without losing grouped definitions. Focused Go suites own
 parser/file round trips and handler preservation; the enclosing integration QA owns the browser re-walk.
+
+QA impact 2026-11-01 (B2 instance lifecycle): deleting an agent with a starting, active, or paused instance
+must return 409 with code `agent_has_instances` and preserve its authored definition. After archiving all
+instances, deletion succeeds. Repeat with the blocking instance beyond the first 100 list rows. Wrapped
+instance errors must retain canonical machine codes. Focused handler tests exercise real SQLite and authored
+files; a browser deletion re-walk remains pending in the enclosing integration QA.

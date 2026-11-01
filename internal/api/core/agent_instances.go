@@ -32,7 +32,12 @@ func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, 
 		h.respondError(c, StatusForAgentIdentityError(err), err)
 		return workspaceaccess.ActorRef{}, false
 	}
-	return workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: caller.Session.ID, WorkspaceID: caller.Session.WorkspaceID, AgentName: caller.Session.AgentName}, true
+	return workspaceaccess.ActorRef{
+		Kind:        workspaceaccess.ActorAgentSession,
+		SessionID:   caller.Session.ID,
+		WorkspaceID: caller.Session.WorkspaceID,
+		AgentName:   caller.Session.AgentName,
+	}, true
 }
 
 func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstance.Instance, bool) {
@@ -67,7 +72,15 @@ func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstanc
 		return agentinstance.Instance{}, false
 	}
 	if !actor.Operator {
-		decision, err := h.WorkspaceAccess.Authorize(c.Request.Context(), workspaceaccess.Request{Actor: actor, Target: workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID), ReadOnly: verb == "reports" || verb == "list", Seam: workspaceaccess.SeamTool})
+		decision, err := h.WorkspaceAccess.Authorize(
+			c.Request.Context(),
+			workspaceaccess.Request{
+				Actor:    actor,
+				Target:   workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
+				ReadOnly: verb == "reports" || verb == "list",
+				Seam:     workspaceaccess.SeamTool,
+			},
+		)
 		if err != nil || !decision.Allowed {
 			h.instanceError(c, agentinstance.ErrForbidden)
 			return agentinstance.Instance{}, false
@@ -162,7 +175,9 @@ func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
-	result := contract.AgentInstanceReportsResponse{Reports: make([]contract.AgentInstanceReportPayload, 0, len(reports))}
+	result := contract.AgentInstanceReportsResponse{
+		Reports: make([]contract.AgentInstanceReportPayload, 0, len(reports)),
+	}
 	for _, report := range reports {
 		var payload contract.AgentInstanceReportPayload
 		if err := json.Unmarshal(report.Payload, &payload); err != nil {
@@ -174,30 +189,47 @@ func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
 	}
 	if len(reports) == limit {
 		last := reports[len(reports)-1]
-		result.NextCursor = base64.RawURLEncoding.EncodeToString([]byte(instance.ID + "\n" + last.CreatedAt.Format(time.RFC3339Nano) + "\n" + last.ID + "\n" + state))
+		result.NextCursor = base64.RawURLEncoding.EncodeToString(
+			[]byte(instance.ID + "\n" + last.CreatedAt.Format(time.RFC3339Nano) + "\n" + last.ID + "\n" + state),
+		)
 	}
 	c.JSON(http.StatusOK, result)
 }
 func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayload {
-	return contract.AgentInstancePayload{ID: i.ID, ProfileID: i.ProfileID, AgentName: i.AgentName, WorkspaceID: i.WorkspaceID, State: i.State, PauseReason: i.PauseReason, MainSessionID: i.MainSessionID, CreatedAt: i.CreatedAt, UpdatedAt: i.UpdatedAt}
+	return contract.AgentInstancePayload{
+		ID:            i.ID,
+		ProfileID:     i.ProfileID,
+		AgentName:     i.AgentName,
+		WorkspaceID:   i.WorkspaceID,
+		State:         i.State,
+		PauseReason:   i.PauseReason,
+		MainSessionID: i.MainSessionID,
+		CreatedAt:     i.CreatedAt,
+		UpdatedAt:     i.UpdatedAt,
+	}
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
-	status := 500
-	switch {
-	case errors.Is(err, agentinstance.ErrForbidden), errors.Is(err, agentinstance.ErrDepth):
-		status = 403
-	case errors.Is(err, agentinstance.ErrNotFound), errors.Is(err, agentinstance.ErrDefinitionMissing):
-		status = 404
-	case errors.Is(err, agentinstance.ErrExists), errors.Is(err, agentinstance.ErrStarting):
-		status = 409
-	case errors.Is(err, agentinstance.ErrLimit):
-		status = 429
-	case errors.Is(err, agentinstance.ErrNotStaysOn):
-		status = 422
+	for _, mapping := range []struct {
+		domain error
+		status int
+	}{
+		{agentinstance.ErrForbidden, http.StatusForbidden},
+		{agentinstance.ErrWorkspaceAccessDenied, http.StatusForbidden},
+		{agentinstance.ErrSessionNotRoot, http.StatusUnprocessableEntity},
+		{agentinstance.ErrScopeMismatch, http.StatusUnprocessableEntity},
+		{agentinstance.ErrPaused, http.StatusConflict},
+		{agentinstance.ErrDepth, http.StatusForbidden},
+		{agentinstance.ErrNotFound, http.StatusNotFound},
+		{agentinstance.ErrDefinitionMissing, http.StatusNotFound},
+		{agentinstance.ErrExists, http.StatusConflict},
+		{agentinstance.ErrStarting, http.StatusConflict},
+		{agentinstance.ErrLimit, http.StatusTooManyRequests},
+		{agentinstance.ErrNotStaysOn, http.StatusUnprocessableEntity},
+	} {
+		if errors.Is(err, mapping.domain) {
+			c.JSON(mapping.status, contract.ErrorPayload{Error: err.Error(), Code: mapping.domain.Error()})
+			return
+		}
 	}
-	if status == 500 {
-		h.respondError(c, status, err)
-		return
-	}
-	c.JSON(status, contract.ErrorPayload{Error: err.Error(), Code: err.Error()})
+	h.respondError(c, http.StatusInternalServerError, err)
 }

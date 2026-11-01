@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1274,4 +1275,59 @@ func (*stubRecorder) MaxEventSequence(context.Context) (int64, error) {
 
 func (*stubRecorder) QueryEventMetadata(context.Context, store.EventQuery) ([]store.EventMetadata, error) {
 	return nil, nil
+}
+
+func TestInstanceMainPromptResume(t *testing.T) {
+	t.Run("Should resume the same stopped instance main on prompt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		db, err := openSessionTestGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: h.workspaceID, Name: h.workspaceName, RootDir: h.workspace,
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db))
+		cleanupTestManager(t, h.manager)
+		main := createSession(t, h)
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: h.workspaceID,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), main.ID, "Continue the existing conversation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		resumed, ok := h.manager.Get(main.ID)
+		if !ok || resumed.Info().State != StateActive {
+			t.Fatalf("main did not resume: %v", ok)
+		}
+		retained, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil || retained.MainSessionID != main.ID {
+			t.Fatalf("main pointer changed: %#v, %v", retained, err)
+		}
+		h.driver.mu.Lock()
+		starts := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if starts != 2 {
+			t.Fatalf("provider starts=%d, want initial and resume", starts)
+		}
+	})
 }

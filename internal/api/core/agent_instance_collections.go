@@ -40,7 +40,15 @@ func (h *BaseHandlers) CreateAgentInstance(c *gin.Context) {
 		h.respondError(c, 422, err)
 		return
 	}
-	instance, created, err := h.AgentInstances.Service.Create(c.Request.Context(), agentinstance.CreateRequest{Agent: request.Agent, Workspace: target.sessionWorkspaceID, Profile: scope.ProfileID, Actor: actor})
+	instance, created, err := h.AgentInstances.Service.Create(
+		c.Request.Context(),
+		agentinstance.CreateRequest{
+			Agent:     request.Agent,
+			Workspace: target.sessionWorkspaceID,
+			Profile:   scope.ProfileID,
+			Actor:     actor,
+		},
+	)
 	if err != nil {
 		h.instanceError(c, err)
 		return
@@ -78,7 +86,16 @@ func (h *BaseHandlers) AdoptAgentInstance(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	instance, err := h.AgentInstances.Service.Adopt(c.Request.Context(), agentinstance.AdoptRequest{CreateRequest: agentinstance.CreateRequest{Agent: request.Agent, Workspace: info.WorkspaceID, Profile: scope.ProfileID, Actor: actor}, SessionID: request.SessionID})
+	instance, err := h.AgentInstances.Service.Adopt(
+		c.Request.Context(),
+		agentinstance.AdoptRequest{
+			Agent:     request.Agent,
+			Workspace: info.WorkspaceID,
+			Profile:   scope.ProfileID,
+			Actor:     actor,
+			SessionID: request.SessionID,
+		},
+	)
 	if err != nil {
 		h.instanceError(c, err)
 		return
@@ -127,7 +144,16 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 			return
 		}
 	}
-	rows, err := h.AgentInstances.Store.List(c.Request.Context(), agentinstance.ListQuery{ProfileID: scope.ProfileID, WorkspaceID: workspaceID, AllWorkspaces: all, AfterID: c.Query("cursor"), Limit: limit})
+	rows, err := h.AgentInstances.Store.List(
+		c.Request.Context(),
+		agentinstance.ListQuery{
+			ProfileID:     scope.ProfileID,
+			WorkspaceID:   workspaceID,
+			AllWorkspaces: all,
+			AfterID:       c.Query("cursor"),
+			Limit:         limit,
+		},
+	)
 	if err != nil {
 		h.instanceError(c, err)
 		return
@@ -153,4 +179,36 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		result.NextCursor = rows[len(rows)-1].ID
 	}
 	c.JSON(200, result)
+}
+
+func (h *BaseHandlers) allowAgentDefinitionDeletion(c *gin.Context, profileID, workspaceID, name string) bool {
+	if h.AgentInstances == nil || h.AgentInstances.Store == nil {
+		return true
+	}
+	query := agentinstance.ListQuery{
+		ProfileID:     profileID,
+		WorkspaceID:   workspaceID,
+		AllWorkspaces: workspaceID == "",
+		Limit:         100,
+	}
+	for {
+		rows, err := h.AgentInstances.Store.List(c.Request.Context(), query)
+		if err != nil {
+			h.instanceError(c, err)
+			return false
+		}
+		for _, instance := range rows {
+			if instance.AgentName == name {
+				c.JSON(
+					http.StatusConflict,
+					contract.ErrorPayload{Error: "agent_has_instances", Code: "agent_has_instances"},
+				)
+				return false
+			}
+		}
+		if len(rows) < query.Limit {
+			return true
+		}
+		query.AfterID = rows[len(rows)-1].ID
+	}
 }

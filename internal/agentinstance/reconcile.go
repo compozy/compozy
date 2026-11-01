@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/hooks"
 	"time"
 )
 
@@ -32,7 +33,7 @@ func (s *Service) EnsureMain(ctx context.Context, id string) (Instance, error) {
 		return Instance{}, ErrStarting
 	}
 	if instance.PauseReason == "manual" {
-		return Instance{}, errors.New("agent_instance_paused")
+		return Instance{}, ErrPaused
 	}
 	if err := s.admission.ValidateResume(ctx, instance); err != nil {
 		return Instance{}, err
@@ -82,8 +83,11 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 		}
 		switch outcome.State {
 		case "accepted":
-			_, err = s.store.BindMain(ctx, instance.ID, outcome.SessionID)
-			return err
+			bound, bindErr := s.store.BindMain(ctx, instance.ID, outcome.SessionID)
+			if bindErr == nil {
+				s.notifyLifecycle(ctx, hooks.HookAgentInstanceCreated, bound)
+			}
+			return bindErr
 		case "failed":
 			if err := recovery.DiscardFailedStart(ctx, instance, outcome.SessionID); err != nil {
 				return err
@@ -110,6 +114,6 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 	default:
 		return err
 	}
-	_, err = s.store.Pause(ctx, instance.ID, reason)
+	_, err = s.Pause(ctx, instance.ID, reason)
 	return err
 }

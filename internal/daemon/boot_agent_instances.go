@@ -46,6 +46,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		agentinstance.WithMainSessions(instanceMainSessions{sessions: manager, attempts: repo}),
 		agentinstance.WithActiveLimit(state.cfg.Agents.StaysOn.MaxActiveInstances),
 		agentinstance.WithClock(d.now),
+		agentinstance.WithLifecycleHooks(state.hookDispatcher),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create instance service: %w", err)
@@ -55,5 +56,19 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		Authority: agentinstance.Authority{Callers: repo},
 	}
 	state.deps.AgentInstances = state.agentInstances
+	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
 	return errors.Join(service.Reconcile(ctx), sweepInstanceReports(ctx, state))
+}
+
+func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, reconcile func(context.Context) error) {
+	if state.agentCatalog != nil {
+		state.agentCatalog.setOnChange(func() {
+			if state.toolProjectionEpoch != nil {
+				state.toolProjectionEpoch.Advance()
+			}
+			if err := reconcile(ctx); err != nil {
+				state.logger.ErrorContext(ctx, "daemon: reconcile instances after agent catalog change", "error", err)
+			}
+		})
+	}
 }

@@ -45,7 +45,7 @@ func (r *InstanceRepo) Adopt(ctx context.Context, input agentinstance.Instance, 
 			return err
 		}
 		if stamped != 1 {
-			return errors.New("session_scope_mismatch")
+			return agentinstance.ErrScopeMismatch
 		}
 		bound, err := q.BindAgentInstanceMain(ctx, sqlcgen.BindAgentInstanceMainParams{ID: id, SessionID: sql.NullString{String: sessionID, Valid: true}, UpdatedAt: now})
 		if err != nil {

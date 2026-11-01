@@ -4,9 +4,11 @@ import "maps"
 
 var hookEventDescriptors = mergeHookEventDescriptors(
 	subagentHookEventDescriptors(),
+	instanceHookEventDescriptors(),
 	sessionHookEventDescriptors(),
 	sessionAttentionHookEventDescriptors(),
 	agentHookEventDescriptors(),
+	instanceHookEventDescriptors(),
 	interactionHookEventDescriptors(),
 	coordinationHookEventDescriptors(),
 	executionHookEventDescriptors(),

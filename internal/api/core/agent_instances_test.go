@@ -3,7 +3,10 @@ package core_test
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
+	"fmt"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -28,7 +32,12 @@ func TestAgentInstanceReports(t *testing.T) {
 			}
 		})
 		instances := db.Instances()
-		input := agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}
+		input := agentinstance.Instance{
+			AgentName:         "coder",
+			ProfileID:         store.DefaultProfileID,
+			CreatedByKind:     "human",
+			PermissionCeiling: "{}",
+		}
 		first, _, err := instances.AdmitCreate(t.Context(), input, 10)
 		if err != nil {
 			t.Fatal(err)
@@ -39,12 +48,22 @@ func TestAgentInstanceReports(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, key := range []string{"occ:first", "occ:second"} {
-			if _, err := db.InstanceReports().AppendReport(t.Context(), first.ID, agentinstance.ReportInput{SourceKey: key, Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider exited"}`)}); err != nil {
+			if _, err := db.InstanceReports().
+				AppendReport(t.Context(), first.ID, agentinstance.ReportInput{SourceKey: key, Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"provider exited"}`)}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: instances, Reports: db.InstanceReports(), Authority: agentinstance.Authority{Callers: instances}}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store:     instances,
+			Reports:   db.InstanceReports(),
+			Authority: agentinstance.Authority{Callers: instances},
+		}
 		fixture.Engine.GET("/instances/:id/reports", fixture.Handlers.ListAgentInstanceReports)
 		read := func(path string) (int, contract.AgentInstanceReportsResponse) {
 			t.Helper()
@@ -95,13 +114,208 @@ func TestAgentInstanceReports(t *testing.T) {
 			t.Fatalf("next page: %d %#v", status, next)
 		}
 		response := httptest.NewRecorder()
-		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/instances/"+other.ID+"/reports?cursor="+page.NextCursor, nil))
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(
+				t.Context(),
+				"GET",
+				"/instances/"+other.ID+"/reports?cursor="+page.NextCursor,
+				nil,
+			),
+		)
 		var denial contract.ErrorPayload
 		if err := json.Unmarshal(response.Body.Bytes(), &denial); err != nil {
 			t.Fatal(err)
 		}
 		if response.Code != 422 || denial.Error == "" {
 			t.Fatalf("cursor denial: %d %#v", response.Code, denial)
+		}
+	})
+}
+
+type instanceReadFailure struct {
+	agentinstance.InstanceStore
+	err error
+}
+
+var _ agentinstance.InstanceStore = instanceReadFailure{}
+
+func (s instanceReadFailure) Get(context.Context, string) (agentinstance.Instance, error) {
+	return agentinstance.Instance{}, s.err
+}
+
+func TestAgentInstanceErrorResponses(t *testing.T) {
+	// UT-086: domain errors cross the HTTP boundary with stable status and code.
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+	}{
+		{"Should report forbidden access", agentinstance.ErrForbidden, 403},
+		{"Should report workspace denial", agentinstance.ErrWorkspaceAccessDenied, 403},
+		{"Should report child adoption", agentinstance.ErrSessionNotRoot, 422},
+		{"Should report mismatched adoption scope", agentinstance.ErrScopeMismatch, 422},
+		{"Should report a manually paused instance", agentinstance.ErrPaused, 409},
+		{"Should report excessive instance depth", agentinstance.ErrDepth, 403},
+		{"Should report a missing instance", agentinstance.ErrNotFound, 404},
+		{"Should report a missing definition", agentinstance.ErrDefinitionMissing, 404},
+		{"Should report an existing instance", agentinstance.ErrExists, 409},
+		{"Should report an instance still starting", agentinstance.ErrStarting, 409},
+		{"Should report the active instance cap", agentinstance.ErrLimit, 429},
+		{"Should report an on demand definition", agentinstance.ErrNotStaysOn, 422},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+				Store: instanceReadFailure{err: fmt.Errorf("repository: %w", tc.err)},
+			}
+			fixture.Engine.GET("/instances/:id", fixture.Handlers.GetAgentInstance)
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), "GET", "/instances/missing", nil),
+			)
+			var body contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != tc.status || body.Code != tc.err.Error() {
+				t.Fatalf("response: status=%d body=%#v, want status=%d code=%s", response.Code, body, tc.status, tc.err)
+			}
+		})
+	}
+}
+
+func TestAgentInstanceDefinitionDeletion(t *testing.T) {
+	for _, state := range []string{"starting", "active", "paused", "archived"} {
+		t.Run("Should enforce definition deletion for "+state+" instances", func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			instance, _, err := db.Instances().
+				AdmitCreate(t.Context(), agentinstance.Instance{AgentName: "coder", ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state == "archived" {
+				if _, err := db.Instances().Archive(t.Context(), instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else if state != "starting" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instances SET state=? WHERE id=?", state, instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
+			path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+			if _, err := compozyconfig.CreateAgentDefFile(
+				path,
+				compozyconfig.AgentDefinitionDraft{
+					Name:     "coder",
+					Provider: "codex",
+					Prompt:   "Preserve this definition.",
+				},
+				false,
+			); err != nil {
+				t.Fatal(err)
+			}
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
+			response := performRequest(t, fixture.Engine, "DELETE", "/agents/coder", nil)
+			if state == "archived" {
+				var body contract.DeleteAgentResponse
+				decodeJSON(t, response.Body.Bytes(), &body)
+				if response.Code != 200 || body.Name != "coder" {
+					t.Fatalf("delete: %d %#v", response.Code, body)
+				}
+				if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("definition remains: %v", err)
+				}
+				return
+			}
+			var body contract.ErrorPayload
+			decodeJSON(t, response.Body.Bytes(), &body)
+			if response.Code != 409 || body.Code != "agent_has_instances" {
+				t.Fatalf("delete: %d %#v", response.Code, body)
+			}
+			definition, err := compozyconfig.LoadAgentDefFile(path)
+			if err != nil || definition.Prompt != "Preserve this definition." {
+				t.Fatalf("definition changed: %#v, %v", definition, err)
+			}
+		})
+	}
+}
+
+func TestAgentInstanceDeletionPagination(t *testing.T) {
+	t.Run("Should reject deletion when the blocking instance is beyond the first page", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		for n := range 101 {
+			if _, _, err := db.Instances().
+				AdmitCreate(t.Context(), agentinstance.Instance{AgentName: fmt.Sprintf("agent-%d", n), ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}"}, 101); err != nil {
+				t.Fatal(err)
+			}
+		}
+		first, err := db.Instances().
+			List(t.Context(), agentinstance.ListQuery{ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 100})
+		if err != nil || len(first) != 100 {
+			t.Fatalf("first page: %d %v", len(first), err)
+		}
+		last, err := db.Instances().
+			List(t.Context(), agentinstance.ListQuery{ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 100, AfterID: first[99].ID})
+		if err != nil || len(last) != 1 {
+			t.Fatalf("last page: %#v %v", last, err)
+		}
+		name := last[0].AgentName
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, name, compozyconfig.AgentDefinitionFileName)
+		if _, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{Name: name, Provider: "codex", Prompt: "Keep this agent."},
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
+		response := performRequest(t, fixture.Engine, "DELETE", "/agents/"+name, nil)
+		var body contract.ErrorPayload
+		decodeJSON(t, response.Body.Bytes(), &body)
+		if response.Code != 409 || body.Code != "agent_has_instances" {
+			t.Fatalf("delete past first page: %d %#v", response.Code, body)
+		}
+		if _, err := compozyconfig.LoadAgentDefFile(path); err != nil {
+			t.Fatalf("blocked definition was removed: %v", err)
 		}
 	})
 }

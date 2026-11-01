@@ -48,6 +48,9 @@ func (m *Manager) applyInstanceCeiling(
 		},
 	)
 	spec.instancePermissionCeiling = &policy
+	if m.startPermissions(startSpecPermissions(spec, resolved.Permissions)) == compozyconfig.PermissionModeApproveAll {
+		spec.permissions = compozyconfig.PermissionModeApproveReads
+	}
 	spec.workspace.Skills = slices.DeleteFunc(slices.Clone(spec.workspace.Skills), func(skill workspacepkg.SkillPath) bool {
 		return !slices.Contains(policy.Skills, skill.Name)
 	})

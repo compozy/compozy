@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -351,5 +352,47 @@ func TestPostCreateAsyncHookSurvivesRequestCancellation(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for async session.post_create hook")
+	}
+}
+
+func TestInstanceLaunchCeiling(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		patch  func(*acp.StartOpts, string)
+		denied bool
+	}{
+		{"Should preserve an unchanged bounded launch", func(*acp.StartOpts, string) {}, false},
+		{"Should reject a hook widening approval mode", func(opts *acp.StartOpts, _ string) {
+			opts.Permissions = compozyconfig.PermissionModeApproveAll
+		}, true},
+		{"Should reject a hook adding an MCP server", func(opts *acp.StartOpts, _ string) {
+			opts.MCPServers = append(opts.MCPServers, compozyconfig.MCPServer{Name: "admin"})
+		}, true},
+		{"Should reject a hook moving execution outside the ceiling", func(opts *acp.StartOpts, outside string) {
+			opts.Cwd = outside
+		}, true},
+		{"Should reject a hook adding a directory outside the ceiling", func(opts *acp.StartOpts, outside string) {
+			opts.AdditionalDirs = []string{outside}
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root, outside := t.TempDir(), t.TempDir()
+			spec := &sessionStartSpec{instancePermissionCeiling: &store.SessionPermissionPolicy{
+				WorkspacePaths: []string{root}, MCPServers: []string{"docs"},
+			}}
+			before := acp.StartOpts{Cwd: root, Permissions: compozyconfig.PermissionModeApproveReads,
+				MCPServers: []compozyconfig.MCPServer{{Name: "docs"}}}
+			after := before
+			tc.patch(&after, outside)
+			err := validateInstanceLaunch(spec, before, after)
+			if tc.denied {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("launch widening: %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

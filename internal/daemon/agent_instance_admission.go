@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
@@ -121,13 +120,13 @@ func (a *instanceAdmission) ResolveAdopt(
 		return agentinstance.Instance{}, err
 	}
 	if info.Lineage != nil && info.Lineage.ParentSessionID != "" {
-		return agentinstance.Instance{}, errors.New("session_not_root")
+		return agentinstance.Instance{}, agentinstance.ErrSessionNotRoot
 	}
 	if info.SessionType != "user" || info.ArchivedAt != nil {
-		return agentinstance.Instance{}, errors.New("session_scope_mismatch")
+		return agentinstance.Instance{}, agentinstance.ErrScopeMismatch
 	}
 	if info.ProfileID != req.Profile || info.AgentName != req.Agent || info.WorkspaceID != req.Workspace {
-		return agentinstance.Instance{}, errors.New("session_scope_mismatch")
+		return agentinstance.Instance{}, agentinstance.ErrScopeMismatch
 	}
 	instance, err := a.ResolveCreate(ctx, req.CreateRequest)
 	if err != nil {
@@ -138,11 +137,11 @@ func (a *instanceAdmission) ResolveAdopt(
 		return agentinstance.Instance{}, err
 	}
 	if err := session.ValidatePermissionSubset(ceiling, policy); err != nil {
-		return agentinstance.Instance{}, errors.New("workspace_access_denied")
+		return agentinstance.Instance{}, agentinstance.ErrWorkspaceAccessDenied
 	}
 	if info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted &&
 		instance.GrantCeiling != workspaceaccess.Unrestricted {
-		return agentinstance.Instance{}, errors.New("workspace_access_denied")
+		return agentinstance.Instance{}, agentinstance.ErrWorkspaceAccessDenied
 	}
 	encoded, err := json.Marshal(policy)
 	if err != nil {

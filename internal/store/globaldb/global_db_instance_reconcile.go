@@ -34,7 +34,7 @@ func (r *InstanceRepo) PublishMissingMain(ctx context.Context, id, sessionID str
 			return err
 		}
 		if stamped != 1 {
-			return errors.New("session_scope_mismatch")
+			return agentinstance.ErrScopeMismatch
 		}
 		count, err := q.PublishMissingInstanceMain(ctx, sqlcgen.PublishMissingInstanceMainParams{ID: id, SessionID: sql.NullString{String: sessionID, Valid: true}, UpdatedAt: store.FormatTimestamp(r.now())})
 		if err != nil {

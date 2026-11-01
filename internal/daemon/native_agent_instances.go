@@ -60,11 +60,15 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 			"instance operation requires operator approval", toolspkg.ErrToolApprovalRequired, toolspkg.ReasonApprovalRequired)
 	}
 	if action == "create" {
-		target, err := n.authoredAgentTarget(ctx, req.ToolID, scope.ProfileID, input.Workspace, input.Agent)
+		target, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		instance, _, err := api.Service.Create(ctx, agentinstance.CreateRequest{Agent: input.Agent, Workspace: target.workspaceID, Profile: scope.ProfileID, Actor: actor})
+		workspaceID, err := nativeResolvedRegistryWorkspaceID(&target)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		instance, _, err := api.Service.Create(ctx, agentinstance.CreateRequest{Agent: input.Agent, Workspace: workspaceID, Profile: scope.ProfileID, Actor: actor})
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -148,6 +152,18 @@ func (n *daemonNativeTools) agentInstanceCall(ctx context.Context, scope toolspk
 	}
 	if err := api.Authority.Authorize(ctx, actor, instance, action); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if !scope.Operator {
+		if n.deps.WorkspaceAccess == nil {
+			return toolspkg.ToolResult{}, agentinstance.ErrWorkspaceAccessDenied
+		}
+		decision, accessErr := n.deps.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{Actor: actor, Target: workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID), ReadOnly: action == "reports", Seam: workspaceaccess.SeamTool})
+		if accessErr != nil {
+			return toolspkg.ToolResult{}, accessErr
+		}
+		if !decision.Allowed {
+			return toolspkg.ToolResult{}, agentinstance.ErrWorkspaceAccessDenied
+		}
 	}
 	var err error
 	switch action {

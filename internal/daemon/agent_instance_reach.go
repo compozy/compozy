@@ -30,7 +30,7 @@ func (r instanceWorkspaceReach) AuthorizeInstanceWorkspace(
 		return err
 	}
 	if !decision.Allowed {
-		return agentinstance.ErrForbidden
+		return agentinstance.ErrWorkspaceAccessDenied
 	}
 	return nil
 }
