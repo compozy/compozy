@@ -14,7 +14,7 @@ func (m *Manager) normalizeCreateOptsLineage(
 	sessionID string,
 	sessionType Type,
 	workspaceID string,
-	opts CreateOpts,
+	opts *CreateOpts,
 ) (*store.SessionLineage, error) {
 	return m.normalizeCreateLineage(
 		ctx, sessionID, sessionType, workspaceID, opts.Lineage, opts.ProvenanceParentSessionID,

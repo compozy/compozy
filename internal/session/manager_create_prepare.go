@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
+func (m *Manager) prepareCreateStart(ctx context.Context, opts *CreateOpts) (sessionStartSpec, error) {
 	opts, err := m.dispatchSessionPreCreate(ctx, opts)
 	if err != nil {
 		return sessionStartSpec{}, err
@@ -35,7 +35,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
 	}
-	sessionID, lineage, err := m.createSessionLineage(ctx, sessionType, location.workspace.ID, &opts)
+	sessionID, lineage, err := m.createSessionLineage(ctx, sessionType, location.workspace.ID, opts)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
@@ -100,7 +100,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 // deriveSelectedRuntime returns the selected runtime a continued or forked child starts
 // with: the runtime its derive chose, recorded as the first selection write.
 func deriveSelectedRuntime(
-	opts CreateOpts,
+	opts *CreateOpts,
 	speed speedpkg.Speed,
 	acpOptions []acp.SessionConfigOptionSelection,
 ) (*RuntimeSelection, int64, error) {
@@ -134,7 +134,7 @@ type createLocation struct {
 	cwd          string
 }
 
-func (m *Manager) resolveCreateLocation(ctx context.Context, opts CreateOpts) (createLocation, error) {
+func (m *Manager) resolveCreateLocation(ctx context.Context, opts *CreateOpts) (createLocation, error) {
 	resolved, err := m.resolveCreateWorkspace(ctx, opts)
 	if err != nil {
 		return createLocation{}, err
@@ -157,7 +157,7 @@ func (m *Manager) resolveCreateLocation(ctx context.Context, opts CreateOpts) (c
 	}, nil
 }
 
-func validateCoordinatorExecutionTarget(opts CreateOpts, sessionType Type) error {
+func validateCoordinatorExecutionTarget(opts *CreateOpts, sessionType Type) error {
 	if sessionType != SessionTypeCoordinator {
 		return nil
 	}
@@ -213,7 +213,7 @@ func (m *Manager) createSessionLineage(
 	if err != nil {
 		return "", nil, err
 	}
-	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, workspaceID, *opts)
+	lineage, err := m.normalizeCreateOptsLineage(ctx, sessionID, sessionType, workspaceID, opts)
 	return sessionID, lineage, err
 }
 

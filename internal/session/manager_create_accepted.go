@@ -18,7 +18,7 @@ func (m *Manager) CreateAccepted(ctx context.Context, opts CreateAcceptedOpts) (
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return nil, err
 	}
-	spec, err := m.prepareCreateStart(ctx, opts.Session)
+	spec, err := m.prepareCreateStart(ctx, &opts.Session)
 	if err != nil {
 		return nil, err
 	}
