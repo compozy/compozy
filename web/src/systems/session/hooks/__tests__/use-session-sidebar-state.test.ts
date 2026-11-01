@@ -287,6 +287,14 @@ describe("useSessionSidebarState", () => {
     expect(renderView(WINDOW_TWO).current.hideChildren).toBe(false);
     expect(renderView("win_three").current.hideChildren).toBe(true);
     expect(renderView("win_new").current.hideChildren).toBe(true);
+
+    act(() =>
+      upgraded.sessionSidebarStore.trigger.hideChildrenChanged({
+        scopeId: "shell",
+        hideChildren: false,
+      })
+    );
+    expect(renderView("win_later").current.hideChildren).toBe(true);
   });
 
   it("Should restore a window's board column folds after a reload, never seeding a new window", async () => {

@@ -201,11 +201,14 @@ export const sessionSidebarLogic = createStoreLogic({
       if (resolveSessionSidebarScope(context.byScope, event.scopeId).view === event.view) return;
       return withScopeState(context, event.scopeId, state => ({ ...state, view: event.view }));
     },
-    hideChildrenChanged: (context, event: { scopeId: string; hideChildren: boolean }) =>
-      withScopeState(context, event.scopeId, state => ({
+    hideChildrenChanged: (context, event: { scopeId: string; hideChildren: boolean }) => {
+      // The shell entry seeds new windows, and this filter never seeds.
+      if (event.scopeId === SHELL_WORKTREE_SCOPE) return;
+      return withScopeState(context, event.scopeId, state => ({
         ...state,
         hideChildren: event.hideChildren,
-      })),
+      }));
+    },
     boardColumnCollapsedChanged: (
       context,
       event: { scopeId: string; columnId: string; collapsed: boolean }
