@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
+func (s *StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.PromptFn != nil {
 		return s.PromptFn(ctx, id, msg)
 	}
@@ -17,7 +17,7 @@ func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (
 	return ch, nil
 }
 
-func (s StubSessionManager) PromptWithOpts(
+func (s *StubSessionManager) PromptWithOpts(
 	ctx context.Context,
 	id string,
 	opts session.PromptOpts,
@@ -28,7 +28,7 @@ func (s StubSessionManager) PromptWithOpts(
 	return s.Prompt(ctx, id, opts.Message)
 }
 
-func (s StubSessionManager) PromptSynthetic(
+func (s *StubSessionManager) PromptSynthetic(
 	ctx context.Context,
 	id string,
 	opts session.SyntheticPromptOpts,
@@ -41,7 +41,7 @@ func (s StubSessionManager) PromptSynthetic(
 	return ch, nil
 }
 
-func (s StubSessionManager) SendPrompt(
+func (s *StubSessionManager) SendPrompt(
 	ctx context.Context,
 	id string,
 	opts session.SendPromptOpts,
@@ -56,7 +56,7 @@ func (s StubSessionManager) SendPrompt(
 	return session.SendPromptResult{Status: "accepted", Events: events}, nil
 }
 
-func (s StubSessionManager) SteerPrompt(
+func (s *StubSessionManager) SteerPrompt(
 	ctx context.Context,
 	id string,
 	opts session.SteerPromptOpts,
@@ -69,7 +69,7 @@ func (s StubSessionManager) SteerPrompt(
 	}, nil
 }
 
-func (s StubSessionManager) CancelQueuedPrompt(
+func (s *StubSessionManager) CancelQueuedPrompt(
 	ctx context.Context,
 	id string,
 	queueEntryID string,
@@ -80,7 +80,7 @@ func (s StubSessionManager) CancelQueuedPrompt(
 	return session.SendPromptResult{Status: "canceled", QueueEntryID: queueEntryID}, nil
 }
 
-func (s StubSessionManager) ListPendingInputs(
+func (s *StubSessionManager) ListPendingInputs(
 	ctx context.Context,
 	id string,
 ) ([]session.PendingInput, error) {
@@ -90,7 +90,7 @@ func (s StubSessionManager) ListPendingInputs(
 	return []session.PendingInput{}, nil
 }
 
-func (s StubSessionManager) ClearPendingInputs(
+func (s *StubSessionManager) ClearPendingInputs(
 	ctx context.Context,
 	id string,
 	caller session.PromptCaller,
@@ -101,7 +101,7 @@ func (s StubSessionManager) ClearPendingInputs(
 	return session.ClearPendingInputsResult{}, nil
 }
 
-func (s StubSessionManager) ReplacePendingInput(
+func (s *StubSessionManager) ReplacePendingInput(
 	ctx context.Context,
 	id string,
 	entryID string,
@@ -113,7 +113,7 @@ func (s StubSessionManager) ReplacePendingInput(
 	return session.PendingInput{}, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) PromotePendingInputToSteer(
+func (s *StubSessionManager) PromotePendingInputToSteer(
 	ctx context.Context,
 	id string,
 	entryID string,
@@ -125,14 +125,14 @@ func (s StubSessionManager) PromotePendingInputToSteer(
 	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error) {
+func (s *StubSessionManager) CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error) {
 	if s.CancelPromptFn != nil {
 		return s.CancelPromptFn(ctx, id)
 	}
 	return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeNothingInFlight}, nil
 }
 
-func (s StubSessionManager) ApprovePermission(
+func (s *StubSessionManager) ApprovePermission(
 	ctx context.Context,
 	id string,
 	req acp.ApproveRequest,
@@ -143,7 +143,7 @@ func (s StubSessionManager) ApprovePermission(
 	return session.ApprovalResult{}, nil
 }
 
-func (s StubSessionManager) InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error) {
+func (s *StubSessionManager) InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error) {
 	if s.InputQueueFn != nil {
 		return s.InputQueueFn(ctx, id)
 	}

@@ -528,8 +528,8 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 	})
 }
 
-func attentionRouteSessionManager() testutil.StubSessionManager {
-	return testutil.StubSessionManager{
+func attentionRouteSessionManager() *testutil.StubSessionManager {
+	return &testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			switch id {
 			case "sess-attention":

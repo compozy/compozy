@@ -63,7 +63,7 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 			t.Parallel()
 
 			homePaths := newTestHomePaths(t)
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 					return nil, os.ErrNotExist
 				},
@@ -101,7 +101,7 @@ func TestCreateSessionHandlerRejectsInvalidWorkspaceContract(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	tests := []struct {
 		name string
@@ -151,7 +151,7 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	createResp := performRequest(t, engine, http.MethodPost, "/api/workspaces", []byte(`{"root_dir":"/workspace"}`))
@@ -189,7 +189,7 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 	stopped.WorkspaceID = "ws_alpha"
 	stopped.State = session.StateStopped
 	var deleted []string
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{stopped}, nil
 		},
@@ -249,7 +249,7 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *t
 		}
 		engine := newTestRouter(
 			t,
-			newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+			newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 		)
 
 		resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
@@ -276,7 +276,7 @@ func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("session: resolve workspace %q: %w", "alpha", workspacepkg.ErrWorkspaceRootMissing)
 		},
@@ -299,7 +299,7 @@ func TestHandlersRejectBadPromptAndQueryValues(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			return newSessionInfo("sess-123"), nil
 		},
@@ -345,7 +345,7 @@ func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 			ch := make(chan acp.AgentEvent, 3)
 			ch <- acp.AgentEvent{
@@ -418,7 +418,7 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return nil, errors.New("boom")
 		},
@@ -446,7 +446,7 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusInternalServerError)
 	}
 
-	statusHandlers := newTestHandlers(t, stubSessionManager{
+	statusHandlers := newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return nil, errors.New("list failed")
 		},
@@ -466,7 +466,7 @@ func TestCORSMiddlewareRejectsDisallowedOrigins(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
 		t.Context(),
@@ -490,7 +490,7 @@ func TestCORSMiddlewareRejectsDifferentLoopbackOrigins(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return nil, nil
 		},
@@ -518,7 +518,7 @@ func TestRequestBodyLimitRejectsOversizedAPIRequests(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	req := httptest.NewRequestWithContext(
 		t.Context(),
@@ -559,7 +559,7 @@ func TestRespondErrorSanitizesInternalFailures(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return nil, errors.New("secret internal path")
 		},
@@ -584,7 +584,7 @@ func TestObserveStreamBadHeaderAndMissingAgentsDir(t *testing.T) {
 	if err := os.RemoveAll(homePaths.AgentsDir); err != nil {
 		t.Fatalf("os.RemoveAll(AgentsDir) error = %v", err)
 	}
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	agentsResp := performRequest(t, engine, http.MethodGet, "/api/agents", nil)
 	if agentsResp.Code != http.StatusOK {

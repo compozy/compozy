@@ -250,7 +250,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 				t,
 				&daemonNativeToolsDeps{
 					AgentInstances: func() *core.AgentInstanceAPI { return api },
-					Sessions: testutil.StubSessionManager{
+					Sessions: &testutil.StubSessionManager{
 						StatusFn: func(context.Context, string) (*session.Info, error) {
 							return &session.Info{ID: "caller", ProfileID: "profile", AgentName: "coder"}, nil
 						},
@@ -285,7 +285,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 				}
 				native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 					AgentInstances: func() *core.AgentInstanceAPI { return api },
-					Sessions: testutil.StubSessionManager{
+					Sessions: &testutil.StubSessionManager{
 						StatusFn: func(context.Context, string) (*session.Info, error) {
 							return &session.Info{EffectivePermissions: "approve-all"}, nil
 						},

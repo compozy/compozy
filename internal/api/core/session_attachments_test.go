@@ -304,7 +304,7 @@ func newSessionAttachmentFixture(t *testing.T) sessionAttachmentFixture {
 	if err != nil {
 		t.Fatalf("OpenFilesystemAttachmentStore() error = %v", err)
 	}
-	manager := testutil.StubSessionManager{StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+	manager := &testutil.StubSessionManager{StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

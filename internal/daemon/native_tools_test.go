@@ -86,7 +86,7 @@ func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
 		state := &bootState{
 			logger:    discardLogger(),
 			terminals: manager,
-			sessions: apitest.StubSessionManager{
+			sessions: &apitest.StubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 					return &session.Info{
 						ID: id, ProfileID: "profile-a", AgentName: "agent-a", RuntimeGeneration: 1,
@@ -149,7 +149,7 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: id}, nil
 		}},
-		Sessions: apitest.StubSessionManager{
+		Sessions: &apitest.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 4}, nil
 			},
@@ -191,7 +191,7 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 			{
 				name: "Should deny an unknown session identity",
 				prepare: func(deps *daemonNativeToolsDeps, _ *toolspkg.Scope) {
-					deps.Sessions = apitest.StubSessionManager{StatusFn: func(
+					deps.Sessions = &apitest.StubSessionManager{StatusFn: func(
 						context.Context,
 						string,
 					) (*session.Info, error) {
@@ -207,7 +207,7 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 				candidateScope := scope
 				deps := daemonNativeToolsDeps{
 					Terminals: func() terminalpkg.Manager { return manager },
-					Sessions: apitest.StubSessionManager{
+					Sessions: &apitest.StubSessionManager{
 						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 							return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 4}, nil
 						},
@@ -427,7 +427,7 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: id}, nil
 		}},
-		Sessions: apitest.StubSessionManager{
+		Sessions: &apitest.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 7}, nil
 			},
@@ -1271,12 +1271,12 @@ func nativeTestWorkspaceServiceWithRootAndIdentity(
 	}
 }
 
-func nativeTestSessionManager(workspaceID string, profileIDs ...string) apitest.StubSessionManager {
+func nativeTestSessionManager(workspaceID string, profileIDs ...string) *apitest.StubSessionManager {
 	profileID := store.DefaultProfileID
 	if len(profileIDs) > 0 && strings.TrimSpace(profileIDs[0]) != "" {
 		profileID = strings.TrimSpace(profileIDs[0])
 	}
-	return apitest.StubSessionManager{
+	return &apitest.StubSessionManager{
 		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -1556,7 +1556,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			return session.PromptCancelResult{Outcome: session.PromptCancelOutcomeCanceled, TurnID: "turn-1"}, nil
 		}
 		manager := &nativeOrchestrationSessionManager{
-			StubSessionManager: base,
+			StubSessionManager: *base,
 			requestStopFn: func(_ context.Context, id string, cause session.StopCause, detail string) error {
 				stopRequests++
 				if id != targetID || cause != session.CauseUserRequested || !strings.Contains(detail, callerID) {
@@ -1864,7 +1864,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			}
 			return info, err
 		}
-		later := &nativeLaterSessionManager{StubSessionManager: manager}
+		later := &nativeLaterSessionManager{StubSessionManager: *manager}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: later, Workspaces: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
@@ -1914,7 +1914,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		manager := &nativeOrchestrationSessionManager{
-			StubSessionManager: nativeTestSessionManager("ws-native"),
+			StubSessionManager: *nativeTestSessionManager("ws-native"),
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run")
 			},
@@ -1975,7 +1975,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			}, nil
 		}
 		manager := &nativeOrchestrationSessionManager{
-			StubSessionManager: base,
+			StubSessionManager: *base,
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run across workspaces")
 			},
@@ -2034,7 +2034,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		manager := &nativeOrchestrationSessionManager{
-			StubSessionManager: nativeTestSessionManager("ws-native"),
+			StubSessionManager: *nativeTestSessionManager("ws-native"),
 			waitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 				return session.WaitOutcome{}, errors.New("WaitForBadge() must not run without workspace resolution")
 			},
@@ -2081,7 +2081,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		base := nativeTestSessionManager("ws-native")
 		manager := &nativeNotificationSessionManager{
-			StubSessionManager: base,
+			StubSessionManager: *base,
 			result:             session.NotifyResult{Outcome: session.NotifyOutcomeDelivered},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -2932,7 +2932,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		workspaceResolver := nativeTestWorkspaceService(t)
 		const reducedBudget = 32 << 10
 		sessions := &nativeSessionAgentManager{
-			StubSessionManager: nativeTestSessionManager("ws-skills"),
+			StubSessionManager: *nativeTestSessionManager("ws-skills"),
 			agent:              testPromptAgent("Read the requested skill resource."),
 		}
 		boundedRegistry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
@@ -3387,7 +3387,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			nameErr: skills.ErrAgentNotFound,
 		}
 		manager := &nativeSessionAgentManager{
-			StubSessionManager: nativeTestSessionManager("ws-command"),
+			StubSessionManager: *nativeTestSessionManager("ws-command"),
 			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
 				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
@@ -3444,7 +3444,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			nameErr: registryErr,
 		}
 		manager := &nativeSessionAgentManager{
-			StubSessionManager: nativeTestSessionManager("ws-command"),
+			StubSessionManager: *nativeTestSessionManager("ws-command"),
 			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
 				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
@@ -3488,7 +3488,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			"Wait for the current turn to finish.",
 		)
 		manager := &nativeSessionCommandManager{
-			StubSessionManager: nativeTestSessionManager("ws-command"),
+			StubSessionManager: *nativeTestSessionManager("ws-command"),
 			catalog:            catalog,
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -3620,7 +3620,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: &nativeSessionAgentManagerWithoutSnapshot{
-				StubSessionManager: nativeTestSessionManager("ws-command"),
+				StubSessionManager: *nativeTestSessionManager("ws-command"),
 			},
 			Workspaces: nativeTestWorkspaceService(t),
 			Skills:     bundledSkills,
@@ -3645,7 +3645,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		manager := &nativeSessionAgentManager{
-			StubSessionManager: nativeTestSessionManager("ws-command"),
+			StubSessionManager: *nativeTestSessionManager("ws-command"),
 			agent:              compozyconfig.AgentDef{Name: "coder"},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -3689,7 +3689,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		workspaces := nativeTestWorkspaceService(t)
 		manager := &nativeSessionAgentManager{
-			StubSessionManager: nativeTestSessionManager("ws-command"),
+			StubSessionManager: *nativeTestSessionManager("ws-command"),
 			agent: compozyconfig.AgentDef{
 				Name:       "reviewer",
 				SourcePath: "/extensions/spec-cycle/agents/reviewer/AGENT.md",
@@ -3780,7 +3780,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		manager := &nativeSessionAgentManager{
-			StubSessionManager: nativeTestSessionManager("ws-command"),
+			StubSessionManager: *nativeTestSessionManager("ws-command"),
 			agent:              compozyconfig.AgentDef{Name: "coder"},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -4285,7 +4285,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		cache := newWorkspaceAccessConsentCache()
 		requester := selectedPermissionRequester(workspaceAccessAllowSessionID)
 		consentPolicy := &consentAwareNativeWorkspaceAccessPolicy{cache: cache}
-		liveSessions := apitest.StubSessionManager{StatusFn: func(
+		liveSessions := &apitest.StubSessionManager{StatusFn: func(
 			context.Context,
 			string,
 		) (*session.Info, error) {
@@ -4325,7 +4325,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		statusErr := errors.New("session status unavailable")
 		statusFailure := newNativeWorkspaceInputBinder(
 			nativeTestWorkspaceService(t),
-			apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			&apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 				return nil, statusErr
 			}},
 			policy,
@@ -4428,7 +4428,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
 		t.Parallel()
 
-		manager := &nativeSessionCommandManager{StubSessionManager: nativeTestSessionManager("ws-1")}
+		manager := &nativeSessionCommandManager{StubSessionManager: *nativeTestSessionManager("ws-1")}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions:   manager,
 			Workspaces: nativeTestWorkspaceService(t),
@@ -5907,7 +5907,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		foreignObserver := &nativeObserverStub{runs: observer.runs}
 		foreignRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Observer: foreignObserver,
-			Sessions: apitest.StubSessionManager{
+			Sessions: &apitest.StubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 					return &session.Info{ID: strings.TrimSpace(id), WorkspaceID: "ws-other"}, nil
 				},
@@ -5932,7 +5932,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		foreignProfileObserver := &nativeObserverStub{runs: observer.runs}
 		foreignProfileRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Observer: foreignProfileObserver,
-			Sessions: apitest.StubSessionManager{
+			Sessions: &apitest.StubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 					return &session.Info{
 						ID: strings.TrimSpace(id), ProfileID: "profile-marketing", WorkspaceID: registryWorkspaceID,
@@ -9459,7 +9459,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		registryWithoutHealth := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Workspaces: workspaces,
-			Sessions:   manager.StubSessionManager,
+			Sessions:   new(manager.StubSessionManager),
 		}, nativeApproveAllPolicyInputs())
 		if _, defaultErr := registryWithoutHealth.Call(
 			t.Context(),
@@ -9709,7 +9709,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		}
-		manager := apitest.StubSessionManager{
+		manager := &apitest.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1"}}, nil
 			},
@@ -9802,7 +9802,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		} {
 			policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: tt.allowed}}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-				Sessions: apitest.StubSessionManager{
+				Sessions: &apitest.StubSessionManager{
 					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 						return &session.Info{
 							ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder",
@@ -9874,7 +9874,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: apitest.StubSessionManager{
+			Sessions: &apitest.StubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) { return nil, nil },
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 					return &session.Info{
@@ -11166,7 +11166,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			}
 			eventCalls := make([]eventRead, 0, 2)
 			historyCalls := make([]string, 0, 1)
-			sessions := apitest.StubSessionManager{
+			sessions := &apitest.StubSessionManager{
 				StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
 					if err := ctx.Err(); err != nil {
 						return nil, err
@@ -13802,7 +13802,7 @@ func TestNativeSubagentBindings(t *testing.T) {
 					Role:            req.Role,
 				}, nil
 			}
-			sessions := apitest.StubSessionManager{
+			sessions := &apitest.StubSessionManager{
 				ActivePromptRunFn: func(context.Context, string) (session.PromptRunIdentity, error) {
 					return session.PromptRunIdentity{
 						SessionID:   "parent",
@@ -13976,7 +13976,7 @@ func TestNativeSubagentBindings(t *testing.T) {
 			deps: &daemonNativeToolsDeps{
 				Subagents:  func() session.SubagentService { return fake },
 				Workspaces: nativeTestWorkspaceService(t),
-				Sessions: apitest.StubSessionManager{
+				Sessions: &apitest.StubSessionManager{
 					ActivePromptRunFn: func(context.Context, string) (session.PromptRunIdentity, error) {
 						return session.PromptRunIdentity{
 							SessionID:   "parent",
@@ -14055,7 +14055,7 @@ func (s *nativeSubagentServiceStub) Cancel(
 func TestNativeSubagentPermissionBoundary(t *testing.T) {
 	t.Run("Should fail closed for an unknown parent permission mode", func(t *testing.T) {
 		t.Parallel()
-		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: apitest.StubSessionManager{
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{Sessions: &apitest.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return &session.Info{EffectivePermissions: "unknown"}, nil
 			},
@@ -14073,7 +14073,7 @@ func TestNativeSubagentPermissionBoundary(t *testing.T) {
 		t.Parallel()
 		n := &daemonNativeTools{
 			deps: &daemonNativeToolsDeps{
-				Sessions: apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				Sessions: &apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 					return &session.Info{
 						EffectivePermissions: "approve-reads",
 						Lineage: &store.SessionLineage{
@@ -14143,7 +14143,7 @@ func TestNativeSubagentHostedCaller(t *testing.T) {
 			t.Parallel()
 			adapter := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 				Workspaces: nativeTestWorkspaceService(t),
-				Sessions: apitest.StubSessionManager{
+				Sessions: &apitest.StubSessionManager{
 					StatusFn: func(context.Context, string) (*session.Info, error) {
 						return &session.Info{
 							ID:          "parent",
@@ -14882,7 +14882,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 			}, nil
 		}
 		return &nativeOrchestrationSessionManager{
-			StubSessionManager: base,
+			StubSessionManager: *base,
 			spawnFn:            func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) { return spawn(opts) },
 		}
 	}
@@ -15368,7 +15368,7 @@ func TestNativeUserWorkspaceReference(t *testing.T) {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"workspace":{"type":"string"}}}`),
 		}
 		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
-		sessions := apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+		sessions := &apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 			return &session.Info{ID: "sess-user", ProfileID: "p1", State: session.StateActive}, nil
 		}}
 		binder := newNativeWorkspaceInputBinder(nil, sessions, policy, nil)
@@ -15507,7 +15507,7 @@ func TestNativeGrantSelection(t *testing.T) {
 			decision: workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant},
 		}
 		var accepted *session.CreateAcceptedOpts
-		manager := apitest.StubSessionManager{
+		manager := &apitest.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return &session.Info{
 					ID:                       "creator",
@@ -15671,7 +15671,7 @@ func TestNativeArchiveRefusals(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			manager := apitest.StubSessionManager{
+			manager := &apitest.StubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 					return &session.Info{ID: id, WorkspaceID: "registry-a", ProfileID: store.DefaultProfileID}, nil
 				},

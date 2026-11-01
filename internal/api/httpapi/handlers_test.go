@@ -50,7 +50,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 func assertRegisteredRouteContract(t *testing.T) {
 	t.Helper()
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
 	routes := engine.Routes()
@@ -612,7 +612,7 @@ func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
 	for _, path := range []string{"/api/daemon/status", "/api/observe/health"} {
@@ -628,7 +628,7 @@ func TestRegisterRoutesRejectsLegacyMarketplaceSurfaces(t *testing.T) {
 
 	engine := newTestRouter(
 		t,
-		newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
+		newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
 	)
 	for _, route := range []struct{ method, path string }{
 		{http.MethodGet, "/api/marketplace/search"},
@@ -667,7 +667,7 @@ func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
 	for _, tc := range []struct {
@@ -697,7 +697,7 @@ func TestTaskBlockHandlersReturnStatusAndBodies(t *testing.T) {
 
 		return newTestRouter(t, newTestHandlersWithAutomationTasksAndWorkspace(
 			t,
-			stubSessionManager{},
+			&stubSessionManager{},
 			stubObserver{},
 			nil,
 			manager,
@@ -1053,7 +1053,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 
 			engine := newTestRouter(t, newTestHandlersWithAutomationTasksAndWorkspace(
 				t,
-				stubSessionManager{},
+				&stubSessionManager{},
 				stubObserver{},
 				nil,
 				tc.manager,
@@ -1083,7 +1083,7 @@ func TestTaskBlockHandlersReturnDeterministicErrorBodies(t *testing.T) {
 
 func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	t.Parallel()
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodGet, "/api/memory"},
@@ -1118,7 +1118,7 @@ func TestWorktreeRoutesMatchTransportParityContractIT033(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
 	apitestutil.AssertWorktreeRouteParity(t, apitestutil.WorktreeRouteKeysFromGin(engine.Routes()))
@@ -1692,7 +1692,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
 				opts.WorkspacePath != "" {
@@ -1731,7 +1731,7 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "" {
 				t.Fatalf("Create() AgentName = %q, want empty", opts.AgentName)
@@ -1760,7 +1760,7 @@ func TestListSessionsHandlerReturnsAllSessions(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{newSessionInfo("sess-a"), newSessionInfo("sess-b")}, nil
 		},
@@ -1795,7 +1795,7 @@ func TestListSessionsHandlerFiltersByWorkspace(t *testing.T) {
 	infoB.WorkspaceID = "ws-beta"
 	infoB.Workspace = "/other"
 
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{infoA, infoB}, nil
 		},
@@ -1861,7 +1861,7 @@ func TestCreateWorkspaceHandlerRegistersWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	body, err := json.Marshal(map[string]any{
@@ -1905,7 +1905,7 @@ func TestListWorkspacesHandlerReturnsRegisteredRows(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	recorder := performRequest(t, engine, http.MethodGet, "/api/workspaces", nil)
@@ -1927,7 +1927,7 @@ func TestDaemonStatusHandlerReturnsUserHomeDir(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return nil, nil
 			},
@@ -1976,7 +1976,7 @@ func TestRuntimeIdentityHandlerStaysIndependentFromRuntimeAggregation(t *testing
 		var sessionCalls atomic.Int32
 		var observerCalls atomic.Int32
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				sessionCalls.Add(1)
 				return nil, errors.New("session aggregation must not run")
@@ -2054,7 +2054,7 @@ func TestGetWorkspaceHandlerReturnsDetail(t *testing.T) {
 			Path: filepath.Join(rootDir, ".compozy", "profiles", "marketing"),
 		}},
 	}
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			info := newSessionInfo("sess-a")
 			info.WorkspaceID = "ws_alpha"
@@ -2152,7 +2152,7 @@ func TestUpdateWorkspaceHandlerUpdatesWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	body, err := json.Marshal(map[string]any{
@@ -2194,7 +2194,7 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
@@ -2228,7 +2228,7 @@ func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	body, err := json.Marshal(map[string]any{"path": rootDir})
@@ -2256,7 +2256,7 @@ func TestDeleteSessionHandlerReturnsNoContent(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			DeleteFn: func(_ context.Context, id string) error {
 				if id != "sess-123" {
 					t.Fatalf("Delete() id = %q, want sess-123", id)
@@ -2281,7 +2281,7 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StopFn: func(_ context.Context, id string) error {
 			if id != "sess-123" {
 				t.Fatalf("Stop() id = %q, want sess-123", id)
@@ -2306,7 +2306,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	var gotOpts session.SendPromptOpts
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		SendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
 			gotOpts = opts
 			ch := make(chan acp.AgentEvent, 4)
@@ -2440,7 +2440,7 @@ func TestPromptSessionHandlerRequiresAcceptedTurnIDForAISDKStream(t *testing.T) 
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 				ch := make(chan acp.AgentEvent)
 				close(ch)
@@ -2476,7 +2476,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 
 	t.Run("ShouldEmitRealToolInputAfterAForcedPlaceholder", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 				ch := make(chan acp.AgentEvent, 3)
 				ch <- acp.AgentEvent{
@@ -2588,7 +2588,7 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		var gotOpts session.SendPromptOpts
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SendPromptFn: func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
 				if id != "sess-123" {
 					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
@@ -2678,7 +2678,7 @@ func TestPromptSessionHandlerEnforcesDurableIdentityContract(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+			engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
 			recorder := performRequest(
 				t,
 				engine,
@@ -2701,7 +2701,7 @@ func TestPromptSessionHandlerReturnsDurableReplayEnvelope(t *testing.T) {
 	t.Run("ShouldReturnReplayedPromptEnvelopeWithAcceptedStatus", func(t *testing.T) {
 		t.Parallel()
 
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SendPromptFn: func(_ context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
 				return session.SendPromptResult{
 					Status:         "queued",
@@ -2742,7 +2742,7 @@ func TestSteerSessionPromptHandlerPropagatesDurableIdentity(t *testing.T) {
 		t.Parallel()
 
 		var gotOpts session.SteerPromptOpts
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SteerFn: func(_ context.Context, id string, opts session.SteerPromptOpts) (session.SendPromptResult, error) {
 				if id != "sess-123" {
 					t.Fatalf("SteerPrompt() id = %q, want sess-123", id)
@@ -2804,7 +2804,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var queueReads, summaryReads int
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				StatusFn: func(context.Context, string) (*session.Info, error) {
 					info := newSessionInfo("sess-123")
 					info.State = session.StateStopped
@@ -2861,7 +2861,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	}
 	t.Run("Should clear with operator attribution and preserve per-entry outcomes", func(t *testing.T) {
 		t.Parallel()
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			ClearPendingInputsFn: func(_ context.Context, id string, caller session.PromptCaller) (session.ClearPendingInputsResult, error) {
 				if id != "sess-123" || caller.Kind != "human" || caller.ID == "" || caller.Source == "" {
 					t.Fatalf("clear identity = %q, %#v", id, caller)
@@ -2905,7 +2905,7 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	}
 	var replaceOpts session.ReplacePendingInputOpts
 	var promoteOpts session.PromotePendingInputOpts
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		InputQueueFn: func(context.Context, string) (session.InputQueueSummary, error) {
 			return session.InputQueueSummary{PendingInputs: 2, Cap: 7}, nil
 		},
@@ -3062,7 +3062,7 @@ func TestPromptSessionHandlerReturnsPromptAdmissionDiagnostics(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 					return session.SendPromptResult{}, testCase.err
 				},
@@ -3166,7 +3166,7 @@ func TestPromptSessionHandlerPreservesRuntimeFailureDiagnostics(t *testing.T) {
 			t.Parallel()
 
 			homePaths := newTestHomePaths(t)
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 					return session.SendPromptResult{}, testCase.err
 				},
@@ -3220,7 +3220,7 @@ func TestPromptSessionHandlerReturnsStructuredGoalDecision(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		var gotOpts session.SendPromptOpts
 		reason := session.GoalReasonNotActive
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SendPromptFn: func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
 				if id != "sess-123" {
 					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
@@ -3276,7 +3276,7 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 		executionCtxCh := make(chan context.Context, 1)
 		deliveryCtxCh := make(chan context.Context, 1)
 		events := make(chan acp.AgentEvent)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			SendPromptFn: func(ctx context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
 				executionCtxCh <- ctx
 				deliveryCtxCh <- opts.DeliveryContext
@@ -3342,7 +3342,7 @@ func TestCancelSessionPromptHandlerReturnsOK(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		CancelPromptFn: func(_ context.Context, id string) (session.PromptCancelResult, error) {
 			if id != "sess-123" {
 				t.Fatalf("CancelPrompt() id = %q, want sess-123", id)
@@ -3378,7 +3378,7 @@ func TestSessionEventsAndHistoryHandlers(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	var gotQuery store.EventQuery
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			return newSessionInfo("sess-123"), nil
 		},
@@ -3468,7 +3468,7 @@ func TestSessionTranscriptHandlerReturnsEntries(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			info := apitestutil.NewSessionInfo(id)
 			info.TranscriptEpoch = 5
@@ -3533,7 +3533,7 @@ func TestListAgentsAndHealthHandlers(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	writeAgentDef(t, homePaths, "coder")
 
-	handlers := newTestHandlers(t, stubSessionManager{
+	handlers := newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{newSessionInfo("sess-1")}, nil
 		},
@@ -3577,7 +3577,7 @@ func TestListLogsAndApproveHandlers(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return []store.EventSummary{{
 				ID:        "sum-1",
@@ -3627,7 +3627,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 
 	t.Run("Should missing decision", func(t *testing.T) {
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 		recorder := performRequest(
 			t,
 			engine,
@@ -3641,7 +3641,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 	})
 
 	t.Run("Should invalid decision", func(t *testing.T) {
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 		recorder := performRequest(
 			t,
 			engine,
@@ -3655,7 +3655,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 	})
 
 	t.Run("Should session not found", func(t *testing.T) {
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
 				return session.ApprovalResult{}, session.ErrSessionNotFound
 			},
@@ -3673,7 +3673,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 	})
 
 	t.Run("Should pending permission missing", func(t *testing.T) {
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
 				return session.ApprovalResult{}, session.ErrPendingPermissionNotFound
 			},
@@ -3691,7 +3691,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 	})
 
 	t.Run("Should session not active", func(t *testing.T) {
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error) {
 				return session.ApprovalResult{}, session.ErrSessionNotActive
 			},
@@ -3713,7 +3713,7 @@ func TestApproveSessionHandlerValidatesAndRoutes(t *testing.T) {
 			gotID  string
 			gotReq acp.ApproveRequest
 		)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(
 				_ context.Context,
 				id string,
@@ -3757,7 +3757,7 @@ func TestErrorResponsesUseConsistentShape(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return nil, context.DeadlineExceeded
 		},
@@ -3865,7 +3865,7 @@ func TestCORSHeadersPresentOnResponses(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{}, nil
 		},
@@ -4041,7 +4041,7 @@ func TestCompactSessionHandler(t *testing.T) {
 		{"Should reject unsupported compaction", session.ErrCompactionUnsupported, http.StatusConflict, "compaction_unsupported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				RequestCompactionFn: func(_ context.Context, id string) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {
 					if id != "sess-123" {
 						t.Fatalf("request target=%q", id)
@@ -4138,7 +4138,7 @@ func TestSessionMonitorHandlers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	handlers.SessionMonitors = monitors
 	engine := newTestRouter(t, handlers)
 	base := "/api/workspaces/ws-workspace/sessions/sess-123"
@@ -4197,7 +4197,7 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
-		foreignHandlers := newTestHandlers(t, stubSessionManager{
+		foreignHandlers := newTestHandlers(t, &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{
 					ID: id, WorkspaceID: "ws-workspace", ProfileID: "profile-marketing",
@@ -4233,7 +4233,7 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
-		ownerHandlers := newTestHandlers(t, stubSessionManager{
+		ownerHandlers := newTestHandlers(t, &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{
 					ID: id, WorkspaceID: "ws-workspace", ProfileID: "profile-marketing",
@@ -4287,7 +4287,7 @@ func TestSessionInputOriginContract(t *testing.T) {
 	t.Parallel()
 	t.Run("Should expose origin and refuse replace and promotion with conflict", func(t *testing.T) {
 		t.Parallel()
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			ListPendingInputsFn: func(context.Context, string) ([]session.PendingInput, error) {
 				return []session.PendingInput{
 					{
@@ -4356,7 +4356,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 	t.Run("Should restrict aggregate termination to retained owners in the selected profile", func(t *testing.T) {
 		t.Parallel()
 		processes := &handlerProcessService{}
-		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 		handlers.SessionProcesses = processes
 		response := performRequest(t, newTestRouter(t, handlers), http.MethodPost,
 			"/api/processes/terminate",
@@ -4370,7 +4370,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 		t.Parallel()
 		for _, archived := range []bool{false, true} {
 			processes := &handlerProcessService{aggregateProfile: "profile-retained"}
-			handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+			handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 			handlers.Profiles = retainedProcessProfileService{archived: archived}
 			handlers.SessionProcesses = processes
 			selector := "profile-retained"
@@ -4393,7 +4393,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 	})
 	t.Run("Should list process metadata and reject conflicting or foreign targets before mutation", func(t *testing.T) {
 		processes := &handlerProcessService{}
-		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 		handlers.SessionProcesses = processes
 		engine := newTestRouter(t, handlers)
 		base := "/api/workspaces/ws-workspace/sessions/sess-123"
@@ -4453,7 +4453,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 		}
 		foreign := newTestHandlers(
 			t,
-			stubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			&stubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{
 					ID:          id,
 					WorkspaceID: "ws-workspace",
@@ -4482,7 +4482,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 		for _, policy := range []string{"", "keep", "terminate"} {
 			processes := &handlerProcessService{refreshErr: errors.New("process table unavailable")}
 			deleted := false
-			manager := stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }}
+			manager := &stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }}
 			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
 			handlers.SessionProcesses = processes
 			response := performRequest(
@@ -4513,7 +4513,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 		t.Run("Should report deletion cleanup conflict for "+outcome, func(t *testing.T) {
 			handlers := newTestHandlers(
 				t,
-				stubSessionManager{DeleteFn: func(context.Context, string) error { return nil }},
+				&stubSessionManager{DeleteFn: func(context.Context, string) error { return nil }},
 				stubObserver{},
 				newTestHomePaths(t),
 			)
@@ -4533,7 +4533,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 		deleted := false
 		handlers := newTestHandlers(
 			t,
-			stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }},
+			&stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }},
 			stubObserver{},
 			newTestHomePaths(t),
 		)
@@ -4612,7 +4612,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 		processes := &handlerProcessService{}
 		handlers := newTestHandlers(
 			t,
-			stubSessionManager{DeleteFn: func(context.Context, string) error { cancel(); return nil }},
+			&stubSessionManager{DeleteFn: func(context.Context, string) error { cancel(); return nil }},
 			stubObserver{},
 			newTestHomePaths(t),
 		)
@@ -4726,7 +4726,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 	t.Run("Should keep by default and only terminate on an explicit lifecycle choice", func(t *testing.T) {
 		for _, choice := range []string{"", "?processes=keep", "?processes=terminate"} {
 			processes := &handlerProcessService{}
-			handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+			handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 			handlers.SessionProcesses = processes
 			response := performRequest(
 				t,

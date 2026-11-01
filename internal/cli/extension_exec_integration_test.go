@@ -38,7 +38,7 @@ func TestExtensionExecInvokesCanonicalToolExactlyOnceAcrossOutputFormatsIntegrat
 		udsapi.WithConfig(&cfg),
 		udsapi.WithSocketPath(cfg.Daemon.Socket),
 		udsapi.WithLogger(discardLogger()),
-		udsapi.WithSessionManager(testutil.StubSessionManager{}),
+		udsapi.WithSessionManager(&testutil.StubSessionManager{}),
 		udsapi.WithTaskService(&testutil.StubTaskManager{}),
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{

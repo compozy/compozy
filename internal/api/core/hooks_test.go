@@ -156,7 +156,7 @@ func TestHookParsersAndPayloadConverters(t *testing.T) {
 func TestHookHandlers(t *testing.T) {
 	t.Parallel()
 
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			if id != "sess-1" {
 				t.Fatalf("Status() id = %q, want sess-1", id)
@@ -314,7 +314,7 @@ func TestHookHandlersRejectInvalidRequests(t *testing.T) {
 
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
 	)

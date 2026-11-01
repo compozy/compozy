@@ -66,7 +66,7 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 			t.Parallel()
 
 			homePaths := newTestHomePaths(t)
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 					return nil, os.ErrNotExist
 				},
@@ -107,7 +107,7 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 
 func TestCreateSessionHandlerRejectsInvalidWorkspaceContract(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	tests := []struct {
 		name string
@@ -155,7 +155,7 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, &stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 	)
 
 	createResp := performRequest(t, engine, http.MethodPost, "/api/workspaces", []byte(`{"root_dir":"/workspace"}`))
@@ -187,7 +187,7 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 
 func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("session: resolve workspace %q: %w", "alpha", workspacepkg.ErrWorkspaceRootMissing)
 		},
@@ -208,7 +208,7 @@ func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 
 func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	listEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+	listEngine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return nil, errors.New("list failed")
 		},
@@ -219,7 +219,7 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 		t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusInternalServerError)
 	}
 
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{newSessionInfo("sess-123")}, nil
 		},
@@ -261,7 +261,7 @@ func TestListAndSessionHandlersRejectBadQueryAndHeaderValues(t *testing.T) {
 
 func TestGetAgentAndObserveHandlersReturnErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
-	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
+	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
 			return nil, errors.New("boom")
 		},
@@ -287,7 +287,7 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 	if err := os.RemoveAll(homePaths.AgentsDir); err != nil {
 		t.Fatalf("os.RemoveAll(AgentsDir) error = %v", err)
 	}
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	recorder := performRequest(t, engine, http.MethodGet, "/api/agents", nil)
 	if recorder.Code != http.StatusOK {
@@ -305,7 +305,7 @@ func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 			return observe.Health{}, errors.New("health failed")
 		},
 	}
-	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
 	engine := newTestRouter(t, handlers)
 
 	req := httptest.NewRequestWithContext(
@@ -326,7 +326,7 @@ func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusInternalServerError)
 	}
 
-	statusHandlers := newTestHandlers(t, stubSessionManager{
+	statusHandlers := newTestHandlers(t, &stubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return nil, errors.New("list failed")
 		},

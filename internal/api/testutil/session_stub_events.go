@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (s StubSessionManager) EventMetadata(
+func (s *StubSessionManager) EventMetadata(
 	ctx context.Context,
 	id string,
 	query store.EventQuery,

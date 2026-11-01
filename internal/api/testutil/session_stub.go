@@ -90,14 +90,14 @@ type StubSessionManager struct {
 	WorkingDirFn   func(context.Context, string) (string, error)
 }
 
-func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (s *StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
 	if s.CreateFn != nil {
 		return s.CreateFn(ctx, opts)
 	}
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) CreateAccepted(
+func (s *StubSessionManager) CreateAccepted(
 	ctx context.Context,
 	opts session.CreateAcceptedOpts,
 ) (*session.Info, error) {
@@ -111,7 +111,7 @@ func (s StubSessionManager) CreateAccepted(
 	return created.Info(), nil
 }
 
-func (s StubSessionManager) CreateWorktreeForkAccepted(
+func (s *StubSessionManager) CreateWorktreeForkAccepted(
 	ctx context.Context,
 	originSessionID string,
 	opts session.CreateAcceptedOpts,
@@ -122,7 +122,7 @@ func (s StubSessionManager) CreateWorktreeForkAccepted(
 	return s.CreateAccepted(ctx, opts)
 }
 
-func (s StubSessionManager) List() []*session.Info {
+func (s *StubSessionManager) List() []*session.Info {
 	if s.ListFn != nil {
 		return s.ListFn()
 	}
@@ -136,14 +136,14 @@ func (s StubSessionManager) List() []*session.Info {
 	return nil
 }
 
-func (s StubSessionManager) ListAll(ctx context.Context) ([]*session.Info, error) {
+func (s *StubSessionManager) ListAll(ctx context.Context) ([]*session.Info, error) {
 	if s.ListAllFn != nil {
 		return s.ListAllFn(ctx)
 	}
 	return nil, nil
 }
 
-func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error) {
+func (s *StubSessionManager) ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error) {
 	if s.ListPageFn != nil {
 		return s.ListPageFn(ctx, query)
 	}
@@ -154,7 +154,7 @@ func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuer
 	return stubSessionListPage(infos, query), nil
 }
 
-func (s StubSessionManager) SubscribeSessionCatalogEvents(
+func (s *StubSessionManager) SubscribeSessionCatalogEvents(
 	ctx context.Context,
 	scope session.CatalogScope,
 ) (<-chan session.CatalogEvent, func(), error) {
@@ -166,7 +166,7 @@ func (s StubSessionManager) SubscribeSessionCatalogEvents(
 	return events, func() {}, nil
 }
 
-func (s StubSessionManager) AggregateSessionsByAgent(
+func (s *StubSessionManager) AggregateSessionsByAgent(
 	ctx context.Context,
 	readScope store.ReadScope,
 	workspaceID string,
@@ -212,7 +212,7 @@ func (s StubSessionManager) AggregateSessionsByAgent(
 	return metrics, nil
 }
 
-func (s StubSessionManager) ListSessions(
+func (s *StubSessionManager) ListSessions(
 	ctx context.Context,
 	query store.SessionListQuery,
 ) ([]store.SessionInfo, error) {
@@ -242,7 +242,7 @@ func (s StubSessionManager) ListSessions(
 	return storeInfos, nil
 }
 
-func (s StubSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
+func (s *StubSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
 	if s.StatusFn != nil {
 		return s.StatusFn(ctx, id)
 	}
@@ -250,7 +250,7 @@ func (s StubSessionManager) Status(ctx context.Context, id string) (*session.Inf
 }
 
 // SessionOwner delegates to SessionOwnerFn, else derives the owner from Status.
-func (s StubSessionManager) SessionOwner(ctx context.Context, id string) (store.SessionOwner, error) {
+func (s *StubSessionManager) SessionOwner(ctx context.Context, id string) (store.SessionOwner, error) {
 	if s.SessionOwnerFn != nil {
 		return s.SessionOwnerFn(ctx, id)
 	}
@@ -261,7 +261,7 @@ func (s StubSessionManager) SessionOwner(ctx context.Context, id string) (store.
 	return store.SessionOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
 }
 
-func (s StubSessionManager) ActivePromptRun(
+func (s *StubSessionManager) ActivePromptRun(
 	ctx context.Context,
 	id string,
 ) (session.PromptRunIdentity, error) {
@@ -271,7 +271,7 @@ func (s StubSessionManager) ActivePromptRun(
 	return session.PromptRunIdentity{}, session.ErrPromptNotActive
 }
 
-func (s StubSessionManager) Events(
+func (s *StubSessionManager) Events(
 	ctx context.Context,
 	id string,
 	query store.EventQuery,
@@ -282,7 +282,7 @@ func (s StubSessionManager) Events(
 	return nil, nil
 }
 
-func (s StubSessionManager) LatestSessionEventByType(
+func (s *StubSessionManager) LatestSessionEventByType(
 	ctx context.Context,
 	id string,
 	eventType string,
@@ -293,7 +293,7 @@ func (s StubSessionManager) LatestSessionEventByType(
 	return nil, nil
 }
 
-func (s StubSessionManager) History(
+func (s *StubSessionManager) History(
 	ctx context.Context,
 	id string,
 	query store.EventQuery,
@@ -304,7 +304,7 @@ func (s StubSessionManager) History(
 	return nil, nil
 }
 
-func (s StubSessionManager) TranscriptPage(
+func (s *StubSessionManager) TranscriptPage(
 	ctx context.Context,
 	id string,
 	query transcript.PageQuery,
@@ -315,7 +315,7 @@ func (s StubSessionManager) TranscriptPage(
 	return transcript.Page{}, nil
 }
 
-func (s StubSessionManager) TranscriptChanges(
+func (s *StubSessionManager) TranscriptChanges(
 	ctx context.Context,
 	id string,
 	query transcript.ChangeQuery,
@@ -326,7 +326,7 @@ func (s StubSessionManager) TranscriptChanges(
 	return transcript.ChangePage{}, nil
 }
 
-func (s StubSessionManager) RepairSession(
+func (s *StubSessionManager) RepairSession(
 	ctx context.Context,
 	opts session.RepairOpts,
 ) (*session.RepairResult, error) {
@@ -336,21 +336,21 @@ func (s StubSessionManager) RepairSession(
 	return &session.RepairResult{SessionID: opts.SessionID}, nil
 }
 
-func (s StubSessionManager) Delete(ctx context.Context, id string) error {
+func (s *StubSessionManager) Delete(ctx context.Context, id string) error {
 	if s.DeleteFn != nil {
 		return s.DeleteFn(ctx, id)
 	}
 	return nil
 }
 
-func (s StubSessionManager) Stop(ctx context.Context, id string) error {
+func (s *StubSessionManager) Stop(ctx context.Context, id string) error {
 	if s.StopFn != nil {
 		return s.StopFn(ctx, id)
 	}
 	return nil
 }
 
-func (s StubSessionManager) StopWithCause(
+func (s *StubSessionManager) StopWithCause(
 	ctx context.Context,
 	id string,
 	cause session.StopCause,
@@ -365,14 +365,14 @@ func (s StubSessionManager) StopWithCause(
 	return nil
 }
 
-func (s StubSessionManager) Resume(ctx context.Context, id string) (*session.Session, error) {
+func (s *StubSessionManager) Resume(ctx context.Context, id string) (*session.Session, error) {
 	if s.ResumeFn != nil {
 		return s.ResumeFn(ctx, id)
 	}
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) AttachSession(
+func (s *StubSessionManager) AttachSession(
 	ctx context.Context,
 	req store.SessionAttachRequest,
 ) (store.SessionAttach, error) {
@@ -382,7 +382,7 @@ func (s StubSessionManager) AttachSession(
 	return store.SessionAttach{}, store.ErrSessionNotFound
 }
 
-func (s StubSessionManager) Rename(
+func (s *StubSessionManager) Rename(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
@@ -394,7 +394,7 @@ func (s StubSessionManager) Rename(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) ClearConversation(
+func (s *StubSessionManager) ClearConversation(
 	ctx context.Context,
 	id string,
 ) (*session.Session, error) {
@@ -404,7 +404,7 @@ func (s StubSessionManager) ClearConversation(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) RewindConversation(
+func (s *StubSessionManager) RewindConversation(
 	ctx context.Context,
 	id string,
 	opts session.ConversationRewindOptions,
@@ -416,7 +416,7 @@ func (s StubSessionManager) RewindConversation(
 }
 
 // ContinueSession delegates to ContinueFn.
-func (s StubSessionManager) ContinueSession(
+func (s *StubSessionManager) ContinueSession(
 	ctx context.Context,
 	opts session.ContinueSessionOpts,
 ) (session.DeriveResult, error) {
@@ -427,7 +427,7 @@ func (s StubSessionManager) ContinueSession(
 }
 
 // ForkSession delegates to ForkFn.
-func (s StubSessionManager) ForkSession(
+func (s *StubSessionManager) ForkSession(
 	ctx context.Context,
 	opts session.ForkSessionOpts,
 ) (session.DeriveResult, error) {
@@ -438,7 +438,7 @@ func (s StubSessionManager) ForkSession(
 }
 
 // DerivePreview delegates to DerivePreviewFn.
-func (s StubSessionManager) DerivePreview(
+func (s *StubSessionManager) DerivePreview(
 	ctx context.Context,
 	workspaceID string,
 	sourceSessionID string,
@@ -457,35 +457,35 @@ var _ core.SessionCatalog = (*StubSessionManager)(nil)
 var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
 
-func (s StubSessionManager) UsageEvents(ctx context.Context, id string) ([]session.UsageEventEnvelope, error) {
+func (s *StubSessionManager) UsageEvents(ctx context.Context, id string) ([]session.UsageEventEnvelope, error) {
 	if s.UsageEventsFn != nil {
 		return s.UsageEventsFn(ctx, id)
 	}
 	return nil, nil
 }
 
-func (s StubSessionManager) Deliveries(ctx context.Context, id string) ([]session.DeliveryEventEnvelope, error) {
+func (s *StubSessionManager) Deliveries(ctx context.Context, id string) ([]session.DeliveryEventEnvelope, error) {
 	if s.DeliveriesFn != nil {
 		return s.DeliveriesFn(ctx, id)
 	}
 	return nil, nil
 }
 
-func (s StubSessionManager) Compactions(ctx context.Context, id string) ([]session.CompactionEnvelope, error) {
+func (s *StubSessionManager) Compactions(ctx context.Context, id string) ([]session.CompactionEnvelope, error) {
 	if s.CompactionsFn != nil {
 		return s.CompactionsFn(ctx, id)
 	}
 	return nil, nil
 }
 
-func (s StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (session.SettledTurn, error) {
+func (s *StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (session.SettledTurn, error) {
 	if s.LatestSettledTurnFn != nil {
 		return s.LatestSettledTurnFn(ctx, id)
 	}
 	return session.SettledTurn{}, nil
 }
 
-func (s StubSessionManager) CatalogFacets(
+func (s *StubSessionManager) CatalogFacets(
 	ctx context.Context,
 	query session.ListQuery,
 ) (store.SessionCatalogFacetResult, error) {

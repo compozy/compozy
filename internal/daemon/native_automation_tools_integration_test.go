@@ -384,11 +384,11 @@ func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *a
 	return manager
 }
 
-func newNativeAutomationSessionManager() apitest.StubSessionManager {
+func newNativeAutomationSessionManager() *apitest.StubSessionManager {
 	var mu sync.Mutex
 	statuses := map[string]*session.Info{}
 	var seq int
-	return apitest.StubSessionManager{
+	return &apitest.StubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			mu.Lock()
 			defer mu.Unlock()

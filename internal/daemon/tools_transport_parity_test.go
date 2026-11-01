@@ -220,8 +220,8 @@ func newToolParityArtifactStore(t *testing.T) *toolspkg.FilesystemToolArtifactSt
 	return store
 }
 
-func toolParitySessionManager() testutil.StubSessionManager {
-	return testutil.StubSessionManager{
+func toolParitySessionManager() *testutil.StubSessionManager {
+	return &testutil.StubSessionManager{
 		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err

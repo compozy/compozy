@@ -279,7 +279,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 			t.Parallel()
 
 			workspaces := nativeWorktreeWorkspaceService()
-			sessions := apitest.StubSessionManager{StatusFn: func(
+			sessions := &apitest.StubSessionManager{StatusFn: func(
 				_ context.Context,
 				id string,
 			) (*session.Info, error) {
@@ -652,7 +652,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 			Workspaces: nativeWorktreeWorkspaceService(),
 			Worktrees:  service,
-			Sessions: apitest.StubSessionManager{CreateAcceptedFn: func(
+			Sessions: &apitest.StubSessionManager{CreateAcceptedFn: func(
 				context.Context,
 				session.CreateAcceptedOpts,
 			) (*session.Info, error) {

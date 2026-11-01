@@ -2279,7 +2279,7 @@ func TestHTTPShutdownWaitsForInflightRequests(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{
+		WithSessionManager(&stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				entered <- struct{}{}
 				<-release
@@ -2381,7 +2381,7 @@ func TestHTTPShutdownCancelsPersistentStreams(t *testing.T) {
 			WithHost(cfg.HTTP.Host),
 			WithPort(cfg.HTTP.Port),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{
+			WithSessionManager(&stubSessionManager{
 				SubscribeCatalogFn: func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error) {
 					return events, func() {}, nil
 				},

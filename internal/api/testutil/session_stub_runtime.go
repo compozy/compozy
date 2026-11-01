@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
-func (s StubSessionManager) SetRuntimeSelection(
+func (s *StubSessionManager) SetRuntimeSelection(
 	ctx context.Context,
 	id string,
 	selection session.RuntimeSelection,
@@ -20,7 +20,7 @@ func (s StubSessionManager) SetRuntimeSelection(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) ClearRuntimeSelection(
+func (s *StubSessionManager) ClearRuntimeSelection(
 	ctx context.Context,
 	id string,
 	expectedRevision int64,
@@ -31,7 +31,7 @@ func (s StubSessionManager) ClearRuntimeSelection(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) RequestCompaction(
+func (s *StubSessionManager) RequestCompaction(
 	ctx context.Context,
 	id string,
 ) (session.CompactionRequestResult, <-chan acp.AgentEvent, error) {

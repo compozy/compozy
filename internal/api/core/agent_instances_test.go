@@ -62,7 +62,7 @@ func TestAgentInstanceReports(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -177,7 +177,7 @@ func TestAgentInstanceErrorResponses(t *testing.T) {
 			t.Parallel()
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -235,7 +235,7 @@ func TestAgentInstanceDefinitionDeletion(t *testing.T) {
 			}
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -308,7 +308,7 @@ func TestAgentInstanceDeletionPagination(t *testing.T) {
 		name := last[0].AgentName
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -376,7 +376,7 @@ func TestAgentInstanceCheck(t *testing.T) {
 			checker := &instanceCheckStub{result: tc.result}
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -416,7 +416,7 @@ func TestAgentInstanceCheckSettings(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -467,7 +467,7 @@ func TestAgentInstanceAway(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -589,7 +589,7 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 			}
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				&testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 					return &session.Info{
 						ID:                       "caller",
 						AgentName:                "coder",
@@ -660,7 +660,7 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				ListPageFn: func(_ context.Context, q session.ListQuery) (session.ListPage, error) {
 					if !q.ExcludeInstanceMain || len(q.InstanceMainIDs) != 2 {
 						t.Fatalf("listed main exclusions: %+v", q)
@@ -739,7 +739,7 @@ func TestAgentInstanceCheckIns(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -821,7 +821,7 @@ func TestAgentInstanceCheckProjection(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -935,7 +935,7 @@ func TestAgentInstanceApprovalAdmission(t *testing.T) {
 			}
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				&testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 					return &session.Info{
 						ID:                   "caller",
 						AgentName:            "coder",
@@ -1080,7 +1080,7 @@ func TestAgentInstanceCreateResult(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)

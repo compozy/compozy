@@ -74,7 +74,7 @@ func TestHookCatalogHandlerReturnsResolvedHooksAndWorkspaceFilter(t *testing.T) 
 		},
 	}
 
-	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, observer, workspaces, homePaths))
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, &stubSessionManager{}, observer, workspaces, homePaths))
 	recorder := performRequest(
 		t,
 		engine,
@@ -114,7 +114,7 @@ func TestHookRunsHandlerReturnsExecutionHistoryWithPatchDiffs(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	since := time.Date(2026, 4, 9, 17, 59, 0, 0, time.UTC)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			if id != "sess-hook" {
 				t.Fatalf("Status() id = %q, want sess-hook", id)
@@ -190,7 +190,7 @@ func TestHookRunsHandlerReturnsExecutionHistoryWithPatchDiffs(t *testing.T) {
 func TestHookRunsHandlerRejectsForeignWorkspaceSession(t *testing.T) {
 	t.Parallel()
 
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			info := newSessionInfo(id)
 			info.WorkspaceID = "ws-other"
@@ -244,7 +244,7 @@ func TestHookEventsHandlerReturnsPayloads(t *testing.T) {
 		},
 	}
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, observer, homePaths))
 	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events?family=tool&sync_only=true", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -266,7 +266,7 @@ func TestHookHandlersRejectInvalidQueries(t *testing.T) {
 	t.Parallel()
 
 	// These read-only validation cases share the HTTP boundary and do not mutate state.
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			return newSessionInfo(id), nil
 		},

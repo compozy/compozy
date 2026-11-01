@@ -302,7 +302,7 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 		totals := map[string]int{workspaceaccess.UserSelector: 1, "ws-a": 2, "ws-b": 3}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				MetricsByAgentFn: func(_ context.Context, _ store.ReadScope, workspace string) (map[string]session.AgentSessionMetrics, error) {
 					return map[string]session.AgentSessionMetrics{"same": {Total: totals[workspace]}}, nil
 				},
@@ -377,7 +377,7 @@ func (r *memoryCallerReader) InstanceCaller(context.Context, string) (agentinsta
 func TestAgentMemoryRoutes(t *testing.T) {
 	t.Run("Should read Global memory as an authenticated Global agent", func(t *testing.T) {
 		t.Parallel()
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return &session.Info{
 					ID:        "global-caller",
@@ -441,7 +441,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveForProfileFn: resolve,
@@ -477,7 +477,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)

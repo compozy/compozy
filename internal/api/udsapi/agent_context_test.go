@@ -144,10 +144,10 @@ func (f agentCoordinatorRoleResolverFunc) ResolveCoordinatorRole(
 	return f(ctx, workspaceID)
 }
 
-func activeAgentSessionManager(t *testing.T) stubSessionManager {
+func activeAgentSessionManager(t *testing.T) *stubSessionManager {
 	t.Helper()
 
-	return stubSessionManager{
+	return &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			if id != "sess-agent" {
 				return nil, session.ErrSessionNotFound

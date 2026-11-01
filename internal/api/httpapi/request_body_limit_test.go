@@ -81,7 +81,7 @@ func TestRequestBodyLimitRejectsOversizedChunkedAPIRequestsContract(t *testing.T
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 		body := io.MultiReader(
 			strings.NewReader(`{"message":"`),
 			strings.NewReader(strings.Repeat("x", int(maxAPIRequestBodyBytes)+1)),
