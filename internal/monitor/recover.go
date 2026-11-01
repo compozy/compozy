@@ -170,7 +170,7 @@ func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
 		spec.Timeout = max(remaining, recoveredMinTerminalWait)
 		watch = s.recoveredWatch(ctx, spec)
 	}
-	s.run(ctx, mon, spec, watch)
+	s.run(ctx, item, mon, spec, watch)
 }
 
 // recoveredWatch re-attaches to a terminal that still exists; a missing terminal

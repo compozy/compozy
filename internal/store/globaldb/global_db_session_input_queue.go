@@ -471,3 +471,18 @@ func sessionInputQueuePosition(
 	}
 	return 0, fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
 }
+
+// SyntheticSessionInputAdmitted reports whether a synthetic input with messageID was already queued,
+// dispatched, or sent for the session, so a replayed wake does not start a second turn.
+func (g *SessionRepo) SyntheticSessionInputAdmitted(ctx context.Context, sessionID, messageID string) (bool, error) {
+	if err := g.checkReady(ctx, "read synthetic session input"); err != nil {
+		return false, err
+	}
+	admitted, err := g.queries.SyntheticSessionInputAdmitted(ctx, sqlcgen.SyntheticSessionInputAdmittedParams{
+		SessionID: sessionID, MessageID: messageID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("store: read synthetic session input: %w", err)
+	}
+	return admitted, nil
+}

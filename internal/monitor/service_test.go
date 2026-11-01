@@ -538,23 +538,52 @@ func TestServiceCancelAndLimits(t *testing.T) {
 		})
 	})
 
-	t.Run("Should preserve distinct timeout and description requests", func(t *testing.T) {
+	t.Run("Should reuse an identical monitor without resolving the terminal again", func(t *testing.T) {
 		t.Parallel()
-		service := newTestService(t, &channelTerminals{results: make(chan Outcome)}, &recordingWaker{})
-		first, err := service.Create(t.Context(), terminalSpec("sess-distinct"))
+		terminals := &expiringTerminals{results: make(chan Outcome)}
+		service := newTestService(t, terminals, &recordingWaker{})
+		first, err := service.Create(t.Context(), terminalSpec("sess-expired"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, change := range []func(*Spec){
-			func(spec *Spec) { spec.Timeout = time.Minute },
-			func(spec *Spec) { spec.Description = "another purpose" },
-		} {
-			spec := terminalSpec("sess-distinct")
-			change(&spec)
-			distinct, err := service.Create(t.Context(), spec)
-			if err != nil || distinct.Reused || distinct.ID == first.ID {
-				t.Fatalf("distinct Create() = %+v, %v", distinct, err)
-			}
+		terminals.expire()
+		again, err := service.Create(t.Context(), terminalSpec("sess-expired"))
+		if err != nil || !again.Reused || again.ID != first.ID {
+			t.Fatalf("repeat Create() = %+v, %v; want the reused %s although the terminal expired",
+				again, err, first.ID)
+		}
+		if got := terminals.resolutions(); got != 1 {
+			t.Fatalf("terminal resolutions = %d, want 1: a reused request must not resolve the terminal", got)
+		}
+	})
+
+	t.Run("Should preserve a distinct timeout request", func(t *testing.T) {
+		t.Parallel()
+		service := newTestService(t, &channelTerminals{results: make(chan Outcome)}, &recordingWaker{})
+		first, err := service.Create(t.Context(), terminalSpec("sess-distinct-timeout"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec := terminalSpec("sess-distinct-timeout")
+		spec.Timeout = time.Minute
+		distinct, err := service.Create(t.Context(), spec)
+		if err != nil || distinct.Reused || distinct.ID == first.ID {
+			t.Fatalf("distinct Create() = %+v, %v", distinct, err)
+		}
+	})
+
+	t.Run("Should preserve a distinct description request", func(t *testing.T) {
+		t.Parallel()
+		service := newTestService(t, &channelTerminals{results: make(chan Outcome)}, &recordingWaker{})
+		first, err := service.Create(t.Context(), terminalSpec("sess-distinct-description"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec := terminalSpec("sess-distinct-description")
+		spec.Description = "another purpose"
+		distinct, err := service.Create(t.Context(), spec)
+		if err != nil || distinct.Reused || distinct.ID == first.ID {
+			t.Fatalf("distinct Create() = %+v, %v", distinct, err)
 		}
 	})
 
@@ -1068,6 +1097,96 @@ func TestServiceDurabilityOfDecisions(t *testing.T) {
 			}
 			if listed := service.List("sess-r"); len(listed) != 1 || listed[0].Status != StatusUndelivered {
 				t.Fatalf("listed = %+v, want one undelivered monitor", listed)
+			}
+		})
+	})
+}
+
+// expiringTerminals resolves a terminal once, then reports it as expired, like a terminal that left
+// exit retention while its monitor was still delivering.
+type expiringTerminals struct {
+	mu      sync.Mutex
+	results chan Outcome
+	expired bool
+	count   int
+}
+
+func (e *expiringTerminals) expire() {
+	e.mu.Lock()
+	e.expired = true
+	e.mu.Unlock()
+}
+
+func (e *expiringTerminals) resolutions() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.count
+}
+
+func (e *expiringTerminals) WatchTerminal(ctx context.Context, spec Spec) (TerminalWatch, error) {
+	e.mu.Lock()
+	e.count++
+	expired := e.expired
+	e.mu.Unlock()
+	if expired {
+		return nil, errors.New("terminal expired")
+	}
+	return (&channelTerminals{results: e.results}).WatchTerminal(ctx, spec)
+}
+
+func TestServiceLifecycleLoggingOfFailureAndInterruption(t *testing.T) {
+	t.Run("Should warn with a sanitized cause when a wake is abandoned", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			var output bytes.Buffer
+			waker := &recordingWaker{errs: []error{fmt.Errorf("private-detail: %w", ErrSessionGone)}}
+			service, err := NewService(t.Context(), nil, waker,
+				WithLogger(slog.New(slog.NewJSONHandler(&output, nil))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Create(t.Context(), timerSpec("sess-fail")); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Minute + time.Second)
+			synctest.Wait()
+			if err := service.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			var failed map[string]any
+			for line := range bytes.SplitSeq(bytes.TrimSpace(output.Bytes()), []byte("\n")) {
+				var row map[string]any
+				if err := json.Unmarshal(line, &row); err != nil {
+					t.Fatal(err)
+				}
+				if row["event"] == "monitor.wake_failed" {
+					failed = row
+				}
+			}
+			if failed == nil || failed["level"] != "WARN" || failed["cause"] != causeSessionGone ||
+				strings.Contains(output.String(), "private-detail") {
+				t.Fatalf("wake_failed row = %+v, want a WARN with cause %s and no raw error", failed, causeSessionGone)
+			}
+		})
+	})
+
+	t.Run("Should not report a monitor as interrupted when its wake was admitted", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			var output bytes.Buffer
+			service, err := NewService(t.Context(), nil, &recordingWaker{},
+				WithLogger(slog.New(slog.NewJSONHandler(&output, nil))))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Create(t.Context(), timerSpec("sess-done")); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Minute + time.Second)
+			synctest.Wait()
+			if err := service.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(output.String(), "monitor.interrupted") {
+				t.Fatalf("settled monitor logged as interrupted:\n%s", output.String())
 			}
 		})
 	})

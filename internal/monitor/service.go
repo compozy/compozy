@@ -88,6 +88,7 @@ type Service struct {
 	now       func() time.Time
 	observer  func(ctx context.Context, sessionID string)
 	notices   *noticeQueue
+	logs      *logQueue
 	store     Store
 	owners    Owners
 
@@ -144,6 +145,8 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 	for _, opt := range opts {
 		opt(service)
 	}
+	service.logs = newLogQueue()
+	service.wg.Go(service.dispatchLogs)
 	if service.observer != nil {
 		service.notices = newNoticeQueue()
 		service.wg.Go(service.dispatchNotices)
@@ -165,6 +168,11 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	}
 	var watch TerminalWatch
 	if normalized.Kind == KindTerminal {
+		// A retry of an existing watch must not depend on the terminal still being resolvable: it may
+		// have expired while the original monitor is still delivering.
+		if existing, ok := s.reuse(normalized); ok {
+			return existing, nil
+		}
 		if s.terminals == nil {
 			return Monitor{}, errors.New("monitor: terminal service is unavailable")
 		}
@@ -208,6 +216,29 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	return created, nil
 }
 
+// reuse returns the occupying monitor identical to spec, without resolving its terminal.
+func (s *Service) reuse(spec Spec) (Monitor, bool) {
+	probe := &entry{
+		state: Monitor{
+			SessionID: spec.SessionID, Description: spec.Description, Until: spec.Until, Pattern: spec.Pattern,
+		},
+		terminalKey: terminalKey(spec), timeout: spec.Timeout,
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return Monitor{}, false
+	}
+	existing := s.identicalLocked(probe)
+	if existing == nil {
+		return Monitor{}, false
+	}
+	reused := existing.state
+	reused.Reused = true
+	s.logLifecycle("monitor.reused", reused, "registered")
+	return reused, true
+}
+
 func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now time.Time) (Monitor, error) {
 	if s.stopped {
 		return Monitor{}, ErrStopped
@@ -233,7 +264,7 @@ func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now t
 	s.logLifecycle("monitor.created", created, "registered")
 	s.wg.Go(func() {
 		defer cancel()
-		s.run(runCtx, created, spec, watch)
+		s.run(runCtx, item, created, spec, watch)
 	})
 	return created, nil
 }
@@ -267,122 +298,9 @@ func (s *Service) ActiveCounts(sessionIDs []string) map[string]int {
 	return counts
 }
 
-// Cancel stops one active or delivering monitor owned by sessionID without waking the session.
-func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
-	s.mu.Lock()
-	item, ok := s.sessions[sessionID][id]
-	if !ok {
-		s.mu.Unlock()
-		return Monitor{}, fmt.Errorf("%w: %s", ErrNotFound, id)
-	}
-	if !item.occupies() {
-		state := item.state
-		if !item.unsaved {
-			s.mu.Unlock()
-			return state, nil
-		}
-		record := item.recordLocked()
-		s.mu.Unlock()
-		return state, s.confirmCancel(item, record)
-	}
-	s.finishLocked(item, StatusCanceled, s.now())
-	s.logLifecycle("monitor.canceled", item.state, "requested")
-	item.cancel()
-	s.pruneSessionLocked(sessionID, s.now())
-	state, record := item.state, item.recordLocked()
-	s.mu.Unlock()
-	s.notify(sessionID)
-	return state, s.confirmCancel(item, record)
-}
-
-// confirmCancel makes a cancellation durable. The monitor is already canceled in memory and can no
-// longer wake, but until the write lands a restart would restore it as active, so a failure is
-// reported to the caller and the next Cancel retries the write.
-func (s *Service) confirmCancel(item *entry, record Record) error {
-	err := s.saveNow(record)
-	s.mu.Lock()
-	item.unsaved = err != nil
-	s.mu.Unlock()
-	if err != nil {
-		return fmt.Errorf("monitor: persist cancellation: %w", err)
-	}
-	return nil
-}
-
-// CancelSession stops every monitor of a stopped or removed session and drops
-// its history; nothing it registered may wake a later incarnation.
-func (s *Service) CancelSession(sessionID string) int {
-	canceled := s.cancelSession(sessionID)
-	if canceled > 0 {
-		s.notify(sessionID)
-	}
-	return canceled
-}
-
-func (s *Service) cancelSession(sessionID string) int {
-	s.mu.Lock()
-	canceled := 0
-	now := s.now()
-	var records []Record
-	for _, item := range s.sessions[sessionID] {
-		if item.occupies() {
-			s.finishLocked(item, StatusCanceled, now)
-			item.state.Reason = ReasonSessionStopped
-			s.logLifecycle("monitor.canceled", item.state, ReasonSessionStopped)
-			item.cancel()
-			records = append(records, item.recordLocked())
-			canceled++
-		}
-	}
-	delete(s.sessions, sessionID)
-	s.mu.Unlock()
-	for _, record := range records {
-		s.saveRetrying(record)
-	}
-	return canceled
-}
-
-// SuspendSession stops the in-memory watches of an owner the daemon is
-// interrupting for a restart, keeping every monitor durable so Recover can
-// restore it. Each monitor keeps the owner binding captured while the owner was live: a stopped
-// session no longer carries a complete route, so a snapshot taken at stop time would be degraded.
-func (s *Service) SuspendSession(sessionID string) int {
-	s.mu.Lock()
-	suspended := 0
-	var records []Record
-	for _, item := range s.sessions[sessionID] {
-		if !item.occupies() {
-			continue
-		}
-		s.logLifecycle("monitor.interrupted", item.state, "daemon_shutdown")
-		item.cancel()
-		s.releaseLocked(item)
-		records = append(records, item.recordLocked())
-		suspended++
-	}
-	delete(s.sessions, sessionID)
-	s.mu.Unlock()
-	for _, record := range records {
-		s.save(record)
-	}
-	if suspended > 0 {
-		s.notify(sessionID)
-	}
-	return suspended
-}
-
 // Shutdown cancels every monitor and waits for watcher goroutines.
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
-	if !s.stopped {
-		for _, bucket := range s.sessions {
-			for _, item := range bucket {
-				if item.occupies() {
-					s.logLifecycle("monitor.interrupted", item.state, "daemon_shutdown")
-				}
-			}
-		}
-	}
 	s.stopped = true
 	s.mu.Unlock()
 	s.cancel()

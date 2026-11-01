@@ -265,6 +265,7 @@ type monitorWakeManagerStub struct {
 	status     *session.Info
 	statusErr  error
 	enqueueErr error
+	admitted   bool
 	calls      int
 	id         string
 	opts       session.SyntheticPromptOpts
@@ -272,6 +273,10 @@ type monitorWakeManagerStub struct {
 
 func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.Info, error) {
 	return stub.status, stub.statusErr
+}
+
+func (stub *monitorWakeManagerStub) SyntheticWakeAdmitted(context.Context, string, string) (bool, error) {
+	return stub.admitted, nil
 }
 
 func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
@@ -316,6 +321,21 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}
 		if !strings.Contains(manager.opts.Message, "NOT USER INPUT") {
 			t.Fatalf("wake message = %q, want automated-wake header", manager.opts.Message)
+		}
+	})
+
+	t.Run("Should not admit a wake again when its queue entry was already admitted", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{
+			status:   &session.Info{ID: "sess-1", State: session.StateActive},
+			admitted: true,
+		}
+		if err := wakerFor(manager).WakeSession(testutil.Context(t), fired); err != nil {
+			t.Fatalf("WakeSession() error = %v", err)
+		}
+		if manager.calls != 0 {
+			t.Fatalf("enqueue calls = %d, want none for an already admitted wake", manager.calls)
 		}
 	})
 

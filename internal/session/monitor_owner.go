@@ -109,3 +109,12 @@ func monitorOwnerBindingMatches(active *Session, checkpoint store.SessionRestart
 	}
 	return nil
 }
+
+// SyntheticWakeAdmitted reports whether a synthetic wake with messageID was already admitted for the
+// session. A recovered monitor uses it so a wake whose queue entry was already sent is not replayed.
+func (m *Manager) SyntheticWakeAdmitted(ctx context.Context, id, messageID string) (bool, error) {
+	if m.inputQueue == nil {
+		return false, nil
+	}
+	return m.inputQueue.SyntheticAdmitted(ctx, id, messageID)
+}

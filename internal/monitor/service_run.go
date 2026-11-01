@@ -8,7 +8,12 @@ import (
 
 // run owns one monitor from watch to admitted wake. Every exit path is ctx
 // cancellation (cancel, session stop, shutdown) or a recorded terminal status.
-func (s *Service) run(ctx context.Context, created Monitor, spec Spec, watch TerminalWatch) {
+func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Spec, watch TerminalWatch) {
+	defer func() {
+		if ctx.Err() != nil {
+			s.logInterrupted(item)
+		}
+	}()
 	outcome, ok := s.observe(ctx, spec, watch)
 	if !ok {
 		return
@@ -24,6 +29,17 @@ func (s *Service) run(ctx context.Context, created Monitor, spec Spec, watch Ter
 		return
 	}
 	s.deliver(ctx, Notification{Monitor: state, Outcome: outcome})
+}
+
+// logInterrupted records a watch that stopped without settling because the daemon is stopping or
+// its owner was interrupted by a restart; a monitor settled by Cancel or by an admitted wake is not.
+func (s *Service) logInterrupted(item *entry) {
+	s.mu.Lock()
+	occupying, state := item.occupies(), item.state
+	if occupying {
+		s.logLifecycle("monitor.interrupted", state, "daemon_shutdown")
+	}
+	s.mu.Unlock()
 }
 
 func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (Outcome, bool) {
@@ -57,14 +73,18 @@ func (s *Service) deliver(ctx context.Context, notification Notification) {
 	for {
 		err := s.waker.WakeSession(ctx, notification)
 		if err == nil {
-			s.settle(mon.SessionID, mon.ID, StatusFired)
+			s.settle(mon.SessionID, mon.ID, StatusFired, "")
 			return
 		}
 		if ctx.Err() != nil {
 			return
 		}
-		if errors.Is(err, ErrSessionGone) || !s.now().Add(backoff).Before(deadline) {
-			s.settle(mon.SessionID, mon.ID, StatusUndelivered)
+		if errors.Is(err, ErrSessionGone) {
+			s.settle(mon.SessionID, mon.ID, StatusUndelivered, causeSessionGone)
+			return
+		}
+		if !s.now().Add(backoff).Before(deadline) {
+			s.settle(mon.SessionID, mon.ID, StatusUndelivered, causeRetryExhausted)
 			return
 		}
 		s.logLifecycle("monitor.wake_deferred", mon, "admission_retry")
@@ -116,7 +136,7 @@ func (s *Service) persistFired(ctx context.Context, record Record) bool {
 			return false
 		}
 		if !s.now().Add(backoff).Before(deadline) {
-			s.settle(record.Monitor.SessionID, record.Monitor.ID, StatusUndelivered)
+			s.settle(record.Monitor.SessionID, record.Monitor.ID, StatusUndelivered, causePersistUnavailable)
 			return false
 		}
 		s.logLifecycle("monitor.wake_deferred", record.Monitor, "admission_retry")
@@ -131,7 +151,7 @@ func (s *Service) persistFired(ctx context.Context, record Record) bool {
 	}
 }
 
-func (s *Service) settle(sessionID, id string, status Status) {
+func (s *Service) settle(sessionID, id string, status Status, cause string) {
 	s.mu.Lock()
 	item, ok := s.sessions[sessionID][id]
 	if !ok || item.state.Status != StatusDelivering {
@@ -143,7 +163,7 @@ func (s *Service) settle(sessionID, id string, status Status) {
 	if status == StatusUndelivered {
 		event = "monitor.wake_failed"
 	}
-	s.logLifecycle(event, item.state, item.state.Reason)
+	s.logLifecycleCause(event, item.state, item.state.Reason, cause)
 	record := item.recordLocked()
 	s.pruneSessionLocked(sessionID, s.now())
 	s.mu.Unlock()

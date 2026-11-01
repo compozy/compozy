@@ -18,6 +18,11 @@ type monitorSessionManager interface {
 	EnqueueSyntheticWake(context.Context, string, session.SyntheticPromptOpts) (store.SessionInputQueueEntry, error)
 }
 
+// monitorWakeLedger lets a replayed wake detect that its queue entry was already admitted.
+type monitorWakeLedger interface {
+	SyntheticWakeAdmitted(context.Context, string, string) (bool, error)
+}
+
 type sessionCatalogChangePublisher interface {
 	PublishSessionCatalogChanged(context.Context, string)
 }
@@ -49,8 +54,20 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	if info.State == session.StateStopping || info.State == session.StateStopped {
 		return fmt.Errorf("%w: %s is %s", monitorpkg.ErrSessionGone, sessionID, info.State)
 	}
+	messageID := "monitor:" + notification.Monitor.ID
+	// The queue only dedupes entries that are still queued or dispatching; a wake that was already sent
+	// before a restart must not start a second turn.
+	if ledger, ok := sessions.(monitorWakeLedger); ok {
+		admitted, err := ledger.SyntheticWakeAdmitted(ctx, sessionID, messageID)
+		if err != nil {
+			return fmt.Errorf("daemon: read monitor wake ledger for %q: %w", sessionID, err)
+		}
+		if admitted {
+			return nil
+		}
+	}
 	if _, err := sessions.EnqueueSyntheticWake(ctx, sessionID, session.SyntheticPromptOpts{
-		MessageID: "monitor:" + notification.Monitor.ID,
+		MessageID: messageID,
 		Priority:  1,
 		Message:   notification.Message(),
 		Metadata: acp.PromptSyntheticMeta{
