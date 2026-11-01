@@ -282,10 +282,10 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
-          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-golangci-v2.15.0-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-
-            ${{ runner.os }}-golangci-v2.13.1-
+            ${{ runner.os }}-golangci-v2.15.0-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-
+            ${{ runner.os }}-golangci-v2.15.0-
 
       - name: Run Go static verification
         run: |
@@ -298,7 +298,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: ~/.cache/compozy-dev/golangci-lint
-          key: ${{ runner.os }}-golangci-v2.13.1-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-golangci-v2.15.0-${{ hashFiles('**/go.sum', '**/go.mod', '.golangci.yml') }}-${{ github.run_id }}
 
   go-test:
     name: Go (race test shard ${{ matrix.shard_label }})
