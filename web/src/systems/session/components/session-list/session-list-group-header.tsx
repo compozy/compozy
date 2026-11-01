@@ -97,6 +97,65 @@ export interface SessionListGroupArrange {
   menuItems?: ReactNode;
 }
 
+function groupSessionOptions(target: ReturnType<typeof sessionListGroupTarget>) {
+  return {
+    ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
+    ...(target.profile ? { profile: target.profile } : {}),
+  };
+}
+
+function groupStaysOn(
+  group: SessionListGroupSpec,
+  workspaceId: string | null | undefined,
+  name: string
+) {
+  return group.kind === "project" && workspaceId ? { place: workspaceId, name } : undefined;
+}
+
+function GroupDropEdge({ edge }: { edge: SessionDropPosition }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-brand",
+        edge === "before" ? "-top-px" : "-bottom-px"
+      )}
+    />
+  );
+}
+
+/** Where a new folder lands, with a picker for each axis the group leaves open. */
+function GroupFolderDestination({
+  folder,
+  name,
+  testId,
+}: {
+  folder: ReturnType<typeof useSessionListGroupFolderCreate>;
+  name: string;
+  testId: string;
+}) {
+  if (!folder.project && !folder.profile) return undefined;
+  return (
+    <p
+      className="flex flex-wrap items-baseline gap-x-1 text-small-body text-muted-foreground"
+      data-testid={`${testId}-destination`}
+    >
+      In
+      {folder.project ? (
+        <FolderAxisPicker axis="Project" testId={`${testId}-project`} {...folder.project} />
+      ) : (
+        <span className="font-medium text-fg">{name}</span>
+      )}
+      {folder.profile ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <FolderAxisPicker axis="Profile" testId={`${testId}-profile`} {...folder.profile} />
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 /**
  * One group's header row: the collapse toggle (identity, collapsed signal,
  * count) and, after it, the group's own `+` — New session or New folder in
@@ -115,20 +174,13 @@ export function SessionListGroupHeader({
   const folder = useSessionListGroupFolderCreate(target);
   const testId = `${testIdPrefix}-group-${group.key}`;
   const name = sessionListGroupName(group);
-  const staysOn =
-    group.kind === "project" && target.workspaceId
-      ? { place: target.workspaceId, name }
-      : undefined;
+  const staysOn = groupStaysOn(group, target.workspaceId, name);
   const createMenu = {
     variant: "quiet",
     size: "icon-xs",
     className: "text-subtle",
     label: { session: `New session in ${name}`, menu: `New session or folder in ${name}` },
-    onNewSession: () =>
-      onNewSession({
-        ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
-        ...(target.profile ? { profile: target.profile } : {}),
-      }),
+    onNewSession: () => onNewSession(groupSessionOptions(target)),
     onNewFolder: folder.openDialog,
     testId,
   } as const;
@@ -146,15 +198,7 @@ export function SessionListGroupHeader({
           data-dragging={arrange?.dragging || undefined}
           onKeyDown={openContextMenuFromKeyboard}
         >
-          {arrange?.dropEdge ? (
-            <span
-              aria-hidden="true"
-              className={cn(
-                "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-brand",
-                arrange.dropEdge === "before" ? "-top-px" : "-bottom-px"
-              )}
-            />
-          ) : null}
+          {arrange?.dropEdge ? <GroupDropEdge edge={arrange.dropEdge} /> : null}
           <SessionListGroupToggle
             collapsed={collapsed}
             count={group.total}
@@ -177,33 +221,7 @@ export function SessionListGroupHeader({
         onRename={() => Promise.resolve()}
         onDelete={() => Promise.resolve()}
         destination={
-          folder.project || folder.profile ? (
-            <p
-              className="flex flex-wrap items-baseline gap-x-1 text-small-body text-muted-foreground"
-              data-testid={`${testId}-folder-destination`}
-            >
-              In
-              {folder.project ? (
-                <FolderAxisPicker
-                  axis="Project"
-                  testId={`${testId}-folder-project`}
-                  {...folder.project}
-                />
-              ) : (
-                <span className="font-medium text-fg">{name}</span>
-              )}
-              {folder.profile ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <FolderAxisPicker
-                    axis="Profile"
-                    testId={`${testId}-folder-profile`}
-                    {...folder.profile}
-                  />
-                </>
-              ) : null}
-            </p>
-          ) : undefined
+          <GroupFolderDestination folder={folder} name={name} testId={`${testId}-folder`} />
         }
       />
     </>

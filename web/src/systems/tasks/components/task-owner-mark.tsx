@@ -6,7 +6,8 @@ import { useTaskOwnerName, type TaskOwner } from "../hooks/use-task-owner-name";
 import { ownerAvatarKindFor } from "../lib/task-formatters";
 
 export function TaskOwnerName({ owner }: { owner?: TaskOwner | null }) {
-  return useTaskOwnerName(owner);
+  const name = useTaskOwnerName(owner);
+  return <>{name}</>;
 }
 
 /** Agents wear their own face; `OwnerAvatar` stays for people and the runtime's actors. */

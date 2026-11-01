@@ -15,6 +15,12 @@ export interface EditorSnapshot<TForm> {
 
 export type EditorPhase = "idle" | "saving";
 
+/** What a save sent, so edits typed while it ran can be told apart from it. */
+export interface EditorSubmission<TForm> {
+  form: TForm;
+  raw: string | null;
+}
+
 export interface EditorDocumentContext<TForm> {
   baseline: EditorSnapshot<TForm>;
   form: TForm;
@@ -50,7 +56,14 @@ export function createEditorDocumentStore<TForm>(snapshot: EditorSnapshot<TForm>
       }),
       discarded: context => ({ ...seed(context.baseline), conflict: context.conflict }),
       saveStarted: context => ({ ...context, phase: "saving" as const, problem: undefined }),
-      saved: (_context, event: { snapshot: EditorSnapshot<TForm> }) => seed(event.snapshot),
+      saved: (
+        context,
+        event: { snapshot: EditorSnapshot<TForm>; submitted: EditorSubmission<TForm> }
+      ) => ({
+        ...seed(event.snapshot),
+        form: context.form === event.submitted.form ? event.snapshot.form : context.form,
+        raw: context.raw === event.submitted.raw ? null : context.raw,
+      }),
       saveFailed: (context, event: { problem: string }) => ({
         ...context,
         phase: "idle" as const,

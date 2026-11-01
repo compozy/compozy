@@ -1,20 +1,18 @@
 /** One place an agent works: what it's doing there right now, with pause and resume at hand. */
-import { Archive, MessagesSquare, MoreHorizontal, Pause, Play } from "@compozy/ui/icons";
+import { MessagesSquare, Pause, Play } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
   Button,
   ConfirmDialog,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   Sparkline,
   StatusDot,
   Surface,
   cn,
   type StatusDotTone,
 } from "@compozy/ui";
+
+import { AgentPlaceMenu } from "@/systems/agent/components/agent-profile/agent-place-card";
 
 import { ProjectMark } from "../stays-on-agents-shared/add-pickers";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";
@@ -85,20 +83,7 @@ export function PlaceCard({ place, onToggle, onArchive }: PlaceCardProps) {
         >
           <MessagesSquare aria-hidden="true" />
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label={`More for ${label}`}
-            render={<Button size="icon-sm" type="button" variant="quiet" />}
-          >
-            <MoreHorizontal aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setArchiving(true)}>
-              <Archive aria-hidden="true" />
-              Remove from {label}…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <AgentPlaceMenu label={label} onRemove={() => setArchiving(true)} />
       </div>
       <div className="flex flex-col gap-1">
         <p

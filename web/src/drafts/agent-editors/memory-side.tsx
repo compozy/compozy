@@ -1,101 +1,13 @@
 /** S9's right column: how full memory is, what got put away, and history. */
 import { Archive, History } from "@compozy/ui/icons";
 
-import {
-  Button,
-  Disclosure,
-  StackedProgress,
-  StatusDot,
-  Timeline,
-  TimelineEvent,
-  cn,
-} from "@compozy/ui";
+import { Button, Disclosure, Timeline, TimelineEvent } from "@compozy/ui";
 
 import { EditorCard } from "../stays-on-agents-shared/rich-controls";
 import { PUT_AWAY, REVISIONS } from "./memory-fixtures";
 
-export type Fullness = "fine" | "almost" | "full";
-
-const FULLNESS_COPY: Record<Fullness, string> = {
-  fine: "Plenty of room.",
-  almost: "When it fills up, the oldest learned notes get put away. Yours stay.",
-  full: "It's all notes you wrote, so nothing can be put away and it can't learn more. Remove a few to make room.",
-};
-
-export function FullnessCard({
-  percent,
-  fullness,
-  learned,
-  yours,
-  onShowYours,
-}: {
-  percent: number;
-  fullness: Fullness;
-  learned: number;
-  yours: number;
-  onShowYours: () => void;
-}) {
-  const share = learned + yours === 0 ? 0 : learned / (learned + yours);
-  const tone = fullness === "full" ? "destructive" : fullness === "almost" ? "warning" : "neutral";
-  return (
-    <EditorCard className="gap-3">
-      <div className="flex items-baseline gap-1.5">
-        <span
-          className={cn(
-            "text-display-2xl font-medium tabular-nums",
-            fullness === "full"
-              ? "text-destructive"
-              : fullness === "almost"
-                ? "text-warning"
-                : "text-fg"
-          )}
-        >
-          {percent}%
-        </span>
-        <span className="text-small-body text-muted-foreground">full</span>
-      </div>
-      <StackedProgress
-        ariaLabel={`Memory is ${percent}% full`}
-        className="h-2"
-        segments={[
-          { value: Math.round(percent * share), tone, label: "Learned" },
-          {
-            value: Math.round(percent * (1 - share)),
-            tone: fullness === "full" ? "destructive" : "info",
-            label: "Yours",
-          },
-        ]}
-        total={100}
-      />
-      <div className="flex gap-3 text-eyebrow text-muted-foreground tabular-nums empty:hidden">
-        {learned > 0 ? (
-          <span className="flex items-center gap-1.5">
-            <StatusDot size="sm" tone={tone === "neutral" ? "faint" : tone} />
-            {learned} learned
-          </span>
-        ) : null}
-        {yours > 0 ? (
-          <span className="flex items-center gap-1.5">
-            <StatusDot size="sm" tone={fullness === "full" ? "destructive" : "info"} />
-            {yours} yours
-          </span>
-        ) : null}
-      </div>
-      <p className="text-small-body text-fg-2">{FULLNESS_COPY[fullness]}</p>
-      {fullness === "full" ? (
-        <Button
-          className="self-start"
-          onClick={onShowYours}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          Show my notes
-        </Button>
-      ) : null}
-    </EditorCard>
-  );
-}
+export type { MemoryFullness as Fullness } from "@/systems/agent/lib/agent-memory-notes";
+export { FullnessCard } from "@/systems/agent/components/agent-editors/memory-side";
 
 export function PutAwayCard({ count }: { count: number }) {
   return (

@@ -81,6 +81,11 @@ function CatalogStatus({
   );
 }
 
+/** Keeps the name and provider apart for screen readers; the gap only separates them on screen. */
+function NameSeparator() {
+  return <span className="sr-only"> · </span>;
+}
+
 function SelectedAgentValue({
   agent,
   catalogError,
@@ -103,6 +108,7 @@ function SelectedAgentValue({
         state="unknown"
       />
       <span className="truncate text-small-body text-fg">{identity.label}</span>
+      <NameSeparator />
       <Eyebrow className="text-muted-foreground">{agent.provider}</Eyebrow>
       {hasCategory ? (
         <Eyebrow
@@ -140,6 +146,7 @@ function ComposerAgentValue({
       <span className="min-w-0 max-w-56 truncate text-small-body font-medium text-fg-2 transition-colors group-hover:text-fg group-data-[popup-open]:text-fg">
         {identity.label}
       </span>
+      <NameSeparator />
       <span className="shrink-0 text-eyebrow text-subtle">{agent.provider}</span>
       <CatalogStatus catalogError={catalogError} loading={loading} />
     </span>

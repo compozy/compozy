@@ -165,12 +165,77 @@ export interface AgentCheckInsViewProps {
   onAddToProject?: () => void;
 }
 
+function CheckInsConflict({ label, model }: { label: string; model: CheckInsEditorModel }) {
+  const { document, settings } = model;
+  const { conflict, raw } = document;
+  if (!conflict) return null;
+  return (
+    <ConflictCard
+      agentLabel={label}
+      mine={<p>{raw === null ? scheduleSummary(settings, true) : "Your edits to the file"}</p>}
+      onKeepMine={() => void document.save()}
+      onUseTheirs={() => {
+        document.chooseTheirs();
+        toast.message(`Using ${label}'s version`);
+      }}
+      theirs={
+        <p>
+          {conflict.block
+            ? "Changes the file in a way this page can't show"
+            : scheduleSummary(conflict.form, true)}
+        </p>
+      }
+      title={`${label} changed its schedule while you were editing`}
+    />
+  );
+}
+
+function CheckInsFile({ model }: { model: CheckInsEditorModel }) {
+  const { document, readOnly, on } = model;
+  const { block, problem, raw } = document;
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      {block ? (
+        <FileBlockNotice block={block} />
+      ) : (
+        <SettingsCard disabled={!on || readOnly || raw !== null} model={model} />
+      )}
+      <RawFile
+        defaultOpen={block !== null || Boolean(problem)}
+        error={problem}
+        onChange={document.setRaw}
+        readOnly={readOnly}
+        value={document.source}
+      />
+    </div>
+  );
+}
+
+function CheckInsSide({ agent, model, onAddToProject }: Omit<AgentCheckInsViewProps, "state">) {
+  const { never, nowhere } = model;
+  return (
+    <div className="sticky top-4 flex min-w-0 flex-col gap-4">
+      {never || nowhere ? (
+        <NotStartedCard
+          agent={agent}
+          nowhere={nowhere}
+          onAddToProject={onAddToProject}
+          onTurnOn={() => model.turnOn(true)}
+        />
+      ) : (
+        <>
+          <NextCard model={model} />
+          <RecentCard activity={model.activity} />
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AgentCheckInsView({ agent, state, model, onAddToProject }: AgentCheckInsViewProps) {
-  const { document, settings, readOnly, on, paused, nowhere, never } = model;
-  const { conflict, raw, block, problem } = document;
+  const { document, settings, readOnly, on, paused, nowhere } = model;
   const label = agent.label || agent.name;
   const active = on && !paused;
-  const off = !on || readOnly || raw !== null;
   return (
     <div className="flex flex-col gap-6 py-2">
       <EditorHead
@@ -190,59 +255,14 @@ export function AgentCheckInsView({ agent, state, model, onAddToProject }: Agent
         </div>
       </EditorHead>
       {readOnly ? <ReadOnlyNotice agent={agent} /> : null}
-      {conflict ? (
-        <ConflictCard
-          agentLabel={label}
-          mine={<p>{raw === null ? scheduleSummary(settings, true) : "Your edits to the file"}</p>}
-          onKeepMine={() => void document.save()}
-          onUseTheirs={() => {
-            document.chooseTheirs();
-            toast.message(`Using ${label}'s version`);
-          }}
-          theirs={
-            <p>
-              {conflict.block
-                ? "Changes the file in a way this page can't show"
-                : scheduleSummary(conflict.form, true)}
-            </p>
-          }
-          title={`${label} changed its schedule while you were editing`}
-        />
-      ) : null}
+      <CheckInsConflict label={label} model={model} />
       <div className="grid grid-cols-[minmax(0,1fr)_23rem] items-start gap-5">
-        <div className="flex min-w-0 flex-col gap-4">
-          {block ? (
-            <FileBlockNotice block={block} />
-          ) : (
-            <SettingsCard disabled={off} model={model} />
-          )}
-          <RawFile
-            defaultOpen={block !== null || Boolean(problem)}
-            error={problem}
-            onChange={document.setRaw}
-            readOnly={readOnly}
-            value={document.source}
-          />
-        </div>
-        <div className="sticky top-4 flex min-w-0 flex-col gap-4">
-          {never || nowhere ? (
-            <NotStartedCard
-              agent={agent}
-              nowhere={nowhere}
-              onAddToProject={onAddToProject}
-              onTurnOn={() => model.turnOn(true)}
-            />
-          ) : (
-            <>
-              <NextCard model={model} />
-              <RecentCard activity={model.activity} />
-            </>
-          )}
-        </div>
+        <CheckInsFile model={model} />
+        <CheckInsSide agent={agent} model={model} onAddToProject={onAddToProject} />
       </div>
       {readOnly ? null : (
         <UnsavedDock
-          blocked={problem ? "Fix the file first" : undefined}
+          blocked={document.problem ? "Fix the file first" : undefined}
           count={document.changes}
           onDiscard={() => {
             document.discard();

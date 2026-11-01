@@ -28,7 +28,8 @@ export function AgentIdentityLabel({
   name: string;
   agentScope?: AgentIdentityScope;
 }) {
-  return useAgentIdentityView(name, agentScope).label;
+  const { label } = useAgentIdentityView(name, agentScope);
+  return <>{label}</>;
 }
 
 /** Face and label together; the avatar's name repeats the text, so only the text is announced. */

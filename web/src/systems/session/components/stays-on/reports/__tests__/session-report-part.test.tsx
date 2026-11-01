@@ -156,7 +156,7 @@ describe("SessionReportPart", () => {
   });
 
   it("Should tell a provider-ended request apart from an unanswered one [US-023.EC-1]", async () => {
-    render(
+    const { container } = render(
       <SessionReportPart
         data={{
           ...PROPOSAL,
@@ -169,7 +169,8 @@ describe("SessionReportPart", () => {
 
     expect(await screen.findByText(/request ended early/)).toBeInTheDocument();
     expect(screen.getByText("Didn't happen")).toBeInTheDocument();
-    expect(await screen.findByText("make migrate")).toBeInTheDocument();
+    // The highlighter later splits the command into token spans, so match its text, not one node.
+    await waitFor(() => expect(container).toHaveTextContent("make migrate"));
   });
 
   it("Should fold a told report into the digest and keep the decision", async () => {

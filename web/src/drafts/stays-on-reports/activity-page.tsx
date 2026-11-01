@@ -18,13 +18,15 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
   cn,
   type PillTone,
 } from "@compozy/ui";
 
+import {
+  ActivityActionCell,
+  ActivityLogHeader,
+} from "@/systems/dashboard/components/activity/activity-page-view";
 import { HomePageMeta } from "@/systems/dashboard/components/home-page-meta";
 import { HomePulseHeatmap } from "@/systems/dashboard/components/home-pulse-heatmap";
 import {
@@ -210,15 +212,7 @@ function Row({ entry }: { entry: ActivityEntry }) {
   return (
     <TableRow>
       <TableCell className="w-16 font-mono text-mono-id text-subtle">{entry.when}</TableCell>
-      <TableCell>
-        <span className="flex min-w-0 items-center gap-2.5">
-          <Icon aria-hidden="true" className="size-4 shrink-0 text-subtle" />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-body text-fg">{entry.action}</span>
-            <span className="truncate font-mono text-mono-id text-subtle">{entry.detail}</span>
-          </span>
-        </span>
-      </TableCell>
+      <ActivityActionCell action={entry.action} detail={entry.detail} icon={Icon} />
       <TableCell>
         <span className="inline-flex items-center gap-2">
           <AgentAvatar
@@ -250,15 +244,7 @@ function Log({ entries }: { entries: readonly ActivityEntry[] }) {
   return (
     <Panel bodyClassName="p-0">
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>When</TableHead>
-            <TableHead>What</TableHead>
-            <TableHead>Agent</TableHead>
-            <TableHead>Started by</TableHead>
-            <TableHead className="text-right">Result</TableHead>
-          </TableRow>
-        </TableHeader>
+        <ActivityLogHeader />
         <TableBody>
           {[...byDay].map(([day, members]) => (
             <Fragment key={day}>

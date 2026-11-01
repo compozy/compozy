@@ -163,8 +163,9 @@ function dailySeries(rollups: readonly PermissionRollupRow[], until: Date) {
       expired: 0,
     });
   }
+  const daysByKey = new Map(days.map(day => [day.key, day]));
   for (const row of rollups) {
-    const day = days.find(candidate => candidate.key === row.day);
+    const day = daysByKey.get(row.day);
     if (day) day[activityResult(row.decision)] += row.count;
   }
   return days;

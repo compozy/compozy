@@ -24,6 +24,26 @@ export interface AgentPlaceActions {
   onArchive: (place: AgentTeamPlace) => void;
 }
 
+/** The quiet overflow on a place: removing the agent from it. */
+export function AgentPlaceMenu({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`More for ${label}`}
+        render={<Button size="icon-sm" type="button" variant="quiet" />}
+      >
+        <MoreHorizontal aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onRemove}>
+          <Archive aria-hidden="true" />
+          Remove from {label}…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function AgentPlaceCard({
   place,
   onOpen,
@@ -59,20 +79,7 @@ export function AgentPlaceCard({
         >
           <MessagesSquare aria-hidden="true" />
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            aria-label={`More for ${label}`}
-            render={<Button size="icon-sm" type="button" variant="quiet" />}
-          >
-            <MoreHorizontal aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setArchiving(true)}>
-              <Archive aria-hidden="true" />
-              Remove from {label}…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <AgentPlaceMenu label={label} onRemove={() => setArchiving(true)} />
       </div>
       <div className="flex flex-col gap-1">
         <p

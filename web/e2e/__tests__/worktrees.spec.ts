@@ -10,6 +10,7 @@ import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 /**
  * Worktree lifecycle against a real daemon and real git. The API is used only to
@@ -130,7 +131,9 @@ async function openSessionCreate(page: Page, agentName = worktreeSessionAgent) {
   await expect(dialog).toBeVisible();
   await dialog.getByTestId("session-create-agent-select").click();
   await page.getByTestId(`agent-command-item-${agentName}`).click();
-  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(agentName);
+  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
+    humanizeAgentSlug(agentName)
+  );
 }
 
 async function openOverviewMenu(page: Page, workspaceId: string) {
@@ -893,7 +896,7 @@ test("operator starts a session in a worktree from Global scope", async ({ appPa
   await expect(dialog).toBeVisible();
   await expect(globalToggle).toHaveAttribute("aria-pressed", "false");
   await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
-    worktreeSessionAgent
+    humanizeAgentSlug(worktreeSessionAgent)
   );
   await dialog.getByTestId("session-create-mode-advanced").click();
   await expect(dialog.getByTestId("session-create-environment")).toContainText(worktree.name);

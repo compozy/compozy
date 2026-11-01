@@ -182,7 +182,7 @@ describe("useAutomationsPage", () => {
     await waitFor(() => expect(result.current.items).toHaveLength(7));
     const digest = result.current.items.find(item => item.id === "morning-digest");
     expect(digest?.sentence.map(segment => segment.text).join("")).toBe(
-      "Every weekday at 09:00 America/Sao_Paulo, ask summarizer to summarize yesterday's sessions."
+      "Every weekday at 09:00 America/Sao_Paulo, ask Summarizer to summarize yesterday's sessions."
     );
   });
 

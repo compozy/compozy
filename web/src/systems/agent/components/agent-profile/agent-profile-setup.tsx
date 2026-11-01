@@ -16,9 +16,9 @@ import {
   HOME_RUN_ROW_CLASS,
   HOME_RUN_SUBTITLE_CLASS,
   HOME_RUN_TITLE_CLASS,
-} from "@/systems/dashboard";
+} from "@/systems/dashboard/components/home-zone-shape";
 
-function SetupRow({
+export function SetupRow({
   icon: Icon,
   title,
   summary,
@@ -31,7 +31,7 @@ function SetupRow({
   summary: string;
   onOpen: () => void;
   locked: boolean;
-  testId: string;
+  testId?: string;
 }) {
   const Trail = locked ? Lock : ChevronRight;
   return (

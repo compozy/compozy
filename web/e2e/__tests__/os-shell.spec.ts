@@ -39,6 +39,7 @@ import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -1503,7 +1504,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await createDialog.getByTestId("session-create-agent-select").click();
   await appPage.getByTestId(`agent-command-item-${browserLifecycleAgent}`).click();
   await expect(createDialog.getByTestId("session-create-agent-select")).toContainText(
-    browserLifecycleAgent
+    humanizeAgentSlug(browserLifecycleAgent)
   );
   const createResponsePromise = appPage.waitForResponse(
     response =>

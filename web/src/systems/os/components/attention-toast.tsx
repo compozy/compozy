@@ -126,59 +126,62 @@ function AttentionAgentMark({
   );
 }
 
-export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
-  const identityOf = useAgentIdentityResolverView({
-    workspace: attentionDeliveryWorkspace(delivery),
-  });
-  if (delivery.kind === "needs-you") {
-    const { target } = delivery;
-    const label = identityOf(target.agentName).label;
-    return (
-      <ToastFrame
-        testId="os-attention-toast-needs-you"
-        mark={
-          <AttentionAgentMark
-            fallback={<SessionBadgeGlyph badge={target.badge} />}
-            state="needs-you"
-            target={target}
-          />
-        }
-        title={label ? `${label} needs you` : target.title}
-        body={label ? `${target.title}: ${target.reason}` : target.reason}
-        meta={target.workspaceLabel}
-        onActivate={onActivate}
-      />
-    );
-  }
-  if (delivery.kind === "finished") {
-    const { targets } = delivery;
-    const workspaces = [...new Set(targets.map(target => target.workspaceLabel))].join(" · ");
-    const single = targets.length === 1 ? targets[0] : undefined;
+type IdentityOf = ReturnType<typeof useAgentIdentityResolverView>;
+
+interface DeliveryToastProps<TKind extends AttentionDelivery["kind"]> {
+  delivery: Extract<AttentionDelivery, { kind: TKind }>;
+  identityOf: IdentityOf;
+  onActivate: () => void;
+}
+
+function NeedsYouToast({ delivery, identityOf, onActivate }: DeliveryToastProps<"needs-you">) {
+  const { target } = delivery;
+  const label = identityOf(target.agentName).label;
+  return (
+    <ToastFrame
+      testId="os-attention-toast-needs-you"
+      mark={
+        <AttentionAgentMark
+          fallback={<SessionBadgeGlyph badge={target.badge} />}
+          state="needs-you"
+          target={target}
+        />
+      }
+      title={label ? `${label} needs you` : target.title}
+      body={label ? `${target.title}: ${target.reason}` : target.reason}
+      meta={target.workspaceLabel}
+      onActivate={onActivate}
+    />
+  );
+}
+
+function FinishedToast({ delivery, identityOf, onActivate }: DeliveryToastProps<"finished">) {
+  const { targets } = delivery;
+  const single = targets.length === 1 ? targets[0] : undefined;
+  if (!single) {
     return (
       <ToastFrame
         testId="os-attention-toast-finished"
-        mark={
-          single ? (
-            <AttentionAgentMark fallback={<SessionBadgeGlyph badge="done" />} target={single} />
-          ) : (
-            <SessionBadgeGlyph badge="done" />
-          )
-        }
-        title={single ? single.title : `${targets.length} sessions finished`}
-        {...(single ? { body: finishedDeliveryBody(single) } : {})}
-        meta={
-          single
-            ? [single.workspaceLabel, identityOf(single.agentName).label]
-                .filter(Boolean)
-                .join(" · ")
-            : workspaces
-        }
-        {...(single
-          ? { onActivate }
-          : { action: { label: "Review finished", onClick: onActivate } })}
+        mark={<SessionBadgeGlyph badge="done" />}
+        title={`${targets.length} sessions finished`}
+        meta={[...new Set(targets.map(target => target.workspaceLabel))].join(" · ")}
+        action={{ label: "Review finished", onClick: onActivate }}
       />
     );
   }
+  return (
+    <ToastFrame
+      testId="os-attention-toast-finished"
+      mark={<AttentionAgentMark fallback={<SessionBadgeGlyph badge="done" />} target={single} />}
+      title={single.title}
+      body={finishedDeliveryBody(single)}
+      meta={[single.workspaceLabel, identityOf(single.agentName).label].filter(Boolean).join(" · ")}
+      onActivate={onActivate}
+    />
+  );
+}
+
+function AgentNoticeToast({ delivery, identityOf, onActivate }: DeliveryToastProps<"agent">) {
   const { notification, target } = delivery;
   return (
     <ToastFrame
@@ -205,4 +208,14 @@ export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
       onActivate={onActivate}
     />
   );
+}
+
+export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
+  const identityOf = useAgentIdentityResolverView({
+    workspace: attentionDeliveryWorkspace(delivery),
+  });
+  const shared = { identityOf, onActivate };
+  if (delivery.kind === "needs-you") return <NeedsYouToast delivery={delivery} {...shared} />;
+  if (delivery.kind === "finished") return <FinishedToast delivery={delivery} {...shared} />;
+  return <AgentNoticeToast delivery={delivery} {...shared} />;
 }

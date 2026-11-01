@@ -100,15 +100,101 @@ function useAddPlaceActions(capacity: AgentInstanceCapacity): AgentAddPlaceActio
   };
 }
 
+/** All profiles reads definitions for the acting profile only (configuration resolves per profile). */
+function useTeamDefinitionsProfile() {
+  const profile = useProfileReadScope();
+  return profile.aggregate ? profile.destination : null;
+}
+
+function fleetSearchFacets(search: AgentsFleetSearch) {
+  const focus: AgentTeamFocus = search.focus ?? "all";
+  const view: ListingViewMode = search.view ?? "cards";
+  return { chips: searchChips(search), focus, view };
+}
+
+function fleetListingState({
+  isLoading,
+  isError,
+  total,
+  shown,
+  unfiltered,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  total: number;
+  shown: number;
+  unfiltered: boolean;
+}) {
+  const settled = !isLoading && !isError;
+  const isFirstRunEmpty = settled && total === 0 && unfiltered;
+  return {
+    isLoading,
+    isFirstRunEmpty,
+    isFilteredEmpty: settled && shown === 0 && !isFirstRunEmpty,
+    showFacets: !isLoading && !isFirstRunEmpty && !(isError && total === 0),
+  };
+}
+
+function useOpenTeamMember(allProjects: boolean) {
+  const openItem = useOpenTarget();
+  const navigate = useNavigate({ from: "/agents" });
+  return (member: AgentTeamMember) => {
+    const route = { pathname: `/agents/${encodeURIComponent(member.name)}`, search: {} };
+    if (allProjects) {
+      // All projects: an agent opens in place, its window bound to the agent's project.
+      openItem({ app: "agents", binding: ownerDataScope(member.agent?.workspace_id), route });
+      return;
+    }
+    void navigate({ to: "/agents/$name", params: { name: member.name } });
+  };
+}
+
+function useOpenAgentCreate() {
+  const { openDialog } = useAgentCreateHost();
+  return (options?: { staysOn?: boolean }) =>
+    openDialog(options?.staysOn ? { place: AGENT_PLACE_LATER } : undefined);
+}
+
+function focusItemsFor(members: readonly AgentTeamMember[]) {
+  return FOCUS_ITEMS.flatMap(item => {
+    if (item.value === "all") return [item];
+    const count = members.filter(member => matchesAgentFocus(member, item.value)).length;
+    return count > 0 ? [{ ...item, badge: count }] : [];
+  });
+}
+
+function providerOptionsOf(members: readonly AgentTeamMember[]) {
+  return [...new Set(members.flatMap(member => member.provider ?? []))].map(id => ({
+    id,
+    name: id.charAt(0).toUpperCase() + id.slice(1),
+  }));
+}
+
+const withChips = (next: readonly Filter<string>[]) => (current: AgentsFleetSearch) => ({
+  ...current,
+  project: chipValue(next, "project"),
+  model: chipValue(next, "model"),
+  owner: chipValue(next, "owner"),
+});
+
+const withFocus = (next: AgentTeamFocus) => (current: AgentsFleetSearch) => ({
+  ...current,
+  focus: next === "all" ? undefined : next,
+});
+
+const withView = (next: ListingViewMode) => (current: AgentsFleetSearch) => ({
+  ...current,
+  view: next === "cards" ? undefined : next,
+});
+
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const { pending, workspaces } = useActiveWorkspace();
-  const profile = useProfileReadScope();
-  const openItem = useOpenTarget();
+  const definitionsFor = useTeamDefinitionsProfile();
   const dataScope = useWindowDataWorkspace();
-  const allProjects = dataScope?.kind === "all";
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const navigate = useNavigate({ from: "/agents" });
-  const { openDialog } = useAgentCreateHost();
+  const onOpen = useOpenTeamMember(dataScope?.kind === "all");
+  const openCreate = useOpenAgentCreate();
   const { openForAgent } = useSessionCreateActions();
   const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
   const searchInputRef = useListingSearchShortcut(liveDataEnabled);
@@ -125,28 +211,23 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const { team, members } = useTeamMembers(liveDataEnabled && !pending && dataScope !== null);
   const capacity = useAgentInstanceCapacity();
   const add = useAddPlaceActions(capacity);
-  const chips = searchChips(search);
-  const focus: AgentTeamFocus = search.focus ?? "all";
-  const view: ListingViewMode = search.view ?? "cards";
+  const { chips, focus, view } = fleetSearchFacets(search);
 
   const matched = members.filter(member =>
     matchesAgentFilters(member, queryInput.draftValue, chips, workspaces)
   );
   const shown = matched.filter(member => matchesAgentFocus(member, focus));
-  const focusItems = FOCUS_ITEMS.flatMap(item => {
-    if (item.value === "all") return [item];
-    const count = members.filter(member => matchesAgentFocus(member, item.value)).length;
-    return count > 0 ? [{ ...item, badge: count }] : [];
-  });
-  const providers = [...new Set(members.flatMap(member => member.provider ?? []))].map(id => ({
-    id,
-    name: id.charAt(0).toUpperCase() + id.slice(1),
-  }));
+  const focusItems = focusItemsFor(members);
+  const providers = providerOptionsOf(members);
 
-  const isLoading = pending || team.isPending;
   const unfiltered = !hasActiveAgentFleetFilters(search) && queryInput.draftValue === "";
-  const isFirstRunEmpty = !isLoading && !team.isError && members.length === 0 && unfiltered;
-  const isFilteredEmpty = !isLoading && !team.isError && shown.length === 0 && !isFirstRunEmpty;
+  const listing = fleetListingState({
+    isLoading: pending || team.isPending,
+    isError: team.isError,
+    total: members.length,
+    shown: shown.length,
+    unfiltered,
+  });
 
   return {
     members: shown,
@@ -160,44 +241,23 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     searchInputRef,
     unfiltered,
     capacity,
-    isLoading,
-    isFirstRunEmpty,
-    isFilteredEmpty,
+    ...listing,
     agentsError: team.error,
-    showFacets: !isLoading && !isFirstRunEmpty && !(team.isError && members.length === 0),
-    /** All profiles reads definitions for the acting profile only (configuration resolves per profile). */
-    definitionsFor: profile.aggregate ? profile.destination : null,
+    definitionsFor,
     setDraftQuery: queryInput.setDraftValue,
-    setChips: (next: readonly Filter<string>[]) =>
-      updateSearch(current => ({
-        ...current,
-        project: chipValue(next, "project"),
-        model: chipValue(next, "model"),
-        owner: chipValue(next, "owner"),
-      })),
-    setFocus: (next: AgentTeamFocus) =>
-      updateSearch(current => ({ ...current, focus: next === "all" ? undefined : next })),
-    setView: (next: ListingViewMode) =>
-      updateSearch(current => ({ ...current, view: next === "cards" ? undefined : next })),
+    setChips: (next: readonly Filter<string>[]) => updateSearch(withChips(next)),
+    setFocus: (next: AgentTeamFocus) => updateSearch(withFocus(next)),
+    setView: (next: ListingViewMode) => updateSearch(withView(next)),
     clearFilters: () => {
       queryInput.reset("");
       updateSearch(current => ({ view: current.view }));
     },
-    openCreate: (options?: { staysOn?: boolean }) =>
-      openDialog(options?.staysOn ? { place: AGENT_PLACE_LATER } : undefined),
+    openCreate,
     actions: {
       add,
       newSessionDisabled: !hasActiveWorkspace,
       onNewSession: (name: string) => openForAgent(name),
-      onOpen: (member: AgentTeamMember) => {
-        const route = { pathname: `/agents/${encodeURIComponent(member.name)}`, search: {} };
-        if (allProjects) {
-          // All projects: an agent opens in place, its window bound to the agent's project.
-          openItem({ app: "agents", binding: ownerDataScope(member.agent?.workspace_id), route });
-          return;
-        }
-        void navigate({ to: "/agents/$name", params: { name: member.name } });
-      },
+      onOpen,
     },
     retryAgents: () => {
       void team.refetch();

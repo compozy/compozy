@@ -7,7 +7,7 @@ import {
   HOME_RUN_ROW_CLASS,
   HOME_RUN_SUBTITLE_CLASS,
   HOME_RUN_TITLE_CLASS,
-} from "@/systems/dashboard";
+} from "@/systems/dashboard/components/home-zone-shape";
 
 import type { AgentFinding } from "../../lib/agent-reports";
 
@@ -19,7 +19,13 @@ export interface AgentWorkItem {
   tone: "neutral" | "success" | "destructive";
 }
 
-function FindingRow({ finding, onOpen }: { finding: AgentFinding; onOpen: () => void }) {
+export function FindingRow({
+  finding,
+  onOpen,
+}: {
+  finding: Pick<AgentFinding, "title" | "scope" | "when"> & { waiting?: boolean };
+  onOpen: () => void;
+}) {
   return (
     <button
       aria-label={`Open: ${finding.title}`}

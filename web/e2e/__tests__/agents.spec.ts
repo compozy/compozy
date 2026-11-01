@@ -5,6 +5,7 @@ import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -87,7 +88,7 @@ test.describe("seeded agent detail", () => {
       const secondary = appPage.getByTestId("agent-command-item-agent-detail-secondary");
       await expect(secondary).toBeVisible();
       await secondary.click();
-      await expect(trigger).toContainText("agent-detail-secondary");
+      await expect(trigger).toContainText(humanizeAgentSlug("agent-detail-secondary"));
 
       await trigger.click();
       await expect(secondary).toHaveAttribute("data-checked", "true");
@@ -298,8 +299,8 @@ test.describe("fleet scan journey", () => {
     const search = appPage.getByTestId("agent-fleet-search");
     await appPage.getByTestId("agent-fleet-filters-add").click();
     await appPage.getByRole("option", { name: "Made by" }).click();
-    await appPage.getByRole("option", { name: "You" }).click();
-    await expect.poll(() => new URL(appPage.url()).searchParams.get("owner")).toBe("you");
+    await appPage.getByRole("option", { name: "An extension" }).click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("owner")).toBe("extension");
 
     await search.fill("ops");
     await expect(search).toHaveValue("ops");

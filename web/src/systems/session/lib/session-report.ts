@@ -60,12 +60,12 @@ export function pickedProposal(
   reportedAt: string
 ): string | undefined {
   const since = Date.parse(reportedAt);
+  const titles = new Set(proposals.map(proposal => proposal.title));
   for (const message of messages) {
     if (message.role !== "user") continue;
     if (message.createdAt && message.createdAt.getTime() < since) continue;
     const said = messageText(message);
-    const match = proposals.find(proposal => proposal.title === said);
-    if (match) return match.title;
+    if (titles.has(said)) return said;
   }
   return undefined;
 }

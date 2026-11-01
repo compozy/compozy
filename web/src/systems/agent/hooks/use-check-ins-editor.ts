@@ -49,12 +49,10 @@ function pickInstance(
   );
 }
 
-/** Check-ins' file, plus how the agent stands in the project picked on the page. */
-export function useCheckInsEditor(
+function useCheckInsDocument(
   agent: AgentPayload,
   workspace: string | null,
-  payload: AgentHeartbeatPayload,
-  readOnly: boolean
+  payload: AgentHeartbeatPayload
 ) {
   const queryClient = useQueryClient();
   const { destination } = useProfileReadScope();
@@ -63,7 +61,7 @@ export function useCheckInsEditor(
   const scope = { name: agent.name, cacheWorkspace: workspace, profile: destination };
   const selector = workspace ? { workspace_id: workspace } : {};
 
-  const document = useEditorDocument({
+  return useEditorDocument({
     resourceKey: buildAuthoredFileResourceKey(workspace, agent.name, "heartbeat", destination),
     snapshot: checkInsFromPayload(payload),
     compose: composeCheckInsFile,
@@ -90,6 +88,42 @@ export function useCheckInsEditor(
         })
       ),
   });
+}
+
+/** Everything the page says about the agent's standing; no instance reads as off and nowhere. */
+function instanceFacts(instance: AgentInstancePayload | null, interval: number) {
+  if (!instance) {
+    return {
+      standing: "off" as const,
+      never: false,
+      on: false,
+      pauseCopy: undefined,
+      resumeBlocked: false,
+      failedInARow: 0,
+      slowedBy: null,
+    };
+  }
+  const standing = checkInStanding(instance, interval);
+  return {
+    standing,
+    /** Never checked in and still off: the page leads with turning it on. */
+    never: standing === "off" && !instance.last_wake_at,
+    on: instance.checks_enabled ?? false,
+    pauseCopy: agentPauseCopy(instance) || undefined,
+    resumeBlocked: agentInstanceResumeBlocked(instance),
+    failedInARow: instance.failure_streak ?? 0,
+    slowedBy: slowedMinutes(instance, interval),
+  };
+}
+
+/** Check-ins' file, plus how the agent stands in the project picked on the page. */
+export function useCheckInsEditor(
+  agent: AgentPayload,
+  workspace: string | null,
+  payload: AgentHeartbeatPayload,
+  readOnly: boolean
+) {
+  const document = useCheckInsDocument(agent, workspace, payload);
 
   const instances = useAgentInstances().filter(item => item.agent_name === agent.name);
   const [placeId, setPlaceId] = useState<string | null>(null);
@@ -106,7 +140,7 @@ export function useCheckInsEditor(
   const floor = floorStop(payload.config_provenance?.subset.min_interval);
   const settings = { ...document.form, stop: Math.max(document.form.stop, floor) };
   const interval = HOW_OFTEN[settings.stop]!.minutes;
-  const standing = instance ? checkInStanding(instance, interval) : "off";
+  const facts = instanceFacts(instance, interval);
   const nowHour = hourInZone(now, settings.timezone);
   const scheduled =
     document.changes === 0 && !fresh && instance?.next_wake_at
@@ -136,16 +170,9 @@ export function useCheckInsEditor(
     instance,
     places: instances,
     setPlace: setPlaceId,
-    standing,
+    ...facts,
     nowhere: instance === null,
-    /** Never checked in and still off: the page leads with turning it on. */
-    never: instance !== null && standing === "off" && !instance.last_wake_at,
-    on: instance?.checks_enabled ?? false,
-    paused: standing === "paused" || standing === "failed",
-    pauseCopy: instance ? agentPauseCopy(instance) || undefined : undefined,
-    resumeBlocked: instance ? agentInstanceResumeBlocked(instance) : false,
-    failedInARow: instance?.failure_streak ?? 0,
-    slowedBy: instance ? slowedMinutes(instance, interval) : null,
+    paused: facts.standing === "paused" || facts.standing === "failed",
     next: scheduled ?? previewNextCheckIn(settings, nowHour, fresh),
     activity: checkIns === null ? null : checkInActivity(checkIns, now),
     tryCheck,

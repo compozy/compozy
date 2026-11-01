@@ -172,21 +172,50 @@ function StartedBy({ row }: { row: ActivityRow }) {
   );
 }
 
+/** The action a log row records: its icon, its name and the exact detail. */
+export function ActivityActionCell({
+  icon: Icon,
+  action,
+  detail,
+}: {
+  icon: LucideIcon;
+  action: string;
+  detail: string;
+}) {
+  return (
+    <TableCell>
+      <span className="flex min-w-0 items-center gap-2.5">
+        <Icon aria-hidden="true" className="size-4 shrink-0 text-subtle" />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-body text-fg">{action}</span>
+          <span className="truncate font-mono text-mono-id text-subtle">{detail}</span>
+        </span>
+      </span>
+    </TableCell>
+  );
+}
+
+export function ActivityLogHeader() {
+  return (
+    <TableHeader>
+      <TableRow>
+        <TableHead>When</TableHead>
+        <TableHead>What</TableHead>
+        <TableHead>Agent</TableHead>
+        <TableHead>Started by</TableHead>
+        <TableHead className="text-right">Result</TableHead>
+      </TableRow>
+    </TableHeader>
+  );
+}
+
 function Row({ row, agent }: { row: ActivityRow; agent: ActivityAgentMark }) {
   const Icon = ACTION_ICON[row.action] ?? SquareTerminal;
   const result = RESULT[row.result];
   return (
     <TableRow>
       <TableCell className="w-16 font-mono text-mono-id text-subtle">{row.when}</TableCell>
-      <TableCell>
-        <span className="flex min-w-0 items-center gap-2.5">
-          <Icon aria-hidden="true" className="size-4 shrink-0 text-subtle" />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate text-body text-fg">{row.action}</span>
-            <span className="truncate font-mono text-mono-id text-subtle">{row.detail}</span>
-          </span>
-        </span>
-      </TableCell>
+      <ActivityActionCell action={row.action} detail={row.detail} icon={Icon} />
       <TableCell>
         <span className="inline-flex items-center gap-2">
           {agent.avatar}
@@ -217,15 +246,7 @@ function Log({
   return (
     <Panel bodyClassName="p-0">
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>When</TableHead>
-            <TableHead>What</TableHead>
-            <TableHead>Agent</TableHead>
-            <TableHead>Started by</TableHead>
-            <TableHead className="text-right">Result</TableHead>
-          </TableRow>
-        </TableHeader>
+        <ActivityLogHeader />
         <TableBody>
           {[...byDay].map(([day, members]) => (
             <Fragment key={day}>

@@ -144,6 +144,38 @@ function TryResult({
   );
 }
 
+function stoppedReason({ standing, failedInARow, pauseCopy, instance }: CheckInsEditorModel) {
+  if (standing === "failed") {
+    const count = failedInARow > 0 ? `${failedInARow} check-ins` : "Too many check-ins";
+    return `${count} in a row failed, so it stopped trying.`;
+  }
+  const manual = "You paused it. It waits until you start it again.";
+  return instance?.pause_reason === "manual" ? manual : (pauseCopy ?? manual);
+}
+
+function StoppedStatement({ model }: { model: CheckInsEditorModel }) {
+  const failed = model.standing === "failed";
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-display-2xl font-medium text-fg">
+          {failed ? "Stopped" : "Paused"}
+        </span>
+        <span className="text-small-body text-muted-foreground">{stoppedReason(model)}</span>
+      </div>
+      <Button
+        className="self-start"
+        disabled={model.resumeBlocked}
+        onClick={model.resume}
+        size="sm"
+        type="button"
+      >
+        {failed ? "Start again" : "Resume"}
+      </Button>
+    </div>
+  );
+}
+
 function StandingStatement({
   model,
   next,
@@ -151,36 +183,8 @@ function StandingStatement({
   model: CheckInsEditorModel;
   next: NextCheckIn | null;
 }) {
-  const { standing, pauseCopy, resumeBlocked, failedInARow } = model;
-  if (standing === "paused" || standing === "failed") {
-    const failed = standing === "failed";
-    const count = failedInARow > 0 ? `${failedInARow} check-ins` : "Too many check-ins";
-    const manual = "You paused it. It waits until you start it again.";
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-display-2xl font-medium text-fg">
-            {failed ? "Stopped" : "Paused"}
-          </span>
-          <span className="text-small-body text-muted-foreground">
-            {failed
-              ? `${count} in a row failed, so it stopped trying.`
-              : model.instance?.pause_reason === "manual"
-                ? manual
-                : (pauseCopy ?? manual)}
-          </span>
-        </div>
-        <Button
-          className="self-start"
-          disabled={resumeBlocked}
-          onClick={model.resume}
-          size="sm"
-          type="button"
-        >
-          {failed ? "Start again" : "Resume"}
-        </Button>
-      </div>
-    );
+  if (model.standing === "paused" || model.standing === "failed") {
+    return <StoppedStatement model={model} />;
   }
   return (
     <div className="flex flex-col gap-0.5">

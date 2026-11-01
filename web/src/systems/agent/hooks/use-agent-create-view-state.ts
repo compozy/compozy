@@ -33,6 +33,29 @@ export function agentCreateNameIssue(
   return { kind: "taken", suggestion: `${name || slug} ${Date.now()}` };
 }
 
+function hasEntries(draft: AgentCreateDialogDraft) {
+  return draft.displayName !== "" || draft.description !== "" || draft.prompt !== "";
+}
+
+/** A field speaks up only once the person has touched it. */
+function shownCreateErrors(
+  draft: AgentCreateDialogDraft,
+  fields: AgentCreateValidation["fields"],
+  shownProviderError: boolean
+) {
+  return {
+    scope: (fields as Record<string, string | undefined>).scope,
+    name: agentCreateSlug(draft).length > 0 ? fields.name : undefined,
+    categoryPath: draft.categoryPath.trim().length > 0 ? fields.categoryPath : undefined,
+    provider: shownProviderError ? fields.provider : undefined,
+    reasoningEffort: draft.reasoningEffort !== "" ? fields.reasoningEffort : undefined,
+    prompt: draft.prompt.trim().length > 0 ? fields.prompt : undefined,
+    tools: draft.tools.length > 0 ? fields.tools : undefined,
+    toolsets: draft.toolsets.length > 0 ? fields.toolsets : undefined,
+    denyTools: draft.denyTools.length > 0 ? fields.denyTools : undefined,
+  } as Record<string, string | undefined>;
+}
+
 interface AgentCreateViewStateArgs {
   draft: AgentCreateDialogDraft;
   providerOptions: readonly RuntimeProviderOption[];
@@ -67,12 +90,10 @@ export function useAgentCreateViewState({
   const issue = agentCreateNameIssue(draft, takenNames);
   const provider = providerOptions.find(option => option.id === draft.provider);
   const shownProviderError =
-    providersError ||
-    providersLoading ||
+    Boolean(providersError || providersLoading) ||
     providerOptions.length === 0 ||
     draft.provider.trim().length > 0;
-  const dirty =
-    !startFailure && (draft.displayName !== "" || draft.description !== "" || draft.prompt !== "");
+  const dirty = !startFailure && hasEntries(draft);
   const dismiss = () => {
     if (isSubmitting) return;
     setAdvancedOpen(false);
@@ -96,16 +117,6 @@ export function useAgentCreateViewState({
     setAdvancedOpen,
     issue,
     signedOut: provider?.needs_auth ? provider.name : null,
-    errors: {
-      scope: (fields as Record<string, string | undefined>).scope,
-      name: agentCreateSlug(draft).length > 0 ? fields.name : undefined,
-      categoryPath: draft.categoryPath.trim().length > 0 ? fields.categoryPath : undefined,
-      provider: shownProviderError ? fields.provider : undefined,
-      reasoningEffort: draft.reasoningEffort !== "" ? fields.reasoningEffort : undefined,
-      prompt: draft.prompt.trim().length > 0 ? fields.prompt : undefined,
-      tools: draft.tools.length > 0 ? fields.tools : undefined,
-      toolsets: draft.toolsets.length > 0 ? fields.toolsets : undefined,
-      denyTools: draft.denyTools.length > 0 ? fields.denyTools : undefined,
-    } as Record<string, string | undefined>,
+    errors: shownCreateErrors(draft, fields, shownProviderError),
   };
 }

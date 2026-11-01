@@ -1,4 +1,5 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import type { ReactNode } from "react";
 
 import { GENERAL, TRIAGE } from "../stays-on-agents-shared/fixtures";
 import { SessionsWindow } from "../stays-on-agents-shared/session-frame";
@@ -97,102 +98,83 @@ function DeletedAgentSession({ notify = false }: { notify?: boolean }) {
   );
 }
 
+const STATE_VIEWS: Record<string, ReactNode> = {
+  conversation: <MainSession state="working" />,
+  "proposal-one": (
+    <MainSession sent="Unblock the token migration">
+      <ShoulderTap
+        agent={TRIAGE}
+        ask=""
+        choices={[]}
+        chosen="Unblock the token migration"
+        when="23:30"
+      />
+    </MainSession>
+  ),
+  away: (
+    <MainSession pending={1} state="needs-you">
+      <AwayDigest />
+      <Proposal when="08:02" />
+    </MainSession>
+  ),
+  failure: (
+    <MainSession state="failed">
+      <FailureReport />
+    </MainSession>
+  ),
+  approval: (
+    <MainSession above={<ApprovalDock />} pending={2} state="needs-you">
+      <ApprovalsWaiting />
+    </MainSession>
+  ),
+  "expired-approval": (
+    <MainSession>
+      <ExpiredApproval />
+    </MainSession>
+  ),
+  "provider-ended": (
+    <MainSession>
+      <ProviderEnded />
+    </MainSession>
+  ),
+  interrupted: (
+    <MainSession>
+      <InterruptedReport />
+    </MainSession>
+  ),
+  rotation: <MainSession history={<RotatedMarker />} />,
+  "rotation-failed": (
+    <MainSession>
+      <RotationFailedReport />
+    </MainSession>
+  ),
+  "rotation-deferred": (
+    <MainSession>
+      <RotationDeferredMarker />
+    </MainSession>
+  ),
+  superseded: <MainSession readOnly={<SupersededNotice />} />,
+  "maybe-not-received": (
+    <MainSession state="needs-you">
+      <Proposal footnote="This may not have reached Triage Lead. If you picked one earlier, check its reply first." />
+    </MainSession>
+  ),
+  "deleted-agent": <DeletedAgentSession />,
+  "old-notification": <DeletedAgentSession notify />,
+  "mention-menu": <MainSession composer={<MentionComposer />} />,
+  "mention-unresolved": <MainSession composer={<UnresolvedComposer />} />,
+  audit: <ActivityPage initial="unattended" />,
+  "audit-all": <ActivityPage initial="all" />,
+  "audit-unknown": <ActivityPage initial="all" legacy />,
+  "audit-empty": <ActivityPage empty initial="unattended" />,
+};
+
 export default function StaysOnReportsDraft({ state }: PrototypeProps) {
-  switch (state) {
-    case "conversation":
-      return <MainSession state="working" />;
-    case "proposal-one":
-      return (
-        <MainSession sent="Unblock the token migration">
-          <ShoulderTap
-            agent={TRIAGE}
-            ask=""
-            choices={[]}
-            chosen="Unblock the token migration"
-            when="23:30"
-          />
-        </MainSession>
-      );
-    case "away":
-      return (
-        <MainSession pending={1} state="needs-you">
-          <AwayDigest />
-          <Proposal when="08:02" />
-        </MainSession>
-      );
-    case "failure":
-      return (
-        <MainSession state="failed">
-          <FailureReport />
-        </MainSession>
-      );
-    case "approval":
-      return (
-        <MainSession above={<ApprovalDock />} pending={2} state="needs-you">
-          <ApprovalsWaiting />
-        </MainSession>
-      );
-    case "expired-approval":
-      return (
-        <MainSession>
-          <ExpiredApproval />
-        </MainSession>
-      );
-    case "provider-ended":
-      return (
-        <MainSession>
-          <ProviderEnded />
-        </MainSession>
-      );
-    case "interrupted":
-      return (
-        <MainSession>
-          <InterruptedReport />
-        </MainSession>
-      );
-    case "rotation":
-      return <MainSession history={<RotatedMarker />} />;
-    case "rotation-failed":
-      return (
-        <MainSession>
-          <RotationFailedReport />
-        </MainSession>
-      );
-    case "rotation-deferred":
-      return (
-        <MainSession>
-          <RotationDeferredMarker />
-        </MainSession>
-      );
-    case "superseded":
-      return <MainSession readOnly={<SupersededNotice />} />;
-    case "maybe-not-received":
-      return (
-        <MainSession state="needs-you">
-          <Proposal footnote="This may not have reached Triage Lead. If you picked one earlier, check its reply first." />
-        </MainSession>
-      );
-    case "deleted-agent":
-      return <DeletedAgentSession />;
-    case "old-notification":
-      return <DeletedAgentSession notify />;
-    case "mention-menu":
-      return <MainSession composer={<MentionComposer />} />;
-    case "mention-unresolved":
-      return <MainSession composer={<UnresolvedComposer />} />;
-    case "audit":
-      return <ActivityPage initial="unattended" />;
-    case "audit-all":
-      return <ActivityPage initial="all" />;
-    case "audit-unknown":
-      return <ActivityPage initial="all" legacy />;
-    case "audit-empty":
-      return <ActivityPage empty initial="unattended" />;
-    default:
-      return (
-        <MainSession state="needs-you">
-          <Proposal />
-        </MainSession>
-      );
-  }
+  return (
+    STATE_VIEWS[state] ?? (
+      <MainSession state="needs-you">
+        <Proposal />
+      </MainSession>
+    )
+  );
 }

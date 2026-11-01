@@ -66,7 +66,10 @@ export function useEditorDocument<TForm>({
         store.trigger.saveFailed({ problem: invalid });
         return;
       }
-      store.trigger.saved({ snapshot: await write(source, digest) });
+      store.trigger.saved({
+        snapshot: await write(source, digest),
+        submitted: { form: current.form, raw: current.raw },
+      });
       toast.message(current.conflict ? "Kept your version" : savedCopy);
     } catch (error) {
       if (!isAgentDigestConflict(error)) {

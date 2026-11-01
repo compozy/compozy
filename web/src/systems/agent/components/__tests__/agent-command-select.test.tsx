@@ -32,6 +32,21 @@ describe("AgentCommandSelect", () => {
     expect(trigger).toHaveTextContent("claude");
   });
 
+  it("Should keep the agent's name and provider apart for screen readers", () => {
+    render(
+      <UIProvider>
+        <AgentCommandSelect
+          agents={[makeAgent({ name: "writer", provider: "claude" })]}
+          onChange={vi.fn()}
+          triggerTestId="trigger"
+          value="writer"
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("trigger")).toHaveTextContent("Writer · claude");
+  });
+
   it("Should display the formatted category label in the trigger when an agent has category_path", () => {
     render(
       <UIProvider reducedMotion="never" skipAnimations>

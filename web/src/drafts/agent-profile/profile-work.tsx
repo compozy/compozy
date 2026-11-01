@@ -2,46 +2,14 @@
 import { protoHref } from "@compozy/proto";
 import { Check } from "@compozy/ui/icons";
 
-import { Panel, Pill, Section, Timeline, TimelineEvent, cn } from "@compozy/ui";
+import { Panel, Section, Timeline, TimelineEvent } from "@compozy/ui";
 
-import {
-  HOME_RUN_ROW_CLASS,
-  HOME_RUN_SUBTITLE_CLASS,
-  HOME_RUN_TITLE_CLASS,
-} from "@/systems/dashboard/components/home-zone-shape";
+import { FindingRow } from "@/systems/agent/components/agent-profile/agent-profile-work";
 
-import type { Finding, ProfileData, WorkItem } from "./profile-fixtures";
+import type { ProfileData, WorkItem } from "./profile-fixtures";
 
 function openReport() {
   window.location.assign(protoHref("stays-on-reports", "proposal"));
-}
-
-function FindingRow({ finding }: { finding: Finding }) {
-  return (
-    <button
-      aria-label={`Open: ${finding.title}`}
-      className={cn(
-        HOME_RUN_ROW_CLASS,
-        "w-full text-left transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none"
-      )}
-      onClick={openReport}
-      type="button"
-    >
-      <span className="min-w-0">
-        <span className={HOME_RUN_TITLE_CLASS}>{finding.title}</span>
-        <span className={HOME_RUN_SUBTITLE_CLASS}>
-          <span className="truncate">
-            {finding.scope} · {finding.when}
-          </span>
-        </span>
-      </span>
-      {finding.waiting ? (
-        <Pill size="sm" tone="brand">
-          Your call
-        </Pill>
-      ) : null}
-    </button>
-  );
 }
 
 export function FindingsPanel({ data }: { data: ProfileData }) {
@@ -51,7 +19,7 @@ export function FindingsPanel({ data }: { data: ProfileData }) {
       <Panel bodyClassName="p-0" className="overflow-hidden">
         <div className="divide-y divide-line-soft">
           {data.findings.map(finding => (
-            <FindingRow finding={finding} key={finding.id} />
+            <FindingRow finding={finding} key={finding.id} onOpen={openReport} />
           ))}
         </div>
       </Panel>

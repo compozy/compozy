@@ -1,5 +1,5 @@
 /** S6: what the agent does, in its own words first; tone and hard limits are optional additions. */
-import { Ban, Info, Plus, X } from "@compozy/ui/icons";
+import { Info } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -8,15 +8,12 @@ import {
   Button,
   Eyebrow,
   Input,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
   MarkdownEditor,
-  Pill,
   PillGroup,
   toast,
 } from "@compozy/ui";
+
+import { NeverCard } from "@/systems/agent/components/agent-editors/what-it-does-cards";
 
 import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
 import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
@@ -99,13 +96,6 @@ const TONES: readonly { value: Tone; label: string; sample: string }[] = [
       "The token migration is currently blocked. Ana is able to resolve this. Shall I contact her?",
   },
   { value: "custom", label: "Your own", sample: "" },
-];
-
-const NEVER_IDEAS = [
-  "Merge anything on its own",
-  "Delete files",
-  "Message people outside the team",
-  "Spend money",
 ];
 
 const ADVANCED_ONLY_FILE = `---
@@ -209,76 +199,6 @@ function SoundCard({
   );
 }
 
-function NeverCard({
-  items,
-  onChange,
-}: {
-  items: readonly string[];
-  onChange: (next: readonly string[]) => void;
-}) {
-  const [text, setText] = useState("");
-  const add = (value: string) => {
-    const next = value.trim();
-    if (next && !items.includes(next)) onChange([...items, next]);
-    setText("");
-  };
-  const ideas = NEVER_IDEAS.filter(idea => !items.includes(idea)).slice(0, 3);
-  return (
-    <EditorCard className="gap-4">
-      <h2 className="text-item-title font-medium text-fg">Things it must never do</h2>
-      {items.length > 0 ? (
-        <ul className="flex flex-col divide-y divide-line-soft">
-          {items.map(item => (
-            <li className="flex min-h-9 items-center gap-2 py-1" key={item}>
-              <Ban aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 text-small-body text-fg">{item}</span>
-              <Button
-                aria-label={`Remove ${item}`}
-                onClick={() => onChange(items.filter(other => other !== item))}
-                size="icon-xs"
-                type="button"
-                variant="quiet"
-              >
-                <X aria-hidden="true" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          add(text);
-        }}
-      >
-        <InputGroup>
-          <InputGroupInput
-            aria-label="Add something it must never do"
-            onChange={event => setText(event.target.value)}
-            placeholder="Add another"
-            value={text}
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton aria-label="Add" disabled={!text.trim()} size="icon-xs" type="submit">
-              <Plus aria-hidden="true" />
-            </InputGroupButton>
-          </InputGroupAddon>
-        </InputGroup>
-      </form>
-      {ideas.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {ideas.map(idea => (
-            <Pill key={idea} render={<button onClick={() => add(idea)} type="button" />} size="sm">
-              <Plus aria-hidden="true" />
-              {idea}
-            </Pill>
-          ))}
-        </div>
-      ) : null}
-    </EditorCard>
-  );
-}
-
 export function WhatItDoesEditor({
   agent,
   variant,
@@ -370,7 +290,11 @@ export function WhatItDoesEditor({
             </div>
             <div className="flex min-w-0 flex-col gap-4">
               <SoundCard agent={agent} draft={draft} onChange={patch} />
-              <NeverCard items={draft.never} onChange={never => patch({ never })} />
+              <NeverCard
+                disabled={false}
+                items={draft.never}
+                onChange={never => patch({ never })}
+              />
             </div>
           </div>
         )}

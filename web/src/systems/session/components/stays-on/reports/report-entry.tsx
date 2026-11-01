@@ -117,6 +117,45 @@ export function ShoulderTap({
   );
 }
 
+/** The anatomy of a notice, with the face it speaks through left to the caller. */
+export function NoticeCard({
+  face,
+  when,
+  title,
+  body,
+  detail,
+  actions,
+  className,
+}: {
+  face: ReactNode;
+  when: string;
+  title: string;
+  body: ReactNode;
+  detail?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <article
+      aria-label={title}
+      className={cn("flex gap-4 rounded-lg bg-card p-4 shadow-card", className)}
+    >
+      {face}
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <div className="flex flex-col gap-1">
+          <p className="flex items-baseline justify-between gap-3">
+            <span className="text-item-title font-medium text-fg-strong">{title}</span>
+            <span className="shrink-0 text-eyebrow text-subtle tabular-nums">{when}</span>
+          </p>
+          <p className="text-body text-muted-foreground">{body}</p>
+        </div>
+        {detail}
+        {actions ? <div className="flex flex-wrap gap-2 pt-0.5">{actions}</div> : null}
+      </div>
+    </article>
+  );
+}
+
 /** Something happened that you should know about, and what you can do about it. */
 export function Notice({
   agent,
@@ -139,23 +178,15 @@ export function Notice({
   className?: string;
 }) {
   return (
-    <article
-      aria-label={title}
-      className={cn("flex gap-4 rounded-lg bg-card p-4 shadow-card", className)}
-    >
-      <Face agent={agent} size={36} state={state} />
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <div className="flex flex-col gap-1">
-          <p className="flex items-baseline justify-between gap-3">
-            <span className="text-item-title font-medium text-fg-strong">{title}</span>
-            <span className="shrink-0 text-eyebrow text-subtle tabular-nums">{when}</span>
-          </p>
-          <p className="text-body text-muted-foreground">{body}</p>
-        </div>
-        {detail}
-        {actions ? <div className="flex flex-wrap gap-2 pt-0.5">{actions}</div> : null}
-      </div>
-    </article>
+    <NoticeCard
+      actions={actions}
+      body={body}
+      className={className}
+      detail={detail}
+      face={<Face agent={agent} size={36} state={state} />}
+      title={title}
+      when={when}
+    />
   );
 }
 

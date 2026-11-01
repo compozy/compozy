@@ -10,7 +10,7 @@ import {
   MANY_ON_DEMAND,
   MANY_STAYS_ON,
 } from "../stays-on-agents-shared/agents-fixtures";
-import { AgentsPage } from "../stays-on-agents-shared/agents-page";
+import { AgentsPage, type AgentsPageProps } from "../stays-on-agents-shared/agents-page";
 import { STAYS_ON_CROWD } from "./team-crowds";
 
 export const meta = definePrototype({
@@ -51,70 +51,50 @@ const CROWD = { onDemand: MANY_ON_DEMAND, staysOn: MANY_STAYS_ON };
 const STAYS_ON_ONLY_QUERY = "spec task";
 const COLUMNS = { layout: "columns" } as const;
 
+const ADDING = "triage";
+
+/** Every state is a set of props on one page; the narrow window adds its own frame below. */
+const STATE_PROPS: Record<string, AgentsPageProps> = {
+  rows: { ...TEAM, initialView: "rows" },
+  "no-stays-on": { onDemand: LISTED_ON_DEMAND, staysOn: [] },
+  "same-slug": { onDemand: LISTED_SAME_SLUG, staysOn: LISTED_STAYS_ON },
+  invalid: { onDemand: LISTED_INVALID, staysOn: LISTED_STAYS_ON },
+  "empty-filter": { ...TEAM, query: "kubernetes" },
+  paused: { onDemand: LISTED_ON_DEMAND, staysOn: LISTED_PAUSED },
+  "needs-you": { onDemand: LISTED_ON_DEMAND, staysOn: LISTED_NEEDS_YOU },
+  many: CROWD,
+  "many-rows": { ...CROWD, initialView: "rows" },
+  filtered: {
+    ...CROWD,
+    chips: [{ field: "project", operator: "is", values: ["billing-api"] }],
+  },
+  "add-scope": { ...TEAM, adding: { agent: ADDING, mode: "scopes" } },
+  "add-scope-none": { ...TEAM, adding: { agent: ADDING, mode: "none" } },
+  "add-scope-cap": { ...TEAM, adding: { agent: ADDING, mode: "cap" } },
+  "add-scope-auth": { ...TEAM, adding: { agent: ADDING, mode: "auth" } },
+  columns: { ...TEAM, ...COLUMNS },
+  "columns-many": { ...CROWD, ...COLUMNS },
+  "columns-full-stays-on": {
+    ...COLUMNS,
+    onDemand: LISTED_ON_DEMAND.slice(0, 1),
+    staysOn: STAYS_ON_CROWD,
+  },
+  "columns-full-on-demand": {
+    ...COLUMNS,
+    onDemand: MANY_ON_DEMAND,
+    staysOn: LISTED_STAYS_ON.slice(0, 1),
+  },
+  "columns-no-stays-on": { ...COLUMNS, onDemand: LISTED_ON_DEMAND, staysOn: [] },
+  "columns-filtered": { ...TEAM, ...COLUMNS, query: STAYS_ON_ONLY_QUERY },
+};
+
 export default function StaysOnAgentsListDraft({ state }: PrototypeProps) {
-  switch (state) {
-    case "rows":
-      return <AgentsPage {...TEAM} initialView="rows" />;
-    case "no-stays-on":
-      return <AgentsPage onDemand={LISTED_ON_DEMAND} staysOn={[]} />;
-    case "same-slug":
-      return <AgentsPage onDemand={LISTED_SAME_SLUG} staysOn={LISTED_STAYS_ON} />;
-    case "invalid":
-      return <AgentsPage onDemand={LISTED_INVALID} staysOn={LISTED_STAYS_ON} />;
-    case "empty-filter":
-      return <AgentsPage {...TEAM} query="kubernetes" />;
-    case "paused":
-      return <AgentsPage onDemand={LISTED_ON_DEMAND} staysOn={LISTED_PAUSED} />;
-    case "needs-you":
-      return <AgentsPage onDemand={LISTED_ON_DEMAND} staysOn={LISTED_NEEDS_YOU} />;
-    case "many":
-      return <AgentsPage {...CROWD} />;
-    case "many-rows":
-      return <AgentsPage {...CROWD} initialView="rows" />;
-    case "filtered":
-      return (
-        <AgentsPage
-          {...CROWD}
-          chips={[{ field: "project", operator: "is", values: ["billing-api"] }]}
-        />
-      );
-    case "add-scope":
-    case "add-scope-none":
-    case "add-scope-cap":
-    case "add-scope-auth": {
-      const mode = (
-        {
-          "add-scope": "scopes",
-          "add-scope-none": "none",
-          "add-scope-cap": "cap",
-          "add-scope-auth": "auth",
-        } as const
-      )[state];
-      return <AgentsPage {...TEAM} adding={{ agent: "triage", mode }} />;
-    }
-    case "columns":
-      return <AgentsPage {...TEAM} {...COLUMNS} />;
-    case "columns-many":
-      return <AgentsPage {...CROWD} {...COLUMNS} />;
-    case "columns-full-stays-on":
-      return (
-        <AgentsPage {...COLUMNS} onDemand={LISTED_ON_DEMAND.slice(0, 1)} staysOn={STAYS_ON_CROWD} />
-      );
-    case "columns-full-on-demand":
-      return (
-        <AgentsPage {...COLUMNS} onDemand={MANY_ON_DEMAND} staysOn={LISTED_STAYS_ON.slice(0, 1)} />
-      );
-    case "columns-no-stays-on":
-      return <AgentsPage {...COLUMNS} onDemand={LISTED_ON_DEMAND} staysOn={[]} />;
-    case "columns-filtered":
-      return <AgentsPage {...TEAM} {...COLUMNS} query={STAYS_ON_ONLY_QUERY} />;
-    case "columns-narrow":
-      return (
-        <div className="mx-auto w-180 max-w-full border-x border-line">
-          <AgentsPage {...CROWD} {...COLUMNS} />
-        </div>
-      );
-    default:
-      return <AgentsPage {...TEAM} />;
+  if (state === "columns-narrow") {
+    return (
+      <div className="mx-auto w-180 max-w-full border-x border-line">
+        <AgentsPage {...CROWD} {...COLUMNS} />
+      </div>
+    );
   }
+  return <AgentsPage {...(STATE_PROPS[state] ?? TEAM)} />;
 }

@@ -72,25 +72,44 @@ export function useSessionListGroups({
   const byProfile = grouped && groupBy === "profile";
   const profiles = useProfiles(byProfile);
   const instances = useAgentInstances();
-  const groups =
-    !grouped || scope === null
-      ? []
-      : groupBy === "project"
-        ? withInstanceProjectGroups(
-            projectSessionGroups(facets.data, { workspaces, lens }),
-            // A project whose only resident is an agent still gets its group.
-            shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
-            { workspaces, lens, ready: facets.data !== undefined }
-          )
-        : profileSessionGroups(profiles.data ? facets.data : undefined, {
-            profiles: profileOwners(profiles.data),
-            scope,
-          });
+  const groups = resolveGroups(grouped, {
+    groupBy,
+    scope,
+    lens,
+    workspaces,
+    facets: facets.data,
+    // A project whose only resident is an agent still gets its group.
+    residents: shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
+    profiles: profiles.data,
+  });
   return {
     groups,
     loading: grouped && (facets.isLoading || (byProfile && profiles.isLoading)),
     error: groupsFailure(grouped, facets, byProfile ? profiles : null),
   };
+}
+
+function resolveGroups(
+  grouped: boolean,
+  input: Pick<SessionListGroupsInput, "groupBy" | "scope" | "lens" | "workspaces"> & {
+    facets: Parameters<typeof projectSessionGroups>[0] & Parameters<typeof profileSessionGroups>[0];
+    residents: readonly string[];
+    profiles: ReturnType<typeof useProfiles>["data"];
+  }
+): SessionListGroupSpec[] {
+  const { groupBy, scope, lens, workspaces, facets, residents, profiles } = input;
+  if (!grouped || scope === null) return [];
+  if (groupBy === "project") {
+    return withInstanceProjectGroups(
+      projectSessionGroups(facets, { workspaces, lens }),
+      residents,
+      { workspaces, lens, ready: facets !== undefined }
+    );
+  }
+  return profileSessionGroups(profiles ? facets : undefined, {
+    profiles: profileOwners(profiles),
+    scope,
+  });
 }
 
 /**

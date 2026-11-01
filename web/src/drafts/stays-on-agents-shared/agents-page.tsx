@@ -64,6 +64,14 @@ const FOCUS: { value: TeamFocus; label: string }[] = [
 const FIELDS = buildTeamFilterFields(PROJECTS);
 const FILTER_ID = () => `team-filter-${Math.random().toString(36).slice(2, 8)}`;
 
+function focusItemsFor(everyone: readonly ListedAgent[]) {
+  return FOCUS.flatMap(item => {
+    const count = everyone.filter(agent => matchesFocus(agent, item.value)).length;
+    if (item.value === "all") return [item];
+    return count > 0 ? [{ ...item, badge: count }] : [];
+  });
+}
+
 export interface AgentsPageProps {
   staysOn: readonly ListedAgent[];
   onDemand: readonly ListedAgent[];
@@ -77,6 +85,105 @@ export interface AgentsPageProps {
   onCreate?: () => void;
   /** Holds one stays-on card's `+` picker open for review. */
   adding?: AddScopeState;
+}
+
+function AgentsToolbar({
+  draft,
+  onDraft,
+  chips,
+  onChips,
+  focusItems,
+  focus,
+  onFocus,
+  viewToggle,
+}: {
+  draft: string;
+  onDraft: (next: string) => void;
+  chips: Filter<string>[];
+  onChips: (next: Filter<string>[]) => void;
+  focusItems: readonly { value: TeamFocus; label: string; badge?: number }[];
+  focus: TeamFocus;
+  onFocus: (next: TeamFocus) => void;
+  viewToggle: ReactNode;
+}) {
+  return (
+    <ListingToolbar>
+      <ListingToolbar.Leading>
+        <SearchInput
+          aria-label="Search agents"
+          kbd="/"
+          onChange={onDraft}
+          placeholder="Search agents"
+          value={draft}
+        />
+        <ListingToolbar.Filters>
+          <FiltersWithSearch<string>
+            allowMultiple={false}
+            fields={FIELDS}
+            filters={chips}
+            onChange={onChips}
+            size="sm"
+            trigger={
+              <Button aria-label="Add filter" size="sm" type="button" variant="quiet">
+                <ListFilter aria-hidden="true" />
+                Filter
+              </Button>
+            }
+          />
+        </ListingToolbar.Filters>
+      </ListingToolbar.Leading>
+      <ListingToolbar.Trailing>
+        {focusItems.length > 1 ? (
+          <PillGroup items={focusItems} onChange={onFocus} size="sm" value={focus} />
+        ) : null}
+        {viewToggle}
+      </ListingToolbar.Trailing>
+    </ListingToolbar>
+  );
+}
+
+function NoAgentsMatch({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+      <Empty
+        action={
+          <Button onClick={onClear} size="sm" type="button" variant="ghost">
+            Clear filters
+          </Button>
+        }
+        description="Try a different search or clear the active filters."
+        icon={Users2}
+        title="No agents match"
+      />
+    </div>
+  );
+}
+
+function SwitchableTeam({
+  staysOn,
+  onDemand,
+  adding,
+  view,
+  welcome,
+}: {
+  staysOn: readonly ListedAgent[];
+  onDemand: readonly ListedAgent[];
+  adding?: AddScopeState;
+  view: ListingViewMode;
+  welcome: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-8">
+      {staysOn.length > 0 ? (
+        <TeamSection adding={adding} agents={staysOn} label="Stays on" view={view} />
+      ) : (
+        welcome
+      )}
+      {onDemand.length > 0 ? (
+        <TeamSection agents={onDemand} label="On demand" pageSize={12} view={view} />
+      ) : null}
+    </div>
+  );
 }
 
 /** The Agents window: a team to meet first, a catalog to search second. */
@@ -107,11 +214,7 @@ export function AgentsPage({
     setChips([]);
     setFocus("all");
   };
-  const focusItems = FOCUS.flatMap(item => {
-    const count = everyone.filter(agent => matchesFocus(agent, item.value)).length;
-    if (item.value === "all") return [item];
-    return count > 0 ? [{ ...item, badge: count }] : [];
-  });
+  const focusItems = focusItemsFor(everyone);
   const create = onCreate ?? (() => window.location.assign(protoHref("agent-create")));
   const topbar: TopbarSlotValue = {
     count: everyone.length,
@@ -122,78 +225,45 @@ export function AgentsPage({
       </Button>
     ),
     toolbar: (
-      <ListingToolbar>
-        <ListingToolbar.Leading>
-          <SearchInput
-            aria-label="Search agents"
-            kbd="/"
-            onChange={setDraft}
-            placeholder="Search agents"
-            value={draft}
-          />
-          <ListingToolbar.Filters>
-            <FiltersWithSearch<string>
-              allowMultiple={false}
-              fields={FIELDS}
-              filters={chips}
-              onChange={setChips}
-              size="sm"
-              trigger={
-                <Button aria-label="Add filter" size="sm" type="button" variant="quiet">
-                  <ListFilter aria-hidden="true" />
-                  Filter
-                </Button>
-              }
-            />
-          </ListingToolbar.Filters>
-        </ListingToolbar.Leading>
-        <ListingToolbar.Trailing>
-          {focusItems.length > 1 ? (
-            <PillGroup items={focusItems} onChange={setFocus} size="sm" value={focus} />
-          ) : null}
-          {layout === "switchable" ? (
+      <AgentsToolbar
+        chips={chips}
+        draft={draft}
+        focus={focus}
+        focusItems={focusItems}
+        onChips={setChips}
+        onDraft={setDraft}
+        onFocus={setFocus}
+        viewToggle={
+          layout === "switchable" ? (
             <ListingToolbar.ViewToggle onChange={setView} value={view} />
-          ) : null}
-        </ListingToolbar.Trailing>
-      </ListingToolbar>
+          ) : null
+        }
+      />
     ),
   };
   const nothing = shownStaysOn.length === 0 && shownOnDemand.length === 0;
   const unfiltered = draft === "" && chips.length === 0 && focus === "all";
+  const welcome = unfiltered ? <StaysOnWelcome onCreate={create} /> : null;
   return (
     <DraftShell app="agents" glyph={<Users2 />} overlay={overlay} title="Agents" topbar={topbar}>
       <ListingPage>
         {nothing ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-            <Empty
-              action={
-                <Button onClick={clear} size="sm" type="button" variant="ghost">
-                  Clear filters
-                </Button>
-              }
-              description="Try a different search or clear the active filters."
-              icon={Users2}
-              title="No agents match"
-            />
-          </div>
+          <NoAgentsMatch onClear={clear} />
         ) : layout === "columns" ? (
           <TeamColumns
             adding={adding}
             onDemand={shownOnDemand}
             staysOn={shownStaysOn}
-            welcome={unfiltered ? <StaysOnWelcome onCreate={create} /> : undefined}
+            welcome={welcome ?? undefined}
           />
         ) : (
-          <div className="flex flex-col gap-8">
-            {shownStaysOn.length > 0 ? (
-              <TeamSection adding={adding} agents={shownStaysOn} label="Stays on" view={view} />
-            ) : unfiltered ? (
-              <StaysOnWelcome onCreate={create} />
-            ) : null}
-            {shownOnDemand.length > 0 ? (
-              <TeamSection agents={shownOnDemand} label="On demand" pageSize={12} view={view} />
-            ) : null}
-          </div>
+          <SwitchableTeam
+            adding={adding}
+            onDemand={shownOnDemand}
+            staysOn={shownStaysOn}
+            view={view}
+            welcome={welcome}
+          />
         )}
       </ListingPage>
     </DraftShell>

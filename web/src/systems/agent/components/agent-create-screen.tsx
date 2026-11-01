@@ -100,33 +100,151 @@ function outcome(
   };
 }
 
+type AgentCreateView = ReturnType<typeof useAgentCreateViewState>;
+
+function createdAgentName(draft: AgentCreateDialogDraft) {
+  return draft.displayName.trim() || agentCreateSlug(draft);
+}
+
+function screenTitle(screen: AgentCreateScreenProps) {
+  if (screen.startFailure) return createdAgentName(screen.draft);
+  return screen.duplicateSourceName ? `Duplicate ${screen.duplicateSourceName}` : "New agent";
+}
+
+function AgentCreateMain({
+  screen,
+  view,
+}: {
+  screen: AgentCreateScreenProps;
+  view: AgentCreateView;
+}) {
+  const { draft, onDraftChange, startFailure, submitError, runtimeModels, providerOptions } =
+    screen;
+  const { issue, errors } = view;
+  return (
+    <div className="flex min-h-0 flex-col gap-7 overflow-y-auto px-8 py-7">
+      {startFailure ? (
+        <Alert data-testid="agent-create-start-failure" variant="destructive">
+          <CircleAlert aria-hidden="true" className="size-4" />
+          <AlertTitle>{createdAgentName(draft)} was created, but it couldn't start</AlertTitle>
+          <AlertDescription>Nothing was lost. You can try again from its page.</AlertDescription>
+        </Alert>
+      ) : null}
+      {submitError || errors.scope ? (
+        <Alert data-testid="agent-create-submit-error" variant="destructive">
+          <AlertDescription>{submitError ?? errors.scope}</AlertDescription>
+        </Alert>
+      ) : null}
+      {startFailure ? (
+        <>
+          <AgentCreateIdentityRead draft={draft} />
+          <AgentCreateInstructionsRead value={draft.prompt} />
+        </>
+      ) : (
+        <>
+          <AgentCreateIdentity
+            draft={draft}
+            issue={issue}
+            onChange={next => onDraftChange({ ...draft, ...next })}
+          />
+          <AgentCreateInstructions
+            draft={draft}
+            error={errors.prompt}
+            models={runtimeModels}
+            onChange={prompt => onDraftChange({ ...draft, prompt })}
+            providers={providerOptions}
+          />
+          <AgentCreateAdvanced
+            draft={draft}
+            errors={errors}
+            onDraftChange={onDraftChange}
+            onOpenChange={view.setAdvancedOpen}
+            open={view.showAdvanced}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function AgentCreateSide({
+  screen,
+  view,
+  blocked,
+}: {
+  screen: AgentCreateScreenProps;
+  view: AgentCreateView;
+  blocked: boolean;
+}) {
+  const { draft, startFailure, workspaces } = screen;
+  return (
+    <aside className="flex min-h-0 flex-col gap-6 overflow-y-auto bg-sunken p-6">
+      {startFailure ? (
+        <AgentCreateRunFacts draft={draft} workspaces={workspaces} />
+      ) : (
+        <AgentCreateRunSettings
+          instanceCapacity={screen.instanceCapacity}
+          draft={draft}
+          errors={view.errors}
+          modelCatalogError={screen.modelCatalogError}
+          modelCatalogLoading={screen.modelCatalogLoading}
+          modelCatalogRefreshing={screen.modelCatalogRefreshing}
+          onDraftChange={screen.onDraftChange}
+          onOpenProviderSettings={screen.onOpenProviderSettings}
+          onRefreshCatalog={screen.onRefreshCatalog}
+          providerOptions={screen.providerOptions}
+          providersLoading={screen.providersLoading}
+          runtimeModels={screen.runtimeModels}
+          signedOut={view.signedOut}
+          workspaces={workspaces}
+        />
+      )}
+      <div className="mt-auto flex flex-col gap-2 pt-2">
+        <Eyebrow>{startFailure ? "How it looks" : "How it will look"}</Eyebrow>
+        <AgentCreatePreview
+          draft={draft}
+          state={startFailure ? "failed" : undefined}
+          stateLabel={startFailure ? "Couldn't start" : blocked ? "Not working yet" : undefined}
+          workspaces={workspaces}
+        />
+      </div>
+    </aside>
+  );
+}
+
+function AgentCreateFooter({
+  screen,
+  view,
+  ready,
+  blocked,
+}: {
+  screen: AgentCreateScreenProps;
+  view: AgentCreateView;
+  ready: boolean;
+  blocked: boolean;
+}) {
+  const { draft, startFailure, isSubmitting, workspaceName } = screen;
+  const { primary, hint } = outcome(draft, blocked, isSubmitting, workspaceName);
+  return (
+    <EntityDialogFooter
+      cancelDisabled={isSubmitting}
+      cancelLabel={startFailure ? "Close" : "Cancel"}
+      cancelTestId="agent-create-cancel"
+      hint={startFailure ? undefined : hint}
+      isSaving={isSubmitting}
+      onCancel={view.close}
+      primaryDisabled={!startFailure && (isSubmitting || !ready)}
+      primaryLabel={startFailure ? "Open agent" : primary}
+      primaryTestId="submit-agent-create"
+      primaryType="submit"
+    />
+  );
+}
+
 /** S3: one screen for every agent, on the `xl` dialog. Agent edit stays on the agent's page. */
-export function AgentCreateScreen({
-  open,
-  onOpenChange,
-  draft,
-  onDraftChange,
-  onSubmit,
-  onRefreshCatalog,
-  onOpenProviderSettings,
-  onOpenCreatedAgent,
-  providerOptions,
-  providersLoading,
-  providersError,
-  runtimeModels,
-  modelCatalogLoading,
-  modelCatalogRefreshing,
-  modelCatalogError,
-  submitError,
-  startFailure = null,
-  isSubmitting,
-  hasActiveWorkspace,
-  workspaceName,
-  takenNames,
-  workspaces,
-  instanceCapacity,
-  duplicateSourceName = null,
-}: AgentCreateScreenProps) {
+export function AgentCreateScreen(screen: AgentCreateScreenProps) {
+  const { open, onOpenChange, draft, startFailure = null, isSubmitting } = screen;
+  const { hasActiveWorkspace, providerOptions, providersError, providersLoading } = screen;
   const validation = validateAgentCreateDraft(draft, {
     hasActiveWorkspace,
     providerOptions,
@@ -138,23 +256,16 @@ export function AgentCreateScreen({
     providerOptions,
     providersError,
     providersLoading,
-    takenNames,
+    takenNames: screen.takenNames,
     validation,
     startFailure,
     isSubmitting,
     onOpenChange,
-    onSubmit,
-    onOpenCreatedAgent,
+    onSubmit: screen.onSubmit,
+    onOpenCreatedAgent: screen.onOpenCreatedAgent,
   });
-  const { issue, signedOut, errors, close } = view;
-  const blocked = instanceCapacity.reached || signedOut !== null;
-  const { primary, hint } = outcome(draft, blocked, isSubmitting, workspaceName);
-
-  const title = startFailure
-    ? draft.displayName.trim() || agentCreateSlug(draft)
-    : duplicateSourceName
-      ? `Duplicate ${duplicateSourceName}`
-      : "New agent";
+  const { close } = view;
+  const blocked = screen.instanceCapacity.reached || view.signedOut !== null;
 
   return (
     <>
@@ -173,104 +284,18 @@ export function AgentCreateScreen({
             }
             icon={Bot}
             onClose={isSubmitting ? undefined : close}
-            title={title}
+            title={screenTitle(screen)}
           />
           <form className="contents" onSubmit={view.handleSubmit}>
             <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_23rem] max-[760px]:block max-[760px]:overflow-y-auto">
-              <div className="flex min-h-0 flex-col gap-7 overflow-y-auto px-8 py-7">
-                {startFailure ? (
-                  <Alert data-testid="agent-create-start-failure" variant="destructive">
-                    <CircleAlert aria-hidden="true" className="size-4" />
-                    <AlertTitle>
-                      {draft.displayName.trim() || agentCreateSlug(draft)} was created, but it
-                      couldn't start
-                    </AlertTitle>
-                    <AlertDescription>
-                      Nothing was lost. You can try again from its page.
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                {submitError || errors.scope ? (
-                  <Alert data-testid="agent-create-submit-error" variant="destructive">
-                    <AlertDescription>{submitError ?? errors.scope}</AlertDescription>
-                  </Alert>
-                ) : null}
-                {startFailure ? (
-                  <>
-                    <AgentCreateIdentityRead draft={draft} />
-                    <AgentCreateInstructionsRead value={draft.prompt} />
-                  </>
-                ) : (
-                  <>
-                    <AgentCreateIdentity
-                      draft={draft}
-                      issue={issue}
-                      onChange={next => onDraftChange({ ...draft, ...next })}
-                    />
-                    <AgentCreateInstructions
-                      draft={draft}
-                      error={errors.prompt}
-                      models={runtimeModels}
-                      onChange={prompt => onDraftChange({ ...draft, prompt })}
-                      providers={providerOptions}
-                    />
-                    <AgentCreateAdvanced
-                      draft={draft}
-                      errors={errors}
-                      onDraftChange={onDraftChange}
-                      onOpenChange={view.setAdvancedOpen}
-                      open={view.showAdvanced}
-                    />
-                  </>
-                )}
-              </div>
-              <aside className="flex min-h-0 flex-col gap-6 overflow-y-auto bg-sunken p-6">
-                {startFailure ? (
-                  <AgentCreateRunFacts draft={draft} workspaces={workspaces} />
-                ) : (
-                  <AgentCreateRunSettings
-                    instanceCapacity={instanceCapacity}
-                    draft={draft}
-                    errors={errors}
-                    modelCatalogError={modelCatalogError}
-                    modelCatalogLoading={modelCatalogLoading}
-                    modelCatalogRefreshing={modelCatalogRefreshing}
-                    onDraftChange={onDraftChange}
-                    onOpenProviderSettings={onOpenProviderSettings}
-                    onRefreshCatalog={onRefreshCatalog}
-                    providerOptions={providerOptions}
-                    providersLoading={providersLoading}
-                    runtimeModels={runtimeModels}
-                    signedOut={signedOut}
-                    workspaces={workspaces}
-                  />
-                )}
-                <div className="mt-auto flex flex-col gap-2 pt-2">
-                  <Eyebrow>{startFailure ? "How it looks" : "How it will look"}</Eyebrow>
-                  <AgentCreatePreview
-                    draft={draft}
-                    state={startFailure ? "failed" : undefined}
-                    stateLabel={
-                      startFailure ? "Couldn't start" : blocked ? "Not working yet" : undefined
-                    }
-                    workspaces={workspaces}
-                  />
-                </div>
-              </aside>
+              <AgentCreateMain screen={screen} view={view} />
+              <AgentCreateSide blocked={blocked} screen={screen} view={view} />
             </div>
-            <EntityDialogFooter
-              cancelDisabled={isSubmitting}
-              cancelLabel={startFailure ? "Close" : "Cancel"}
-              cancelTestId="agent-create-cancel"
-              hint={startFailure ? undefined : hint}
-              isSaving={isSubmitting}
-              onCancel={close}
-              primaryDisabled={
-                !startFailure && (isSubmitting || !validation.simpleValid || issue !== null)
-              }
-              primaryLabel={startFailure ? "Open agent" : primary}
-              primaryTestId="submit-agent-create"
-              primaryType="submit"
+            <AgentCreateFooter
+              blocked={blocked}
+              ready={validation.simpleValid && view.issue === null}
+              screen={screen}
+              view={view}
             />
           </form>
         </DialogContent>
