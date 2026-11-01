@@ -11,15 +11,9 @@ import (
 )
 
 func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bool) (*Status, error) {
-	item, err := s.store.Get(ctx, workspaceID, id)
-	if errors.Is(err, ErrNotFound) || item == nil {
-		return nil, ErrNotFound
-	}
+	item, err := s.statusTarget(ctx, workspaceID, id)
 	if err != nil {
-		return nil, fmt.Errorf("worktree: read status target: %w", err)
-	}
-	if item.State == StateMissing {
-		return nil, ErrMissing
+		return nil, err
 	}
 	if !refresh {
 		cached, err := s.store.GetStatus(ctx, workspaceID, item.ID)
@@ -35,6 +29,23 @@ func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bo
 		return nil, err
 	}
 	return s.refreshStatus(ctx, *item)
+}
+
+// statusTarget resolves the worktree a status read is about to run Git
+// against. A checkout that went missing is refused as ErrMissing before any
+// command touches its path or a status row is written for it.
+func (s *Service) statusTarget(ctx context.Context, workspaceID, id string) (*Worktree, error) {
+	item, err := s.store.Get(ctx, workspaceID, id)
+	if errors.Is(err, ErrNotFound) || item == nil {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("worktree: read status target: %w", err)
+	}
+	if item.State == StateMissing {
+		return nil, ErrMissing
+	}
+	return item, nil
 }
 
 // refreshStatus is the explicit refresh gesture: it rereads, persists, and

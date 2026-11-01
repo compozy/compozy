@@ -12,6 +12,7 @@ import { workspaceKeys } from "../../lib/query-keys";
 import {
   useWorktreeStream,
   WORKTREE_REREAD_COALESCE_MS,
+  WORKTREE_REREAD_MAX_WAIT_MS,
   type WorktreeEventSource,
 } from "../use-worktree-stream";
 
@@ -96,9 +97,39 @@ describe("useWorktreeStream", () => {
     });
     expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS);
     expect(invalidate).toHaveBeenCalledWith({
+      queryKey: workspaceKeys.worktrees(WORKSPACE_ID),
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: workspaceKeys.worktreeDetail(WORKSPACE_ID, WORKTREE_ID),
+      exact: true,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: workspaceKeys.worktreeStatus(WORKSPACE_ID, WORKTREE_ID),
+      exact: true,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
       queryKey: workspaceKeys.worktreeExit(WORKSPACE_ID, WORKTREE_ID),
       exact: true,
     });
+  });
+
+  it("Should reread within the ceiling while frames keep landing inside the quiet window", () => {
+    const { source, invalidate } = setup();
+    const spacingMs = WORKTREE_REREAD_COALESCE_MS - 50;
+    const framesToCeiling = Math.ceil(WORKTREE_REREAD_MAX_WAIT_MS / spacingMs);
+
+    act(() => {
+      for (let sequence = 1; sequence <= framesToCeiling; sequence += 1) {
+        source.emit("worktree.status_refreshed", statusFrame(sequence));
+        vi.advanceTimersByTime(spacingMs);
+      }
+    });
+    expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS);
+
+    act(() => {
+      vi.advanceTimersByTime(WORKTREE_REREAD_COALESCE_MS);
+    });
+    expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS);
   });
 
   it("Should reread again for a frame that arrives after the quiet window", () => {

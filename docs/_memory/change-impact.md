@@ -48,8 +48,8 @@ slices link to this entry and update only the lines they change.
 
 ## Worktree exit-plan read storm — 2026-10-31
 
-Owner: `fix/worktree-exit-plan-status-refresh-loop` (local branch; issue draft for the
-Web request storm on a session bound to a worktree). `GET .../worktrees/{id}/exit`
+Owner: `fix/worktree-exit-plan-status-refresh-loop`, PR #1121 (Web request storm on a
+session bound to a worktree). `GET .../worktrees/{id}/exit`
 refreshed the status with the emitting path, the Web ladder rereads the exit plan on
 `worktree.status_refreshed`, and the exit query has no stale window, so every plan
 read scheduled the next one.
@@ -59,8 +59,9 @@ read scheduled the next one.
   the CLI refresh, and settled actions keep emitting it. Event vocabulary, DTOs,
   OpenAPI, CLI, and UDS routes are unchanged.
 - **Web:** the per-worktree stream coalesces lifecycle and terminal frames into one
-  scope reread per quiet window (150 ms) and pays a pending reread when the connection
-  goes away, so the retained-history replay on first connect costs one reread.
+  scope reread per quiet window (150 ms, with a 1 s ceiling so a steady trickle of
+  frames cannot defer it) and pays a pending reread when the connection goes away, so
+  the retained-history replay on first connect costs one reread.
 - **Isolation / persistence / native tools / extensions / hooks / config:** none.
 - **Docs / official skill:** `worktrees/agent-surface.mdx` states which paths emit the
   frame; `ET-worktree-hook-event-contract` records the quiet read. `skills/compozy/` has

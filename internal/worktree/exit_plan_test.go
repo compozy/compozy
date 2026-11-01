@@ -86,6 +86,9 @@ func TestExitPlan(t *testing.T) {
 		if got := events.count(EventStatusRefreshed); got != 0 {
 			t.Fatalf("status refreshed events = %d, want none: the Web ladder rereads the plan on that frame", got)
 		}
+		if commit := exitActionRow(t, plan.Actions, ExitActionCommit); !commit.Enabled {
+			t.Fatalf("commit row = %#v, want enabled: the plan must come from the freshly read dirty status", commit)
+		}
 	})
 
 	forge := &ForgeCapabilities{Provider: "github", OpenActionLabel: "Open PR", ViewActionLabel: "View PR"}
