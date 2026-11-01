@@ -51,29 +51,12 @@ func SearchAgentMemorySessions(
 			if info.ProfileID != profileID {
 				continue
 			}
-			if !actor.Operator {
-				if policy == nil {
-					return nil, errors.New("workspace access policy unavailable")
-				}
-				target := info.WorkspaceID
-				if target == "" {
-					target = workspaceaccess.UserSelector
-				}
-				decision, err := policy.Authorize(
-					ctx,
-					workspaceaccess.Request{
-						Actor:    actor,
-						Target:   workspaceaccess.ScopeTarget(target, profileID),
-						ReadOnly: true,
-						Seam:     workspaceaccess.SeamCatalog,
-					},
-				)
-				if err != nil {
-					return nil, err
-				}
-				if !decision.Allowed {
-					continue
-				}
+			allowed, err := authorizeMemoryTranscript(ctx, policy, actor, profileID, info.WorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				continue
 			}
 			found, err := reader.TranscriptSearch(ctx, info.ID, search)
 			if err != nil {
@@ -128,4 +111,28 @@ func (h *BaseHandlers) searchAgentMemory(
 		req.Query,
 	)
 	return append(results, matches...), err
+}
+
+func authorizeMemoryTranscript(
+	ctx context.Context,
+	policy workspaceaccess.Policy,
+	actor workspaceaccess.ActorRef,
+	profileID, workspaceID string,
+) (bool, error) {
+	if actor.Operator {
+		return true, nil
+	}
+	if policy == nil {
+		return false, errors.New("workspace access policy unavailable")
+	}
+	if workspaceID == "" {
+		workspaceID = workspaceaccess.UserSelector
+	}
+	decision, err := policy.Authorize(ctx, workspaceaccess.Request{
+		Actor:    actor,
+		Target:   workspaceaccess.ScopeTarget(workspaceID, profileID),
+		ReadOnly: true,
+		Seam:     workspaceaccess.SeamCatalog,
+	})
+	return decision.Allowed, err
 }

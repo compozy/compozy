@@ -79,7 +79,10 @@ func duplicateAgentDraft(
 	return draft, nil
 }
 
-func applyDuplicateAgentRuntime(draft *compozyconfig.AgentDefinitionDraft, overrides *contract.DuplicateAgentOverrides) {
+func applyDuplicateAgentRuntime(
+	draft *compozyconfig.AgentDefinitionDraft,
+	overrides *contract.DuplicateAgentOverrides,
+) {
 	if overrides.Provider != "" {
 		draft.Provider = overrides.Provider
 	}

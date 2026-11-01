@@ -415,7 +415,11 @@ func (h *BaseHandlers) logAgentMutationFailure(
 	)
 }
 
-func (h *BaseHandlers) retireAgentDefinitionMemory(resolved *resolvedAgentDefinition, profileID, name string, at time.Time) error {
+func (h *BaseHandlers) retireAgentDefinitionMemory(
+	resolved *resolvedAgentDefinition,
+	profileID, name string,
+	at time.Time,
+) error {
 	if h.AgentMemory == nil {
 		return nil
 	}

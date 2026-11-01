@@ -37,3 +37,12 @@ func agentMemorySearchPayload(results []agentmemory.SearchResult) contract.Agent
 	}
 	return response
 }
+
+func agentMemoryValidationPayload(content string) contract.AgentMemoryValidateResponse {
+	_, _, err := agentmemory.Overflow(content)
+	diagnostics := []string{}
+	if err != nil {
+		diagnostics = append(diagnostics, err.Error())
+	}
+	return contract.AgentMemoryValidateResponse{Valid: err == nil, Diagnostics: diagnostics}
+}

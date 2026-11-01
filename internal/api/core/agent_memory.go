@@ -15,11 +15,11 @@ import (
 
 func (h *BaseHandlers) RegisterAgentMemoryRoutes(agents gin.IRouter) {
 	for _, route := range []struct{ method, path, operation string }{
-		{http.MethodGet, "/:name/memory", "read"}, {"PUT", "/:name/memory", "write"},
-		{"POST", agentMemoryEntriesRoute, "add"}, {"PATCH", agentMemoryEntriesRoute, "replace"},
-		{"DELETE", agentMemoryEntriesRoute, "remove"}, {"POST", "/:name/memory/search", "search"},
-		{"POST", "/:name/memory/validate", "validate"}, {http.MethodGet, "/:name/memory/history", "history"},
-		{"POST", "/:name/memory/rollback", "rollback"},
+		{http.MethodGet, "/:name/memory", "read"}, {http.MethodPut, "/:name/memory", "write"},
+		{http.MethodPost, agentMemoryEntriesRoute, "add"}, {http.MethodPatch, agentMemoryEntriesRoute, "replace"},
+		{http.MethodDelete, agentMemoryEntriesRoute, "remove"}, {http.MethodPost, "/:name/memory/search", "search"},
+		{http.MethodPost, "/:name/memory/validate", "validate"}, {http.MethodGet, "/:name/memory/history", "history"},
+		{http.MethodPost, "/:name/memory/rollback", "rollback"},
 	} {
 		agents.Handle(route.method, route.path, func(c *gin.Context) { h.agentMemoryOperation(c, route.operation) })
 	}
@@ -122,12 +122,7 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 	case "validate":
 		var req contract.AgentMemoryValidateRequest
 		if err = decodeAuthoredJSONBody(c, &req, false); err == nil {
-			_, _, validationErr := agentmemory.Overflow(req.Content)
-			diagnostics := []string{}
-			if validationErr != nil {
-				diagnostics = append(diagnostics, validationErr.Error())
-			}
-			result = contract.AgentMemoryValidateResponse{Valid: validationErr == nil, Diagnostics: diagnostics}
+			result = agentMemoryValidationPayload(req.Content)
 		}
 	}
 	if err != nil {

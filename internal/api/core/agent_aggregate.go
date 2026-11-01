@@ -108,13 +108,21 @@ func (h *BaseHandlers) listAgentAggregate(c *gin.Context, breadth WorkspaceBread
 		}
 		mergeAgentCatalogPage(&response, page)
 	}
-	groupAgentCatalogResponse(&response, query)
+	h.finishAggregateAgentResponse(c, &response, query, paging)
+}
 
-	if err := paging.finish(&response); err != nil {
+func (h *BaseHandlers) finishAggregateAgentResponse(
+	c *gin.Context,
+	response *contract.AgentCatalogResponse,
+	query agentCatalogQuery,
+	paging aggregateAgentPaging,
+) {
+	groupAgentCatalogResponse(response, query)
+	if err := paging.finish(response); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	projectGroupedAgentCatalog(&response, query)
+	projectGroupedAgentCatalog(response, query)
 	c.JSON(http.StatusOK, response)
 }
 

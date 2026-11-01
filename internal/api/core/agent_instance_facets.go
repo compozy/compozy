@@ -115,7 +115,6 @@ func addInstanceFacets(response *contract.SessionCatalogFacetsResponse, rows []c
 		response.ByProfile,
 		func(a, b contract.SessionProfileFacetsPayload) int { return cmp.Compare(a.ProfileID, b.ProfileID) },
 	)
-
 }
 
 func instanceMatchesSessionQuery(row *agentinstance.Instance, query session.ListQuery) bool {

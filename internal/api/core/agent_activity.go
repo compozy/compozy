@@ -19,14 +19,10 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 	if !h.requireOperatorOrGrantedAgent(c, "agent activity") {
 		return
 	}
-	days := 30
-	if raw := c.Query("days"); raw != "" {
-		value, err := strconv.Atoi(raw)
-		if err != nil || value < 1 || value > 365 {
-			h.respondError(c, 422, errors.New("days must be from 1 to 365"))
-			return
-		}
-		days = value
+	days, err := parseAgentActivityDays(c.Query("days"))
+	if err != nil {
+		h.respondError(c, 422, err)
+		return
 	}
 	scope, err := h.resolveProfileReadScope(c)
 	if err != nil {
@@ -37,13 +33,9 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		h.respondError(c, 422, errors.New("choose one profile"))
 		return
 	}
-	if h.AgentInstances == nil {
-		h.respondError(c, 503, errors.New("agent activity unavailable"))
-		return
-	}
-	reader, ok := h.AgentInstances.Store.(agentinstance.ActivityReader)
-	if !ok {
-		h.respondError(c, 503, errors.New("agent activity unavailable"))
+	reader, err := h.agentActivityReader()
+	if err != nil {
+		h.respondError(c, 503, err)
 		return
 	}
 	allowed, err := h.aggregateWorkspaceSet(c, WorkspaceBreadth{AllWorkspaces: true})
@@ -159,4 +151,26 @@ func mergeAgentActivity(result *agentinstance.Activity, activity agentinstance.A
 			result.BusyByHour[index].Events += hour.Events
 		}
 	}
+}
+
+func parseAgentActivityDays(raw string) (int, error) {
+	if raw == "" {
+		return 30, nil
+	}
+	days, err := strconv.Atoi(raw)
+	if err != nil || days < 1 || days > 365 {
+		return 0, errors.New("days must be from 1 to 365")
+	}
+	return days, nil
+}
+
+func (h *BaseHandlers) agentActivityReader() (agentinstance.ActivityReader, error) {
+	if h.AgentInstances == nil {
+		return nil, errors.New("agent activity unavailable")
+	}
+	reader, ok := h.AgentInstances.Store.(agentinstance.ActivityReader)
+	if !ok {
+		return nil, errors.New("agent activity unavailable")
+	}
+	return reader, nil
 }
