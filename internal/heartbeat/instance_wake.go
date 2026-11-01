@@ -11,7 +11,7 @@ type InstanceWakeState struct {
 	InstanceID, NextWakeAt, LastWakeAt, LastDigest, LastDigestAt, AutomationCursor string
 	OccurrenceID, TriageSessionID, OccurrenceStartedAt                             string
 	QuietStreak, FailureStreak                                                     int64
-	Cancelled                                                                      bool
+	Canceled                                                                       bool
 }
 type AdmitRequest struct {
 	InstanceID, OccurrenceID string

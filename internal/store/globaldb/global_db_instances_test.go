@@ -1793,7 +1793,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 		}
 		scheduled := state.NextWakeAt
 		req.ManualCheck = true
-		req.OccurrenceID = "occ-cancelled"
+		req.OccurrenceID = "occ-canceled"
 		if admitted, err := repo.Admit(t.Context(), req); err != nil || !admitted {
 			t.Fatalf("manual=%v %v", admitted, err)
 		}
@@ -1811,7 +1811,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			t.Fatal(err)
 		}
 		if admitted, err := repo.Admit(t.Context(), req); err != nil || admitted {
-			t.Fatalf("cancelled slot released early: %v %v", admitted, err)
+			t.Fatalf("canceled slot released early: %v %v", admitted, err)
 		}
 		resumedState, err := repo.WakeState(t.Context(), instance.ID)
 		if err != nil {
@@ -1822,7 +1822,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 		finish.Digest = "must-not-commit"
 		finish.Report = &agentinstance.ReportInput{
 			Kind:    "failure",
-			Payload: []byte(`{"reason":"test","detail":"cancelled"}`),
+			Payload: []byte(`{"reason":"test","detail":"canceled"}`),
 		}
 		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
 			t.Fatalf("cancel finish=%v %v", changed, err)
@@ -1831,16 +1831,16 @@ func TestInstanceWakeTransactions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if state.Cancelled { //nolint:misspell // Matches the existing wake-state field.
+		if state.Canceled {
 			t.Fatal("cancellation flag was not cleared")
 		}
 		if state.LastDigest != "digest-one" || state.QuietStreak != resumedState.QuietStreak ||
 			state.FailureStreak != resumedState.FailureStreak {
-			t.Fatalf("cancelled state=%+v", state)
+			t.Fatalf("canceled state=%+v", state)
 		}
 		var events, reports int
 		if err := db.DB().
-			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE occurrence_id IN ('occ-first','occ-cancelled')").
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE occurrence_id IN ('occ-first','occ-canceled')").
 			Scan(&events); err != nil {
 			t.Fatal(err)
 		}
@@ -3772,7 +3772,7 @@ func TestInstanceFinishOutcomes(t *testing.T) {
 	for _, tc := range []struct{ name, result, reason string }{
 		{"Should persist quiet", "quiet", "quiet"},
 		{"Should persist reported", "reported", "reported"},
-		{"Should persist cancellation", "cancelled", "cancelled"},
+		{"Should persist cancellation", "cancelled", "cancelled"}, //nolint:misspell // Matches the persisted wake result.
 		{"Should persist duplicate suppression", "quiet", "duplicate_suppressed"},
 		{"Should persist unsupported triage", "failed", "triage_unsupported"},
 		{"Should persist invalid output", "failed", "triage_output_invalid"},

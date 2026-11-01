@@ -17,7 +17,7 @@ func (s *CheckService) dispatch(target *CheckTarget, digest CheckDigest, occurre
 			return err
 		}
 		if !bound {
-			return errors.New("heartbeat: triage occurrence cancelled before dispatch")
+			return errors.New("heartbeat: triage occurrence canceled before dispatch")
 		}
 		return nil
 	})

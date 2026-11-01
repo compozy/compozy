@@ -122,6 +122,6 @@ func instanceWakeState(row sqlcgen.AgentInstanceWakeState) heartbeat.InstanceWak
 		InstanceID: row.InstanceID, NextWakeAt: row.NextWakeAt, LastWakeAt: row.LastWakeAt, LastDigest: row.LastDigest,
 		LastDigestAt: row.LastDigestAt, AutomationCursor: row.AutomationCursor, OccurrenceID: row.OccurrenceID,
 		TriageSessionID: row.TriageSessionID, OccurrenceStartedAt: row.OccurrenceStartedAt,
-		QuietStreak: row.QuietStreak, FailureStreak: row.FailureStreak, Cancelled: row.OccurrenceCancelled != 0,
+		QuietStreak: row.QuietStreak, FailureStreak: row.FailureStreak, Canceled: row.OccurrenceCancelled != 0,
 	}
 }
