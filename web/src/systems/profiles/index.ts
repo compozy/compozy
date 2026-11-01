@@ -206,3 +206,4 @@ export {
   ProfileOwnerBanner,
   type ProfileOwnerBannerProps,
 } from "./components/profile-owner-banner";
+export { useProfileIconCatalog } from "./hooks/use-profile-icon-catalog";

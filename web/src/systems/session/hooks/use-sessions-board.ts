@@ -1,7 +1,12 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { useProfileReadScope } from "@/systems/profiles";
-import { useActiveWorkspace, workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
+import {
+  useActiveWorkspace,
+  workspaceBadgeIdentity,
+  workspaceSelectorOrAll,
+  type DataScope,
+} from "@/systems/workspace";
 
 import {
   SESSION_BOARD_COLUMNS,
@@ -86,6 +91,8 @@ export interface SessionsBoardView {
   later: SessionsBoardShelf;
   /** All projects: each card's workspace name; `null` while one scope is listed. */
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
+  /** The board's one concrete scope for its top row; `null` under All projects. */
+  focusedWorkspaceId: string | null;
   /** The board's identity for its selection: breadth, profile lens and grouping. */
   selectionKey: string;
 }
@@ -185,7 +192,11 @@ export function useSessionsBoard({
   const effectiveGroupBy = effectiveSessionListGroupBy(groupBy, breadth);
   const grouped = effectiveGroupBy !== "none";
   const population = hideChildren ? { children: "exclude" as const } : {};
-  const shared: SessionListFilters = { ...population, sort: sessionBoardSort(sort) };
+  const shared: SessionListFilters = {
+    ...population,
+    exclude_instance_main: true,
+    sort: sessionBoardSort(sort),
+  };
   const base = sessionCatalogScopedFilters(scope, shared, params);
   const columns = useSessionsBoardColumns(base, active && !grouped);
   const grouping = useSessionListGroups({
@@ -204,6 +215,7 @@ export function useSessionsBoard({
   const allProjects = scope?.kind === "all";
 
   return {
+    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
     columns: grouped ? [] : columns,
     lanes: grouped
       ? grouping.groups.map(group => ({

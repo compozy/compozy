@@ -4,6 +4,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { sessionFixtures } from "@/systems/session/mocks";
 
 import { agentFixtures, FIXTURE_AGENT_DEFINITION_DIGEST } from "./fixtures";
+import { instanceHandlers, resetAgentInstanceMock } from "./instance-handlers";
 import type { AgentHeartbeatPayload, AgentPayload, AgentSoulPayload } from "../types";
 
 function cloneAgents(): AgentPayload[] {
@@ -18,6 +19,7 @@ export function resetAgentMockState(): void {
   agentsState = cloneAgents();
   soulBodies.clear();
   heartbeatBodies.clear();
+  resetAgentInstanceMock();
 }
 
 function agentByName(name: string): AgentPayload | undefined {
@@ -74,8 +76,22 @@ export function agentCatalogMockResponse(
     ...new Set(agents.flatMap(agent => agent.category_path?.join(" / ") ?? [])),
   ].sort((left, right) => left.localeCompare(right));
 
+  const items =
+    url.searchParams.get("group") === "agent"
+      ? pageAgents.map(agent => ({
+          name: agent.name,
+          label: agent.label ?? agent.name,
+          kind: agent.kind ?? "on_demand",
+          definition_digest: agent.definition_digest ?? FIXTURE_AGENT_DEFINITION_DIGEST,
+          scopes: [],
+          active: 0,
+          agent,
+        }))
+      : undefined;
+
   return {
     next_cursor: "",
+    ...(items ? { items } : {}),
     agents: pageAgents.map(agent => ({
       agent,
       ...(sessionsAvailable
@@ -245,6 +261,7 @@ function heartbeatRevision(
 }
 
 export const handlers: HttpHandler[] = [
+  ...instanceHandlers,
   compozyApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentsState })),
   compozyApiMock.get("/api/agents/catalog", ({ request }) =>
     HttpResponse.json(agentCatalogMockResponse(request))

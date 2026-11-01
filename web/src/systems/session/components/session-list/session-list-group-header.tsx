@@ -21,6 +21,8 @@ import {
   sessionListGroupTarget,
   type SessionListGroupSpec,
 } from "../../lib/session-list-groups";
+import { StaysOnCreateMenu } from "../stays-on/stays-on-create-menu";
+import { StaysOnCollapsedSignal } from "../stays-on/stays-on-signals";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListCreateMenu } from "./session-list-create-menu";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
@@ -28,6 +30,16 @@ import { SessionListGroupToggle } from "./session-list-group-toggle";
 
 /** Collapsed header signal: needs-you outranks working; an open group shows its rows instead. */
 function GroupSignal({ group }: { group: SessionListGroupSpec }) {
+  const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
+  return (
+    <>
+      {scope ? <StaysOnCollapsedSignal workspaceId={scope} /> : null}
+      <SessionGroupSignal group={group} />
+    </>
+  );
+}
+
+function SessionGroupSignal({ group }: { group: SessionListGroupSpec }) {
   if (group.needsYou > 0) {
     return (
       <StatusDot
@@ -103,6 +115,23 @@ export function SessionListGroupHeader({
   const folder = useSessionListGroupFolderCreate(target);
   const testId = `${testIdPrefix}-group-${group.key}`;
   const name = sessionListGroupName(group);
+  const staysOn =
+    group.kind === "project" && target.workspaceId
+      ? { place: target.workspaceId, name }
+      : undefined;
+  const createMenu = {
+    variant: "quiet",
+    size: "icon-xs",
+    className: "text-subtle",
+    label: { session: `New session in ${name}`, menu: `New session or folder in ${name}` },
+    onNewSession: () =>
+      onNewSession({
+        ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
+        ...(target.profile ? { profile: target.profile } : {}),
+      }),
+    onNewFolder: folder.openDialog,
+    testId,
+  } as const;
   return (
     <>
       <SessionListGroupProjectMenu group={group} leadingItems={arrange?.menuItems}>
@@ -134,20 +163,11 @@ export function SessionListGroupHeader({
             signal={<GroupSignal group={group} />}
             testId={testId}
           />
-          <SessionListCreateMenu
-            variant="quiet"
-            size="icon-xs"
-            className="text-subtle"
-            label={{ session: `New session in ${name}`, menu: `New session or folder in ${name}` }}
-            onNewSession={() =>
-              onNewSession({
-                ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
-                ...(target.profile ? { profile: target.profile } : {}),
-              })
-            }
-            onNewFolder={folder.openDialog}
-            testId={testId}
-          />
+          {staysOn ? (
+            <StaysOnCreateMenu {...createMenu} staysOn={staysOn} />
+          ) : (
+            <SessionListCreateMenu {...createMenu} />
+          )}
         </div>
       </SessionListGroupProjectMenu>
       <SessionFolderDialogs

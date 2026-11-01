@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ArrowRightLeft,
   CornerDownRight,
@@ -79,6 +80,8 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   workspaceName?: string | null;
   current?: boolean;
   archived?: boolean;
+  /** Who started a spawned session; the live card supplies it. */
+  creatorBadge?: ReactNode;
   /** The provider mark and model label shown beside the agent name. */
   runtime: SessionRuntimeLabel;
   /** The composer holds unsent text for this session (#1052). */
@@ -142,6 +145,7 @@ export function SessionBoardCardView({
   onOpen,
   selection,
   onActivate,
+  creatorBadge,
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
@@ -200,6 +204,7 @@ export function SessionBoardCardView({
       </span>
       <SessionLaterDetails session={session} />
       <SessionBoardCardFooter
+        creatorBadge={creatorBadge}
         draft={draft}
         lineage={lineage}
         rollup={rollup}
@@ -285,6 +290,7 @@ function SessionBoardCardLineageMark({
 }
 
 function SessionBoardCardFooter({
+  creatorBadge,
   session,
   lineage,
   runtime,
@@ -300,6 +306,7 @@ function SessionBoardCardFooter({
   rollup: SessionBoardCardRollup | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
   selection: SessionBoardCardViewProps["selection"];
+  creatorBadge: ReactNode;
 }) {
   const mark = <SessionListProviderMark runtime={runtime} sessionId={session.id} />;
   return (
@@ -323,6 +330,7 @@ function SessionBoardCardFooter({
         <span className="min-w-0 truncate font-medium text-muted-foreground">
           {session.agent_name}
         </span>
+        {creatorBadge}
       </span>
       {rollup ? <SessionBoardCardRollupMark rollup={rollup} sessionId={session.id} /> : null}
       {lineage ? <SessionBoardCardLineageMark lineage={lineage} sessionId={session.id} /> : null}

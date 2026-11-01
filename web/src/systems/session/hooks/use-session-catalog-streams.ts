@@ -2,6 +2,11 @@ import { useStore, useSelector } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 
+import {
+  applyAgentInstanceUpdate,
+  invalidateAgentInstances,
+  type AgentInstancePayload,
+} from "@/systems/agent";
 import { notificationKeys } from "@/systems/notifications";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
@@ -26,6 +31,7 @@ import {
 const SESSION_CATALOG_DISCONNECT_GRACE_MS = 10_000;
 
 const SESSION_CATALOG_CHANGED_EVENT = "session_catalog_changed";
+const AGENT_INSTANCE_UPDATED_EVENT = "agent_instance.updated";
 /** Transition edges — ephemeral delivery signals, never a state patch. */
 const SESSION_ATTENTION_CHANGED_EVENT = "session_attention_changed";
 /** Sanitized agent-sent notifications riding the same stream. */
@@ -334,6 +340,12 @@ function openSessionCatalogStream(
     void invalidateSessionMonitorsQueries(queryClient, payload.workspace_id, payload.session_id);
     // sessionReads also reconciles process lists, including wakes during an older scan.
   };
+  const handleInstanceUpdate: EventListener = event => {
+    markLive();
+    const payload = parseNamedEvent<AgentInstancePayload>(event, ["id", "agent_name", "state"]);
+    if (payload) applyAgentInstanceUpdate(queryClient, payload);
+    else void invalidateAgentInstances(queryClient);
+  };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [
       "session_id",
@@ -367,6 +379,7 @@ function openSessionCatalogStream(
     [SESSION_CATALOG_CHANGED_EVENT, handleCatalogChange],
     [SESSION_ATTENTION_CHANGED_EVENT, handleAttentionEdge],
     [OPERATOR_NOTIFICATION_EVENT, handleOperatorNotification],
+    [AGENT_INSTANCE_UPDATED_EVENT, handleInstanceUpdate],
   ];
   const source = eventSourceFactory(url);
   const detach = () => {

@@ -17,7 +17,10 @@ export type OperatorNotificationEventPayload = Extract<
   SessionCatalogStreamPayload,
   { notification_id: string }
 >;
-export type SessionsQuery = OperationQuery<"listSessions">;
+export type SessionsQuery = OperationQuery<"listSessions"> & {
+  /** `_dx.md`: hides stays-on main sessions from rows, cards and counts. */
+  exclude_instance_main?: boolean;
+};
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
 /** What opening a session from the list needs: a catalog row, or a subagent's child session. */

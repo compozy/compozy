@@ -10,6 +10,8 @@ export function sessionListViewFixture(
   overrides: Partial<SessionListViewModel> = {}
 ): SessionListViewModel {
   return {
+    focusedWorkspaceId: null,
+    focusedScopeName: "this project",
     sort: "created",
     storedGroupBy: "none",
     groupBy: "none",

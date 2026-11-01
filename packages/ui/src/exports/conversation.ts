@@ -21,6 +21,12 @@ export {
   type RunCardWarning,
   type RunCardWarningTone,
 } from "../components/custom/run-card";
+export { AgentAvatar, type AgentAvatarProps } from "../components/custom/agent-avatar";
+export {
+  AGENT_AVATAR_STATE_LABEL,
+  type AgentAvatarAppearance,
+  type AgentAvatarState,
+} from "../lib/agent-avatar";
 export {
   OwnerAvatar,
   type OwnerAvatarProps,

@@ -68,6 +68,7 @@ export function sessionsBoardViewFixture(
   return {
     columns: SESSIONS_BOARD_COLUMN_IDS.map(id => column(id, overrides[id] ?? {}, handler)),
     lanes: null,
+    focusedWorkspaceId: null,
     lanesLoading: false,
     groupBy: "none",
     groupByOptions: ["none"],

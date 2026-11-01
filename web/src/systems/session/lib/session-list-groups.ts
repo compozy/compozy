@@ -111,6 +111,25 @@ export function projectSessionGroup(
   };
 }
 
+const EMPTY_GROUP_FACETS: GroupFacets = { all: 0, working: 0, needs_you: 0 };
+
+/** Adds an empty project group for each workspace that holds a stays-on agent and no session. */
+export function withInstanceProjectGroups(
+  groups: SessionListGroupSpec[],
+  workspaceIds: readonly string[],
+  input: Parameters<typeof projectSessionGroup>[2] & { ready: boolean }
+): SessionListGroupSpec[] {
+  if (!input.ready) return groups;
+  const listed = new Set(groups.map(group => group.key));
+  const merged = [...groups];
+  for (const id of new Set(workspaceIds)) {
+    if (id === "") continue;
+    const group = projectSessionGroup(id, EMPTY_GROUP_FACETS, input);
+    if (!listed.has(group.key)) merged.push(group);
+  }
+  return merged.length === groups.length ? groups : merged;
+}
+
 /**
  * Profile groups from `by_profile`, in profile-list order; each reads the
  * list's scope through that one profile.

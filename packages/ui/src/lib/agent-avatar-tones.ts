@@ -10,18 +10,28 @@ const DEEP = 0.7;
 const BRIGHT = 0.85;
 const INK = 0.95;
 
-export const BLOB_TONES = {
+export const AGENT_AVATAR_TONES = {
   1: { dark: [PASTEL, PALE, MID, DEEP, BRIGHT], light: [MID, DEEP, INK] },
 } as const;
 
-export type BlobGeneration = keyof typeof BLOB_TONES;
+export type AgentAvatarGeneration = keyof typeof AGENT_AVATAR_TONES;
+
+const LATEST_GENERATION: AgentAvatarGeneration = 1;
+
+/** The row a saved `generation` pins; an unknown number reads as the newest this build has. */
+export function agentAvatarTones(generation: number | undefined, theme: "dark" | "light") {
+  const row =
+    AGENT_AVATAR_TONES[generation as AgentAvatarGeneration] ??
+    AGENT_AVATAR_TONES[LATEST_GENERATION];
+  return row[theme];
+}
 
 function linear(channel: number) {
   return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 }
 
 /** The OKLCh hue of `#rrggbb`, which is how `appearance.color` reaches the body. */
-export function blobHue(color: string) {
+export function agentAvatarHue(color: string) {
   const [r, g, b] = [1, 3, 5].map(at => linear(parseInt(color.slice(at, at + 2), 16) / 255)) as [
     number,
     number,

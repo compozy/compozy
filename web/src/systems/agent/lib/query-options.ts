@@ -6,6 +6,7 @@ import {
   fetchAgentCatalog,
   fetchAgents,
 } from "../adapters/agent-api";
+import { fetchAgentInstanceCheckIns, fetchAgentInstances } from "../adapters/agent-instance-api";
 import {
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
@@ -19,9 +20,61 @@ import {
   keepCatalogAcrossSearch,
   normalizeAgentCatalogFilter,
 } from "./agent-catalog-query";
-import type { AgentCatalogStableFilter } from "../types";
+import type { AgentCatalogStableFilter, AgentGroupedCatalogItem } from "../types";
 
 const HEARTBEAT_STATUS_FRESHNESS_MS = 5_000;
+
+const CHECK_INS_SHOWN = 12;
+const GROUPED_CATALOG_PAGE = 200;
+
+/** Every instance, across scopes; `agent_instance.updated` keeps it live between reads. */
+export function agentInstancesOptions() {
+  return queryOptions({
+    queryKey: agentKeys.instances(),
+    queryFn: ({ signal }) => fetchAgentInstances(signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function agentInstanceCheckInsOptions(id: string) {
+  return queryOptions({
+    queryKey: agentKeys.instanceCheckIns(id),
+    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(id, CHECK_INS_SHOWN, signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+async function fetchStaysOnAgents(workspace: string, profile: string, signal: AbortSignal) {
+  const agents: AgentGroupedCatalogItem[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await fetchAgentCatalog(
+      {
+        group: "agent",
+        limit: GROUPED_CATALOG_PAGE,
+        profile,
+        ...(workspace ? { workspace } : {}),
+        ...(cursor ? { cursor } : {}),
+      },
+      signal
+    );
+    agents.push(...(page.items ?? []));
+    cursor = page.page.has_more ? page.page.next_cursor : undefined;
+  } while (cursor);
+  return agents.filter(agent => agent.kind === "stays_on");
+}
+
+/** The stays-on agents a scope resolves; `""` reads the User scope. */
+export function staysOnAgentsOptions(workspace: string, profile = "default", enabled = true) {
+  return queryOptions({
+    queryKey: agentKeys.staysOnCatalog(workspace, profile),
+    queryFn: ({ signal }) => fetchStaysOnAgents(workspace, profile, signal),
+    staleTime: 5_000,
+    enabled,
+  });
+}
 
 export function agentCatalogOptions(workspace: string, filters: AgentCatalogStableFilter = {}) {
   const normalizedFilters = normalizeAgentCatalogFilter(filters);

@@ -62,6 +62,12 @@ import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { formatLaterReturn } from "../../lib/session-later";
 import { SessionSidebar } from "../session-sidebar";
 
+// The instance row isn't under test here, and these suites count catalog reads.
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => [],
+}));
+
 // Dynamic JavaScript acquisition is an I/O boundary; these tests exercise the real query cache.
 vi.mock("@/systems/os/lib/app-registry", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/os/lib/app-registry")>()),

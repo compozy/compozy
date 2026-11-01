@@ -51,7 +51,7 @@ export function matchTerminalInstance(pathname: string): string | null {
 export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   dashboard: {
     id: "dashboard",
-    title: "Home",
+    title: "Dashboard",
     icon: LayoutDashboard,
     paths: ["/"],
     dock: { group: 1 },

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useAgentInstances } from "@/systems/agent";
 import { useProfiles, type ProfileOwner, type ProfileScopeParams } from "@/systems/profiles";
 import { breadthQuery, sessionCatalogBreadthParams, type DataScope } from "@/systems/workspace";
 
@@ -9,6 +10,7 @@ import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-l
 import {
   profileSessionGroups,
   projectSessionGroups,
+  withInstanceProjectGroups,
   type SessionListGroupSpec,
 } from "../lib/session-list-groups";
 import {
@@ -69,11 +71,17 @@ export function useSessionListGroups({
   });
   const byProfile = grouped && groupBy === "profile";
   const profiles = useProfiles(byProfile);
+  const instances = useAgentInstances();
   const groups =
     !grouped || scope === null
       ? []
       : groupBy === "project"
-        ? projectSessionGroups(facets.data, { workspaces, lens })
+        ? withInstanceProjectGroups(
+            projectSessionGroups(facets.data, { workspaces, lens }),
+            // A project whose only resident is an agent still gets its group.
+            shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
+            { workspaces, lens, ready: facets.data !== undefined }
+          )
         : profileSessionGroups(profiles.data ? facets.data : undefined, {
             profiles: profileOwners(profiles.data),
             scope,

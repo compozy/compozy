@@ -199,7 +199,10 @@ test.describe("seeded agent detail", () => {
       await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
       await expect(runtimeTrigger).toContainText("High");
 
-      await appPage.getByTestId("agent-create-prompt").fill("Keep runtime selection truthful.");
+      await appPage
+        .getByTestId("agent-create-prompt")
+        .locator('[contenteditable="true"]')
+        .fill("Keep runtime selection truthful.");
 
       const createRequestPromise = appPage.waitForRequest(
         request => request.method() === "POST" && new URL(request.url()).pathname === "/api/agents"

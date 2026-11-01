@@ -6,6 +6,7 @@ import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "
 import {
   useActiveWorkspace,
   workspaceBadgeIdentity,
+  workspaceSelectorOrAll,
   type DataScope,
   type WorkspaceBadgeIdentity,
 } from "@/systems/workspace";
@@ -90,6 +91,9 @@ export interface SessionListViewModel {
    * the empty state; the create target is deliberately not used there.
    */
   scopeLabel: string | null;
+  /** The list's one concrete scope: a workspace id or `@user`; `null` under All projects. */
+  focusedWorkspaceId: string | null;
+  focusedScopeName: string;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
   /** Resolves a row's project badge; present only under All projects (BR-10). */
@@ -259,6 +263,11 @@ export function useSessionListView(
     groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
+    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    focusedScopeName:
+      scope?.kind === "project"
+        ? (workspaces.find(workspace => workspace.id === scope.workspaceId)?.name ?? "this project")
+        : "Global",
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,

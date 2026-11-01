@@ -28,6 +28,8 @@
 // outside it retargets; selected cards survive a column move and drop out once gone;
 // a folded column keeps them as hidden; the Archive bar's cards join only while it is open;
 // a toggle re-renders only the cards it changes.
+import type { AgentInstancePayload } from "@/systems/agent";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -48,6 +50,13 @@ import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-l
 import { SessionsBoard } from "../session-board/sessions-board";
 import { SessionsBoardSelection } from "../session-board/sessions-board-selection";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
+
+const mockInstances = vi.hoisted(() => vi.fn(async () => [] as AgentInstancePayload[]));
+
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: mockInstances,
+}));
 
 vi.mock("../../hooks/use-session-row-runtime-label", async importOriginal => {
   const actual = await importOriginal<typeof import("../../hooks/use-session-row-runtime-label")>();
@@ -111,6 +120,7 @@ function board(
       ...columns[id],
     })),
     lanes: null,
+    focusedWorkspaceId: null,
     lanesLoading: false,
     groupBy: "none",
     groupByOptions: ["none"],
@@ -418,6 +428,46 @@ describe("SessionsBoard", () => {
     expect(within(body).getByTestId("session-later-pending-l1")).toHaveAttribute(
       "title",
       "1 message waiting"
+    );
+  });
+});
+
+describe("SessionsBoard stays-on agents", () => {
+  const global = agentInstanceFixture({
+    id: "ainst-global",
+    label: "Release Captain",
+    workspace_id: "",
+    scope: "@user",
+    main_session_id: "sess-main-global",
+  });
+  const needsYou = agentInstanceFixture({ needs_attention: true });
+
+  afterEach(() => mockInstances.mockResolvedValue([]));
+
+  it("Should show no row with no instances", async () => {
+    renderBoard(board());
+
+    await screen.findByTestId("sessions-board");
+    expect(screen.queryByTestId("stays-on-row")).toBeNull();
+  });
+
+  it("Should sit the row above the columns, with the triangle on whoever needs you", async () => {
+    mockInstances.mockResolvedValue([global, needsYou]);
+    renderBoard({ ...board(), focusedWorkspaceId: "ws-compozy" });
+
+    expect(await screen.findByRole("img", { name: /Triage Lead.*Needs you/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Release Captain, Global/ })).toBeInTheDocument();
+  });
+
+  it("Should open a main session from the row, never a card", async () => {
+    const onOpen = vi.fn();
+    mockInstances.mockResolvedValue([global]);
+    renderBoard({ ...board(), focusedWorkspaceId: "@user" }, onOpen);
+
+    fireEvent.click(await screen.findByTestId("stays-on-seat-ainst-global"));
+
+    await waitFor(() =>
+      expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "sess-main-global" }))
     );
   });
 });

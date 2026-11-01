@@ -14,7 +14,7 @@ export function useAgentsCatalogTopbar(page: AgentsFleetPage) {
       <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
         <Button
           data-testid="agents-topbar-create"
-          onClick={page.openCreate}
+          onClick={() => page.openCreate()}
           size="sm"
           type="button"
           variant="secondary"

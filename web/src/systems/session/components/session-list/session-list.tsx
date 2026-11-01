@@ -1,9 +1,7 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { useState } from "react";
 
-import { TriangleAlert, WifiOff } from "@compozy/ui/icons";
-
-import { Alert, AlertActions, AlertDescription, Button, SearchInput } from "@compozy/ui";
+import { Button, SearchInput } from "@compozy/ui";
 
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
@@ -21,9 +19,12 @@ import { useSessionListSelection } from "../../hooks/use-session-list-selection"
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import type { WorkspaceFolderPayload } from "../../types";
+import { StaysOnCreateMenu } from "../stays-on/stays-on-create-menu";
+import { StaysOnListTop } from "../stays-on/stays-on-list-top";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListTotals } from "./session-list-totals";
 import { SessionListGroups } from "./session-list-groups";
+import { SessionListStatus } from "./session-list-status";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListSelectionFolders } from "./session-list-selection-folders";
@@ -151,6 +152,12 @@ export function SessionList({
           containerClassName="min-w-0"
         />
       </div>
+      <StaysOnListTop
+        currentSessionId={currentSessionId}
+        groupBy={view.groupBy}
+        onOpenSession={onSelectSession}
+        workspaceId={view.focusedWorkspaceId}
+      />
       <SessionListStatus disconnected={disconnected} view={view} />
       {grouped ? (
         <div
@@ -242,46 +249,6 @@ function listNewFolder(
 ): { onNewFolder?: () => void; newFolderUnavailable: string | null } {
   const onNewFolder = create.session ?? create.project;
   return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
-}
-
-function SessionListStatus({
-  disconnected,
-  view,
-}: Pick<SessionListProps, "disconnected" | "view">) {
-  return (
-    <>
-      {disconnected ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <WifiOff aria-hidden="true" />
-          <AlertDescription>
-            Can&apos;t get session updates right now. The sessions below may be out of date.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {view.catalog?.failed && (view.catalog.sessions.length ?? 0) === 0 ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertDescription>Couldn&rsquo;t load sessions.</AlertDescription>
-          <AlertActions>
-            <Button size="xs" type="button" variant="secondary" onClick={view.catalog.retry}>
-              Retry
-            </Button>
-          </AlertActions>
-        </Alert>
-      ) : null}
-      {view.layoutError ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
-          <AlertActions>
-            <Button size="xs" type="button" variant="secondary" onClick={view.layoutError.retry}>
-              Retry
-            </Button>
-          </AlertActions>
-        </Alert>
-      ) : null}
-    </>
-  );
 }
 
 type SessionListFolderLayoutModel = ReturnType<typeof useSessionListFolderLayout>;
@@ -387,6 +354,17 @@ function SessionListControls({
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
+        createMenu={
+          view.groupBy === "none" && view.focusedWorkspaceId ? (
+            <StaysOnCreateMenu
+              newFolderUnavailable={newFolderUnavailable}
+              onNewFolder={onNewFolder}
+              onNewSession={onNewSession}
+              staysOn={{ place: view.focusedWorkspaceId, name: view.focusedScopeName }}
+              testId={testIdPrefix}
+            />
+          ) : undefined
+        }
         testIdPrefix={testIdPrefix}
       />
       {view.sortNote ? (

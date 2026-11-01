@@ -1,11 +1,9 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
-
-import type { EntityMode } from "@compozy/ui";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import {
-  AgentCreateDialog,
+  AgentCreateScreen,
   createDefaultAgentCreateDraft,
   type AgentCreateDialogDraft,
 } from "@/systems/agent";
@@ -21,6 +19,8 @@ const providerOptions: RuntimeProviderOption[] = (workspaceDetailFixture.provide
     runtime_strategy: provider.runtime_strategy,
   })
 );
+
+const workspaces = [workspaceDetailFixture.workspace];
 
 const modelProvider = providerOptions[0]?.id ?? "codex";
 
@@ -55,7 +55,7 @@ const runtimeModels: RuntimeModelOption[] = [
 
 const validDraft: AgentCreateDialogDraft = {
   ...createDefaultAgentCreateDraft(true),
-  name: "incident-triage",
+  displayName: "Incident Triage",
   provider: modelProvider,
   model: "gpt-5.6-sol",
   reasoningEffort: "high",
@@ -70,15 +70,15 @@ const validDraft: AgentCreateDialogDraft = {
   disabledSkills: [],
 };
 
-const meta: Meta<typeof AgentCreateDialog> = {
-  title: "systems/agent/components/AgentCreateDialog",
-  component: AgentCreateDialog,
+const meta: Meta<typeof AgentCreateScreen> = {
+  title: "systems/agent/components/AgentCreateScreen",
+  component: AgentCreateScreen,
   parameters: {
     layout: "fullscreen",
     docs: {
       description: {
         component:
-          "Create-only agent editor on the shared entity-dialog shell. Simple carries the definition, runtime, and permission policy; Advanced adds runtime overrides and the tool/skill allowlists.",
+          "One screen for every agent: who it is and what it follows on the left; how it works, where, its model and a live preview on the right. Advanced holds the Short name and what it can use.",
       },
     },
   },
@@ -87,11 +87,12 @@ const meta: Meta<typeof AgentCreateDialog> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function AgentCreateDialogHarness({
+function AgentCreateScreenHarness({
   initialDraft,
-  initialMode,
   isSubmitting = false,
   submitError = null,
+  atInstanceLimit = false,
+  startFailure = null,
   modelCatalogError = null,
   modelCatalogLoading = false,
   providersError = null,
@@ -101,9 +102,10 @@ function AgentCreateDialogHarness({
   hasActiveWorkspace = true,
 }: {
   initialDraft?: AgentCreateDialogDraft;
-  initialMode?: EntityMode;
   isSubmitting?: boolean;
   submitError?: string | null;
+  atInstanceLimit?: boolean;
+  startFailure?: string | null;
   modelCatalogError?: string | null;
   modelCatalogLoading?: boolean;
   providersError?: string | null;
@@ -115,16 +117,16 @@ function AgentCreateDialogHarness({
   const [draft, setDraft] = useState(initialDraft ?? createDefaultAgentCreateDraft(true));
 
   return (
-    <AgentCreateDialog
+    <AgentCreateScreen
       draft={draft}
       hasActiveWorkspace={hasActiveWorkspace}
-      initialMode={initialMode}
       isSubmitting={isSubmitting}
       modelCatalogError={modelCatalogError}
       modelCatalogLoading={modelCatalogLoading}
       modelCatalogRefreshing={false}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
+      onOpenCreatedAgent={fn()}
       onOpenProviderSettings={fn()}
       onRefreshCatalog={fn()}
       onSubmit={fn()}
@@ -133,9 +135,12 @@ function AgentCreateDialogHarness({
       providersError={providersError}
       providersLoading={providersLoading}
       runtimeModels={models}
+      atInstanceLimit={atInstanceLimit}
+      startFailure={startFailure}
       submitError={submitError}
-      workspaceId={hasActiveWorkspace ? workspaceDetailFixture.workspace.id : null}
+      takenNames={new Set(["reviewer"])}
       workspaceName={hasActiveWorkspace ? workspaceDetailFixture.workspace.name : null}
+      workspaces={workspaces}
     />
   );
 }
@@ -143,62 +148,62 @@ function AgentCreateDialogHarness({
 /** Simple tier: definition, runtime, and permission policy. */
 export const Default: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} />,
+  render: () => <AgentCreateScreenHarness initialDraft={validDraft} />,
 };
 
-/** Advanced tier: runtime overrides plus the tool and skill allowlists. */
+/** Stays on: Where it works joins the side panel. */
+export const StaysOn: Story = {
+  args: {},
+  render: () => <AgentCreateScreenHarness initialDraft={{ ...validDraft, kind: "stays_on" }} />,
+};
+
+/** The limit shows before submitting; the agent is created unstarted. */
+export const LimitReached: Story = {
+  args: {},
+  render: () => (
+    <AgentCreateScreenHarness atInstanceLimit initialDraft={{ ...validDraft, kind: "stays_on" }} />
+  ),
+};
+
+/** The agent exists but couldn't start: nothing is lost, and its page offers a retry. */
+export const FailedToStart: Story = {
+  args: {},
+  render: () => (
+    <AgentCreateScreenHarness
+      initialDraft={{ ...validDraft, kind: "stays_on" }}
+      startFailure="This agent can't reach that workspace."
+    />
+  ),
+};
+
+/** Advanced open: the Short name, permissions, tools and skills. */
 export const Advanced: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialMode="advanced" />,
-};
-
-/**
- * Advanced tier scrolled to its tail — the runtime-override and allowlist blocks
- * sit below the fold, so a capture at `scrollTop = 0` cannot show them.
- */
-export const AdvancedTail: Story = {
-  args: {},
   tags: ["play-fn"],
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} initialMode="advanced" />,
+  render: () => <AgentCreateScreenHarness initialDraft={validDraft} />,
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    const tail = await body.findByTestId("agent-create-disabled-skills-input");
-    const scrollOwner = tail.closest('[data-slot="entity-dialog-body"]');
-    if (!(scrollOwner instanceof HTMLElement)) {
-      throw new Error("AgentCreateDialog story is missing its EntityDialogBody scroll owner");
-    }
-    scrollOwner.scrollTop = scrollOwner.scrollHeight;
-    await expect(body.getByTestId("agent-create-category-path")).toBeVisible();
-    await expect(tail).toBeVisible();
+    await userEvent.click(body.getByRole("button", { name: "Advanced" }));
+    await expect(await body.findByTestId("agent-create-short-name")).toBeVisible();
   },
 };
 
 /** Pristine draft — both required fields empty and the primary gated. */
 export const Empty: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness />,
+  render: () => <AgentCreateScreenHarness />,
 };
 
-/** Canonical validation failures on the required and advanced fields. */
-export const ValidationError: Story = {
+/** A name already in use, with a free one offered. */
+export const NameTaken: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness
-      initialDraft={{
-        ...createDefaultAgentCreateDraft(true),
-        name: "release captain",
-        categoryPath: "Engineering//Release",
-      }}
-      initialMode="advanced"
-    />
+    <AgentCreateScreenHarness initialDraft={{ ...validDraft, displayName: "Reviewer", name: "" }} />
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("agent-create-name-error")).toHaveTextContent(
-      "Start with a lowercase letter and use only lowercase letters, numbers, hyphens, or underscores."
-    );
-    await expect(canvas.getByTestId("agent-create-category-path-error")).toHaveTextContent(
-      "Group can't contain empty parts between slashes."
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(body.getByTestId("agent-create-name-error")).toHaveTextContent(
+      "You already have an agent with this name."
     );
   },
 };
@@ -206,24 +211,24 @@ export const ValidationError: Story = {
 /** Authored runtime overrides with the project-default reset available. */
 export const RuntimeOverride: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} />,
+  render: () => <AgentCreateScreenHarness initialDraft={validDraft} />,
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("agent-create-runtime-use-project-defaults")).toBeVisible();
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(body.getByTestId("agent-create-runtime-use-project-defaults")).toBeVisible();
   },
 };
 
 /** Model catalog still loading — the draft survives, only the selector waits. */
 export const CatalogLoading: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} modelCatalogLoading />,
+  render: () => <AgentCreateScreenHarness initialDraft={validDraft} modelCatalogLoading />,
 };
 
 /** Model catalog failed — catalog truth stays visible in Simple. */
 export const CatalogError: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness
+    <AgentCreateScreenHarness
       initialDraft={validDraft}
       modelCatalogError="Model catalog refresh failed. Showing the last known models."
     />
@@ -234,7 +239,7 @@ export const CatalogError: Story = {
 export const CatalogEmpty: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness
+    <AgentCreateScreenHarness
       initialDraft={{ ...validDraft, provider: "", model: "", reasoningEffort: "" }}
       models={[]}
       providers={[]}
@@ -246,7 +251,7 @@ export const CatalogEmpty: Story = {
 export const ProvidersError: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness
+    <AgentCreateScreenHarness
       initialDraft={{ ...validDraft, provider: "", model: "", reasoningEffort: "" }}
       providers={[]}
       providersError="Unable to load global provider settings."
@@ -258,7 +263,7 @@ export const ProvidersError: Story = {
 export const ScopeUnavailable: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness
+    <AgentCreateScreenHarness
       hasActiveWorkspace={false}
       initialDraft={{ ...validDraft, scope: "global" }}
     />
@@ -268,21 +273,21 @@ export const ScopeUnavailable: Story = {
 /** Disabled submission state while the daemon validates the definition. */
 export const Submitting: Story = {
   args: {},
-  render: () => <AgentCreateDialogHarness initialDraft={validDraft} isSubmitting />,
+  render: () => <AgentCreateScreenHarness initialDraft={validDraft} isSubmitting />,
 };
 
 /** Durable duplicate-name submission error; every entered value is retained. */
 export const DuplicateError: Story = {
   args: {},
   render: () => (
-    <AgentCreateDialogHarness
+    <AgentCreateScreenHarness
       initialDraft={validDraft}
       submitError="agent definition already exists"
     />
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByTestId("agent-create-submit-error")).toHaveTextContent(
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(body.getByTestId("agent-create-submit-error")).toHaveTextContent(
       "agent definition already exists"
     );
   },

@@ -23,6 +23,12 @@ export const agentKeys = {
       [...workspaceIds].sort().join(","),
       normalizeAgentCatalogFilter(filters),
     ] as const,
+  /** The operator's stays-on agents across every scope; one read shared by every row. */
+  instances: () => [...agentKeys.all, "instances"] as const,
+  instanceCheckIns: (id: string) => [...agentKeys.all, "instance-check-ins", id] as const,
+  /** Definitions a scope can start: one `group=agent` read per scope and profile. */
+  staysOnCatalog: (workspace: string, profile = "default") =>
+    [...agentKeys.catalogs(), "@stays-on", workspace, profile] as const,
   lists: () => [...agentKeys.all, "list"] as const,
   list: (workspace?: string | null, profile = "default") =>
     [...agentKeys.lists(), workspace ?? null, profile] as const,

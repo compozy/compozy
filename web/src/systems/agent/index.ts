@@ -8,6 +8,9 @@ export type {
   AgentHeartbeatHistoryResponse,
   AgentHeartbeatPayload,
   AgentHeartbeatStatusPayload,
+  AgentGroupedCatalogItem,
+  AgentInstanceCheckIn,
+  AgentInstancePayload,
   AgentMCPServer,
   AgentPayload,
   AgentResponse,
@@ -39,6 +42,7 @@ export type {
 } from "./types";
 
 // Adapters
+export { AgentInstanceApiError } from "./adapters/agent-instance-api";
 export {
   AgentApiError,
   AgentDigestConflictError,
@@ -326,7 +330,15 @@ export {
   AgentCommandMultiSelect,
   type AgentCommandMultiSelectProps,
 } from "./components/agent-command-multi-select";
-export { AgentCreateDialog, type AgentCreateDialogProps } from "./components/agent-create-dialog";
+export { AgentCreateScreen, type AgentCreateScreenProps } from "./components/agent-create-screen";
+export { AgentMark } from "./components/agent-mark";
+export {
+  AgentPicker,
+  AgentScopePicker,
+  type AgentPickerProps,
+  type AgentPlaceOption,
+  type AgentScopePickerProps,
+} from "./components/agent-add-pickers";
 export { TokenListField, type TokenListFieldProps } from "./components/token-list-field";
 export {
   AgentCreateHostProvider,
@@ -343,3 +355,23 @@ export {
 export { AgentFleetToolbar, type AgentFleetToolbarProps } from "./components/agent-fleet-toolbar";
 export { AgentFleetList, type AgentFleetListProps } from "./components/agent-fleet-list";
 export { useAgentWindowScope } from "./hooks/use-agent-window-scope";
+export {
+  applyAgentInstanceUpdate,
+  invalidateAgentInstances,
+  useAgentInstanceActions,
+  useAgentInstances,
+  useCreateAgentInstance,
+  useStaysOnAgents,
+} from "./hooks/use-agent-instances";
+export {
+  ACTIVE_INSTANCE_LIMIT,
+  AGENT_PAUSE_COPY,
+  GLOBAL_SCOPE,
+  agentAvatarAppearance,
+  agentInstanceAvatarState,
+  agentInstanceLimitReached,
+  agentInstanceResumeBlocked,
+  agentInstancesByUrgency,
+  agentScopeLabel,
+} from "./lib/agent-instance";
+export { agentInstanceCheckInsOptions } from "./lib/query-options";
