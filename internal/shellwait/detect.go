@@ -7,6 +7,7 @@ package shellwait
 import (
 	"math"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -37,7 +38,7 @@ const (
 	unknownIterations = 5
 	maxNestedShells   = 3
 
-	shellPOSIX      = "sh"
+	shellBash       = "bash"
 	shellPowerShell = "powershell"
 )
 
@@ -46,10 +47,13 @@ type Finding struct {
 	Kind Kind
 	// Argv is the unwrapped command for KindWatch.
 	Argv []string
-	// Source is the full command line for KindPoll.
+	// Source is the full command line for KindPoll, and for a KindWatch whose Argv
+	// alone would lose its directory, environment, or dynamic arguments.
 	Source string
-	// Shell runs Source: sh or powershell.
+	// Shell runs Source: bash, whose syntax Detect parses, or powershell.
 	Shell string
+	// Exact marks a KindWatch that Argv alone reproduces.
+	Exact bool
 	// DelaySeconds is the delay for KindSleep.
 	DelaySeconds int
 }
@@ -65,26 +69,97 @@ func detectDepth(command string, depth int) (Finding, bool) {
 	if err != nil {
 		return Finding{}, false
 	}
+	scan := &detector{source: command, file: file, depth: depth, funcs: map[string]*syntax.FuncDecl{}}
+	syntax.Walk(file, func(node syntax.Node) bool {
+		if decl, ok := node.(*syntax.FuncDecl); ok {
+			scan.funcs[decl.Name.Value] = decl
+		}
+		return true
+	})
+	return scan.walk(file)
+}
+
+// detector walks one parsed command line. A function body counts only when the
+// line calls it, and sleeps inside a loop paced by its input do not count at all.
+type detector struct {
+	source      string
+	file        *syntax.File
+	depth       int
+	funcs       map[string]*syntax.FuncDecl
+	ignoreSleep bool
+}
+
+func (d *detector) walk(root syntax.Node) (Finding, bool) {
 	var finding Finding
 	found := false
-	syntax.Walk(file, func(node syntax.Node) bool {
+	syntax.Walk(root, func(node syntax.Node) bool {
 		if found {
 			return false
 		}
 		switch typed := node.(type) {
+		case *syntax.FuncDecl:
+			return false
 		case *syntax.CallExpr:
-			finding, found = detectCall(wordValues(typed.Args), depth)
+			finding, found = d.call(typed)
 		case *syntax.WhileClause:
+			if inputPaced(typed) {
+				paced := *d
+				paced.ignoreSleep = true
+				for _, stmt := range typed.Do {
+					if finding, found = paced.walk(stmt); found {
+						break
+					}
+				}
+				return false
+			}
 			found = whileClausePolls(typed)
 		case *syntax.ForClause:
 			found = forClausePolls(typed)
 		}
 		if found && finding.Kind == "" {
-			finding = Finding{Kind: KindPoll, Source: command, Shell: shellPOSIX}
+			finding = Finding{Kind: KindPoll, Source: d.source, Shell: shellBash}
 		}
 		return !found
 	})
 	return finding, found
+}
+
+func (d *detector) call(call *syntax.CallExpr) (Finding, bool) {
+	argv := wordValues(call.Args)
+	if len(argv) > 0 {
+		if decl, ok := d.funcs[argv[0]]; ok {
+			delete(d.funcs, argv[0])
+			return d.walk(decl.Body)
+		}
+	}
+	finding, found := detectCall(argv, d.depth)
+	if !found || (d.ignoreSleep && finding.Kind == KindSleep) {
+		return Finding{}, false
+	}
+	if finding.Kind == KindWatch {
+		if finding.Source == "" {
+			finding.Exact = true
+		}
+		if !d.argvKeepsContext(call, argv) {
+			finding.Exact, finding.Source, finding.Shell = false, d.source, shellBash
+		}
+	}
+	return finding, true
+}
+
+// argvKeepsContext reports whether the unwrapped argv alone runs the same work:
+// the command is the whole line, every word is literal, and no wrapper or
+// assignment sets the environment it runs in.
+func (d *detector) argvKeepsContext(call *syntax.CallExpr, argv []string) bool {
+	if len(d.file.Stmts) != 1 || d.file.Stmts[0].Cmd != syntax.Command(call) ||
+		len(d.file.Stmts[0].Redirs) > 0 || len(call.Assigns) > 0 {
+		return false
+	}
+	switch executableName(argv[0]) {
+	case "env", "sudo", "doas":
+		return false
+	}
+	return !slices.Contains(argv, "")
 }
 
 func detectCall(argv []string, depth int) (Finding, bool) {
@@ -93,6 +168,9 @@ func detectCall(argv []string, depth int) (Finding, bool) {
 		return Finding{}, false
 	}
 	if depth < maxNestedShells {
+		if script, ok := powerShellScript(argv); ok {
+			return DetectPowerShell(script)
+		}
 		if script, ok := nestedShellScript(argv); ok {
 			return detectDepth(script, depth+1)
 		}
@@ -111,7 +189,7 @@ func detectCall(argv []string, depth int) (Finding, bool) {
 func unwrapCommand(argv []string) []string {
 	for len(argv) > 0 {
 		next, unwrapped := unwrapOnce(argv)
-		if !unwrapped {
+		if !unwrapped || len(next) >= len(argv) {
 			return argv
 		}
 		argv = next
@@ -167,6 +245,23 @@ func skipOptions(args []string, valueOptions ...string) []string {
 		}
 	}
 	return args
+}
+
+// powerShellScript returns the script of a PowerShell launch with -Command.
+func powerShellScript(argv []string) (string, bool) {
+	switch executableName(argv[0]) {
+	case "pwsh", "powershell":
+	default:
+		return "", false
+	}
+	for index, arg := range argv[1:] {
+		option := strings.ToLower(arg)
+		if option == "-c" || (len(option) > 2 && strings.HasPrefix("-command", option)) {
+			script := strings.Join(argv[index+2:], " ")
+			return script, script != ""
+		}
+	}
+	return "", false
 }
 
 func nestedShellScript(argv []string) (string, bool) {
@@ -306,132 +401,6 @@ func clampDelay(seconds float64) int {
 		return MaxDelaySeconds
 	}
 	return max(int(math.Ceil(seconds)), MinDelaySeconds)
-}
-
-// whileClausePolls treats any sleep in a while or until loop as polling, except
-// a loop that drains a stream with read: its pace comes from the input.
-func whileClausePolls(clause *syntax.WhileClause) bool {
-	if !clause.Until && conditionReads(clause.Cond) {
-		return false
-	}
-	seconds, known, found := loopSleep(clause.Do)
-	return found && (!known || seconds > 0)
-}
-
-func conditionReads(condition []*syntax.Stmt) bool {
-	if len(condition) != 1 {
-		return false
-	}
-	call, ok := condition[0].Cmd.(*syntax.CallExpr)
-	if !ok || len(call.Args) == 0 {
-		return false
-	}
-	return call.Args[0].Lit() == "read"
-}
-
-// forClausePolls estimates a counted loop's total delay, so a brief pause across
-// a few items stays allowed while a retry loop does not.
-func forClausePolls(clause *syntax.ForClause) bool {
-	seconds, known, found := loopSleep(clause.Do)
-	if !found {
-		return false
-	}
-	return !known || seconds*float64(loopIterations(clause.Loop)) >= MinDelaySeconds
-}
-
-func loopSleep(body []*syntax.Stmt) (seconds float64, known bool, found bool) {
-	known = true
-	for _, stmt := range body {
-		syntax.Walk(stmt, func(node syntax.Node) bool {
-			call, ok := node.(*syntax.CallExpr)
-			if !ok {
-				return true
-			}
-			argv := unwrapCommand(wordValues(call.Args))
-			if len(argv) == 0 {
-				return true
-			}
-			value, valueKnown, isSleep := sleepSeconds(argv)
-			if isSleep {
-				found = true
-				seconds += value
-				known = known && valueKnown
-			}
-			return true
-		})
-	}
-	return seconds, known, found
-}
-
-func loopIterations(loop syntax.Loop) int {
-	iter, ok := loop.(*syntax.WordIter)
-	if !ok {
-		return unknownIterations
-	}
-	total := 0
-	for _, word := range iter.Items {
-		total += wordIterations(word)
-	}
-	return max(total, 1)
-}
-
-func wordIterations(word *syntax.Word) int {
-	if len(word.Parts) == 1 {
-		if subst, ok := word.Parts[0].(*syntax.CmdSubst); ok {
-			return commandIterations(subst)
-		}
-	}
-	if count, ok := braceRangeLength(word.Lit()); ok {
-		return count
-	}
-	return 1
-}
-
-func commandIterations(subst *syntax.CmdSubst) int {
-	if len(subst.Stmts) != 1 {
-		return unknownIterations
-	}
-	call, ok := subst.Stmts[0].Cmd.(*syntax.CallExpr)
-	if !ok {
-		return unknownIterations
-	}
-	argv := wordValues(call.Args)
-	if len(argv) < 2 || executableName(argv[0]) != "seq" {
-		return unknownIterations
-	}
-	first, last := "1", argv[len(argv)-1]
-	if len(argv) == 3 {
-		first = argv[1]
-	}
-	if len(argv) > 3 {
-		return unknownIterations
-	}
-	return rangeLength(first, last)
-}
-
-func braceRangeLength(value string) (int, bool) {
-	body, ok := strings.CutPrefix(value, "{")
-	if !ok {
-		return 0, false
-	}
-	body, ok = strings.CutSuffix(body, "}")
-	if !ok {
-		return 0, false
-	}
-	first, last, ok := strings.Cut(body, "..")
-	if !ok {
-		return 0, false
-	}
-	return rangeLength(first, last), true
-}
-
-func rangeLength(first string, last string) int {
-	start, startErr := strconv.Atoi(first)
-	end, endErr := strconv.Atoi(last)
-	if startErr != nil || endErr != nil {
-		return unknownIterations
-	}
-	return max(end-start, start-end) + 1
 }
 
 // wordValues renders each word's literal value, or an empty string when any

@@ -25,6 +25,9 @@ func DenyReason(finding Finding) string {
 	case KindPoll:
 		return redirectLead + terminalRedirect(pollInvocation(finding)) + redirectTail
 	default:
+		if finding.Source != "" && !finding.Exact {
+			return redirectLead + terminalRedirect(pollInvocation(finding)) + redirectTail
+		}
 		return redirectLead + terminalRedirect(finding.Argv) + redirectTail
 	}
 }
@@ -33,7 +36,7 @@ func pollInvocation(finding Finding) []string {
 	if finding.Shell == shellPowerShell {
 		return []string{shellPowerShell, "-Command", finding.Source}
 	}
-	return []string{shellPOSIX, "-c", finding.Source}
+	return []string{shellBash, "-c", finding.Source}
 }
 
 func terminalRedirect(argv []string) string {
@@ -61,7 +64,7 @@ func DetectToolInput(raw json.RawMessage) (Finding, bool) {
 	}
 	var argv []string
 	if err := json.Unmarshal(input.Command, &argv); err == nil {
-		return detectCall(argv, 0)
+		return detectArgv(argv)
 	}
 	var command string
 	if err := json.Unmarshal(input.Command, &command); err != nil {
@@ -70,5 +73,14 @@ func DetectToolInput(raw json.RawMessage) (Finding, bool) {
 	if len(input.Args) == 0 {
 		return Detect(command)
 	}
-	return detectCall(append([]string{command}, input.Args...), 0)
+	return detectArgv(append([]string{command}, input.Args...))
+}
+
+// detectArgv keeps a watch's wrappers: nothing here says what they set.
+func detectArgv(argv []string) (Finding, bool) {
+	finding, found := detectCall(argv, 0)
+	if found && finding.Kind == KindWatch && finding.Source == "" {
+		finding.Argv, finding.Exact = argv, true
+	}
+	return finding, found
 }

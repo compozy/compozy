@@ -57,6 +57,13 @@ func TestDetect(t *testing.T) {
 		"for loop with unknown delay":    {`for i in a b; do sleep $n; done`, KindPoll},
 		"loop inside a shell string":     {`sh -c 'until test -f x; do sleep 1; done'`, KindPoll},
 		"single long pause in a loop":    {`for i in 1; do sleep 5; done`, KindPoll},
+		"sleep in a loop condition":      {`while sleep 1; do check; done`, KindPoll},
+		"nested sleep in a loop":         {`while true; do check; sh -c "sleep 1"; done`, KindPoll},
+		"variable loop items":            {`for i in $attempts; do check; sleep 1; done`, KindPoll},
+		"glob loop items":                {`for f in *.log; do check; sleep 1; done`, KindPoll},
+		"called helper":                  {`wait_for() { sleep 30; }; wait_for`, KindSleep},
+		"watch in an input loop":         {`while read -r id; do gh run watch "$id"; done < ids`, KindWatch},
+		"powershell launch":              {`pwsh -Command "Start-Sleep 30"`, KindSleep},
 	}
 	for name, tc := range denied {
 		t.Run("Should deny "+name, func(t *testing.T) {
@@ -111,6 +118,9 @@ func TestDetect(t *testing.T) {
 		"shell with a dynamic string":  `sh -c "$CMD"`,
 		"unknown env wrapper":          `env`,
 		"go run with sleep flag":       `go run ./cmd/x --sleep 300`,
+		"unused helper":                `wait_for() { sleep 30; }; git status`,
+		"long sleep in an input loop":  `while read -r line; do run "$line"; sleep 6; done < file`,
+		"windows wrapper path":         `C:\\Windows\\System32\\env.exe`,
 	}
 	for name, command := range allowed {
 		t.Run("Should allow "+name, func(t *testing.T) {
@@ -136,6 +146,10 @@ func TestDetectPowerShell(t *testing.T) {
 		"gh exe watch":     {`gh.exe run watch 123`, KindWatch},
 		"polling while":    {`while ($true) { gh run view 1; Start-Sleep -Seconds 2 }`, KindPoll},
 		"polling do":       {`do { Test-Path x; Start-Sleep 1 } while ($true)`, KindPoll},
+		"quoted delay":     {`Start-Sleep -Seconds "30"`, KindSleep},
+		"quoted watch":     {`gh pr checks 123 "--watch"`, KindWatch},
+		"variable delay":   {`while ($true) { gh run view 1; Start-Sleep $delay }`, KindPoll},
+		"long foreach":     {`foreach ($f in 1,2,3) { Start-Sleep 2 }`, KindPoll},
 	}
 	for name, tc := range denied {
 		t.Run("Should deny "+name, func(t *testing.T) {
@@ -148,13 +162,15 @@ func TestDetectPowerShell(t *testing.T) {
 	}
 
 	allowed := map[string]string{
-		"short sleep":     `Start-Sleep -Seconds 1`,
-		"millis sleep":    `Start-Sleep -Milliseconds 500`,
-		"gh checks":       `gh pr checks 123`,
-		"quoted mention":  `Write-Output "gh pr checks 1 --watch; Start-Sleep 60"`,
-		"plain foreach":   `foreach ($f in $files) { Write-Output $f }`,
-		"variable sleep":  `Start-Sleep -Seconds $delay`,
-		"quick loop wait": `foreach ($f in $files) { Start-Sleep -Milliseconds 100 }`,
+		"short sleep":        `Start-Sleep -Seconds 1`,
+		"millis sleep":       `Start-Sleep -Milliseconds 500`,
+		"gh checks":          `gh pr checks 123`,
+		"quoted mention":     `Write-Output "gh pr checks 1 --watch; Start-Sleep 60"`,
+		"plain foreach":      `foreach ($f in $files) { Write-Output $f }`,
+		"variable sleep":     `Start-Sleep -Seconds $delay`,
+		"quick loop wait":    `foreach ($f in $files) { Start-Sleep -Milliseconds 100 }`,
+		"short foreach":      `foreach ($f in 1,2) { Start-Sleep 1 }`,
+		"sleep after a loop": `foreach ($f in 1,2) { Write-Output $f }; Start-Sleep 1`,
 	}
 	for name, command := range allowed {
 		t.Run("Should allow "+name, func(t *testing.T) {
@@ -184,6 +200,39 @@ func TestDenyReason(t *testing.T) {
 		}
 	})
 
+	t.Run("Should move a watch whole when its argv would lose context", func(t *testing.T) {
+		t.Parallel()
+		for _, command := range []string{
+			`env GH_REPO=other/repo gh pr checks 123 --watch`,
+			`GH_REPO=other/repo gh pr checks 123 --watch`,
+			`gh pr checks "$PR" --watch`,
+			`cd checkout && gh pr checks 123 --watch`,
+			`cd checkout && bash -c 'gh run watch 1'`,
+		} {
+			finding, found := Detect(command)
+			if !found {
+				t.Fatalf("Detect(%q) allowed", command)
+			}
+			encoded, err := json.Marshal(command)
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			want := `{"args":["-c",` + string(encoded) + `],"command":"bash"}`
+			if reason := DenyReason(finding); !strings.Contains(reason, want) {
+				t.Fatalf("DenyReason(%q) = %q, want %q", command, reason, want)
+			}
+		}
+	})
+
+	t.Run("Should keep quoted PowerShell arguments in the replacement", func(t *testing.T) {
+		t.Parallel()
+		finding, _ := DetectPowerShell(`gh -R "other/repo" pr checks 123 --watch`)
+		want := `"args":["-R","other/repo","pr","checks","123","--watch"]`
+		if reason := DenyReason(finding); !strings.Contains(reason, want) {
+			t.Fatalf("reason = %q, want %q", reason, want)
+		}
+	})
+
 	t.Run("Should move a polling loop whole into the terminal", func(t *testing.T) {
 		t.Parallel()
 		command := `until test -f "done"; do sleep 1; done`
@@ -192,7 +241,7 @@ func TestDenyReason(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Marshal() error = %v", err)
 		}
-		want := `{"args":["-c",` + string(encoded) + `],"command":"sh"}`
+		want := `{"args":["-c",` + string(encoded) + `],"command":"bash"}`
 		if reason := DenyReason(finding); !strings.Contains(reason, want) {
 			t.Fatalf("reason = %q, want %q", reason, want)
 		}
@@ -217,10 +266,11 @@ func TestDetectToolInput(t *testing.T) {
 	t.Parallel()
 
 	denied := map[string]string{
-		"Bash string":     `{"command":"gh pr checks 1 --watch"}`,
-		"Codex argv":      `{"command":["bash","-lc","gh run watch 1"],"cwd":"/tmp"}`,
-		"terminal create": `{"command":"gh","args":["pr","checks","1","--watch"]}`,
-		"terminal in sh":  `{"command":"sh","args":["-c","sleep 30"]}`,
+		"Bash string":      `{"command":"gh pr checks 1 --watch"}`,
+		"Codex argv":       `{"command":["bash","-lc","gh run watch 1"],"cwd":"/tmp"}`,
+		"terminal create":  `{"command":"gh","args":["pr","checks","1","--watch"]}`,
+		"terminal in sh":   `{"command":"sh","args":["-c","sleep 30"]}`,
+		"terminal in pwsh": `{"command":"pwsh","args":["-Command","Start-Sleep 30"]}`,
 	}
 	for name, input := range denied {
 		t.Run("Should deny "+name, func(t *testing.T) {
