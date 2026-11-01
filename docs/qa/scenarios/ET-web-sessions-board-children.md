@@ -43,7 +43,7 @@ matching the public facets API. Current-head full E2E delivery remains owned by 
 QA impact 2026-10-30 (#1074, forks are not child sessions): fork the orchestrator from its row
 menu and continue another session. On the board the fork card shows the fork glyph and the
 orchestrator's title, its accessible name reads "Forked from <title>", and the orchestrator's child
-count excludes it. Uncheck "Hide child sessions" in View options: the spawned children leave, the fork and the
+count excludes it. Check "Hide child sessions" in View options: the spawned children leave, the fork and the
 continuation stay, and the column counts and `GET /api/sessions/facets?children=exclude` agree.
 Owning automated coverage: `TestSessionCatalogBoard` (store SQL filter, totals and rollups),
 `TestManagerBoardCatalog` (active overlay), `session-board-card.test.ts` and
