@@ -14,7 +14,7 @@ import (
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 	parent := &cobra.Command{Use: "instance", Short: "Manage stays-on agent instances"}
 	for _, action := range []string{
-		"create",
+		automationCreateKey,
 		agentListKey,
 		"show",
 		"pause",
@@ -22,11 +22,11 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 		workspaceArchiveAction,
 		agentInstanceAdoptAction,
 		"ensure-main",
-		"reports",
+		agentInstanceReportsAction,
 		agentInstanceCheckAction,
 		agentInstanceAwayAction,
 		agentInstanceMarkSeenAction,
-		"check-ins",
+		agentInstanceCheckInsAction,
 	} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
@@ -52,8 +52,8 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	cmd.Flags().String(workspaceSkillSource, "", "Workspace ID, name, or path")
 	cmd.Flags().BoolVar(&options.global, "global", false, "Use the global scope")
 	cmd.MarkFlagsMutuallyExclusive("global", workspaceSkillSource)
-	if action == agentListKey || action == "reports" || action == "check-ins" {
-		if action != "check-ins" {
+	if action == agentListKey || action == agentInstanceReportsAction || action == agentInstanceCheckInsAction {
+		if action != agentInstanceCheckInsAction {
 			cmd.Flags().StringVar(&options.state, "state", "", "Filter by state")
 		}
 		cmd.Flags().StringVar(&options.cursor, "cursor", "", "Continue from next_cursor")
@@ -114,7 +114,7 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 		scope = "Global"
 	}
 	switch action {
-	case "create", agentInstanceAdoptAction:
+	case automationCreateKey, agentInstanceAdoptAction:
 		return fmt.Sprintf("%s is stays-on in %s\nMain session: %s\n", label, scope, instance.MainSessionID)
 	case "pause":
 		return fmt.Sprintf("%s paused in %s\n", label, scope)
@@ -180,7 +180,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 		return writeInstanceOutput(cmd, result, instanceListText(result))
 	}
 	target := strings.TrimSpace(args[0])
-	if action == "create" || action == agentInstanceAdoptAction {
+	if action == automationCreateKey || action == agentInstanceAdoptAction {
 		return options.createOrAdopt(cmd, client, action, target, workspace)
 	}
 	id, err := resolveInstanceID(cmd, client, target, workspace)
@@ -191,10 +191,11 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
 		return options.check(cmd, base, action, id)
 	}
-	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction || action == "check-ins" {
+	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||
+		action == agentInstanceCheckInsAction {
 		return writeInstanceRead(cmd, base, action, id, query)
 	}
-	if action == "reports" {
+	if action == agentInstanceReportsAction {
 		result, err := client.AgentInstanceReports(cmd.Context(), id, query)
 		if err != nil {
 			return err
@@ -223,12 +224,12 @@ func (options agentInstanceOptions) query(
 		workspace = query.Workspace
 	}
 	query := url.Values{workspaceSkillSource: {workspace}}
-	if action == agentListKey || action == "reports" || action == "check-ins" {
+	if action == agentListKey || action == agentInstanceReportsAction || action == agentInstanceCheckInsAction {
 		if options.limit < 1 || options.limit > 100 {
 			return nil, errors.New("cli: --limit must be from 1 to 100")
 		}
 		query.Set(listLimitField, strconv.Itoa(options.limit))
-		if action != "check-ins" {
+		if action != agentInstanceCheckInsAction {
 			query.Set("state", options.state)
 		}
 		query.Set("cursor", options.cursor)
@@ -267,7 +268,7 @@ func (options agentInstanceOptions) createOrAdopt(
 	client agentInstancesClient,
 	action, target, workspace string,
 ) error {
-	if action == "create" {
+	if action == automationCreateKey {
 		result, err := client.CreateAgentInstance(
 			cmd.Context(),
 			contract.AgentInstanceCreateRequest{Agent: target, Workspace: workspace},
@@ -317,3 +318,8 @@ const (
 )
 
 const agentInstanceCheckAction = "check"
+
+const (
+	agentInstanceReportsAction  = "reports"
+	agentInstanceCheckInsAction = "check-ins"
+)

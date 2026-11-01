@@ -48,7 +48,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		p.Kind = f.kind
 	}
 	changed := false
-	for _, name := range []string{agentAppearanceAvatarKey, cliSeedKey, loopGenerationKey, cliColorKey, "icon", "emoji"} {
+	for _, name := range []string{agentAppearanceAvatarKey, cliSeedKey, loopGenerationKey, cliColorKey, "icon", agentAppearanceEmojiKey} {
 		changed = changed || cmd.Flags().Changed("appearance-"+name)
 	}
 	if !changed {
@@ -66,7 +66,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	}
 	for key, value := range map[string]any{
 		agentAppearanceAvatarKey: f.avatar, cliSeedKey: f.seed, loopGenerationKey: f.generation,
-		cliColorKey: f.color, "icon": f.icon, "emoji": f.emoji,
+		cliColorKey: f.color, "icon": f.icon, agentAppearanceEmojiKey: f.emoji,
 	} {
 		if cmd.Flags().Changed("appearance-" + key) {
 			a[key] = value
@@ -74,12 +74,12 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	}
 	if cmd.Flags().Changed("appearance-icon") {
 		a[agentAppearanceAvatarKey] = "icon"
-		delete(a, "emoji")
+		delete(a, agentAppearanceEmojiKey)
 		delete(a, cliSeedKey)
 		delete(a, loopGenerationKey)
 	}
 	if cmd.Flags().Changed("appearance-emoji") {
-		a[agentAppearanceAvatarKey] = "emoji"
+		a[agentAppearanceAvatarKey] = agentAppearanceEmojiKey
 		delete(a, "icon")
 		delete(a, cliSeedKey)
 		delete(a, loopGenerationKey)
@@ -88,3 +88,5 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 }
 
 const agentAppearanceAvatarKey = "avatar"
+
+const agentAppearanceEmojiKey = "emoji"

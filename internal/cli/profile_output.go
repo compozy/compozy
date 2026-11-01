@@ -12,7 +12,7 @@ import (
 
 type profileListRecord struct {
 	Name                   string                                  `json:"name"`
-	Color                  string                                  `json:cliColorKey`
+	Color                  string                                  `json:"color"`
 	Icon                   *string                                 `json:"icon"`
 	Emoji                  *string                                 `json:"emoji"`
 	State                  string                                  `json:"state"`
