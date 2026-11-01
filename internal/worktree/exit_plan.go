@@ -59,7 +59,7 @@ func (s *Service) exitPlan(ctx context.Context, workspaceID, id string, action b
 	if item.State != StateReady {
 		return nil, ErrNotReady
 	}
-	status, err := s.Status(ctx, workspaceID, item.ID, true)
+	status, err := s.readExitStatus(ctx, item.WorkspaceID, item.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +105,23 @@ func (s *Service) exitPlan(ctx context.Context, workspaceID, id string, action b
 	plan.Primary = selectExitPrimary(plan.Actions, status)
 	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, nil)
 	return plan, nil
+}
+
+// readExitStatus refreshes the status the plan is built from without emitting
+// worktree.status_refreshed. The Web ladder rereads the plan on that frame, so
+// a plan read that announced its own refresh would refetch itself without end.
+// The target is reread right before the refresh, as an explicit refresh does,
+// so a checkout that went missing after the readiness check gets ErrMissing
+// instead of a plan and a persisted status.
+func (s *Service) readExitStatus(ctx context.Context, workspaceID, id string) (*Status, error) {
+	item, err := s.statusTarget(ctx, workspaceID, id)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.capability.Check(ctx); err != nil {
+		return nil, err
+	}
+	return s.persistStatus(ctx, *item)
 }
 
 func (s *Service) remoteUnreadableExitPlan(
