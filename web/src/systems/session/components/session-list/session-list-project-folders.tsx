@@ -106,7 +106,9 @@ export function SessionListProjectFolders({
           count={groups.length}
           holds="projects"
           expanded={filtering || !collapsed.has(folder.id)}
-          onToggle={() => toggleFolder(folder.id)}
+          onToggle={() => {
+            if (!filtering) toggleFolder(folder.id);
+          }}
           onRename={() => onFolderDialog({ kind: "rename", folder })}
           onDelete={() => onFolderDialog({ kind: "delete", folder })}
           onMoveUp={index > 0 ? () => layout.moveFolder(folder.id, -1) : undefined}

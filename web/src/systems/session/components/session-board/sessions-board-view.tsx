@@ -92,6 +92,22 @@ export function SessionsBoardView({
   );
 }
 
+/** The saved project order failed to load: the retry shows with or without lanes. */
+function SessionsBoardLayoutWarning({ error }: { error: SessionsBoardModel["layoutError"] }) {
+  if (!error) return null;
+  return (
+    <Alert className="w-auto px-2.5 py-2" role="status" variant="warning">
+      <TriangleAlert aria-hidden="true" />
+      <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
+      <AlertActions>
+        <Button onClick={error.retry} size="xs" type="button" variant="secondary">
+          Retry
+        </Button>
+      </AlertActions>
+    </Alert>
+  );
+}
+
 function SessionsBoardLanes({
   board,
   row,
@@ -105,27 +121,20 @@ function SessionsBoardLanes({
   if (board.lanesLoading) return <SessionsBoardLanesSkeleton />;
   if (board.lanes === null || board.lanes.length === 0) {
     return (
-      <p
-        className="px-3 py-8 text-center text-small-body text-muted-foreground"
-        data-testid="sessions-board-lanes-empty"
-      >
-        No sessions yet.
-      </p>
+      <>
+        <SessionsBoardLayoutWarning error={board.layoutError} />
+        <p
+          className="px-3 py-8 text-center text-small-body text-muted-foreground"
+          data-testid="sessions-board-lanes-empty"
+        >
+          No sessions yet.
+        </p>
+      </>
     );
   }
   return (
     <div className={SESSIONS_BOARD_LANES} data-testid="sessions-board-lanes">
-      {board.layoutError ? (
-        <Alert className="w-auto px-2.5 py-2" role="status" variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
-          <AlertActions>
-            <Button onClick={board.layoutError.retry} size="xs" type="button" variant="secondary">
-              Retry
-            </Button>
-          </AlertActions>
-        </Alert>
-      ) : null}
+      <SessionsBoardLayoutWarning error={board.layoutError} />
       {board.lanes.map((lane, index) =>
         renderLane?.(lane, {
           ...row,

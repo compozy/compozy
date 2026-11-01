@@ -1025,7 +1025,9 @@ describe("sessions board order and swimlanes", () => {
       .getQueryCache()
       .findAll()
       .find(query => JSON.stringify(query.queryKey).includes("facets"));
-    expect(read?.observers[0]?.options).toMatchObject({ refetchInterval: 60_000 });
+    const grouping = read?.observers.filter(observer => observer.options.enabled === true) ?? [];
+    expect(grouping).toHaveLength(1);
+    expect(grouping[0]?.options).toMatchObject({ refetchInterval: 60_000 });
   });
 
   it("Should read every column in last-activity order while the stored sort is manual", async () => {

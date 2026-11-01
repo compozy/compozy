@@ -260,7 +260,10 @@ export function useSessionListView(
       // A search shows what it matches: no fold hides a result, like session folders.
       has: key => !searching && (groupFolds.isCollapsed(key) || hiddenGroupKeys.has(key)),
     },
-    toggleGroup: groupFolds.toggle,
+    // The group stays open for the search, so a fold there would land unseen when it clears.
+    toggleGroup: key => {
+      if (!searching) groupFolds.toggle(key);
+    },
     foldAll: sidebar.foldAll,
     setFoldAll: sidebar.setFoldAll,
     openThreadIds: sidebar.openThreadIds,

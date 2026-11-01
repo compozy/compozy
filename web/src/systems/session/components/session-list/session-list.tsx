@@ -112,14 +112,14 @@ export function SessionList({
   const grouped = view.groupBy !== "none";
   // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
   const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
+  const filtering = normalizedFilter !== "";
   const { collapsedThreads, subagentThreads } = sessionThreadFolds({
     collapsedThreadIds,
     openThreadIds: view.openThreadIds,
     subagentThreadIds,
-    // A search shows what it matches: Collapse all never hides a matching child.
-    foldAll: normalizedFilter === "" ? view.foldAll : null,
+    foldAll: view.foldAll,
+    filtering,
   });
-  const filtering = normalizedFilter !== "";
   const folders = useSessionListFolderLayout(view, threads, filtering);
   const { layout, sections } = folders;
   // A grouped list's groups each read their own page and publish their rows to it.

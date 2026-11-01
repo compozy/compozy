@@ -251,7 +251,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       const visibleSessions = sessionListVisibleOrder(options.sessionListView, {
         queryClient,
         sessions: options.sessionListView.catalog?.sessions ?? attention.sessions,
-        collapsedThreadIds: sessionThreadFolds(sessionSidebar).collapsedThreads,
+        collapsedThreadIds: sessionThreadFolds({
+          ...sessionSidebar,
+          filtering: (options.sessionListView.search ?? "").trim() !== "",
+        }).collapsedThreads,
         collapsedFolderIds: sessionSidebar.folderFolds,
       });
       const target = adjacentShortcutItem<SessionPayload>(

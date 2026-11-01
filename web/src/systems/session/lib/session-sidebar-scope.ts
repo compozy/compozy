@@ -168,17 +168,20 @@ export function sessionThreadFolds(input: {
   openThreadIds: readonly string[];
   subagentThreadIds: readonly string[];
   foldAll: SessionFoldAll;
+  /** A search shows what it matches: `foldAll` never hides a matching child. */
+  filtering: boolean;
 }): { collapsedThreads: SessionFoldSet; subagentThreads: SessionSubagentFolds } {
   const collapsed = new Set(input.collapsedThreadIds);
   const open = new Set(input.openThreadIds);
   const subagents = new Set(input.subagentThreadIds);
+  const foldAll = input.filtering ? null : input.foldAll;
   return {
     collapsedThreads: {
-      has: id => collapsed.has(id) || (input.foldAll === "collapsed" && !open.has(id)),
+      has: id => collapsed.has(id) || (foldAll === "collapsed" && !open.has(id)),
     },
     subagentThreads: {
       has: id => subagents.has(id),
-      ...(input.foldAll === "expanded"
+      ...(foldAll === "expanded"
         ? { whenChildless: { has: (id: string) => !collapsed.has(id) && !open.has(id) } }
         : {}),
     },

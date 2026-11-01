@@ -551,6 +551,13 @@ describe("SessionsBoard swimlanes", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("Should offer the project order retry on a board with no lanes", () => {
+    renderBoard({ ...board(), columns: [], lanes: [], layoutError: { retry: vi.fn() } });
+
+    expect(screen.getByTestId("sessions-board-lanes-empty")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
   it("Should render one lane per group, each reading the five columns in its own scope", async () => {
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
       sessions:
