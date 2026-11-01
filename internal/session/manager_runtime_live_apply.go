@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -94,7 +95,10 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 			)
 		}
 	}
-	m.recordRuntimeChangedMarker(ctx, session, &snapshot, plan.selection, turnID)
+	// The change is committed: its record must not depend on the apply's own deadline.
+	markerCtx, cancelMarker := m.lifecycleCleanupContext()
+	defer cancelMarker()
+	m.recordRuntimeChangedMarker(markerCtx, session, &snapshot, plan.selection, turnID)
 }
 
 // liveRuntimeApplyEligible admits only a ready process whose provider honors session config;
@@ -124,13 +128,27 @@ func (m *Manager) prepareLiveRuntimePlan(
 		runtimeProvider = strings.TrimSpace(plan.runtime.agent.Provider)
 	}
 	if strings.TrimSpace(snapshot.selection.Provider) != strings.TrimSpace(plan.selection.Provider) ||
-		RuntimeStrategyForProvider(runtimeProvider) != acp.RuntimeApplicationSessionConfig {
+		RuntimeStrategyForProvider(runtimeProvider) != acp.RuntimeApplicationSessionConfig ||
+		removesACPOption(snapshot.selection.ACPOptions, plan.selection.ACPOptions) {
 		return nil, nil
 	}
 	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
 		return nil, err
 	}
 	return plan, nil
+}
+
+// removesACPOption reports an option the provider would keep: ACP has no "unset", so
+// reporting the removal as applied live would misstate what the process is using.
+func removesACPOption(current, requested []acp.SessionConfigOptionSelection) bool {
+	for _, option := range current {
+		if !slices.ContainsFunc(requested, func(candidate acp.SessionConfigOptionSelection) bool {
+			return candidate.ID == option.ID
+		}) {
+			return true
+		}
+	}
+	return false
 }
 
 // liveRuntimeFailure carries one failed live apply: the selection revision it applied

@@ -47,7 +47,10 @@ function acpOptionsApplied(runtime: SessionRuntime): boolean {
 }
 
 function selectionApplied(runtime: SessionRuntime): boolean {
-  const { selected, effective } = runtime;
+  const { selected, effective, failure } = runtime;
+  // A field left empty resolves to a default the payload can't compare, so a recorded
+  // failure is the only evidence that clearing it was refused.
+  if (selected && (!selected.model || !selected.reasoning_effort) && failure?.trim()) return false;
   return (
     !!selected &&
     !!effective &&

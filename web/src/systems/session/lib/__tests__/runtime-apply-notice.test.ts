@@ -66,6 +66,23 @@ describe("runtimeApplyNotice", () => {
     expect(notice).toBeNull();
   });
 
+  it("Should report a refused clear of an optional field", () => {
+    const notice = runtimeApplyNotice(
+      {
+        badge: "running",
+        runtime: {
+          status: "ready",
+          selection_revision: 2,
+          failure: "acp: model refused",
+          selected: { provider: "claude", reasoning_effort: "medium" },
+          effective: selected,
+        },
+      },
+      "next_step"
+    );
+    expect(notice?.tone).toBe("danger");
+  });
+
   it("Should treat a refused ACP option as not applied even when the other fields match", () => {
     const notice = runtimeApplyNotice(
       {

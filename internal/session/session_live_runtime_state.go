@@ -16,6 +16,10 @@ type liveTurnRuntime struct {
 
 // lockRuntimeApply waits for exclusive runtime configuration until ctx ends.
 func (s *Session) lockRuntimeApply(ctx context.Context) error {
+	// select picks randomly among ready cases, so a canceled caller must not reach it.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	if s.runtimeApplySlot == nil {
 		s.runtimeApplySlot = make(chan struct{}, 1)
@@ -88,11 +92,12 @@ func (s *Session) recordLiveRuntimeFailure(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.State != StateActive || s.process != proc {
-		return false
-	}
+	// A concurrent idle release may reattach this process, so this outlives the guard below.
 	if unverified {
 		s.runtimeConfigUnverified = true
+	}
+	if s.State != StateActive || s.process != proc {
+		return false
 	}
 	if s.RuntimeSelectionRevision == revision {
 		s.RuntimeFailure = strings.TrimSpace(failure)

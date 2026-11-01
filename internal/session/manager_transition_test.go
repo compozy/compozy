@@ -1896,6 +1896,37 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		if err := <-applied; err != nil {
 			t.Fatalf("SetRuntimeSelection() error = %v", err)
 		}
+		for range 32 { // The slot is free now; a canceled caller must still never take it.
+			_, err := h.manager.ensurePromptRuntime(canceled, active, nil, process)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("ensurePromptRuntime(canceled, free slot) error = %v, want context.Canceled", err)
+			}
+		}
+	})
+
+	t.Run("Should defer removing an ACP option the provider cannot unset", func(t *testing.T) {
+		t.Parallel()
+		h, driver, active := newLiveRuntimeHarness(t, runtimeProviderClaude, nil)
+		snapshot := active.runtimeBindingSnapshot()
+		option := acp.SessionConfigOptionSelection{ID: "thinking", ValueID: "on"}
+		selection := snapshot.selection
+		selection.ACPOptions = []acp.SessionConfigOptionSelection{option}
+		active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		removed := liveEffortSelection(active, "medium")
+		removed.ACPOptions = nil
+		updated, err = h.manager.SetRuntimeSelection(t.Context(), active.ID, removed, updated.RuntimeSelectionRevision)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection(removal) error = %v", err)
+		}
+		if got := driver.configSnapshots(); len(got) != 1 || len(updated.ACPOptions) != 1 {
+			t.Fatalf("removal configs = %#v options = %#v, want it deferred with the option still effective",
+				got, updated.ACPOptions)
+		}
 	})
 
 	t.Run("Should reconfigure a reattached process after a release rejected the live commit", func(t *testing.T) {
@@ -1910,7 +1941,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 			}
 			return nil
 		}
-		h, _, session := newLiveRuntimeHarness(t, runtimeProviderClaude, detachOnMedium)
+		h, driver, session := newLiveRuntimeHarness(t, runtimeProviderClaude, detachOnMedium)
 		active = session
 		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
 		if err != nil {
@@ -1922,6 +1953,21 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		snapshot := active.runtimeBindingSnapshot()
 		if updated.ReasoningEffort != "xhigh" || !snapshot.configUnverified || !runtimeControlsDrifted(&snapshot) {
 			t.Fatalf("rejected commit info = %#v, want effective xhigh with a required reconfigure", updated)
+		}
+		// With no stored selection the effective runtime already matches, so only the
+		// unverified config can make admission send this reconfigure.
+		if _, err := h.manager.ClearRuntimeSelection(t.Context(), active.ID, 1); err != nil {
+			t.Fatalf("ClearRuntimeSelection() error = %v", err)
+		}
+		events, err := h.manager.Prompt(t.Context(), active.ID, "dispatch on the reattached process")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		configs := driver.configSnapshots()
+		if len(configs) != 2 || configs[1].ReasoningEffort != "xhigh" ||
+			active.runtimeBindingSnapshot().configUnverified {
+			t.Fatalf("configs = %#v, want admission to reconfigure the recorded runtime before dispatch", configs)
 		}
 	})
 
@@ -1937,6 +1983,31 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		if got := driver.configSnapshots(); len(got) != 1 || updated.ReasoningEffort != "medium" ||
 			updated.SelectedRuntime == nil || updated.SelectedRuntime.Provider != runtimeProviderClaude {
 			t.Fatalf("alias selection configs = %#v info = %#v, want a canonical live apply", got, updated)
+		}
+	})
+
+	t.Run("Should keep a failed rollback unverified when a release detached the process", func(t *testing.T) {
+		t.Parallel()
+		var active *Session
+		var detached *AgentProcess
+		detachAndRefuse := func(acp.RuntimeConfig) error {
+			active.mu.Lock()
+			defer active.mu.Unlock()
+			if active.process != nil {
+				detached, active.process = active.process, nil
+			}
+			return errors.New("provider transport closed")
+		}
+		h, _, session := newLiveRuntimeHarness(t, runtimeProviderClaude, detachAndRefuse)
+		active = session
+		if _, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "max"), 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		active.mu.Lock()
+		active.process = detached
+		active.mu.Unlock()
+		if !active.runtimeBindingSnapshot().configUnverified {
+			t.Fatal("a failed rollback on a detached process lost its unverified mark")
 		}
 	})
 

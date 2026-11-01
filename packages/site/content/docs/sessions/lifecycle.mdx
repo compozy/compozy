@@ -298,8 +298,8 @@ Workspace provider options report when an applied change reaches the agent as
 | `next_turn` | The agent stores the change and honors it from its next turn, which is the next message. |
 | _absent_    | The provider applies runtime controls at launch (`launch_arg`, `provider_managed`).      |
 
-A provider change, a launch-argument provider, or a session that is binding, recovering, or released
-keeps the selection for the next prompt, which binds or replaces the process before dispatch. If the
+A provider change, a launch-argument provider, a removed ACP option (ACP has no way to unset one), or
+a session that is binding, recovering, or released keeps the selection for the next prompt, which binds or replaces the process before dispatch. If the
 provider refuses a live change, CompozyOS rolls the process back, records the reason in
 `runtime.failure`, keeps the stored selection, and leaves the turn running; the next prompt retries
 the selection. A newer saved selection replaces that failure. If the rollback also fails, the next
