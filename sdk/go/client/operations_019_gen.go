@@ -9,6 +9,41 @@ import (
 	"strings"
 )
 
+// ListSessionDescendants List a session's child sessions, recursively
+func (c *Client) ListSessionDescendants(ctx context.Context, params ListSessionDescendantsParams) (*SessionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionEventsParams carries the path, query, and header parameters.
+type ListSessionEventsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	Since         *string `url:"since"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Type          *string `url:"type"`
+	AgentName     *string `url:"agent_name"`
+	TurnID        *string `url:"turn_id"`
+	Archive       *string `url:"archive"`
+}
+
 // ListSessionEvents List persisted session events
 func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEventsParams) (*SessionEventsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/events"

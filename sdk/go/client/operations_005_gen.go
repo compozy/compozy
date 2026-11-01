@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -41,10 +42,11 @@ func (c *Client) DeleteResource(ctx context.Context, params DeleteResourceParams
 
 // DeleteSessionParams carries the path, query, and header parameters.
 type DeleteSessionParams struct {
-	Processes   *string `url:"processes"`
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
+	Processes    *string `url:"processes"`
+	WorkspaceID  string  `url:"workspace_id"`
+	SessionID    string  `url:"session_id"`
+	WithChildren *bool   `url:"with_children"`
+	Profile      *string `url:"profile"`
 }
 
 // DeleteSession Delete one session and remove it from persisted history
@@ -56,6 +58,9 @@ func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) 
 	}
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	if params.WithChildren != nil {
+		query.Set("with_children", strconv.FormatBool(*params.WithChildren))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}

@@ -17,11 +17,13 @@ import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { sessionProcessChoiceCopy } from "../lib/session-process-choice";
 import { sessionsRunningProcesses } from "../lib/session-processes";
 import type { SessionBatchResult } from "../lib/session-batch";
+import type { SessionChildrenChoice } from "../lib/session-tree";
 import { sessionSelectionCounts } from "../hooks/use-session-selection";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { sessionBadgeSignal } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
 import { SessionBadgeMark } from "./session-badge-mark";
+import { SessionChildrenCheckbox } from "./session-children-checkbox";
 import { SessionDeleteActions } from "./session-delete-actions";
 import { sessionWaitingOn } from "../lib/session-pull-request";
 
@@ -31,6 +33,7 @@ export interface SessionDeleteDialogSetProps {
   sessions: readonly SessionPayload[];
   results?: readonly SessionBatchResult[];
   isDeleting: boolean;
+  childSessions?: SessionChildrenChoice;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
   onRetry?: () => void;
@@ -43,24 +46,26 @@ export function SessionDeleteDialogSet({
   sessions,
   results = [],
   isDeleting,
+  childSessions,
   onConfirm,
   onRetry,
 }: SessionDeleteDialogSetProps) {
   const count = sessions.length;
-  const failed = results.filter(result => result.status === "failed").length;
-  const deleted = results.filter(result => result.status === "done").length;
+  const failed = results.filter((result) => result.status === "failed").length;
+  const deleted = results.filter((result) => result.status === "done").length;
   const partial = !isDeleting && failed > 0;
   const active = sessionSelectionCounts(sessions, []).stoppable;
-  const progressIndex = results.findIndex(result => result.status === "running");
+  const progressIndex = results.findIndex((result) => result.status === "running");
   const note = sessionDeleteNote(isDeleting, partial, active);
-  const resultsById = new Map(results.map(result => [result.id, result]));
-  const processCount = sessionsRunningProcesses(sessions);
+  const resultsById = new Map(results.map((result) => [result.id, result]));
+  const processCount =
+    sessionsRunningProcesses(sessions) + (childSessions?.includedProcessCount ?? 0);
   const processChoice =
     processCount > 0 ? sessionProcessChoiceCopy("delete", count, processCount) : null;
   return (
     <Dialog
       open={open}
-      onOpenChange={next => {
+      onOpenChange={(next) => {
         if (!isDeleting || next) onOpenChange(next);
       }}
     >
@@ -98,7 +103,7 @@ export function SessionDeleteDialogSet({
           className="min-h-0 space-y-4 overflow-y-auto"
         >
           <ul className="overflow-hidden rounded-lg bg-sunken py-1">
-            {sessions.slice(0, 5).map(session => (
+            {sessions.slice(0, 5).map((session) => (
               <SessionDeleteResultRow
                 key={session.id}
                 session={session}
@@ -111,6 +116,9 @@ export function SessionDeleteDialogSet({
           </ul>
           <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
         </div>
+        {childSessions && !partial ? (
+          <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
+        ) : null}
         <DialogFooter className="shrink-0 flex-wrap gap-2">
           {note ? (
             <span
@@ -153,7 +161,7 @@ function SessionDeleteResultRow({
       data-testid={`delete-dialog-row-${session.id}`}
       className={cn(
         "grid grid-cols-[12px_minmax(0,1fr)_auto_14px] items-center gap-x-2.5 px-3 py-1.5 text-form",
-        className
+        className,
       )}
       {...props}
     >
@@ -197,7 +205,7 @@ function SessionDeleteOverflowErrors({
   sessions: readonly SessionPayload[];
   resultsById: ReadonlyMap<string, SessionBatchResult>;
 }) {
-  return sessions.map(session => {
+  return sessions.map((session) => {
     const result = resultsById.get(session.id);
     if (result?.status !== "failed") return null;
     return (

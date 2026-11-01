@@ -2481,6 +2481,134 @@ func TestGlobalDBSubagentArchive(t *testing.T) {
 	)
 }
 
+func TestGlobalDBSessionTree(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: the tree is the session list hierarchy, inside the root's workspace
+	// and profile, and archiving it is all-or-nothing.
+	t.Run("Should walk hierarchy children only, inside the workspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		other := registerWorkspaceForGlobalTests(t, db, "tree-other", filepath.Join(t.TempDir(), "other"))
+		registerSubagentSession(t, db, workspace, "child", parent, "worker", now)
+		registerSubagentSession(t, db, workspace, "grandchild", "child", store.SubagentSpawnRole, now)
+		registerSubagentSession(t, db, workspace, "continued", parent, "", now)
+		registerSubagentSession(t, db, workspace, "forked", parent, "", now)
+		registerSubagentSession(t, db, workspace, "title", parent, "auto-title", now)
+		registerSubagentSession(t, db, other, "foreign", parent, "worker", now)
+		// A corrupt cycle ends the walk instead of looping.
+		registerSubagentSession(t, db, workspace, "loop", "grandchild", "worker", now)
+		for _, statement := range []string{
+			`UPDATE sessions SET lineage_kind='continue' WHERE id='continued'`,
+			`UPDATE sessions SET lineage_kind='fork' WHERE id='forked'`,
+			`UPDATE sessions SET parent_session_id='loop' WHERE id='child'`,
+			`UPDATE sessions SET parent_session_id='parent', spawn_depth=1 WHERE id='child'`,
+			`UPDATE sessions SET spawn_depth=2 WHERE id='grandchild'`,
+			`UPDATE sessions SET spawn_depth=3 WHERE id='loop'`,
+		} {
+			if _, err := db.db.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		descendants, err := db.ListSessionDescendants(ctx, workspace, parent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, 0, len(descendants))
+		for i := range descendants {
+			got = append(got, descendants[i].ID)
+		}
+		if want := []string{"child", "grandchild", "loop"}; !slices.Equal(got, want) {
+			t.Fatalf("descendants = %v, want %v shallowest first", got, want)
+		}
+		foreign, err := db.ListSessionDescendants(ctx, other, parent)
+		if err != nil || len(foreign) != 0 {
+			t.Fatalf("descendants outside the root's workspace = %v, %v, want none", foreign, err)
+		}
+	})
+
+	t.Run("Should not walk a child in another profile", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		theirs := store.SessionInfo{
+			ID: "theirs", ProfileID: insertLayoutTestProfile(ctx, t, db), AgentName: "coder", Provider: "claude",
+			WorkspaceID: workspace, RuntimeStatus: store.SessionRuntimeUnbound, SessionType: defaultSessionType,
+			State: "stopped", CreatedAt: now, UpdatedAt: now,
+			Lineage: &store.SessionLineage{
+				Kind: store.LineageKindSpawn, ParentSessionID: parent, RootSessionID: parent, SpawnDepth: 1,
+			},
+		}
+		if err := db.RegisterSession(ctx, theirs); err != nil {
+			t.Fatal(err)
+		}
+		descendants, err := db.ListSessionDescendants(ctx, workspace, parent)
+		if err != nil || len(descendants) != 0 {
+			t.Fatalf("descendants across profiles = %v, %v, want none", descendants, err)
+		}
+	})
+
+	t.Run("Should archive the whole tree or nothing and leave unarchive to each session", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "child", parent, "worker", now)
+		registerSubagentSession(t, db, workspace, "grandchild", "child", "worker", now)
+		if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET state='active' WHERE id='grandchild'`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ArchiveSessionTree(ctx, workspace, parent); !errors.Is(err, store.ErrSessionArchiveRequiresStopped) {
+			t.Fatalf("live member = %v", err)
+		} else if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](err); !ok || live.SessionID != "grandchild" {
+			t.Fatalf("live member = %#v, want grandchild", live)
+		}
+		for _, id := range []string{parent, "child", "grandchild"} {
+			if at, err := db.SessionArchivedAt(ctx, workspace, id); err != nil || at != nil {
+				t.Fatalf("partial archive %s = %v %v", id, at, err)
+			}
+		}
+		if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET state='stopped' WHERE id='grandchild'`); err != nil {
+			t.Fatal(err)
+		}
+		tree, err := db.ArchiveSessionTree(ctx, workspace, parent)
+		if err != nil || tree.Root.ArchivedAt == nil || len(tree.Descendants) != 2 {
+			t.Fatalf("ArchiveSessionTree() = %#v, %v", tree, err)
+		}
+		for i := range tree.Descendants {
+			if tree.Descendants[i].ArchivedAt == nil {
+				t.Fatalf("member %s stayed unarchived", tree.Descendants[i].ID)
+			}
+		}
+		// Restoring the parent keeps today's subagent-family reach.
+		if _, err := db.SetSessionArchived(ctx, workspace, parent, false); err != nil {
+			t.Fatal(err)
+		}
+		if at, err := db.SessionArchivedAt(ctx, workspace, "child"); err != nil || at == nil {
+			t.Fatalf("worker child after parent unarchive = %v %v, want still archived", at, err)
+		}
+	})
+
+	t.Run("Should keep children listed after their parent is archived or deleted", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		registerSubagentSession(t, db, workspace, "child", parent, "worker", now)
+		if _, err := db.SetSessionArchived(ctx, workspace, parent, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteSession(ctx, parent); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspace,
+		})
+		if err != nil || len(rows) != 1 || rows[0].ID != "child" || rows[0].ArchivedAt != nil {
+			t.Fatalf("rows after parent delete = %#v, %v, want the child still listed", rows, err)
+		}
+	})
+}
+
 func TestPageSessionsManualOrder(t *testing.T) {
 	t.Parallel()
 

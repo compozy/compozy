@@ -867,6 +867,9 @@ import type {
   ListSessionClarificationsData,
   ListSessionClarificationsErrors,
   ListSessionClarificationsResponses,
+  ListSessionDescendantsData,
+  ListSessionDescendantsErrors,
+  ListSessionDescendantsResponses,
   ListSessionEventsData,
   ListSessionEventsErrors,
   ListSessionEventsResponses,
@@ -7604,6 +7607,29 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
+      ...options,
+    });
+  }
+
+  /**
+   * List a session's child sessions, recursively
+   */
+  public listSessionDescendants<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionDescendantsData, ThrowOnError>
+  ): RequestResult<
+    ListSessionDescendantsResponses,
+    ListSessionDescendantsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionDescendantsResponses,
+      ListSessionDescendantsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants",
       ...options,
     });
   }

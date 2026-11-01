@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// StopWhenSpec is a daemon API value.
+// StopWhenSpec preserves its custom JSON wire representation.
+type StopWhenSpec = json.RawMessage
+
+// StrategyKind is a daemon API value.
+type StrategyKind string
+
+// StrategySpec is a daemon API value.
+// StrategySpec preserves its custom JSON wire representation.
+type StrategySpec = json.RawMessage
+
 // StrategyThreshold is a daemon API value.
 // StrategyThreshold preserves its custom JSON wire representation.
 type StrategyThreshold = json.RawMessage
@@ -426,20 +437,4 @@ type TaskDashboardQueueDepthPayload struct {
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
-}
-
-// TaskDashboardQueuePayload is a daemon API value.
-type TaskDashboardQueuePayload struct {
-	Total                 int                              `json:"total"`
-	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
-	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
-	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
-	BacklogWarning        bool                             `json:"backlog_warning"`
-	BacklogStatus         string                           `json:"backlog_status"`
-	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
-}
-
-// TaskDashboardResponse is a daemon API value.
-type TaskDashboardResponse struct {
-	Dashboard TaskDashboardPayload `json:"dashboard"`
 }

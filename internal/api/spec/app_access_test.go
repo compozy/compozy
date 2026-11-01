@@ -127,6 +127,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"listLoopRuns",
 			"listLoops",
 			"listSessionClarifications",
+			"listSessionDescendants",
 			"listSessionEvents",
 			"listSessionFacets",
 			"listSessionFolders",

@@ -116,14 +116,19 @@ export async function deleteSession(
   id: string,
   profile: string,
   signal?: AbortSignal,
-  processes?: SessionProcessPolicy
+  processes?: SessionProcessPolicy,
+  withChildren = false
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
         path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
-        query: processes ? { profile, processes } : { profile },
+        query: {
+          profile,
+          ...(processes ? { processes } : {}),
+          ...(withChildren ? { with_children: true } : {}),
+        },
       },
       signal,
     }

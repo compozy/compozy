@@ -922,6 +922,47 @@ func (q *Queries) ListPendingSubagentsByParent(ctx context.Context, parentID str
 	return items, nil
 }
 
+const listSessionTreeDescendantIDs = `-- name: ListSessionTreeDescendantIDs :many
+WITH RECURSIVE tree(id,profile_id) AS (
+ SELECT sessions.id,sessions.profile_id FROM sessions WHERE sessions.workspace_id = ?2 AND sessions.id = ?1
+ UNION
+ SELECT child.id,child.profile_id FROM sessions child JOIN tree parent ON child.parent_session_id = parent.id
+ WHERE child.workspace_id = ?2 AND child.profile_id = parent.profile_id
+  AND child.lineage_kind NOT IN ('continue','fork') AND LOWER(TRIM(COALESCE(child.spawn_role,''))) <> 'auto-title'
+)
+SELECT member.id FROM sessions member JOIN tree ON tree.id = member.id
+WHERE member.id <> ?1
+ORDER BY member.spawn_depth,member.id
+`
+
+type ListSessionTreeDescendantIDsParams struct {
+	SessionID   string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) ListSessionTreeDescendantIDs(ctx context.Context, arg ListSessionTreeDescendantIDsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionTreeDescendantIDs, arg.SessionID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleReservedSubagents = `-- name: ListStaleReservedSubagents :many
 SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity FROM session_subagents WHERE origin = 'delegated' AND status = 'queued' AND created_at < ? ORDER BY created_at,id
 `

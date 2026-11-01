@@ -55,10 +55,10 @@ export function useRenameSession() {
 
   return useMutation({
     mutationFn: ({ id, workspace_id, profile_name, name }: RenameSessionParams) =>
-      request(signal =>
-        renameSession(sessionOwnerWorkspace(workspace_id), id, profile_name, { name }, signal)
+      request((signal) =>
+        renameSession(sessionOwnerWorkspace(workspace_id), id, profile_name, { name }, signal),
       ),
-    onSuccess: session => {
+    onSuccess: (session) => {
       const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(successWorkspaceId, session.id), session);
     },
@@ -66,7 +66,7 @@ export function useRenameSession() {
       void invalidateSessionMutationQueries(
         queryClient,
         sessionOwnerWorkspace(variables.workspace_id),
-        variables.id
+        variables.id,
       );
     },
   });
@@ -85,14 +85,14 @@ export function useCreateSession() {
   return useMutation({
     mutationFn: ({ profile, ...params }: CreateSessionVariables) =>
       createSession(params, profile ?? destination),
-    onSuccess: session => {
+    onSuccess: (session) => {
       // Only while an axis is aggregated: a scoped view already shows where the
       // session is, so announcing it there would be noise. Here it is the
       // guardrail that makes a misfile visible immediately (ADR-003).
       if (aggregate || breadthMode === "all") {
         const projectLabel = workspaceBadgeIdentity(
           session.workspace_id,
-          new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]))
+          new Map(registeredWorkspaces.map((workspace) => [workspace.id, workspace.name])),
         ).name;
         notifyUser({
           message: sessionStartedToast(projectLabel, session.profile_name),
@@ -139,7 +139,7 @@ export function useSessionDeletionPending(sessionId: string | null): boolean {
   return (
     useIsMutating({
       mutationKey: sessionKeys.deletions(),
-      predicate: mutation => {
+      predicate: (mutation) => {
         const variables = mutation.state.variables;
         return (
           typeof variables === "object" &&
@@ -162,7 +162,7 @@ export function useSessionDeletedByOperator(sessionId: string | null): boolean {
       filters: {
         mutationKey: sessionKeys.deletions(),
         status: "success",
-        predicate: mutation => {
+        predicate: (mutation) => {
           const variables = mutation.state.variables;
           return (
             typeof variables === "object" &&
@@ -183,19 +183,31 @@ export interface DeleteSessionParams extends Pick<
 > {
   /** Stop or keep the processes the session left running; omitted keeps them. */
   processes?: SessionProcessPolicy;
+  /** The child sessions to delete with it; omitted deletes only this session. */
+  descendants?: readonly SessionPayload[];
 }
 
 /** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
 export function useDeleteSession(
-  options: { onDeleteSuccess?: (session: SessionActionTarget) => void | Promise<void> } = {}
+  options: { onDeleteSuccess?: (session: SessionActionTarget) => void | Promise<void> } = {},
 ) {
   const queryClient = useQueryClient();
 
   // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
     mutationKey: sessionKeys.deletions(),
-    mutationFn: ({ processes, ...session }: DeleteSessionParams) => {
+    mutationFn: ({ processes, descendants, ...session }: DeleteSessionParams) => {
       const workspaceId = sessionOwnerWorkspace(session.workspace_id);
+      if (descendants) {
+        return deleteSession(
+          workspaceId,
+          session.id,
+          session.profile_name,
+          undefined,
+          processes,
+          true,
+        );
+      }
       // Omitted keeps the processes, the daemon default, so only an answer is sent.
       return processes
         ? deleteSession(workspaceId, session.id, session.profile_name, undefined, processes)
@@ -210,13 +222,14 @@ export function useDeleteSession(
       ]);
     },
     onSuccess: async (_data, session) => {
-      const { id, workspace_id } = session;
-      const successWorkspaceId = sessionOwnerWorkspace(workspace_id);
-      await options.onDeleteSuccess?.(session);
-      discardComposerDraftAttachments(id);
-      sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
-      queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
+      const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
+      for (const target of [session, ...(session.descendants ?? [])]) {
+        await options.onDeleteSuccess?.(target);
+        discardComposerDraftAttachments(target.id);
+        sessionStore.trigger.sessionInteractionRemoved({ sessionId: target.id });
+        queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, target.id) });
+        queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(target.id) });
+      }
       void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
       void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
@@ -235,6 +248,8 @@ export interface ArchiveSessionParams extends SessionActionTarget {
   stop?: boolean;
   /** Stop or keep the processes the session left running; omitted keeps them. */
   processes?: SessionProcessPolicy;
+  /** The child sessions to archive with it; omitted archives only this session's family. */
+  descendants?: readonly SessionPayload[];
 }
 
 /** Archives the supplied row without depending on the currently selected workspace. */
@@ -243,27 +258,50 @@ export function useArchiveSession() {
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name, stop, processes }: ArchiveSessionParams) =>
-      request(signal =>
-        processes
+    mutationFn: ({
+      id,
+      workspace_id,
+      profile_name,
+      stop,
+      processes,
+      descendants,
+    }: ArchiveSessionParams) =>
+      request((signal) =>
+        descendants
           ? archiveSession(
               sessionOwnerWorkspace(workspace_id),
               id,
               profile_name,
               signal,
               stop ?? false,
-              processes
+              processes,
+              true,
             )
-          : archiveSession(
-              sessionOwnerWorkspace(workspace_id),
-              id,
-              profile_name,
-              signal,
-              stop ?? false
-            )
+          : processes
+            ? archiveSession(
+                sessionOwnerWorkspace(workspace_id),
+                id,
+                profile_name,
+                signal,
+                stop ?? false,
+                processes,
+              )
+            : archiveSession(
+                sessionOwnerWorkspace(workspace_id),
+                id,
+                profile_name,
+                signal,
+                stop ?? false,
+              ),
       ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
+    onSettled: (_data, _error, { id, workspace_id, descendants }) => {
+      for (const target of [{ id }, ...(descendants ?? [])]) {
+        void invalidateSessionMutationQueries(
+          queryClient,
+          sessionOwnerWorkspace(workspace_id),
+          target.id,
+        );
+      }
     },
   });
 }
@@ -275,8 +313,8 @@ export function useUnarchiveSession() {
 
   return useMutation({
     mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
-      request(signal =>
-        unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal)
+      request((signal) =>
+        unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal),
       ),
     onSettled: (_data, _error, { id, workspace_id }) => {
       void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
@@ -326,7 +364,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
 
       const snapshot: ClearConversationSnapshot = {
         session: queryClient.getQueryData<SessionPayload>(
-          sessionKeys.detail(mutateWorkspaceId, id)
+          sessionKeys.detail(mutateWorkspaceId, id),
         ),
         transcript: queryClient.getQueryData(sessionKeys.transcript(mutateWorkspaceId, id)),
         history: queryClient.getQueryData(sessionKeys.history(mutateWorkspaceId, id)),
@@ -343,7 +381,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
         const snapshotWorkspaceId = requireWorkspace(snapshot.session.workspace_id);
         queryClient.setQueryData(
           sessionKeys.detail(snapshotWorkspaceId, snapshot.session.id),
-          snapshot.session
+          snapshot.session,
         );
       }
 

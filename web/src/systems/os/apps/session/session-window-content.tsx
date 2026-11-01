@@ -423,6 +423,7 @@ export function SessionWindowContent({
                     results={sidebar.rowDeleteDialog.results}
                     onRetry={sidebar.rowDeleteDialog.onRetry}
                     isDeleting={sidebar.rowDeleteDialog.isDeleting}
+                    childSessions={sidebar.rowDeleteDialog.childSessions}
                     onConfirm={sidebar.rowDeleteDialog.onConfirm}
                   />
                 </Suspense>

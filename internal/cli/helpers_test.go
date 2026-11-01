@@ -143,14 +143,14 @@ type stubClient struct {
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	stopSessionFn                func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
-	archiveSessionFn             func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionRecord, error)
+	archiveSessionFn             func(context.Context, string, bool, bool, contract.SessionProcessPolicy) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	moveSessionToLaterFn         func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
 	resumeSessionFromLaterFn     func(context.Context, string, bool) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn           func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn         func(context.Context, string) (SessionRecord, error)
-	deleteSessionFn              func(context.Context, string, contract.SessionProcessPolicy) error
+	deleteSessionFn              func(context.Context, string, bool, contract.SessionProcessPolicy) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	uploadSessionAttachmentFn    func(context.Context, string, string) (SessionAttachmentRecord, error)
 	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
@@ -1323,10 +1323,11 @@ func (s *stubClient) ArchiveSession(
 	ctx context.Context,
 	id string,
 	stop bool,
+	withChildren bool,
 	policy contract.SessionProcessPolicy,
 ) (SessionRecord, error) {
 	if s.archiveSessionFn != nil {
-		return s.archiveSessionFn(ctx, id, stop, policy)
+		return s.archiveSessionFn(ctx, id, stop, withChildren, policy)
 	}
 	return SessionRecord{}, errors.New("unexpected ArchiveSession call")
 }
@@ -1385,9 +1386,14 @@ func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (Session
 	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
 }
 
-func (s *stubClient) DeleteSession(ctx context.Context, id string, policy contract.SessionProcessPolicy) error {
+func (s *stubClient) DeleteSession(
+	ctx context.Context,
+	id string,
+	withChildren bool,
+	policy contract.SessionProcessPolicy,
+) error {
 	if s.deleteSessionFn != nil {
-		return s.deleteSessionFn(ctx, id, policy)
+		return s.deleteSessionFn(ctx, id, withChildren, policy)
 	}
 	return errors.New("unexpected DeleteSession call")
 }

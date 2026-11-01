@@ -118,6 +118,11 @@ type SessionWorkspaceFacetsPayload struct {
 	Facets      SessionCatalogFacetsPayload `json:"facets"`
 }
 
+// SessionsResponse is a daemon API value.
+type SessionsResponse struct {
+	Sessions []SessionPayload `json:"sessions"`
+}
+
 // SetExtensionEnablementRequest is a daemon API value.
 type SetExtensionEnablementRequest struct {
 	Profile string `json:"profile"`
@@ -436,15 +441,4 @@ type SettingsHookItemPayload struct {
 	Name           string                         `json:"name"`
 	Declaration    SettingsHookDeclarationPayload `json:"declaration"`
 	SourceMetadata SettingsSourceMetadataPayload  `json:"source_metadata"`
-}
-
-// SettingsHooksExtensionsResponse is a daemon API value.
-type SettingsHooksExtensionsResponse struct {
-	Section         SettingsSectionName                 `json:"section"`
-	Scope           SettingsUserScopeKind               `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
-	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
-	Config          SettingsExtensionsConfigPayload     `json:"config"`
-	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
-	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
 }

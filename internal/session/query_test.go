@@ -660,6 +660,68 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 	})
 
+	t.Run("Should archive live children with the parent only on the explicit opt-in", func(t *testing.T) {
+		t.Parallel()
+
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &sessionTreeCatalog{familyArchiveCatalog: &familyArchiveCatalog{
+			pagedRecordingSessionCatalog: paged, members: map[string][]string{},
+		}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		parent := createSession(t, h)
+		child := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID)
+		other := createSession(t, h)
+		lonely, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, other.ID)
+		if err != nil || lonely.ArchivedAt == nil {
+			t.Fatalf("ArchiveWithStop(no children) = %#v, %v", lonely, err)
+		}
+
+		if _, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, false); !errors.Is(
+			err, ErrSessionArchiveRequiresStopped) {
+			t.Fatalf("ArchiveWithChildren(no stop) error = %v, want a live refusal", err)
+		}
+		tree, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, true)
+		if err != nil {
+			t.Fatalf("ArchiveWithChildren(stop) error = %v", err)
+		}
+		if tree.Root.ArchivedAt == nil || len(tree.Descendants) != 1 || tree.Descendants[0].ArchivedAt == nil {
+			t.Fatalf("ArchiveWithChildren(stop) = %#v, want parent and child archived", tree)
+		}
+		status, err := h.manager.Status(ctx, child.ID)
+		if err != nil || status.State != StateStopped {
+			t.Fatalf("Status(child) = %#v, %v, want stopped", status, err)
+		}
+	})
+
+	t.Run("Should archive nothing in the tree when a child stop fails", func(t *testing.T) {
+		t.Parallel()
+
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &sessionTreeCatalog{familyArchiveCatalog: &familyArchiveCatalog{
+			pagedRecordingSessionCatalog: paged, members: map[string][]string{},
+		}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		parent := createSession(t, h)
+		catalog.sessions["sess-orphan-live"] = store.SessionInfo{
+			ID: "sess-orphan-live", WorkspaceID: h.workspaceID, AgentName: "coder",
+			State: string(StateActive), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}
+		catalog.setMembers(parent.ID, "sess-orphan-live")
+
+		_, err := h.manager.ArchiveWithChildren(ctx, h.workspaceID, parent.ID, true)
+		if !errors.Is(err, ErrSessionArchiveStopFailed) {
+			t.Fatalf("ArchiveWithChildren(unstoppable child) error = %v, want ErrSessionArchiveStopFailed", err)
+		}
+		for _, id := range []string{parent.ID, "sess-orphan-live"} {
+			if row := catalog.sessions[id]; row.ArchivedAt != nil {
+				t.Fatalf("catalog row %s after failed stop = %#v, want unarchived", id, row)
+			}
+		}
+	})
+
 	t.Run("Should treat onboarding as an ordinary user agent name", func(t *testing.T) {
 		t.Parallel()
 
@@ -3843,6 +3905,47 @@ func TestSessionInfoFromCatalogKeepsEffectiveWorkspaceAccess(t *testing.T) {
 type familyArchiveCatalog struct {
 	*pagedRecordingSessionCatalog
 	members map[string][]string
+}
+
+// sessionTreeCatalog answers the tree store from familyArchiveCatalog's members.
+type sessionTreeCatalog struct {
+	*familyArchiveCatalog
+}
+
+func (c *sessionTreeCatalog) ListSessionDescendants(
+	_ context.Context,
+	_ string,
+	sessionID string,
+) ([]store.SessionInfo, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	rows := make([]store.SessionInfo, 0, len(c.members[sessionID]))
+	for _, member := range c.members[sessionID] {
+		if row, ok := c.sessions[member]; ok {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+
+func (c *sessionTreeCatalog) ArchiveSessionTree(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (store.SessionTreeArchive, error) {
+	root, err := c.SetSessionArchived(ctx, workspaceID, sessionID, true)
+	if err != nil {
+		return store.SessionTreeArchive{}, err
+	}
+	descendants, err := c.ListSessionDescendants(ctx, workspaceID, sessionID)
+	if err != nil {
+		return store.SessionTreeArchive{}, err
+	}
+	now := time.Now().UTC()
+	for i := range descendants {
+		descendants[i].ArchivedAt = &now
+	}
+	return store.SessionTreeArchive{Root: root, Descendants: descendants}, nil
 }
 
 func (c *familyArchiveCatalog) setMembers(parent string, members ...string) {

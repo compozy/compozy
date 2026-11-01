@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// SettingsProviderUsageProviderPayload is a daemon API value.
+type SettingsProviderUsageProviderPayload struct {
+	Enabled        *bool `json:"enabled,omitempty"`
+	KeychainAccess *bool `json:"keychain_access,omitempty"`
+}
+
+// SettingsProviderUsageResponse is a daemon API value.
+type SettingsProviderUsageResponse struct {
+	KeychainSupported bool                         `json:"keychain_supported"`
+	Section           SettingsSectionName          `json:"section"`
+	Scope             SettingsUserScopeKind        `json:"scope"`
+	AvailableScopes   []SettingsUserScopeKind      `json:"available_scopes"`
+	Config            SettingsProviderUsagePayload `json:"config"`
+}
+
 // SettingsProviderUsageUpdateRequest is a daemon API value.
 type SettingsProviderUsageUpdateRequest struct {
 	Config SettingsProviderUsagePayload `json:"config"`
@@ -433,15 +448,3 @@ type SettingsWindowDesktopTransition string
 
 // SettingsWindowDragAwayPolicy is a daemon API value.
 type SettingsWindowDragAwayPolicy string
-
-// SettingsWindowDragModifier is a daemon API value.
-type SettingsWindowDragModifier string
-
-// SettingsWindowFocusPolicy is a daemon API value.
-type SettingsWindowFocusPolicy string
-
-// SettingsWindowManagerBindingPayload is a daemon API value.
-type SettingsWindowManagerBindingPayload struct {
-	TopCenter    SettingsWindowBindingAction `json:"top_center"`
-	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
-}

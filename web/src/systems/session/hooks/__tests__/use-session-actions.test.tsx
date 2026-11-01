@@ -33,6 +33,7 @@ import {
 } from "../use-session-inputs";
 import { sessionScopedDetailOptions } from "../../lib/query-options";
 import { sessionKeys } from "../../lib/query-keys";
+import { listSessionDescendants } from "../../adapters/session-archive-api";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
   SessionGoalCommandResult,
@@ -64,6 +65,11 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   stopSession: vi.fn(),
   sendSessionPrompt: vi.fn(),
   unarchiveSession: vi.fn(),
+}));
+
+vi.mock("../../adapters/session-archive-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-archive-api")>()),
+  listSessionDescendants: vi.fn(),
 }));
 
 vi.mock("../../adapters/session-later-api", () => ({
@@ -225,6 +231,7 @@ function transcriptCache(messageId = "history-1"): SessionTranscriptData {
 
 describe("session actions", () => {
   beforeEach(() => {
+    vi.mocked(listSessionDescendants).mockResolvedValue([]);
     vi.clearAllMocks();
     sessionStore.trigger.allDraftsDiscarded();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
@@ -1000,6 +1007,112 @@ describe("session actions", () => {
 
     expect(requestSignal?.aborted).toBe(true);
     await expect(mutation).rejects.toThrow("Aborted");
+  });
+
+  // Invariant: children are a daemon-counted, explicit choice; no children keeps one click,
+  // and a selected child is never processed twice.
+  // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+  describe("child sessions", () => {
+    const child = { ...createdSession, id: "sess-child", name: "Child" };
+    const treeClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    beforeEach(() => {
+      vi.mocked(fetchSessionById).mockResolvedValue(createdSession);
+      vi.mocked(archiveSession).mockResolvedValue(createdSession);
+      vi.mocked(deleteSession).mockResolvedValue(undefined);
+    });
+
+    it("archives in one click without children", async () => {
+      vi.mocked(listSessionDescendants).mockResolvedValue([]);
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onArchive(createdSession));
+      await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(1));
+      expect(result.current.processDialog.open).toBe(false);
+      expect(vi.mocked(archiveSession).mock.calls[0]).toHaveLength(5);
+    });
+
+    it("asks with children checked and sends the answer", async () => {
+      vi.mocked(listSessionDescendants).mockResolvedValue([child]);
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onArchive(createdSession));
+      await waitFor(() => expect(result.current.processDialog.open).toBe(true));
+      expect(archiveSession).not.toHaveBeenCalled();
+      expect(result.current.processDialog.childSessions).toMatchObject({
+        count: 1,
+        included: true,
+      });
+      act(() => result.current.processDialog.onChoose());
+      await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(archiveSession).mock.calls[0]?.[6]).toBe(true);
+    });
+
+    it("leaves children out when the operator unchecks them", async () => {
+      vi.mocked(listSessionDescendants).mockResolvedValue([child]);
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onArchive(createdSession));
+      await waitFor(() => expect(result.current.processDialog.open).toBe(true));
+      act(() => result.current.processDialog.childSessions?.onIncludedChange(false));
+      act(() => result.current.processDialog.onChoose());
+      await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(archiveSession).mock.calls[0]).toHaveLength(5);
+    });
+
+    it("starts delete unchecked and covers a selected child through its parent", async () => {
+      vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) =>
+        id === createdSession.id ? [child] : []
+      );
+      vi.mocked(fetchSessionById).mockImplementation(async (id: string) =>
+        id === child.id ? child : createdSession
+      );
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onDeleteMany?.([child, createdSession]));
+      await waitFor(() =>
+        expect(listSessionDescendants).toHaveBeenCalledWith(
+          expect.anything(),
+          createdSession.id,
+          expect.anything(),
+          expect.anything()
+        )
+      );
+      // Both targets are selected, so no child is left to ask about.
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(true));
+      expect(result.current.deleteDialog.childSessions).toBeUndefined();
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(vi.mocked(deleteSession).mock.calls.map(call => call[1]).sort()).toEqual(
+        [child.id, createdSession.id].sort()
+      );
+    });
+
+    it("deletes a tree once when the opt-in covers a selected child", async () => {
+      const grandchild = { ...createdSession, id: "sess-grandchild" };
+      vi.mocked(listSessionDescendants).mockImplementation(async (_workspace, id) =>
+        id === createdSession.id ? [child, grandchild] : []
+      );
+      vi.mocked(fetchSessionById).mockImplementation(async (id: string) =>
+        id === child.id ? child : createdSession
+      );
+      const { result } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onDeleteMany?.([child, createdSession]));
+      await waitFor(() => expect(result.current.deleteDialog.childSessions?.count).toBe(1));
+      expect(result.current.deleteDialog.childSessions?.included).toBe(false);
+      act(() => result.current.deleteDialog.childSessions?.onIncludedChange(true));
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+      expect(vi.mocked(deleteSession).mock.calls[0]?.[5]).toBe(true);
+    });
   });
 
   // Invariant: deletion choices follow newer detail evidence, not a frozen catalog row.

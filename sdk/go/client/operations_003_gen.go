@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// CancelWorktreeCreateParams carries the path, query, and header parameters.
+type CancelWorktreeCreateParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
 // CancelWorktreeCreate Cancel a pending worktree creation
 func (c *Client) CancelWorktreeCreate(ctx context.Context, params CancelWorktreeCreateParams) error {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/cancel"

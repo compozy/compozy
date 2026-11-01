@@ -4,6 +4,17 @@ package client
 
 import "time"
 
+// SettingsHooksExtensionsResponse is a daemon API value.
+type SettingsHooksExtensionsResponse struct {
+	Section         SettingsSectionName                 `json:"section"`
+	Scope           SettingsUserScopeKind               `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
+	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
+	Config          SettingsExtensionsConfigPayload     `json:"config"`
+	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
+	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
+}
+
 // SettingsHooksResponse is a daemon API value.
 type SettingsHooksResponse struct {
 	Collection      SettingsCollectionName     `json:"collection"`
@@ -431,19 +442,4 @@ type SettingsProviderUsagePayload struct {
 	Enabled         bool                                            `json:"enabled"`
 	RefreshInterval string                                          `json:"refresh_interval"`
 	Providers       map[string]SettingsProviderUsageProviderPayload `json:"providers"`
-}
-
-// SettingsProviderUsageProviderPayload is a daemon API value.
-type SettingsProviderUsageProviderPayload struct {
-	Enabled        *bool `json:"enabled,omitempty"`
-	KeychainAccess *bool `json:"keychain_access,omitempty"`
-}
-
-// SettingsProviderUsageResponse is a daemon API value.
-type SettingsProviderUsageResponse struct {
-	KeychainSupported bool                         `json:"keychain_supported"`
-	Section           SettingsSectionName          `json:"section"`
-	Scope             SettingsUserScopeKind        `json:"scope"`
-	AvailableScopes   []SettingsUserScopeKind      `json:"available_scopes"`
-	Config            SettingsProviderUsagePayload `json:"config"`
 }

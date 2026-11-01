@@ -5676,6 +5676,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a session's child sessions, recursively */
+    get: operations["listSessionDescendants"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
     parameters: {
       query?: never;
@@ -14567,6 +14584,9 @@ export interface components {
     SessionWorkspaceFacetsPayload: {
       facets: components["schemas"]["SessionCatalogFacetsPayload"];
       workspace_id: string;
+    };
+    SessionsResponse: {
+      sessions: components["schemas"]["SessionPayload"][];
     };
     SetExtensionEnablementRequest: {
       enabled: boolean;
@@ -47318,6 +47338,8 @@ export interface operations {
       query?: {
         /** @description Keep (default) or terminate attributed session processes */
         processes?: "keep" | "terminate";
+        /** @description Also delete the session's child sessions, recursively, deepest first; a failure leaves the rest in place */
+        with_children?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -47339,7 +47361,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Invalid process policy */
+      /** @description Invalid process policy or with_children value */
       400: {
         headers: {
           [name: string]: unknown;
@@ -47519,6 +47541,8 @@ export interface operations {
         processes?: "keep" | "terminate";
         /** @description Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived */
         stop?: boolean;
+        /** @description Also archive the session's child sessions, recursively, in one transaction; with stop=true their live members stop first and a failed stop archives nothing */
+        with_children?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -48313,6 +48337,63 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionDescendants: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionsResponse"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };

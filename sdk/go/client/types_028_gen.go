@@ -4,6 +4,56 @@ package client
 
 import "time"
 
+// WorkspaceConfig is a daemon API value.
+type WorkspaceConfig struct {
+	NewWindowPolicy     *NewWindowPolicy     `json:"new_window_policy,omitzero"`
+	SmallViewportPolicy *SmallViewportPolicy `json:"small_viewport_policy,omitzero"`
+	FocusPolicy         *FocusPolicy         `json:"focus_policy,omitzero"`
+	FocusWrap           *bool                `json:"focus_wrap,omitzero"`
+	FocusFollowsPointer *bool                `json:"focus_follows_pointer,omitzero"`
+	RaiseOnFocus        *bool                `json:"raise_on_focus,omitzero"`
+	DragAwayPolicy      *DragAwayPolicy      `json:"drag_away_policy,omitzero"`
+	GroupMoveModifier   *string              `json:"group_move_modifier,omitzero"`
+	SwapModifier        *string              `json:"swap_modifier,omitzero"`
+	HistoryLimit        *int                 `json:"history_limit,omitzero"`
+	NavStackLimit       *int                 `json:"nav_stack_limit,omitzero"`
+	ClosedEntryLimit    *int                 `json:"closed_entry_limit,omitzero"`
+	DesktopTransition   *DesktopTransition   `json:"desktop_transition,omitzero"`
+	Gaps                *GapsConfig          `json:"gaps,omitzero"`
+	Snap                *SnapConfig          `json:"snap,omitzero"`
+	Bindings            *BindingsConfig      `json:"bindings,omitzero"`
+	Shortcuts           map[string][]string  `json:"shortcuts,omitempty"`
+}
+
+// WorkspaceDetailPayload is a daemon API value.
+type WorkspaceDetailPayload struct {
+	Workspace    WorkspacePayload               `json:"workspace"`
+	Sessions     []SessionPayload               `json:"sessions,omitempty"`
+	Agents       []AgentPayload                 `json:"agents,omitempty"`
+	Skills       []WorkspaceSkillPayload        `json:"skills,omitempty"`
+	Providers    []SessionProviderOptionPayload `json:"providers,omitempty"`
+	ProfileHints []WorkspaceProfileHintPayload  `json:"profile_hints,omitempty"`
+}
+
+// WorkspaceFolderPayload is a daemon API value.
+type WorkspaceFolderPayload struct {
+	ID             string    `json:"id"`
+	ProfileID      string    `json:"profile_id"`
+	Name           string    `json:"name"`
+	Position       int       `json:"position"`
+	WorkspaceCount int       `json:"workspace_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// WorkspaceFolderResponse is a daemon API value.
+type WorkspaceFolderResponse struct {
+	Folder WorkspaceFolderPayload `json:"folder"`
+}
+
+// WorkspaceID is a daemon API value.
+type WorkspaceID string
+
 // WorkspaceLayoutResponse is a daemon API value.
 type WorkspaceLayoutResponse struct {
 	Folders    []WorkspaceFolderPayload    `json:"folders"`

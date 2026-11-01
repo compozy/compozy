@@ -235,3 +235,61 @@ describe("SessionDeleteDialog sets", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+describe("SessionDeleteDialog child sessions", () => {
+  const session = { ...primarySessionFixture, id: "parent", name: "Parent", archived_at: null };
+
+  it("keeps the dialog unchanged without child sessions", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId("session-children-include")).not.toBeInTheDocument();
+  });
+
+  it("states the count, starts as answered, and reports the answer", () => {
+    const onIncludedChange = vi.fn();
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        childSessions={{ count: 2, included: false, includedProcessCount: 0, onIncludedChange }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText("Also delete 2 child sessions")).toBeInTheDocument();
+    const checkbox = screen.getByTestId("session-children-include");
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(onIncludedChange).toHaveBeenCalledWith(true);
+  });
+
+  it("asks about the processes included children left running", () => {
+    render(
+      <SessionDeleteDialog
+        open
+        sessions={[session]}
+        isDeleting={false}
+        childSessions={{
+          count: 1,
+          included: true,
+          includedProcessCount: 2,
+          onIncludedChange: vi.fn(),
+        }}
+        onConfirm={vi.fn()}
+        onOpenChange={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("delete-dialog-keep-processes")).toBeInTheDocument();
+    expect(screen.getByTestId("delete-dialog-confirm")).toHaveTextContent(
+      "Delete and stop 2 processes"
+    );
+  });
+});

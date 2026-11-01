@@ -1844,6 +1844,53 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny an archive with children whose tree contains the caller", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// Adopted children do not stop with their parent, but they are in its tree.
+		lineages := map[string]*store.SessionLineage{
+			"sess-adopted":   {ParentSessionID: "sess-parent", Kind: store.LineageKindProvenance},
+			"sess-continued": {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+		}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil {
+				info.Lineage = lineages[id]
+			}
+			return info, err
+		}
+		archived := 0
+		manager.ArchiveWithChildrenFn = func(
+			_ context.Context, _ string, id string, stop bool,
+		) (*session.SessionTree, error) {
+			archived++
+			if !stop {
+				t.Fatalf("ArchiveWithChildren(%s) lost the stop opt-in", id)
+			}
+			return &session.SessionTree{Root: &session.Info{ID: id, WorkspaceID: "ws-native"}}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		input := json.RawMessage(`{"session_id":"sess-parent","stop":true,"with_children":true}`)
+		_, err := registry.Call(t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-adopted", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if archived != 0 {
+			t.Fatalf("archive calls after denial = %d, want 0", archived)
+		}
+		if _, err := registry.Call(t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-continued", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+		); err != nil || archived != 1 {
+			t.Fatalf("archive from a continued session = %v, calls=%d, want one archive", err, archived)
+		}
+	})
+
 	t.Run("Should park through session_later and deny parking the caller's own tree", func(t *testing.T) {
 		t.Parallel()
 

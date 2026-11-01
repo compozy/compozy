@@ -26686,6 +26686,20 @@
         ],
         "type": "object"
       },
+      "SessionsResponse": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
       "SetExtensionEnablementRequest": {
         "properties": {
           "enabled": {
@@ -85831,6 +85845,14 @@
             }
           },
           {
+            "description": "Also delete the session's child sessions, recursively, deepest first; a failure leaves the rest in place",
+            "in": "query",
+            "name": "with_children",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -85851,7 +85873,7 @@
                 }
               }
             },
-            "description": "Invalid process policy"
+            "description": "Invalid process policy or with_children value"
           },
           "404": {
             "content": {
@@ -86221,6 +86243,14 @@
             "description": "Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived",
             "in": "query",
             "name": "stop",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Also archive the session's child sessions, recursively, in one transaction; with stop=true their live members stop first and a failed stop archives nothing",
+            "in": "query",
+            "name": "with_children",
             "schema": {
               "type": "boolean"
             }
@@ -87367,6 +87397,98 @@
           }
         },
         "summary": "Preview what a continue or fork of a session would carry",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants": {
+      "get": {
+        "operationId": "listSessionDescendants",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "List a session's child sessions, recursively",
         "tags": [
           "sessions"
         ],

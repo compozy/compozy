@@ -48,6 +48,9 @@ type StubSessionManager struct {
 	StopFn                  func(context.Context, string) error
 	ArchiveFn               func(context.Context, string, string) (*session.Info, error)
 	ArchiveWithStopFn       func(context.Context, string, string) (*session.Info, error)
+	DescendantsFn           func(context.Context, string, string) ([]*session.Info, error)
+	ArchiveWithChildrenFn   func(context.Context, string, string, bool) (*session.SessionTree, error)
+	DeleteWithChildrenFn    func(context.Context, string, string) ([]string, error)
 	UnarchiveFn             func(context.Context, string, string) (*session.Info, error)
 	RenameFn                func(context.Context, string, string, string) (*session.Info, error)
 	AdoptSessionFn          func(context.Context, string, string, string) (*session.Info, error)

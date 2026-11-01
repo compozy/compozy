@@ -69,7 +69,7 @@ func (n *daemonNativeTools) changeSessionLater(
 	}
 	if park {
 		// Parking the caller or one of its ancestors would stop the turn running this call.
-		within, err := n.nativeCallerWithinLaterTree(ctx, scope.SessionID, input.SessionID)
+		within, err := n.nativeCallerWithinHierarchy(ctx, scope.SessionID, input.SessionID)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -109,10 +109,10 @@ func (n *daemonNativeTools) changeSessionLater(
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
-// nativeCallerWithinLaterTree reports whether parking target would park the
-// calling session: the caller is target or one of its hierarchy descendants.
+// nativeCallerWithinHierarchy reports whether a tree operation on target would
+// reach the calling session: the caller is target or one of its hierarchy descendants.
 // Continue and fork links name a source session without being its child.
-func (n *daemonNativeTools) nativeCallerWithinLaterTree(
+func (n *daemonNativeTools) nativeCallerWithinHierarchy(
 	ctx context.Context,
 	callerID string,
 	target string,

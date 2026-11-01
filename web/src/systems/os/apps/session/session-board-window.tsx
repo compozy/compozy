@@ -160,6 +160,7 @@ export function SessionBoardWindow({
             <Suspense fallback={null}>
               <SessionDeleteDialog
                 isDeleting={deleteDialog.isDeleting}
+                childSessions={deleteDialog.childSessions}
                 onConfirm={deleteDialog.onConfirm}
                 onOpenChange={deleteDialog.onOpenChange}
                 onRetry={deleteDialog.onRetry}

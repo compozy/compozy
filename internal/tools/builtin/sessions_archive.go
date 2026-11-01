@@ -11,7 +11,8 @@ func sessionArchiveDescriptor(archived bool) toolspkg.Descriptor {
 	name := "session_archive"
 	title := "Session Archive"
 	description := "Archive a stopped session without deleting its history. Set stop=true to stop a live " +
-		"session through the normal stop path (canceling any active turn) and archive it in one call."
+		"session through the normal stop path (canceling any active turn) and archive it in one call. " +
+		"Set with_children=true to also archive its child sessions, recursively, in one transaction."
 	keywords := []string{"archive session", "hide session", "stop and archive session"}
 	inputSchema := sessionArchiveInputSchema
 	if !archived {
@@ -50,6 +51,10 @@ const sessionArchiveInputSchema = `{
  "stop":{
 			"type":"boolean",
 			"description":"Stop a live session first; a failed stop leaves it unarchived."
+		},
+		"with_children":{
+			"type":"boolean",
+			"description":"Also archive child sessions, recursively. With stop, a failed stop archives nothing. Refused when the tree contains the calling session."
 		}
 	},
 	"additionalProperties":false

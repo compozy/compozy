@@ -3744,6 +3744,9 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		{worktreePath + "/dismiss", "post", []any{boolQuery("delete_branch"), boolQuery("force")}},
 		// #908: optional stop-first opt-in on session archive.
 		{"/api/workspaces/{workspace_id}/sessions/{session_id}/archive", "post", []any{boolQuery("stop")}},
+		// #1130: optional child-session opt-in on session archive and delete.
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/archive", "post", []any{boolQuery("with_children")}},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}", "delete", []any{boolQuery("with_children")}},
 	} {
 		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
 		parameters := operation["parameters"].([]any)

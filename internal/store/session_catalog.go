@@ -51,6 +51,20 @@ type SessionArchiveStore interface {
 	) (SessionInfo, error)
 }
 
+// SessionTreeStore owns the session list hierarchy below one session: children
+// recursively, within the root's workspace and profile. Continued and forked
+// sessions and daemon-internal children are never members.
+type SessionTreeStore interface {
+	ListSessionDescendants(ctx context.Context, workspaceID string, sessionID string) ([]SessionInfo, error)
+	ArchiveSessionTree(ctx context.Context, workspaceID string, sessionID string) (SessionTreeArchive, error)
+}
+
+// SessionTreeArchive is one session tree after ArchiveSessionTree.
+type SessionTreeArchive struct {
+	Root        SessionInfo
+	Descendants []SessionInfo
+}
+
 // SessionTranscriptEpochStore manages destructive transcript reset epochs.
 type SessionTranscriptEpochStore interface {
 	SessionTranscriptEpoch(ctx context.Context, sessionID string) (int64, error)

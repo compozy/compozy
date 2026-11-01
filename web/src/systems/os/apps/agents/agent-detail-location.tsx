@@ -231,6 +231,7 @@ function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
           results={deleteDialog.results}
           onRetry={deleteDialog.onRetry}
           isDeleting={deleteDialog.isDeleting}
+          childSessions={deleteDialog.childSessions}
           onConfirm={deleteDialog.onConfirm}
         />
       ) : null}

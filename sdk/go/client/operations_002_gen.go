@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// AttachSessionParams carries the path, query, and header parameters.
+type AttachSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
 // AttachSession Attach to a resumable live session
 func (c *Client) AttachSession(ctx context.Context, params AttachSessionParams, body AttachSessionRequest) (*SessionAttachResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attach"
@@ -439,10 +445,4 @@ func (c *Client) CancelTaskRun(ctx context.Context, params CancelTaskRunParams, 
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CancelWorktreeCreateParams carries the path, query, and header parameters.
-type CancelWorktreeCreateParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
 }

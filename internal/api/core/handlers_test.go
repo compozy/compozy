@@ -214,6 +214,125 @@ func TestBaseHandlersSessionCommandsUseWorkspaceFenceAndUnifiedCatalog(t *testin
 	})
 }
 
+func TestBaseHandlersSessionTree(t *testing.T) {
+	t.Parallel()
+
+	// Invariant: with_children routes through the tree operations and its absence
+	// keeps the single-session paths existing callers rely on.
+	treeFixture := func(t *testing.T, manager testutil.StubSessionManager) handlerFixture {
+		t.Helper()
+		manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
+			info.WorkspaceID = "ws-workspace"
+			info.State = session.StateStopped
+			return info, nil
+		}
+		return newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-workspace"}, nil
+			},
+		})
+	}
+	child := &session.Info{ID: "sess-child", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-workspace"}
+
+	t.Run("Should list descendants from the daemon", func(t *testing.T) {
+		t.Parallel()
+		fixture := treeFixture(t, testutil.StubSessionManager{
+			DescendantsFn: func(_ context.Context, workspaceID, id string) ([]*session.Info, error) {
+				if workspaceID != "ws-workspace" || id != "sess-a" {
+					t.Fatalf("Descendants target = %q/%q", workspaceID, id)
+				}
+				return []*session.Info{child}, nil
+			},
+		})
+		response := performRequest(
+			t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a/descendants", nil,
+		)
+		var body contract.SessionsResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s (%v)", response.Code, response.Body.String(), err)
+		}
+		if len(body.Sessions) != 1 || body.Sessions[0].ID != "sess-child" {
+			t.Fatalf("descendants = %#v", body.Sessions)
+		}
+	})
+
+	t.Run("Should archive the tree only with the opt-in and pass the stop choice", func(t *testing.T) {
+		t.Parallel()
+		var stops []bool
+		root := &session.Info{ID: "sess-a", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-workspace"}
+		fixture := treeFixture(t, testutil.StubSessionManager{
+			ArchiveFn: func(_ context.Context, _, id string) (*session.Info, error) {
+				return &session.Info{ID: id, ProfileID: store.DefaultProfileID}, nil
+			},
+			ArchiveWithChildrenFn: func(_ context.Context, _, _ string, stop bool) (*session.SessionTree, error) {
+				stops = append(stops, stop)
+				return &session.SessionTree{Root: root, Descendants: []*session.Info{child}}, nil
+			},
+		})
+		for _, query := range []string{"", "?with_children=true", "?with_children=true&stop=true"} {
+			response := performRequest(
+				t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/archive"+query, nil,
+			)
+			if response.Code != http.StatusOK {
+				t.Fatalf("archive%s status = %d body = %s", query, response.Code, response.Body.String())
+			}
+		}
+		if !slices.Equal(stops, []bool{false, true}) {
+			t.Fatalf("tree archive stops = %v, want [false true] and none without the opt-in", stops)
+		}
+		invalid := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/archive?with_children=maybe", nil,
+		)
+		if invalid.Code != http.StatusBadRequest {
+			t.Fatalf("invalid with_children status = %d, want 400", invalid.Code)
+		}
+	})
+
+	t.Run("Should report a failed tree stop as the archive stop failure", func(t *testing.T) {
+		t.Parallel()
+		fixture := treeFixture(t, testutil.StubSessionManager{
+			ArchiveWithChildrenFn: func(context.Context, string, string, bool) (*session.SessionTree, error) {
+				return nil, fmt.Errorf("%w: sess-a", session.ErrSessionArchiveStopFailed)
+			},
+		})
+		response := performRequest(
+			t, fixture.Engine, http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/archive?with_children=true&stop=true", nil,
+		)
+		if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "session_archive_stop_failed") {
+			t.Fatalf("status = %d body = %s, want session_archive_stop_failed", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("Should delete the tree only with the opt-in", func(t *testing.T) {
+		t.Parallel()
+		single, tree := 0, 0
+		fixture := treeFixture(t, testutil.StubSessionManager{
+			DeleteFn: func(context.Context, string) error {
+				single++
+				return nil
+			},
+			DeleteWithChildrenFn: func(context.Context, string, string) ([]string, error) {
+				tree++
+				return []string{"sess-child", "sess-a"}, nil
+			},
+		})
+		for _, query := range []string{"", "?with_children=true"} {
+			response := performRequest(
+				t, fixture.Engine, http.MethodDelete, "/workspaces/ws-workspace/sessions/sess-a"+query, nil,
+			)
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("delete%s status = %d body = %s", query, response.Code, response.Body.String())
+			}
+		}
+		if single != 1 || tree != 1 {
+			t.Fatalf("delete calls single=%d tree=%d, want one of each", single, tree)
+		}
+	})
+}
+
 func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	t.Parallel()
 
