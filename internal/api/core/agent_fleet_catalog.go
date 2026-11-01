@@ -201,7 +201,8 @@ func buildAgentCatalogResponse(
 	start := 0
 	if after != "" {
 		start = len(filtered)
-		for index, agent := range filtered {
+		for index := range filtered {
+			agent := &filtered[index]
 			if compareAgentCatalogNames(agent.Name, after) > 0 {
 				start = index
 				break
@@ -209,8 +210,9 @@ func buildAgentCatalogResponse(
 		}
 	}
 	end := min(start+query.Limit, len(filtered))
-	for _, agent := range filtered[start:end] {
-		item := contract.AgentCatalogItemPayload{Agent: agent}
+	for index := start; index < end; index++ {
+		agent := &filtered[index]
+		item := contract.AgentCatalogItemPayload{Agent: *agent}
 		if sessionsAvailable {
 			metric := metrics[agent.Name]
 			item.Sessions = &contract.AgentSessionMetricsPayload{
@@ -254,7 +256,8 @@ func filterAgentCatalog(
 	}
 	categorySet := make(map[string]struct{})
 	filtered := make([]contract.AgentPayload, 0, len(agents))
-	for _, agent := range agents {
+	for index := range agents {
+		agent := &agents[index]
 		category := strings.Join(agent.CategoryPath, " / ")
 		if category != "" {
 			categorySet[category] = struct{}{}
@@ -270,7 +273,7 @@ func filterAgentCatalog(
 		if !agentMatchesCatalogQuery(agent, metric, sessionsAvailable, query) {
 			continue
 		}
-		filtered = append(filtered, agent)
+		filtered = append(filtered, *agent)
 	}
 	for category := range categorySet {
 		facets.Categories = append(facets.Categories, category)
@@ -280,7 +283,7 @@ func filterAgentCatalog(
 }
 
 func agentMatchesCatalogQuery(
-	agent contract.AgentPayload,
+	agent *contract.AgentPayload,
 	metric session.AgentSessionMetrics,
 	sessionsAvailable bool,
 	query agentCatalogQuery,
