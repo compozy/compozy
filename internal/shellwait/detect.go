@@ -256,12 +256,18 @@ func powerShellScript(argv []string) (string, bool) {
 	}
 	for index, arg := range argv[1:] {
 		option := strings.ToLower(arg)
-		if option == "-c" || (len(option) > 2 && strings.HasPrefix("-command", option)) {
+		if isPowerShellCommandOption(option) {
 			script := strings.Join(argv[index+2:], " ")
 			return script, script != ""
 		}
 	}
 	return "", false
+}
+
+// isPowerShellCommandOption accepts -c and the prefixes of -command.
+func isPowerShellCommandOption(option string) bool {
+	const full = "-command"
+	return option == "-c" || (len(option) > 2 && len(option) <= len(full) && full[:len(option)] == option)
 }
 
 func nestedShellScript(argv []string) (string, bool) {
