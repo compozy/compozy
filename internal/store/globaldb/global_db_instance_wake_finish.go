@@ -12,12 +12,8 @@ import (
 )
 
 func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) (bool, error) {
-	if req.InstanceID == "" || req.OccurrenceID == "" || req.Now.IsZero() || !req.ExpiresAt.After(req.Now) ||
-		req.DeniedCalls < 0 {
-		return false, errors.New("invalid wake finalization")
-	}
-	if req.Source != "timer" && req.Source != "instance_check" {
-		return false, errors.New("invalid proactive wake source")
+	if err := validateInstanceWakeFinish(&req); err != nil {
+		return false, err
 	}
 	changed := false
 	err := store.ExecuteWriteOperation(
@@ -38,27 +34,15 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				return err
 			}
 			if row.OccurrenceCancelled != 0 || instance.State != "active" || instance.ArchivedAt.Valid {
-				req.Result, req.Reason, req.Report = "cancelled", "cancelled", nil
+				req.Result, req.Reason, req.Report = instanceWakeCanceledResult, instanceWakeCanceledResult, nil
 				req.NextWakeAt = time.Time{}
 			}
 			if err := deduplicateInstanceProposals(ctx, q, &req); err != nil {
 				return err
 			}
-			completed := 0
-			quiet, failures := row.QuietStreak, row.FailureStreak
-			switch req.Result {
-			case "quiet":
-				completed = 1
-				quiet++
-				failures = 0
-			case "reported":
-				completed = 1
-				quiet, failures = 0, 0
-			case "failed":
-				failures++
-			case "cancelled":
-			default:
-				return errors.New("invalid proactive wake result")
+			completed, quiet, failures, err := instanceWakeStreaks(req.Result, row.QuietStreak, row.FailureStreak)
+			if err != nil {
+				return err
 			}
 
 			if req.Result == "failed" && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
@@ -75,49 +59,9 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				}
 			}
 
-			if req.Source == "instance_check" || req.Result == "cancelled" {
-				req.NextWakeAt = time.Time{}
-			} else if req.Interval > 0 && req.MaxInterval > 0 {
-				streak := int64(0)
-				if req.Result == "quiet" {
-					streak = quiet / 3
-				}
-				if req.Result == "failed" {
-					streak = failures
-				}
-				maximum := req.MaxInterval
-				if req.Result == "quiet" && req.QuietBackoffCap > 0 {
-					maximum = req.QuietBackoffCap
-				}
-				req.NextWakeAt = heartbeat.NextCheckTime(
-					req.Now,
-					heartbeat.CheckBackoff(req.Interval, maximum, streak),
-					req.InstanceID,
-				)
-			}
-			if req.Report != nil {
-				report := *req.Report
-				report.SourceKey = "occ:" + req.OccurrenceID
-				if err := report.Validate(); err != nil {
-					return err
-				}
-				reportID, err := store.NewID("arpt")
-				if err != nil {
-					return err
-				}
-				if err := q.InsertAgentInstanceReport(ctx, sqlcgen.InsertAgentInstanceReportParams{
-					ID:         reportID,
-					InstanceID: req.InstanceID,
-					SourceKey:  report.SourceKey,
-					Kind:       report.Kind,
-					Payload: string(
-						report.Payload,
-					),
-					Fingerprint: report.Fingerprint,
-					CreatedAt:   store.FormatTimestamp(req.Now),
-				}); err != nil {
-					return err
-				}
+			req.NextWakeAt = nextInstanceWake(&req, quiet, failures)
+			if err := insertInstanceWakeReport(ctx, q, &req); err != nil {
+				return err
 			}
 			eventID, err := store.NewID("hwe")
 			if err != nil {
@@ -152,3 +96,81 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 	)
 	return changed, err
 }
+
+func validateInstanceWakeFinish(req *heartbeat.FinishRequest) error {
+	if req.InstanceID == "" || req.OccurrenceID == "" || req.Now.IsZero() || !req.ExpiresAt.After(req.Now) ||
+		req.DeniedCalls < 0 {
+		return errors.New("invalid wake finalization")
+	}
+	if req.Source != "timer" && req.Source != "instance_check" {
+		return errors.New("invalid proactive wake source")
+	}
+	return nil
+}
+
+func instanceWakeStreaks(result string, quiet, failures int64) (int, int64, int64, error) {
+	switch result {
+	case "quiet":
+		return 1, quiet + 1, 0, nil
+	case "reported":
+		return 1, 0, 0, nil
+	case "failed":
+		return 0, quiet, failures + 1, nil
+	case instanceWakeCanceledResult:
+		return 0, quiet, failures, nil
+	default:
+		return 0, quiet, failures, errors.New("invalid proactive wake result")
+	}
+}
+
+func nextInstanceWake(req *heartbeat.FinishRequest, quiet, failures int64) time.Time {
+	if req.Source == "instance_check" || req.Result == instanceWakeCanceledResult {
+		return time.Time{}
+	}
+	if req.Interval <= 0 || req.MaxInterval <= 0 {
+		return req.NextWakeAt
+	}
+	streak := int64(0)
+	if req.Result == "quiet" {
+		streak = quiet / 3
+	}
+	if req.Result == "failed" {
+		streak = failures
+	}
+	maximum := req.MaxInterval
+	if req.Result == "quiet" && req.QuietBackoffCap > 0 {
+		maximum = req.QuietBackoffCap
+	}
+	return heartbeat.NextCheckTime(req.Now, heartbeat.CheckBackoff(req.Interval, maximum, streak), req.InstanceID)
+}
+
+func insertInstanceWakeReport(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.FinishRequest) error {
+	if req.Report == nil {
+		return nil
+	}
+	report := *req.Report
+	report.SourceKey = "occ:" + req.OccurrenceID
+	if err := report.Validate(); err != nil {
+		return err
+	}
+	reportID, err := store.NewID("arpt")
+	if err != nil {
+		return err
+	}
+	if err := q.InsertAgentInstanceReport(ctx, sqlcgen.InsertAgentInstanceReportParams{
+		ID:         reportID,
+		InstanceID: req.InstanceID,
+		SourceKey:  report.SourceKey,
+		Kind:       report.Kind,
+		Payload: string(
+			report.Payload,
+		),
+		Fingerprint: report.Fingerprint,
+		CreatedAt:   store.FormatTimestamp(req.Now),
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+const instanceWakeCanceledResult = "cancelled" //nolint:misspell // Matches the persisted wake result.
