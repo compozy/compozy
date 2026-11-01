@@ -70,6 +70,14 @@ func (r *RuntimeRegistry) buildIndexMatching(
 	return index, nil
 }
 
+// resolveIndexed reuses listed MCP descriptors; MCP Resolve would re-list every server per tool.
+func resolveIndexed(ctx context.Context, scope Scope, entry *registryEntry) (Handle, bool, error) {
+	if provider, ok := entry.provider.(*MCPProvider); ok {
+		return provider.handleFor(scope, entry.descriptor), true, nil
+	}
+	return entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
+}
+
 // add retains the first descriptor for each ID and records conflicts from subsequent providers.
 func (i *registryIndex) add(descriptor Descriptor, provider Provider, providerIndex int, owned bool) {
 	if existing, ok := i.byID[descriptor.ID]; ok {

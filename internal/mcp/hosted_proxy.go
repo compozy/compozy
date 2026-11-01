@@ -100,10 +100,11 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 		}
 	}()
 
+	// Providers ignore tools/list TTL hints; listChanged is how they learn of post-bind MCP tools.
 	mcpServer := sdkmcp.NewServer(
 		&sdkmcp.Implementation{Name: HostedServerName, Version: version},
 		&sdkmcp.ServerOptions{
-			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
+			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{ListChanged: true}},
 		},
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)

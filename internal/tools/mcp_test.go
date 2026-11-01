@@ -1035,6 +1035,55 @@ func TestShouldIsolateMCPProviderRegistryByWorkspace(t *testing.T) {
 	})
 }
 
+func TestShouldListEachMCPSourceOncePerProjection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		operator bool
+	}{
+		{name: "Should list each source once for the operator projection", operator: true},
+		{name: "Should list each source once for the session projection", operator: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			executor := newFakeMCPExecutor([]MCPToolDescriptor{
+				{RawName: "alpha", InputSchema: json.RawMessage(`{"type":"object"}`)},
+				{RawName: "beta", InputSchema: json.RawMessage(`{"type":"object"}`)},
+				{RawName: "gamma", InputSchema: json.RawMessage(`{"type":"object"}`)},
+			})
+			provider := newTestMCPProvider(t, executor, []SourceRef{
+				{Kind: SourceMCP, Owner: "newrelic", RawServerName: "newrelic", ResourceID: "newrelic"},
+				{Kind: SourceMCP, Owner: "grafana", RawServerName: "grafana", ResourceID: "grafana"},
+			})
+			registry := newMCPRegistry(t, provider)
+
+			views, err := registry.List(t.Context(), Scope{Operator: tt.operator})
+			if err != nil {
+				t.Fatalf("registry.List() error = %v", err)
+			}
+			if got, want := len(views), 6; got != want {
+				t.Fatalf("len(views) = %d, want %d", got, want)
+			}
+			for i := range views {
+				if !views[i].Availability.Executable {
+					t.Fatalf(
+						"views[%d] %s availability = %#v, want executable",
+						i,
+						views[i].Descriptor.ID,
+						views[i].Availability,
+					)
+				}
+			}
+			if got, want := executor.listCount(), 2; got != want {
+				t.Fatalf("MCP tools/list calls = %d, want %d (one per source, not per tool)", got, want)
+			}
+		})
+	}
+}
+
 type fakeMCPExecutor struct {
 	mu                sync.Mutex
 	tools             []MCPToolDescriptor
@@ -1128,6 +1177,12 @@ func (f *fakeMCPExecutor) lastCall() MCPToolCallRequest {
 		return MCPToolCallRequest{}
 	}
 	return f.calls[len(f.calls)-1]
+}
+
+func (f *fakeMCPExecutor) listCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.listedSources)
 }
 
 func (f *fakeMCPExecutor) listedResource(resourceID string) bool {

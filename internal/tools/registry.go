@@ -363,7 +363,7 @@ func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entr
 			ReasonCodes: append([]ReasonCode(nil), entry.conflicts...),
 		}
 	}
-	handle, ok, err := entry.provider.Resolve(ctx, scope, entry.descriptor.ID)
+	handle, ok, err := resolveIndexed(ctx, scope, entry)
 	if err != nil {
 		LogBackendFailure(ctx, entry.descriptor.ID, "tool_registry_resolve", err)
 		return Availability{

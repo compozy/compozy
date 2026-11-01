@@ -193,18 +193,22 @@ func (p *MCPProvider) Resolve(ctx context.Context, scope Scope, id ToolID) (Hand
 		return nil, false, err
 	}
 	for i := range descriptors {
-		if descriptors[i].ID != id {
-			continue
+		if descriptors[i].ID == id {
+			return p.handleFor(scope, descriptors[i]), true, nil
 		}
-		return &mcpHandle{
-			descriptor:  cloneDescriptor(descriptors[i]),
-			exec:        p.exec,
-			auth:        p.auth,
-			scope:       scope,
-			reliability: p.reliability,
-		}, true, nil
 	}
 	return nil, false, nil
+}
+
+// handleFor wraps a descriptor this provider already listed, without discovering again.
+func (p *MCPProvider) handleFor(scope Scope, descriptor Descriptor) Handle {
+	return &mcpHandle{
+		descriptor:  cloneDescriptor(descriptor),
+		exec:        p.exec,
+		auth:        p.auth,
+		scope:       scope,
+		reliability: p.reliability,
+	}
 }
 
 type mcpHandle struct {
