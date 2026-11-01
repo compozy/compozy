@@ -86,6 +86,7 @@ func (s *daemonExtensionService) Status(ctx context.Context, name string) (contr
 	return s.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
 }
 
+// reload publishes a manager-wide refresh for operations without a selected package.
 func (s *daemonExtensionService) reload(ctx context.Context) error {
 	if s.runtime == nil {
 		return nil

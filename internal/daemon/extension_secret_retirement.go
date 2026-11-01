@@ -48,7 +48,14 @@ func (s *daemonExtensionService) retireOrphanSecretBindings(
 	if err != nil {
 		return nil, err
 	}
-	return s.retireExtensionBindingScopes(ctx, key.Name, scopes)
+	retirement, err := s.retireExtensionBindingScopes(ctx, key.Name, scopes)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.retireUnboundOrphanSecrets(ctx, key.Name, retirement); err != nil {
+		return nil, errors.Join(err, retirement.rollback(ctx, s))
+	}
+	return retirement, nil
 }
 
 // Reference counts are captured across all retiring cells before any owned secret is collected.
@@ -141,6 +148,7 @@ func (s *daemonExtensionService) extensionSecretProfileIDs(
 	return profileIDs, nil
 }
 
+// rollback restores secret values before their bindings so compensated reloads can resolve credentials.
 func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExtensionService) error {
 	if r == nil || s == nil || s.envBindings == nil || s.secretVault == nil {
 		return nil
@@ -154,4 +162,35 @@ func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExten
 		}
 	}
 	return rollbackErr
+}
+
+// The caller holds withPackageMutation's exclusive name lock across every workspace.
+// Enumerate the namespace, then validate exact ownership; encoded workspace paths preclude a name-only prefix.
+func (s *daemonExtensionService) retireUnboundOrphanSecrets(
+	ctx context.Context, name string, retirement *extensionSecretRetirement,
+) error {
+	if s.secretVault == nil {
+		return nil
+	}
+	entries, err := s.secretVault.ListMetadata(ctx, "vault:extensions/")
+	if err != nil {
+		return fmt.Errorf("daemon: list orphan extension secrets: %w", err)
+	}
+	for _, entry := range entries {
+		if vault.ValidateExtensionSecretRefOwner(entry.Ref, name) != nil {
+			continue
+		}
+		snapshot, eligible, err := s.extensionSecretGCSnapshot(ctx, entry.Ref)
+		if err != nil {
+			return err
+		}
+		if !eligible {
+			continue
+		}
+		retirement.ownedSecretSnapshots = append(retirement.ownedSecretSnapshots, snapshot)
+		if err := s.gcOwnedExtensionSecret(ctx, entry.Ref); err != nil {
+			return err
+		}
+	}
+	return nil
 }

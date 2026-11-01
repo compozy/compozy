@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 // InstallationScope selects an attachment; empty profile means all profiles, empty workspace means global.
@@ -161,6 +162,7 @@ func insertInstallation(ctx context.Context, tx *store.WriteTx, name string, ite
 	return nil
 }
 
+// replaceInstallations restores surviving owners without recreating deleted profiles or workspaces.
 func replaceInstallations(ctx context.Context, tx *store.WriteTx, name string, installations []Installation) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM extension_installations WHERE extension_name = ?`, name); err != nil {
 		return err
@@ -194,19 +196,13 @@ func (r *Registry) EnvBindingScopes(ctx context.Context, name string) ([]Install
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT DISTINCT profile_id, workspace_id FROM extension_env_bindings
-  WHERE extension_name = ? ORDER BY profile_id, workspace_id`, name)
+	rows, err := globaldb.NewExtensionRegistryRepo(r.db).EnvBindingScopes(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var result []InstallationScope
-	for rows.Next() {
-		var scope InstallationScope
-		if err := rows.Scan(&scope.ProfileID, &scope.WorkspaceID); err != nil {
-			return nil, err
-		}
-		result = append(result, scope)
+	result := make([]InstallationScope, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, InstallationScope{ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID})
 	}
-	return result, rows.Err()
+	return result, nil
 }

@@ -13,6 +13,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// Install validates acquisition and commits the package with selected-target runtime publication.
 func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
@@ -196,6 +197,7 @@ func (s *daemonExtensionService) Update(
 	return items[0], nil
 }
 
+// UpdateBatch serializes selected packages while retaining successful outcomes from partial failures.
 func (s *daemonExtensionService) UpdateBatch(
 	ctx context.Context,
 	req contract.UpdateExtensionsRequest,
@@ -284,6 +286,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	)
 }
 
+// Remove validates operator or agent authority before entering the package removal coordinator.
 func (s *daemonExtensionService) Remove(
 	ctx context.Context,
 	name string,
@@ -333,7 +336,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 	if removeErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
 	}
-	s.evictExtensionMCPHealth(name, key.WorkspaceID)
+	s.mcpRuntimeHealth.EvictPackage(name)
 	item := contract.ManagedExtensionRemovePayload{
 		Name:           removed.Name,
 		Path:           removed.Path,

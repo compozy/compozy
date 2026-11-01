@@ -158,6 +158,7 @@ func loadVerifiedInstallManifest(
 	return resolvedManifest, manifestPath, actualChecksum, nil
 }
 
+// registryInstallInfo builds normalized package metadata and a fresh lifecycle token before enrollment.
 func registryInstallInfo(
 	r *Registry,
 	resolvedManifest *Manifest,

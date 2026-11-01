@@ -39,6 +39,7 @@ func (s *daemonExtensionService) ListEnablement(
 	return items, nil
 }
 
+// SetEnablement compensates profile state when the selected package cannot be published.
 func (s *daemonExtensionService) SetEnablement(
 	ctx context.Context,
 	name string,
@@ -131,6 +132,7 @@ func (s *daemonExtensionService) applyProfileEnablement(
 	return nil
 }
 
+// bindExtensionEnablementActor resolves persisted workspace ownership before changing enablement.
 func (s *daemonExtensionService) bindExtensionEnablementActor(
 	ctx context.Context,
 	actor taskpkg.ActorContext,

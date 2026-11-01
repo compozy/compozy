@@ -14,6 +14,7 @@ import (
 )
 
 type extensionSecretVault interface {
+	ListMetadata(context.Context, string) ([]vault.Metadata, error)
 	PutSecret(context.Context, string, string, string) (vault.Metadata, error)
 	ResolveRef(context.Context, string) (string, error)
 	GetMetadata(context.Context, string) (vault.Metadata, error)

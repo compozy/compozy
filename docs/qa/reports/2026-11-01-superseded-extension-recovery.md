@@ -85,3 +85,25 @@ iteration now uses indexed references. Broad verification remains in CI.
 The existing `TestExtensionCommandRoundTripIntegration` also passed with `-race` after the CLI
 profile fix (36.7 seconds). It exercises the live CLI transport and extension lifecycle fixture;
 its existing integration-service boundaries remain as described by that canonical suite.
+
+The final CodeRabbit remediation keeps migration SQL in generated sqlc queries behind a globaldb
+repository mapping, sharing the existing enrollment transaction. Focused registry race regressions
+verify the unchanged atomic transfer and refusal behavior. The batch test now requires the actual
+successful candidate reload, and Doctor coverage checks both global and workspace items together.
+
+Orphan credential integration additionally seeds Vault writes with no binding row in global and
+workspace namespaces. A forced MCP-retirement failure restores them; successful removal and
+reinstall leave none behind. A neighboring extension's secret and an operator-managed secret
+under the same owner prefix remain intact. The sweep holds the exclusive package mutation lock,
+validates exact encoded ownership, checks remaining binding references and snapshots compensation.
+
+Runtime-health regressions cover a server resolved before package removal whose exchange begins
+only afterwards, including reuse of the same bundle checksum. Resolution and exchange observations
+carry lifecycle fences; full package retirement clears every workspace without clearing another
+package's diagnostics. Instance-only detach continues to evict only that workspace.
+
+The remediation reran the seeded-home boot integration after moving migration statements to sqlc;
+it passed. `make codegen` and `make codegen-check` passed with the locked Bun dependencies and
+explicit pinned tool binaries. An initial generator check exposed missing/patched dependency and
+tool-shim version drift; no unrelated generated changes remain. Focused MCP resolver, registry,
+Doctor and runtime-health race checks are the local verification boundary. CI owns broad gates.

@@ -35,3 +35,8 @@ removes its registration, installation and copied directory. Seed an existing pa
 no installation rows; an operator's `extension remove <name> --global` must remove it and allow
 reinstallation. Workspace-scoped agents must not gain authority to remove that orphan.
 Verification: see [targeted upgrade and recovery evidence](../reports/2026-11-01-superseded-extension-recovery.md).
+
+During orphan recovery, seed an extension-owned Vault write interrupted before its binding row.
+Verify removal collects it across the orphan's workspace namespaces, preserves secrets belonging
+to another extension or an operator, and restores the before-image if removal fails. A delayed MCP
+failure resolved before removal must not reappear after reinstalling the same bundle.

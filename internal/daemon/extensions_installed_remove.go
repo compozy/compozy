@@ -13,6 +13,7 @@ import (
 
 const extensionRemovalStatusRemoved = "removed"
 
+// removeInstalledExtension holds the package lock across attachment selection and compensation.
 func (s *daemonExtensionService) removeInstalledExtension(
 	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
 ) (contract.ManagedExtensionRemovePayload, error) {
@@ -111,6 +112,7 @@ func (s *daemonExtensionService) detachInstalledExtension(
 		s.paletteNotifier.NotifyExtensionChanged(ctx, scope.WorkspaceID, name)
 }
 
+// retireDetachedMCPAllocations keeps reservations still reachable through another attachment.
 func (s *daemonExtensionService) retireDetachedMCPAllocations(
 	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
 ) error {

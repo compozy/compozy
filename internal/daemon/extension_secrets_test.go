@@ -704,6 +704,20 @@ func (f *extensionSecretVaultFake) ResolveRef(_ context.Context, ref string) (st
 	return value, nil
 }
 
+// ListMetadata models only the Vault I/O boundary used by package retirement.
+func (f *extensionSecretVaultFake) ListMetadata(_ context.Context, prefix string) ([]vault.Metadata, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var entries []vault.Metadata
+	for ref := range f.values {
+		if strings.HasPrefix(ref, prefix) {
+			entries = append(entries, vault.Metadata{Ref: ref, Kind: f.kinds[ref], Present: true})
+		}
+	}
+	slices.SortFunc(entries, func(a, b vault.Metadata) int { return strings.Compare(a.Ref, b.Ref) })
+	return entries, nil
+}
+
 func (f *extensionSecretVaultFake) GetMetadata(_ context.Context, ref string) (vault.Metadata, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

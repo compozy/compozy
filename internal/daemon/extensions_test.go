@@ -843,6 +843,13 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if entries := health.Entries("tool-ext", "", "before-update"); len(entries) != 0 {
 			t.Fatalf("runtime health after update = %#v, want evicted", entries)
 		}
+		// Invariant: full package removal retires stale workspace observations, including resolved-before-Begin calls.
+		// Owner: daemon package lifecycle. Canonical suite: TestExtensionLifecycleCoordinator.
+		workspaceKey := health.ResolveKey(mcppkg.RuntimeHealthKey{
+			InstanceName: "tool-ext", WorkspaceID: "ws-old", BundleGeneration: "same-bundle", ServerName: "remote",
+		})
+		health.RecordFailure(health.Begin(workspaceKey), errors.New("old workspace failure"))
+
 		recordRuntimeHealthFailure(health, "tool-ext", "before-remove")
 		if _, err := service.Remove(t.Context(), "tool-ext", actor); err != nil {
 			t.Fatalf("Remove() error = %v", err)
@@ -850,6 +857,11 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if entries := health.Entries("tool-ext", "", "before-remove"); len(entries) != 0 {
 			t.Fatalf("runtime health after remove = %#v, want evicted", entries)
 		}
+		health.RecordFailure(health.Begin(workspaceKey), errors.New("late workspace failure"))
+		if entries := health.Entries("tool-ext", "ws-old", "same-bundle"); len(entries) != 0 {
+			t.Fatalf("workspace health after package remove = %v", entries)
+		}
+
 	})
 
 	t.Run("Should restore files version confirmation and runtime after a confirmed update fails", func(t *testing.T) {
@@ -2793,10 +2805,14 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 		source extensionpkg.ExtensionSource
 		scope  extensionpkg.InstallationScope
 		orphan bool
+		multi  bool
 		want   string
 	}{
 		{name: "Should name the global removal command", source: extensionpkg.SourceBundled, want: "compozy extension remove dev-cycle --global"},
 		{name: "Should name the workspace and profile removal command", source: extensionpkg.SourceBundled, scope: extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-retained"}, want: "compozy --profile default extension remove dev-cycle --workspace ws-retained"},
+		{name: "Should report every global and workspace attachment", source: extensionpkg.SourceBundled,
+			scope: extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-retained"}, multi: true,
+			want: "compozy --profile default extension remove dev-cycle --workspace ws-retained"},
 		{name: "Should diagnose an unattached superseded registration", source: extensionpkg.SourceBundled, orphan: true, want: "compozy extension remove dev-cycle --global"},
 		{name: "Should not label a user-owned old name superseded", source: extensionpkg.SourceUser},
 	} {
@@ -2832,6 +2848,16 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
+			if test.multi {
+				if err := registry.AttachInstallation(
+					t.Context(),
+					"dev-cycle",
+					extensionpkg.InstallationScope{},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+
 			if test.orphan {
 				if _, err := db.DB().
 					ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = 'dev-cycle'`); err != nil {
@@ -2849,6 +2875,27 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 				}
 				return
 			}
+			if test.multi {
+				if len(items) != 2 || items[0].ID == items[1].ID {
+					t.Fatalf("multi-attachment diagnostics = %v", items)
+				}
+				ids := []string{items[0].ID, items[1].ID}
+				if !slices.Contains(ids, "doctor.extension.dev-cycle.superseded") ||
+					!slices.Contains(
+						ids,
+						"doctor.extension.dev-cycle.superseded."+store.DefaultProfileID+".ws-retained",
+					) {
+					t.Fatalf("multi-attachment diagnostic IDs = %v", ids)
+				}
+
+				commands := []string{items[0].SuggestedCommand, items[1].SuggestedCommand}
+				if !slices.Contains(commands, test.want) ||
+					!slices.Contains(commands, "compozy extension remove dev-cycle --global") {
+					t.Fatalf("multi-attachment commands = %v", commands)
+				}
+				return
+			}
+
 			if len(items) != 1 || items[0].SuggestedCommand != test.want {
 				t.Fatalf("scope remediation = %v, want %s", items, test.want)
 			}

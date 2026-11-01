@@ -88,6 +88,7 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	return nil
 }
 
+// configureReinstallAttachment coordinates attachment enrollment and compensation with package replacement.
 func (s *daemonExtensionService) configureReinstallAttachment(
 	ctx context.Context, update *extensionpkg.MarketplaceUpdateRequest, scope extensionpkg.InstallationScope,
 ) {

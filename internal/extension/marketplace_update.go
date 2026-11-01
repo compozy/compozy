@@ -77,6 +77,7 @@ func failedMarketplaceUpdateResult(
 	return item
 }
 
+// marketplaceUpdateFailureDiagnostic exposes a redacted failure without discarding committed batch outcomes.
 func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcontract.DiagnosticItem {
 	message := fmt.Sprintf("Extension %q could not be updated.", strings.TrimSpace(name))
 	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {

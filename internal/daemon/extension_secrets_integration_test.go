@@ -1350,6 +1350,35 @@ func testOrphanExtensionSecretRetirement(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Invariant: orphan recovery also retires Vault writes interrupted before binding persistence.
+	// Owner: real daemon removal transaction; canonical suite: TestExtensionSecrets.
+	var unboundRefs []string
+	for _, workspace := range scopes {
+		ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "UNBOUND_SECRET")
+		if _, err := harness.vault.PutSecret(
+			t.Context(),
+			ref,
+			extensionpkg.ExtensionEnvBindingKind,
+			"unbound-owned-secret",
+		); err != nil {
+			t.Fatal(err)
+		}
+		unboundRefs = append(unboundRefs, ref)
+	}
+	preserved := []string{
+		vault.ExtensionProfileSecretRef(name+"-neighbor", store.DefaultProfileID, "", "TOKEN"),
+		vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, "", "OPERATOR_SECRET"),
+	}
+	for i, ref := range preserved {
+		kind := extensionpkg.ExtensionEnvBindingKind
+		if i == 1 {
+			kind = "operator-managed"
+		}
+		if _, err := harness.vault.PutSecret(t.Context(), ref, kind, "preserved-secret"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	if _, err := harness.db.DB().
 		ExecContext(t.Context(), `CREATE TRIGGER fail_orphan_removal BEFORE DELETE ON extension_mcp_overrides BEGIN SELECT RAISE(ABORT, 'orphan retirement failure'); END`); err != nil {
 		t.Fatal(err)
@@ -1362,6 +1391,12 @@ func testOrphanExtensionSecretRetirement(t *testing.T) {
 		!strings.Contains(err.Error(), "orphan retirement failure") {
 		t.Fatalf("remove failure = %v", err)
 	}
+	for _, ref := range unboundRefs {
+		if value, err := harness.vault.ResolveRef(t.Context(), ref); err != nil || value != "unbound-owned-secret" {
+			t.Fatalf("unbound secret not restored: %v", err)
+		}
+	}
+
 	for _, workspace := range scopes {
 		bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(
 			t.Context(),
@@ -1409,6 +1444,17 @@ func testOrphanExtensionSecretRetirement(t *testing.T) {
 			t.Fatalf("removed orphan credential in %s: %v", workspace, err)
 		}
 	}
+	for _, ref := range unboundRefs {
+		if _, err := harness.vault.ResolveRef(t.Context(), ref); !errors.Is(err, vault.ErrSecretNotFound) {
+			t.Fatalf("unbound orphan secret survived: %v", err)
+		}
+	}
+	for _, ref := range preserved {
+		if value, err := harness.vault.ResolveRef(t.Context(), ref); err != nil || value != "preserved-secret" {
+			t.Fatalf("unowned secret changed: %v", err)
+		}
+	}
+
 	records, err := harness.db.ExtensionMCP.ListAll(t.Context())
 	if err != nil {
 		t.Fatal(err)

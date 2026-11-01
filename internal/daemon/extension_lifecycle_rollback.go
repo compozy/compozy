@@ -16,6 +16,7 @@ type globalExtensionLifecycleSnapshot struct {
 	confirmation extensionpkg.GatewayConfirmation
 }
 
+// snapshotGlobalExtensionLifecycle retains the before-image needed by package mutation compensation.
 func snapshotGlobalExtensionLifecycle(info *extensionpkg.ExtensionInfo) globalExtensionLifecycleSnapshot {
 	if info == nil {
 		return globalExtensionLifecycleSnapshot{}
