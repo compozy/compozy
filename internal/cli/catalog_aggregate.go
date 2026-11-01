@@ -104,7 +104,8 @@ func readAggregateAgents(
 		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/agents/aggregate", values, &response); err != nil {
 			return nil, nil, err
 		}
-		for _, item := range response.Agents {
+		for index := range response.Agents {
+			item := &response.Agents[index]
 			items = append(items, item.Agent)
 			rows = append(rows, []string{label(item.Agent.WorkspaceID), item.Agent.Name, item.Agent.Provider})
 		}
