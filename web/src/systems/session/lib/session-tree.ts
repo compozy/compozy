@@ -128,6 +128,16 @@ export async function readSessionChoiceTargets(
   };
 }
 
+/** The daemon re-reads the tree, so a child that left it since the read stays unarchived. */
+export async function readArchivedDescendants(
+  queryClient: QueryClient,
+  descendants: readonly SessionPayload[]
+): Promise<SessionPayload[]> {
+  if (descendants.length === 0) return [];
+  const { sessions } = await readCurrentSessions(queryClient, descendants, true);
+  return sessions.filter(session => session.archived_at);
+}
+
 export function sessionChildrenChoice(
   scope: SessionChildrenScope,
   included: boolean,

@@ -86,7 +86,7 @@ export function SessionDeleteActions({
         type="button"
         variant="destructive"
         onClick={retrying ? onRetry : () => onConfirm(choice ? "terminate" : undefined)}
-        disabled={isDeleting || (childrenPending && !retrying)}
+        disabled={isDeleting || childrenPending}
         data-testid={retrying ? "delete-dialog-retry" : "delete-dialog-confirm"}
       >
         {confirmContent}

@@ -1156,6 +1156,26 @@ describe("session actions", () => {
       expect(result.current.processDialog.open).toBe(false);
     });
 
+    it("notifies only the children the daemon actually archived", async () => {
+      const stayed = { ...createdSession, id: "sess-stayed" };
+      vi.mocked(listSessionDescendants).mockResolvedValue([child, stayed]);
+      vi.mocked(fetchSessionById).mockImplementation(async (id: string) =>
+        id === child.id ? { ...child, archived_at: "2026-11-01T00:00:00Z" } : createdSession
+      );
+      const onArchiveSuccess = vi.fn();
+      const { result } = renderHook(() => useSessionLifecycleActions({ onArchiveSuccess }), {
+        wrapper: createWrapper(treeClient()),
+      });
+      act(() => result.current.actions.onArchive(createdSession));
+      await waitFor(() => expect(result.current.processDialog.open).toBe(true));
+      act(() => result.current.processDialog.onChoose());
+      await waitFor(() => expect(onArchiveSuccess).toHaveBeenCalledTimes(2));
+      expect(onArchiveSuccess.mock.calls.map(call => call[0].id)).toEqual([
+        createdSession.id,
+        child.id,
+      ]);
+    });
+
     it("sends a plain delete when the checked choice is no longer on screen", async () => {
       vi.mocked(listSessionDescendants).mockResolvedValue([child]);
       const client = treeClient();

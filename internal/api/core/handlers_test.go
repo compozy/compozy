@@ -318,11 +318,9 @@ func TestBaseHandlersSessionTree(t *testing.T) {
 		var stops []bool
 		root := &session.Info{ID: "sess-a", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-workspace"}
 		fixture := treeFixture(t, &treeSessionManager{
-			StubSessionManager: testutil.StubSessionManager{ArchiveFn: func(
-				_ context.Context, _, id string,
-			) (*session.Info, error) {
+			ArchiveFn: func(_ context.Context, _, id string) (*session.Info, error) {
 				return &session.Info{ID: id, ProfileID: store.DefaultProfileID}, nil
-			}},
+			},
 			archive: func(_ context.Context, _, _ string, opts session.ArchiveTreeOptions) (*session.Tree, error) {
 				stops = append(stops, opts.Stop)
 				return &session.Tree{Root: root, Descendants: []*session.Info{child}}, nil
@@ -413,10 +411,10 @@ func TestBaseHandlersSessionTree(t *testing.T) {
 		t.Parallel()
 		single, tree := 0, 0
 		fixture := treeFixture(t, &treeSessionManager{
-			StubSessionManager: testutil.StubSessionManager{DeleteFn: func(context.Context, string) error {
+			DeleteFn: func(context.Context, string) error {
 				single++
 				return nil
-			}},
+			},
 			remove: func(context.Context, string, string) ([]string, error) {
 				tree++
 				return []string{"sess-child", "sess-a"}, nil

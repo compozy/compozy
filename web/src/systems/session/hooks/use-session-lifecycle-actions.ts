@@ -19,6 +19,7 @@ import {
 
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import {
+  readArchivedDescendants,
   readSessionChoiceTargets,
   sessionBatchCoverage,
   sessionChildrenChoice,
@@ -98,9 +99,13 @@ export function useSessionLifecycleActions(
     deleteTarget?.openedAt ?? Infinity
   );
   const deleteSession = deleteSessions?.[0] ?? null;
-  const deleteRead = useSessionDeleteTrees(deleteTarget?.sessions);
+  // A target the batch already deleted has no tree left to read or to ask about.
+  const remainingDeleteTargets = deleteTarget?.sessions.filter(
+    session => !batchResults.some(result => result.id === session.id && result.status === "done")
+  );
+  const deleteRead = useSessionDeleteTrees(remainingDeleteTargets);
   const deleteTrees = deleteRead.trees;
-  const deleteScope = sessionChildrenScope("delete", deleteTarget?.sessions ?? [], deleteTrees);
+  const deleteScope = sessionChildrenScope("delete", remainingDeleteTargets ?? [], deleteTrees);
   // Only what the dialog shows is sent: with no choice on screen, a delete stays single-session.
   const includedDeleteTrees =
     deleteChildren && deleteScope.members.length > 0 ? deleteTrees : undefined;
@@ -140,8 +145,10 @@ export function useSessionLifecycleActions(
 
   /** A host's follow-up failing does not undo an archive the daemon confirmed. */
   const notifyArchived = async (session: SessionPayload, trees?: SessionTrees) => {
-    const archived = [session, ...(trees?.get(session.id) ?? [])];
-    const results = await Promise.allSettled(archived.map(target => onArchiveSuccess?.(target)));
+    const children = await readArchivedDescendants(queryClient, trees?.get(session.id) ?? []);
+    const results = await Promise.allSettled(
+      [session, ...children].map(target => onArchiveSuccess?.(target))
+    );
     for (const result of results) {
       if (result.status === "rejected") reportActionError("archive", result.reason);
     }
