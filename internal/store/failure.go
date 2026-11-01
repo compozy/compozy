@@ -58,7 +58,10 @@ func ValidFailureKind(kind FailureKind) bool {
 // ValidFailureReasonCode reports whether code is a supported failure reason.
 func ValidFailureReasonCode(code FailureReasonCode) bool {
 	switch code {
-	case FailureReasonPromptStreamIncomplete, FailureReasonNPXPrepare, FailureReasonNPXInitialize, FailureReasonNPXResolve:
+	case FailureReasonPromptStreamIncomplete,
+		FailureReasonNPXPrepare,
+		FailureReasonNPXInitialize,
+		FailureReasonNPXResolve:
 		return true
 	default:
 		return false

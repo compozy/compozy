@@ -179,5 +179,4 @@ func TestSessionFailureNPXOrigin(t *testing.T) {
 			}
 		}
 	})
-
 }

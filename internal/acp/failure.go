@@ -98,7 +98,10 @@ func FailureFromError(err error, fallback store.FailureKind) (*store.SessionFail
 	failure := store.SessionFailure{
 		Kind:       kind,
 		ReasonCode: npxFailureReason(err),
-		Summary:    diagnostics.RedactAndBound(providerFailureDiagnosticSummary(err, err.Error()), maxFailureSummaryBytes),
+		Summary: diagnostics.RedactAndBound(
+			providerFailureDiagnosticSummary(err, err.Error()),
+			maxFailureSummaryBytes,
+		),
 	}
 	return &failure, true
 }

@@ -167,7 +167,8 @@ func TestNPXStartupDiagnosticOrigin(t *testing.T) {
 		t.Parallel()
 		err := npxDiagnostic("initialize", &acpsdk.RequestError{Code: -32000, Message: "authentication required"})
 		got := ClassifyProbeError("custom", err)
-		if got.State != authproviders.ProviderAuthStateNeedsLogin || got.Action != authproviders.ProviderFailureActionLogin {
+		if got.State != authproviders.ProviderAuthStateNeedsLogin ||
+			got.Action != authproviders.ProviderFailureActionLogin {
 			t.Fatalf("auth classification = %#v", got)
 		}
 	})

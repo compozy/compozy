@@ -16,7 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/subprocess"
 )
 
-const defaultNPXPrepareTimeout = 5 * time.Minute
+const (
+	defaultNPXPrepareTimeout = 5 * time.Minute
+	npxResolutionStage       = "resolve"
+)
 
 // npm owns cache repair; serialize preparation so session starts do not race installs.
 var npxPrepareSlot = make(chan struct{}, 1)
@@ -131,7 +134,7 @@ func NPXStartupDiagnostic(failure *store.SessionFailure) (contract.DiagnosticIte
 	case store.FailureReasonNPXInitialize:
 		stage = "initialize"
 	case store.FailureReasonNPXResolve:
-		stage = "resolve"
+		stage = npxResolutionStage
 	default:
 		return empty, false
 	}
@@ -224,7 +227,7 @@ func npxDiagnostic(stage string, cause error) error {
 	if stage == "prepare" && cause != nil {
 		for _, code := range []string{"E404", "ETARGET", "EINVALIDTAGNAME", "EINVALIDPACKAGENAME"} {
 			if strings.Contains(cause.Error(), "code "+code) {
-				stage = "resolve"
+				stage = npxResolutionStage
 				break
 			}
 		}
@@ -237,7 +240,7 @@ func npxDiagnostic(stage string, cause error) error {
 			"run the configured adapter command locally to finish or diagnose npm installation, " +
 			"then retry without restarting the daemon."
 	}
-	if stage == "resolve" {
+	if stage == npxResolutionStage {
 		code = contract.CodeProviderClassificationUnknown
 		message = "npx could not resolve the configured package or version. Correct the provider command, " +
 			"package name, version, or registry configuration before starting the session again."

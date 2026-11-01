@@ -1399,7 +1399,11 @@ func TestLocalLauncherNPXResolution(t *testing.T) {
 		}
 		root := t.TempDir()
 		runner := filepath.Join(root, "npx")
-		if err := os.WriteFile(runner, []byte("#!/bin/sh\necho 'npm error code ETARGET' >&2\nexit 1\n"), 0o700); err != nil {
+		if err := os.WriteFile(
+			runner,
+			[]byte("#!/bin/sh\necho 'npm error code ETARGET' >&2\nexit 1\n"),
+			0o700,
+		); err != nil {
 			t.Fatal(err)
 		}
 		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
@@ -1415,5 +1419,4 @@ func TestLocalLauncherNPXResolution(t *testing.T) {
 			t.Fatalf("failure = %#v", failure)
 		}
 	})
-
 }
