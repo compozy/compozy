@@ -94,8 +94,14 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 }
 
 func (m *Manager) stopWithCauseReceipt(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
+	return m.guardedStopWithCauseReceipt(ctx, id, cause, detail, nil, nil)
+}
+
+func (m *Manager) guardedStopWithCauseReceipt(
+	ctx context.Context, id string, cause StopCause, detail string, guard stopGuard, onCommitted func(),
+) (bool, error) {
 	previousRun := m.finalizedStopRun(id)
-	run, err := m.requestSessionStop(ctx, id, cause, detail)
+	run, err := m.requestGuardedSessionStop(ctx, id, cause, detail, guard, onCommitted)
 	if err != nil || run == nil {
 		return false, err
 	}
@@ -145,7 +151,7 @@ func (m *Manager) prepareStopWithCause(
 	cause StopCause,
 	detail string,
 ) (*Session, *AgentProcess, bool, bool, bool, error) {
-	return m.prepareStopWithCauseMode(ctx, id, cause, detail, stopPreparationDefault)
+	return m.prepareStopWithCauseMode(ctx, id, cause, detail, stopPreparationDefault, nil)
 }
 
 type stopPreparationMode uint8
@@ -161,6 +167,7 @@ func (m *Manager) prepareStopWithCauseMode(
 	cause StopCause,
 	detail string,
 	mode stopPreparationMode,
+	guard stopGuard,
 ) (*Session, *AgentProcess, bool, bool, bool, error) {
 	session, finalization, err := m.stopTarget(id)
 	if err != nil {
@@ -195,7 +202,7 @@ func (m *Manager) prepareStopWithCauseMode(
 		}
 	}
 
-	promptSetupDone, err := m.prepareStopStateAndGoals(ctx, session, appliedCause, appliedDetail)
+	promptSetupDone, err := m.prepareStopStateAndGoals(ctx, session, appliedCause, appliedDetail, guard)
 	if err != nil {
 		return nil, nil, false, false, false, err
 	}
@@ -211,14 +218,14 @@ func (m *Manager) prepareStopWithCauseMode(
 }
 
 func (m *Manager) prepareStopStateAndGoals(
-	ctx context.Context, session *Session, cause StopCause, detail string,
+	ctx context.Context, session *Session, cause StopCause, detail string, guard stopGuard,
 ) (<-chan struct{}, error) {
 	// An in-flight setup can observe stopping before the durable pause reaches its
 	// Goal. Keep its ambiguity settlement behind that intent, then unlock before
 	// waiting for setup to drain so neither side waits on the other.
 	session.goalStopMu.Lock()
 	defer session.goalStopMu.Unlock()
-	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
+	writeMeta, promptSetupDone, err := m.commitStopIntent(ctx, session, cause, detail, guard)
 	if err != nil {
 		return nil, fmt.Errorf("session: prepare stop state sync for %q: %w", session.ID, err)
 	}

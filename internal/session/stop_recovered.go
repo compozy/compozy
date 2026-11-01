@@ -79,6 +79,9 @@ func (m *Manager) prepareRecoveredStopRun(
 		return
 	}
 	run.outcome.Cause = cause
+	if meta.State != string(StateStopped) {
+		run.notifyCommitted()
+	}
 	close(run.ready)
 	if meta.State == string(StateStopped) {
 		run.outcome.FinalState, run.outcome.Verified = StateStopped, true

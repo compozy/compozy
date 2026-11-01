@@ -5,10 +5,13 @@ import (
 	"errors"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -695,6 +698,277 @@ func TestValidateReparentNodes(t *testing.T) {
 			if _, err := validateDetachSource(&node); !errors.Is(err, ErrSessionReparentRefused) {
 				t.Fatalf("validateDetachSource(%s) error = %v, want refusal", kind, err)
 			}
+		}
+	})
+}
+
+func (h *harness) spawnBoundWorker(t *testing.T, parent *Session) *Session {
+	t.Helper()
+	worker, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+		ParentSessionID:  parent.ID,
+		AgentName:        "coder",
+		Name:             "worker",
+		TTL:              time.Hour,
+		AutoStopOnParent: true,
+		PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+	})
+	if err != nil {
+		t.Fatalf("Spawn(worker) error = %v", err)
+	}
+	return worker
+}
+
+func (h *harness) mustStop(t *testing.T, ids ...string) {
+	t.Helper()
+	for _, id := range ids {
+		if err := h.manager.Stop(testutil.Context(t), id); err != nil {
+			t.Fatalf("Stop(%q) error = %v", id, err)
+		}
+	}
+}
+
+func (h *harness) assertRunning(t *testing.T, id string) {
+	t.Helper()
+	info, err := h.manager.Status(testutil.Context(t), id)
+	if err != nil || info.State != StateActive {
+		t.Fatalf("Status(%q) = %#v, %v; want a running session", id, info, err)
+	}
+}
+
+// Invariant: a parent-stop reap commits only while its condition holds, decided
+// atomically with the move to stopping; owner: the session manager's stop path.
+func TestStopIfParentStopped(t *testing.T) {
+	t.Parallel()
+
+	const detail = "spawn_reaper:parent_stopped"
+
+	t.Run("Should stop the child resumably, running effects before termination", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		h.mustStop(t, parent.ID)
+
+		stateAtCommit := State("")
+		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() {
+			stateAtCommit = worker.Info().State
+			// The commit already happened, and no lock is held: this parent resume
+			// must finish, and must not save the child.
+			if _, resumeErr := h.manager.Resume(ctx, parent.ID); resumeErr != nil {
+				t.Errorf("Resume(parent) during commit error = %v", resumeErr)
+			}
+		})
+		if err != nil || outcome != ParentStopCommitted {
+			t.Fatalf("StopIfParentStopped() = %v, %v; want committed", outcome, err)
+		}
+		if stateAtCommit != StateStopping {
+			t.Fatalf("state when effects ran = %q, want stopping", stateAtCommit)
+		}
+		meta := readMeta(t, worker.MetaPath())
+		if meta.State != string(StateStopped) || (meta.Failure != nil && meta.Failure.Kind != store.FailureCanceled) ||
+			meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled || meta.StopDetail != detail {
+			t.Fatalf("stopped meta state=%s failure=%#v reason=%v detail=%q, want a resumable reap",
+				meta.State, meta.Failure, meta.StopReason, meta.StopDetail)
+		}
+		h.assertRunning(t, parent.ID)
+		if _, err := h.manager.Resume(ctx, worker.ID); err != nil {
+			t.Fatalf("Resume(reaped worker) error = %v", err)
+		}
+	})
+
+	t.Run("Should keep the child when the parent resumes during the stop", func(t *testing.T) {
+		t.Parallel()
+		dispatcher := &spyHookDispatcher{}
+		h := newHostedMCPHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		ctx := testutil.Context(t)
+		parent, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		worker := h.spawnBoundWorker(t, parent)
+		h.mustStop(t, parent.ID)
+
+		// session.pre_stop runs past every check and before the commit.
+		dispatcher.dispatchSessionPreStopFn = func(
+			_ context.Context,
+			payload hookspkg.SessionPreStopPayload,
+		) (hookspkg.SessionPreStopPayload, error) {
+			if payload.SessionID == worker.ID {
+				if _, resumeErr := h.manager.Resume(ctx, parent.ID); resumeErr != nil {
+					t.Errorf("Resume(parent) error = %v", resumeErr)
+				}
+			}
+			return payload, nil
+		}
+		commits := 0
+		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopSuperseded || commits != 0 {
+			t.Fatalf("StopIfParentStopped() = %v, %v, commits %d; want quietly superseded", outcome, err, commits)
+		}
+		h.assertRunning(t, worker.ID)
+		if readMeta(t, worker.MetaPath()).StopReason != nil {
+			t.Fatal("a declined stop recorded a stop reason")
+		}
+		dispatcher.dispatchSessionPreStopFn = nil
+		h.mustStop(t, worker.ID)
+	})
+
+	t.Run("Should let a stop that joined a declined one stop the child", func(t *testing.T) {
+		t.Parallel()
+		dispatcher := &spyHookDispatcher{}
+		h := newHostedMCPHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		ctx := testutil.Context(t)
+		parent, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
+				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		worker := h.spawnBoundWorker(t, parent)
+
+		// The child's parent stays live, so the guard declines after this request
+		// joined or, at the latest, right before it claims its own run.
+		joined := make(chan error, 1)
+		var once sync.Once
+		dispatcher.dispatchSessionPreStopFn = func(
+			_ context.Context,
+			payload hookspkg.SessionPreStopPayload,
+		) (hookspkg.SessionPreStopPayload, error) {
+			once.Do(func() { go func() { joined <- h.manager.Stop(ctx, worker.ID) }() })
+			return payload, nil
+		}
+		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, nil)
+		if err != nil || outcome == ParentStopCommitted {
+			t.Fatalf("StopIfParentStopped() = %v, %v; want no commit", outcome, err)
+		}
+		if err := <-joined; err != nil {
+			t.Fatalf("Stop() after a declined stop error = %v", err)
+		}
+		if got := readMeta(t, worker.MetaPath()).State; got != string(StateStopped) {
+			t.Fatalf("child state = %q, want stopped by the operator request", got)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		change func(t *testing.T, h *reparentHarness, worker *Session)
+	}{
+		{name: "taken over", change: func(t *testing.T, h *reparentHarness, worker *Session) {
+			t.Helper()
+			ctx := testutil.Context(t)
+			h.mustStop(t, worker.ID)
+			if _, err := h.manager.DetachSession(ctx, h.workspaceID, worker.ID); err != nil {
+				t.Fatalf("DetachSession() error = %v", err)
+			}
+			if _, err := h.manager.Resume(ctx, worker.ID); err != nil {
+				t.Fatalf("Resume(taken over) error = %v", err)
+			}
+		}},
+		{name: "resumed by the user", change: func(t *testing.T, h *reparentHarness, worker *Session) {
+			t.Helper()
+			h.mustStop(t, worker.ID)
+			if _, err := h.manager.Resume(testutil.Context(t), worker.ID); err != nil {
+				t.Fatalf("Resume(worker) error = %v", err)
+			}
+		}},
+	} {
+		t.Run("Should keep a child "+tc.name+" after the reaper reread it", func(t *testing.T) {
+			t.Parallel()
+			h := newSpawnReparentHarness(t)
+			ctx := testutil.Context(t)
+			parent := h.spawnParent(t)
+			worker := h.spawnBoundWorker(t, parent)
+			h.mustStop(t, parent.ID)
+
+			// The reread: this is everything the reaper knows when it asks for the stop.
+			reread, err := h.manager.Status(ctx, worker.ID)
+			if err != nil || reread.State != StateActive || !reread.Lineage.AutoStopOnParent {
+				t.Fatalf("Status(worker) = %#v, %v; want a reapable child", reread, err)
+			}
+			tc.change(t, h, worker)
+
+			commits := 0
+			outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+			if err != nil || outcome != ParentStopSuperseded || commits != 0 {
+				t.Fatalf("StopIfParentStopped() = %v, %v, commits %d; want quietly superseded", outcome, err, commits)
+			}
+			h.assertRunning(t, worker.ID)
+		})
+	}
+
+	t.Run("Should report a child that already stopped as ended", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		h.mustStop(t, worker.ID, parent.ID)
+
+		commits := 0
+		outcome, err := h.manager.StopIfParentStopped(testutil.Context(t), worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopEnded || commits != 0 {
+			t.Fatalf("StopIfParentStopped() = %v, %v, commits %d; want ended", outcome, err, commits)
+		}
+	})
+
+	t.Run("Should guard a child still starting", func(t *testing.T) {
+		t.Parallel()
+		h := newSpawnReparentHarness(t)
+		ctx := testutil.Context(t)
+		parent := h.spawnParent(t)
+		worker := h.spawnBoundWorker(t, parent)
+		// The parent is live, so this resume keeps the binding.
+		h.mustStop(t, worker.ID)
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		h.driver.mu.Lock()
+		h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(entered)
+			// The fake driver holds its lock across this hook; stopping the parent needs it.
+			h.driver.mu.Unlock()
+			defer h.driver.mu.Lock()
+			select {
+			case <-release:
+				return nil, errors.New("launch released")
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		h.driver.mu.Unlock()
+		resumed := make(chan error, 1)
+		go func() {
+			_, err := h.manager.Resume(ctx, worker.ID)
+			resumed <- err
+		}()
+		<-entered
+
+		commits := 0
+		outcome, err := h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopSuperseded || commits != 0 {
+			t.Fatalf("StopIfParentStopped(live parent) = %v, %v; want superseded", outcome, err)
+		}
+		if info, err := h.manager.Status(ctx, worker.ID); err != nil || info.State != StateStarting {
+			t.Fatalf("Status after a declined stop = %#v, %v; want the launch undisturbed", info, err)
+		}
+		h.mustStop(t, parent.ID)
+		outcome, err = h.manager.StopIfParentStopped(ctx, worker.ID, detail, func() { commits++ })
+		if err != nil || outcome != ParentStopCommitted || commits != 1 {
+			t.Fatalf("StopIfParentStopped(stopped parent) = %v, %v; want committed", outcome, err)
+		}
+		close(release)
+		<-resumed
+		if got := readMeta(t, worker.MetaPath()).State; got != string(StateStopped) {
+			t.Fatalf("child state = %q, want stopped", got)
 		}
 	})
 }

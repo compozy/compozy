@@ -25,8 +25,8 @@ const (
 // any reap effect. A sweep snapshot can outlive what it saw: the child may have
 // been taken over, or resumed after its parent stopped (which releases
 // auto_stop_on_parent), and the parent may have been resumed. Reaping on the old
-// snapshot would end a run nobody asked to stop. The reread narrows the window to
-// the reap itself; it does not make the stop conditional.
+// snapshot would end a run nobody asked to stop. This is only a cheap filter: the
+// session manager decides a parent stop again, atomically, in StopIfParentStopped.
 func (r *spawnReaper) candidateFreshness(
 	ctx context.Context,
 	child *session.Info,
@@ -73,7 +73,7 @@ func (r *spawnReaper) parentStopStillReaps(ctx context.Context, lineage *store.S
 	if spawnReaperLiveState(parent.State) {
 		return false, nil
 	}
-	return !subagentSurvivesParentStop(lineage, parent), nil
+	return !session.SubagentSurvivesParentStop(lineage, parent.StopReason), nil
 }
 
 func (r *spawnReaper) parentInfo(ctx context.Context, parentID string) (*session.Info, error) {
@@ -85,11 +85,4 @@ func (r *spawnReaper) parentInfo(ctx context.Context, parentID string) (*session
 		return nil, fmt.Errorf("daemon: reread spawn parent %q: %w", parentID, err)
 	}
 	return parent, nil
-}
-
-// subagentSurvivesParentStop exempts a subagent whose parent stopped for daemon
-// shutdown or a crash: the parent's next resume picks its subagents back up.
-func subagentSurvivesParentStop(lineage *store.SessionLineage, parent *session.Info) bool {
-	return lineage.SpawnRole == store.SubagentSpawnRole &&
-		(parent.StopReason == store.StopShutdown || parent.StopReason == store.StopAgentCrashed)
 }

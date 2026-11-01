@@ -45,6 +45,7 @@ func (m *Manager) prepareFatalPromptFailureEvent(
 		stopCause,
 		summary,
 		stopPreparationFatalPromptFailure,
+		nil,
 	)
 	if err != nil || alreadyStopped || prepared != session || preparedProc == nil {
 		if err == nil {

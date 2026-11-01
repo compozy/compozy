@@ -17,6 +17,9 @@ type sessionStopRun struct {
 	recoveredSettlement *recoveredStopSettlement
 	outcome             StopOutcome
 	err                 error
+	// guard and onCommitted belong to the claiming caller; joiners never read them.
+	guard       stopGuard
+	onCommitted func()
 }
 
 // RequestStop starts or joins a session stop without waiting for termination.
@@ -54,6 +57,14 @@ func waitSessionStopRun(ctx context.Context, run *sessionStopRun) (StopOutcome, 
 func (m *Manager) requestSessionStop(
 	ctx context.Context, id string, cause StopCause, detail string,
 ) (*sessionStopRun, error) {
+	return m.requestGuardedSessionStop(ctx, id, cause, detail, nil, nil)
+}
+
+// requestGuardedSessionStop starts or joins a stop. A guarded stop commits only
+// if guard still holds; onCommitted then runs before termination begins.
+func (m *Manager) requestGuardedSessionStop(
+	ctx context.Context, id string, cause StopCause, detail string, guard stopGuard, onCommitted func(),
+) (*sessionStopRun, error) {
 	if m == nil {
 		return nil, errors.New("session: manager is required")
 	}
@@ -71,14 +82,19 @@ func (m *Manager) requestSessionStop(
 		return nil, err
 	}
 	run, owned := m.claimSessionStopRun(id)
-	if !owned {
+	for !owned {
 		select {
 		case <-run.ready:
-			return run, run.prepareErr
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+		if !errors.Is(run.prepareErr, errStopDeclined) {
+			return run, run.prepareErr
+		}
+		// A declined guard stopped nothing, and it spoke only for its own caller.
+		run, owned = m.claimSessionStopRun(id)
 	}
+	run.guard, run.onCommitted = guard, onCommitted
 	if run.session == nil {
 		m.prepareRecoveredStopRun(ctx, run, cause, detail)
 		return run, run.prepareErr
@@ -135,17 +151,39 @@ func (m *Manager) claimSessionStopRun(id string) (*sessionStopRun, bool) {
 	return run, true
 }
 
+// failStopPreparation ends a run that stopped nothing. A declined run leaves no
+// trace, so it can read neither as a stop in progress nor as a stop result.
+func (m *Manager) failStopPreparation(run *sessionStopRun, err error) {
+	run.prepareErr, run.err = err, err
+	if errors.Is(err, errStopDeclined) {
+		m.mu.Lock()
+		if m.stopRuns[run.session.ID] == run {
+			delete(m.stopRuns, run.session.ID)
+		}
+		m.mu.Unlock()
+	}
+	close(run.ready)
+	close(run.done)
+}
+
+func (r *sessionStopRun) notifyCommitted() {
+	if r.onCommitted != nil {
+		r.onCommitted()
+	}
+}
+
 func (m *Manager) prepareSessionStopRun(ctx context.Context, run *sessionStopRun, cause StopCause, detail string) {
-	session, proc, stopped, requested, _, err := m.prepareStopWithCause(ctx, run.session.ID, cause, detail)
+	session, proc, stopped, requested, _, err := m.prepareStopWithCauseMode(
+		ctx, run.session.ID, cause, detail, stopPreparationDefault, run.guard,
+	)
 	if err != nil {
-		run.prepareErr, run.err = err, err
-		close(run.ready)
-		close(run.done)
+		m.failStopPreparation(run, err)
 		return
 	}
 	if !run.outcome.Verified {
 		run.outcome.Cause = cause
 	}
+	run.notifyCommitted()
 	close(run.ready)
 	if stopped {
 		run.outcome.FinalState, run.outcome.Verified = StateStopped, true

@@ -2429,6 +2429,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			active.ID,
 			CauseShutdown,
 			"manager shutdown",
+			nil,
 		); !handled ||
 			err != nil {
 			t.Fatalf("prepare stop = %t, %v", handled, err)

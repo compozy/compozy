@@ -11,7 +11,7 @@ bug_ids: GH-1095
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: internal/session/manager_lifecycle_contract_test.go (TestSharedSessionStopOperation startup stop); internal/session/spawn_test.go (TestManagerSpawnStoppedParentRules); internal/session/session_reparent_test.go (TestManagerAdoptSession take-over); web/src/systems/session/components/__tests__/session-list.test.tsx; isolated acpmock lab walk recorded in the issue-1095 PR
+evidence: internal/session/manager_lifecycle_contract_test.go (TestSharedSessionStopOperation startup stop); internal/session/spawn_test.go (TestManagerSpawnStoppedParentRules); internal/session/session_reparent_test.go (TestManagerAdoptSession take-over), TestStopIfParentStopped atomic parent-stop reap); internal/daemon/spawn_reaper_test.go (TestSpawnReaperParentStopCommit); web/src/systems/session/components/__tests__/session-list.test.tsx; isolated acpmock lab walk recorded in the issue-1095 PR
 last_report:
 overlaps: RT-spawn-ttl-cleanup; RT-session-list-row-actions
 ---
