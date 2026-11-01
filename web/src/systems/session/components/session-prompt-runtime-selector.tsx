@@ -54,7 +54,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
           data-testid="session-prompt-runtime-apply-notice"
           className={cn(
             "truncate text-form-hint",
-            runtime.applyNotice.tone === "danger" ? "text-danger" : "text-subtle"
+            runtime.applyNotice.tone === "destructive" ? "text-destructive" : "text-subtle"
           )}
         >
           {runtime.applyNotice.text}
