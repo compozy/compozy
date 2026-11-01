@@ -1,4 +1,7 @@
+import { TriangleAlert } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
+
+import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
@@ -112,6 +115,17 @@ function SessionsBoardLanes({
   }
   return (
     <div className={SESSIONS_BOARD_LANES} data-testid="sessions-board-lanes">
+      {board.layoutError ? (
+        <Alert className="w-auto px-2.5 py-2" role="status" variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
+          <AlertActions>
+            <Button onClick={board.layoutError.retry} size="xs" type="button" variant="secondary">
+              Retry
+            </Button>
+          </AlertActions>
+        </Alert>
+      ) : null}
       {board.lanes.map((lane, index) =>
         renderLane?.(lane, {
           ...row,

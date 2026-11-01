@@ -5,7 +5,10 @@ import { Icon, cn } from "@compozy/ui";
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import { useSessionsBoardColumns, type SessionsBoardLane } from "../../hooks/use-sessions-board";
-import { sessionListGroupEmptyMessage } from "../../lib/session-list-groups";
+import {
+  sessionListGroupEmptyMessage,
+  sessionListGroupSignalLabel,
+} from "../../lib/session-list-groups";
 import {
   SessionListGroupIdentity,
   SessionListGroupSignal,
@@ -47,6 +50,7 @@ export function SessionsBoardSwimlane({
   const testId = `sessions-board-lane-${lane.group.key}`;
   // A project lane's header is a project surface: it takes focus so Shift+F10 reaches its menu.
   const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
+  const signal = lane.collapsed ? sessionListGroupSignalLabel(lane.group) : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = open
     ? columns.flatMap(column =>
@@ -76,7 +80,10 @@ export function SessionsBoardSwimlane({
               onClick={lane.onToggle}
               type="button"
               {...(projectLane
-                ? { "aria-label": `${name} project`, onKeyDown: openContextMenuFromKeyboard }
+                ? {
+                    "aria-label": signal ? `${name} project, ${signal}` : `${name} project`,
+                    onKeyDown: openContextMenuFromKeyboard,
+                  }
                 : {})}
             >
               <Icon

@@ -34,6 +34,8 @@ export interface SessionListGroupsInput {
    * group membership and totals count exactly the rows that surface shows.
    */
   population?: Pick<SessionListFilters, "children" | "subagents">;
+  /** A surface with no stream of its own for a group re-reads the counts on this interval. */
+  refetchInterval?: number;
 }
 
 export interface SessionListGroupsModel {
@@ -59,6 +61,7 @@ export function useSessionListGroups({
   worktreeId,
   enabled,
   population,
+  refetchInterval,
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
@@ -66,6 +69,7 @@ export function useSessionListGroups({
       sessionListFacetFilters({ scope, lens, shelf, search, worktreeId, population })
     ),
     enabled: grouped,
+    ...(refetchInterval ? { refetchInterval } : {}),
   });
   const byProfile = grouped && groupBy === "profile";
   const profiles = useProfiles(byProfile);

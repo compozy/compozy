@@ -40,6 +40,8 @@ export interface SessionListProjectFoldersProps {
     arrange: SessionListGroupArrange | undefined
   ) => ReactNode;
   emptyMessage: string;
+  /** A search shows what it matches: no folder stays folded over a result. */
+  filtering: boolean;
   testIdPrefix: string;
 }
 
@@ -55,6 +57,7 @@ export function SessionListProjectFolders({
   onFolderDialog,
   renderGroup,
   emptyMessage,
+  filtering,
   testIdPrefix,
 }: SessionListProjectFoldersProps) {
   const dnd = useProjectFoldersDnd(layout, tree);
@@ -102,7 +105,7 @@ export function SessionListProjectFolders({
           folder={folder}
           count={groups.length}
           holds="projects"
-          expanded={!collapsed.has(folder.id)}
+          expanded={filtering || !collapsed.has(folder.id)}
           onToggle={() => toggleFolder(folder.id)}
           onRename={() => onFolderDialog({ kind: "rename", folder })}
           onDelete={() => onFolderDialog({ kind: "delete", folder })}

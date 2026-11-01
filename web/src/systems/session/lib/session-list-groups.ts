@@ -4,6 +4,7 @@ import {
   workspaceBadgeIdentity,
   workspaceSelectorForScope,
   workspaceSelectorOrAll,
+  workspaceWorkingLabel,
   type DataScope,
   type FocusedDataScope,
   type WorkspaceBadgeIdentity,
@@ -163,6 +164,14 @@ export function sessionListGroupTarget(
 /** What a group's header names: its project (User included) or its profile. */
 export function sessionListGroupName(group: Pick<SessionListGroupSpec, "badge" | "owner">): string {
   return group.badge?.name ?? group.owner?.name ?? "group";
+}
+
+/** What the collapsed signal says, for a name that replaces the header's content. */
+export function sessionListGroupSignalLabel(
+  group: Pick<SessionListGroupSpec, "needsYou" | "working">
+): string | null {
+  if (group.needsYou > 0) return `${group.needsYou} need${group.needsYou === 1 ? "s" : ""} you`;
+  return group.working > 0 ? workspaceWorkingLabel(group.working) : null;
 }
 
 /**

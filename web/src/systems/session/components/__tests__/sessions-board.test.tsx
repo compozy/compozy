@@ -523,6 +523,34 @@ describe("SessionsBoard swimlanes", () => {
     expect(folded.onToggle).toHaveBeenCalledOnce();
   });
 
+  // #1132: the header's name replaces its content, so it must carry the folded lane's signal.
+  it("Should name a folded project lane's signal in its header", () => {
+    const folded = { ...lane("ws-alpha", 2), collapsed: true };
+    folded.group = { ...folded.group, needsYou: 1 };
+    renderBoard({ ...board(), columns: [], lanes: [folded] });
+
+    expect(screen.getByRole("button", { name: "Alpha project, 1 needs you" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  });
+
+  // #1132: a failed project order read leaves the lanes on screen and offers its retry.
+  it("Should keep the lanes and offer a retry when the project order fails", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderBoard({
+      ...board(),
+      columns: [],
+      lanes: [{ ...lane("ws-alpha", 1), collapsed: true }],
+      layoutError: { retry },
+    });
+
+    expect(screen.getByTestId("sessions-board-lane-project:ws-alpha")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it("Should render one lane per group, each reading the five columns in its own scope", async () => {
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
       sessions:

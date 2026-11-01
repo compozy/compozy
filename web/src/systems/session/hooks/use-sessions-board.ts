@@ -81,6 +81,8 @@ export interface SessionsBoardView {
   lanes: SessionsBoardLane[] | null;
   lanesLoading: boolean;
   lanesError?: { retry: () => void };
+  /** The saved project order failed to load: lanes stay, in the served order, until a retry. */
+  layoutError?: { retry: () => void };
   /** The grouping that renders: an inapplicable stored value renders ungrouped. */
   groupBy: SessionListGroupBy;
   /** Groupings available in the current breadth and profile lens. */
@@ -205,6 +207,8 @@ export function useSessionsBoard({
     enabled: active,
     // Lane membership and totals count the rows the lane's columns read.
     population,
+    // An empty lane reads no columns: its total is what notices the first session.
+    refetchInterval: SESSION_BOARD_REFETCH_MS,
   });
   const arranged = useProjectFolderGroups({
     groups: grouping.groups,
@@ -233,6 +237,7 @@ export function useSessionsBoard({
       : null,
     lanesLoading: grouping.loading,
     lanesError: grouping.error,
+    layoutError: arranged.loadError,
     groupBy: effectiveGroupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
     archive: { ...archive, count: archive.total },

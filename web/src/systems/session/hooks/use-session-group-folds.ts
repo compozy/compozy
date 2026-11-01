@@ -46,7 +46,12 @@ export function useSessionGroupFolds(
   }, [resolvedProfile, fallbackLens, foldLens]);
   const groupId = (key: string) => `${foldLens}\u0000${key}`;
   return {
-    isCollapsed: key => sidebar.groupFolds.has(groupId(key)),
+    // The commit that resolves the profile still reads the fold stored under its name, so a
+    // folded lane does not open and read its columns until `groupLensResolved` moves it.
+    isCollapsed: key =>
+      sidebar.groupFlag(groupId(key)) ??
+      (resolvedProfile ? sidebar.groupFlag(`${fallbackLens}\u0000${key}`) : undefined) ??
+      sidebar.groupFolds.has(groupId(key)),
     toggle: key => sidebar.toggleGroup(groupId(key)),
   };
 }

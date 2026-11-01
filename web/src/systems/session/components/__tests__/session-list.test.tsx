@@ -837,6 +837,16 @@ describe("SessionList subagents", () => {
     expect(screen.getByTestId("session-sidebar-session-two-child")).toBeVisible();
   });
 
+  // Invariant (#1132): Collapse all never hides a search result behind its parent's fold.
+  it("Should show a matching child under Collapse all while searching", () => {
+    renderList({
+      sessions: [row("one", {}), row("one-child", { lineage: lineage("one") })],
+      view: { ...view, foldAll: "collapsed", search: "one" },
+    });
+
+    expect(screen.getByTestId("session-sidebar-session-one-child")).toBeVisible();
+  });
+
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
     const parent = row("parent", summary(1, 3));
     const plainChild = row("plain", { lineage: lineage("parent") });

@@ -222,6 +222,7 @@ export function useSessionListView(
   );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
   const groupFolds = useSessionGroupFolds(scope, groupBy);
+  const searching = remoteSearch.trim() !== "";
   const hiddenGroupKeys = new Set(
     hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.folderFolds)
   );
@@ -255,7 +256,10 @@ export function useSessionListView(
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
     // A collapsed project folder hides its projects: navigation skips them too.
-    collapsedGroupKeys: { has: key => groupFolds.isCollapsed(key) || hiddenGroupKeys.has(key) },
+    collapsedGroupKeys: {
+      // A search shows what it matches: no fold hides a result, like session folders.
+      has: key => !searching && (groupFolds.isCollapsed(key) || hiddenGroupKeys.has(key)),
+    },
     toggleGroup: groupFolds.toggle,
     foldAll: sidebar.foldAll,
     setFoldAll: sidebar.setFoldAll,

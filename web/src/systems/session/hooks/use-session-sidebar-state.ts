@@ -366,6 +366,8 @@ export interface UseSessionSidebarStateResult {
   collapsedGroupIds: string[];
   /** Which groups are folded, `foldAll` included. */
   groupFolds: SessionFoldSet;
+  /** A group's stored fold alone; `undefined` follows `foldAll`. */
+  groupFlag: (groupId: string) => boolean | undefined;
   toggleGroup: (groupId: string) => void;
   /** The last Collapse all or Expand all in this window. */
   foldAll: SessionFoldAll;
@@ -416,6 +418,7 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
       sessionSidebarStore.trigger.folderToggled({ scopeId, folderId }),
     collapsedGroupIds: flaggedIds(state.collapsedGroups),
     groupFolds: sessionFoldSet(state.collapsedGroups, state.foldAll),
+    groupFlag: groupId => state.collapsedGroups[groupId],
     toggleGroup: (groupId: string) =>
       sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
     foldAll: state.foldAll,

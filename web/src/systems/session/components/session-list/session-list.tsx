@@ -116,7 +116,8 @@ export function SessionList({
     collapsedThreadIds,
     openThreadIds: view.openThreadIds,
     subagentThreadIds,
-    foldAll: view.foldAll,
+    // A search shows what it matches: Collapse all never hides a matching child.
+    foldAll: normalizedFilter === "" ? view.foldAll : null,
   });
   const filtering = normalizedFilter !== "";
   const folders = useSessionListFolderLayout(view, threads, filtering);
