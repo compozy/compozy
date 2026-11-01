@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// ListCmdPaletteCommandsParams carries the path, query, and header parameters.
+type ListCmdPaletteCommandsParams struct {
+	Workspace   string  `url:"workspace"`
+	Client      *string `url:"client"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListCmdPaletteCommands List command palette commands
 func (c *Client) ListCmdPaletteCommands(ctx context.Context, params ListCmdPaletteCommandsParams) (*CmdPaletteCommandsResponse, error) {
 	path := "/api/cmd-palette/commands"
@@ -431,16 +439,4 @@ func (c *Client) ListLoopRequests(ctx context.Context, params ListLoopRequestsPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
-type ListLoopRequestsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	RunID         *string   `url:"run_id"`
-	State         *string   `url:"state"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

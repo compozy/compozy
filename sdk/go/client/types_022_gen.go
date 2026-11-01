@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// SkillExposureTargetResultPayload is a daemon API value.
+type SkillExposureTargetResultPayload struct {
+	Target       string                     `json:"target"`
+	OK           bool                       `json:"ok"`
+	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
+	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
+	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
+}
+
+// SkillPayload is a daemon API value.
+type SkillPayload struct {
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Version     string                   `json:"version,omitempty"`
+	Source      string                   `json:"source"`
+	Origin      string                   `json:"origin"`
+	OwnerScope  string                   `json:"owner_scope"`
+	OwnerID     string                   `json:"owner_id,omitempty"`
+	Enabled     bool                     `json:"enabled"`
+	Activation  SkillActivationPayload   `json:"activation"`
+	Dir         string                   `json:"dir"`
+	Metadata    map[string]any           `json:"metadata,omitempty"`
+	Provenance  *ProvenancePayload       `json:"provenance,omitzero"`
+	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
+	Exposures   *[]SkillExposurePayload  `json:"exposures,omitzero"`
+}
+
 // SkillResponse is a daemon API value.
 type SkillResponse struct {
 	Skill SkillPayload `json:"skill"`
@@ -411,26 +438,3 @@ type SupportBundleManifestPayload struct {
 	RedactionVersion     string                                 `json:"redaction_version"`
 	Artifacts            []SupportBundleManifestArtifactPayload `json:"artifacts"`
 }
-
-// SupportBundleOperationPayload is a daemon API value.
-type SupportBundleOperationPayload struct {
-	OperationID   string                        `json:"operation_id"`
-	Status        string                        `json:"status"`
-	StatusURL     string                        `json:"status_url"`
-	DownloadURL   string                        `json:"download_url,omitempty"`
-	FileName      string                        `json:"file_name,omitempty"`
-	SizeBytes     int64                         `json:"size_bytes,omitzero"`
-	Manifest      *SupportBundleManifestPayload `json:"manifest,omitzero"`
-	FailureReason string                        `json:"failure_reason,omitempty"`
-	CreatedAt     time.Time                     `json:"created_at"`
-	UpdatedAt     time.Time                     `json:"updated_at"`
-	CompletedAt   *time.Time                    `json:"completed_at,omitempty"`
-}
-
-// SupportBundleOperationResponse is a daemon API value.
-type SupportBundleOperationResponse struct {
-	Operation SupportBundleOperationPayload `json:"operation"`
-}
-
-// TargetKind is a daemon API value.
-type TargetKind string

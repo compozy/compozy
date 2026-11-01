@@ -8,6 +8,60 @@ import (
 	"strings"
 )
 
+// ReplaceAgentMemoryParams carries the path, query, and header parameters.
+type ReplaceAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ReplaceAgentMemory Replace matching memory text (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ReplaceAgentMemory(ctx context.Context, params ReplaceAgentMemoryParams, body AgentMemoryReplaceRequest) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory/entries"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReplaceSessionInputParams carries the path, query, and header parameters.
+type ReplaceSessionInputParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SessionID    string `url:"session_id"`
+	QueueEntryID string `url:"queue_entry_id"`
+}
+
+// ReplaceSessionInput Replace queued session input atomically
+func (c *Client) ReplaceSessionInput(ctx context.Context, params ReplaceSessionInputParams, body ReplaceSessionInputRequest) (*SessionInputResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{queue_entry_id}", url.PathEscape(params.QueueEntryID))
+	var out SessionInputResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReplaceWindowManagerLayoutParams carries the path, query, and header parameters.
+type ReplaceWindowManagerLayoutParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ReplaceWindowManagerLayout Replace one declarative window layout
 func (c *Client) ReplaceWindowManagerLayout(ctx context.Context, params ReplaceWindowManagerLayoutParams, body WindowManagerLayoutReplaceRequest) (*WindowManagerResult, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/layout"
@@ -392,45 +446,4 @@ func (c *Client) RevokeAppToken(ctx context.Context, params RevokeAppTokenParams
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RevokeGatewayDeviceParams carries the path, query, and header parameters.
-type RevokeGatewayDeviceParams struct {
-	ID string `url:"id"`
-}
-
-// RevokeGatewayDevice Revoke one paired gateway device and its live streams
-func (c *Client) RevokeGatewayDevice(ctx context.Context, params RevokeGatewayDeviceParams) (*GatewayRevokePayload, error) {
-	path := "/api/gateway/devices/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out GatewayRevokePayload
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeToolApprovalGrantParams carries the path, query, and header parameters.
-type RevokeToolApprovalGrantParams struct {
-	ID          string `url:"id"`
-	WorkspaceID string `url:"workspace_id"`
-}
-
-// RevokeToolApprovalGrant Revoke one remembered native-tool approval decision in one workspace
-func (c *Client) RevokeToolApprovalGrant(ctx context.Context, params RevokeToolApprovalGrantParams) error {
-	path := "/api/tool-approval-grants/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RewindSessionConversationParams carries the path, query, and header parameters.
-type RewindSessionConversationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

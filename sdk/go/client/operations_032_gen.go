@@ -8,6 +8,32 @@ import (
 	"strings"
 )
 
+// UnpinCmdPaletteCommand Unpin one command palette command
+func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
+	path := "/api/cmd-palette/pins/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPalettePinResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnregisterWindowManagerClientParams carries the path, query, and header parameters.
+type UnregisterWindowManagerClientParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ClientID    string  `url:"client_id"`
+	Profile     *string `url:"profile"`
+}
+
 // UnregisterWindowManagerClient Unregister a window-manager client view
 func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params UnregisterWindowManagerClientParams) error {
 	path := "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}"
@@ -413,32 +439,6 @@ func (c *Client) UpdateSettingsSkills(ctx context.Context, params UpdateSettings
 		path += "?" + query.Encode()
 	}
 	var out SettingsSkillsMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsWindowManagerParams carries the path, query, and header parameters.
-type UpdateSettingsWindowManagerParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-}
-
-// UpdateSettingsWindowManager Update the window-manager settings section
-func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateSettingsWindowManagerParams, body UpdateSettingsWindowManagerRequest) (*SettingsWindowManagerMutationResponse, error) {
-	path := "/api/settings/window-manager"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsWindowManagerMutationResponse
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

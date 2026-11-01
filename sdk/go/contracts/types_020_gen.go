@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+type SubagentSettledPayload struct {
+	Event           HookEvent                `json:"event"`
+	Timestamp       time.Time                `json:"timestamp"`
+	Isolation       string                   `json:"isolation"`
+	Worktree        *SubagentWorktreePayload `json:"worktree,omitempty"`
+	ProfileID       string                   `json:"profile_id,omitempty"`
+	WorkspaceID     string                   `json:"workspace_id"`
+	SubagentID      string                   `json:"subagent_id"`
+	ParentSessionID string                   `json:"parent_session_id"`
+	ChildSessionID  *string                  `json:"child_session_id"`
+	Origin          string                   `json:"origin"`
+	Status          string                   `json:"status"`
+	Runtime         SubagentRuntimePayload   `json:"runtime"`
+	DurationMS      int64                    `json:"duration_ms"`
+}
+
+type SubagentSpawnPayload struct {
+	Isolation  string `json:"isolation"`
+	WorktreeID string `json:"worktree_id,omitempty"`
+	Title      string `json:"title"`
+	Role       string `json:"role"`
+	TaskChars  int    `json:"task_chars"`
+}
+
 type SubagentWorktreePayload struct {
 	ID                string                      `json:"id"`
 	Name              string                      `json:"name"`
@@ -300,21 +324,4 @@ type TaskDashboardInProgressCardPayload struct {
 type TaskDashboardLatencyCardPayload struct {
 	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
 	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
-}
-
-type TaskDashboardParams struct {
-	AllWorkspaces bool       `json:"all_workspaces,omitzero"`
-	WorkspaceIDs  []string   `json:"workspace_ids,omitempty"`
-	Scope         TaskScope  `json:"scope,omitempty"`
-	Workspace     string     `json:"workspace,omitempty"`
-	Worktree      string     `json:"worktree,omitempty"`
-	OwnerKind     OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef      string     `json:"owner_ref,omitempty"`
-	OriginKind    OriginKind `json:"origin_kind,omitempty"`
-}
-
-type TaskDashboardQueueDepthPayload struct {
-	Count               int       `json:"count"`
-	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
-	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
 }

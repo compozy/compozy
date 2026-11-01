@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// RecoverTaskRequest is a daemon API value.
+type RecoverTaskRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
+// RecoverTaskRunRequest is a daemon API value.
+type RecoverTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// Redaction is a daemon API value.
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
 // Reference is a daemon API value.
 type Reference struct {
 	ID              string     `json:"id"`
@@ -413,35 +431,3 @@ type RoleStatusResponse struct {
 type RolesResponse struct {
 	Roles []RoleStatus `json:"roles"`
 }
-
-// RosterNode is a daemon API value.
-type RosterNode struct {
-	Generation     int               `json:"generation"`
-	NodeID         NodeID            `json:"node_id"`
-	ItemIndex      int               `json:"item_index"`
-	State          NodeState         `json:"state"`
-	Attempt        int               `json:"attempt"`
-	Attempts       []NodeAttemptView `json:"attempts"`
-	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
-	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
-	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
-	StartedAt      *time.Time        `json:"started_at,omitempty"`
-	EndedAt        *time.Time        `json:"ended_at,omitempty"`
-	SessionID      string            `json:"session_id,omitempty"`
-	CellTaskID     string            `json:"cell_task_id,omitempty"`
-	Usage          *NodeUsage        `json:"usage,omitzero"`
-}
-
-// RosterPage is a daemon API value.
-type RosterPage struct {
-	RunID         RunID          `json:"run_id"`
-	LoopName      string         `json:"loop_name"`
-	RunStatus     Status         `json:"run_status"`
-	Nodes         []RosterNode   `json:"nodes"`
-	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
-	NextCursor    string         `json:"next_cursor,omitempty"`
-}
-
-// RouteIntent is a daemon API value.
-// RouteIntent preserves its custom JSON wire representation.
-type RouteIntent = json.RawMessage

@@ -382,6 +382,44 @@ func (c *Client) GetPendingToolApproval(ctx context.Context, params GetPendingTo
 	return &out, nil
 }
 
+// GetPermissionRollupParams carries the path, query, and header parameters.
+type GetPermissionRollupParams struct {
+	Days        *string `url:"days"`
+	Agent       *string `url:"agent"`
+	Unattended  *bool   `url:"unattended"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetPermissionRollup Read daily permission totals by agent and decision
+func (c *Client) GetPermissionRollup(ctx context.Context, params GetPermissionRollupParams) (*PermissionRollupResponse, error) {
+	path := "/api/permissions/rollup"
+	query := url.Values{}
+	if params.Days != nil {
+		query.Set("days", *params.Days)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Unattended != nil {
+		query.Set("unattended", strconv.FormatBool(*params.Unattended))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out PermissionRollupResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetProfileParams carries the path, query, and header parameters.
 type GetProfileParams struct {
 	Name string `url:"name"`
@@ -408,40 +446,4 @@ type GetProfileSelectionsParams struct {
 type GetProfileSelectionsFrame struct {
 	Raw        json.RawMessage
 	StatusCode int `json:"-"`
-}
-
-var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
-
-var _ json.Marshaler = GetProfileSelectionsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *GetProfileSelectionsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f GetProfileSelectionsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
-	f.StatusCode = status
-}
-
-// AsVariant1 decodes this payload as Variant1.
-func (f GetProfileSelectionsFrame) AsVariant1() (*[]ProfileSelection, error) {
-	var out []ProfileSelection
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsProfileSelection decodes this payload as ProfileSelection.
-func (f GetProfileSelectionsFrame) AsProfileSelection() (*ProfileSelection, error) {
-	var out ProfileSelection
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

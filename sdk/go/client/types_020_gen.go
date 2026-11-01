@@ -2,6 +2,28 @@
 
 package client
 
+// SettingsMCPServerRuntimeStatusPayload is a daemon API value.
+type SettingsMCPServerRuntimeStatusPayload struct {
+	Configured      bool   `json:"configured"`
+	Initialized     bool   `json:"initialized"`
+	State           string `json:"state"`
+	Probe           string `json:"probe"`
+	ToolCount       int    `json:"tool_count"`
+	ProtocolVersion string `json:"protocol_version,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Diagnostic      string `json:"diagnostic,omitempty"`
+}
+
+// SettingsMCPServersResponse is a daemon API value.
+type SettingsMCPServersResponse struct {
+	Collection      SettingsCollectionName         `json:"collection"`
+	Scope           SettingsLayeredScopeKind       `json:"scope"`
+	WorkspaceID     string                         `json:"workspace_id,omitempty"`
+	Profile         string                         `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind     `json:"available_scopes"`
+	MCPServers      []SettingsMCPServerItemPayload `json:"mcp_servers"`
+}
+
 // SettingsMarketplaceCatalogPayload is a daemon API value.
 type SettingsMarketplaceCatalogPayload struct {
 	BaseURL string `json:"base_url"`
@@ -422,26 +444,4 @@ type SettingsSkillSourceRootPayload struct {
 	Collisions    []SettingsSkillSourceCollisionPayload   `json:"collisions"`
 	Verification  SettingsSkillSourceVerificationPayload  `json:"verification"`
 	NativeReaders []string                                `json:"native_readers"`
-}
-
-// SettingsSkillSourceSkippedLinkPayload is a daemon API value.
-type SettingsSkillSourceSkippedLinkPayload struct {
-	Path   string `json:"path"`
-	Reason string `json:"reason"`
-}
-
-// SettingsSkillSourceVerificationPayload is a daemon API value.
-type SettingsSkillSourceVerificationPayload struct {
-	Blocked int `json:"blocked"`
-	Warned  int `json:"warned"`
-}
-
-// SettingsSkillsConfigPayload is a daemon API value.
-type SettingsSkillsConfigPayload struct {
-	Enabled                 bool     `json:"enabled"`
-	Sources                 []string `json:"sources"`
-	CustomSources           []string `json:"custom_sources"`
-	DisabledSkills          []string `json:"disabled_skills,omitempty"`
-	PollInterval            string   `json:"poll_interval"`
-	AllowedMarketplaceHooks []string `json:"allowed_marketplace_hooks,omitempty"`
 }

@@ -4,6 +4,17 @@ package contracts
 
 import "time"
 
+type HeartbeatWakeReason string
+
+type HeartbeatWakeRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
+	AgentName      string              `json:"agent_name"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitempty"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
+}
+
 type HeartbeatWakeResponse struct {
 	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }
@@ -147,21 +158,4 @@ type InputAttachmentMetadata struct {
 	MIME  string `json:"mime"`
 	Bytes int64  `json:"bytes"`
 	Kind  string `json:"kind"`
-}
-
-type InputMentionKind string
-
-const (
-	InputMentionKindFile    InputMentionKind = "file"
-	InputMentionKindFolder  InputMentionKind = "folder"
-	InputMentionKindSession InputMentionKind = "session"
-)
-
-type InputMentionMetadata struct {
-	Kind   InputMentionKind `json:"kind"`
-	Token  string           `json:"token"`
-	Target string           `json:"target"`
-	Label  string           `json:"label"`
-	Start  int              `json:"start"`
-	End    int              `json:"end"`
 }

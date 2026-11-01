@@ -2,6 +2,20 @@
 
 package contracts
 
+type AutomationObservationPatch struct{}
+
+type AutomationRunCompletedPayload struct {
+	ProfileID   string `json:"profile_id,omitempty"`
+	RunID       string `json:"run_id"`
+	JobID       string `json:"job_id,omitempty"`
+	TriggerID   string `json:"trigger_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Attempt     int    `json:"attempt,omitempty"`
+	DurationMS  int64  `json:"duration_ms,omitempty"`
+}
+
 type AutomationRunFailedPayload struct {
 	ProfileID   string `json:"profile_id,omitempty"`
 	RunID       string `json:"run_id"`
@@ -165,17 +179,3 @@ type BlockedSource string
 type CatalogScope string
 
 type CatalogSort string
-
-type Chip struct {
-	ID       string            `json:"id"`
-	Label    string            `json:"label"`
-	Count    *int              `json:"count,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-type ClarifyAnswer struct {
-	Choice   *int   `json:"choice"`
-	Text     string `json:"text"`
-	Fallback bool   `json:"fallback"`
-}

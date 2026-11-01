@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type ModelsRefreshParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+	SourceID   string `json:"source_id,omitempty"`
+	Force      bool   `json:"force,omitempty"`
+	RequestID  string `json:"request_id,omitempty"`
+}
+
+type ModelsStatusParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
 type ObserveHealth struct {
 	Status             string                  `json:"status"`
 	UptimeSeconds      int64                   `json:"uptime_seconds"`
@@ -226,9 +237,3 @@ type PersistenceHealth struct {
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
 	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 }
-
-type PickFilesEffect struct {
-	Directories bool `json:"directories,omitempty"`
-}
-
-type Priority string

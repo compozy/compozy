@@ -15334,6 +15334,11 @@ export interface components {
       };
       /** @enum {string} */
       event:
+        | "agent.instance.created"
+        | "agent.instance.paused"
+        | "agent.instance.resumed"
+        | "agent.instance.archived"
+        | "agent.instance.adopted"
         | "subagent.settled"
         | "session.pre_create"
         | "session.post_create"
@@ -29524,6 +29529,11 @@ export interface operations {
         agent?: string;
         /** @description Hook event name */
         event?:
+          | "agent.instance.created"
+          | "agent.instance.paused"
+          | "agent.instance.resumed"
+          | "agent.instance.archived"
+          | "agent.instance.adopted"
           | "subagent.settled"
           | "session.pre_create"
           | "session.post_create"
@@ -45649,6 +45659,11 @@ export interface operations {
         session: string;
         /** @description Hook event name */
         event?:
+          | "agent.instance.created"
+          | "agent.instance.paused"
+          | "agent.instance.resumed"
+          | "agent.instance.archived"
+          | "agent.instance.adopted"
           | "subagent.settled"
           | "session.pre_create"
           | "session.post_create"

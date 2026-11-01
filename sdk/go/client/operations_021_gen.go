@@ -9,6 +9,48 @@ import (
 	"strings"
 )
 
+// ListTaskBlocksParams carries the path, query, and header parameters.
+type ListTaskBlocksParams struct {
+	ID             string  `url:"id"`
+	IncludeCleared *bool   `url:"include_cleared"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
+// ListTaskBlocks List typed task blocks
+func (c *Client) ListTaskBlocks(ctx context.Context, params ListTaskBlocksParams) (*TaskBlocksResponse, error) {
+	path := "/api/tasks/{id}/blocks"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.IncludeCleared != nil {
+		query.Set("include_cleared", strconv.FormatBool(*params.IncludeCleared))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskBlocksResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTaskReviewsParams carries the path, query, and header parameters.
+type ListTaskReviewsParams struct {
+	ID                string  `url:"id"`
+	Status            *string `url:"status"`
+	ReviewerSessionID *string `url:"reviewer_session_id"`
+	Limit             *int    `url:"limit"`
+	Profile           *string `url:"profile"`
+	AllProfiles       *bool   `url:"all_profiles"`
+}
+
 // ListTaskReviews List task-run reviews for one task
 func (c *Client) ListTaskReviews(ctx context.Context, params ListTaskReviewsParams) (*TaskRunReviewsResponse, error) {
 	path := "/api/tasks/{id}/reviews"
@@ -379,66 +421,5 @@ type ListToolsetsParams struct {
 	Workspace   *string `url:"workspace"`
 	SessionID   *string `url:"session_id"`
 	AgentName   *string `url:"agent_name"`
-	Profile     *string `url:"profile"`
-}
-
-// ListToolsets List named toolsets and expansion status
-func (c *Client) ListToolsets(ctx context.Context, params ListToolsetsParams) (*ToolsetsResponse, error) {
-	path := "/api/toolsets"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsetsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListVaultSecretsParams carries the path, query, and header parameters.
-type ListVaultSecretsParams struct {
-	Prefix    *string `url:"prefix"`
-	Namespace *string `url:"namespace"`
-}
-
-// ListVaultSecrets List redacted vault secret metadata
-func (c *Client) ListVaultSecrets(ctx context.Context, params ListVaultSecretsParams) (*VaultSecretsResponse, error) {
-	path := "/api/vault/secrets"
-	query := url.Values{}
-	if params.Prefix != nil {
-		query.Set("prefix", *params.Prefix)
-	}
-	if params.Namespace != nil {
-		query.Set("namespace", *params.Namespace)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out VaultSecretsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListWindowManagerClientsParams carries the path, query, and header parameters.
-type ListWindowManagerClientsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 }

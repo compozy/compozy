@@ -9,6 +9,18 @@ import (
 	"strings"
 )
 
+// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
+type ListLoopRequestsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	RunID         *string   `url:"run_id"`
+	State         *string   `url:"state"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListLoopRequestsAggregate List Loop human requests
 func (c *Client) ListLoopRequestsAggregate(ctx context.Context, params ListLoopRequestsAggregateParams) (*LoopRequestsResponse, error) {
 	path := "/api/loop-requests"

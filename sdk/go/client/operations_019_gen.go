@@ -424,24 +424,6 @@ func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputs
 type ListSessionInteractionsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
+	Descendants *bool   `url:"descendants"`
 	Status      *string `url:"status"`
-}
-
-// ListSessionInteractions List pending session interactions
-func (c *Client) ListSessionInteractions(ctx context.Context, params ListSessionInteractionsParams) (*SessionInteractionsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInteractionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

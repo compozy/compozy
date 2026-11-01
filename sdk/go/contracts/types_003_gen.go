@@ -4,6 +4,18 @@ package contracts
 
 import "time"
 
+type AgentStartPatch struct {
+	Deny       bool     `json:"deny,omitempty"`
+	DenyReason string   `json:"deny_reason,omitempty"`
+	Command    *string  `json:"command,omitempty"`
+	Args       []string `json:"args,omitempty"`
+	Cwd        *string  `json:"cwd,omitempty"`
+}
+
+type AgentStoppedPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type AgentStoppedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -178,18 +190,4 @@ type AutomationLastRunPayload struct {
 	StartedAt  *time.Time          `json:"started_at,omitzero"`
 	EndedAt    *time.Time          `json:"ended_at,omitzero"`
 	SkipReason SchedulerSkipReason `json:"skip_reason,omitempty"`
-}
-
-type AutomationObservationPatch struct{}
-
-type AutomationRunCompletedPayload struct {
-	ProfileID   string `json:"profile_id,omitempty"`
-	RunID       string `json:"run_id"`
-	JobID       string `json:"job_id,omitempty"`
-	TriggerID   string `json:"trigger_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`
-	Attempt     int    `json:"attempt,omitempty"`
-	DurationMS  int64  `json:"duration_ms,omitempty"`
 }

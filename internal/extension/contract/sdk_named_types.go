@@ -360,6 +360,10 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  "AgentInstancePayload",
 		Value: hooks.AgentInstancePayload{},
 	},
+	"AgentInstanceObservationPatch": {
+		Name:  "AgentInstanceObservationPatch",
+		Value: hooks.AgentInstanceObservationPatch{},
+	},
 	"SpawnCreatedPayload": {
 		Name:  "SpawnCreatedPayload",
 		Value: hooks.SpawnCreatedPayload{},

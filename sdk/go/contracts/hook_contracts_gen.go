@@ -6,6 +6,11 @@ type HookContract[P any, Patch any] struct {
 	Event HookEvent
 }
 
+var HookAgentInstanceCreatedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceCreated}
+var HookAgentInstancePausedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstancePaused}
+var HookAgentInstanceResumedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceResumed}
+var HookAgentInstanceArchivedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceArchived}
+var HookAgentInstanceAdoptedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceAdopted}
 var HookSubagentSettledContract = HookContract[SubagentSettledPayload, SubagentObservationPatch]{Event: HookEventSubagentSettled}
 var HookSessionPreCreateContract = HookContract[SessionPreCreatePayload, SessionCreatePatch]{Event: HookEventSessionPreCreate}
 var HookSessionPostCreateContract = HookContract[SessionPostCreatePayload, SessionPostCreatePatch]{Event: HookEventSessionPostCreate}

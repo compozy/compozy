@@ -4,6 +4,20 @@ package contracts
 
 import "time"
 
+type SkillSummary struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	Source      string                 `json:"source"`
+	Origin      string                 `json:"origin"`
+	Enabled     bool                   `json:"enabled"`
+	Activation  SkillActivationPayload `json:"activation"`
+}
+
+type SkillsListParams struct {
+	Workspace string `json:"workspace,omitempty"`
+	ForAgent  string `json:"for_agent,omitempty"`
+}
+
 type SourceKind string
 
 type SourceRef struct {
@@ -265,28 +279,4 @@ type SubagentPullRequestPayload struct {
 type SubagentRuntimePayload struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
-}
-
-type SubagentSettledPayload struct {
-	Event           HookEvent                `json:"event"`
-	Timestamp       time.Time                `json:"timestamp"`
-	Isolation       string                   `json:"isolation"`
-	Worktree        *SubagentWorktreePayload `json:"worktree,omitempty"`
-	ProfileID       string                   `json:"profile_id,omitempty"`
-	WorkspaceID     string                   `json:"workspace_id"`
-	SubagentID      string                   `json:"subagent_id"`
-	ParentSessionID string                   `json:"parent_session_id"`
-	ChildSessionID  *string                  `json:"child_session_id"`
-	Origin          string                   `json:"origin"`
-	Status          string                   `json:"status"`
-	Runtime         SubagentRuntimePayload   `json:"runtime"`
-	DurationMS      int64                    `json:"duration_ms"`
-}
-
-type SubagentSpawnPayload struct {
-	Isolation  string `json:"isolation"`
-	WorktreeID string `json:"worktree_id,omitempty"`
-	Title      string `json:"title"`
-	Role       string `json:"role"`
-	TaskChars  int    `json:"task_chars"`
 }

@@ -7,6 +7,38 @@ import (
 	"time"
 )
 
+// RosterNode is a daemon API value.
+type RosterNode struct {
+	Generation     int               `json:"generation"`
+	NodeID         NodeID            `json:"node_id"`
+	ItemIndex      int               `json:"item_index"`
+	State          NodeState         `json:"state"`
+	Attempt        int               `json:"attempt"`
+	Attempts       []NodeAttemptView `json:"attempts"`
+	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
+	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
+	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
+	StartedAt      *time.Time        `json:"started_at,omitempty"`
+	EndedAt        *time.Time        `json:"ended_at,omitempty"`
+	SessionID      string            `json:"session_id,omitempty"`
+	CellTaskID     string            `json:"cell_task_id,omitempty"`
+	Usage          *NodeUsage        `json:"usage,omitzero"`
+}
+
+// RosterPage is a daemon API value.
+type RosterPage struct {
+	RunID         RunID          `json:"run_id"`
+	LoopName      string         `json:"loop_name"`
+	RunStatus     Status         `json:"run_status"`
+	Nodes         []RosterNode   `json:"nodes"`
+	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
+	NextCursor    string         `json:"next_cursor,omitempty"`
+}
+
+// RouteIntent is a daemon API value.
+// RouteIntent preserves its custom JSON wire representation.
+type RouteIntent = json.RawMessage
+
 // RouteSpec is a daemon API value.
 type RouteSpec struct {
 	When string `json:"when"`
@@ -408,32 +440,3 @@ type SchemaStreamStatus struct {
 
 // Scope is a daemon API value.
 type Scope string
-
-// SearchMatch is a daemon API value.
-type SearchMatch struct {
-	Sequence  int64  `json:"sequence"`
-	TurnID    string `json:"turn_id"`
-	Role      string `json:"role"`
-	Snippet   string `json:"snippet"`
-	PartIndex *int   `json:"part_index,omitzero"`
-	Field     string `json:"field,omitempty"`
-}
-
-// SearchResult is a daemon API value.
-type SearchResult struct {
-	Matches   []SearchMatch `json:"matches"`
-	Truncated bool          `json:"truncated"`
-}
-
-// Section is a daemon API value.
-type Section struct {
-	Title string `json:"title,omitempty"`
-	Rows  []Row  `json:"rows"`
-}
-
-// Selection is a daemon API value.
-type Selection struct {
-	ID        string `json:"id"`
-	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitzero"`
-}

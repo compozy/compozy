@@ -9,6 +9,34 @@ import (
 	"strings"
 )
 
+// GetSettingsWindowManager Read the window-manager settings section
+func (c *Client) GetSettingsWindowManager(ctx context.Context, params GetSettingsWindowManagerParams) (*SettingsWindowManagerResponse, error) {
+	path := "/api/settings/window-manager"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsWindowManagerResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSkillParams carries the path, query, and header parameters.
+type GetSkillParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	ForAgent    *string `url:"for_agent"`
+}
+
 // GetSkill Get one skill definition
 func (c *Client) GetSkill(ctx context.Context, params GetSkillParams) (*SkillResponse, error) {
 	path := "/api/skills/{name}"
@@ -404,38 +432,4 @@ type GetTaskTimelineParams struct {
 	Limit         *int    `url:"limit"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetTaskTimeline Get one task timeline
-func (c *Client) GetTaskTimeline(ctx context.Context, params GetTaskTimelineParams) (*TaskTimelineResponse, error) {
-	path := "/api/tasks/{id}/timeline"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskTimelineResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskTreeParams carries the path, query, and header parameters.
-type GetTaskTreeParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

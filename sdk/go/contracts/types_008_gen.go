@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type ExtensionManifestSummary struct {
+	Name              string   `json:"name"`
+	Version           string   `json:"version"`
+	Description       string   `json:"description,omitempty"`
+	MinCompozyVersion string   `json:"min_compozy_version"`
+	Provides          []string `json:"provides"`
+	Permissions       []string `json:"permissions"`
+}
+
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+}
+
 type ExtensionToolCallRequest struct {
 	ToolID           ToolID                       `json:"tool_id"`
 	Handler          string                       `json:"handler"`
@@ -201,11 +214,4 @@ type GridTile struct {
 	Actions  []RowAction       `json:"actions,omitempty"`
 	Requires map[string]string `json:"requires,omitempty"`
 	Fallback string            `json:"fallback,omitempty"`
-}
-
-type HeartbeatActorKind string
-
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
 }

@@ -4,6 +4,35 @@ package client
 
 import "time"
 
+// SearchMatch is a daemon API value.
+type SearchMatch struct {
+	Sequence  int64  `json:"sequence"`
+	TurnID    string `json:"turn_id"`
+	Role      string `json:"role"`
+	Snippet   string `json:"snippet"`
+	PartIndex *int   `json:"part_index,omitzero"`
+	Field     string `json:"field,omitempty"`
+}
+
+// SearchResult is a daemon API value.
+type SearchResult struct {
+	Matches   []SearchMatch `json:"matches"`
+	Truncated bool          `json:"truncated"`
+}
+
+// Section is a daemon API value.
+type Section struct {
+	Title string `json:"title,omitempty"`
+	Rows  []Row  `json:"rows"`
+}
+
+// Selection is a daemon API value.
+type Selection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
+}
+
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
 	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`
@@ -408,32 +437,4 @@ type SessionDerivePreviewResponse struct {
 type SessionDeriveResponse struct {
 	Session *SessionPayload       `json:"session,omitzero"`
 	Derived SessionDerivedPayload `json:"derived"`
-}
-
-// SessionDerivedPayload is a daemon API value.
-type SessionDerivedPayload struct {
-	Kind                 string `json:"kind"`
-	SourceSessionID      string `json:"source_session_id"`
-	OriginAgentName      string `json:"origin_agent_name"`
-	OriginMessageID      string `json:"origin_message_id,omitempty"`
-	ThroughTurnID        string `json:"through_turn_id"`
-	Seed                 string `json:"seed"`
-	NativeState          string `json:"native_state,omitempty"`
-	ACPSessionID         string `json:"acp_session_id,omitempty"`
-	NativeForkError      string `json:"native_fork_error,omitempty"`
-	ReplayMessageCount   *int   `json:"replay_message_count,omitzero"`
-	ReplayBytes          *int   `json:"replay_bytes,omitzero"`
-	Truncated            bool   `json:"truncated"`
-	OmittedCount         int    `json:"omitted_count"`
-	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
-	FirstPrompt          string `json:"first_prompt"`
-	Replayed             bool   `json:"replayed"`
-	ChildDeleted         bool   `json:"child_deleted,omitzero"`
-	ChildSessionID       string `json:"child_session_id"`
-}
-
-// SessionEnvBindingPayload is a daemon API value.
-type SessionEnvBindingPayload struct {
-	Ref      string `json:"ref"`
-	Required bool   `json:"required"`
 }

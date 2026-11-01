@@ -4,6 +4,86 @@ package client
 
 import "time"
 
+// WorktreeExitOperationResponse is a daemon API value.
+type WorktreeExitOperationResponse struct {
+	OperationID string `json:"op_id"`
+}
+
+// WorktreeExitPRPrefill is a daemon API value.
+type WorktreeExitPRPrefill struct {
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
+}
+
+// WorktreeExitPlanResponse is a daemon API value.
+type WorktreeExitPlanResponse struct {
+	WorktreeID       string                         `json:"worktree_id"`
+	Primary          WorktreeExitAction             `json:"primary,omitempty"`
+	Actions          []WorktreeExitActionPlan       `json:"actions"`
+	GlobalPauseCause string                         `json:"global_pause_cause,omitempty"`
+	CommitScope      WorktreeExitCommitScope        `json:"commit_scope"`
+	BrowserURL       string                         `json:"browser_url,omitempty"`
+	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitzero"`
+	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitzero"`
+	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitzero"`
+	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
+	Base             string                         `json:"base,omitempty"`
+}
+
+// WorktreeForgeStatusPayload is a daemon API value.
+type WorktreeForgeStatusPayload struct {
+	Provider  string     `json:"provider"`
+	PRNumber  *int       `json:"pr_number"`
+	PRState   *string    `json:"pr_state"`
+	PRURL     string     `json:"pr_url,omitempty"`
+	Merged    *bool      `json:"merged"`
+	FetchedAt *time.Time `json:"fetched_at"`
+}
+
+// WorktreeInspectionResponse is a daemon API value.
+type WorktreeInspectionResponse struct {
+	Worktree WorktreePayload             `json:"worktree"`
+	Status   *WorktreeStatusPayload      `json:"status"`
+	Forge    *WorktreeForgeStatusPayload `json:"forge"`
+	Repo     WorktreeRepoPayload         `json:"repo"`
+	Bindings WorktreeBindingsPayload     `json:"bindings"`
+}
+
+// WorktreeMode is a daemon API value.
+type WorktreeMode string
+
+// WorktreePayload is a daemon API value.
+type WorktreePayload struct {
+	ID              string    `json:"id"`
+	ProfileID       string    `json:"profile_id"`
+	ProfileName     string    `json:"profile_name"`
+	ProfileColor    string    `json:"profile_color,omitempty"`
+	ProfileIcon     string    `json:"profile_icon,omitempty"`
+	ProfileEmoji    string    `json:"profile_emoji,omitempty"`
+	ProfileArchived bool      `json:"profile_archived"`
+	WorkspaceID     string    `json:"workspace_id"`
+	Name            string    `json:"name"`
+	Branch          string    `json:"branch"`
+	Path            string    `json:"path"`
+	State           string    `json:"state"`
+	PendingPhase    string    `json:"pending_phase,omitempty"`
+	Origin          string    `json:"origin"`
+	SetupState      string    `json:"setup_state"`
+	SetupError      string    `json:"setup_error,omitempty"`
+	CreateError     string    `json:"create_error,omitempty"`
+	BaseRef         string    `json:"base_ref,omitempty"`
+	CreatedBranch   bool      `json:"created_branch"`
+	RunNamespace    string    `json:"run_namespace,omitempty"`
+	CreatedHead     string    `json:"created_head,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	Dirty           *bool     `json:"dirty"`
+	Ahead           *int      `json:"ahead"`
+	Behind          *int      `json:"behind"`
+	AgentActivity   string    `json:"agent_activity"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
 // WorktreePolicy is a daemon API value.
 type WorktreePolicy struct {
 	Mode        WorktreeMode `json:"mode"`

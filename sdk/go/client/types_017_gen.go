@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+// SessionDerivedPayload is a daemon API value.
+type SessionDerivedPayload struct {
+	Kind                 string `json:"kind"`
+	SourceSessionID      string `json:"source_session_id"`
+	OriginAgentName      string `json:"origin_agent_name"`
+	OriginMessageID      string `json:"origin_message_id,omitempty"`
+	ThroughTurnID        string `json:"through_turn_id"`
+	Seed                 string `json:"seed"`
+	NativeState          string `json:"native_state,omitempty"`
+	ACPSessionID         string `json:"acp_session_id,omitempty"`
+	NativeForkError      string `json:"native_fork_error,omitempty"`
+	ReplayMessageCount   *int   `json:"replay_message_count,omitzero"`
+	ReplayBytes          *int   `json:"replay_bytes,omitzero"`
+	Truncated            bool   `json:"truncated"`
+	OmittedCount         int    `json:"omitted_count"`
+	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
+	FirstPrompt          string `json:"first_prompt"`
+	Replayed             bool   `json:"replayed"`
+	ChildDeleted         bool   `json:"child_deleted,omitzero"`
+	ChildSessionID       string `json:"child_session_id"`
+}
+
+// SessionEnvBindingPayload is a daemon API value.
+type SessionEnvBindingPayload struct {
+	Ref      string `json:"ref"`
+	Required bool   `json:"required"`
+}
+
 // SessionEventPayload is a daemon API value.
 type SessionEventPayload struct {
 	Origin               *PromptOriginMeta        `json:"origin,omitzero"`
@@ -414,27 +442,3 @@ type SessionProcessPayload struct {
 
 // SessionProcessPolicy is a daemon API value.
 type SessionProcessPolicy string
-
-// SessionProcessResult is a daemon API value.
-type SessionProcessResult struct {
-	PID       int                   `json:"pid"`
-	StartedAt time.Time             `json:"started_at"`
-	Outcome   SessionProcessOutcome `json:"outcome"`
-	Error     string                `json:"error,omitempty"`
-}
-
-// SessionProcessSummaryPayload is a daemon API value.
-type SessionProcessSummaryPayload struct {
-	Supported  bool  `json:"supported"`
-	Background int   `json:"background"`
-	Terminals  int   `json:"terminals"`
-	Total      int   `json:"total"`
-	Ports      []int `json:"ports"`
-	Trees      int   `json:"trees,omitempty"`
-}
-
-// SessionProcessTarget is a daemon API value.
-type SessionProcessTarget struct {
-	PID       int       `json:"pid"`
-	StartedAt time.Time `json:"started_at"`
-}

@@ -4,10 +4,47 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
+
+var _ json.Marshaler = GetProfileSelectionsFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *GetProfileSelectionsFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f GetProfileSelectionsFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsVariant1 decodes this payload as Variant1.
+func (f GetProfileSelectionsFrame) AsVariant1() (*[]ProfileSelection, error) {
+	var out []ProfileSelection
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsProfileSelection decodes this payload as ProfileSelection.
+func (f GetProfileSelectionsFrame) AsProfileSelection() (*ProfileSelection, error) {
+	var out ProfileSelection
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // GetProfileSelections Read profile selections
 func (c *Client) GetProfileSelections(ctx context.Context, params GetProfileSelectionsParams) (*GetProfileSelectionsFrame, error) {
@@ -392,49 +429,4 @@ type GetSessionRecapParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
 	Limit       *int   `url:"limit"`
-}
-
-// GetSessionRecap Get a deterministic session recap
-func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionRecapResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionStatusParams carries the path, query, and header parameters.
-type GetSessionStatusParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// GetSessionStatus Read compact session status and wake eligibility
-func (c *Client) GetSessionStatus(ctx context.Context, params GetSessionStatusParams) (*SessionStatusResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/status"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionTranscriptParams carries the path, query, and header parameters.
-type GetSessionTranscriptParams struct {
-	WorkspaceID    string `url:"workspace_id"`
-	SessionID      string `url:"session_id"`
-	Limit          *int   `url:"limit"`
-	BeforeSequence *int64 `url:"before_sequence"`
 }

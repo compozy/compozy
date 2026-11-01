@@ -5,10 +5,55 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// InstallExtension Install a local or marketplace extension
+func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*ExtensionResponse, error) {
+	path := "/api/extensions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeCmdPaletteCommandParams carries the path, query, and header parameters.
+type InvokeCmdPaletteCommandParams struct {
+	ID                  string  `url:"id"`
+	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
+	Profile             *string `url:"profile"`
+}
+
+// InvokeCmdPaletteCommand Invoke one command palette command
+func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
+	path := "/api/cmd-palette/commands/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteInvokeResult
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // InvokeToolParams carries the path, query, and header parameters.
 type InvokeToolParams struct {
@@ -401,30 +446,4 @@ func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggre
 // ListAppTokensParams carries the path, query, and header parameters.
 type ListAppTokensParams struct {
 	State *string `url:"state"`
-}
-
-// ListAppTokens List app tokens without their bearer secrets Experimental: pin the exact SDK version.
-func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) (*AppTokensResponse, error) {
-	path := "/api/app-tokens"
-	query := url.Values{}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AppTokensResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAttentionNotificationsParams carries the path, query, and header parameters.
-type ListAttentionNotificationsParams struct {
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

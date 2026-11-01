@@ -4,6 +4,24 @@ package client
 
 import "time"
 
+// SettingsAutomationConfigPayload is a daemon API value.
+type SettingsAutomationConfigPayload struct {
+	Enabled           bool            `json:"enabled"`
+	Timezone          string          `json:"timezone"`
+	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
+	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
+}
+
+// SettingsAutomationResponse is a daemon API value.
+type SettingsAutomationResponse struct {
+	Section         SettingsSectionName              `json:"section"`
+	Scope           SettingsUserScopeKind            `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind          `json:"available_scopes"`
+	Config          SettingsAutomationConfigPayload  `json:"config"`
+	Runtime         SettingsAutomationRuntimePayload `json:"runtime"`
+	Links           []SettingsOperationalLinkPayload `json:"links,omitempty"`
+}
+
 // SettingsAutomationRuntimePayload is a daemon API value.
 type SettingsAutomationRuntimePayload struct {
 	HostTimezone     string     `json:"host_timezone,omitempty"`
@@ -424,26 +442,4 @@ type SettingsMCPServerPayload struct {
 // SettingsMCPServerResponse is a daemon API value.
 type SettingsMCPServerResponse struct {
 	Server SettingsMCPServerItemPayload `json:"server"`
-}
-
-// SettingsMCPServerRuntimeStatusPayload is a daemon API value.
-type SettingsMCPServerRuntimeStatusPayload struct {
-	Configured      bool   `json:"configured"`
-	Initialized     bool   `json:"initialized"`
-	State           string `json:"state"`
-	Probe           string `json:"probe"`
-	ToolCount       int    `json:"tool_count"`
-	ProtocolVersion string `json:"protocol_version,omitempty"`
-	Reason          string `json:"reason,omitempty"`
-	Diagnostic      string `json:"diagnostic,omitempty"`
-}
-
-// SettingsMCPServersResponse is a daemon API value.
-type SettingsMCPServersResponse struct {
-	Collection      SettingsCollectionName         `json:"collection"`
-	Scope           SettingsLayeredScopeKind       `json:"scope"`
-	WorkspaceID     string                         `json:"workspace_id,omitempty"`
-	Profile         string                         `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind     `json:"available_scopes"`
-	MCPServers      []SettingsMCPServerItemPayload `json:"mcp_servers"`
 }

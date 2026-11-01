@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type PickFilesEffect struct {
+	Directories bool `json:"directories,omitempty"`
+}
+
+type Priority string
+
 type ProbeResult struct {
 	AgentName  string    `json:"agent_name,omitempty"`
 	Provider   string    `json:"provider,omitempty"`
@@ -146,11 +152,4 @@ type ResolvedWorktreeMode string
 type ResourceGetParams struct {
 	Kind ResourceKind `json:"kind"`
 	ID   string       `json:"id"`
-}
-
-type ResourceKind string
-
-type ResourceOwner struct {
-	Kind ResourceOwnerKind `json:"kind"`
-	ID   string            `json:"id"`
 }

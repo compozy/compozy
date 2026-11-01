@@ -4,6 +4,35 @@ package contracts
 
 import "time"
 
+type ContextCompactionPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type ContextCompactionPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	TurnID         string    `json:"turn_id,omitempty"`
+	CompactionID   string    `json:"compaction_id"`
+	Trigger        string    `json:"trigger"`
+	Status         string    `json:"status,omitempty"`
+	Summary        string    `json:"summary,omitempty"`
+	Error          string    `json:"error,omitempty"`
+}
+
 type ContextPostCompactPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -248,18 +277,4 @@ type DescribePayload struct {
 	CmdPaletteViews  []string                         `json:"cmd_palette_views,omitempty"`
 	CommandGroups    []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
 	SDK              DescribeSDKInfo                  `json:"sdk"`
-}
-
-type DescribeProfile struct {
-	Name        string                      `json:"name"`
-	Color       string                      `json:"color,omitempty"`
-	Icon        string                      `json:"icon,omitempty"`
-	Emoji       string                      `json:"emoji,omitempty"`
-	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
-	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
-}
-
-type DescribeProfileCredential struct {
-	Provider string `json:"provider"`
-	Slot     string `json:"slot"`
 }

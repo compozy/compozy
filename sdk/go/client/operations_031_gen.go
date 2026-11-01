@@ -4,11 +4,21 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
+func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
+	var out OperatorNotificationEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // StreamSessionCatalog Stream session catalog changes across workspaces
 func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
@@ -419,30 +429,4 @@ type UnpinCmdPaletteCommandParams struct {
 	ID        string  `url:"id"`
 	Workspace string  `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// UnpinCmdPaletteCommand Unpin one command palette command
-func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
-	path := "/api/cmd-palette/pins/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePinResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnregisterWindowManagerClientParams carries the path, query, and header parameters.
-type UnregisterWindowManagerClientParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ClientID    string  `url:"client_id"`
-	Profile     *string `url:"profile"`
 }

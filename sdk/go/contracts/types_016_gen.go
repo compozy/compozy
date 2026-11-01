@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type SchedulerCatchUpPolicy string
+
+type SchedulerSkipReason string
+
 type Scope string
 
 type Section struct {
@@ -220,18 +224,4 @@ type SessionInput struct {
 	QueueGeneration int64                          `json:"queue_generation"`
 	EnqueuedAt      time.Time                      `json:"enqueued_at"`
 	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
-}
-
-type SessionInputListResult struct {
-	Inputs []SessionInput `json:"inputs"`
-}
-
-type SessionInputPromoteParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	ExpectedTurnID string `json:"expected_turn_id"`
 }

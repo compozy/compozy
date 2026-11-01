@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// ListAppTokens List app tokens without their bearer secrets Experimental: pin the exact SDK version.
+func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) (*AppTokensResponse, error) {
+	path := "/api/app-tokens"
+	query := url.Values{}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AppTokensResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAttentionNotificationsParams carries the path, query, and header parameters.
+type ListAttentionNotificationsParams struct {
+	ReceiptProfile *string `url:"receipt_profile"`
+	Workspace      *string `url:"workspace"`
+	AllWorkspaces  *bool   `url:"all_workspaces"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
 // ListAttentionNotifications List unread operator notifications across all workspaces and source profiles
 func (c *Client) ListAttentionNotifications(ctx context.Context, params ListAttentionNotificationsParams) (*AttentionNotificationsResponse, error) {
 	path := "/api/notifications/attention"
@@ -416,12 +442,4 @@ func (c *Client) ListCmdPaletteClients(ctx context.Context, params ListCmdPalett
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListCmdPaletteCommandsParams carries the path, query, and header parameters.
-type ListCmdPaletteCommandsParams struct {
-	Workspace   string  `url:"workspace"`
-	Client      *string `url:"client"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

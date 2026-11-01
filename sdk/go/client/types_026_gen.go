@@ -7,6 +7,67 @@ import (
 	"time"
 )
 
+// TerminateProcessesRequest is a daemon API value.
+type TerminateProcessesRequest struct {
+	Targets []SessionProcessTarget `json:"targets"`
+}
+
+// TerminateSessionProcessesRequest is a daemon API value.
+type TerminateSessionProcessesRequest struct {
+	Targets      []SessionProcessTarget `json:"targets,omitempty"`
+	All          bool                   `json:"all,omitempty"`
+	IncludeTools bool                   `json:"include_tools,omitempty"`
+}
+
+// TerminateSessionProcessesResponse is a daemon API value.
+type TerminateSessionProcessesResponse struct {
+	Supported bool                   `json:"supported"`
+	Results   []SessionProcessResult `json:"results"`
+}
+
+// ThresholdKind is a daemon API value.
+type ThresholdKind string
+
+// TimelineEntry is a daemon API value.
+type TimelineEntry struct {
+	Seq        int64        `json:"seq"`
+	FirstSeq   int64        `json:"first_seq,omitzero"`
+	Kind       RunEventKind `json:"kind"`
+	Generation int64        `json:"generation,omitzero"`
+	NodeID     NodeID       `json:"node_id,omitempty"`
+	Attempt    int          `json:"attempt,omitzero"`
+	Title      string       `json:"title"`
+	At         time.Time    `json:"at"`
+}
+
+// TimelineItem is a daemon API value.
+type TimelineItem struct {
+	Sequence  int64           `json:"sequence"`
+	EventID   string          `json:"event_id"`
+	Task      Reference       `json:"task"`
+	Run       *RunSummary     `json:"run,omitzero"`
+	EventType string          `json:"event_type"`
+	Reason    string          `json:"reason,omitempty"`
+	Actor     ActorIdentity   `json:"actor"`
+	Origin    Origin          `json:"origin"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+	Timestamp time.Time       `json:"timestamp"`
+}
+
+// TimelinePage is a daemon API value.
+type TimelinePage struct {
+	RunID      RunID           `json:"run_id"`
+	HeadSeq    int64           `json:"head_seq"`
+	Entries    []TimelineEntry `json:"entries"`
+	NextCursor string          `json:"next_cursor,omitempty"`
+}
+
+// ToastEffect is a daemon API value.
+type ToastEffect struct {
+	Tone    string `json:"tone"`
+	Message string `json:"message"`
+}
+
 // TokenUsagePayload is a daemon API value.
 type TokenUsagePayload struct {
 	Meta             map[string]any `json:"meta,omitempty"`
@@ -361,85 +422,3 @@ type TranscriptSnapshotPayload struct {
 	Reset              bool    `json:"reset"`
 	Reason             string  `json:"reason,omitempty"`
 }
-
-// TriggerPayload is a daemon API value.
-type TriggerPayload struct {
-	ID                   string                    `json:"id"`
-	ProfileID            string                    `json:"profile_id"`
-	ProfileName          string                    `json:"profile_name"`
-	ProfileColor         string                    `json:"profile_color,omitempty"`
-	ProfileIcon          string                    `json:"profile_icon,omitempty"`
-	Scope                Scope                     `json:"scope"`
-	Name                 string                    `json:"name"`
-	TargetKind           TargetKind                `json:"target_kind"`
-	AgentName            string                    `json:"agent_name"`
-	WorkspaceID          string                    `json:"workspace_id,omitempty"`
-	Prompt               string                    `json:"prompt"`
-	Event                string                    `json:"event"`
-	Filter               map[string]string         `json:"filter,omitempty"`
-	LoopTarget           *LoopTarget               `json:"loop_target,omitempty"`
-	Enabled              bool                      `json:"enabled"`
-	Retry                RetryConfig               `json:"retry"`
-	FireLimit            FireLimitConfig           `json:"fire_limit"`
-	Source               JobSource                 `json:"source"`
-	WebhookID            string                    `json:"webhook_id,omitempty"`
-	EndpointSlug         string                    `json:"endpoint_slug,omitempty"`
-	WebhookSecretPresent bool                      `json:"webhook_secret_present"`
-	WebhookSecretHash    string                    `json:"webhook_secret_hash,omitempty"`
-	Ingress              *GatewayIngressPayload    `json:"ingress,omitempty"`
-	CreatedAt            time.Time                 `json:"created_at"`
-	UpdatedAt            time.Time                 `json:"updated_at"`
-	LastRun              *AutomationLastRunPayload `json:"last_run,omitzero"`
-}
-
-// TriggerResponse is a daemon API value.
-type TriggerResponse struct {
-	Trigger TriggerPayload `json:"trigger"`
-}
-
-// TriggersResponse is a daemon API value.
-type TriggersResponse struct {
-	Triggers []TriggerPayload         `json:"triggers"`
-	Page     CountedCursorPagePayload `json:"page"`
-}
-
-// TurnHistoryPayload is a daemon API value.
-type TurnHistoryPayload struct {
-	TurnID string                `json:"turn_id"`
-	Events []SessionEventPayload `json:"events"`
-}
-
-// Type is a daemon API value.
-type Type string
-
-// UIMessage is a daemon API value.
-type UIMessage struct {
-	ID       string          `json:"id"`
-	Role     string          `json:"role"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-	Parts    []UIMessagePart `json:"parts"`
-}
-
-// UIMessagePart is a daemon API value.
-type UIMessagePart struct {
-	ParentToolCallID string          `json:"parentToolCallId,omitempty"`
-	Type             string          `json:"type"`
-	ID               string          `json:"id,omitempty"`
-	Text             string          `json:"text,omitempty"`
-	MediaType        string          `json:"mediaType,omitempty"`
-	URL              string          `json:"url,omitempty"`
-	Filename         string          `json:"filename,omitempty"`
-	State            string          `json:"state,omitempty"`
-	ToolName         string          `json:"toolName,omitempty"`
-	ToolCallID       string          `json:"toolCallId,omitempty"`
-	Title            string          `json:"title,omitempty"`
-	Input            json.RawMessage `json:"input,omitempty"`
-	RawInput         json.RawMessage `json:"rawInput,omitempty"`
-	Output           json.RawMessage `json:"output,omitempty"`
-	ErrorText        string          `json:"errorText,omitempty"`
-	Data             json.RawMessage `json:"data,omitempty"`
-	Preliminary      bool            `json:"preliminary,omitzero"`
-}
-
-// UnarchiveProfileRequest is a daemon API value.
-type UnarchiveProfileRequest struct{}

@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// PromptAttachmentRef is a daemon API value.
+type PromptAttachmentRef struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Bytes    int64  `json:"bytes"`
+	SHA256   string `json:"sha256"`
+	Kind     string `json:"kind"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+}
+
+// PromptDelivery is a daemon API value.
+type PromptDelivery string
+
+// PromptMode is a daemon API value.
+type PromptMode string
+
 // PromptOriginMeta is a daemon API value.
 type PromptOriginMeta struct {
 	Kind             string `json:"kind"`
@@ -425,22 +443,4 @@ type RecapSnapshotPayload struct {
 	TranscriptCursor int64     `json:"transcript_cursor"`
 	QueueGeneration  int64     `json:"queue_generation"`
 	Consistency      string    `json:"consistency"`
-}
-
-// RecoverTaskRequest is a daemon API value.
-type RecoverTaskRequest struct {
-	Note string `json:"note,omitempty"`
-}
-
-// RecoverTaskRunRequest is a daemon API value.
-type RecoverTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// Redaction is a daemon API value.
-type Redaction struct {
-	Path   string     `json:"path"`
-	Reason ReasonCode `json:"reason"`
-	Bytes  int64      `json:"bytes,omitempty"`
 }

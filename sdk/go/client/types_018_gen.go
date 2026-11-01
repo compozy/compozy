@@ -4,6 +4,30 @@ package client
 
 import "time"
 
+// SessionProcessResult is a daemon API value.
+type SessionProcessResult struct {
+	PID       int                   `json:"pid"`
+	StartedAt time.Time             `json:"started_at"`
+	Outcome   SessionProcessOutcome `json:"outcome"`
+	Error     string                `json:"error,omitempty"`
+}
+
+// SessionProcessSummaryPayload is a daemon API value.
+type SessionProcessSummaryPayload struct {
+	Supported  bool  `json:"supported"`
+	Background int   `json:"background"`
+	Terminals  int   `json:"terminals"`
+	Total      int   `json:"total"`
+	Ports      []int `json:"ports"`
+	Trees      int   `json:"trees,omitempty"`
+}
+
+// SessionProcessTarget is a daemon API value.
+type SessionProcessTarget struct {
+	PID       int       `json:"pid"`
+	StartedAt time.Time `json:"started_at"`
+}
+
 // SessionProcessTreePayload is a daemon API value.
 type SessionProcessTreePayload struct {
 	ID       string                 `json:"id"`
@@ -417,22 +441,4 @@ type SettingsAttentionResponse struct {
 	Profile         string                     `json:"profile,omitempty"`
 	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
 	Config          SettingsAttentionPayload   `json:"config"`
-}
-
-// SettingsAutomationConfigPayload is a daemon API value.
-type SettingsAutomationConfigPayload struct {
-	Enabled           bool            `json:"enabled"`
-	Timezone          string          `json:"timezone"`
-	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
-	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
-}
-
-// SettingsAutomationResponse is a daemon API value.
-type SettingsAutomationResponse struct {
-	Section         SettingsSectionName              `json:"section"`
-	Scope           SettingsUserScopeKind            `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind          `json:"available_scopes"`
-	Config          SettingsAutomationConfigPayload  `json:"config"`
-	Runtime         SettingsAutomationRuntimePayload `json:"runtime"`
-	Links           []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }

@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+type LoopStartedPayload struct {
+	Event           HookEvent       `json:"event"`
+	Timestamp       time.Time       `json:"timestamp"`
+	ProfileID       string          `json:"profile_id,omitempty"`
+	LoopRunID       string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	LoopName        string          `json:"loop_name,omitempty"`
+	Generation      int             `json:"generation,omitempty"`
+	TaskID          string          `json:"task_id,omitempty"`
+	RunID           string          `json:"run_id,omitempty"`
+	RunKind         string          `json:"run_kind,omitempty"`
+	NodeID          string          `json:"node_id,omitempty"`
+	WorkflowID      string          `json:"workflow_id,omitempty"`
+	AgentName       string          `json:"agent_name,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	ActorKind       string          `json:"actor_kind,omitempty"`
+	ActorID         string          `json:"actor_id,omitempty"`
+	OriginKind      string          `json:"origin_kind,omitempty"`
+	OriginRef       string          `json:"origin_ref,omitempty"`
+	Status          string          `json:"status,omitempty"`
+	Cause           string          `json:"cause,omitempty"`
+	ReasonCode      string          `json:"reason_code,omitempty"`
+	Details         json.RawMessage `json:"details,omitempty"`
+}
+
+type LoopTarget struct {
+	WorkspaceID  string            `json:"workspace_id"`
+	LoopName     string            `json:"loop_name"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
 type LoopTerminalPayload struct {
 	Event           HookEvent       `json:"event"`
 	Timestamp       time.Time       `json:"timestamp"`
@@ -288,15 +321,4 @@ type ModelsListParams struct {
 	SourceID     string `json:"source_id,omitempty"`
 	Refresh      bool   `json:"refresh,omitempty"`
 	IncludeStale bool   `json:"include_stale,omitempty"`
-}
-
-type ModelsRefreshParams struct {
-	ProviderID string `json:"provider_id,omitempty"`
-	SourceID   string `json:"source_id,omitempty"`
-	Force      bool   `json:"force,omitempty"`
-	RequestID  string `json:"request_id,omitempty"`
-}
-
-type ModelsStatusParams struct {
-	ProviderID string `json:"provider_id,omitempty"`
 }

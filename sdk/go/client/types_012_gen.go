@@ -280,6 +280,8 @@ type PauseTaskRequest struct {
 
 // PendingInteractionPayload is a daemon API value.
 type PendingInteractionPayload struct {
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	SessionID         string     `json:"session_id"`
 	InteractionID     string     `json:"interaction_id"`
 	Kind              string     `json:"kind"`
 	ProviderRequestID string     `json:"provider_request_id"`
@@ -293,6 +295,21 @@ type PendingInteractionPayload struct {
 	ResolvedAt        *time.Time `json:"resolved_at,omitempty"`
 	Resolution        string     `json:"resolution,omitempty"`
 	ResolvedBy        string     `json:"resolved_by,omitempty"`
+}
+
+// PermissionDailyRollupPayload is a daemon API value.
+type PermissionDailyRollupPayload struct {
+	Day       string `json:"day"`
+	AgentName string `json:"agent_name"`
+	Decision  string `json:"decision"`
+	Count     int64  `json:"count"`
+}
+
+// PermissionRollupResponse is a daemon API value.
+type PermissionRollupResponse struct {
+	Since   time.Time                      `json:"since"`
+	Until   time.Time                      `json:"until"`
+	Rollups []PermissionDailyRollupPayload `json:"rollups"`
 }
 
 // PickFilesEffect is a daemon API value.
@@ -423,21 +440,3 @@ type PromoteSessionInputRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`
 	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
 }
-
-// PromptAttachmentRef is a daemon API value.
-type PromptAttachmentRef struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	MIMEType string `json:"mime_type"`
-	Bytes    int64  `json:"bytes"`
-	SHA256   string `json:"sha256"`
-	Kind     string `json:"kind"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-}
-
-// PromptDelivery is a daemon API value.
-type PromptDelivery string
-
-// PromptMode is a daemon API value.
-type PromptMode string

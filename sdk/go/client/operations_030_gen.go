@@ -11,6 +11,15 @@ import (
 	"strings"
 )
 
+// AsErrorPayload decodes this payload as ErrorPayload.
+func (f StreamGlobalSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
+	var out ErrorPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // StreamGlobalSession Stream raw session events or fenced transcript changes for a Global session
 func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSessionParams) (*Stream[StreamGlobalSessionFrame], error) {
 	path := "/api/sessions/{session_id}/stream"
@@ -434,15 +443,6 @@ func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatal
 // AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
 func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
 	var out SessionAttentionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsOperatorNotificationEventPayload decodes this payload as OperatorNotificationEventPayload.
-func (f StreamSessionCatalogFrame) AsOperatorNotificationEventPayload() (*OperatorNotificationEventPayload, error) {
-	var out OperatorNotificationEventPayload
 	if err := json.Unmarshal(f.Raw, &out); err != nil {
 		return nil, err
 	}

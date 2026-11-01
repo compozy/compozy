@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// UpdateSettingsWindowManagerParams carries the path, query, and header parameters.
+type UpdateSettingsWindowManagerParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// UpdateSettingsWindowManager Update the window-manager settings section
+func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateSettingsWindowManagerParams, body UpdateSettingsWindowManagerRequest) (*SettingsWindowManagerMutationResponse, error) {
+	path := "/api/settings/window-manager"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsWindowManagerMutationResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateTaskParams carries the path, query, and header parameters.
 type UpdateTaskParams struct {
 	ID      string  `url:"id"`

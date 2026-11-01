@@ -5,9 +5,93 @@ package client
 import (
 	"context"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// PreviewSessionDerive Preview what a continue or fork of a session would carry
+func (c *Client) PreviewSessionDerive(ctx context.Context, params PreviewSessionDeriveParams) (*SessionDerivePreviewResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.MessageID != nil {
+		query.Set("message_id", *params.MessageID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionDerivePreviewResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PreviewWindowManagerCommandParams carries the path, query, and header parameters.
+type PreviewWindowManagerCommandParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PreviewWindowManagerCommand Preview one semantic window-manager command
+func (c *Client) PreviewWindowManagerCommand(ctx context.Context, params PreviewWindowManagerCommandParams, body WindowManagerCommandRequest) (*WindowManagerPreview, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/preview"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerPreview
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ProbeProviderAuthParams carries the path, query, and header parameters.
+type ProbeProviderAuthParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
+// ProbeProviderAuth Run a non-interactive provider auth status probe
+func (c *Client) ProbeProviderAuth(ctx context.Context, params ProbeProviderAuthParams) (*ProviderAuthProbeResponse, error) {
+	path := "/api/providers/{provider_id}/auth/probe"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	var out ProviderAuthProbeResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PromoteSessionInputParams carries the path, query, and header parameters.
+type PromoteSessionInputParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SessionID    string `url:"session_id"`
+	QueueEntryID string `url:"queue_entry_id"`
+}
+
+// PromoteSessionInput Promote queued session input to steering
+func (c *Client) PromoteSessionInput(ctx context.Context, params PromoteSessionInputParams, body PromoteSessionInputRequest) (*SendPromptResultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{queue_entry_id}", url.PathEscape(params.QueueEntryID))
+	var out SendPromptResultResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PublishTaskParams carries the path, query, and header parameters.
+type PublishTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
 
 // PublishTask Publish one draft task and enqueue executable work
 func (c *Client) PublishTask(ctx context.Context, params PublishTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
@@ -354,74 +438,6 @@ type QueryTerminalJournalParams struct {
 	TerminalID  *string `url:"terminal_id"`
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// QueryTerminalJournal Query terminal command history
-func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJournalParams) (*TerminalJournalResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/journal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Actor != nil {
-		query.Set("actor", *params.Actor)
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Failed != nil {
-		query.Set("failed", strconv.FormatBool(*params.Failed))
-	}
-	if params.TerminalID != nil {
-		query.Set("terminal_id", *params.TerminalID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalJournalResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadSessionAttachmentBytesParams carries the path, query, and header parameters.
-type ReadSessionAttachmentBytesParams struct {
-	WorkspaceID  string `url:"workspace_id"`
-	SessionID    string `url:"session_id"`
-	AttachmentID string `url:"attachment_id"`
-}
-
-// ReadSessionAttachmentBytes Read session attachment bytes
-func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSessionAttachmentBytesParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadTaskRunResultParams carries the path, query, and header parameters.
-type ReadTaskRunResultParams struct {
-	ID          string  `url:"id"`
-	Offset      *int    `url:"offset"`
-	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }
