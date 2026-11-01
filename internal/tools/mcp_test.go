@@ -1379,6 +1379,5 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 				t.Fatalf("fresh tools=%d, want 2", len(next))
 			}
 		})
-
 	}
 }
