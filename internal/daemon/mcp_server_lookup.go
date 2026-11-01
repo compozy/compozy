@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -27,15 +28,11 @@ func mcpSourceResource(
 	if state.mcpServerCatalog == nil {
 		return source, false, nil
 	}
-	var selected resources.Record[compozyconfig.MCPServer]
-	best := 0
+	manual, extension := mcpSourceSelection{}, mcpSourceSelection{}
 	for _, record := range state.mcpServerCatalog.Snapshot() {
 		definitionOwner := mcpDefinitionOwnerManual
 		if record.Owner.Normalize().Kind == extensionResourceOwnerKind {
 			definitionOwner = "extension:" + record.Owner.Normalize().ID
-		}
-		if owner == "" && definitionOwner != mcpDefinitionOwnerManual {
-			continue
 		}
 		if owner != "" && owner != definitionOwner {
 			continue
@@ -47,24 +44,57 @@ func mcpSourceResource(
 		if err != nil {
 			return source, false, err
 		}
-		if rank == 0 {
-			continue
+		selection := &extension
+		if definitionOwner == mcpDefinitionOwnerManual {
+			selection = &manual
 		}
-		if rank < best {
-			continue
+		if err := selection.consider(record, rank, name); err != nil {
+			return source, false, err
 		}
-		if rank == best {
-			return source, false, fmt.Errorf("daemon: multiple MCP definitions address %q", name)
-		}
-		selected, best = record, rank
 	}
-	if best == 0 {
+	selected := manual
+	// An unqualified name means the operator's own server first; extensions answer only when none exists.
+	if selected.rank == 0 && (owner != "" || !daemonConfigDeclaresMCPServer(state, name)) {
+		selected = extension
+	}
+	if selected.rank == 0 {
 		return source, false, nil
 	}
-	source.ResourceID = selected.ID
-	source.ResourceVersion = fmt.Sprint(selected.Version)
-	source.RawServerName = selected.Spec.EffectiveRuntimeName()
+	source.ResourceID = selected.record.ID
+	source.ResourceVersion = fmt.Sprint(selected.record.Version)
+	source.RawServerName = selected.record.Spec.EffectiveRuntimeName()
 	return source, true, nil
+}
+
+type mcpSourceSelection struct {
+	record resources.Record[compozyconfig.MCPServer]
+	rank   int
+}
+
+func (s *mcpSourceSelection) consider(
+	record resources.Record[compozyconfig.MCPServer], rank int, name string,
+) error {
+	if rank == 0 || rank < s.rank {
+		return nil
+	}
+	if rank == s.rank {
+		return fmt.Errorf("daemon: multiple MCP definitions address %q; pass an explicit owner", name)
+	}
+	s.record, s.rank = record, rank
+	return nil
+}
+
+func daemonConfigDeclaresMCPServer(state *bootState, name string) bool {
+	matches := func(server compozyconfig.MCPServer) bool { return strings.TrimSpace(server.Name) == name }
+	if slices.ContainsFunc(state.cfg.MCPServers, matches) {
+		return true
+	}
+	for _, provider := range state.cfg.Providers {
+		if slices.ContainsFunc(provider.MCPServers, matches) {
+			return true
+		}
+	}
+	return false
 }
 
 func mcpSourceResourceRank(

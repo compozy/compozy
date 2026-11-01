@@ -54,3 +54,10 @@ naming the declaring user scope and must not change the user credential; `compoz
 `inherited: true`, agree with a ready runtime, and point `repair_paths.login_cli` at the user login.
 Declaring the same server in the workspace `.compozy/mcp.json` must switch status and login to an
 own workspace record.
+
+QA impact 2026-11-01 (#1113): with default `tools.policy.external_default = "disabled"`, install an
+extension declaring a remote OAuth MCP server, enable it in a named profile, and log in once at
+`--scope profile --profile <name> --owner extension:<name>`. A new session in that profile must call
+the server's tool, and `compozy__mcp_status`/`compozy__mcp_auth_status` must resolve it by name
+without an owner. A session started before the login goes from `auth-blocked` to a working call
+without a restart. Logout blocks the tool again, and another profile stays `auth-blocked`.

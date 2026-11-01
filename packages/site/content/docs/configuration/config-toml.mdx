@@ -1597,6 +1597,10 @@ with `lifecycle="restart-required"`; it does not change a question already waiti
 | `approval_timeout_seconds` | integer      | `120`      | `1` through `600` seconds.            | Maximum wait for daemon-mediated approval flows.                                                           |
 | `trusted_sources`          | string array | `[]`       | `mcp:<server>` or `extension:<name>`. | External read-only sources trusted for `approve-reads`; MCP entries must reference configured MCP servers. |
 
+Completing `compozy mcp auth login` for an extension-owned MCP server is an explicit source grant:
+its tools become callable for sessions in that credential's scope while `external_default` stays
+`disabled`. Logging out, changing the server definition, or disabling the extension withdraws it.
+
 `trusted_sources` does not store credentials. Remote MCP OAuth tokens remain in the MCP auth store,
 and hosted MCP bind nonces are transient session launch state.
 

@@ -168,7 +168,9 @@ Manual MCP definitions remain managed through `GET /api/settings/mcp-servers` an
 remain in place. For extension-owned server reads, auth or override changes, pass
 `owner=extension:<installed-name>` (CLI `--owner`) plus the logical manifest server name. Allocated
 runtime names are not aliases for management, authorization or diagnostic calls. Omitting owner
-addresses a manual definition.
+addresses a manual definition. Read-only `compozy__mcp_status` and `compozy__mcp_auth_status` fall
+back to the extension definition visible to the session when no manual server has that name, and
+fail asking for an explicit owner when two extensions declare it.
 Reads expose configured names and secret presence, never secret values or refs.
 
 For a server that requires OAuth, run `compozy mcp auth login <name>` to start the daemon-owned PKCE flow.
@@ -187,6 +189,12 @@ reads for the narrower scope (`mcp auth status --scope workspace`, `compozy__mcp
 `user (inherited)`), and `repair_paths` name the declaring scope. Login, exchange, and logout for a
 scope without its own definition fail with a validation error naming the declaring scope; authorize
 at that scope, or declare the server in the narrower layer to give it its own credential.
+
+Completing OAuth for an extension-owned server is the operator's grant for that source: its tools
+become callable for sessions in the credential's scope without changing
+`tools.policy.external_default`, including sessions already running. Logout, a changed server
+definition, or disabling the extension withdraws the grant. Agent and session tool policy still
+narrow it, and manual servers and extension servers without OAuth keep needing an explicit grant.
 
 For remote MCPs configured with `method: oauth` and `registration: auto`, the daemon resolves
 protected-resource metadata, then the client metadata document, then makes one Dynamic Client
