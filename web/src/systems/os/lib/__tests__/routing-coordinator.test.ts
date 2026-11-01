@@ -1032,6 +1032,31 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[current.id]?.instanceKey).toBe("next");
   });
 
+  it("Should not push the empty route over a retarget that started while retiring", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator, router, store } = createCoordinator([current]);
+    coordinator.completeHydration();
+    let finishRetire = (_done: boolean) => {};
+    const pending = new Promise<boolean>(resolve => (finishRetire = resolve));
+    store.spies.retargetWindow.mockImplementationOnce(() => ({
+      accepted: true,
+      completion: pending,
+    }));
+    const next = route("/agents/coder/sessions/sess-b");
+
+    const retiring = coordinator.userRetireSession(current.id, "sess-a");
+    await coordinator.userRetarget(current.id, {
+      app: "session",
+      instanceKey: "sess-b",
+      route: next,
+    });
+    vi.mocked(router.navigate).mockClear();
+    finishRetire(true);
+
+    await expect(retiring).resolves.toBe(true);
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   it("Should retire a session tab onto the empty route without closing the window", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const { coordinator, router, store } = createCoordinator([current]);

@@ -287,10 +287,9 @@ export class RoutingCoordinator {
   }
 
   /**
-   * In-place session/instance switch from inside a window (sidebar rows). The
-   * ≤1-window-per-instance invariant wins: when the target instance already
-   * owns a live window, that window is activated and reconciled to the target
-   * route; otherwise the current window is re-keyed. One history entry follows.
+   * In-place session/instance switch from inside a window (sidebar rows). The ≤1-window-per-
+   * instance invariant wins: a target instance with a live window is activated and reconciled
+   * to the target route; otherwise this window is re-keyed. One history entry follows.
    */
   async userRetarget(
     windowId: string,
@@ -331,9 +330,10 @@ export class RoutingCoordinator {
     const win = this.manager.getState().windows[windowId];
     if (!win || (sessionId !== undefined && win.instanceKey !== sessionId)) return false;
     const route = { pathname: SESSION_EMPTY_PATH, search: {} };
-    const outcome = this.manager.retargetWindow(windowId, "", route);
-    if (!(await outcome.completion)) return false;
-    if (this.manager.getState().focusedId === windowId) this.pushRoute(route);
+    const retargetToken = ++this.nextUserRetargetToken;
+    if (!(await this.manager.retargetWindow(windowId, "", route).completion)) return false;
+    const current = retargetToken === this.nextUserRetargetToken;
+    if (current && this.manager.getState().focusedId === windowId) this.pushRoute(route);
     return true;
   }
 
