@@ -165,7 +165,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{loopKey, descriptorKeywordNode, "pause"},
+		[]string{loopKey, descriptorKeywordNode, descriptorKeywordPause},
 		[]string{"pause loop node"},
 	),
 	nativeLoopDescriptor(
@@ -177,7 +177,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{loopKey, descriptorKeywordNode, "resume"},
+		[]string{loopKey, descriptorKeywordNode, descriptorKeywordResume},
 		[]string{"resume loop node", "resume loop wait"},
 	),
 	nativeLoopDescriptor(
@@ -213,7 +213,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{loopKey, "pause"},
+		[]string{loopKey, descriptorKeywordPause},
 		[]string{"pause loop", "pause loop run"},
 	),
 	nativeLoopDescriptor(
@@ -225,7 +225,7 @@ var loopTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{loopKey, "resume"},
+		[]string{loopKey, descriptorKeywordResume},
 		[]string{"resume loop", "resume loop run"},
 	),
 	nativeLoopDescriptor(
