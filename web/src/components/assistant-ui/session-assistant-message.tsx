@@ -1,5 +1,5 @@
 import { MessagePrimitive, useAuiState } from "@assistant-ui/react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 import { Marker } from "@compozy/ui";
@@ -32,7 +32,12 @@ function SessionMessageErrorNotice() {
   }
 
   return (
-    <Marker role="alert" data-testid="session-message-error" tone="danger" icon={<AlertCircle />}>
+    <Marker
+      role="alert"
+      data-testid="session-message-error"
+      tone="destructive"
+      icon={<AlertCircle />}
+    >
       {error}
     </Marker>
   );

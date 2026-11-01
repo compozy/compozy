@@ -1,4 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -93,7 +93,9 @@ export function LoopNodeControlMenu({
           const Icon = LOOP_NODE_VERB_ICONS[verb];
           return (
             <DropdownMenuItem
-              className={presentation.destructive ? "text-danger focus:text-danger" : undefined}
+              className={
+                presentation.destructive ? "text-destructive focus:text-destructive" : undefined
+              }
               data-testid={`loop-node-verb-${verb}`}
               key={verb}
               onClick={() => onVerb(verb, node)}

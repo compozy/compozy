@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Layers } from "lucide-react";
+import { Layers } from "@compozy/ui/icons";
 
 import { Section } from "@compozy/ui";
 

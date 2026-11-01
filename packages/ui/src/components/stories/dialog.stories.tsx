@@ -161,7 +161,7 @@ export const RuledHeader: Story = {
             Pick the global home directory or register a manual workspace path.
           </DialogDescription>
         </DialogHeader>
-        <div className="p-5 text-sm text-muted">Body content lives below the rule.</div>
+        <div className="p-5 text-sm text-muted-foreground">Body content lives below the rule.</div>
       </DialogContent>
     </Dialog>
   ),
@@ -208,7 +208,10 @@ export const Unframed: Story = {
   render: () => (
     <Dialog defaultOpen>
       <DialogContent unframed className="max-w-md" data-testid="unframed-dialog">
-        <div data-testid="unframed-body" className="flex flex-col gap-3 p-5 text-sm text-muted">
+        <div
+          data-testid="unframed-body"
+          className="flex flex-col gap-3 p-5 text-sm text-muted-foreground"
+        >
           <DialogTitle className="text-base font-medium text-fg">Composed body</DialogTitle>
           <p>The host owns gutters and rhythm -- the dialog ships only the canvas + border.</p>
         </div>

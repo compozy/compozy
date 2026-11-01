@@ -6,7 +6,7 @@ import {
   type ErrorComponentProps,
   type NotFoundRouteProps,
 } from "@tanstack/react-router";
-import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
+import { AlertTriangle, Compass, RefreshCw } from "@compozy/ui/icons";
 
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { Ellipsis } from "lucide-react";
+import { Ellipsis } from "@compozy/ui/icons";
 import { useState } from "react";
 import type * as React from "react";
 
@@ -238,11 +238,13 @@ export function DesktopPager({
                           active && "w-4.5 bg-fg",
                           !active && "w-1.5",
                           !active &&
-                            (needsYou ? "bg-attn" : "bg-indicator group-hover/button:bg-muted")
+                            (needsYou
+                              ? "bg-attn"
+                              : "bg-indicator group-hover/button:bg-muted-foreground")
                         )}
                       />
                     ) : (
-                      <Ellipsis aria-hidden="true" className="size-3.5 text-muted" />
+                      <Ellipsis aria-hidden="true" className="size-3.5 text-muted-foreground" />
                     )}
                   </TooltipTrigger>
                   <TooltipContent side="bottom">

@@ -13,7 +13,8 @@
         "./components/*": "./src/components/*.tsx",
         "./lib/*": "./src/lib/*.ts",
         "./hooks/*": "./src/hooks/*.ts",
-        "./logos": "./src/logos/index.ts"
+        "./logos": "./src/logos/index.ts",
+        "./icons": "./src/icons.ts"
     },
     "scripts": {
         "build": "tsc --noEmit",
@@ -28,8 +29,6 @@
         "@base-ui/react": "1.8.0",
         "@base-ui/utils": "0.4.0",
         "@fontsource-variable/geist-mono": "5.3.0",
-        "@headless-tree/core": "1.7.0",
-        "@shadcn/react": "0.3.1",
         "@shikijs/langs": "4.5.0",
         "@shikijs/themes": "4.5.0",
         "@tiptap/extensions": "3.32.0",
@@ -60,7 +59,6 @@
     },
     "devDependencies": {
         "@fontsource-variable/inter": "5.3.0",
-        "@headless-tree/react": "1.7.0",
         "@storybook/addon-a11y": "10.6.1",
         "@storybook/addon-docs": "10.6.1",
         "@storybook/addon-themes": "10.6.1",

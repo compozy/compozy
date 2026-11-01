@@ -70,7 +70,7 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
             {model.preview ? <ExtensionInstallSummary preview={model.preview} /> : null}
             {hasInputs ? <ExtensionInputFields disabled={pending} form={form} /> : null}
             {definitions.some(input => input.type === "secret") ? (
-              <p className="text-form-hint text-muted">
+              <p className="text-form-hint text-muted-foreground">
                 Secrets are stored in your vault. You can change them later from Installed.
               </p>
             ) : null}
@@ -125,7 +125,7 @@ function summaryDialogModel(props: SummaryDialogProps) {
         : null,
     destination: (
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
-        <dt className="text-muted">Installs in</dt>
+        <dt className="text-muted-foreground">Installs in</dt>
         <dd data-testid="extension-install-destination">
           {props.destination.scope === "workspace" ? "This project" : "All projects"}
           {" · "}
@@ -134,7 +134,7 @@ function summaryDialogModel(props: SummaryDialogProps) {
       </dl>
     ),
     trust: (
-      <span className="mr-auto text-form-hint text-muted">
+      <span className="mr-auto text-form-hint text-muted-foreground">
         {marketplaceTrustSentence(props.entry)}
       </span>
     ),

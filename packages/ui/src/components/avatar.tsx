@@ -65,15 +65,15 @@ function AvatarFallback({ className, ...props }: AvatarPrimitive.Fallback.Props)
   );
 }
 
-type AvatarBadgeTone = "neutral" | "success" | "warning" | "danger" | "info" | "accent";
+type AvatarBadgeTone = "neutral" | "success" | "warning" | "destructive" | "info" | "brand";
 
 const AVATAR_BADGE_TONE: Record<AvatarBadgeTone, string> = {
   neutral: "bg-neutral",
   success: "bg-success",
   warning: "bg-warning",
-  danger: "bg-danger",
+  destructive: "bg-destructive",
   info: "bg-info",
-  accent: "bg-accent",
+  brand: "bg-brand",
 };
 
 function AvatarBadge({
@@ -86,7 +86,7 @@ function AvatarBadge({
       data-slot="avatar-badge"
       data-tone={tone}
       className={cn(
-        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full text-accent-ink ring-2 ring-canvas select-none",
+        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full text-brand-ink ring-2 ring-canvas select-none",
         AVATAR_BADGE_TONE[tone],
         "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
         "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",

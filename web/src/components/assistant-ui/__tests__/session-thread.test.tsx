@@ -29,8 +29,7 @@ import {
   type ElementNode,
 } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { toast } from "sonner";
-import { OverlayContainerContext } from "@compozy/ui";
+import { OverlayContainerContext, toast } from "@compozy/ui";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 import { useSessionComposerState } from "../hooks/use-session-composer-state";
@@ -93,13 +92,11 @@ import {
 } from "@/systems/terminal/parts";
 import { discardComposerDraftAttachments, resetSessionPromptRecovery } from "@/systems/session";
 
-vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn(),
-  },
-}));
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+  vi.spyOn(toast, "warning").mockReturnValue("toast");
+});
 
 // Spied so the composer suites can count document walks per editor update.
 vi.mock("../session-composer-cursor-snapshot", async importOriginal => {
@@ -4153,7 +4150,7 @@ describe("SessionThread transcript states", () => {
       renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
       const copy = await screen.findByTestId("assistant-message-actions-copy");
-      expect(copy.querySelector("svg.lucide-copy")).not.toBeNull();
+      expect(copy.querySelector('[data-slot="copy-idle-icon"]')).not.toBeNull();
 
       fireEvent.click(copy);
 
@@ -4165,8 +4162,8 @@ describe("SessionThread transcript states", () => {
         expect(copy).toHaveAttribute("data-copied", "true");
       });
       expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Message copied");
-      expect(copy.querySelector("svg.lucide-check")).not.toBeNull();
-      expect(copy.querySelector("svg.lucide-copy")).toBeNull();
+      expect(copy.querySelector('[data-slot="copy-success-icon"]')).not.toBeNull();
+      expect(copy.querySelector('[data-slot="copy-idle-icon"]')).toBeNull();
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, "clipboard", clipboardDescriptor);

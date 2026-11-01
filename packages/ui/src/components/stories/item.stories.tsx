@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CpuIcon, DatabaseIcon, EyeIcon, MoreHorizontalIcon, ZapIcon } from "lucide-react";
 
+import { CpuIcon, DatabaseIcon, EyeIcon, MoreHorizontalIcon, ZapIcon } from "../../icons";
 import { Button } from "../button";
 import { Pill } from "../custom/pill";
 import {

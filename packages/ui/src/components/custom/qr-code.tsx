@@ -30,7 +30,7 @@ const SIZE_CLASSNAME: Record<QrCodeSize, string> = {
 /**
  * Renders `value` as a scannable QR matrix.
  *
- * The plate is painted `--color-viz-cell` and the modules `--color-accent-ink`
+ * The plate is painted `--color-viz-cell` and the modules `--color-brand-ink`
  * rather than inheriting the warm-dark ramp: phone scanners expect dark modules
  * on a light quiet zone, and an inverted code on `--color-canvas` fails to
  * decode on a large share of devices. Scannability is a functional contract, so
@@ -62,7 +62,7 @@ function QrCode({
       className={cn("shrink-0 rounded-sm", SIZE_CLASSNAME[size], className)}
     >
       <rect width={matrix.size} height={matrix.size} className="fill-viz-cell" />
-      <path d={path} className="fill-accent-ink" />
+      <path d={path} className="fill-brand-ink" />
     </svg>
   );
 }

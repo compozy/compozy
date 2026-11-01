@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { useMotionValue, useMotionValueEvent, useSpring } from "motion/react";
 
-import { useIsInView, type UseIsInViewOptions } from "./use-is-in-view";
+import { useIsInView, type UseIsInViewOptions } from "@/components/site/use-is-in-view";
 
 export interface UseSlidingNumberParams {
   ref?: React.Ref<HTMLElement>;
@@ -22,6 +22,68 @@ export interface UseSlidingNumberParams {
 
 function formatSlidingNumber(num: number, decimalPlaces: number): string {
   return decimalPlaces != null ? num.toFixed(decimalPlaces) : num.toString();
+}
+
+function inferDecimals(number: number, decimalPlaces: number): number {
+  if (typeof decimalPlaces === "number" && decimalPlaces >= 0) return decimalPlaces;
+  const value = String(number);
+  const decimalIndex = value.indexOf(".");
+  return decimalIndex >= 0 ? value.length - decimalIndex - 1 : 0;
+}
+
+function placeValues(length: number): number[] {
+  return Array.from({ length }, (_, i) => Math.pow(10, length - i - 1));
+}
+
+interface DigitLayoutInput {
+  number: number;
+  effectiveNumber: number;
+  prevNumber: number;
+  padStart: boolean;
+  decimalPlaces: number;
+}
+
+/** Splits the current and previous values into the digit columns the roller renders. */
+function resolveDigitLayout({
+  number,
+  effectiveNumber,
+  prevNumber,
+  padStart,
+  decimalPlaces,
+}: DigitLayoutInput) {
+  const numberStr = formatSlidingNumber(effectiveNumber, decimalPlaces);
+  const [newIntStrRaw = "0", newDecStrRaw = ""] = numberStr.split(".");
+
+  const finalIntLength = padStart
+    ? Math.max(Math.floor(Math.abs(number)).toString().length, newIntStrRaw.length)
+    : newIntStrRaw.length;
+
+  const newIntStr = padStart ? newIntStrRaw.padStart(finalIntLength, "0") : newIntStrRaw;
+
+  const prevFormatted = formatSlidingNumber(prevNumber, decimalPlaces);
+  const [prevIntStrRaw = "", prevDecStrRaw = ""] = prevFormatted.split(".");
+  const prevIntStr = padStart ? prevIntStrRaw.padStart(finalIntLength, "0") : prevIntStrRaw;
+
+  const adjustedPrevInt =
+    prevIntStr.length > finalIntLength
+      ? prevIntStr.slice(-finalIntLength)
+      : prevIntStr.padStart(finalIntLength, "0");
+
+  const adjustedPrevDec = newDecStrRaw
+    ? prevDecStrRaw.length > newDecStrRaw.length
+      ? prevDecStrRaw.slice(0, newDecStrRaw.length)
+      : prevDecStrRaw.padEnd(newDecStrRaw.length, "0")
+    : "";
+
+  return {
+    intPlaces: placeValues(finalIntLength),
+    decPlaces: newDecStrRaw ? placeValues(newDecStrRaw.length) : [],
+    adjustedPrevInt: parseInt(adjustedPrevInt, 10),
+    newIntValue: parseInt(newIntStr, 10),
+    newDecStrRaw,
+    newDecValue: newDecStrRaw ? parseInt(newDecStrRaw, 10) : 0,
+    prevDecValue: adjustedPrevDec ? parseInt(adjustedPrevDec, 10) : 0,
+  };
 }
 
 export function useSlidingNumber({
@@ -66,14 +128,7 @@ export function useSlidingNumber({
   const [animatedNumber, setAnimatedNumber] = React.useState<number>(
     initiallyStable ? initialNumeric : 0
   );
-  const inferredDecimals =
-    typeof decimalPlaces === "number" && decimalPlaces >= 0
-      ? decimalPlaces
-      : (() => {
-          const value = String(number);
-          const decimalIndex = value.indexOf(".");
-          return decimalIndex >= 0 ? value.length - decimalIndex - 1 : 0;
-        })();
+  const inferredDecimals = inferDecimals(number, decimalPlaces);
   const factor = Math.pow(10, inferredDecimals);
   useMotionValueEvent(springVal, "change", latest => {
     if (!hasAnimated) return;
@@ -97,51 +152,13 @@ export function useSlidingNumber({
   if (nextNumberFrame !== numberFrame) setNumberFrame(nextNumberFrame);
   const prevNumber = nextNumberFrame.previous;
 
-  const numberStr = formatSlidingNumber(effectiveNumber, decimalPlaces);
-  const [newIntStrRaw = "0", newDecStrRaw = ""] = numberStr.split(".");
+  const digits = resolveDigitLayout({
+    number,
+    effectiveNumber,
+    prevNumber,
+    padStart,
+    decimalPlaces,
+  });
 
-  const finalIntLength = padStart
-    ? Math.max(Math.floor(Math.abs(number)).toString().length, newIntStrRaw.length)
-    : newIntStrRaw.length;
-
-  const newIntStr = padStart ? newIntStrRaw.padStart(finalIntLength, "0") : newIntStrRaw;
-
-  const prevFormatted = formatSlidingNumber(prevNumber, decimalPlaces);
-  const [prevIntStrRaw = "", prevDecStrRaw = ""] = prevFormatted.split(".");
-  const prevIntStr = padStart ? prevIntStrRaw.padStart(finalIntLength, "0") : prevIntStrRaw;
-
-  const adjustedPrevInt =
-    prevIntStr.length > finalIntLength
-      ? prevIntStr.slice(-finalIntLength)
-      : prevIntStr.padStart(finalIntLength, "0");
-
-  const adjustedPrevDec = newDecStrRaw
-    ? prevDecStrRaw.length > newDecStrRaw.length
-      ? prevDecStrRaw.slice(0, newDecStrRaw.length)
-      : prevDecStrRaw.padEnd(newDecStrRaw.length, "0")
-    : "";
-
-  const intPlaces = Array.from({ length: finalIntLength }, (_, i) =>
-    Math.pow(10, finalIntLength - i - 1)
-  );
-  const decPlaces = newDecStrRaw
-    ? Array.from({ length: newDecStrRaw.length }, (_, i) =>
-        Math.pow(10, newDecStrRaw.length - i - 1)
-      )
-    : [];
-
-  const newDecValue = newDecStrRaw ? parseInt(newDecStrRaw, 10) : 0;
-  const prevDecValue = adjustedPrevDec ? parseInt(adjustedPrevDec, 10) : 0;
-
-  return {
-    localRef,
-    isInView,
-    intPlaces,
-    decPlaces,
-    adjustedPrevInt: parseInt(adjustedPrevInt, 10),
-    newIntValue: parseInt(newIntStr ?? "0", 10),
-    newDecStrRaw,
-    newDecValue,
-    prevDecValue,
-  };
+  return { localRef, isInView, ...digits };
 }

@@ -38,7 +38,7 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
-          <label className="eyebrow text-muted" htmlFor="tasks-detail-pause-reason">
+          <label className="eyebrow text-muted-foreground" htmlFor="tasks-detail-pause-reason">
             Reason
           </label>
           <Textarea
@@ -53,7 +53,7 @@ export function TaskPauseDialog({ dialog, isPending = false }: TaskPauseDialogPr
           />
           {dialog.error ? (
             <p
-              className="text-form-hint text-danger"
+              className="text-form-hint text-destructive"
               data-testid="tasks-detail-pause-error"
               id="tasks-detail-pause-error"
               role="alert"

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, MessageSquare, RefreshCw } from "lucide-react";
+import { ChevronRight, MessageSquare, RefreshCw } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -210,10 +210,10 @@ function AgentSessionRow({ agentName, session, sessionActions }: AgentSessionRow
           {session.archived_at !== null ? <Pill tone="neutral">Archived</Pill> : null}
         </div>
       </TableCell>
-      <TableCell className="text-small-body text-right tabular-nums text-muted">
+      <TableCell className="text-small-body text-right tabular-nums text-muted-foreground">
         {formatDuration(session.activity?.elapsed_seconds)}
       </TableCell>
-      <TableCell className="text-small-body text-right text-muted">
+      <TableCell className="text-small-body text-right text-muted-foreground">
         <LastActivity iso={session.activity?.last_activity_at ?? session.updated_at} />
       </TableCell>
       <TableCell className="text-right">

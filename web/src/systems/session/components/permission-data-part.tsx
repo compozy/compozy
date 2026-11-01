@@ -1,4 +1,4 @@
-import { Check, RotateCcw, X } from "lucide-react";
+import { Check, RotateCcw, X } from "@compozy/ui/icons";
 
 import { Receipt, Time } from "@compozy/ui";
 

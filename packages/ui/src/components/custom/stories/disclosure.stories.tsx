@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const Facts = () => (
-  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-small-body text-muted">
+  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-small-body text-muted-foreground">
     <dt>Process</dt>
     <dd className="font-mono">4312</dd>
     <dt>Socket</dt>

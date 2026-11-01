@@ -1,4 +1,4 @@
-import { Folder, Archive } from "lucide-react";
+import { Folder, Archive } from "@compozy/ui/icons";
 import { Alert, AlertDescription, ListGroup, ListingRow, Spinner } from "@compozy/ui";
 import { useArchivedWorkspaces, useWorkspaces } from "@/systems/workspace/hooks/use-workspaces";
 import type { WorkspacePayload } from "@/systems/workspace/types";
@@ -28,7 +28,7 @@ export function WorkspaceManagement() {
   if (active.isPending || archived.isPending) return <Spinner aria-label="Loading projects" />;
   if (active.error || archived.error)
     return (
-      <Alert variant="danger">
+      <Alert variant="destructive">
         <AlertDescription>{active.error?.message ?? archived.error?.message}</AlertDescription>
       </Alert>
     );
@@ -41,7 +41,7 @@ export function WorkspaceManagement() {
         {archived.data.length ? (
           <ProjectRows projects={archived.data} />
         ) : (
-          <p className="px-4 py-3 text-muted">No archived projects.</p>
+          <p className="px-4 py-3 text-muted-foreground">No archived projects.</p>
         )}
       </ListGroup>
     </div>

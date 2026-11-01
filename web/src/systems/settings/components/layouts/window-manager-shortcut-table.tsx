@@ -101,7 +101,7 @@ export function WindowManagerShortcutTable({
       ) : null}
 
       {recorder.error !== null ? (
-        <p className="px-4 py-2 text-form-hint text-danger" role="alert">
+        <p className="px-4 py-2 text-form-hint text-destructive" role="alert">
           {recorder.error}
         </p>
       ) : null}

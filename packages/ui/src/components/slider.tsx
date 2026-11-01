@@ -14,7 +14,7 @@ import { cn } from "../lib/utils";
  * - The accessible name reaches the thumb. Base UI puts `role="slider"` on the
  *   thumb, so a label left on the root names a group nobody can operate.
  */
-export type SliderTone = "accent" | "neutral";
+export type SliderTone = "brand" | "neutral";
 
 type SliderProps<Value extends number | readonly number[]> = SliderPrimitive.Root.Props<Value> & {
   /** Gives each thumb an explicit name when a range needs domain-specific language. */
@@ -70,7 +70,7 @@ function Slider<Value extends number | readonly number[] = number>({
           <SliderPrimitive.Indicator
             className={cn(
               "select-none data-horizontal:h-full data-vertical:w-full",
-              tone === "neutral" ? "bg-primary" : "bg-accent"
+              tone === "neutral" ? "bg-primary" : "bg-brand"
             )}
             data-slot="slider-range"
             data-tone={tone}

@@ -52,12 +52,12 @@ export type TaskLane =
 export const TASK_STATUS_TONE = {
   draft: "neutral",
   pending: "neutral",
-  blocked: "danger",
+  blocked: "destructive",
   needs_attention: "warning",
   ready: "neutral",
   in_progress: "info",
   completed: "success",
-  failed: "danger",
+  failed: "destructive",
 } as const satisfies Record<TaskStatus, PillTone>;
 
 export const RUN_STATUS_TONE = {
@@ -65,18 +65,18 @@ export const RUN_STATUS_TONE = {
   in_progress: "info",
   needs_attention: "warning",
   completed: "success",
-  failed: "danger",
+  failed: "destructive",
   canceled: "neutral",
 } as const satisfies Record<TaskRunStatus, PillTone>;
 
 /** UI lane vocabulary, not backend-bound. */
 export const TASK_LANE_TONE = {
   active: "neutral",
-  blocked: "danger",
+  blocked: "destructive",
   recent: "neutral",
   my_work: "neutral",
-  mentions: "accent",
-  failed_runs: "danger",
+  mentions: "brand",
+  failed_runs: "destructive",
   updates: "neutral",
   approvals: "info",
 } as const satisfies Record<TaskLane, PillTone>;
@@ -88,7 +88,7 @@ const SHARED_STATUS_TONE: Readonly<Record<string, PillTone>> = {
   running: "info",
   done: "success",
   missing: "warning",
-  unhealthy: "danger",
+  unhealthy: "destructive",
   healthy: "success",
   disabled: "neutral",
 };
@@ -99,9 +99,9 @@ export function statusTone(status: string): PillTone {
 }
 
 const ATTENTION_TONE_ORDER: Readonly<Record<PillTone, number>> = {
-  danger: 0,
+  destructive: 0,
   warning: 1,
-  accent: 2,
+  brand: 2,
   info: 3,
   neutral: 4,
   success: 5,

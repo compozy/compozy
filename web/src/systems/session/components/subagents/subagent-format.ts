@@ -23,11 +23,11 @@ export function subagentDot(status: SubagentStatus): SubagentDotSignal {
     case "running":
       return { tone: "success", pulse: true };
     case "waiting":
-      return { tone: "accent", pulse: false };
+      return { tone: "brand", pulse: false };
     case "completed":
       return { tone: "success", pulse: false };
     case "failed":
-      return { tone: "danger", pulse: false };
+      return { tone: "destructive", pulse: false };
     case "canceled":
     case "interrupted":
       return { tone: "faint", pulse: false };
@@ -59,7 +59,7 @@ export function firstLine(text: string | null | undefined): string {
   return "";
 }
 
-export type SubagentLineTwoTone = "default" | "danger";
+export type SubagentLineTwoTone = "default" | "destructive";
 
 export interface SubagentCardLines {
   /** Progress or result text under the title; empty when there is none (the trail carries the word). */
@@ -84,7 +84,7 @@ export function subagentCardLines(subagent: SubagentView): SubagentCardLines {
   } else {
     text = firstLine(subagent.result_preview) || firstLine(subagent.progress);
   }
-  return { lineTwo: text, lineTwoTone: failed ? "danger" : "default" };
+  return { lineTwo: text, lineTwoTone: failed ? "destructive" : "default" };
 }
 
 function parseMs(iso: string | null | undefined): number | null {
@@ -124,7 +124,7 @@ export function subagentElapsedClock(
 }
 
 /** Word ink: `live` for work in flight, `attention` for needs-you, `settled` for finished rows. */
-export type SubagentDisplayTone = "live" | "attention" | "danger" | "settled";
+export type SubagentDisplayTone = "live" | "attention" | "destructive" | "settled";
 
 /** One row's status, shared by every subagent surface (sidebar, roster, card, hover, group). */
 export interface SubagentDisplay {
@@ -175,7 +175,7 @@ export function subagentDisplay(
         ? display("idle", "Idle", "settled", subagentElapsedClock(subagent, options))
         : display("done", "Done", "settled", subagentElapsedClock(subagent, options));
     case "failed":
-      return display("failed", "Failed", "danger");
+      return display("failed", "Failed", "destructive");
     case "canceled":
       return display("stopped", "Canceled", "settled");
     case "interrupted":
@@ -404,7 +404,7 @@ export function subagentCounts(subagents: readonly SubagentView[]): SubagentCoun
   for (const { tone } of subagents.map(subagent => subagentDisplay(subagent))) {
     if (tone === "live" || tone === "attention") counts.live += 1;
     if (tone === "attention") counts.attention += 1;
-    if (tone === "danger") counts.failed += 1;
+    if (tone === "destructive") counts.failed += 1;
   }
   return counts;
 }

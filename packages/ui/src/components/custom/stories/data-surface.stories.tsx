@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { KeyRound } from "lucide-react";
 
+import { KeyRound } from "../../../icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../table";
 import { ListingRowSkeleton } from "../content-skeleton";
 import { DataSurface, type DataSurfaceState } from "../data-surface";

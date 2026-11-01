@@ -129,7 +129,7 @@ export function SettingsSkillsScopeNotice({ kind }: { kind: "agent" | "repositor
         title="Set by the active profile"
         data-testid="settings-page-skills-repository-profile-note"
       >
-        <p className="px-4 py-3 text-small-body text-muted">
+        <p className="px-4 py-3 text-small-body text-muted-foreground">
           This project uses the active profile&apos;s settings and can&apos;t be edited here.
         </p>
       </SettingsGroup>
@@ -140,7 +140,7 @@ export function SettingsSkillsScopeNotice({ kind }: { kind: "agent" | "repositor
       title="Other skill settings"
       data-testid="settings-page-skills-agent-policy-note"
     >
-      <p className="px-4 py-3 text-small-body text-muted">
+      <p className="px-4 py-3 text-small-body text-muted-foreground">
         For a single agent you can only turn skills off. Everything else on this page is set for you
         as a whole.
       </p>

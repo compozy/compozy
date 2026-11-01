@@ -5,7 +5,7 @@ title: Preserve truthful and accessible async UI across Web systems
 persona: Bruno
 journey: J-operate-desktop-shell
 expected: Known-geometry first loads render stable Skeleton geometry for the selected rows or cards view; action-pending feedback remains local while conflicting mutations are serialized; controls backed by unavailable data stay disabled; custom filter menus expose each supported comparison exactly once; schedule previews refresh on their second or minute boundary, including after invalid input becomes valid; focus remains visible on revealed actions and disclosures; operational errors do not invalidate unrelated form fields; errors are announced; and motion is interruptible, composited, and reduced-motion safe.
-entry_points: Web Agents, Automations, Loops, Marketplace, Notifications, Onboarding, Scheduler, Settings, Tasks, Vault, and Session surfaces; shared Filters and Stepper; Web and UI Storybook
+entry_points: Web Agents, Automations, Loops, Marketplace, Notifications, Onboarding, Scheduler, Settings, Tasks, Vault, and Session surfaces; shared Filters; Web and UI Storybook
 qa_status: skipped
 bug_ids:
 fix_status:

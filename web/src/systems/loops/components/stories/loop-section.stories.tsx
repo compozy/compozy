@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { History } from "lucide-react";
+import { History } from "@compozy/ui/icons";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 

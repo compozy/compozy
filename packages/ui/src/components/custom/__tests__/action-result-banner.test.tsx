@@ -19,9 +19,9 @@ describe("ActionResultBanner", () => {
   });
 
   it("Should expose role=status and a tone data attribute", () => {
-    const { container } = render(<ActionResultBanner tone="danger" title="Failed" />);
+    const { container } = render(<ActionResultBanner tone="destructive" title="Failed" />);
     const root = container.querySelector<HTMLElement>('[data-slot="action-result-banner"]');
     expect(root?.getAttribute("role")).toBe("status");
-    expect(root?.dataset.tone).toBe("danger");
+    expect(root?.dataset.tone).toBe("destructive");
   });
 });

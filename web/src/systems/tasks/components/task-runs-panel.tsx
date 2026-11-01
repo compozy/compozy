@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ChevronRight, CornerUpLeft, Play } from "lucide-react";
+import { AlertCircle, ChevronRight, CornerUpLeft, Play } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -123,7 +123,7 @@ function RunRow({
           </span>
         </LinkedRecordTableCell>
         <LinkedRecordTableCell>
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-small-body text-muted">
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-small-body text-muted-foreground">
             {claimant ? (
               <>
                 <OwnerAvatar
@@ -139,16 +139,16 @@ function RunRow({
             )}
           </span>
         </LinkedRecordTableCell>
-        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted">
+        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted-foreground">
           {run.started_at ? <Time iso={run.started_at} mode="relative" /> : "—"}
         </LinkedRecordTableCell>
-        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted">
+        <LinkedRecordTableCell className="text-form-label tabular-nums text-muted-foreground">
           {duration ?? "—"}
         </LinkedRecordTableCell>
         <LinkedRecordTableCell
           className={cn(
             "max-w-48 truncate text-form-label",
-            run.status === "failed" ? "text-danger" : "text-muted"
+            run.status === "failed" ? "text-destructive" : "text-muted-foreground"
           )}
         >
           {resultText ?? "—"}
@@ -291,7 +291,7 @@ export function TaskRunsPanel({
     <div className="flex flex-col gap-2">
       {errorMessage ? (
         <p
-          className="text-small-body text-danger"
+          className="text-small-body text-destructive"
           data-testid="tasks-runs-background-error"
           role="alert"
         >

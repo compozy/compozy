@@ -1,4 +1,4 @@
-import { ListChecks, RefreshCcw, UserCheck, Zap } from "lucide-react";
+import { ListChecks, RefreshCcw, UserCheck, Zap } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyPanel, CatalogEmptyState } from "@/components/catalog-empty-state";

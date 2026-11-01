@@ -1,4 +1,4 @@
-import { ListFilter } from "lucide-react";
+import { ListFilter } from "@compozy/ui/icons";
 import type { RefObject } from "react";
 
 import {
@@ -107,7 +107,10 @@ function AgentFleetToolbar({
       {showViewToggle || definitionsFor ? (
         <ListingToolbar.Trailing>
           {definitionsFor ? (
-            <span className="text-micro text-muted" data-testid="agent-fleet-definitions-for">
+            <span
+              className="text-micro text-muted-foreground"
+              data-testid="agent-fleet-definitions-for"
+            >
               Definitions for {definitionsFor}
             </span>
           ) : null}

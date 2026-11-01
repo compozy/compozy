@@ -20,23 +20,23 @@ function loadMermaid() {
           themeVariables: {
             background: "var(--color-rail)",
             primaryColor: "var(--color-canvas-soft)",
-            primaryBorderColor: "var(--color-accent)",
+            primaryBorderColor: "var(--color-brand)",
             primaryTextColor: "var(--color-fg)",
             secondaryColor: "var(--color-elevated)",
-            tertiaryColor: "var(--color-accent-ink)",
-            lineColor: "var(--color-muted)",
+            tertiaryColor: "var(--color-brand-ink)",
+            lineColor: "var(--color-muted-foreground)",
             textColor: "var(--color-fg)",
             mainBkg: "var(--color-canvas-soft)",
-            nodeBorder: "var(--color-accent)",
-            clusterBkg: "var(--color-accent-ink)",
+            nodeBorder: "var(--color-brand)",
+            clusterBkg: "var(--color-brand-ink)",
             clusterBorder: "var(--color-elevated)",
-            edgeLabelBackground: "var(--color-accent-ink)",
+            edgeLabelBackground: "var(--color-brand-ink)",
             actorBkg: "var(--color-canvas-soft)",
-            actorBorder: "var(--color-accent)",
+            actorBorder: "var(--color-brand)",
             actorTextColor: "var(--color-fg)",
             noteBkgColor: "var(--color-canvas-soft)",
             noteBorderColor: "var(--color-elevated)",
-            noteTextColor: "var(--color-muted)",
+            noteTextColor: "var(--color-muted-foreground)",
             fontFamily: "var(--font-sans)",
           },
         });
@@ -118,21 +118,21 @@ export function Mermaid({ chart, caption }: { chart: string; caption?: string })
         />
       ) : state.error ? (
         <div>
-          <Eyebrow className="text-accent">Diagram source</Eyebrow>
-          <p className="mt-2 text-sm leading-6 text-muted">
+          <Eyebrow className="text-brand">Diagram source</Eyebrow>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Mermaid could not render this diagram in the current browser session.
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-md border border-line bg-rail p-3 text-xs leading-6 text-muted">
+          <pre className="mt-4 overflow-x-auto rounded-md border border-line bg-rail p-3 text-xs leading-6 text-muted-foreground">
             <code>{chart}</code>
           </pre>
           <p className="mt-3 text-sm leading-6 text-subtle">{state.error}</p>
         </div>
       ) : (
-        <p className="text-sm leading-6 text-muted">Rendering diagram…</p>
+        <p className="text-sm leading-6 text-muted-foreground">Rendering diagram…</p>
       )}
 
       {caption ? (
-        <figcaption className="mt-3 text-sm leading-6 text-muted">{caption}</figcaption>
+        <figcaption className="mt-3 text-sm leading-6 text-muted-foreground">{caption}</figcaption>
       ) : null}
     </figure>
   );

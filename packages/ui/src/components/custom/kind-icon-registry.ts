@@ -1,6 +1,6 @@
-import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "lucide-react";
 import { createElement, type ComponentType, type ReactNode, type SVGProps } from "react";
 
+import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "../../icons";
 import { AntigravityLogo } from "../../logos/antigravity";
 import { ClaudeLogo } from "../../logos/claude";
 import { CursorLogo } from "../../logos/cursor";

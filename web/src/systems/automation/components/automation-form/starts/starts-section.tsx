@@ -1,4 +1,4 @@
-import { Clock3, Radio, Webhook } from "lucide-react";
+import { Clock3, Radio, Webhook } from "@compozy/ui/icons";
 
 import type { AutomationFormDraft } from "../../../lib/automation-form-draft";
 import { EDITOR_EVENT_CARDS } from "../../../lib/automation-form-events";

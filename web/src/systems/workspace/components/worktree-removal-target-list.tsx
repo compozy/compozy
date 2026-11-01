@@ -1,4 +1,4 @@
-import { Check, CircleX, TriangleAlert } from "lucide-react";
+import { Check, CircleX, TriangleAlert } from "@compozy/ui/icons";
 
 import { Spinner, cn } from "@compozy/ui";
 
@@ -50,7 +50,7 @@ function TargetStatusGlyph({ result }: { result: WorktreeRemovalTargetResult }) 
       return result.refusal?.risk ? (
         <TriangleAlert aria-hidden="true" className="size-3.5 text-warning" />
       ) : (
-        <CircleX aria-hidden="true" className="size-3.5 text-danger" />
+        <CircleX aria-hidden="true" className="size-3.5 text-destructive" />
       );
     default:
       return (
@@ -97,7 +97,7 @@ function WorktreeRemovalTargetRow({
         )}
         {/* The force step's detailed blockers already say why; the refusal sentence would repeat it. */}
         {failed && result.message && !(detailedRisk && result.refusal?.risk) ? (
-          <span role="alert" className="mt-1 text-form-hint text-muted">
+          <span role="alert" className="mt-1 text-form-hint text-muted-foreground">
             {result.message}
           </span>
         ) : null}

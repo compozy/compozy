@@ -115,7 +115,7 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
   }
   if (view.groups.length === 0) {
     return (
-      <p className="px-3 py-8 text-center text-small-body text-muted">
+      <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
         {emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.
       </p>
     );

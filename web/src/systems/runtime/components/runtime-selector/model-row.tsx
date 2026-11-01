@@ -1,4 +1,4 @@
-import { Brain, Check, Star } from "lucide-react";
+import { Brain, Check, Star } from "@compozy/ui/icons";
 
 import {
   cn,
@@ -91,7 +91,7 @@ function ModelRowLabel({
         {model.name}
       </span>
       {modelProvider ? (
-        <span className="truncate text-small-body text-muted">{modelProvider}</span>
+        <span className="truncate text-small-body text-muted-foreground">{modelProvider}</span>
       ) : null}
       <span className="sr-only">from {providerName}</span>
       {modelReasons(model) ? (
@@ -140,7 +140,7 @@ function ModelRowTrailing({
         aria-hidden="true"
         data-favorite-indicator={boolAttr(favorite)}
         className={cn(
-          "grid size-6 shrink-0 place-items-center rounded transition-opacity",
+          "grid size-6 shrink-0 place-items-center rounded-md transition-opacity",
           favorite
             ? "text-warning opacity-100"
             : "text-faint opacity-0 hover:text-fg group-hover:opacity-100 group-data-[highlighted=true]:opacity-100 [@media(pointer:coarse)]:opacity-100"

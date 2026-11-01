@@ -1,6 +1,6 @@
 import { useAui, useAuiState } from "@assistant-ui/react";
 import type { Attachment } from "@assistant-ui/react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 import { isImageAttachmentMime } from "@/systems/session/lib/attachment-kinds";

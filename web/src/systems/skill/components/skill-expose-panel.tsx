@@ -42,11 +42,11 @@ export function SkillExposePanel({
     <div className="flex flex-col gap-2.5 px-3.5 py-1.5" data-testid={TEST_ID}>
       {model.failure !== null ? (
         <div
-          className="flex flex-col gap-1.5 rounded-md border border-danger-line bg-danger-tint px-3 py-2"
+          className="flex flex-col gap-1.5 rounded-md border bg-destructive-tint px-3 py-2"
           data-testid={`${TEST_ID}-failure`}
           role="alert"
         >
-          <p className="text-small-body text-danger">
+          <p className="text-small-body text-destructive">
             <b className="font-medium">Couldn&rsquo;t update exposures.</b> {model.failure}
             {model.rolledBack ? " The target that had finished was undone." : ""}
           </p>
@@ -112,7 +112,7 @@ function exposureStatusText(
 }
 
 function exposureStatusClass(exposure: SkillExposureView, pending: boolean): string {
-  return !pending && exposure.repairable ? "text-danger" : "text-subtle";
+  return !pending && exposure.repairable ? "text-destructive" : "text-subtle";
 }
 
 /** A foreign entry is reported, never touched: no repair, no removal. */
@@ -257,7 +257,7 @@ function ResultLedger({
           key={result.target}
         >
           <span className="text-fg">{labelForTarget(result.target)}</span>
-          <span className={result.ok ? "text-subtle" : "text-danger"}>{result.sentence}</span>
+          <span className={result.ok ? "text-subtle" : "text-destructive"}>{result.sentence}</span>
           {result.code !== null ? (
             <MonoId className="text-faint" preserveCase value={result.code} />
           ) : null}

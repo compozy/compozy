@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "@compozy/ui/icons";
 
 import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@compozy/ui";
 
@@ -101,7 +101,7 @@ function sessionErrorDescription(event: AgentEventPayload): string {
 function markerTone(marker: TranscriptMarkerPayload | null) {
   const kind = marker?.kind ?? "";
   if (kind.includes("failure") || kind.includes("interrupted")) {
-    return "danger" as const;
+    return "destructive" as const;
   }
   if (kind.includes("timeout")) {
     // The daemon's timeout marker names its evidence: a failure kind earns
@@ -109,7 +109,7 @@ function markerTone(marker: TranscriptMarkerPayload | null) {
     // a warning — the session stopped, nothing broke.
     const failureKind = marker?.evidence?.failure_kind;
     const supervised = marker?.evidence?.stop_reason === "timeout" && failureKind === "";
-    return supervised ? ("warning" as const) : ("danger" as const);
+    return supervised ? ("warning" as const) : ("destructive" as const);
   }
   if (kind.includes("recovered") || kind.includes("runtime_changed")) {
     return "info" as const;
@@ -199,7 +199,7 @@ function SessionErrorNotice({ event, count }: { event: AgentEventPayload; count:
       role="alert"
       data-testid="session-error-notice"
       data-failure-kind={failureKind || undefined}
-      tone="danger"
+      tone="destructive"
       icon={<AlertCircle />}
     >
       <b>Session failed</b> —{" "}

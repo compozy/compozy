@@ -22,14 +22,14 @@ function goalState(snapshot: SessionGoalSnapshot): {
   if (snapshot.run_status === "done" || snapshot.status === "complete")
     return { state: "done", label: "Complete", tone: "success" };
   if (snapshot.run_status === "failed")
-    return { state: "blocked", label: "Failed", tone: "danger" };
+    return { state: "blocked", label: "Failed", tone: "destructive" };
   if (snapshot.run_status === "needs-approval")
     return { state: "blocked", label: "Needs approval", tone: "warning" };
   if (snapshot.run_status === "paused" || snapshot.status === "paused")
     return { state: "paused", label: "Paused", tone: "warning" };
   if (snapshot.pause_requested) return { state: "pausing", label: "Pausing…", tone: "warning" };
   if (snapshot.status === "active" && snapshot.live)
-    return { state: "active", label: "Active", tone: "accent" };
+    return { state: "active", label: "Active", tone: "brand" };
   if (snapshot.status === "budget-limited")
     return { state: "blocked", label: "Budget reached", tone: "warning" };
   if (snapshot.status === "usage-limited")

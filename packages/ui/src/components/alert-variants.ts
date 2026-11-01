@@ -12,7 +12,7 @@ const alertVariants = cva(
     "has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18",
     "has-[>svg]:grid-cols-[auto_1fr]",
     "*:data-[slot=alert-title]:text-fg",
-    "*:data-[slot=alert-description]:text-muted",
+    "*:data-[slot=alert-description]:text-muted-foreground",
     "*:[svg]:row-span-full *:[svg]:translate-y-0.5 *:[svg:not([class*='size-'])]:size-3.5",
   ].join(" "),
   {
@@ -20,11 +20,11 @@ const alertVariants = cva(
       variant: {
         default: "[&>svg]:text-subtle",
         neutral: "[&>svg]:text-subtle",
-        danger: "[&>svg]:text-danger",
+        destructive: "[&>svg]:text-destructive",
         warning: "bg-warning-tint [&>svg]:text-warning",
         success: "bg-success-tint [&>svg]:text-success",
         info: "bg-info-tint [&>svg]:text-info",
-        accent: "bg-accent-tint [&>svg]:text-accent",
+        brand: "bg-brand-tint [&>svg]:text-brand",
       },
     },
     defaultVariants: {

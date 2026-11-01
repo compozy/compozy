@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "lucide-react";
+import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "@compozy/ui/icons";
 
 import {
   cn,
@@ -69,7 +69,7 @@ export function SessionEnvironmentChip({
   );
   const toneClass = cn(
     state === "pending" && "border-dashed text-warning [&_svg]:text-warning",
-    state === "failed" && "border-dashed text-danger [&_svg]:text-danger",
+    state === "failed" && "border-dashed text-destructive [&_svg]:text-destructive",
     state === "new" && "border-dashed"
   );
 

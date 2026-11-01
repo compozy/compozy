@@ -15,7 +15,7 @@ describe("cn", () => {
 
   it("Should keep every generated font-size class alongside a color utility", () => {
     const dropped = fontSizeClasses.filter(
-      size => !cn(`${size} text-muted`).split(" ").includes(size)
+      size => !cn(`${size} text-muted-foreground`).split(" ").includes(size)
     );
     expect(dropped).toEqual([]);
   });
@@ -25,7 +25,7 @@ describe("cn", () => {
   });
 
   it("Should still resolve two color utilities to the last one", () => {
-    expect(cn("text-fg text-muted")).toBe("text-muted");
+    expect(cn("text-fg text-muted-foreground")).toBe("text-muted-foreground");
   });
 
   it("Should let a caller's radius replace a variant's project radius", () => {

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "@compozy/ui/icons";
 import { useEffect, useRef, type ComponentProps, type KeyboardEvent } from "react";
 
 import {
@@ -165,7 +165,7 @@ export function SessionFindBar({
         />
         <span
           aria-live="polite"
-          className="inline-flex shrink-0 items-center gap-1.5 font-mono text-micro text-muted tabular-nums"
+          className="inline-flex shrink-0 items-center gap-1.5 font-mono text-micro text-muted-foreground tabular-nums"
           data-testid="session-find-count"
         >
           <FindStatus find={find} hasQuery={hasQuery} activeIndex={activeIndex} />
@@ -245,10 +245,10 @@ function FindStatus({
   activeIndex: number;
 }) {
   if (!hasQuery) return <FindKeys />;
-  if (find.isError) return <span className="text-danger">Couldn&apos;t search</span>;
+  if (find.isError) return <span className="text-destructive">Couldn&apos;t search</span>;
   if (find.jumpError !== null)
     return (
-      <span className="text-danger" data-testid="session-find-jump-error">
+      <span className="text-destructive" data-testid="session-find-jump-error">
         {jumpErrorText(find.jumpError)}
       </span>
     );
@@ -319,7 +319,7 @@ function FindResults({
         </div>
       ) : (
         <p
-          className="px-3 py-2 text-eyebrow text-muted"
+          className="px-3 py-2 text-eyebrow text-muted-foreground"
           data-testid="session-find-empty"
           role="status"
         >
@@ -369,7 +369,7 @@ function SessionFindMatchRow({
       className={cn(
         "flex min-w-0 items-baseline gap-2 px-3 py-1.5 text-left text-transcript-body",
         "transition-colors duration-fast ease-out hover:bg-surface-2",
-        active ? "bg-selected text-fg" : "text-muted"
+        active ? "bg-selected text-fg" : "text-muted-foreground"
       )}
     >
       <span className="w-14 shrink-0 truncate text-eyebrow text-subtle">
@@ -383,7 +383,7 @@ function SessionFindMatchRow({
               data-testid="session-find-mark"
               className={cn(
                 "rounded-xxs px-px text-inherit",
-                active ? "bg-accent-tint-strong ring-1 ring-accent-dim" : "bg-surface-2"
+                active ? "bg-brand-tint-strong ring-1 ring-brand-dim" : "bg-surface-2"
               )}
             >
               {segment.text}

@@ -224,7 +224,7 @@ describe("loop-runs-view", () => {
     expect(loopBudgetBar({ tokens_used: 1_900_000, budget_tokens: 2_000_000 }).tone).toBe("warn");
     expect(loopBudgetBar({ tokens_used: 2_000_000, budget_tokens: 2_000_000 })).toMatchObject({
       percent: 100,
-      tone: "danger",
+      tone: "destructive",
     });
   });
 });

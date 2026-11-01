@@ -29,7 +29,7 @@ function HookChunks({ chunks }: { chunks: readonly WorktreeExitHookChunk[] }) {
     >
       {chunks.map((chunk, index) => (
         <span
-          className={cn(chunk.stream === "stderr" && "text-danger")}
+          className={cn(chunk.stream === "stderr" && "text-destructive")}
           data-stream={chunk.stream}
           key={`${chunk.stream}-${index}`}
         >
@@ -70,7 +70,10 @@ export function WorktreeExitProgress({
       <WorktreePhaseSteps phases={progress.phases} />
       {streaming?.chunks?.length ? <HookChunks chunks={streaming.chunks} /> : null}
       {progress.message ? (
-        <p className="text-eyebrow leading-normal text-danger" data-slot="worktree-exit-message">
+        <p
+          className="text-eyebrow leading-normal text-destructive"
+          data-slot="worktree-exit-message"
+        >
           {progress.message}
         </p>
       ) : null}

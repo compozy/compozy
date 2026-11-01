@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Check, ClipboardCheck } from "lucide-react";
 import { expect, waitFor, within } from "storybook/test";
 
+import { Check, ClipboardCheck } from "../../../icons";
 import { Dialog, DialogContent } from "../../dialog";
 import { dialogShellClass } from "../../../lib/dialog-shell";
 import { EntityDialogFooter } from "../entity-dialog-footer";
@@ -15,7 +15,7 @@ const meta: Meta<typeof EntityDialogFooter> = {
     docs: {
       description: {
         component:
-          "Modal footer contract: an optional consequence hint on the left, then Cancel and exactly one verb+object primary action. `EditorFooter` remains the page/sheet editor footer.",
+          "Modal footer contract: an optional consequence hint on the left, then Cancel and exactly one verb+object primary action.",
       },
     },
   },
@@ -34,7 +34,7 @@ function FooterHost({ children }: { children: React.ReactNode }) {
         unframed
       >
         <EntityDialogHeader eyebrow="Autonomy · Task" icon={ClipboardCheck} title="Create task" />
-        <div className="px-6 py-5 text-small-body text-muted">Body region.</div>
+        <div className="px-6 py-5 text-small-body text-muted-foreground">Body region.</div>
         {children}
       </DialogContent>
     </Dialog>

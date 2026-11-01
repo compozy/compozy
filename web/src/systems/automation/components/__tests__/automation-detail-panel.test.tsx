@@ -9,7 +9,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
@@ -36,8 +36,6 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-
 import {
   AutomationDetailPanel,
   type AutomationDetailPanelProps,
@@ -58,6 +56,11 @@ import {
   rerunDeliveryTrigger,
   summarizeFailuresTrigger,
 } from "../../mocks/detail-fixtures";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 const NOW = new Date("2026-10-07T19:00:00Z");
 const ctx = { workspaceName: (id: string) => (id === "ws_checkout_api" ? "checkout-api" : id) };
@@ -381,7 +384,7 @@ describe("AutomationDetailPanel", () => {
       const drawer = screen.getByTestId("automation-run-drawer-run_failed");
       expect(within(drawer).getByText("Agent summarizer was not available")).toHaveAttribute(
         "data-tone",
-        "danger"
+        "destructive"
       );
       expect(drawer).toHaveTextContent("Attempt 2.");
       fireEvent.click(within(drawer).getByRole("button", { name: "Set up retries" }));
@@ -602,7 +605,7 @@ describe("AutomationDetailPanel", () => {
           ingress: { ...deployWebhookTrigger.ingress!, reachability: "broken" },
         })
       );
-      expect(screen.getByText("Broken")).toHaveAttribute("data-tone", "danger");
+      expect(screen.getByText("Broken")).toHaveAttribute("data-tone", "destructive");
       expect(screen.getByTestId("automation-rail-security")).toHaveTextContent(
         "Signing secretNot set"
       );

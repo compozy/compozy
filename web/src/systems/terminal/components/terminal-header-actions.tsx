@@ -1,4 +1,4 @@
-import { CircleStop, Ellipsis, Plus, ScrollText } from "lucide-react";
+import { CircleStop, Ellipsis, Plus, ScrollText } from "@compozy/ui/icons";
 
 import {
   Button,

@@ -1,8 +1,8 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
+import type { LucideIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Eyebrow } from "./eyebrow";
 import { HelpTip } from "./help-tip";
@@ -77,7 +77,7 @@ function FormSection({
         {rightLabel ? (
           <Eyebrow
             data-slot="form-section-right-label"
-            className="ml-auto min-w-0 truncate text-muted"
+            className="ml-auto min-w-0 truncate text-muted-foreground"
           >
             {rightLabel}
           </Eyebrow>
@@ -86,7 +86,7 @@ function FormSection({
       {description ? (
         <p
           data-slot="form-section-description"
-          className="mb-3 text-form-hint leading-normal text-muted"
+          className="mb-3 text-form-hint leading-normal text-muted-foreground"
         >
           {description}
         </p>

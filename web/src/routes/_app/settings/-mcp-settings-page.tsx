@@ -1,4 +1,4 @@
-import { AlertCircle, Cable, Plus, SearchX } from "lucide-react";
+import { AlertCircle, Cable, Plus, SearchX } from "@compozy/ui/icons";
 
 import {
   Button,

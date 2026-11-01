@@ -46,7 +46,7 @@ export function FeaturesSection() {
           <li key={feature.eyebrow}>
             <article
               data-testid="feature-card"
-              className="group flex h-full min-h-105 flex-col overflow-hidden rounded-diagram border border-line bg-canvas-soft p-4 transition-colors duration-slow hover:border-accent/40 sm:p-5"
+              className="group flex h-full min-h-105 flex-col overflow-hidden rounded-diagram border border-line bg-canvas-soft p-4 transition-colors duration-slow hover:border-brand/40 sm:p-5"
             >
               <div className="overflow-hidden rounded-md">
                 <Image
@@ -61,11 +61,13 @@ export function FeaturesSection() {
                 />
               </div>
               <div className="flex flex-1 flex-col pt-5">
-                <Eyebrow className="text-accent">{feature.eyebrow}</Eyebrow>
+                <Eyebrow className="text-brand">{feature.eyebrow}</Eyebrow>
                 <h3 className="mt-3 text-base font-medium leading-snug tracking-tight text-fg">
                   {feature.title}
                 </h3>
-                <p className="mt-3 text-sm leading-relaxed text-muted">{feature.description}</p>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  {feature.description}
+                </p>
               </div>
             </article>
           </li>

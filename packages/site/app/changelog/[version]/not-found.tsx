@@ -9,10 +9,10 @@ export default function ChangelogReleaseNotFound() {
         <h1 className="mt-4 font-sans text-3xl font-semibold tracking-tight text-fg">
           This version is not in the public changelog.
         </h1>
-        <p className="mt-4 text-muted">
+        <p className="mt-4 text-muted-foreground">
           The site lists published GitHub releases from v0.3.0-beta.1 onward.
         </p>
-        <Link href="/changelog" className="mt-7 inline-flex text-sm font-medium text-accent">
+        <Link href="/changelog" className="mt-7 inline-flex text-sm font-medium text-brand">
           Browse all releases →
         </Link>
       </div>

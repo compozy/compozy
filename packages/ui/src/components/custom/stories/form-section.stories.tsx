@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Bot, Clock, ShieldCheck } from "lucide-react";
 
 import {
   Field,
@@ -11,6 +10,8 @@ import {
   Input,
   Textarea,
 } from "@compozy/ui";
+
+import { Bot, Clock, ShieldCheck } from "../../../icons";
 
 const meta: Meta<typeof FormSection> = {
   title: "components/custom/FormSection",

@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Button, cn, Pill, Spinner } from "@compozy/ui";
 
@@ -64,12 +64,12 @@ function SettingsSaveBar({ slug, state, onSave, onReset, className }: SettingsSa
           {isSaving ? (
             <Spinner className="size-3 shrink-0 text-warning" />
           ) : isError ? (
-            <AlertCircle aria-hidden="true" className="size-3.5 shrink-0 text-danger" />
+            <AlertCircle aria-hidden="true" className="size-3.5 shrink-0 text-destructive" />
           ) : (
             <Pill.Dot className="size-settings-save-dot" tone={dotTone} />
           )}
           <span
-            className={cn("min-w-0 break-words", isError && "text-danger")}
+            className={cn("min-w-0 break-words", isError && "text-destructive")}
             data-testid={`settings-page-${slug}-save-message`}
           >
             {messageFor(state)}

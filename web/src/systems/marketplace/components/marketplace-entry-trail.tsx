@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 
 import { Button, Pill, Spinner } from "@compozy/ui";
 
@@ -74,7 +74,7 @@ function MarketplaceCatalogTrail({
         data-testid={`marketplace-blocked-${entry.entry_id}`}
         form="plain"
         title={entry.install_blocker?.trim() || DEFAULT_INSTALL_BLOCKER}
-        tone="danger"
+        tone="destructive"
       >
         <Pill.Dot />
         Blocked
@@ -105,7 +105,7 @@ function MarketplaceCatalogTrail({
   if (entry.installed) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-muted"
+        className="inline-flex items-center gap-1.5 text-eyebrow font-medium text-muted-foreground"
         data-testid={`marketplace-installed-${entry.entry_id}`}
       >
         <Check aria-hidden="true" className="size-3" />

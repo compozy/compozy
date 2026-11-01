@@ -1,5 +1,5 @@
 import type { DirectiveChipProps } from "@assistant-ui/react-lexical";
-import { Blocks } from "lucide-react";
+import { Blocks } from "@compozy/ui/icons";
 
 import { SessionMentionChip } from "./session-composer-mention-chip";
 import { MENTION_DIRECTIVE_TYPE, parseMentionDirectiveId } from "./session-mention-model";

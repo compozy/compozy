@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { placeId } from "../lib/session-folders";
 import { sessionAdoptRefusal } from "../lib/session-reparent";

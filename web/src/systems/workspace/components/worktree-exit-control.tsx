@@ -3,7 +3,7 @@ import {
   GitBranchIcon,
   GitCommitHorizontalIcon,
   GitPullRequestIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentType } from "react";
 
 import {
@@ -89,7 +89,7 @@ export function WorktreeExitControl({
             const reason = ladder.blocked ? ladder.blockedReason : row.blockedReason;
             return (
               <DropdownMenuItem
-                className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-start [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-muted"
+                className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-start [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-muted-foreground"
                 data-action={row.action}
                 data-blocked={blocked ? "" : undefined}
                 data-publish={row.publish ? "" : undefined}

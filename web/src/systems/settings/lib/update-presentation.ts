@@ -62,7 +62,7 @@ const STATUS_TONES: Record<SettingsUpdateStatusKind, PillTone> = {
   applying: "info",
   staged: "info",
   blocked: "warning",
-  failed: "danger",
+  failed: "destructive",
   unsupported: "neutral",
   canceled: "neutral",
 };

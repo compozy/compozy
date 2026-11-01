@@ -51,7 +51,7 @@ describe("runtimeApplyNotice", () => {
     );
     expect(notice).toEqual({
       text: "Couldn't apply this now. It retries with the next message.",
-      tone: "danger",
+      tone: "destructive",
     });
   });
 
@@ -80,7 +80,7 @@ describe("runtimeApplyNotice", () => {
       },
       "next_step"
     );
-    expect(notice?.tone).toBe("danger");
+    expect(notice?.tone).toBe("destructive");
   });
 
   it("Should treat a refused ACP option as not applied even when the other fields match", () => {
@@ -97,7 +97,7 @@ describe("runtimeApplyNotice", () => {
       },
       "next_step"
     );
-    expect(notice?.tone).toBe("danger");
+    expect(notice?.tone).toBe("destructive");
   });
 });
 
@@ -125,7 +125,7 @@ describe("currentRuntimeApplyNotice", () => {
       },
     };
     const target = { saved: refused, liveApply: "next_step" as const };
-    expect(currentRuntimeApplyNotice(target, refused)?.tone).toBe("danger");
+    expect(currentRuntimeApplyNotice(target, refused)?.tone).toBe("destructive");
     expect(
       currentRuntimeApplyNotice(target, {
         badge: "idle",

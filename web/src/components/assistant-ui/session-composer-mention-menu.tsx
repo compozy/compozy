@@ -3,7 +3,7 @@ import {
   type Unstable_TriggerItem,
   unstable_useTriggerPopoverScopeContext as useTriggerPopoverScopeContext,
 } from "@assistant-ui/react";
-import { File, Folder, MessagesSquare } from "lucide-react";
+import { File, Folder, MessagesSquare } from "@compozy/ui/icons";
 import { Fragment, useState } from "react";
 
 import { formatRelativeTime } from "@compozy/ui";

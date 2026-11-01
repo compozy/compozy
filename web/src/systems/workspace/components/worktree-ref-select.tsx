@@ -1,4 +1,4 @@
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {

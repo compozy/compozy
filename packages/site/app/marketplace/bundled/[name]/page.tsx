@@ -54,7 +54,7 @@ function SectionHead({
       id={id}
       className="flex items-center gap-2 text-lg font-semibold tracking-[-0.01em] text-fg"
     >
-      <Icon aria-hidden className="size-4 text-muted" />
+      <Icon aria-hidden className="size-4 text-muted-foreground" />
       {children}
     </h2>
   );
@@ -70,7 +70,7 @@ function InventoryLabel({ children }: { children: string }) {
 
 function Chip({ icon: Icon, children }: { icon: typeof FileCode; children: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-canvas-soft px-2 py-1 font-mono text-badge text-muted">
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-canvas-soft px-2 py-1 font-mono text-badge text-muted-foreground">
       <Icon aria-hidden className="size-3 shrink-0 opacity-70" />
       {children}
     </span>
@@ -96,11 +96,11 @@ export default async function BundledExtensionPage({ params }: PageProps) {
           <h1 className="text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
             {extension.displayName}
           </h1>
-          <p className="mt-2.5 text-site-doc-lead text-muted">{extension.description}</p>
+          <p className="mt-2.5 text-site-doc-lead text-muted-foreground">{extension.description}</p>
         </div>
       </header>
 
-      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted">
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted-foreground">
         <code className="font-mono text-badge text-subtle">v{extension.version}</code>
         <Pill size="sm">
           <ShieldCheck aria-hidden className="size-3" />
@@ -115,7 +115,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
       </div>
 
       <div className="mt-7 rounded-lg border border-line bg-canvas-soft p-4">
-        <p className="text-small-body leading-relaxed text-muted">
+        <p className="text-small-body leading-relaxed text-muted-foreground">
           <strong className="font-medium text-fg">No install needed.</strong>{" "}
           {extension.displayName} is compiled into the compozy binary and enrolled the first time
           the daemon starts, so it is already present in your runtime. Installing your own extension
@@ -136,7 +136,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
             return (
               <article key={loop.name} className="rounded-xl border border-line bg-canvas-soft p-4">
                 <p className="flex flex-wrap items-center gap-2 font-mono text-card-title font-medium text-fg">
-                  <Repeat aria-hidden className="size-3.5 shrink-0 text-muted" />
+                  <Repeat aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
                   {loop.name}
                   {loop.category ? (
                     <Pill size="sm" mono>
@@ -144,18 +144,19 @@ export default async function BundledExtensionPage({ params }: PageProps) {
                     </Pill>
                   ) : null}
                 </p>
-                <p className="mt-2 text-small-body leading-relaxed text-muted">
+                <p className="mt-2 text-small-body leading-relaxed text-muted-foreground">
                   {loop.description}
                 </p>
                 {loop.useWhen ? (
                   <p className="mt-2.5 text-small-body leading-relaxed text-subtle">
-                    <strong className="font-medium text-muted">Use when</strong> {loop.useWhen}
+                    <strong className="font-medium text-muted-foreground">Use when</strong>{" "}
+                    {loop.useWhen}
                   </p>
                 ) : null}
                 {walkthroughUrl ? (
                   <Link
                     href={walkthroughUrl}
-                    className="mt-3.5 inline-flex text-small-body font-medium text-muted transition-colors hover:text-accent"
+                    className="mt-3.5 inline-flex text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
                   >
                     Read the walkthrough
                   </Link>
@@ -245,7 +246,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
                 href={extension.repositoryUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
+                className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
               >
                 {extension.repositoryUrl.replace(/^https:\/\//, "")}
               </a>
@@ -264,7 +265,7 @@ export default async function BundledExtensionPage({ params }: PageProps) {
         How bundled and installed extensions differ is covered in the{" "}
         <Link
           href="/docs/extensions/install"
-          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
+          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
         >
           extension install docs
         </Link>

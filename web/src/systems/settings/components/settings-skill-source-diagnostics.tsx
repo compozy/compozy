@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger } from "@compozy/ui";
@@ -44,7 +44,7 @@ export function SettingsSkillSourceDiagnostics({
             <DiagnosticRow label="skipped" testId={`${testId}-skipped`}>
               {diagnostics.skipped.map(skip => (
                 <p key={skip.path} title={skip.path}>
-                  <code className="font-mono text-badge text-muted">{skip.name}</code>{" "}
+                  <code className="font-mono text-badge text-muted-foreground">{skip.name}</code>{" "}
                   {skip.sentence}
                 </p>
               ))}
@@ -54,9 +54,13 @@ export function SettingsSkillSourceDiagnostics({
             <DiagnosticRow label="name clash" testId={`${testId}-collisions`}>
               {diagnostics.collisions.map(collision => (
                 <p key={collision.qualifiedForm}>
-                  <code className="font-mono text-badge text-muted">{collision.name}</code> also
-                  exists in {collision.winner} — that copy wins. This one stays available as{" "}
-                  <code className="font-mono text-badge text-muted">{collision.qualifiedForm}</code>
+                  <code className="font-mono text-badge text-muted-foreground">
+                    {collision.name}
+                  </code>{" "}
+                  also exists in {collision.winner} — that copy wins. This one stays available as{" "}
+                  <code className="font-mono text-badge text-muted-foreground">
+                    {collision.qualifiedForm}
+                  </code>
                 </p>
               ))}
             </DiagnosticRow>
@@ -84,7 +88,9 @@ function DiagnosticRow({
   return (
     <div className="flex min-w-0 items-baseline gap-2" data-testid={testId}>
       <dt className="eyebrow w-20 shrink-0 text-faint">{label}</dt>
-      <dd className="flex min-w-0 flex-col gap-0.5 text-form-hint text-muted">{children}</dd>
+      <dd className="flex min-w-0 flex-col gap-0.5 text-form-hint text-muted-foreground">
+        {children}
+      </dd>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { Repeat2 } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { Repeat2 } from "../../../icons";
 import { Avatar, AvatarFallback } from "../../avatar";
 import { Button } from "../../button";
 import { ListingRow } from "../listing-row";

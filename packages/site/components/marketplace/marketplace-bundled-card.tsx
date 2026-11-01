@@ -41,7 +41,7 @@ export function BundledExtensionCard({
           <CatalogCard.Title className="flex flex-wrap items-baseline gap-2">
             <Link
               href={href}
-              className="transition-colors hover:text-accent focus-visible:text-accent"
+              className="transition-colors hover:text-brand focus-visible:text-brand"
             >
               {name}
             </Link>
@@ -51,7 +51,7 @@ export function BundledExtensionCard({
           <CatalogCard.Description className="mt-1">{description}</CatalogCard.Description>
         </div>
       </div>
-      <CatalogCard.Meta className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-small-body text-muted">
+      <CatalogCard.Meta className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-small-body text-muted-foreground">
         <span className="font-mono text-badge text-subtle">{inventory}</span>
         <span aria-hidden className="h-0.5 w-0.5 rounded-full bg-subtle" />
         <span>Requires CompozyOS ≥ {minCompozyVersion}</span>
@@ -60,7 +60,7 @@ export function BundledExtensionCard({
         <MarketplaceInstallCommand command={statusCommand} className="min-w-0 flex-1 basis-64" />
         <Link
           href={href}
-          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted transition-colors hover:text-accent"
+          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
         >
           View details
           <ArrowRight aria-hidden className="size-3.5" />
@@ -88,7 +88,7 @@ export function BundledSkillCard({ name, description }: { name: string; descript
       <CatalogCard.Actions className="mt-1 flex flex-wrap items-center gap-3">
         <Link
           href="/docs/skills/bundled"
-          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted transition-colors hover:text-accent"
+          className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-brand"
         >
           How bundled skills load
           <ArrowRight aria-hidden className="size-3.5" />

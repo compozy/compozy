@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useCreateWorkspace, useWorkspaces } from "./use-workspaces";
 import { useDirectoryPathField } from "@/systems/onboarding";

@@ -84,7 +84,7 @@ export function TerminalLimitDialog({
                 size="sm"
               >
                 <ItemContent>
-                  <ItemTitle className="min-w-0 truncate font-normal text-muted">
+                  <ItemTitle className="min-w-0 truncate font-normal text-muted-foreground">
                     {terminalDisplayTitle(terminal)}
                   </ItemTitle>
                 </ItemContent>

@@ -116,7 +116,7 @@ function DeclarativePaletteViewFrame({
           rows: [],
           header: null,
           empty: (
-            <div className="space-y-3 px-3 py-6 text-center text-small-body text-muted">
+            <div className="space-y-3 px-3 py-6 text-center text-small-body text-muted-foreground">
               <p>{source ? `${source} view unavailable.` : "View unavailable."}</p>
               <Button size="sm" variant="secondary" onClick={model.retry}>
                 Retry
@@ -219,7 +219,7 @@ export function OsPaletteViewUnavailable({
         rows: [],
         header: null,
         empty: (
-          <p className="px-3 py-6 text-center text-small-body text-muted">
+          <p className="px-3 py-6 text-center text-small-body text-muted-foreground">
             {parseExtensionName(viewId) ?? viewId} view is not available in this client.
           </p>
         ),

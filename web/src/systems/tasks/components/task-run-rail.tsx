@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "@compozy/ui/icons";
 import type * as React from "react";
 
 import {
@@ -152,7 +152,7 @@ function TaskRunSessionSection({ run }: { run: TaskRunDetailView }) {
         />
       ) : (
         <PropertyRow label="Session">
-          <span className="text-muted">Not attached</span>
+          <span className="text-muted-foreground">Not attached</span>
         </PropertyRow>
       )}
       {claimant ? (
@@ -240,7 +240,7 @@ function TaskRunLineageSection({
         </SkeletonRegion>
       ) : null}
       {errorMessage ? (
-        <p className="py-1 text-form-label text-danger" role="alert">
+        <p className="py-1 text-form-label text-destructive" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -250,7 +250,7 @@ function TaskRunLineageSection({
           {next ? <LineageRow label="Next" target={next} taskId={taskId} /> : null}
           {!errorMessage && !hasLineage ? (
             <PropertyRow label="Attempts">
-              <span className="text-muted">No linked attempts</span>
+              <span className="text-muted-foreground">No linked attempts</span>
             </PropertyRow>
           ) : null}
         </>

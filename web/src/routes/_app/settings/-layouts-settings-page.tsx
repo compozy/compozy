@@ -1,4 +1,4 @@
-import { Download, Upload } from "lucide-react";
+import { Download, Upload } from "@compozy/ui/icons";
 import { useRef, type ReactNode } from "react";
 
 import { Button } from "@compozy/ui";

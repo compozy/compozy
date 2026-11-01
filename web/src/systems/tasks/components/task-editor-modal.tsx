@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ClipboardCheck } from "lucide-react";
+import { AlertCircle, ClipboardCheck } from "@compozy/ui/icons";
 
 import { Dialog, DialogContent, Empty, EntityDialogHeader, dialogShellClass } from "@compozy/ui";
 

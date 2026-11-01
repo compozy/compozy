@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Check, type LucideIcon, MessageSquare, Pencil, X } from "lucide-react";
+import { Check, type LucideIcon, MessageSquare, Pencil, X } from "@compozy/ui/icons";
 
 import { Field, FieldLabel, RadioCard, Textarea } from "@compozy/ui";
 
@@ -55,7 +55,7 @@ export function LoopRequestDecisionBar({
       {selected ? (
         <Field>
           <FieldLabel htmlFor={noteId}>
-            Note <span className="text-muted">optional</span>
+            Note <span className="text-muted-foreground">optional</span>
           </FieldLabel>
           <Textarea
             data-testid="loop-request-note"

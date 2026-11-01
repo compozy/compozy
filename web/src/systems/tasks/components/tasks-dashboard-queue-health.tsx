@@ -1,4 +1,4 @@
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check } from "@compozy/ui/icons";
 
 import {
   MetadataList,
@@ -29,7 +29,7 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
   const stuckRuns = health.stuck_runs;
   const orphanRuns = health.active_orphan_runs;
   const healthTone: PillTone =
-    health.status === "ok" ? "success" : health.status === "warning" ? "warning" : "danger";
+    health.status === "ok" ? "success" : health.status === "warning" ? "warning" : "destructive";
   const warningMessage = queue.backlog_warning
     ? `Queue older than ${formatDurationMs(queue.backlog_threshold_ms)}; oldest ${formatDurationMs(queue.oldest_queue_age_ms)}`
     : stuckRuns > 0
@@ -48,7 +48,7 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
       }
       title="Queue health"
     >
-      <p className="text-form-label text-muted">
+      <p className="text-form-label text-muted-foreground">
         {totals.runs_total} runs tracked · {totals.completed_runs} completed
       </p>
 
@@ -102,7 +102,7 @@ export function TasksDashboardQueueHealthSkeleton() {
       right={<Skeleton className="h-pill-sm w-16 rounded-pill" />}
       title="Queue health"
     >
-      <p className="text-form-label text-muted">
+      <p className="text-form-label text-muted-foreground">
         <SkeletonText className="w-48" />
       </p>
 

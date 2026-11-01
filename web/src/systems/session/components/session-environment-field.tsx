@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@compozy/ui/icons";
 
 import { Button, CommandItem, Field, FieldDescription, FieldError, FieldLabel } from "@compozy/ui";
 

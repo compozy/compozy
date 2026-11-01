@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 import { useId } from "react";
 
 import { Button, FieldDescription } from "@compozy/ui";

@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 
 import { MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { ScrollText } from "lucide-react";
+import { ScrollText } from "@compozy/ui/icons";
 
 import { useTopbarSlot } from "@compozy/ui";
 

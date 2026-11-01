@@ -6,10 +6,10 @@ const pillVariants = cva(
     variants: {
       tone: {
         neutral: "bg-neutral-tint text-neutral-ink",
-        accent: "bg-accent-tint text-accent",
+        brand: "bg-brand-tint text-brand",
         success: "bg-success-tint text-success",
         warning: "bg-warning-tint text-warning",
-        danger: "bg-danger-tint text-danger",
+        destructive: "bg-destructive-tint text-destructive",
         info: "bg-info-tint text-info",
       },
       size: {
@@ -38,11 +38,11 @@ const pillVariants = cva(
       { mono: false, size: "sm", className: "text-eyebrow font-medium tracking-eyebrow" },
       { mono: false, size: "md", className: "text-eyebrow font-medium tracking-eyebrow" },
       { size: "count", className: "text-count font-semibold" },
-      { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
-      { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
+      { solid: true, tone: "neutral", className: "bg-muted-foreground text-canvas" },
+      { solid: true, tone: "brand", className: "bg-brand text-brand-ink" },
       { solid: true, tone: "success", className: "bg-success text-canvas" },
       { solid: true, tone: "warning", className: "bg-warning text-canvas" },
-      { solid: true, tone: "danger", className: "bg-danger text-canvas" },
+      { solid: true, tone: "destructive", className: "bg-destructive text-canvas" },
       { solid: true, tone: "info", className: "bg-info text-canvas" },
       {
         active: true,
@@ -54,7 +54,7 @@ const pillVariants = cva(
       },
       {
         form: "plain",
-        className: "h-auto bg-transparent px-0 text-muted",
+        className: "h-auto bg-transparent px-0 text-muted-foreground",
       },
     ],
     defaultVariants: {

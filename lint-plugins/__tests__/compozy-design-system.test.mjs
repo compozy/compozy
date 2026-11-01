@@ -232,7 +232,7 @@ describe("compozy-design-system lint plugin", () => {
       ]);
     });
 
-    it("flags low-contrast and sub-2px focus rings, allows the shared focus tokens and accent rings", () => {
+    it("flags low-contrast and sub-2px focus rings, allows the shared focus tokens and brand rings", () => {
       const src = "/repo/web/src/foo.tsx";
       // Low-contrast focus color → focusRingColor (ring-line-strong / ring-ring).
       expect(
@@ -284,11 +284,11 @@ describe("compozy-design-system lint plugin", () => {
           themeBlind
         ).toEqual([expect.objectContaining({ messageId: "focusRingThemeInk" })]);
       }
-      // Allowed: shared focus tokens, accent ring at ≥2px, ring-0, and resting/hover rings.
+      // Allowed: shared focus tokens, brand ring at ≥2px, ring-0, and resting/hover rings.
       for (const allowed of [
         "focus-visible:shadow-focus-ring",
         "focus-visible:shadow-focus-inset",
-        "focus-visible:ring-2 focus-visible:ring-accent",
+        "focus-visible:ring-2 focus-visible:ring-brand",
         "focus-visible:ring-0",
         "focus-visible:ring-offset-0",
         "ring-1",
@@ -314,12 +314,12 @@ describe("compozy-design-system lint plugin", () => {
           literal("focus-visible:ring-1")
         )
       ).toHaveLength(1);
-      // ...and the corrected 2px accent ring on packages/site passes.
+      // ...and the corrected 2px brand ring on packages/site passes.
       expect(
         runClassNameRule(
           "no-low-contrast-focus-ring",
           "/repo/packages/site/components/foo.tsx",
-          literal("focus-visible:ring-2 focus-visible:ring-accent")
+          literal("focus-visible:ring-2 focus-visible:ring-brand")
         )
       ).toHaveLength(0);
       // Exempt: test/story files and non-frontend source.
@@ -493,7 +493,7 @@ describe("compozy-design-system lint plugin", () => {
       // Tokens flip per theme; opaque palette colors and other hues are not glaze.
       for (const allowed of [
         "bg-bar-fill",
-        "bg-accent/10",
+        "bg-brand/10",
         "border-line",
         "text-white",
         "bg-[rgba(255,0,255,0.2)]",

@@ -18,7 +18,7 @@ export function OsPaletteViewNote({ children, placement = "note" }: OsPaletteVie
       data-slot="os-palette-view-note"
       className={cn(
         placement === "empty"
-          ? "px-3 py-6 text-center text-small-body text-muted"
+          ? "px-3 py-6 text-center text-small-body text-muted-foreground"
           : "px-3 py-1 text-eyebrow text-subtle"
       )}
     >

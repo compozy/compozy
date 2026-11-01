@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";

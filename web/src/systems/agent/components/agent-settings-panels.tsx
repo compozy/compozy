@@ -112,7 +112,7 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
     <>
       {props.phase === "denied" ? (
         <ActionResultBanner
-          tone="danger"
+          tone="destructive"
           title="You can't edit this agent"
           description="You don't have permission to edit this agent. Ask the person who runs CompozyOS for access."
           data-testid="agent-settings-mutation-denied"
@@ -139,7 +139,7 @@ function AgentSettingsBanners(props: AgentSettingsPanelsProps) {
       ) : null}
       {props.phase === "failed" && props.error ? (
         <ActionResultBanner
-          tone="danger"
+          tone="destructive"
           title="Couldn't save agent"
           description={props.error}
           data-testid="agent-settings-save-error"

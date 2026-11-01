@@ -82,7 +82,7 @@ export function AutomationRow({ view, controls }: AutomationRowProps) {
         </ListingRow.Icon>
         <ListingRow.Main>
           <ListingRow.Name>
-            <ListingRow.Title className={cn(!view.enabled && "text-muted")}>
+            <ListingRow.Title className={cn(!view.enabled && "text-muted-foreground")}>
               {view.name}
             </ListingRow.Title>
             <AutomationBadges view={view} />

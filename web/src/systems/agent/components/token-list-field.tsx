@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 import { useId, useState, type KeyboardEvent } from "react";
 
 import {

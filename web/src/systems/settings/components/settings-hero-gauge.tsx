@@ -20,9 +20,9 @@ export interface SettingsHeroGaugeProps {
 const GAUGE_FILL: Record<string, string> = {
   success: "bg-success",
   warning: "bg-warning",
-  danger: "bg-danger",
+  destructive: "bg-destructive",
   info: "bg-info",
-  accent: "bg-accent",
+  brand: "bg-brand",
   neutral: "bg-fg",
 };
 

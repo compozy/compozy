@@ -1,5 +1,5 @@
 import { Fragment, useId, type ReactNode } from "react";
-import { Square } from "lucide-react";
+import { Square } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 
 import { Button, StateGlyph, cn } from "@compozy/ui";

@@ -1,5 +1,5 @@
 import { Empty, Pill } from "@compozy/ui";
-import { MousePointerClick } from "lucide-react";
+import { MousePointerClick } from "@compozy/ui/icons";
 
 import type { WorktreePayload } from "@/systems/workspace";
 

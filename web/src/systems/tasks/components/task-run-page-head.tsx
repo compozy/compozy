@@ -1,4 +1,4 @@
-import { ArrowUpRight, LifeBuoy, RotateCw } from "lucide-react";
+import { ArrowUpRight, LifeBuoy, RotateCw } from "@compozy/ui/icons";
 
 import {
   Button,

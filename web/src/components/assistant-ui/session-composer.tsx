@@ -217,7 +217,10 @@ function SessionComposerEditor() {
             }}
           >
             {edit?.active ? (
-              <div className="flex items-center gap-2 text-caption text-muted" role="status">
+              <div
+                className="flex items-center gap-2 text-caption text-muted-foreground"
+                role="status"
+              >
                 <span className="flex-1">
                   Editing message · Sending replaces this message and later replies. Files and tool
                   effects stay.

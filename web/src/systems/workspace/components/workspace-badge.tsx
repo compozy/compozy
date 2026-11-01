@@ -25,7 +25,7 @@ export function WorkspaceBadge({
       className={cn(
         "inline-flex min-w-0 items-center",
         variant === "meta" ? "text-micro" : "text-body",
-        identity.kind === "unknown" ? "text-faint" : "text-muted",
+        identity.kind === "unknown" ? "text-faint" : "text-muted-foreground",
         className
       )}
       {...props}

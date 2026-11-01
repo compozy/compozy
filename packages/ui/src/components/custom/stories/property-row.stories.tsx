@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronsUpDown } from "lucide-react";
 
+import { ChevronsUpDown } from "../../../icons";
 import { MonoId } from "../mono-id";
 import { PropertyRow } from "../property-row";
 

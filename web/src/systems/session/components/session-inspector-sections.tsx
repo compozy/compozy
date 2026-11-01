@@ -1,4 +1,4 @@
-import { Coins } from "lucide-react";
+import { Coins } from "@compozy/ui/icons";
 
 import { Collapsible, CollapsibleContent, Metric, MetricGrid } from "@compozy/ui";
 import { describeCost } from "@/lib/cost-provenance";

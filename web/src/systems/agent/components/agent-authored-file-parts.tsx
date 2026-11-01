@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FileText } from "lucide-react";
+import { FileText } from "@compozy/ui/icons";
 
 import { Button, Empty, Panel, Pill, Spinner } from "@compozy/ui";
 
@@ -30,7 +30,7 @@ export function AuthoredFileWriteRecovery({
   if (!saveError && !conflict) return null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2" role="alert">
-      {saveError ? <p className="text-small-body text-danger">{saveError}</p> : null}
+      {saveError ? <p className="text-small-body text-destructive">{saveError}</p> : null}
       {conflict ? (
         <Button
           type="button"
@@ -138,7 +138,9 @@ export function AuthoredFileMeta({
         </Pill>
       ) : null}
       {payload?.source_path ? (
-        <code className="font-mono text-badge tracking-mono text-muted">{payload.source_path}</code>
+        <code className="font-mono text-badge tracking-mono text-muted-foreground">
+          {payload.source_path}
+        </code>
       ) : null}
     </div>
   );
@@ -146,13 +148,13 @@ export function AuthoredFileMeta({
 
 function AuthoredFileDiagnosticItem({ item }: { item: AuthoredFileDiagnostic }) {
   return (
-    <li className="text-small-body text-danger">
+    <li className="text-small-body text-destructive">
       {item.message}
       {item.line != null ? (
-        <span className="ml-2 font-mono text-muted">line {item.line}</span>
+        <span className="ml-2 font-mono text-muted-foreground">line {item.line}</span>
       ) : null}
       {item.source_path ? (
-        <code className="ml-2 font-mono text-muted">{item.source_path}</code>
+        <code className="ml-2 font-mono text-muted-foreground">{item.source_path}</code>
       ) : null}
     </li>
   );
@@ -243,7 +245,7 @@ function AuthoredFileRevisionRow({
       className="flex items-center justify-between gap-3"
       data-testid={`agent-${kind}-revision-${id}`}
     >
-      <span className="font-mono text-badge tracking-mono text-muted">
+      <span className="font-mono text-badge tracking-mono text-muted-foreground">
         {id || "revision"} {created ? `· ${created}` : ""}
       </span>
       <Button
@@ -274,7 +276,7 @@ export function AuthoredFileHistory({
   return (
     <div className="border-t border-line-soft px-4 py-3" data-testid={`agent-${kind}-history`}>
       {revisions.length === 0 ? (
-        <p className="text-small-body text-muted">No revisions yet.</p>
+        <p className="text-small-body text-muted-foreground">No revisions yet.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {revisions.map(revision => {

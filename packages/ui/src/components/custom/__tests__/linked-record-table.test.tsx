@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ChevronRight } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ChevronRight } from "../../../icons";
 import { Pill } from "../pill";
 import { LinkedRecordTable } from "../linked-record-table";
 
@@ -62,7 +62,7 @@ describe("LinkedRecordTable", () => {
         <LinkedRecordTable.Body>
           <LinkedRecordTable.Row>
             <LinkedRecordTable.Cell className="w-8 pl-4">
-              <Pill.Dot tone="accent" />
+              <Pill.Dot tone="brand" />
             </LinkedRecordTable.Cell>
             <LinkedRecordTable.Cell>
               <LinkedRecordTable.Title>run_01</LinkedRecordTable.Title>

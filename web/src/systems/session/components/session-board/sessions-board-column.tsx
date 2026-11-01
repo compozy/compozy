@@ -1,4 +1,4 @@
-import { ChevronLeft, CircleSlash } from "lucide-react";
+import { ChevronLeft, CircleSlash } from "@compozy/ui/icons";
 import { use, useId, useRef } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";
@@ -264,7 +264,7 @@ function SessionsBoardColumnBody({
   if (column.failure === "initial") {
     return (
       <div
-        className="flex flex-1 flex-col items-center justify-center gap-2.5 px-3 py-8 text-center text-small-body text-muted"
+        className="flex flex-1 flex-col items-center justify-center gap-2.5 px-3 py-8 text-center text-small-body text-muted-foreground"
         data-testid={`${testIdPrefix}-column-error-${column.id}`}
         role="alert"
       >

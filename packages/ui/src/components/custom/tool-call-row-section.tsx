@@ -25,7 +25,10 @@ function ToolCallSectionBody({
     return <CodeBlock code={content} language={language} copyable density="compact" />;
   }
   return (
-    <Markdown compact className="max-w-none rounded-sm bg-canvas p-2 text-small-body text-muted">
+    <Markdown
+      compact
+      className="max-w-none rounded-sm bg-canvas p-2 text-small-body text-muted-foreground"
+    >
       {content}
     </Markdown>
   );

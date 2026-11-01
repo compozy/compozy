@@ -61,7 +61,7 @@ export function ProviderLoginDescriptorView({ login, testId }: ProviderLoginDesc
         ) : null}
       </div>
       {action ? (
-        <span className="text-form-hint text-muted" data-testid={`${testId}-action`}>
+        <span className="text-form-hint text-muted-foreground" data-testid={`${testId}-action`}>
           Next: {action}
         </span>
       ) : null}

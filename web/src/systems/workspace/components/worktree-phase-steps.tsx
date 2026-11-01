@@ -49,9 +49,9 @@ export function WorktreePhaseSteps({ phases }: WorktreePhaseStepsProps) {
         return (
           <li
             className={cn(
-              "flex items-center gap-2 text-badge text-muted",
+              "flex items-center gap-2 text-badge text-muted-foreground",
               phase.state === "pending" && "text-faint",
-              phase.state === "failed" && "text-danger",
+              phase.state === "failed" && "text-destructive",
               phase.state === "completed" && "text-fg"
             )}
             data-phase={phase.phase}

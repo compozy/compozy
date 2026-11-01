@@ -35,27 +35,27 @@ tokens:
       fg-strong: "#ffffff"
       fg-2: "#c4c4c4"
       fg-3: "#dcdcdc"
-      muted: "#a3a3a3"
+      muted-foreground: "#a3a3a3"
       subtle: "#8e8e8e"
       faint: "#8d8d8d"
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
-      accent: "#e8572a"
-      accent-hover: "#d14e25"
-      accent-strong: "#f6874f"
-      accent-ink: "#17110f"
-      accent-tint: "rgba(232, 87, 42, 0.1)"
-      accent-tint-strong: "rgba(232, 87, 42, 0.16)"
-      accent-dim: "rgba(232, 87, 42, 0.24)"
-      accent-glow: "rgba(232, 87, 42, 0.05)"
-      attn: "var(--color-accent)"
+      brand: "#e8572a"
+      brand-hover: "#d14e25"
+      brand-strong: "#f6874f"
+      brand-ink: "#17110f"
+      brand-tint: "rgba(232, 87, 42, 0.1)"
+      brand-tint-strong: "rgba(232, 87, 42, 0.16)"
+      brand-dim: "rgba(232, 87, 42, 0.24)"
+      brand-glow: "rgba(232, 87, 42, 0.05)"
+      attn: "var(--color-brand)"
       success: "#34d399"
       success-tint: "rgba(52, 211, 153, 0.1)"
       warning: "#f5b14c"
       warning-tint: "rgba(245, 177, 76, 0.1)"
-      danger: "#f87171"
-      danger-tint: "rgba(248, 113, 113, 0.1)"
+      destructive: "#f87171"
+      destructive-tint: "rgba(248, 113, 113, 0.1)"
       info: "#8e8eb5"
       info-tint: "rgba(142, 142, 181, 0.12)"
       well: "#1e342c"
@@ -100,20 +100,17 @@ tokens:
       popover-foreground: "var(--color-fg)"
       secondary: "transparent"
       secondary-foreground: "var(--color-fg)"
-      muted-foreground: "var(--color-muted)"
-      accent-foreground: "var(--color-accent-ink)"
-      destructive: "var(--color-danger)"
       destructive-foreground: "var(--color-fg-strong)"
       border: "var(--color-line)"
       input: "var(--color-line)"
       ring: "var(--color-line-strong)"
-      chart-1: "var(--color-accent)"
+      chart-1: "var(--color-brand)"
       chart-2: "var(--color-success)"
       chart-3: "var(--color-info)"
       chart-4: "var(--color-warning)"
-      chart-5: "var(--color-danger)"
+      chart-5: "var(--color-destructive)"
       sidebar-foreground: "var(--color-fg)"
-      sidebar-primary: "var(--color-accent)"
+      sidebar-primary: "var(--color-brand)"
       sidebar-primary-foreground: "#ffffff"
       sidebar-accent: "var(--color-elevated)"
       sidebar-accent-foreground: "var(--color-fg)"
@@ -162,26 +159,26 @@ tokens:
       fg-strong: "#0b0d12"
       fg-2: "#4c4c4c"
       fg-3: "#333333"
-      muted: "#6b6b6b"
+      muted-foreground: "#6b6b6b"
       subtle: "#6b6b6b"
       faint: "#6b6b6b"
       primary: "#0b0d12"
       primary-hover: "#2a2f3a"
       primary-foreground: "#ffffff"
-      accent: "#c94b24"
-      accent-hover: "#b9441f"
-      accent-strong: "#b9441f"
-      accent-ink: "#ffffff"
-      accent-tint: "rgba(201, 75, 36, 0.08)"
-      accent-tint-strong: "rgba(201, 75, 36, 0.14)"
-      accent-dim: "rgba(201, 75, 36, 0.22)"
-      accent-glow: "rgba(201, 75, 36, 0.05)"
+      brand: "#c94b24"
+      brand-hover: "#b9441f"
+      brand-strong: "#b9441f"
+      brand-ink: "#ffffff"
+      brand-tint: "rgba(201, 75, 36, 0.08)"
+      brand-tint-strong: "rgba(201, 75, 36, 0.14)"
+      brand-dim: "rgba(201, 75, 36, 0.22)"
+      brand-glow: "rgba(201, 75, 36, 0.05)"
       success: "#15a06a"
       success-tint: "rgba(21, 160, 106, 0.08)"
       warning: "#d98404"
       warning-tint: "rgba(217, 132, 4, 0.08)"
-      danger: "#dc2626"
-      danger-tint: "rgba(220, 38, 38, 0.07)"
+      destructive: "#dc2626"
+      destructive-tint: "rgba(220, 38, 38, 0.07)"
       info: "#5f5f94"
       info-tint: "rgba(95, 95, 148, 0.1)"
       well: "#def2ea"
@@ -316,7 +313,7 @@ tokens:
       hairline: "0 0 0 1px var(--color-line-soft)"
       hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
-      danger-inset: "inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)"
+      destructive-inset: "inset 0 0 0 1px color-mix(in oklab, var(--color-destructive) 30%, transparent)"
     shadow-light:
       card: "0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005"
       elevated: "0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a"
@@ -402,10 +399,7 @@ tokens:
       width-kv-label: "140px"
       width-table-cell-sm: "224px"
       width-table-cell-md: "288px"
-      width-table-cell-lg: "360px"
       container-content-max: "1320px"
-      width-right-rail-default: "468px"
-      width-message-bubble-max: "640px"
       min-width-search-input: "220px"
       min-width-search-input-floor: "140px"
       width-filters-menu-default: "200px"
@@ -534,7 +528,7 @@ tokens:
       doc-hairline: "1px"
       doc-sidebar-section-label-offset: "1.625rem"
       doc-sidebar-section-label-tracking: "0.09em"
-      doc-sidebar-section-label-color: "color-mix( in srgb, var(--color-accent) 65%, var(--color-muted) )"
+      doc-sidebar-section-label-color: "color-mix( in srgb, var(--color-brand) 65%, var(--color-muted-foreground) )"
       doc-sidebar-group-gap: "0.4375rem"
       doc-sidebar-group-label-tracking: "0.08em"
       doc-sidebar-group-label-color: "color-mix(in srgb, var(--color-subtle) 72%, transparent)"
@@ -605,7 +599,7 @@ generated token regions by hand. Change the CSS source, then run
 CompozyOS is an agent operating system for everyone who works with AI agents — not
 an expert-only console. The product should feel quiet, calm, and intentional:
 neutral chroma-free greys, restrained text, quiet depth, pill actions with a
-single inverted primary, and the accent orange only where something needs you. It
+single inverted primary, and the brand orange only where something needs you. It
 is not a marketing-gradient system, not a generic SaaS blue-gray dashboard,
 and no longer the dense operator cockpit of its early direction.
 
@@ -626,7 +620,7 @@ The core atmosphere is:
 - Two surface levels. Content sits on a card surface; secondary lists sit in a
   sunken inset panel with no border.
 - One primary, one highlight. The single primary action is inverted
-  (`--color-primary`). `--color-accent` (the accent orange, also `--color-attn`)
+  (`--color-primary`). `--color-brand` (the brand orange, also `--color-attn`)
   marks highlights and needs-you, and should usually appear once in a
   viewport. Amber (`--color-warning`) is only for real warnings.
 - Quiet depth. Hierarchy comes from the surface ramp, opaque hairlines, and the
@@ -658,7 +652,7 @@ acceptable only in the token source, static generated artifacts, or documented
 asset work that cannot consume CSS variables.
 
 Accessibility floor: body text and labels must meet WCAG AA contrast against
-their owning surface, in both themes (`muted`, `subtle`, and `faint` all carry
+their owning surface, in both themes (`muted-foreground`, `subtle`, and `faint` all carry
 text, so each clears 4.5:1). Non-text indicators such as dots, bars, and rails must
 meet the 3:1 non-text floor. If a token retune drops below those floors, fix the
 token or component at the source; do not locally override one callsite.
@@ -704,22 +698,22 @@ token or component at the source; do not locally override one callsite.
 
 <!-- BEGIN:tokens:text-ladder -->
 
-| Token               | Dark      | Light     |
-| ------------------- | --------- | --------- |
-| `--color-fg`        | `#f5f5f5` | `#1a1a1a` |
-| `--color-fg-strong` | `#ffffff` | `#0b0d12` |
-| `--color-fg-2`      | `#c4c4c4` | `#4c4c4c` |
-| `--color-fg-3`      | `#dcdcdc` | `#333333` |
-| `--color-muted`     | `#a3a3a3` | `#6b6b6b` |
-| `--color-subtle`    | `#8e8e8e` | `#6b6b6b` |
-| `--color-faint`     | `#8d8d8d` | `#6b6b6b` |
+| Token                      | Dark      | Light     |
+| -------------------------- | --------- | --------- |
+| `--color-fg`               | `#f5f5f5` | `#1a1a1a` |
+| `--color-fg-strong`        | `#ffffff` | `#0b0d12` |
+| `--color-fg-2`             | `#c4c4c4` | `#4c4c4c` |
+| `--color-fg-3`             | `#dcdcdc` | `#333333` |
+| `--color-muted-foreground` | `#a3a3a3` | `#6b6b6b` |
+| `--color-subtle`           | `#8e8e8e` | `#6b6b6b` |
+| `--color-faint`            | `#8d8d8d` | `#6b6b6b` |
 
 <!-- END:tokens:text-ladder -->
 
 ### Primary action
 
 The single primary action is inverted: near-white on dark, near-black on
-light. It is never the brand hue; the accent orange marks highlights and
+light. It is never the brand hue; the brand orange marks highlights and
 needs-you (`--color-attn`), not the default action.
 
 <!-- BEGIN:tokens:primary -->
@@ -734,33 +728,33 @@ needs-you (`--color-attn`), not the default action.
 
 ### Accent
 
-<!-- BEGIN:tokens:accent -->
+<!-- BEGIN:tokens:brand -->
 
-| Token                        | Dark                      | Light                     |
-| ---------------------------- | ------------------------- | ------------------------- |
-| `--color-accent`             | `#e8572a`                 | `#c94b24`                 |
-| `--color-accent-hover`       | `#d14e25`                 | `#b9441f`                 |
-| `--color-accent-strong`      | `#f6874f`                 | `#b9441f`                 |
-| `--color-accent-ink`         | `#17110f`                 | `#ffffff`                 |
-| `--color-accent-tint`        | `rgba(232, 87, 42, 0.1)`  | `rgba(201, 75, 36, 0.08)` |
-| `--color-accent-tint-strong` | `rgba(232, 87, 42, 0.16)` | `rgba(201, 75, 36, 0.14)` |
-| `--color-accent-dim`         | `rgba(232, 87, 42, 0.24)` | `rgba(201, 75, 36, 0.22)` |
-| `--color-accent-glow`        | `rgba(232, 87, 42, 0.05)` | `rgba(201, 75, 36, 0.05)` |
-| `--color-attn`               | `var(--color-accent)`     | `var(--color-accent)`     |
+| Token                       | Dark                      | Light                     |
+| --------------------------- | ------------------------- | ------------------------- |
+| `--color-brand`             | `#e8572a`                 | `#c94b24`                 |
+| `--color-brand-hover`       | `#d14e25`                 | `#b9441f`                 |
+| `--color-brand-strong`      | `#f6874f`                 | `#b9441f`                 |
+| `--color-brand-ink`         | `#17110f`                 | `#ffffff`                 |
+| `--color-brand-tint`        | `rgba(232, 87, 42, 0.1)`  | `rgba(201, 75, 36, 0.08)` |
+| `--color-brand-tint-strong` | `rgba(232, 87, 42, 0.16)` | `rgba(201, 75, 36, 0.14)` |
+| `--color-brand-dim`         | `rgba(232, 87, 42, 0.24)` | `rgba(201, 75, 36, 0.22)` |
+| `--color-brand-glow`        | `rgba(232, 87, 42, 0.05)` | `rgba(201, 75, 36, 0.05)` |
+| `--color-attn`              | `var(--color-brand)`      | `var(--color-brand)`      |
 
-<!-- END:tokens:accent -->
+<!-- END:tokens:brand -->
 
 ### Signal palette
 
 <!-- BEGIN:tokens:signal -->
 
-| Role    | Token             | Dark      | Light     | Tint dark                   | Tint light                  |
-| ------- | ----------------- | --------- | --------- | --------------------------- | --------------------------- |
-| Success | `--color-success` | `#34d399` | `#15a06a` | `rgba(52, 211, 153, 0.1)`   | `rgba(21, 160, 106, 0.08)`  |
-| Warning | `--color-warning` | `#f5b14c` | `#d98404` | `rgba(245, 177, 76, 0.1)`   | `rgba(217, 132, 4, 0.08)`   |
-| Danger  | `--color-danger`  | `#f87171` | `#dc2626` | `rgba(248, 113, 113, 0.1)`  | `rgba(220, 38, 38, 0.07)`   |
-| Info    | `--color-info`    | `#8e8eb5` | `#5f5f94` | `rgba(142, 142, 181, 0.12)` | `rgba(95, 95, 148, 0.1)`    |
-| Neutral | `--color-neutral` | `#7a7a80` | `#8a8a90` | `rgba(150, 150, 155, 0.06)` | `rgba(110, 110, 120, 0.07)` |
+| Role        | Token                 | Dark      | Light     | Tint dark                   | Tint light                  |
+| ----------- | --------------------- | --------- | --------- | --------------------------- | --------------------------- |
+| Success     | `--color-success`     | `#34d399` | `#15a06a` | `rgba(52, 211, 153, 0.1)`   | `rgba(21, 160, 106, 0.08)`  |
+| Warning     | `--color-warning`     | `#f5b14c` | `#d98404` | `rgba(245, 177, 76, 0.1)`   | `rgba(217, 132, 4, 0.08)`   |
+| Destructive | `--color-destructive` | `#f87171` | `#dc2626` | `rgba(248, 113, 113, 0.1)`  | `rgba(220, 38, 38, 0.07)`   |
+| Info        | `--color-info`        | `#8e8eb5` | `#5f5f94` | `rgba(142, 142, 181, 0.12)` | `rgba(95, 95, 148, 0.1)`    |
+| Neutral     | `--color-neutral`     | `#7a7a80` | `#8a8a90` | `rgba(150, 150, 155, 0.06)` | `rgba(110, 110, 120, 0.07)` |
 
 <!-- END:tokens:signal -->
 
@@ -829,9 +823,9 @@ terminal chrome uses generated utilities (`bg-terminal-bg`,
 `text-terminal-ansi-8`) like any other colour in the system. The values live in
 exactly one place.
 
-Indices 1, 2, 3 ride the danger, success and warning lanes (their bright
+Indices 1, 2, 3 ride the destructive, success and warning lanes (their bright
 pairs 9, 10, 11 are the matching lighter or deeper step) so a red test failure
-in the grid reads as the same red as a danger chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
+in the grid reads as the same red as a destructive chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
 (~0.68–0.72) so no ANSI color outshouts the signal palette. Index 8 is
 dim-by-design (~3.5:1) — that is terminal convention for dim text, and it is
 never a legal color for UI copy.
@@ -1006,7 +1000,7 @@ The runtime shell is a desktop with flat chrome on `--color-rail`:
   tab bar takes over.
 - Gutterless tiling on `--color-desk`. Tiled windows are flat panes on
   `--color-canvas` with no radius, border or shadow; the 1px `line` seam is the
-  only divider, with a `--size-seam-hit` (9px) hit area that turns accent on
+  only divider, with a `--size-seam-hit` (9px) hit area that turns brand on
   hover and drag. Floating windows keep a 1px hairline and `shadow-elevated`.
 - Browser-style tabs. A window with several tabs shows the deck
   (`--height-deck`, 40px): a recessed `sunken` strip where the active tab is a
@@ -1078,8 +1072,7 @@ widths come from `--site-*` tokens.
 | `--size-status-dot`                  | `7px`                            | `--size-status-dot-sm`                  | `6px`                                                       | `--size-avatar-sm`                         | `20px`    |
 | `--size-avatar-default`              | `24px`                           | `--size-avatar-lg`                      | `32px`                                                      | `--height-editor-footer`                   | `52px`    |
 | `--width-detail-inspector-inline`    | `320px`                          | `--width-kv-label`                      | `140px`                                                     | `--width-table-cell-sm`                    | `224px`   |
-| `--width-table-cell-md`              | `288px`                          | `--width-table-cell-lg`                 | `360px`                                                     | `--container-content-max`                  | `1320px`  |
-| `--width-right-rail-default`         | `468px`                          | `--width-message-bubble-max`            | `640px`                                                     | `--min-width-search-input`                 | `220px`   |
+| `--width-table-cell-md`              | `288px`                          | `--container-content-max`               | `1320px`                                                    | `--min-width-search-input`                 | `220px`   |
 | `--min-width-search-input-floor`     | `140px`                          | `--width-filters-menu-default`          | `200px`                                                     | `--width-filters-menu-stack`               | `220px`   |
 | `--width-settings-nav`               | `264px`                          | `--container-settings-takeover`         | `56rem`                                                     | `--container-task-detail-rail`             | `64rem`   |
 | `--width-settings-sheet`             | `640px`                          | `--width-task-properties-rail`          | `320px`                                                     | `--spacing-settings-sheet-viewport-gutter` | `24px`    |
@@ -1142,19 +1135,19 @@ and the marketing site keeps its hero mock's window radius and shadow in its own
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                     | Dark                                                                                                              | Light                                                                                                                     |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--shadow-card`           | `0 0 0 1px var(--color-line), 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005`                                                   |
-| `--shadow-elevated`       | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006`                              | `0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a`                                  |
-| `--shadow-pop`            | `0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a` |
-| `--shadow-overlay`        | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line)`                                              | `0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line)`                                                   |
-| `--shadow-highlight`      | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                        | `inset 0 1px 0 rgba(255, 255, 255, 0.7)`                                                                                  |
-| `--shadow-focus-ring`     | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                              | `0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                         |
-| `--shadow-focus-inset`    | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                        | `inset 0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                   |
-| `--shadow-hairline`       | `0 0 0 1px var(--color-line-soft)`                                                                                | `0 0 0 1px var(--color-line-soft)`                                                                                        |
-| `--shadow-hairline-inset` | `inset 0 0 0 1px var(--color-line-soft)`                                                                          | `inset 0 0 0 1px var(--color-line-soft)`                                                                                  |
-| `--shadow-inset-strong`   | `inset 0 0 0 1px var(--color-line-strong)`                                                                        | `inset 0 0 0 1px var(--color-line-strong)`                                                                                |
-| `--shadow-danger-inset`   | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                       | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)`                                               |
+| Token                        | Dark                                                                                                              | Light                                                                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `--shadow-card`              | `0 0 0 1px var(--color-line), 0 1px 2px #0006, 0 2px 4px #0000004d`                                               | `0 0 0 1px var(--color-line), 0 1px 2px #0000000d, 0 2px 4px #00000005`                                                   |
+| `--shadow-elevated`          | `0 0 0 0.5px #ffffff17, 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006`                              | `0 0 0 0.5px #00000014, 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a`                                  |
+| `--shadow-pop`               | `0 6px 24px -8px #0009, 0 0 0 1px var(--color-line), 0 1px 1px #00000080, 0 3px 4px #00000059, 0 1.5px 3px #0006` | `0 6px 24px -8px #0d121c2e, 0 0 0 1px var(--color-line), 0 1px 1px #0000000a, 0 3px 4px #1d1d1d05, 0 1.5px 3px #0000000a` |
+| `--shadow-overlay`           | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--color-line)`                                              | `0 24px 48px -12px rgba(13, 18, 28, 0.18), 0 0 0 1px var(--color-line)`                                                   |
+| `--shadow-highlight`         | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                                                        | `inset 0 1px 0 rgba(255, 255, 255, 0.7)`                                                                                  |
+| `--shadow-focus-ring`        | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                              | `0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                         |
+| `--shadow-focus-inset`       | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                                                        | `inset 0 0 0 2px rgba(10, 13, 18, 0.5)`                                                                                   |
+| `--shadow-hairline`          | `0 0 0 1px var(--color-line-soft)`                                                                                | `0 0 0 1px var(--color-line-soft)`                                                                                        |
+| `--shadow-hairline-inset`    | `inset 0 0 0 1px var(--color-line-soft)`                                                                          | `inset 0 0 0 1px var(--color-line-soft)`                                                                                  |
+| `--shadow-inset-strong`      | `inset 0 0 0 1px var(--color-line-strong)`                                                                        | `inset 0 0 0 1px var(--color-line-strong)`                                                                                |
+| `--shadow-destructive-inset` | `inset 0 0 0 1px color-mix(in oklab, var(--color-destructive) 30%, transparent)`                                  | `inset 0 0 0 1px color-mix(in oklab, var(--color-destructive) 30%, transparent)`                                          |
 
 <!-- END:tokens:shadows -->
 
@@ -1174,11 +1167,11 @@ edge fades dissolve tiles into its popover surface.
 | `--wallpaper-teal`             | `#225555`                                                                                                                                                                                                                                                                                                      | `#225555`                                                                                                                                                                                                                                                                                                      |
 | `--wallpaper-grid`             | `radial-gradient( 1.5px 1.5px at 50% 50%, rgba(255, 255, 255, 0.035) 40%, transparent 41% )`                                                                                                                                                                                                                   | `radial-gradient( 1.5px 1.5px at 50% 50%, rgba(10, 13, 18, 0.06) 40%, transparent 41% )`                                                                                                                                                                                                                       |
 | `--wallpaper-grid-size`        | `26px`                                                                                                                                                                                                                                                                                                         | `26px`                                                                                                                                                                                                                                                                                                         |
-| `--wallpaper-ember`            | `radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 38%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`             | `radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 12%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`             |
+| `--wallpaper-ember`            | `radial-gradient(1100px 700px at 12% 110%, var(--color-brand-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 38%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`              | `radial-gradient(1100px 700px at 12% 110%, var(--color-brand-tint-strong), transparent 62%), radial-gradient( 1000px 640px at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 12%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`              |
 | `--wallpaper-mesh`             | `radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%), radial-gradient( 1200px 700px at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 40%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)`                           | `radial-gradient(900px 600px at 85% 108%, var(--color-success-tint), transparent 60%), radial-gradient( 1200px 700px at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 14%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)`                           |
 | `--wallpaper-carbon`           | `radial-gradient(1000px 620px at 50% -14%, rgba(255, 255, 255, 0.04), transparent 58%), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%)`                                                                                                                                                   | `radial-gradient(1000px 620px at 50% -14%, rgba(10, 13, 18, 0.03), transparent 58%), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 50%)`                                                                                                                                                      |
 | `--wallpaper-flat`             | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        |
-| `--wallpaper-thumb-ember`      | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 55%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                               | `radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 20%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                               |
+| `--wallpaper-thumb-ember`      | `radial-gradient(80% 95% at 12% 110%, var(--color-brand-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 55%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                                | `radial-gradient(80% 95% at 12% 110%, var(--color-brand-dim), transparent 62%), radial-gradient( 75% 90% at 92% -12%, color-mix(in oklab, var(--wallpaper-teal) 20%, transparent), transparent 60% ), linear-gradient(180deg, var(--color-canvas-soft), var(--color-rail) 60%)`                                |
 | `--wallpaper-thumb-mesh`       | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 26%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 60%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` | `radial-gradient( 70% 85% at 85% 108%, color-mix(in oklab, var(--color-success) 22%, transparent), transparent 60% ), radial-gradient( 85% 95% at 8% -8%, color-mix(in oklab, var(--wallpaper-teal) 22%, transparent), transparent 64% ), linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%)` |
 | `--wallpaper-thumb-carbon`     | `radial-gradient(75% 85% at 50% -14%, rgba(255, 255, 255, 0.09), transparent 58%), linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%)`                                                                                                                                                     | `radial-gradient(75% 85% at 50% -14%, rgba(10, 13, 18, 0.06), transparent 58%), linear-gradient(180deg, var(--color-surface-2), var(--color-rail) 50%)`                                                                                                                                                        |
 | `--wallpaper-thumb-flat`       | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        | `linear-gradient(var(--color-desk), var(--color-desk))`                                                                                                                                                                                                                                                        |
@@ -1278,18 +1271,18 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   window heads use `secondary` `sm` instead. `secondary` (surface-2 fill) is
   the normal action; `ghost` / `quiet` are icon buttons and low-emphasis
   actions; text links ("Edit ›", "View all ›") are `link` or `quiet` at `sm`,
-  `muted` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
+  `muted-foreground` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
   the `surface-2` plate, never a ring. New callsites should not use outline as
   the default secondary choice.
 - `<Pill>`: compact status/category chip. Neutral pills are tint-only.
   Status indicators ("Idle", "Running") use `form="plain"` — dot + 12px
-  `muted` text, no plate — so a state never reads as a button. Identifier
+  `muted-foreground` text, no plate — so a state never reads as a button. Identifier
   chips should use `<MonoId>` unless the product specifically needs pill
   chrome.
 - `<PillGroup>`: segmented selector. The active segment takes the `surface-2`
-  plate with full ink — never a ring, never solid accent.
+  plate with full ink — never a ring, never solid brand.
 - `<Tabs>`: route/content navigation. Line tabs use the foreground underline;
-  accent is not the tab indicator.
+  brand is not the tab indicator.
 - `<Empty>` and `<RouteState>`: state surfaces, not marketing cards. Use when a
   list, detail pane, or route has no data, is loading, or has failed.
 - `<Metric>` and `<KpiCard>`: numeric summaries. Labels are sentence-case
@@ -1298,20 +1291,20 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
 - `<Dialog>` and sheets: overlay surfaces with the overlay shadow/scrim
   contract. They own modal header/body/footer rhythm.
 - `<RadioCard>` and `<CatalogCard>`: selectable cards use ring/glaze selected
-  state. They do not use accent borders.
+  state. They do not use brand borders.
 - `<Section>`: body grouping inside route content. `<FormSection>` is the form
   and modal variant. Neither is a page-title primitive.
 - `<DetailHeader>`: the only body-side detail title surface. It owns crumbs,
   pre-title, title, pill stack, metadata, and actions.
 - `<RunCard>`: active run and run-detail summary. It renders live work state
-  without decorative accent rails.
+  without decorative brand rails.
 - `<DescriptionCard>`: markdown rendering with the safe Streamdown config. Do
   not relax sanitization without a security review.
 - `<Markdown>` and `<StreamMarkdown>`: the prose grammar for every rendered
   Markdown surface. H1–H3 ride the `--text-prose-*` ladder and stay larger
   than the body; H4 matches the body and separates by weight; H5–H6 are a
-  muted label tier. Links are the sanctioned accent in running text:
-  `accent-strong` with a same-color underline, so color is never the only
+  muted label tier. Links are the sanctioned brand color in running text:
+  `brand-strong` with a same-color underline, so color is never the only
   cue. `compact` keeps the small heading tier, cell padding, and indents for
   dense surfaces such as tool panels; `compact="relaxed"` pairs that tier
   with prose paragraph breaks for muted reading panels such as reasoning.
@@ -1328,7 +1321,7 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   is provided.
 - `<Time>`: timestamp primitive. It owns relative/absolute formatting and tick
   refresh behavior.
-- `<PriorityBars>` and queue sparklines: visualization components. Color and
+- Queue sparklines: visualization components. Color and
   thresholds come from typed inputs, not local class maps.
 
 ## 10. Anti-patterns
@@ -1337,10 +1330,10 @@ The following patterns are load-bearing because they prevent drift between the
 spec, token source, and visible UI. Where a repo lint rule exists, the rule name
 is listed.
 
-- Side-stripe accent rails on cards or rows. Pattern:
-  `border-l-*` plus accent color for active/selected surfaces. Replace with the
+- Side-stripe brand rails on cards or rows. Pattern:
+  `border-l-*` plus brand color for active/selected surfaces. Replace with the
   foreground selected rail or the component's selected state. Policy name:
-  `no-side-stripe-accent`. Existing task-card tests cover this invariant; add a
+  `no-side-stripe-brand`. Existing task-card tests cover this invariant; add a
   lint rule before claiming global static enforcement.
 - Inline eyebrow tuples. Pattern: direct DOM class lists that recreate the
   eyebrow style with uppercase, mono/sans choices, arbitrary text sizes, or
@@ -1364,8 +1357,8 @@ is listed.
 - Arbitrary token utility drift. Pattern: `bg-(--color-token)` when a bare
   Tailwind v4 utility exists. Replace with the bare utility. Rule:
   `compozy-design-system/prefer-bare-token-utility`.
-- Accent overload. Pattern: accent CTA, accent pill, accent tab, accent hover,
-  and accent rail in the same viewport. Preserve a single accent target and use
+- Brand overload. Pattern: brand CTA, brand pill, brand tab, brand hover,
+  and brand rail in the same viewport. Preserve a single brand target and use
   foreground, neutral, or signal tokens for the rest.
 - Signal overload. Pattern: colored pills, badges, and dots on most rows at
   rest — the control-room look. Signal tokens mark live state only; taxonomy
@@ -1431,7 +1424,7 @@ Geist.
 | `--site-doc-sidebar-nested-marker-offset`   | `0.6875rem`                                                                                                                                                         | `--site-doc-sidebar-tree-indent`         | `0.875rem`                                                                                                                                                          | `--site-doc-sidebar-tree-gutter`          | `0.625rem`                                                  |
 | `--site-doc-sidebar-tree-line-inset`        | `0.25rem`                                                                                                                                                           | `--site-doc-sidebar-first-group-gap`     | `0.375rem`                                                                                                                                                          | `--site-doc-toc-gutter`                   | `1rem`                                                      |
 | `--site-doc-index-label-width`              | `11.875rem`                                                                                                                                                         | `--site-doc-hairline`                    | `1px`                                                                                                                                                               | `--site-doc-sidebar-section-label-offset` | `1.625rem`                                                  |
-| `--site-doc-sidebar-section-label-tracking` | `0.09em`                                                                                                                                                            | `--site-doc-sidebar-section-label-color` | `color-mix( in srgb, var(--color-accent) 65%, var(--color-muted) )`                                                                                                 | `--site-doc-sidebar-group-gap`            | `0.4375rem`                                                 |
+| `--site-doc-sidebar-section-label-tracking` | `0.09em`                                                                                                                                                            | `--site-doc-sidebar-section-label-color` | `color-mix( in srgb, var(--color-brand) 65%, var(--color-muted-foreground) )`                                                                                       | `--site-doc-sidebar-group-gap`            | `0.4375rem`                                                 |
 | `--site-doc-sidebar-group-label-tracking`   | `0.08em`                                                                                                                                                            | `--site-doc-sidebar-group-label-color`   | `color-mix(in srgb, var(--color-subtle) 72%, transparent)`                                                                                                          | `--site-doc-masthead-context-gap`         | `1rem`                                                      |
 | `--site-doc-masthead-context-height`        | `1.75rem`                                                                                                                                                           | `--site-doc-masthead-crumb-gap`          | `0.5rem`                                                                                                                                                            | `--site-doc-masthead-crumb-tracking`      | `0.08em`                                                    |
 | `--site-doc-masthead-crumb-rule-width`      | `0.875rem`                                                                                                                                                          | `--site-doc-masthead-action-gap`         | `0.375rem`                                                                                                                                                          | `--site-doc-masthead-title-offset`        | `1.125rem`                                                  |

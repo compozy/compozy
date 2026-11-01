@@ -7,9 +7,9 @@ describe("StatusDot", () => {
   it.each([
     ["success", "solid"],
     ["warning", "solid"],
-    ["danger", "solid"],
+    ["destructive", "solid"],
     ["warning", "ring"],
-    ["accent", "solid"],
+    ["brand", "solid"],
     ["info", "solid"],
     ["faint", "ring"],
   ] as const)("Should expose data-tone/data-variant for %s/%s", (tone, variant) => {
@@ -20,12 +20,12 @@ describe("StatusDot", () => {
   });
 
   it("Should expose an accessible label only when provided", () => {
-    const { container: bare } = render(<StatusDot tone="accent" />);
+    const { container: bare } = render(<StatusDot tone="brand" />);
     expect(bare.querySelector('[data-slot="status-dot"]')?.getAttribute("aria-hidden")).toBe(
       "true"
     );
 
-    const { container: labeled } = render(<StatusDot tone="accent" label="Mentions" />);
+    const { container: labeled } = render(<StatusDot tone="brand" label="Mentions" />);
     const node = labeled.querySelector('[data-slot="status-dot"]');
     expect(node?.getAttribute("aria-hidden")).toBeNull();
     expect(node?.getAttribute("aria-label")).toBe("Mentions");

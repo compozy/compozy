@@ -1,6 +1,6 @@
-import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
 import type * as React from "react";
 
+import { AlertCircleIcon, CheckIcon, XIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import {
@@ -193,7 +193,10 @@ function FilterOperatorDropdown<T = unknown>({
           <Button
             variant="neutral"
             size={context.size}
-            className={cn("text-muted hover:text-fg", FILTER_CHIP_SEGMENT_CLASS[context.size])}
+            className={cn(
+              "text-muted-foreground hover:text-fg",
+              FILTER_CHIP_SEGMENT_CLASS[context.size]
+            )}
           >
             {operatorLabel}
           </Button>

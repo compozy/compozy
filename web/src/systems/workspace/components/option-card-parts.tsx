@@ -4,7 +4,7 @@ import { cn } from "@compozy/ui";
 
 import { useOptionCardSlot } from "../hooks/use-option-card-slot";
 
-export type OptionCardTone = "neutral" | "accent";
+export type OptionCardTone = "neutral" | "brand";
 
 export interface OptionCardIconProps extends React.ComponentProps<"span"> {
   tone?: OptionCardTone;
@@ -36,8 +36,8 @@ export function OptionCardIcon({
       data-tone={tone}
       aria-hidden="true"
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-2",
-        tone === "accent" ? "text-accent" : "text-fg",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-2",
+        tone === "brand" ? "text-brand" : "text-fg",
         className
       )}
       {...props}
@@ -78,7 +78,7 @@ export function OptionCardDescription({
   return (
     <p
       data-slot="option-card-description"
-      className={cn("mt-1 text-small-body text-muted", className)}
+      className={cn("mt-1 text-small-body text-muted-foreground", className)}
       {...props}
     >
       {children}

@@ -30,8 +30,3 @@ export {
 } from "../components/custom/metric-grid";
 export { Timeline, type TimelineProps } from "../components/custom/timeline";
 export { TimelineEvent, type TimelineEventProps } from "../components/custom/timeline-event";
-export {
-  PriorityBars,
-  type PriorityBarsProps,
-  type PriorityLevel,
-} from "../components/custom/priority-bars";

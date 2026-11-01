@@ -45,7 +45,7 @@ function MarketplaceDetailSectionHead({
       id={id}
       className="flex items-center gap-2 text-lg font-semibold tracking-[-0.01em] text-fg"
     >
-      <Icon aria-hidden className="size-4 text-muted" />
+      <Icon aria-hidden className="size-4 text-muted-foreground" />
       {children}
     </h2>
   );
@@ -57,7 +57,7 @@ function ExternalLink({ href, children }: { href: string; children: string }) {
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
+      className="break-all underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
     >
       {children}
     </a>
@@ -160,11 +160,11 @@ export function MarketplaceEntryDetail({ entry }: { entry: ExtensionEntry }) {
           <h1 className="text-detail-h1 font-semibold tracking-detail-h1 text-fg-strong">
             {entry.name}
           </h1>
-          <p className="mt-2.5 text-site-doc-lead text-muted">{entry.description}</p>
+          <p className="mt-2.5 text-site-doc-lead text-muted-foreground">{entry.description}</p>
         </div>
       </header>
 
-      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted">
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-small-body text-muted-foreground">
         <code className="font-mono text-badge text-subtle">{versionLabel(entry.version)}</code>
         <Pill size="sm">
           <ShieldCheck aria-hidden className="size-3" />
@@ -186,7 +186,7 @@ export function MarketplaceEntryDetail({ entry }: { entry: ExtensionEntry }) {
       <div className="mt-7 flex flex-col gap-3">
         <MarketplaceInstallCommand
           command={marketplaceSearchCommand(entry)}
-          className="border-accent/35 bg-canvas-soft"
+          className="border-brand/35 bg-canvas-soft"
         />
         <MarketplaceInstallCommand command={installCommand(entry)} />
         <p className="text-small-body leading-relaxed text-subtle">
@@ -221,7 +221,7 @@ export function MarketplaceEntryDetail({ entry }: { entry: ExtensionEntry }) {
         New to the marketplace? The{" "}
         <Link
           href="/docs/marketplace"
-          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-accent"
+          className="underline decoration-line-strong underline-offset-[0.22em] transition-colors hover:text-brand"
         >
           concept docs
         </Link>{" "}

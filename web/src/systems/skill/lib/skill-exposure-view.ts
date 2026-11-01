@@ -40,8 +40,8 @@ const STATUS_SENTENCE: Record<SkillExposureStatus, string> = {
 
 const STATUS_TONE: Record<SkillExposureStatus, StatusDotTone> = {
   healthy: "success",
-  missing: "danger",
-  broken: "danger",
+  missing: "destructive",
+  broken: "destructive",
   foreign_conflict: "faint",
 };
 

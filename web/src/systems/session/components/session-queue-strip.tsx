@@ -1,10 +1,9 @@
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@compozy/ui/icons";
 import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
-import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { Button, Spinner } from "@compozy/ui";
+import { Button, Spinner, toast } from "@compozy/ui";
 
 import type { QueuedPrompt, QueuedPromptEditOutcome } from "../lib/queued-prompt";
 import { splitQuotedPrompt } from "../lib/session-terminal-quote-prompt";
@@ -68,7 +67,10 @@ function SessionQueueHeader({
       data-full={full ? "true" : undefined}
       className="flex h-8 items-center gap-2 pr-1.5 pl-3.5 text-eyebrow text-subtle"
     >
-      <span className="font-mono text-muted tabular-nums" data-testid="composer-queue-count">
+      <span
+        className="font-mono text-muted-foreground tabular-nums"
+        data-testid="composer-queue-count"
+      >
         {count}
       </span>
       queued
@@ -88,7 +90,7 @@ function SessionQueueHeader({
           size="xs"
           onClick={onClearRequested}
           data-testid="composer-queue-clear"
-          className="text-muted hover:text-fg"
+          className="text-muted-foreground hover:text-fg"
         >
           Clear all
         </Button>

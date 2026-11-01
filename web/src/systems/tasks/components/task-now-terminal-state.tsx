@@ -81,7 +81,7 @@ function TaskNowFailedState({
       }
       data-testid="tasks-detail-now-failed"
       title={`Failed on ${attempts}`}
-      tone="danger"
+      tone="destructive"
     />
   );
 }

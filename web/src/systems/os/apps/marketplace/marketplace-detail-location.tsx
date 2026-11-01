@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 

@@ -34,12 +34,12 @@ describe("StateGlyph", () => {
   it("Should map attention to the accent and never to the warning amber", () => {
     const { container } = render(<StateGlyph state="attention" />);
     const glyph = container.querySelector('[data-slot="state-glyph"]');
-    expect(glyph).toHaveClass("text-accent");
+    expect(glyph).toHaveClass("text-brand");
     expect(glyph?.getAttribute("class")).not.toContain("warning");
   });
 
   it.each([
-    ["failed", "text-danger"],
+    ["failed", "text-destructive"],
     ["stopped", "text-subtle"],
     ["delegated", "text-info"],
     ["monitoring", "text-warning"],

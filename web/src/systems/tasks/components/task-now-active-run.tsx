@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 
 import { Button, StateGlyph, Time } from "@compozy/ui";
 import type { TaskDetailView } from "../types";
@@ -33,7 +33,7 @@ export function TaskNowActiveRun({ run, maxAttempts, onOpenRun, elapsed }: TaskN
           {elapsed ? (
             <span
               aria-label="Elapsed"
-              className="text-form-label tabular-nums text-muted"
+              className="text-form-label tabular-nums text-muted-foreground"
               data-testid="tasks-detail-now-elapsed"
             >
               {elapsed}

@@ -64,7 +64,7 @@ export function SessionAttachmentFrame({
             aria-hidden="true"
             className={cn(
               "pointer-events-none absolute bottom-2 left-2 max-w-[calc(100%-16px)] truncate",
-              "rounded-xs bg-canvas/90 px-2 py-1 font-mono text-micro text-muted",
+              "rounded-xs bg-canvas/90 px-2 py-1 font-mono text-micro text-muted-foreground",
               "opacity-0 transition-opacity duration-base ease-out",
               "group-hover/att-frame:opacity-100",
               "group-focus-visible/att-frame:opacity-100"

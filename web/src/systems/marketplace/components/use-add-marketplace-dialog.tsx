@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import type { MarketplaceSource } from "../types";
 import { AddMarketplaceDialog } from "./add-marketplace-dialog";

@@ -1,5 +1,5 @@
 import { lazy, Suspense, ViewTransition } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 

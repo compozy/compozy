@@ -1,4 +1,4 @@
-import { FolderTree } from "lucide-react";
+import { FolderTree } from "@compozy/ui/icons";
 
 import {
   Field,

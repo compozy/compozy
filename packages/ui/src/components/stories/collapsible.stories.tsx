@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
+import { ChevronDownIcon, ChevronUpIcon } from "../../icons";
 import { Button } from "../button";
 import { Card, CardContent, CardHeader, CardTitle } from "../card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../collapsible";

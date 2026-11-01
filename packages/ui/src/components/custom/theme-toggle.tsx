@@ -1,8 +1,8 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
 import * as React from "react";
 
+import { Moon, Sun } from "../../icons";
 import { cn } from "../../lib/utils";
 
 export interface ThemeToggleProps extends Omit<React.ComponentProps<"button">, "children"> {
@@ -25,7 +25,7 @@ function ThemeToggle({ resolvedTheme, className, type = "button", ...props }: Th
       data-slot="theme-toggle"
       type={type}
       className={cn(
-        "grid size-rail-item shrink-0 cursor-pointer place-items-center rounded-lg text-muted",
+        "grid size-rail-item shrink-0 cursor-pointer place-items-center rounded-lg text-muted-foreground",
         "transition-colors duration-base ease-out hover:bg-rail-hover hover:text-fg",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         "[&_svg]:pointer-events-none [&_svg]:size-4",
@@ -33,7 +33,7 @@ function ThemeToggle({ resolvedTheme, className, type = "button", ...props }: Th
       )}
       {...props}
     >
-      <Icon aria-hidden="true" />
+      <Icon aria-hidden="true" data-slot={dark ? "theme-toggle-sun" : "theme-toggle-moon"} />
     </button>
   );
 }

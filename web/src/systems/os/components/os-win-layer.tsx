@@ -1,4 +1,4 @@
-import { MonitorX } from "lucide-react";
+import { MonitorX } from "@compozy/ui/icons";
 import { lazy, Suspense, type ComponentProps, type CSSProperties } from "react";
 
 import { Button, Empty } from "@compozy/ui";

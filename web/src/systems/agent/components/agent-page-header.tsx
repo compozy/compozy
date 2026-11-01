@@ -1,4 +1,4 @@
-import { Plus, Settings2 } from "lucide-react";
+import { Plus, Settings2 } from "@compozy/ui/icons";
 
 import {
   Button,

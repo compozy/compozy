@@ -6,7 +6,7 @@ import {
   Users,
   Wrench,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { Eyebrow, StateGlyph, cn } from "@compozy/ui";
 import type { SessionActivityView } from "../lib/session-activity-view";
 import { SessionInspectorSection } from "./session-inspector-section";
@@ -54,7 +54,7 @@ export function SessionActivitySection({ activity = {} }: { activity?: SessionAc
               <li
                 key={key}
                 data-kind={key === "warning" ? "warning" : undefined}
-                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-normal text-muted"
+                className="grid grid-cols-[14px_minmax(0,1fr)] items-start gap-2 text-form-label leading-normal text-muted-foreground"
               >
                 {Icon ? (
                   <Icon

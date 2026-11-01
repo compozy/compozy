@@ -1,4 +1,4 @@
-import { AlertTriangle, CloudOff, RefreshCw } from "lucide-react";
+import { AlertTriangle, CloudOff, RefreshCw } from "@compozy/ui/icons";
 
 import { Icon, Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 

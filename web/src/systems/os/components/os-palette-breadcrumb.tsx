@@ -1,4 +1,4 @@
-import { CornerUpLeft } from "lucide-react";
+import { CornerUpLeft } from "@compozy/ui/icons";
 
 import { Icon } from "@compozy/ui";
 
@@ -25,7 +25,7 @@ export function OsPaletteBreadcrumb({ breadcrumb }: OsPaletteBreadcrumbProps) {
       aria-label="Location"
       data-testid="os-palette-breadcrumb"
       className={cn(
-        "flex items-center gap-1.5 pt-2 pb-1.5 text-eyebrow text-muted",
+        "flex items-center gap-1.5 pt-2 pb-1.5 text-eyebrow text-muted-foreground",
         paletteViewLeadClass
       )}
     >

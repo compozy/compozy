@@ -1,4 +1,4 @@
-import { ShieldOff } from "lucide-react";
+import { ShieldOff } from "@compozy/ui/icons";
 
 import { Empty, Logo } from "@compozy/ui";
 

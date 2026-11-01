@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, RefreshCw, RotateCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, RefreshCw, RotateCw } from "@compozy/ui/icons";
 
 import type { ConfigApplyRecord, SettingsApplyResponse } from "@/systems/settings/types";
 import {
@@ -37,7 +37,7 @@ const STATUS_TONE: Record<ConfigApplyRecord["status"], PillTone> = {
   pending_apply: "info",
   applied: "success",
   blocked: "warning",
-  failed: "danger",
+  failed: "destructive",
 };
 
 const NEXT_ACTION_LABEL: Record<ConfigApplyRecord["next_action"], string> = {
@@ -82,13 +82,13 @@ function ApplyRecordRowSkeleton() {
   return (
     <div aria-hidden="true" className={RECORD_ROW_CLASS}>
       <div className="flex min-w-0 flex-col gap-2">
-        <span className="eyebrow text-muted">Status</span>
+        <span className="eyebrow text-muted-foreground">Status</span>
         <Skeleton className="h-pill-sm w-36 rounded-pill" />
         <SkeletonText className="w-40 text-small-body" />
       </div>
       <div className="flex min-w-0 flex-col gap-2">
-        <span className="eyebrow text-muted">Hashes</span>
-        <div className="grid min-w-0 gap-1 font-mono text-mono-id text-muted">
+        <span className="eyebrow text-muted-foreground">Hashes</span>
+        <div className="grid min-w-0 gap-1 font-mono text-mono-id text-muted-foreground">
           <SkeletonText className="w-36" />
           <SkeletonText className="w-36" />
         </div>
@@ -148,7 +148,7 @@ function SettingsApplyRecordsPanel({
     >
       <div className="flex flex-col gap-3">
         {reloadError ? (
-          <Alert variant="danger" data-testid="settings-apply-records-reload-error">
+          <Alert variant="destructive" data-testid="settings-apply-records-reload-error">
             <AlertCircle className="mt-0.5 size-3 shrink-0" />
             <AlertDescription className="text-eyebrow">{reloadError}</AlertDescription>
           </Alert>
@@ -165,7 +165,7 @@ function SettingsApplyRecordsPanel({
         ) : null}
 
         {error ? (
-          <Alert variant="danger" data-testid="settings-apply-records-error">
+          <Alert variant="destructive" data-testid="settings-apply-records-error">
             <AlertCircle className="mt-0.5 size-3 shrink-0" />
             <AlertDescription className="text-eyebrow">{error.message}</AlertDescription>
           </Alert>
@@ -192,7 +192,7 @@ function SettingsApplyRecordsPanel({
                 data-testid="settings-apply-records-row"
               >
                 <div className="flex min-w-0 flex-col gap-2">
-                  <span className="eyebrow text-muted">Status</span>
+                  <span className="eyebrow text-muted-foreground">Status</span>
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <Pill form="plain" tone={STATUS_TONE[record.status]}>
                       <Pill.Dot />
@@ -202,7 +202,7 @@ function SettingsApplyRecordsPanel({
                       {record.lifecycle}
                     </Pill>
                   </div>
-                  <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-small-body text-muted">
+                  <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-small-body text-muted-foreground">
                     <span>
                       generation{" "}
                       <span className="font-mono text-mono-id font-medium text-fg tabular-nums">
@@ -213,8 +213,8 @@ function SettingsApplyRecordsPanel({
                   </div>
                 </div>
                 <div className="flex min-w-0 flex-col gap-2">
-                  <span className="eyebrow text-muted">Hashes</span>
-                  <div className="grid min-w-0 gap-1 font-mono text-mono-id text-muted">
+                  <span className="eyebrow text-muted-foreground">Hashes</span>
+                  <div className="grid min-w-0 gap-1 font-mono text-mono-id text-muted-foreground">
                     <span className="min-w-0 truncate">
                       desired {shortHash(record.desired_config_hash)}
                     </span>
@@ -224,14 +224,14 @@ function SettingsApplyRecordsPanel({
                   </div>
                 </div>
                 <div className="flex min-w-0 flex-col gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-small-body text-muted">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-small-body text-muted-foreground">
                     <span>
                       updated{" "}
                       {record.updated_at ? <Time iso={record.updated_at} mode="absolute" /> : "--"}
                     </span>
                     <span>next {NEXT_ACTION_LABEL[record.next_action]}</span>
                   </div>
-                  <p className="text-small-body leading-relaxed text-muted">
+                  <p className="text-small-body leading-relaxed text-muted-foreground">
                     {latestDiagnostic(record) ?? "No diagnostics"}
                   </p>
                 </div>

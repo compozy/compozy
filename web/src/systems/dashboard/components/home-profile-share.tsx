@@ -34,7 +34,9 @@ export function HomeProfileShare({ profiles, windowDays }: HomeProfileShareProps
     >
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <Eyebrow className="text-subtle">Per-profile share</Eyebrow>
-        <span className="text-eyebrow text-muted">all profiles · last {windowDays} days</span>
+        <span className="text-eyebrow text-muted-foreground">
+          all profiles · last {windowDays} days
+        </span>
       </div>
       <div className="flex flex-col gap-2">
         {profiles.map(entry => (

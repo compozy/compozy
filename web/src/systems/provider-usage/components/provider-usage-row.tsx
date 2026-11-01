@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 
 import {
   cn,
@@ -36,10 +36,10 @@ export interface ProviderUsageRowProps {
 }
 
 function cueInk(row: ProviderUsageRowModel, known: boolean): string {
-  if (!known) return "text-muted";
-  if (row.severity === "exhausted") return "font-medium text-danger";
+  if (!known) return "text-muted-foreground";
+  if (row.severity === "exhausted") return "font-medium text-destructive";
   if (row.severity === "warning") return "text-warning";
-  return row.stale ? "text-muted" : "text-fg";
+  return row.stale ? "text-muted-foreground" : "text-fg";
 }
 
 /**
@@ -146,7 +146,7 @@ export function ProviderUsageRow({
           />
         </span>
         <span className="truncate text-small-body font-medium text-fg">{target.provider_name}</span>
-        {plan ? <span className="truncate text-meta text-muted">{plan}</span> : null}
+        {plan ? <span className="truncate text-meta text-muted-foreground">{plan}</span> : null}
         <span className="flex-1" />
         <RowCue row={row} status={status} />
       </CollapsibleTrigger>

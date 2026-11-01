@@ -1,8 +1,8 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Check } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Check } from "../../../icons";
 import { Dialog, DialogContent } from "../../dialog";
 import { EntityDialogFooter } from "../entity-dialog-footer";
 import { UIProvider } from "../ui-provider";

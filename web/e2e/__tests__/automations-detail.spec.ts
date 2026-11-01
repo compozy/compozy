@@ -122,7 +122,7 @@ test("a schedule's detail runs it now, explains the failure and offers the retri
 
     await ui.run(failed.id).click();
     const drawer = ui.runDrawer(failed.id);
-    await expect(drawer.locator('[data-tone="danger"]').first()).toBeVisible();
+    await expect(drawer.locator('[data-tone="destructive"]').first()).toBeVisible();
     await drawer.getByRole("button", { name: "Set up retries" }).click();
     await expect(ui.editorDialog).toBeVisible();
     await appPage.keyboard.press("Escape");

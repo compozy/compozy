@@ -32,7 +32,7 @@ export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunFor
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">
-          <label className="eyebrow text-muted" htmlFor={dialog.reasonId}>
+          <label className="eyebrow text-muted-foreground" htmlFor={dialog.reasonId}>
             Reason
           </label>
           <Textarea
@@ -46,7 +46,7 @@ export function TaskRunForceFailDialog({ dialog, isPending = false }: TaskRunFor
             value={dialog.reason}
           />
           {dialog.error ? (
-            <p className="text-form-hint text-danger" id={dialog.reasonHintId} role="alert">
+            <p className="text-form-hint text-destructive" id={dialog.reasonHintId} role="alert">
               {dialog.error}
             </p>
           ) : null}

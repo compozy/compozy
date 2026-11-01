@@ -1,4 +1,4 @@
-import { Check, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "@compozy/ui/icons";
 
 import { EntityDialogToolbar, Pill } from "@compozy/ui";
 
@@ -22,7 +22,7 @@ export function AutomationEditorSentenceBar({ sentence, ready }: AutomationEdito
       leading={
         <p
           aria-live="polite"
-          className="min-w-0 flex-1 text-small-body leading-snug text-muted"
+          className="min-w-0 flex-1 text-small-body leading-snug text-muted-foreground"
           data-testid="automation-editor-sentence"
         >
           <AutomationSentenceText sentence={sentence} />

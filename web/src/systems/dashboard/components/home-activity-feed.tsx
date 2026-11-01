@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -79,13 +79,15 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
       <span
         className={
           quiet
-            ? "min-w-0 truncate text-small-body text-muted"
+            ? "min-w-0 truncate text-small-body text-muted-foreground"
             : "min-w-0 truncate text-small-body font-medium text-fg-strong"
         }
       >
         {event.agent_name ? <span className="font-medium">{event.agent_name}</span> : null}
         {event.agent_name ? " · " : ""}
-        <span className={quiet ? undefined : "font-normal text-muted"}>{eventTitle(event)}</span>
+        <span className={quiet ? undefined : "font-normal text-muted-foreground"}>
+          {eventTitle(event)}
+        </span>
       </span>
       <span className="text-eyebrow tabular-nums text-subtle">
         <Time iso={event.timestamp} />
@@ -154,7 +156,7 @@ export function HomeActivityFeed({
             ))}
             {quiet.length > 0 ? (
               <Collapsible>
-                <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-2.5 text-left text-small-body text-subtle transition-colors duration-base hover:bg-surface-2 hover:text-muted focus-visible:shadow-focus-inset focus-visible:outline-none">
+                <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-2.5 text-left text-small-body text-subtle transition-colors duration-base hover:bg-surface-2 hover:text-muted-foreground focus-visible:shadow-focus-inset focus-visible:outline-none">
                   <ChevronRight
                     aria-hidden="true"
                     className="size-3.5 text-faint transition-transform duration-base group-data-[panel-open]:rotate-90"

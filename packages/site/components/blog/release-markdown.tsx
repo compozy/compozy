@@ -13,7 +13,7 @@ export function ReleaseMarkdown({
   pullRequestNumbers: number[];
 }) {
   return (
-    <div className="min-w-0 text-base leading-8 text-muted">
+    <div className="min-w-0 text-base leading-8 text-muted-foreground">
       <ReactMarkdown
         skipHtml
         remarkPlugins={[remarkGfm, [remarkReleaseStructure, { pullRequestNumbers }]]}
@@ -43,7 +43,7 @@ export function ReleaseMarkdown({
           ),
           p: props => <p {...props} className="mt-5 max-w-[74ch]" />,
           ul: props => (
-            <ul {...props} className="mt-5 flex list-disc flex-col gap-2 pl-5 marker:text-accent" />
+            <ul {...props} className="mt-5 flex list-disc flex-col gap-2 pl-5 marker:text-brand" />
           ),
           ol: props => (
             <ol
@@ -57,7 +57,7 @@ export function ReleaseMarkdown({
               <a
                 {...props}
                 href={href}
-                className="font-medium text-accent underline decoration-accent/35 underline-offset-4 hover:decoration-accent"
+                className="font-medium text-brand underline decoration-brand/35 underline-offset-4 hover:decoration-brand"
                 target={external ? "_blank" : undefined}
                 rel={external ? "noreferrer noopener" : undefined}
               />
@@ -66,7 +66,7 @@ export function ReleaseMarkdown({
           code: props => (
             <code
               {...props}
-              className="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-fg"
+              className="rounded-site-row bg-elevated px-1.5 py-0.5 font-mono text-sm text-fg"
             />
           ),
           pre: props => (
@@ -76,7 +76,7 @@ export function ReleaseMarkdown({
             />
           ),
           blockquote: props => (
-            <blockquote {...props} className="mt-6 border-l-2 border-accent pl-5 text-fg" />
+            <blockquote {...props} className="mt-6 border-l-2 border-brand pl-5 text-fg" />
           ),
           hr: () => <hr className="my-10 border-line" />,
           table: props => (

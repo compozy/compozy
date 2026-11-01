@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 
@@ -51,7 +51,7 @@ export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: Onboardin
               "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:transition-colors after:duration-shell-slow",
               reached ? "after:bg-fg" : "after:bg-line",
               state === "current" && "text-fg",
-              state === "done" && "text-muted",
+              state === "done" && "text-muted-foreground",
               state === "upcoming" && "text-subtle",
               "hover:text-fg disabled:pointer-events-none disabled:opacity-70"
             )}

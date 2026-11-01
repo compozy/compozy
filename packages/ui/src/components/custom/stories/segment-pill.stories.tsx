@@ -38,7 +38,7 @@ function SegmentHarness({ deselectable = false }: { deselectable?: boolean }) {
           onClick={() => setIndex(deselectable && index === i ? null : i)}
           className={cn(
             "relative z-10 h-6 rounded-pill px-2 font-mono text-micro tabular-nums outline-none focus-visible:shadow-focus-ring",
-            index === i ? "text-fg" : "text-muted hover:text-fg"
+            index === i ? "text-fg" : "text-muted-foreground hover:text-fg"
           )}
         >
           {label}

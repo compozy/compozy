@@ -1,5 +1,5 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
-import { MessagesSquare } from "lucide-react";
+import { MessagesSquare } from "@compozy/ui/icons";
 
 import { Empty } from "@compozy/ui";
 

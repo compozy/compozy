@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@compozy/ui/icons";
 
 import {
   AvatarGroup,
@@ -43,7 +43,7 @@ const STACK_LIMIT = 3;
 
 const SUMMARY_TONE: Record<SubagentSummaryTone, string> = {
   live: "text-info",
-  failed: "text-danger",
+  failed: "text-destructive",
   settled: "text-subtle",
 };
 
@@ -103,7 +103,7 @@ export function SubagentGroup({
             <SubagentAvatar key={subagent.id} provider={subagent.runtime.provider} />
           ))}
           {overflow > 0 ? (
-            <AvatarGroupCount className="w-auto min-w-6 bg-elevated px-1.25 font-mono text-micro font-semibold text-muted tabular-nums ring-canvas-soft">
+            <AvatarGroupCount className="w-auto min-w-6 bg-elevated px-1.25 font-mono text-micro font-semibold text-muted-foreground tabular-nums ring-canvas-soft">
               +{overflow}
             </AvatarGroupCount>
           ) : null}

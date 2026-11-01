@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { BellIcon, BoldIcon, ItalicIcon, UnderlineIcon } from "lucide-react";
 import { expect, userEvent, within } from "storybook/test";
 
+import { BellIcon, BoldIcon, ItalicIcon, UnderlineIcon } from "../../icons";
 import { Toggle } from "../toggle";
 
 const meta: Meta<typeof Toggle> = {

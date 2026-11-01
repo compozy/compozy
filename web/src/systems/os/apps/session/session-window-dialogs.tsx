@@ -1,4 +1,4 @@
-import { Eraser } from "lucide-react";
+import { Eraser } from "@compozy/ui/icons";
 
 import {
   Button,

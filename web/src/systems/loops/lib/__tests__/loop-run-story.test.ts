@@ -46,7 +46,7 @@ describe("buildStoryBeats", () => {
 
     expect(beat.title).toBe("step revisor-perf failed");
     expect(beat.title).not.toContain("node_failed");
-    expect(beat.tone).toBe("danger");
+    expect(beat.tone).toBe("destructive");
     expect(beat.icon).toBe("node-failed");
     // The attempt rides along as metadata; it is not a beat of its own.
     expect(beat.attemptLabel).toBe("attempt 3");

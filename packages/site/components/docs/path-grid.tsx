@@ -32,7 +32,7 @@ export function PathCard({ label, title, description, children }: PathCardProps)
     <section className="flex flex-col rounded-xl border border-line bg-canvas-soft px-5 pt-[18px] pb-4 transition-colors hover:border-line-strong">
       <Eyebrow className="text-subtle">{label}</Eyebrow>
       <h3 className="mt-2 text-compact-h1 font-semibold tracking-tight text-fg">{title}</h3>
-      <p className="mt-1.5 text-sm leading-6 text-muted">{description}</p>
+      <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{description}</p>
       <div className="mt-3.5 flex flex-col border-t border-line pt-2.5">{children}</div>
     </section>
   );
@@ -45,8 +45,8 @@ export function PathLink({ href, icon, children, cta = false }: PathLinkProps) {
       href={href}
       className={
         cta
-          ? "flex h-[30px] items-center gap-2 text-small-body font-medium text-accent transition-colors hover:text-accent-hover"
-          : "flex h-[30px] items-center gap-2 text-small-body text-muted transition-colors hover:text-fg"
+          ? "flex h-[30px] items-center gap-2 text-small-body font-medium text-brand transition-colors hover:text-brand-hover"
+          : "flex h-[30px] items-center gap-2 text-small-body text-muted-foreground transition-colors hover:text-fg"
       }
     >
       {Icon ? <Icon aria-hidden className="size-3 shrink-0 opacity-60" /> : null}

@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import type { ReactNode, Ref } from "react";
 
 import {
@@ -59,7 +59,7 @@ export function AutomationOptions({
       >
         <ChevronRight
           aria-hidden="true"
-          className={cn("size-4 text-muted transition-transform", open && "rotate-90")}
+          className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-90")}
         />
         <span className="text-small-body font-semibold text-fg-strong">Options</span>
         <span
@@ -241,7 +241,9 @@ function OptionRow({
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
       <div className="min-w-0">
         <div className="text-small-body font-medium text-fg">{label}</div>
-        {description ? <div className="text-form-hint text-muted">{description}</div> : null}
+        {description ? (
+          <div className="text-form-hint text-muted-foreground">{description}</div>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">{children}</div>
     </div>

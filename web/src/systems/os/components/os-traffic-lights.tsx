@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "lucide-react";
+import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "@compozy/ui/icons";
 import { Fragment } from "react";
 
 import { Button } from "@compozy/ui";
@@ -74,7 +74,7 @@ function Light({
         aria-hidden="true"
         data-action={action}
         className={cn(
-          "grid shrink-0 place-items-center rounded-pill text-muted",
+          "grid shrink-0 place-items-center rounded-pill text-muted-foreground",
           compact ? "size-11" : "size-button-icon-sm"
         )}
       >

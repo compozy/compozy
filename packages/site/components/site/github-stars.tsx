@@ -4,16 +4,16 @@ import * as React from "react";
 
 import { m, type HTMLMotionProps } from "motion/react";
 
-import { type UseIsInViewOptions } from "../../hooks/use-is-in-view";
+import { type UseIsInViewOptions } from "@/components/site/use-is-in-view";
 import {
   useGithubStarsController,
   type GithubStarsContextType,
-} from "../../hooks/use-github-stars-controller";
-import { cn } from "../../lib/utils";
-import { Slot, type WithAsChild } from "../../primitives/slot";
-import { Particles, ParticlesEffect, type ParticlesEffectProps } from "./particles";
-import { SlidingNumber, type SlidingNumberProps } from "./sliding-number";
-import { GithubStarsProvider, useGithubStars } from "./github-stars-context";
+} from "@/components/site/use-github-stars-controller";
+import { cn } from "@compozy/ui";
+import { Slot, type WithAsChild } from "@/components/site/slot";
+import { Particles, ParticlesEffect, type ParticlesEffectProps } from "@/components/site/particles";
+import { SlidingNumber, type SlidingNumberProps } from "@/components/site/sliding-number";
+import { GithubStarsProvider, useGithubStars } from "@/components/site/github-stars-context";
 
 export type GithubStarsProps = WithAsChild<
   {

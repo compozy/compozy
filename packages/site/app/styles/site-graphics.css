@@ -2,9 +2,9 @@
 .compozy-mermaid {
   --compozy-mermaid-bg: var(--color-canvas-soft);
   --compozy-mermaid-node-bg: var(--color-elevated);
-  --compozy-mermaid-node-border: var(--color-accent);
+  --compozy-mermaid-node-border: var(--color-brand);
   --compozy-mermaid-node-text: var(--color-fg);
-  --compozy-mermaid-muted: var(--color-muted);
+  --compozy-mermaid-muted: var(--color-muted-foreground);
 }
 
 .compozy-mermaid .compozy-mermaid-svg {

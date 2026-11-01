@@ -83,7 +83,7 @@ export function LayoutCanvas({
             selection?.kind === "group" &&
               selection.id === group.id &&
               "outline-fg-2 outline-offset-1",
-            overlapping.has(group.id) && "outline-dashed outline-danger"
+            overlapping.has(group.id) && "outline-dashed outline-destructive"
           )}
           data-overlapping={overlapping.has(group.id) ? "true" : undefined}
           data-testid={`layout-canvas-group-${group.id}`}

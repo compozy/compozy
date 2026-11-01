@@ -73,8 +73,8 @@ export function WorkspaceScopeStatement({
       ref={ref}
       className={cn(
         chip
-          ? "inline-block h-7 max-w-full truncate rounded-pill bg-surface-2 px-2.5 align-middle text-form-hint leading-7 text-muted"
-          : "text-form-hint text-muted",
+          ? "inline-block h-7 max-w-full truncate rounded-pill bg-surface-2 px-2.5 align-middle text-form-hint leading-7 text-muted-foreground"
+          : "text-form-hint text-muted-foreground",
         className
       )}
       data-slot="workspace-scope-statement"

@@ -54,7 +54,7 @@ export function AutomationCard({
             <AutomationStartGlyph start={view.start} />
           </CatalogCard.Logo>
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <CatalogCard.Title className={cn(!view.enabled && "text-muted")}>
+            <CatalogCard.Title className={cn(!view.enabled && "text-muted-foreground")}>
               {view.name}
             </CatalogCard.Title>
             <CatalogCard.Meta data-testid={`automation-card-caption-${view.id}`}>
@@ -77,7 +77,10 @@ export function AutomationCard({
       </AutomationDetailLink>
       <CatalogCard.Actions className="justify-between">
         <span
-          className={cn("text-form-label", stat.value === null ? "text-faint" : "text-muted")}
+          className={cn(
+            "text-form-label",
+            stat.value === null ? "text-faint" : "text-muted-foreground"
+          )}
           data-testid={`automation-card-foot-${view.id}`}
         >
           {footLead === null ? (

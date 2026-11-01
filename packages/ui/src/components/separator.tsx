@@ -8,7 +8,7 @@ export interface SeparatorProps extends Omit<SeparatorPrimitive.Props, "style"> 
   labelClassName?: string;
   lineClassName?: string;
   style?: React.CSSProperties;
-  tone?: "default" | "accent";
+  tone?: "default" | "brand";
 }
 
 function Separator({
@@ -41,7 +41,7 @@ function Separator({
           orientation={orientation}
           className={cn(
             "shrink-0 data-horizontal:h-px data-horizontal:flex-1 data-vertical:h-full data-vertical:w-px",
-            tone === "accent" ? "bg-accent" : "bg-line",
+            tone === "brand" ? "bg-brand" : "bg-line",
             lineClassName
           )}
         />
@@ -49,7 +49,7 @@ function Separator({
           data-slot="separator-label"
           className={cn(
             "eyebrow shrink-0",
-            tone === "accent" ? "text-accent" : "text-subtle",
+            tone === "brand" ? "text-brand" : "text-subtle",
             labelClassName
           )}
         >
@@ -60,7 +60,7 @@ function Separator({
           orientation={orientation}
           className={cn(
             "shrink-0 data-horizontal:h-px data-horizontal:flex-1 data-vertical:h-full data-vertical:w-px",
-            tone === "accent" ? "bg-accent" : "bg-line",
+            tone === "brand" ? "bg-brand" : "bg-line",
             lineClassName
           )}
         />

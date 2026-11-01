@@ -203,7 +203,7 @@ function DiagramPickRow<TKey extends keyof WindowManagerConfig>({
               aria-checked={selected}
               className={cn(
                 "flex w-26 flex-col items-start gap-1.5 rounded-lg px-2.5 pt-2 pb-2.5",
-                "text-left text-form-label font-medium text-muted",
+                "text-left text-form-label font-medium text-muted-foreground",
                 "transition-colors duration-base ease-out",
                 "focus-visible:outline-none focus-visible:shadow-focus-ring",
                 selected

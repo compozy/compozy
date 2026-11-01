@@ -22,7 +22,7 @@ interface LoopRunRowProps {
   nowMs: number;
 }
 
-const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
+const META_CELL = "font-mono text-mono-id tabular-nums text-muted-foreground";
 
 /**
  * One roster row: Loop · Status · Progress · Started · Duration.

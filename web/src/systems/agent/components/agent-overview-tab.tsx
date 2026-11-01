@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {
@@ -132,7 +132,7 @@ export function AgentOverviewTab({
           </SkeletonRegion>
         ) : sessionsError ? (
           <p
-            className="p-4 text-small-body text-muted"
+            className="p-4 text-small-body text-muted-foreground"
             data-testid="agent-overview-sessions-notice"
           >
             Session status unavailable
@@ -167,7 +167,9 @@ export function AgentOverviewTab({
                         {getSessionDisplayTitle(session)}
                       </span>
                       {elapsed ? (
-                        <span className="mt-1 block text-small-body text-muted">{elapsed}</span>
+                        <span className="mt-1 block text-small-body text-muted-foreground">
+                          {elapsed}
+                        </span>
                       ) : null}
                     </span>
                     <Pill form="plain">

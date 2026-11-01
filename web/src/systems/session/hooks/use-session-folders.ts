@@ -5,7 +5,7 @@ import {
   type InfiniteData,
   type QueryKey,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import {
   createSessionFolder,

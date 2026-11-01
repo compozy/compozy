@@ -78,7 +78,7 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {daemon.isPending ? <AboutRowsSkeleton /> : null}
           {daemon.isError ? (
-            <p className="text-small-body text-danger" role="status">
+            <p className="text-small-body text-destructive" role="status">
               CompozyOS status is unavailable. The desktop keeps running on its last snapshot.
             </p>
           ) : null}

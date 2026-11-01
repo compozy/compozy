@@ -110,7 +110,7 @@ function ArrangeAction({
       aria-pressed={active}
       className={cn(
         "flex w-16 flex-col items-center gap-1.5 rounded-lg px-1 py-2",
-        "text-form-hint font-medium text-muted",
+        "text-form-hint font-medium text-muted-foreground",
         "transition-colors duration-base ease-out",
         "focus-visible:outline-none focus-visible:shadow-focus-ring",
         "disabled:cursor-not-allowed disabled:opacity-35",

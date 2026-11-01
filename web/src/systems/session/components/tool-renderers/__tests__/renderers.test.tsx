@@ -56,8 +56,8 @@ describe("BashContent", () => {
     // stderr renders as danger TEXT inside the muted detail pre — no tinted block.
     const stderrEl = screen.getByTestId("bash-stderr");
     expect(stderrEl).toHaveTextContent("command not found");
-    expect(stderrEl).toHaveClass("text-danger");
-    expect(stderrEl.closest("pre")).not.toHaveClass("bg-danger-tint");
+    expect(stderrEl).toHaveClass("text-destructive");
+    expect(stderrEl.closest("pre")).not.toHaveClass("bg-destructive-tint");
   });
 
   it("renders without command when toolInput has no command", () => {

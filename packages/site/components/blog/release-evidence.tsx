@@ -18,7 +18,7 @@ export function ReleaseEvidence({
   return (
     <div className="mt-14 grid gap-8 border-t border-line pt-10 md:grid-cols-2">
       <section aria-labelledby="contributors-heading">
-        <Eyebrow id="contributors-heading" className="text-muted">
+        <Eyebrow id="contributors-heading" className="text-muted-foreground">
           Contributors
         </Eyebrow>
         {readyEvidence && readyEvidence.contributors.length > 0 ? (
@@ -39,7 +39,7 @@ export function ReleaseEvidence({
             ))}
           </AvatarGroup>
         ) : (
-          <p className="mt-3 text-sm leading-6 text-muted">
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
             {evidence.status === "unavailable"
               ? "Contribution data is temporarily unavailable."
               : "No linked human contributors were found."}
@@ -53,7 +53,7 @@ export function ReleaseEvidence({
                   href={pullRequest.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="group flex gap-3 text-sm leading-6 text-muted hover:text-fg"
+                  className="group flex gap-3 text-sm leading-6 text-muted-foreground hover:text-fg"
                 >
                   <span className="font-mono text-subtle">#{pullRequest.number}</span>
                   <span>{pullRequest.title}</span>
@@ -68,10 +68,10 @@ export function ReleaseEvidence({
         )}
       </section>
       <section aria-labelledby="assets-heading">
-        <Eyebrow id="assets-heading" className="text-muted">
+        <Eyebrow id="assets-heading" className="text-muted-foreground">
           Release assets
         </Eyebrow>
-        <p className="mt-3 text-sm leading-6 text-muted">
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
           {release.assets.length} files published by the GitHub release workflow.
         </p>
         <details className="mt-4 rounded-xl border border-line bg-canvas-soft p-4">
@@ -80,7 +80,7 @@ export function ReleaseEvidence({
             {release.assets.map(asset => (
               <li key={asset.name} className="flex items-start gap-2">
                 <Download className="mt-1 size-3.5 shrink-0 text-subtle" aria-hidden />
-                <a href={asset.url} className="min-w-0 text-sm text-muted hover:text-fg">
+                <a href={asset.url} className="min-w-0 text-sm text-muted-foreground hover:text-fg">
                   <span className="block break-all font-mono text-xs text-fg">{asset.name}</span>
                   <span>
                     {formatBytes(asset.size)} · {asset.downloadCount} downloads
@@ -89,12 +89,18 @@ export function ReleaseEvidence({
               </li>
             ))}
             <li>
-              <a href={release.sourceArchiveUrl} className="text-sm text-muted hover:text-fg">
+              <a
+                href={release.sourceArchiveUrl}
+                className="text-sm text-muted-foreground hover:text-fg"
+              >
                 Source code (tar.gz)
               </a>
             </li>
             <li>
-              <a href={release.sourceZipUrl} className="text-sm text-muted hover:text-fg">
+              <a
+                href={release.sourceZipUrl}
+                className="text-sm text-muted-foreground hover:text-fg"
+              >
                 Source code (zip)
               </a>
             </li>

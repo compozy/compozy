@@ -1,4 +1,4 @@
-import { Check, Circle, CircleCheck } from "lucide-react";
+import { Check, Circle, CircleCheck } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 
@@ -109,7 +109,7 @@ function NestRowTrailing({ entry, checked }: { entry: WorktreeNestEntry; checked
       {entry.adoptable ? (
         <span
           className={cn(
-            "text-micro font-medium text-muted opacity-0 transition-opacity duration-base",
+            "text-micro font-medium text-muted-foreground opacity-0 transition-opacity duration-base",
             "group-hover/wtnest:opacity-100 group-focus-within/wtnest:opacity-100",
             "group-data-[on=true]/wtnest:opacity-100"
           )}
@@ -196,7 +196,7 @@ export function WorktreeNestRow({
           data-slot="worktree-nest-row-name"
           className={cn(
             "min-w-0 truncate text-small-body font-medium tracking-tight",
-            inert ? "text-muted" : "text-fg"
+            inert ? "text-muted-foreground" : "text-fg"
           )}
         >
           {entry.name}

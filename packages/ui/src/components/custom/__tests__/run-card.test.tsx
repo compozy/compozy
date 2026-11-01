@@ -48,7 +48,7 @@ describe("RunCard", () => {
       in_progress: "info",
       needs_attention: "warning",
       completed: "success",
-      failed: "danger",
+      failed: "destructive",
       canceled: "neutral",
     });
   });

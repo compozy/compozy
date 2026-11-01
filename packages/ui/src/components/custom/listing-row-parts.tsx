@@ -54,7 +54,7 @@ function ListingRowIcon({ className, ...props }: ListingRowIconProps) {
       aria-hidden="true"
       data-slot="listing-row-icon"
       className={cn(
-        "grid size-icon-well-row shrink-0 place-items-center rounded-md bg-surface-2 text-muted",
+        "grid size-icon-well-row shrink-0 place-items-center rounded-md bg-surface-2 text-muted-foreground",
         className
       )}
       {...props}
@@ -100,7 +100,7 @@ function ListingRowSlug({ className, ...props }: ListingRowSlugProps) {
   return (
     <span
       data-slot="listing-row-slug"
-      className={cn("shrink-0 whitespace-nowrap text-eyebrow text-muted", className)}
+      className={cn("shrink-0 whitespace-nowrap text-eyebrow text-muted-foreground", className)}
       {...props}
     />
   );
@@ -110,7 +110,7 @@ function ListingRowDescription({ className, ...props }: ListingRowDescriptionPro
   return (
     <p
       data-slot="listing-row-description"
-      className={cn("mt-1 truncate text-small-body text-muted", className)}
+      className={cn("mt-1 truncate text-small-body text-muted-foreground", className)}
       {...props}
     />
   );

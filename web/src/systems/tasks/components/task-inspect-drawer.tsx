@@ -66,8 +66,8 @@ const SEVERITY_TONE: Record<string, PillTone> = {
   ok: "success",
   info: "info",
   warn: "warning",
-  error: "danger",
-  critical: "danger",
+  error: "destructive",
+  critical: "destructive",
 };
 
 const STREAM_STATE_PRESENTATION: Record<
@@ -75,7 +75,7 @@ const STREAM_STATE_PRESENTATION: Record<
   { label: string; pulse: boolean; tone: PillTone }
 > = {
   disabled: { label: "Disabled", pulse: false, tone: "neutral" },
-  error: { label: "Error", pulse: false, tone: "danger" },
+  error: { label: "Error", pulse: false, tone: "destructive" },
   idle: { label: "Idle", pulse: false, tone: "neutral" },
   receiving: { label: "Receiving", pulse: true, tone: "success" },
 };
@@ -130,14 +130,17 @@ function DiagnosticsPane({
   }
   if (errorMessage && !inspect) {
     return (
-      <p className="text-small-body text-danger" role="alert">
+      <p className="text-small-body text-destructive" role="alert">
         {errorMessage}
       </p>
     );
   }
   if (!inspect) {
     return (
-      <p className="text-small-body text-muted" data-testid="tasks-inspect-diagnostics-empty">
+      <p
+        className="text-small-body text-muted-foreground"
+        data-testid="tasks-inspect-diagnostics-empty"
+      >
         No inspect snapshot is available for this task state.
       </p>
     );
@@ -159,7 +162,7 @@ function DiagnosticsSnapshot({
   return (
     <div className="flex flex-col gap-4" data-testid="tasks-inspect-diagnostics">
       {errorMessage ? (
-        <p className="text-small-body text-danger" role="alert">
+        <p className="text-small-body text-destructive" role="alert">
           {errorMessage}
         </p>
       ) : null}
@@ -194,7 +197,7 @@ function DiagnosticsList({
 }) {
   if (diagnostics.length === 0) {
     return (
-      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted-foreground">
         No diagnostics were reported in this snapshot.
       </p>
     );
@@ -235,9 +238,9 @@ function StreamPane({ stream }: { stream: TaskInspectDrawerProps["stream"] }) {
         <MetadataTile label="Resume seed" value={stream.seedSequence} />
       </div>
       {stream.errorMessage ? (
-        <p className="text-small-body text-danger">{stream.errorMessage}</p>
+        <p className="text-small-body text-destructive">{stream.errorMessage}</p>
       ) : null}
-      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted">
+      <p className="rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted-foreground">
         The task stream replays durable events for this task subtree, then tails new ones. The page
         refetches on every frame.
       </p>

@@ -48,8 +48,8 @@ export function Hero() {
       <div className="relative mx-auto max-w-site-layout-width">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:items-center lg:gap-10">
           <div className="lg:pr-2">
-            <Eyebrow className="text-muted flex items-center gap-3">
-              <span className="text-accent">CompozyOS</span>
+            <Eyebrow className="text-muted-foreground flex items-center gap-3">
+              <span className="text-brand">CompozyOS</span>
               <span className="h-px w-10 bg-line" />
               <span>An operating system for AI agents</span>
             </Eyebrow>
@@ -58,7 +58,7 @@ export function Hero() {
               The system around the agent, already built.
             </h1>
 
-            <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted md:text-lg">
+            <p className="mt-6 max-w-[60ch] text-base leading-relaxed text-muted-foreground md:text-lg">
               {SUBHEAD}
             </p>
 
@@ -84,8 +84,10 @@ export function Hero() {
               key={item.label}
               className="rounded-diagram border border-line-strong p-4 backdrop-blur-sm"
             >
-              <dt className="eyebrow font-semibold! text-accent">{item.label}</dt>
-              <dd className="mt-1.5 text-xs leading-relaxed text-muted">{item.detail}</dd>
+              <dt className="eyebrow font-semibold! text-brand">{item.label}</dt>
+              <dd className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                {item.detail}
+              </dd>
             </div>
           ))}
         </dl>

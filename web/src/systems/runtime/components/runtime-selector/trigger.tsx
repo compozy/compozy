@@ -1,4 +1,4 @@
-import { ChevronDown, TriangleAlert, Zap } from "lucide-react";
+import { ChevronDown, TriangleAlert, Zap } from "@compozy/ui/icons";
 import { useId, type ComponentProps } from "react";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";

@@ -1,4 +1,4 @@
-import { Clock3, Radio } from "lucide-react";
+import { Clock3, Radio } from "@compozy/ui/icons";
 
 import { PillGroup, type PillGroupItem } from "@compozy/ui";
 

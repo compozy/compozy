@@ -1,4 +1,4 @@
-import { AlertCircle, Ban, CircleDashed, FoldVertical, LoaderCircle } from "lucide-react";
+import { AlertCircle, Ban, CircleDashed, FoldVertical, LoaderCircle } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Disclosure, Marker, type MarkerTone } from "@compozy/ui";
@@ -45,7 +45,7 @@ function compactionView(status: string): CompactionView {
       };
     case "failed":
       return {
-        tone: "danger",
+        tone: "destructive",
         icon: <AlertCircle />,
         label: "Context compaction failed",
         emphasized: true,
@@ -105,7 +105,7 @@ export function SessionCompactionItem({ item }: SessionCompactionItemProps) {
             data-testid="session-compaction-summary-content"
             role="region"
             tabIndex={0}
-            className="mb-1 ml-transcript-detail-indent max-h-60 overflow-y-auto border-l border-line pl-transcript-detail-gutter text-transcript-body leading-relaxed text-muted select-text focus-visible:shadow-focus-ring focus-visible:outline-none"
+            className="mb-1 ml-transcript-detail-indent max-h-60 overflow-y-auto border-l border-line pl-transcript-detail-gutter text-transcript-body leading-relaxed text-muted-foreground select-text focus-visible:shadow-focus-ring focus-visible:outline-none"
           >
             <MessageMarkdown content={summary} compact="relaxed" />
           </div>

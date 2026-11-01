@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Repeat2 } from "lucide-react";
+import { Repeat2 } from "@compozy/ui/icons";
 
 import { CatalogCard } from "@compozy/ui";
 

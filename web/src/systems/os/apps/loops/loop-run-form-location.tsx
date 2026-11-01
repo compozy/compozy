@@ -1,4 +1,4 @@
-import { AlertCircle, Repeat2, X } from "lucide-react";
+import { AlertCircle, Repeat2, X } from "@compozy/ui/icons";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 

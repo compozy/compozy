@@ -25,7 +25,7 @@ export const Positions: Story = {
       {[0, 1, 3, 5, 7].map(position => (
         <div key={position} className="flex flex-col items-center gap-2">
           <IntensityMeter position={position} />
-          <span className="font-mono text-mono-id text-muted">{position}</span>
+          <span className="font-mono text-mono-id text-muted-foreground">{position}</span>
         </div>
       ))}
     </div>

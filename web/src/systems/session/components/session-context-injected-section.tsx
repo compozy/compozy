@@ -47,18 +47,18 @@ function SessionContextInjectedRow({
     >
       {plain ? (
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 text-form-label">
-          <span className="truncate text-muted" title={label}>
+          <span className="truncate text-muted-foreground" title={label}>
             {label}
           </span>
           {row.owner_kind !== "startup_opaque" ? (
-            <span className="font-mono text-mono-id tabular-nums text-muted">
+            <span className="font-mono text-mono-id tabular-nums text-muted-foreground">
               {formatContextBytes(row.bytes)}
             </span>
           ) : null}
         </div>
       ) : (
         <StatusBreakdown
-          className={row.stale ? "[&_[data-slot=status-breakdown-bar]]:bg-accent-dim" : undefined}
+          className={row.stale ? "[&_[data-slot=status-breakdown-bar]]:bg-brand-dim" : undefined}
           total={total}
           items={[
             {
@@ -66,7 +66,7 @@ function SessionContextInjectedRow({
               label,
               value: row.tokens ?? 0,
               formattedValue: `≈ ${formatContextTokens(row.tokens ?? 0)}`,
-              tone: "accent",
+              tone: "brand",
               showBar,
             },
           ]}

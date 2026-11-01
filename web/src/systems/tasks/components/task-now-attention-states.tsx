@@ -38,7 +38,7 @@ function TaskApprovalState() {
       data-testid="tasks-detail-now-approval"
       title="Waiting for your approval"
       // An approval waits on a person: the needs-you accent.
-      tone="accent"
+      tone="brand"
     />
   );
 }
@@ -129,7 +129,7 @@ function TaskBlockingState({
       data-testid={`tasks-detail-now-block-${key}`}
       title={reason.kind === "needs_input" ? "Needs input to continue" : "Blocked"}
       // A block waits on a person: the needs-you accent, never the warning amber.
-      tone="accent"
+      tone="brand"
     />
   );
 }
@@ -169,7 +169,7 @@ function TaskNeedsAttentionState({
       }
       data-testid="tasks-detail-now-stuck"
       title="This attempt needs attention"
-      tone="danger"
+      tone="destructive"
     />
   );
 }

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { MessagesSquare } from "lucide-react";
+import { MessagesSquare } from "@compozy/ui/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { Empty } from "@compozy/ui";

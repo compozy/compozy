@@ -1,8 +1,8 @@
 // Steer markers (VC-07): how the operator's message reached the turn, read from
 // the daemon's own transcript markers — never inferred from the bubble.
 
-import { CornerDownRight, ListPlus, Scissors } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { CornerDownRight, ListPlus, Scissors } from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import type { TranscriptMarkerPayload } from "../types";
 

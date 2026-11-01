@@ -1,4 +1,4 @@
-import { LayoutGrid, Settings, Star } from "lucide-react";
+import { LayoutGrid, Settings, Star } from "@compozy/ui/icons";
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import {

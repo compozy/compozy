@@ -282,7 +282,7 @@ Being reachable doesn't make a daemon fully operable from the outside. The remot
 enforced twice — structurally, because remote listeners are built with a fixed route set so local-only
 routes literally do not exist on them, and again as a client-side denylist.
 
-<Callout tone="accent" eyebrow="Remote operation matrix">
+<Callout tone="brand" eyebrow="Remote operation matrix">
   **Remote-capable:** sessions, task reads, loops, memory, settings, extensions, and gateway
   management. **Local-only:** task mutations, task-run queue and scheduler authority, agent kernel,
   hosted MCP and the MCP Host API, and resource mutation. The split is method-aware — resource and
@@ -371,7 +371,7 @@ $ curl -X POST "https://compozy-gateway.<your-tailnet>.ts.net/api/webhooks/works
 Timestamps outside a five-minute freshness window are rejected, and a replayed delivery id is
 rejected while it's still inside that window.
 
-<Callout tone="danger" eyebrow="Signature contract">
+<Callout tone="destructive" eyebrow="Signature contract">
   A GitHub repository webhook pointed straight at this URL is **rejected** — GitHub signs with
   `X-Hub-Signature-256`, a different contract. Send from a GitHub Actions workflow that signs the
   CompozyOS shape. The same applies to any sender with its own signing scheme.

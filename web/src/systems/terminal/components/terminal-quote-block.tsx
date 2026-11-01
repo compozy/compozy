@@ -1,4 +1,4 @@
-import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "lucide-react";
+import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "@compozy/ui/icons";
 
 import { Button, Eyebrow, cn } from "@compozy/ui";
 
@@ -128,7 +128,7 @@ export function TerminalSelectionActions({
       data-testid="terminal-selection-actions-no-session"
       role="group"
     >
-      <Eyebrow className="px-1.5 py-1 text-muted">No active session</Eyebrow>
+      <Eyebrow className="px-1.5 py-1 text-muted-foreground">No active session</Eyebrow>
       <SelectionAction icon={MessagesSquare} label="Choose a session…" onSelect={handleChoose} />
       <SelectionAction icon={Plus} label="Start a session with this quote" onSelect={handleStart} />
       <SelectionAction icon={Copy} label="Copy as quoted block" onSelect={handleCopy} />

@@ -1,4 +1,4 @@
-export type PillTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
+export type PillTone = "neutral" | "brand" | "success" | "warning" | "destructive" | "info";
 /** `count` is the compact numeric badge (unread/needs-you counts); prefer `PillCount`. */
 export type PillSize = "xs" | "sm" | "md" | "count";
 /**

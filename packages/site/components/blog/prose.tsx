@@ -58,7 +58,10 @@ export function ProseParagraph({ children, className, ...props }: ComponentProps
   return (
     <p
       {...props}
-      className={cn("mt-5 max-w-[72ch] font-sans text-base leading-doc-body text-muted", className)}
+      className={cn(
+        "mt-5 max-w-[72ch] font-sans text-base leading-doc-body text-muted-foreground",
+        className
+      )}
     >
       {children}
     </p>
@@ -70,7 +73,7 @@ export function ProseLink({ className, ...props }: ComponentProps<"a">) {
     <a
       {...props}
       className={cn(
-        "font-medium text-accent underline decoration-accent/35 underline-offset-4 hover:decoration-accent",
+        "font-medium text-brand underline decoration-brand/35 underline-offset-4 hover:decoration-brand",
         className
       )}
     />
@@ -82,7 +85,10 @@ export function ProseTable({ className, ...props }: ComponentProps<"table">) {
     <div className="mt-6 overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
       <table
         {...props}
-        className={cn("w-full min-w-xl border-collapse text-sm leading-7 text-muted", className)}
+        className={cn(
+          "w-full min-w-xl border-collapse text-sm leading-7 text-muted-foreground",
+          className
+        )}
       />
     </div>
   );
@@ -107,7 +113,7 @@ export function ProseList({ children, className, ...props }: ComponentProps<"ul"
     <ul
       {...props}
       className={cn(
-        "mt-5 ml-5 max-w-[72ch] list-disc text-base leading-7 text-muted marker:text-subtle [&>li+li]:mt-2",
+        "mt-5 ml-5 max-w-[72ch] list-disc text-base leading-7 text-muted-foreground marker:text-subtle [&>li+li]:mt-2",
         className
       )}
     >
@@ -121,7 +127,7 @@ export function ProseOrderedList({ children, className, ...props }: ComponentPro
     <ol
       {...props}
       className={cn(
-        "mt-5 ml-5 max-w-[72ch] list-decimal text-base leading-7 text-muted marker:text-subtle [&>li+li]:mt-2",
+        "mt-5 ml-5 max-w-[72ch] list-decimal text-base leading-7 text-muted-foreground marker:text-subtle [&>li+li]:mt-2",
         className
       )}
     >
@@ -135,7 +141,7 @@ export function PullQuote({ children, className, ...props }: ComponentProps<"blo
     <blockquote
       {...props}
       className={cn(
-        "mt-9 mb-3 max-w-[40ch] border-l-2 border-accent pl-6 font-display text-site-quote font-normal leading-tight tracking-tight text-fg",
+        "mt-9 mb-3 max-w-[40ch] border-l-2 border-brand pl-6 font-display text-site-quote font-normal leading-tight tracking-tight text-fg",
         className
       )}
     >
@@ -174,29 +180,29 @@ export function Mono({ children, className, ...props }: MonoProps) {
 }
 
 export interface CalloutProps {
-  tone?: "accent" | "success" | "danger" | "warning" | "info";
+  tone?: "brand" | "success" | "destructive" | "warning" | "info";
   eyebrow?: string;
   children?: ReactNode;
   className?: string;
 }
 
 const calloutBorderClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
-  accent: "border-l-accent",
+  brand: "border-l-brand",
   success: "border-l-success",
-  danger: "border-l-danger",
+  destructive: "border-l-destructive",
   warning: "border-l-warning",
   info: "border-l-info",
 };
 
 const calloutEyebrowToneClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
-  accent: "text-accent",
+  brand: "text-brand",
   success: "text-success",
-  danger: "text-danger",
+  destructive: "text-destructive",
   warning: "text-warning",
   info: "text-info",
 };
 
-export function Callout({ tone = "accent", eyebrow, children, className }: CalloutProps) {
+export function Callout({ tone = "brand", eyebrow, children, className }: CalloutProps) {
   return (
     <aside
       role="note"
@@ -219,14 +225,14 @@ export function Callout({ tone = "accent", eyebrow, children, className }: Callo
 export interface BlogWireCardRow {
   label: string;
   value: string;
-  tone?: "neutral" | "accent" | "success" | "danger" | "warning" | "info";
+  tone?: "neutral" | "brand" | "success" | "destructive" | "warning" | "info";
 }
 
 const wireValueToneClass: Record<NonNullable<BlogWireCardRow["tone"]>, string> = {
   neutral: "text-fg",
-  accent: "text-accent",
+  brand: "text-brand",
   success: "text-success",
-  danger: "text-danger",
+  destructive: "text-destructive",
   warning: "text-warning",
   info: "text-info",
 };

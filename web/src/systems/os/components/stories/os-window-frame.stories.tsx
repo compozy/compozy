@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { Bot, Home, ListChecks } from "lucide-react";
+import { Bot, Home, ListChecks } from "@compozy/ui/icons";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 
@@ -48,19 +48,17 @@ function AgentsBody() {
           key={agent.name}
           className="flex items-center gap-3 border-b border-line-soft px-4 py-2.5 last:border-0"
         >
-          <span className="grid size-4.5 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted">
+          <span className="grid size-4.5 shrink-0 place-items-center rounded-sm border border-line-strong bg-elevated font-mono text-badge font-semibold text-muted-foreground">
             {agent.chip}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-small-body font-medium text-fg">{agent.name}</span>
             <span className="block truncate font-mono text-micro text-subtle">{agent.meta}</span>
           </span>
-          <span className="flex items-center gap-1.5 text-micro text-muted">
+          <span className="flex items-center gap-1.5 text-micro text-muted-foreground">
             <span
               className={
-                agent.live
-                  ? "size-[7px] rounded-full bg-accent"
-                  : "size-[7px] rounded-full bg-faint"
+                agent.live ? "size-[7px] rounded-full bg-brand" : "size-[7px] rounded-full bg-faint"
               }
             />
             {agent.sessions} sessions
@@ -83,15 +81,15 @@ function DashboardBody() {
         ].map(([v, l]) => (
           <div key={l} className="rounded-md border border-line bg-canvas-soft p-3">
             <div className="font-mono text-metric-value text-fg-strong">{v}</div>
-            <div className="text-micro text-muted">{l}</div>
+            <div className="text-micro text-muted-foreground">{l}</div>
           </div>
         ))}
       </div>
       <div className="rounded-md border border-line bg-canvas-soft p-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-small-body font-semibold text-fg-strong">Working now</span>
-          <span className="flex items-center gap-1.5 text-micro font-semibold text-accent">
-            <span className="size-[7px] rounded-full bg-accent" />
+          <span className="flex items-center gap-1.5 text-micro font-semibold text-brand">
+            <span className="size-[7px] rounded-full bg-brand" />
             live
           </span>
         </div>
@@ -105,10 +103,10 @@ function DashboardBody() {
               key={t}
               className="flex items-center gap-2 rounded-md border border-line bg-canvas px-3 py-2"
             >
-              <span className="size-[7px] shrink-0 rounded-full bg-accent" />
+              <span className="size-[7px] shrink-0 rounded-full bg-brand" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-small-body font-medium text-fg">{t}</span>
-                <span className="block truncate text-micro text-muted">{m}</span>
+                <span className="block truncate text-micro text-muted-foreground">{m}</span>
               </span>
               <span className="font-mono text-micro text-subtle">{time}</span>
             </li>
@@ -117,7 +115,7 @@ function DashboardBody() {
       </div>
       <div className="rounded-md border border-line bg-canvas-soft p-3">
         <div className="mb-2 text-small-body font-semibold text-fg-strong">Outcomes</div>
-        <p className="mb-2 text-micro text-muted">Task runs — last 14 days</p>
+        <p className="mb-2 text-micro text-muted-foreground">Task runs — last 14 days</p>
         <div className="flex h-16 items-end gap-1">
           {[11, 14, 9, 16, 12, 18, 15, 10, 17, 13, 19, 14, 16, 21].map((v, i) => (
             <span

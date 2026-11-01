@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@compozy/ui/icons";
 import {
   CopyIconButton,
   Popover,

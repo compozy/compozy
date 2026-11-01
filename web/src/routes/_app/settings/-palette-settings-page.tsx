@@ -34,7 +34,7 @@ export function PaletteSettingsPage() {
   return (
     <SettingsPageFrame restart={page.restart} slug="palette">
       {page.saveError || page.resetError ? (
-        <Alert data-testid="settings-palette-save-error" role="alert" variant="danger">
+        <Alert data-testid="settings-palette-save-error" role="alert" variant="destructive">
           <AlertDescription>{page.saveError ?? page.resetError}</AlertDescription>
         </Alert>
       ) : null}

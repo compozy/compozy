@@ -50,7 +50,7 @@ function TaskRunFailedOutcome({
       }
       data-testid="tasks-run-outcome-failed"
       title={duration ? `Failed after ${duration}` : "Failed"}
-      tone="danger"
+      tone="destructive"
     />
   );
 }
@@ -86,7 +86,7 @@ function TaskRunStuckOutcome({ record }: { record: TaskRunRecord }) {
       }
       data-testid="tasks-run-outcome-stuck"
       title="This attempt needs attention"
-      tone="danger"
+      tone="destructive"
     />
   );
 }

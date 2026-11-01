@@ -74,7 +74,7 @@ export function TaskFanOutDialog({
         >
           <div className="min-h-0 space-y-5 overflow-y-auto p-5">
             {state.formError ? (
-              <Alert data-testid="tasks-fan-out-runs-error" variant="danger">
+              <Alert data-testid="tasks-fan-out-runs-error" variant="destructive">
                 <AlertDescription>{state.formError}</AlertDescription>
               </Alert>
             ) : null}
@@ -130,7 +130,7 @@ export function TaskFanOutDialog({
           </DialogFooter>
           {gitBacked && state.worktreePerRun ? (
             <p
-              className="border-t border-line bg-canvas-soft px-5 pb-3 text-badge text-muted"
+              className="border-t border-line bg-canvas-soft px-5 pb-3 text-badge text-muted-foreground"
               data-slot="task-fan-out-isolation-note"
             >
               Branches land in the run/ namespace.

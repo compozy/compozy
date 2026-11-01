@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
 
-export type ActionResultBannerTone = "success" | "danger" | "warning" | "info" | "neutral";
+export type ActionResultBannerTone = "success" | "destructive" | "warning" | "info" | "neutral";
 
 export interface ActionResultBannerProps extends Omit<React.ComponentProps<"div">, "title"> {
   tone?: ActionResultBannerTone;
@@ -18,10 +18,10 @@ export interface ActionResultBannerProps extends Omit<React.ComponentProps<"div"
 
 const TONE_CHROME: Record<ActionResultBannerTone, string> = {
   success: "border-success-tint bg-success-tint text-success",
-  danger: "border-danger-tint bg-danger-tint text-danger",
+  destructive: "border-destructive-tint bg-destructive-tint text-destructive",
   warning: "border-warning-tint bg-warning-tint text-warning",
   info: "border-info-tint bg-info-tint text-info",
-  neutral: "border-transparent bg-surface-2 text-muted",
+  neutral: "border-transparent bg-surface-2 text-muted-foreground",
 };
 
 function ActionResultBanner({

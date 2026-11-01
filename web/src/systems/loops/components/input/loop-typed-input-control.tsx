@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@compozy/ui/icons";
 
 import { Button, Input, Switch, cn } from "@compozy/ui";
 
@@ -255,7 +255,7 @@ function LoopScalarInput({
     <Input
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
-      className={cn("font-mono", invalid && "border-danger")}
+      className={cn("font-mono", invalid && "border-destructive")}
       data-testid={testId}
       disabled={disabled}
       id={controlId}

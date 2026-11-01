@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { useReducedMotionConfig } from "motion/react";
-import { ArrowDown, Search } from "lucide-react";
+import { ArrowDown, Search } from "@compozy/ui/icons";
 
 import { Button, cn, Pill, StateGlyph, Time } from "@compozy/ui";
 import type { PillTone } from "@compozy/ui";
@@ -41,7 +41,7 @@ interface LoopRunBriefingProps extends Omit<ComponentProps<"section">, "children
 /**
  * How a terminal run's outcome is toned.
  *
- * The briefing's weight describes urgency (`calm`, `lead`, `danger`) and is the
+ * The briefing's weight describes urgency (`calm`, `lead`, `destructive`) and is the
  * wrong axis for a finished run: a cancelled run is calm and is not a success.
  * The disposition the daemon settled on is the only thing that can say which of
  * these words the pill deserves.
@@ -52,12 +52,12 @@ const OUTCOME_TONE: Record<string, PillTone> = {
   "no-op": "neutral",
   blocked: "warning",
   stalled: "warning",
-  exhausted: "danger",
-  failed: "danger",
+  exhausted: "destructive",
+  failed: "destructive",
 };
 
 function outcomeTone(status: string, weight: LoopBriefingView["weight"]): PillTone {
-  return OUTCOME_TONE[status] ?? (weight === "danger" ? "danger" : "neutral");
+  return OUTCOME_TONE[status] ?? (weight === "destructive" ? "destructive" : "neutral");
 }
 
 function focusNeedsYou(reduced: boolean): void {
@@ -124,7 +124,7 @@ export function LoopRunBriefing({
         </h2>
         {briefing.detail ? (
           <p
-            className="mt-1 max-w-[68ch] text-small-body leading-relaxed text-muted"
+            className="mt-1 max-w-[68ch] text-small-body leading-relaxed text-muted-foreground"
             data-testid="loop-run-briefing-detail"
           >
             {briefing.detail}

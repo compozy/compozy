@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import { useSelector } from "@xstate/store-react";
 
 import { focusUser } from "@/systems/workspace";

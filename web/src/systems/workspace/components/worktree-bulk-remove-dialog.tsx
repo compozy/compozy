@@ -1,4 +1,4 @@
-import { Trash2, TriangleAlert } from "lucide-react";
+import { Trash2, TriangleAlert } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -189,7 +189,7 @@ function WorktreeBulkForceConfirmation({ model }: { model: BatchModel }) {
       onOpenChange={open => {
         if (!open && !model.running) model.cancelForce();
       }}
-      tone="danger"
+      tone="destructive"
       title={`Force remove ${plural(count, "worktree", "worktrees")}?`}
       description={`${count === 1 ? "It holds" : "They hold"} work that exists nowhere else. Force removal deletes it permanently. ${model.deleteBranch ? REMOVE_BRANCH_HISTORY_NOTE : REMOVE_HISTORY_NOTE}`}
       body={

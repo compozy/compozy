@@ -54,8 +54,8 @@ export const Listing: Story = {
   args: {
     children: (
       <SettingsGroup title="Providers">
-        <p className="px-4 py-3 text-small-body text-muted">Codex · ready</p>
-        <p className="border-t border-line-soft px-4 py-3 text-small-body text-muted">
+        <p className="px-4 py-3 text-small-body text-muted-foreground">Codex · ready</p>
+        <p className="border-t border-line-soft px-4 py-3 text-small-body text-muted-foreground">
           Claude Code · needs sign-in
         </p>
       </SettingsGroup>

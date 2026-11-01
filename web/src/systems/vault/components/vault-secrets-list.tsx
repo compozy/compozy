@@ -1,4 +1,4 @@
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { DataSurface, ListingRowSkeleton, type ListingViewMode } from "@compozy/ui";

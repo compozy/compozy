@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Button, Empty, toast } from "@compozy/ui";
 import {

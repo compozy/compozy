@@ -112,10 +112,10 @@ describe("task run recovery eligibility", () => {
 describe("task semantic tones", () => {
   it("Should resolve task statuses through TASK_STATUS_TONE PillTone dictionary", () => {
     expect(taskStatusTone("completed")).toBe("success");
-    expect(taskStatusTone("failed")).toBe("danger");
+    expect(taskStatusTone("failed")).toBe("destructive");
     expect(taskStatusTone("canceled")).toBe("neutral");
     expect(taskStatusTone("in_progress")).toBe("info");
-    expect(taskStatusTone("blocked")).toBe("danger");
+    expect(taskStatusTone("blocked")).toBe("destructive");
     expect(taskStatusTone("ready")).toBe("neutral");
     expect(taskStatusTone("draft")).toBe("neutral");
     expect(taskStatusTone("pending")).toBe("neutral");
@@ -134,7 +134,7 @@ describe("task semantic tones", () => {
   it("Should resolve run statuses through RUN_STATUS_TONE PillTone dictionary", () => {
     expect(taskRunStatusTone("running")).toBe("info");
     expect(taskRunStatusTone("completed")).toBe("success");
-    expect(taskRunStatusTone("failed")).toBe("danger");
+    expect(taskRunStatusTone("failed")).toBe("destructive");
     expect(taskRunStatusTone("canceled")).toBe("neutral");
     expect(taskRunStatusTone("queued")).toBe("neutral");
     expect(taskRunStatusTone("starting")).toBe("info");
@@ -145,8 +145,8 @@ describe("task semantic tones", () => {
 
   it("Should resolve inbox lanes through TASK_LANE_TONE — approvals collapses to info", () => {
     expect(taskLaneTone("approvals")).toBe("info");
-    expect(taskLaneTone("failed_runs")).toBe("danger");
-    expect(taskLaneTone("blocked")).toBe("danger");
+    expect(taskLaneTone("failed_runs")).toBe("destructive");
+    expect(taskLaneTone("blocked")).toBe("destructive");
     expect(taskLaneTone("archived")).toBe("neutral");
     expect(taskLaneTone("my_work")).toBe("neutral");
   });
@@ -305,12 +305,12 @@ describe("task lifecycle phases — manual-first signaling", () => {
     expect(taskLifecyclePhaseTone("saved_intent")).toBe("neutral");
     expect(taskLifecyclePhaseTone("ready_to_start")).toBe("neutral");
     expect(taskLifecyclePhaseTone("queued")).toBe("neutral");
-    expect(taskLifecyclePhaseTone("running")).toBe("accent");
+    expect(taskLifecyclePhaseTone("running")).toBe("brand");
     expect(taskLifecyclePhaseTone("awaiting_approval")).toBe("info");
     expect(taskLifecyclePhaseTone("needs_attention")).toBe("warning");
-    expect(taskLifecyclePhaseTone("blocked")).toBe("danger");
-    expect(taskLifecyclePhaseTone("failed")).toBe("danger");
-    expect(taskLifecyclePhaseTone("canceled")).toBe("danger");
+    expect(taskLifecyclePhaseTone("blocked")).toBe("destructive");
+    expect(taskLifecyclePhaseTone("failed")).toBe("destructive");
+    expect(taskLifecyclePhaseTone("canceled")).toBe("destructive");
     expect(taskLifecyclePhaseTone("completed")).toBe("neutral");
   });
 });

@@ -63,7 +63,7 @@ export const AccentLabel: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
       <span className="text-sm text-muted-foreground">Read</span>
-      <Separator label="New" tone="accent" />
+      <Separator label="New" tone="brand" />
       <span className="text-sm text-muted-foreground">Unread</span>
     </div>
   ),

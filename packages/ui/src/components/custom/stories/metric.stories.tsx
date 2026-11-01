@@ -19,7 +19,7 @@ const meta: Meta<typeof Metric> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const TONES: MetricTone[] = ["default", "accent", "success", "warning", "danger"];
+const TONES: MetricTone[] = ["default", "brand", "success", "warning", "destructive"];
 
 export const Default: Story = {
   args: {
@@ -76,7 +76,7 @@ export const DashboardRow: Story = {
       <Metric label="Channels" value="24" />
       <Metric label="Peers online" value="18" tone="success" detail="+3" />
       <Metric label="Queued runs" value="05" tone="warning" />
-      <Metric label="Failures / 1h" value="00" tone="danger" subtext="Last failure: 2h ago" />
+      <Metric label="Failures / 1h" value="00" tone="destructive" subtext="Last failure: 2h ago" />
     </div>
   ),
 };

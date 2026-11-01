@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import { installedDisplayName } from "../lib/marketplace-installed-view";
 import { useExtensionInventory } from "@/systems/extensions";
 

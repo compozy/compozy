@@ -1,4 +1,4 @@
-import { Check, GitBranch, Plus } from "lucide-react";
+import { Check, GitBranch, Plus } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 
@@ -42,7 +42,7 @@ function CurrentPill({ current }: { current: OsWorkspaceTileCurrent }) {
     <span
       aria-hidden="true"
       data-slot="os-workspace-tile-current"
-      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-accent-ink ring-2 ring-popover"
+      className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-pill bg-success text-brand-ink ring-2 ring-popover"
     >
       <Glyph className="size-2.5" />
     </span>
@@ -101,7 +101,9 @@ export function OsWorkspaceTile({
         <WorkspaceWorkingDot count={workingSessions} className="top-1 right-1 ring-0" />
       </span>
       <span className={NAME_CLASS}>{name}</span>
-      {rootMissing ? <span className="text-caption text-muted">Folder not found</span> : null}
+      {rootMissing ? (
+        <span className="text-caption text-muted-foreground">Folder not found</span>
+      ) : null}
     </button>
   );
 }
@@ -128,14 +130,16 @@ export function OsWorkspaceAddTile({ focused, className, ...props }: OsWorkspace
         aria-hidden="true"
         className={cn(
           WELL_CLASS,
-          "border-dashed bg-none text-muted shadow-none",
+          "border-dashed bg-none text-muted-foreground shadow-none",
           "group-hover/wsov-tile:text-fg-strong group-hover/wsov-tile:bg-surface-2",
           "group-data-[on=true]/wsov-tile:text-fg-strong"
         )}
       >
         <Plus className="size-4.5" />
       </span>
-      <span className={cn(NAME_CLASS, "text-muted", "group-hover/wsov-tile:text-fg-strong")}>
+      <span
+        className={cn(NAME_CLASS, "text-muted-foreground", "group-hover/wsov-tile:text-fg-strong")}
+      >
         New
       </span>
     </button>

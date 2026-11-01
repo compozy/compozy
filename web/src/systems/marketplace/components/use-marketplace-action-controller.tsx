@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import {
   extensionTrustFacts,

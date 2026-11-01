@@ -52,7 +52,7 @@ export const SURFACE_LABEL: Record<GatewaySurface, string> = {
 };
 
 /** Status chip tones map to the signal palette: information, never decoration. */
-export type GatewaySignalTone = "success" | "warning" | "danger" | "info" | "neutral";
+export type GatewaySignalTone = "success" | "warning" | "destructive" | "info" | "neutral";
 
 export const REACHABILITY_COPY: Record<
   GatewayReachability,
@@ -80,7 +80,7 @@ export const REACHABILITY_COPY: Record<
   },
   refused: {
     label: "Refused",
-    tone: "danger",
+    tone: "destructive",
     detail: "The safety policy refused this exposure.",
   },
 };
@@ -106,7 +106,7 @@ export const INGRESS_REACHABILITY_COPY: Record<
   },
   broken: {
     label: "Broken",
-    tone: "danger",
+    tone: "destructive",
     detail: "The public address is no longer reachable.",
   },
   reconfirmation_required: {
@@ -117,8 +117,8 @@ export const INGRESS_REACHABILITY_COPY: Record<
 };
 
 export const AUDIT_SEVERITY_COPY: Record<string, { label: string; tone: GatewaySignalTone }> = {
-  critical: { label: "Critical", tone: "danger" },
-  error: { label: "Error", tone: "danger" },
+  critical: { label: "Critical", tone: "destructive" },
+  error: { label: "Error", tone: "destructive" },
   warning: { label: "Warning", tone: "warning" },
   info: { label: "Info", tone: "info" },
 };

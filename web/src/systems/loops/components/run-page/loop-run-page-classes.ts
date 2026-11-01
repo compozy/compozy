@@ -6,8 +6,8 @@
 // calm verdict sits in the sunken inset.
 export const WEIGHT_CLASS = {
   calm: "border-transparent bg-sunken",
-  lead: "border-accent/40 bg-accent-tint",
-  danger: "border-danger/40 bg-danger-tint",
+  lead: "border-brand/40 bg-brand-tint",
+  destructive: "border-destructive/40 bg-destructive-tint",
 } as const;
 
 /** The briefing strip's frame. */
@@ -18,7 +18,7 @@ export const PROGRESS_CARD_CLASS = "overflow-hidden rounded-lg bg-card shadow-ca
 export const PROGRESS_HEADING_CLASS =
   "text-item-title font-medium tracking-tight text-pretty text-fg-strong";
 export const PROGRESS_META_CLASS =
-  "mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-form-label text-muted";
+  "mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-form-label text-muted-foreground";
 
 /** A step row of the progress list. */
 export const STEP_ROW_CLASS =

@@ -25,11 +25,13 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
       </div>
       <div>
         <h2 className="font-sans text-site-release-title font-semibold leading-tight tracking-tight text-fg">
-          <Link href={detailPath} className="hover:text-accent">
+          <Link href={detailPath} className="hover:text-brand">
             {release.version}
           </Link>
         </h2>
-        <p className="mt-4 max-w-[68ch] text-base leading-7 text-muted">{release.summary}</p>
+        <p className="mt-4 max-w-[68ch] text-base leading-7 text-muted-foreground">
+          {release.summary}
+        </p>
         <div className="mt-6 flex flex-wrap gap-2" aria-label="Release categories">
           {release.categories.map(category => (
             <MonoBadge key={category.id}>
@@ -38,14 +40,14 @@ export function ReleaseEntry({ release }: ReleaseEntryProps) {
           ))}
         </div>
         <div className="mt-7 flex flex-wrap items-center gap-5 text-sm font-medium">
-          <Link href={detailPath} className="text-accent hover:text-accent-hover">
+          <Link href={detailPath} className="text-brand hover:text-brand-hover">
             Read full release notes →
           </Link>
           <a
             href={release.url}
             target="_blank"
             rel="noreferrer noopener"
-            className="inline-flex items-center gap-1.5 text-muted hover:text-fg"
+            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-fg"
           >
             GitHub release <ArrowUpRight size={13} aria-hidden />
           </a>

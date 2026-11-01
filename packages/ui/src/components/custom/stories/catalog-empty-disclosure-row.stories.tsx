@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Clock3 } from "lucide-react";
 
+import { Clock3 } from "../../../icons";
 import { Button } from "../../button";
 import { CatalogEmptyDisclosureRow } from "../catalog-empty-disclosure-row";
 import { Pill } from "../pill";

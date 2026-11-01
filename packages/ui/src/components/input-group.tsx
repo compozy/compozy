@@ -19,7 +19,7 @@ export interface InputGroupProps extends React.ComponentProps<"div"> {
 }
 
 const INPUT_GROUP_COMPOSER_CLASS =
-  "h-auto flex-col items-stretch rounded-lg border-0 bg-card px-3 pt-3 pb-2.5 shadow-card transition-shadow focus-within:ring-1 focus-within:ring-line-strong **:data-[slot=input-group-control]:placeholder:text-muted";
+  "h-auto flex-col items-stretch rounded-lg border-0 bg-card px-3 pt-3 pb-2.5 shadow-card transition-shadow focus-within:ring-1 focus-within:ring-line-strong **:data-[slot=input-group-control]:placeholder:text-muted-foreground";
 
 function InputGroup({ className, variant = "default", ...props }: InputGroupProps) {
   return (
@@ -28,7 +28,7 @@ function InputGroup({ className, variant = "default", ...props }: InputGroupProp
       data-variant={variant}
       role="group"
       className={cn(
-        "group/input-group relative flex h-input w-full min-w-0 items-center rounded-md border border-line bg-canvas text-fg hover:border-line-strong transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-[[data-slot=input-group-control]:disabled]:opacity-50 has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot][aria-invalid=true]]:border-danger has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
+        "group/input-group relative flex h-input w-full min-w-0 items-center rounded-md border border-line bg-canvas text-fg hover:border-line-strong transition-colors outline-none in-data-[slot=combobox-content]:focus-within:border-inherit in-data-[slot=combobox-content]:focus-within:ring-0 has-[[data-slot=input-group-control]:disabled]:opacity-50 has-[[data-slot=input-group-control]:focus-visible]:border-line-strong has-[[data-slot][aria-invalid=true]]:border-destructive has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>textarea]:h-auto has-[>[data-align=block-end]]:[&>input]:pt-3 has-[>[data-align=block-start]]:[&>input]:pb-3 has-[>[data-align=inline-end]]:[&>input]:pr-1.5 has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
         variant === "composer" && INPUT_GROUP_COMPOSER_CLASS,
         className
       )}
@@ -38,7 +38,7 @@ function InputGroup({ className, variant = "default", ...props }: InputGroupProp
 }
 
 const inputGroupAddonVariants = cva(
-  "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-small-body text-muted select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-xs [&>svg:not([class*='size-'])]:size-4",
+  "flex h-auto cursor-text items-center justify-center gap-2 py-1.5 text-small-body text-muted-foreground select-none group-data-[disabled=true]/input-group:opacity-50 [&>kbd]:rounded-xs [&>svg:not([class*='size-'])]:size-4",
   {
     variants: {
       align: {
@@ -135,7 +135,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "flex items-center gap-2 text-small-body text-muted [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
+        "flex items-center gap-2 text-small-body text-muted-foreground [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
@@ -162,7 +162,7 @@ function InputGroupTextarea({ className, ...props }: React.ComponentProps<"texta
       data-slot="input-group-control"
       className={cn(
         "flex-1 resize-none rounded-none border-0 bg-transparent py-2 ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0 dark:bg-transparent dark:disabled:bg-transparent",
-        "group-data-[variant=composer]/input-group:min-h-0 group-data-[variant=composer]/input-group:px-0 group-data-[variant=composer]/input-group:py-0 group-data-[variant=composer]/input-group:text-body group-data-[variant=composer]/input-group:focus-visible:shadow-none group-data-[variant=composer]/input-group:placeholder:text-muted",
+        "group-data-[variant=composer]/input-group:min-h-0 group-data-[variant=composer]/input-group:px-0 group-data-[variant=composer]/input-group:py-0 group-data-[variant=composer]/input-group:text-body group-data-[variant=composer]/input-group:focus-visible:shadow-none group-data-[variant=composer]/input-group:placeholder:text-muted-foreground",
         className
       )}
       {...props}

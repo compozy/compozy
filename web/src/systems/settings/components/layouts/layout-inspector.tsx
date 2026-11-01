@@ -105,7 +105,7 @@ function GroupInspector({
         </div>
       </section>
       {overlaps ? (
-        <p className="text-form-label text-danger" role="status">
+        <p className="text-form-label text-destructive" role="status">
           This group overlaps another one. CompozyOS refuses a desktop whose groups cover each
           other.
         </p>

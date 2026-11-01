@@ -36,7 +36,9 @@ function ImmutableIdentity({ rows, hint, className, ...props }: ImmutableIdentit
       >
         {rows.map(row => (
           <div className="flex min-w-0 items-baseline gap-3" key={row.label}>
-            <dt className="w-kv-label shrink-0 text-form-label text-muted">{row.label}</dt>
+            <dt className="w-kv-label shrink-0 text-form-label text-muted-foreground">
+              {row.label}
+            </dt>
             <dd
               className={cn(
                 "min-w-0 flex-1 break-words text-form-input text-fg",

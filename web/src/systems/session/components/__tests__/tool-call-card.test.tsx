@@ -210,7 +210,7 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(indicator?.getAttribute("data-status")).toBe("running");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
     expect(indicator).not.toHaveClass("text-success");
-    expect(indicator).not.toHaveClass("text-danger");
+    expect(indicator).not.toHaveClass("text-destructive");
     expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(queryToolName()).toHaveTextContent(/^Reading$/);
     expect(queryPreview()).toHaveTextContent("/src/main.ts");
@@ -284,12 +284,12 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("failed");
     expect(indicator?.getAttribute("aria-label")).toBe("Error");
-    expect(indicator?.getAttribute("class")).toContain("text-danger");
+    expect(indicator?.getAttribute("class")).toContain("text-destructive");
     expect(screen.getByRole("img", { name: "Error" })).toBe(indicator);
     // The verb keeps its tense and the row text never turns danger — the ×
     // glyph plus the error-first-line preview carry the failure.
     expect(queryToolName()).toHaveTextContent(/^Read$/);
-    expect(queryToolName()?.className).not.toContain("text-danger");
+    expect(queryToolName()?.className).not.toContain("text-destructive");
     expect(document.querySelector('[data-slot="tool-call-row-preview"]')).toHaveTextContent(
       "not found"
     );
@@ -317,11 +317,11 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("aria-label")).toBe("Failed");
     expect(indicator?.getAttribute("class")).toContain("text-subtle");
-    expect(indicator?.getAttribute("class")).not.toContain("text-danger");
+    expect(indicator?.getAttribute("class")).not.toContain("text-destructive");
     expect(screen.getByTestId("tool-call-state-word")).toHaveTextContent("failed");
     const headingEl = queryToolName();
     expect(headingEl).toHaveTextContent(/^Ran$/);
-    expect(headingEl?.className).not.toContain("text-danger");
+    expect(headingEl?.className).not.toContain("text-destructive");
     expect(headingEl?.className).toContain("text-subtle");
     expect(queryPreview()).toHaveTextContent("bash: deploy: command not found");
   });

@@ -1,4 +1,4 @@
-import { GitFork, Lock } from "lucide-react";
+import { GitFork, Lock } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 

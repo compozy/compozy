@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 import { useRef } from "react";
 
 import { RadioCard, SkeletonText } from "@compozy/ui";

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CheckIcon, GitCommitIcon, MessageSquareIcon } from "lucide-react";
 
 import { Pill } from "@compozy/ui";
+import { CheckIcon, GitCommitIcon, MessageSquareIcon } from "../../../icons";
 import { Timeline } from "../timeline";
 import { TimelineEvent } from "../timeline-event";
 
@@ -40,7 +40,7 @@ export const Activity: Story = {
         title="Run started"
         description="Anthropic Claude received the orchestration plan."
         time="04:21:15"
-        tone="accent"
+        tone="brand"
         icon={GitCommitIcon}
       />
       <TimelineEvent

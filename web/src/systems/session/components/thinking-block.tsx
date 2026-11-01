@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Brain } from "lucide-react";
+import { Brain } from "@compozy/ui/icons";
 
 import { TranscriptDisclosure } from "@compozy/ui";
 

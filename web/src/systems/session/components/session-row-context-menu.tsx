@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Check, Folder, FolderInput, FolderOutput } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Folder, FolderInput, FolderOutput } from "@compozy/ui/icons";
 import { useRef } from "react";
 import type * as React from "react";
 

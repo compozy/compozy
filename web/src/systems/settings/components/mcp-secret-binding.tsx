@@ -87,7 +87,7 @@ export function MCPSecretBindingControl({
       </div>
 
       {binding.mode === "preserve" ? (
-        <p className="mt-2 text-caption text-muted">
+        <p className="mt-2 text-caption text-muted-foreground">
           CompozyOS keeps the configured binding without returning or displaying its identifier.
         </p>
       ) : binding.mode === "typed" ? (
@@ -97,7 +97,7 @@ export function MCPSecretBindingControl({
             htmlFor={`${idPrefix}-typed`}
           >
             {valueLabel}
-            <Eyebrow className="ml-auto text-muted">write-only</Eyebrow>
+            <Eyebrow className="ml-auto text-muted-foreground">write-only</Eyebrow>
           </label>
           <Input
             id={`${idPrefix}-typed`}
@@ -109,7 +109,7 @@ export function MCPSecretBindingControl({
             onChange={event => onChange({ ...binding, typedValue: event.target.value })}
             data-testid={`${idPrefix}-typed-input`}
           />
-          <p className="mt-1.5 text-caption text-muted">
+          <p className="mt-1.5 text-caption text-muted-foreground">
             CompozyOS stores this value on save. The value and resulting binding are never returned.
           </p>
         </div>
@@ -130,7 +130,7 @@ export function MCPSecretBindingControl({
               className="flex items-center justify-between gap-3"
               data-testid={`${idPrefix}-ref-error`}
             >
-              <p className="text-caption text-danger">{vaultInventory.message}</p>
+              <p className="text-caption text-destructive">{vaultInventory.message}</p>
               <Button type="button" variant="ghost" size="xs" onClick={vaultInventory.retry}>
                 Retry
               </Button>
@@ -150,11 +150,11 @@ export function MCPSecretBindingControl({
               ))}
             </NativeSelect>
           ) : (
-            <p className="text-caption text-muted" data-testid={`${idPrefix}-ref-empty`}>
+            <p className="text-caption text-muted-foreground" data-testid={`${idPrefix}-ref-empty`}>
               No existing Vault refs in the mcp namespace for this scope.
             </p>
           )}
-          <p className="mt-1.5 text-caption text-muted">
+          <p className="mt-1.5 text-caption text-muted-foreground">
             This path selects an existing credential only. Choose Write a new value to create a new
             canonical binding.
           </p>

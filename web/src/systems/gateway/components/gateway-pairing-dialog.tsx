@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -69,7 +69,7 @@ export function GatewayPairingDialog({
 
         {!isMinting && error ? (
           <p
-            className="text-form-label text-danger"
+            className="text-form-label text-destructive"
             data-testid="gateway-pairing-error"
             role="alert"
           >
@@ -103,7 +103,7 @@ export function GatewayPairingDialog({
               </div>
             ) : null}
             <div className="flex flex-col gap-1">
-              <span className="eyebrow text-muted">Pairing code</span>
+              <span className="eyebrow text-muted-foreground">Pairing code</span>
               <MonoId
                 copy
                 copyLabel="Copy pairing code"
@@ -112,11 +112,14 @@ export function GatewayPairingDialog({
                 value={artifact.artifact}
               />
             </div>
-            <p className="text-form-label text-muted">
+            <p className="text-form-label text-muted-foreground">
               Expires <Time iso={artifact.expires_at} mode="relative" />.
             </p>
             {pairingUrl ? null : (
-              <p className="text-form-label text-muted" data-testid="gateway-pairing-no-address">
+              <p
+                className="text-form-label text-muted-foreground"
+                data-testid="gateway-pairing-no-address"
+              >
                 There is no verified private address yet, so the other device has nowhere to open.
                 Turn on the private overlay and wait for its address to be verified, then mint a new
                 code — the current one may expire while you wait.

@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Workflow } from "lucide-react";
+import { Workflow } from "@compozy/ui/icons";
 
 import { cn, PAGE_CONTENT_GUTTER, SkeletonRegion } from "@compozy/ui";
 

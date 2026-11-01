@@ -17,7 +17,7 @@ import {
   Webhook,
   Wrench,
   Zap,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import type {
   SettingsSectionDescriptor,

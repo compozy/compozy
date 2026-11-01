@@ -51,7 +51,7 @@ function UsageWindowLine({
     return (
       <li data-slot="provider-usage-window" data-known="false" className="flex flex-col gap-0.5">
         <span className="text-small-body font-medium text-fg">{window.label}</span>
-        <span className="text-meta text-muted">
+        <span className="text-meta text-muted-foreground">
           {joinParts(["Usage unknown", windowAmounts(window), reset])}
         </span>
       </li>
@@ -68,7 +68,7 @@ function UsageWindowLine({
         className={cn("gap-x-2 gap-y-1.5", stale && "[&_[data-slot=progress-track]]:opacity-50")}
       >
         <ProgressLabel>{window.label}</ProgressLabel>
-        <span className="ml-auto text-meta text-muted tabular-nums">
+        <span className="ml-auto text-meta text-muted-foreground tabular-nums">
           {joinParts([
             severity === "exhausted" ? `${usage} · limit reached` : usage,
             windowAmounts(window),
@@ -100,7 +100,7 @@ function balanceText(balance: ProviderUsageBalance): string {
 function FactRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 items-baseline justify-between gap-3">
-      <dt className="shrink-0 text-meta text-muted">{label}</dt>
+      <dt className="shrink-0 text-meta text-muted-foreground">{label}</dt>
       <dd className="min-w-0 truncate text-right text-meta text-fg tabular-nums" title={value}>
         {value}
       </dd>
@@ -163,7 +163,7 @@ export function ProviderUsageDetail({ target, now, className }: ProviderUsageDet
       ) : null}
       {hasData ? <MoneyFacts target={target} now={now} /> : null}
       {errorMessage ? (
-        <p data-slot="provider-usage-error" className="text-meta text-pretty text-muted">
+        <p data-slot="provider-usage-error" className="text-meta text-pretty text-muted-foreground">
           {errorMessage}
         </p>
       ) : null}

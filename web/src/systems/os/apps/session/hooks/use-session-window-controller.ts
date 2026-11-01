@@ -1,5 +1,5 @@
+import { toast } from "@compozy/ui";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {

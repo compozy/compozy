@@ -22,7 +22,7 @@ export function MarketplaceBundledSection() {
         <h2 id="bundled" className="mt-2 text-xl font-semibold tracking-[-0.015em] text-fg">
           Ships with the runtime
         </h2>
-        <p className="mt-3 text-small-body leading-relaxed text-muted">
+        <p className="mt-3 text-small-body leading-relaxed text-muted-foreground">
           These are compiled into the compozy binary and enrolled the first time the daemon starts.
           They carry no catalog entry and no install command because there is nothing to fetch —
           upgrading the runtime upgrades them.

@@ -139,9 +139,9 @@ function RatioStop({
       aria-valuenow={Math.round(ratio * 100)}
       className={cn(
         "group/stop absolute bottom-0.5 z-5 flex -translate-x-1/2 cursor-ew-resize flex-col items-center gap-0.5 px-1",
-        "text-muted focus-visible:outline-none focus-visible:shadow-focus-ring",
+        "text-muted-foreground focus-visible:outline-none focus-visible:shadow-focus-ring",
         selected && "text-fg",
-        drag.dragging && "text-accent-strong"
+        drag.dragging && "text-brand-strong"
       )}
       data-testid={`window-manager-ratio-stop-${index}`}
       role="slider"
@@ -166,8 +166,8 @@ function RatioStop({
         aria-hidden="true"
         className={cn(
           "block h-3.5 w-0.5 rounded-pill bg-subtle transition-colors duration-base ease-out",
-          "group-hover/stop:bg-accent group-focus-visible/stop:bg-accent",
-          drag.dragging && "bg-accent"
+          "group-hover/stop:bg-brand group-focus-visible/stop:bg-brand",
+          drag.dragging && "bg-brand"
         )}
       />
     </button>

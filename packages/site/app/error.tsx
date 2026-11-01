@@ -14,11 +14,11 @@ export default function Error({
   return (
     <main id="main-content" className="flex min-h-[calc(100dvh-3.5rem)] items-center px-4 py-20">
       <section className="mx-auto w-full max-w-190 rounded-diagram border border-line bg-canvas-soft p-8 md:p-10">
-        <Eyebrow className="text-danger">Render failure</Eyebrow>
+        <Eyebrow className="text-destructive">Render failure</Eyebrow>
         <h1 className="mt-5 max-w-[13ch] text-site-error-title leading-none font-normal tracking-tight text-fg">
           The site hit a recoverable boundary.
         </h1>
-        <p className="mt-5 max-w-[58ch] text-base leading-7 text-muted">
+        <p className="mt-5 max-w-[58ch] text-base leading-7 text-muted-foreground">
           The page failed while rendering. Retry the boundary; if it repeats, capture the detail
           below with the current route.
         </p>
@@ -28,7 +28,7 @@ export default function Error({
         <button
           type="button"
           onClick={reset}
-          className="mt-8 inline-flex h-10 items-center justify-center rounded-lg bg-accent px-5 text-sm font-medium text-accent-ink transition-colors hover:bg-accent-hover active:translate-y-px"
+          className="mt-8 inline-flex h-10 items-center justify-center rounded-lg bg-brand px-5 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-hover active:translate-y-px"
         >
           Retry boundary
         </button>

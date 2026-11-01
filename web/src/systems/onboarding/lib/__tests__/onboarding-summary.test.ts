@@ -112,7 +112,7 @@ describe("onboardingSummary", () => {
       expect(onboardingSummary(input({ step, error: message }))).toEqual({
         label: "Needs an answer",
         value: message,
-        tone: "danger",
+        tone: "destructive",
       });
     }
   });

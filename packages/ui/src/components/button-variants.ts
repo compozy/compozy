@@ -15,7 +15,7 @@ const PRESSED_PLATE = "aria-pressed:bg-surface-2 aria-pressed:text-fg";
 // 30 / 13 / 16 · lg 34 and cta 36 / 13.5 / 16. An explicit `size-*` on the
 // glyph wins over the size default.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-pill border border-transparent bg-clip-padding font-sans font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-fast ease-out outline-none select-none focus-visible:outline-none focus-visible:shadow-focus-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none aria-invalid:border-danger [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-pill border border-transparent bg-clip-padding font-sans font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,transform] duration-fast ease-out outline-none select-none focus-visible:outline-none focus-visible:shadow-focus-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -24,12 +24,12 @@ const buttonVariants = cva(
         outline: `border-line bg-transparent text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 ${PRESSED_PLATE} ${DISABLED_OUTLINE}`,
         secondary: `bg-surface-2 text-fg hover:bg-selected aria-expanded:bg-selected aria-pressed:bg-selected ${DISABLED_FILLED}`,
         ghost: `text-fg hover:bg-surface-2 aria-expanded:bg-surface-2 aria-expanded:text-fg ${PRESSED_PLATE} ${DISABLED_BARE}`,
-        quiet: `text-muted hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg ${PRESSED_PLATE} ${DISABLED_BARE}`,
-        destructive: `bg-danger-tint text-danger hover:bg-danger-tint hover:opacity-90 ${DISABLED_FILLED}`,
-        "destructive-solid": `bg-danger text-accent-ink hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,black)] ${DISABLED_FILLED}`,
+        quiet: `text-muted-foreground hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg ${PRESSED_PLATE} ${DISABLED_BARE}`,
+        destructive: `bg-destructive-tint text-destructive hover:bg-destructive-tint hover:opacity-90 ${DISABLED_FILLED}`,
+        "destructive-solid": `bg-destructive text-brand-ink hover:bg-[color-mix(in_srgb,var(--color-destructive)_88%,black)] ${DISABLED_FILLED}`,
         success: `bg-success-tint text-success hover:opacity-90 ${DISABLED_FILLED}`,
         /** Text link ("Edit ›", "View all ›"): muted ink that steps to `fg` on hover, no plate. */
-        link: `text-muted hover:text-fg aria-expanded:text-fg ${DISABLED_BARE}`,
+        link: `text-muted-foreground hover:text-fg aria-expanded:text-fg ${DISABLED_BARE}`,
         neutral: `bg-surface-2 text-fg hover:bg-selected aria-expanded:bg-selected aria-pressed:bg-selected ${DISABLED_FILLED}`,
       },
       size: {

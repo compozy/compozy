@@ -1,4 +1,4 @@
-import { MonitorUp, Plus, RefreshCw } from "lucide-react";
+import { MonitorUp, Plus, RefreshCw } from "@compozy/ui/icons";
 import { useRef } from "react";
 import type * as React from "react";
 
@@ -146,7 +146,7 @@ export function DesktopsOverview({
                 <DialogTitle className="text-heading font-medium tracking-tight text-fg">
                   Desktops
                 </DialogTitle>
-                <p className="text-meta text-muted">
+                <p className="text-meta text-muted-foreground">
                   Each desktop keeps its own windows, tabs and layout
                 </p>
               </div>
@@ -234,7 +234,7 @@ function DesktopsOverviewStatus({
         message={state.message}
         onAction={onRetry}
         title="Couldn't load desktops"
-        variant="danger"
+        variant="destructive"
       />
     );
   }
@@ -253,7 +253,7 @@ function DesktopsOverviewStatus({
 }
 
 interface DesktopsOverviewAlertProps {
-  variant: "danger" | "warning";
+  variant: "destructive" | "warning";
   title: string;
   message: string;
   actionLabel: string;

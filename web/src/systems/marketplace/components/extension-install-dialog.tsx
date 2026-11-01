@@ -135,7 +135,7 @@ export function ExtensionInstallDialog({
                 data-testid="extension-install-error"
                 role="alert"
                 title={error}
-                tone="danger"
+                tone="destructive"
               />
             ) : null}
           </div>
@@ -252,7 +252,7 @@ export function ExtensionInstallSummary({ preview }: { preview: ExtensionInstall
         </div>
       ))}
       {preview.placements.length > 0 ? (
-        <div className="py-2.5 text-small-body text-muted">
+        <div className="py-2.5 text-small-body text-muted-foreground">
           {preview.placements.length} {preview.placements.length === 1 ? "resource" : "resources"}
         </div>
       ) : null}

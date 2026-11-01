@@ -2,37 +2,13 @@ import {
   Avatar,
   AvatarFallback,
   Button,
-  ChatMessageBubble,
   CodeBlock,
-  ConnectionIndicator,
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
   ListingRow,
   Pill,
-  ScrollArea,
   Section,
-  Sidebar,
-  SplitPane,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   ToolCallRow,
 } from "@compozy/ui";
-import {
-  BellIcon,
-  BoxesIcon,
-  FolderIcon,
-  HomeIcon,
-  SettingsIcon,
-  SquareTerminalIcon,
-} from "lucide-react";
-import type { ComponentType } from "react";
+import { BoxesIcon } from "@compozy/ui/icons";
 
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";
@@ -54,159 +30,7 @@ compozy session list --active`;
     >
       <div className="grid gap-4 pt-4 md:grid-cols-2">
         <CodeBlock code={sampleCode} language="shell" showPrompt />
-        <div className="flex flex-col gap-3">
-          <ChatMessageBubble messageRole="user" meta={<span>YOU · 10:42</span>}>
-            Spin up a new run against the research workspace.
-          </ChatMessageBubble>
-          <ChatMessageBubble
-            messageRole="agent"
-            meta={
-              <>
-                <Pill.Dot tone="success" size="sm" />
-                <span>CLAUDE · 10:42</span>
-              </>
-            }
-          >
-            Starting run_01HQ8… against compozy-core. Streaming events to the inspector.
-          </ChatMessageBubble>
-          <ChatMessageBubble messageRole="tool">
-            <ToolCallRow
-              toolName="read_file"
-              preview="internal/daemon/daemon.go"
-              status="running"
-            />
-          </ChatMessageBubble>
-          <ChatMessageBubble messageRole="system">Session idle · 2m</ChatMessageBubble>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-export function LayoutSection() {
-  return (
-    <Section
-      id="layout"
-      data-testid="section-layout"
-      label={<SectionLink section={sectionById("layout")}>Sidebar & SplitPane</SectionLink>}
-      right={<Pill mono>layout</Pill>}
-    >
-      <div className="grid gap-4 pt-4 lg:grid-cols-2">
-        <div className="h-[340px] overflow-hidden rounded-lg border border-line">
-          <Sidebar
-            defaultCollapsed={false}
-            rail={
-              <>
-                <button
-                  type="button"
-                  aria-label="Workspace compozy-core"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-transparent bg-rail-selected font-mono text-eyebrow text-fg"
-                >
-                  A
-                </button>
-                <button
-                  type="button"
-                  aria-label="Workspace research"
-                  className="inline-flex size-7 items-center justify-center rounded-full border border-transparent font-mono text-eyebrow text-muted hover:bg-rail-hover hover:text-fg"
-                >
-                  R
-                </button>
-              </>
-            }
-            header={
-              <>
-                <FolderIcon className="size-3.5 text-subtle" />
-                <span className="text-small-body font-medium">compozy-core</span>
-              </>
-            }
-            nav={
-              <div className="flex flex-col gap-0.5 px-2 py-3 text-small-body">
-                <SidebarRow icon={HomeIcon} label="Home" active />
-                <SidebarRow icon={SquareTerminalIcon} label="Sessions" />
-                <SidebarRow icon={BoxesIcon} label="Tasks" />
-                <SidebarRow icon={BellIcon} label="Automation" />
-              </div>
-            }
-            footer={
-              <div className="flex items-center justify-between gap-2 text-eyebrow text-subtle">
-                <ConnectionIndicator status="connected" />
-                <Button variant="quiet" size="icon-sm" aria-label="Settings">
-                  <SettingsIcon />
-                </Button>
-              </div>
-            }
-          />
-        </div>
-        <div className="h-[340px] overflow-hidden rounded-lg border border-line">
-          <SplitPane
-            list={
-              <ScrollArea className="h-full">
-                <ul className="flex flex-col divide-y divide-line">
-                  {[
-                    "Skill: repo-refactor",
-                    "Skill: ship-review",
-                    "Skill: rebase-helper",
-                    "Skill: test-writer",
-                  ].map((entry, index) => (
-                    <li key={entry}>
-                      <Item data-active={index === 0 ? "true" : undefined}>
-                        <ItemMedia>
-                          <Avatar className="size-7">
-                            <AvatarFallback>{entry.slice(7, 8).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        </ItemMedia>
-                        <ItemContent>
-                          <ItemTitle>{entry}</ItemTitle>
-                          <ItemDescription>Updated 2m ago</ItemDescription>
-                        </ItemContent>
-                      </Item>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            }
-            detail={
-              <div className="flex flex-1 flex-col gap-4 p-4">
-                <nav
-                  aria-label="Breadcrumb"
-                  className="flex items-center gap-1.5 text-small-body text-muted"
-                >
-                  <a href="#" className="transition-colors duration-base ease-out hover:text-fg">
-                    Skills
-                  </a>
-                  <span aria-hidden="true" className="text-faint">
-                    /
-                  </span>
-                  <span aria-current="page" className="text-fg">
-                    repo-refactor
-                  </span>
-                </nav>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Key</TableHead>
-                      <TableHead>Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Version</TableCell>
-                      <TableCell>
-                        <Pill mono tone="neutral">
-                          v0.4.2
-                        </Pill>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Last run</TableCell>
-                      <TableCell>2h ago</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            }
-          />
-        </div>
+        <ToolCallRow toolName="read_file" preview="internal/daemon/daemon.go" status="running" />
       </div>
     </Section>
   );
@@ -278,7 +102,7 @@ export function ListingRowSection() {
             </ListingRow.Main>
           </ListingRow.Link>
           <ListingRow.Trail>
-            <span className="text-eyebrow text-muted">2h</span>
+            <span className="text-eyebrow text-muted-foreground">2h</span>
           </ListingRow.Trail>
         </ListingRow>
         <ListingRow>
@@ -303,26 +127,5 @@ export function ListingRowSection() {
         </ListingRow>
       </div>
     </Section>
-  );
-}
-
-function SidebarRow({
-  icon: Icon,
-  label,
-  active,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      data-active={active ? "true" : undefined}
-      className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-small-body text-muted transition-colors hover:bg-hover hover:text-fg data-[active=true]:bg-selected data-[active=true]:text-fg"
-    >
-      <Icon className="size-3.5 text-subtle group-data-[active=true]:text-fg" />
-      <span>{label}</span>
-    </button>
   );
 }

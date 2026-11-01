@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import { Info } from "lucide-react";
+import { Info } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, Button, cn, Spinner } from "@compozy/ui";
 
@@ -242,7 +242,7 @@ export function LoopRequestCard({
 }
 
 function expiryClass(view: LoopRequestView): string {
-  if (view.expiry?.isPast) return "text-danger";
+  if (view.expiry?.isPast) return "text-destructive";
   return view.expiry?.isNearExpiry ? "text-warning" : "";
 }
 

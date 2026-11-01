@@ -100,7 +100,7 @@ function WallpaperPicker({
             <span
               className={cn(
                 "flex items-center justify-between px-3 py-2 text-small-body",
-                selected ? "font-medium text-fg" : "text-muted"
+                selected ? "font-medium text-fg" : "text-muted-foreground"
               )}
             >
               {option.label}

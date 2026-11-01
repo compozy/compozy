@@ -19,7 +19,6 @@ export const SECTIONS: ShowcaseSection[] = [
   { id: "feedback", label: "Feedback", anchor: "#empty-state" },
   { id: "overlays", label: "Dialog, Sheet, Popover, Tooltip", anchor: "#4-component-stylings" },
   { id: "code-chat", label: "Code & Chat", anchor: "#chat-components" },
-  { id: "layout", label: "Sidebar & SplitPane", anchor: "#sidebar-operator-ui" },
   { id: "listing-row", label: "ListingRow", anchor: "#listing-row" },
 ];
 

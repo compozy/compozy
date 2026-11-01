@@ -156,9 +156,9 @@ function GapGuide({
         aria-hidden="true"
         className={cn(
           "rounded-pill bg-line-focus transition-colors duration-base ease-out",
-          "group-hover/guide:bg-accent group-focus-visible/guide:bg-accent",
+          "group-hover/guide:bg-brand group-focus-visible/guide:bg-brand",
           axis === "x" ? "h-[38%] w-0.5" : "h-0.5 w-[38%]",
-          drag.dragging && "bg-accent"
+          drag.dragging && "bg-brand"
         )}
       />
     </div>

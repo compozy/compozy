@@ -1,9 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { Search } from "lucide-react";
 import { m, MotionConfigContext, useReducedMotionConfig } from "motion/react";
 import { useContext, type ReactNode } from "react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { Search } from "../../../icons";
 import { ICON_STROKE_WIDTH } from "../../../lib/icon-stroke";
 import { UIProvider, type UIProviderProps } from "../ui-provider";
 

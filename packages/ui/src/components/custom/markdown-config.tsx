@@ -39,7 +39,7 @@ function SafeImage({
     return (
       <span
         data-slot="markdown-image-fallback"
-        className="text-muted italic"
+        className="text-muted-foreground italic"
       >{`[image: ${altText}]`}</span>
     );
   }
@@ -51,7 +51,7 @@ function SafeImage({
       width={width}
       height={height}
       title={title}
-      className={cn("max-w-full rounded", className)}
+      className={cn("max-w-full rounded-md", className)}
     />
   );
 }

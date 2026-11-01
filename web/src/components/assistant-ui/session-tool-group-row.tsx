@@ -7,8 +7,8 @@ import {
   Search,
   Terminal,
   Wrench,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 import { createElement } from "react";
 
 import { SessionWorkEntryView } from "./session-work-entry";

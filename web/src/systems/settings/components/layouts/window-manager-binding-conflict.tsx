@@ -1,4 +1,4 @@
-import { OctagonX } from "lucide-react";
+import { OctagonX } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 
@@ -32,7 +32,7 @@ export function WindowManagerBindingConflict({
   onCancel,
 }: WindowManagerBindingConflictProps) {
   return (
-    <Alert data-testid={testId} variant="danger">
+    <Alert data-testid={testId} variant="destructive">
       <OctagonX aria-hidden="true" />
       <AlertTitle>
         {claim} is already used by {ownerTitle}

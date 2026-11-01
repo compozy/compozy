@@ -39,16 +39,16 @@ export function MarketplaceHero() {
     <header className="relative border-b border-line bg-canvas-soft">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(640px_340px_at_82%_-20%,var(--color-accent-tint),transparent_70%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(640px_340px_at_82%_-20%,var(--color-brand-tint),transparent_70%)]"
       />
       <div className="relative mx-auto w-full max-w-site-layout-width px-4 pt-14 pb-11">
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-18">
           <div>
-            <Eyebrow className="text-accent">Marketplace</Eyebrow>
+            <Eyebrow className="text-brand">Marketplace</Eyebrow>
             <h1 className="mt-3.5 font-display text-site-doc-title leading-tight font-normal tracking-tight text-fg">
               Install what your agents <em>need</em>
             </h1>
-            <p className="mt-4 max-w-[64ch] text-site-lead text-muted">
+            <p className="mt-4 max-w-[64ch] text-site-lead text-muted-foreground">
               Extensions that package MCP servers, skills, and tools from this build&apos;s
               checked-in catalog snapshot. Search your daemon before installing: its active catalog
               can differ.
@@ -61,7 +61,7 @@ export function MarketplaceHero() {
               />
               <Link
                 href="#catalog"
-                className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted transition-colors hover:text-fg"
+                className="inline-flex shrink-0 items-center gap-1.5 text-small-body font-medium text-muted-foreground transition-colors hover:text-fg"
               >
                 Browse the catalog
                 <ArrowRight aria-hidden className="size-3" />

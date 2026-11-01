@@ -56,7 +56,7 @@ export const Registry: Story = {
             <span className="inline-flex size-10 items-center justify-center rounded-icon-well bg-surface-2 ring-1 ring-line">
               <ProviderLogo provider={provider} className="size-5" />
             </span>
-            <Eyebrow className="text-muted">{provider}</Eyebrow>
+            <Eyebrow className="text-muted-foreground">{provider}</Eyebrow>
           </div>
         ))}
       </div>

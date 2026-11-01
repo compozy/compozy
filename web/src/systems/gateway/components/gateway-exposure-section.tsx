@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, AlertTitle } from "@compozy/ui";
 
@@ -57,7 +57,7 @@ export function GatewayExposureSection({
       )}
       {exposure.refusal ? (
         <div className="border-t border-line-soft px-4 py-3 first:border-t-0">
-          <Alert data-testid="gateway-exposure-refusal" variant="danger">
+          <Alert data-testid="gateway-exposure-refusal" variant="destructive">
             <AlertTitle>{exposure.refusal.cause}</AlertTitle>
             <AlertDescription>{exposure.refusal.fix}</AlertDescription>
           </Alert>
@@ -65,7 +65,7 @@ export function GatewayExposureSection({
       ) : null}
       {error && !consentRow ? (
         <div className="border-t border-line-soft px-4 py-3 first:border-t-0">
-          <Alert data-testid="gateway-exposure-error" variant="danger">
+          <Alert data-testid="gateway-exposure-error" variant="destructive">
             <AlertTitle>That change was not applied</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>

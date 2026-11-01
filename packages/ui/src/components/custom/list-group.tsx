@@ -59,7 +59,7 @@ function ListGroupHeader({ label, count, actions, className, ...props }: ListGro
       )}
       {...props}
     >
-      <span data-slot="list-group-label" className="eyebrow text-muted">
+      <span data-slot="list-group-label" className="eyebrow text-muted-foreground">
         {label}
       </span>
       <div data-slot="list-group-header-actions" className="flex shrink-0 items-center gap-2">

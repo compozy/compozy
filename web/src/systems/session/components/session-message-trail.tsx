@@ -199,7 +199,7 @@ function SessionTrailTick({
             {entry.preview}
           </div>
           {entry.reply_preview ? (
-            <div className="line-clamp-3 text-transcript-body text-muted">
+            <div className="line-clamp-3 text-transcript-body text-muted-foreground">
               {entry.reply_preview}
             </div>
           ) : null}

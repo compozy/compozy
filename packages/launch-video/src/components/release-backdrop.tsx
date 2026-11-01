@@ -19,7 +19,7 @@ export function ReleaseBackdrop() {
       style={{
         backgroundColor: color.canvas,
         backgroundImage: [
-          `radial-gradient(${emberSize} at 12% 108%, ${color.accentTintStrong}, transparent 68%)`,
+          `radial-gradient(${emberSize} at 12% 108%, ${color.brandTintStrong}, transparent 68%)`,
           `radial-gradient(${tealSize} at 92% -10%, rgba(34, 85, 85, 0.38), transparent 70%)`,
           `radial-gradient(1.5px 1.5px at 50% 50%, ${color.gridDot} 40%, transparent 41%)`,
           `linear-gradient(180deg, ${color.canvasSoft}, ${color.rail} 62%)`,

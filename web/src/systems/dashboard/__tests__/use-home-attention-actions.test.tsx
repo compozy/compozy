@@ -53,16 +53,18 @@ vi.mock("@/systems/tasks/hooks/task-actions-public-api", () => ({
   useRetryTaskRun: () => mutationStub(),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
-
 vi.mock("@/systems/notifications/adapters/attention-api", () => ({
   acknowledgeAttentionNotifications: vi.fn(() => makeDeferred("acknowledgement")),
 }));
 import { acknowledgeAttentionNotifications } from "@/systems/notifications/adapters/attention-api";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { createHomeAttentionActionsLogic } from "../hooks/home-attention-actions-store";
 import { useHomeAttentionActions } from "../hooks/use-home-attention-actions";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+});
 
 function wrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

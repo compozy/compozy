@@ -1,4 +1,4 @@
-import { Plug } from "lucide-react";
+import { Plug } from "@compozy/ui/icons";
 
 import { Empty, ListingRow, Pill, Section, cn } from "@compozy/ui";
 

@@ -9,7 +9,7 @@ import { Eyebrow } from "./eyebrow";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;
 
-export type MetricTone = "default" | "accent" | "success" | "warning" | "danger";
+export type MetricTone = "default" | "brand" | "success" | "warning" | "destructive";
 export type MetricSize = "compact" | "default" | "lg";
 export type MetricLabelCase = "sentence" | "eyebrow";
 
@@ -77,19 +77,19 @@ function Metric({
           <span
             aria-hidden="true"
             data-slot="metric-icon"
-            className="inline-flex size-5 shrink-0 items-center justify-center text-muted"
+            className="inline-flex size-5 shrink-0 items-center justify-center text-muted-foreground"
           >
             <Icon className="size-3" />
           </span>
         ) : null}
         {labelCase === "eyebrow" ? (
-          <Eyebrow data-slot="metric-label" className="min-w-0 truncate text-muted">
+          <Eyebrow data-slot="metric-label" className="min-w-0 truncate text-muted-foreground">
             {label}
           </Eyebrow>
         ) : (
           <span
             data-slot="metric-label"
-            className="block min-w-0 truncate text-form-label text-muted"
+            className="block min-w-0 truncate text-form-label text-muted-foreground"
           >
             {label}
           </span>
@@ -121,7 +121,10 @@ function Metric({
         ) : null}
       </div>
       {subtext !== undefined ? (
-        <p data-slot="metric-subtext" className="truncate text-small-body leading-5 text-muted">
+        <p
+          data-slot="metric-subtext"
+          className="truncate text-small-body leading-5 text-muted-foreground"
+        >
           {subtext}
         </p>
       ) : null}

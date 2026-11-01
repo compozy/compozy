@@ -1,4 +1,4 @@
-import { CalendarClock, MessageSquare } from "lucide-react";
+import { CalendarClock, MessageSquare } from "@compozy/ui/icons";
 
 import { formatAbsoluteTime, Pill, Time } from "@compozy/ui";
 
@@ -34,7 +34,7 @@ export function SessionLaterDetails({
     >
       {details.reason ? (
         <span
-          className="min-w-0 truncate text-muted"
+          className="min-w-0 truncate text-muted-foreground"
           data-testid={`session-later-reason-${session.id}`}
           title={details.reasonLines.join("\n")}
         >
@@ -62,7 +62,7 @@ export function SessionLaterDetails({
             data-testid={`session-later-pending-${session.id}`}
             form="plain"
             title={laterPendingLabel(details.pendingMessages)}
-            tone="accent"
+            tone="brand"
           >
             <MessageSquare aria-hidden="true" className="size-3" />
             {details.pendingMessages}

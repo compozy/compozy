@@ -1,4 +1,4 @@
-import { Coins, Gauge, History, Info, Search } from "lucide-react";
+import { Coins, Gauge, History, Info, Search } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -100,7 +100,7 @@ function LoopRunRailSkeleton() {
     <div aria-hidden="true" className={RAIL_CARD_CLASS}>
       <div className="px-4 py-4">
         <div className="mb-2 flex items-center gap-1.5">
-          <Coins aria-hidden="true" className="size-3 text-muted" />
+          <Coins aria-hidden="true" className="size-3 text-muted-foreground" />
           <Eyebrow className="text-subtle">Usage</Eyebrow>
         </div>
         <PropertyRowSkeleton count={4} />
@@ -108,7 +108,7 @@ function LoopRunRailSkeleton() {
       </div>
       <div className="border-t border-line-soft px-4 py-4">
         <div className="flex w-full items-center gap-1.5 text-left">
-          <Info aria-hidden="true" className="size-3 text-muted" />
+          <Info aria-hidden="true" className="size-3 text-muted-foreground" />
           <Eyebrow className="text-subtle">About this run</Eyebrow>
         </div>
       </div>

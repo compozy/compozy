@@ -11,7 +11,7 @@ const PROVIDER_GRID_CLASS = "grid gap-3 sm:grid-cols-2 lg:grid-cols-3";
 const PROVIDER_CARD_BODY_CLASS =
   "flex min-h-full w-full flex-col gap-3 px-4 py-3.5 text-left focus-visible:outline-none focus-visible:shadow-focus-inset";
 const PROVIDER_CARD_FOOTER_CLASS =
-  "flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-form-label text-muted";
+  "flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-form-label text-muted-foreground";
 
 /** The grid every provider card sits in, shared by the loaded list and its loading shape. */
 export function ProviderCardGrid({ className, ...props }: ComponentProps<"section">) {

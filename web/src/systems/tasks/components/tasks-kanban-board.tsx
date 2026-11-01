@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Button, Empty, SkeletonRegion, Spinner } from "@compozy/ui";
 
@@ -147,7 +147,7 @@ function KanbanPaginationError({
 }) {
   return (
     <div
-      className="flex shrink-0 items-center justify-between gap-3 border-t border-line-soft px-4 py-3 text-caption text-danger"
+      className="flex shrink-0 items-center justify-between gap-3 border-t border-line-soft px-4 py-3 text-caption text-destructive"
       data-testid="tasks-kanban-pagination-error"
       role="alert"
     >

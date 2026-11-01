@@ -52,7 +52,7 @@ export function GatewayExposureRowItem({ row, disabled, onToggle }: GatewayExpos
             </span>
           ) : null}
           {row.cause ? (
-            <span className="text-danger" data-testid={`gateway-exposure-${row.id}-cause`}>
+            <span className="text-destructive" data-testid={`gateway-exposure-${row.id}-cause`}>
               {row.cause}
             </span>
           ) : null}

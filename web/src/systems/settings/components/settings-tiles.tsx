@@ -21,7 +21,7 @@ export interface SettingsTileProps {
   value: ReactNode;
   detail?: ReactNode;
   /** Leading status dot tone (e.g. success for healthy counters). */
-  dotTone?: "success" | "warning" | "danger" | "neutral";
+  dotTone?: "success" | "warning" | "destructive" | "neutral";
   mono?: boolean;
   "data-testid"?: string;
 }
@@ -42,7 +42,7 @@ export function SettingsTile({
       value={
         <span className="inline-flex min-w-0 items-center gap-1.5">
           {dotTone ? <Pill.Dot tone={dotTone} /> : null}
-          <span className={cn("truncate", mono && "font-mono text-eyebrow text-muted")}>
+          <span className={cn("truncate", mono && "font-mono text-eyebrow text-muted-foreground")}>
             {value}
           </span>
         </span>

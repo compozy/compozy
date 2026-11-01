@@ -1,4 +1,4 @@
-import { RefreshCw, TriangleAlert, X } from "lucide-react";
+import { RefreshCw, TriangleAlert, X } from "@compozy/ui/icons";
 import { useEffect, useEffectEvent } from "react";
 
 import { Alert, AlertActions, AlertDescription, AlertTitle, Button, Spinner } from "@compozy/ui";
@@ -56,7 +56,7 @@ export function SessionResumeFailure({
       data-session-id={sessionId}
       data-testid="session-resume-failure"
       role="alert"
-      variant="danger"
+      variant="destructive"
     >
       <TriangleAlert aria-hidden="true" className="size-3.5" />
       <AlertTitle data-testid="session-resume-failure-title">{title}</AlertTitle>

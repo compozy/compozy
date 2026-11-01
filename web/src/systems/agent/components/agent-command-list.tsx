@@ -116,14 +116,14 @@ export function AgentCommandList({
                   />
                   <span className="truncate text-small-body text-fg">{agent.name}</span>
                   <Eyebrow
-                    className="text-muted"
+                    className="text-muted-foreground"
                     data-testid={`agent-command-provider-${agent.name}`}
                   >
                     {agent.provider}
                   </Eyebrow>
                   {categoryLabel ? (
                     <Eyebrow
-                      className="text-muted ml-auto truncate"
+                      className="text-muted-foreground ml-auto truncate"
                       data-testid={`agent-command-category-${agent.name}`}
                     >
                       {categoryLabel}

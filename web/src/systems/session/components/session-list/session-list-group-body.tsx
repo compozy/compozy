@@ -1,7 +1,7 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { use } from "react";
 
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@compozy/ui/icons";
 
 import { Button, Icon } from "@compozy/ui";
 

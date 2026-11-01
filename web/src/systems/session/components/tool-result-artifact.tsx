@@ -103,7 +103,7 @@ export function ToolResultArtifact({ result }: { result: ToolUseResult }) {
       </div>
 
       {opened && query.isError ? (
-        <div data-testid="artifact-error" className="text-transcript-caption text-danger">
+        <div data-testid="artifact-error" className="text-transcript-caption text-destructive">
           {error?.message ?? "Couldn't load the retained result. Try again."}
           {error?.statusCode !== 404 ? (
             <ArtifactAction

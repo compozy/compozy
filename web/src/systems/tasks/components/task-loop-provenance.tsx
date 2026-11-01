@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 
 import { MonoId, PropertyRow } from "@compozy/ui";
 
@@ -48,7 +48,7 @@ export function TaskLoopProvenance({ loop }: TaskLoopProvenanceProps) {
               <ArrowUpRight aria-hidden="true" className="size-3.5" />
             </Link>
           ) : (
-            <span className="text-muted" data-testid="task-loop-provenance-run-gone">
+            <span className="text-muted-foreground" data-testid="task-loop-provenance-run-gone">
               {RUN_GONE_LABEL}
             </span>
           )

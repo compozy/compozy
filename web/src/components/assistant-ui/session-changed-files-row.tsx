@@ -1,11 +1,11 @@
-import { FileText } from "lucide-react";
+import { FileText } from "@compozy/ui/icons";
 
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";
 import { TranscriptDisclosure } from "@compozy/ui";
 
 // Signal palette as information, never decoration: additions read `--success`,
-// deletions `--danger`. The +/− sign carries the meaning too, so the stat never
+// deletions `--color-destructive`. The +/− sign carries the meaning too, so the stat never
 // depends on color alone.
 function DiffStat({ additions, deletions }: { additions: number; deletions: number }) {
   return (
@@ -14,7 +14,7 @@ function DiffStat({ additions, deletions }: { additions: number; deletions: numb
       className="flex shrink-0 items-center gap-1.5 font-mono text-transcript-caption tabular-nums"
     >
       <span className="font-medium text-success">+{additions}</span>
-      <span className="font-medium text-danger">−{deletions}</span>
+      <span className="font-medium text-destructive">−{deletions}</span>
     </span>
   );
 }

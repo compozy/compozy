@@ -1,5 +1,5 @@
 import { ViewTransition, type ReactNode } from "react";
-import { PlugZap, Search } from "lucide-react";
+import { PlugZap, Search } from "@compozy/ui/icons";
 
 import { LaneTabs, LiveBadge, Pill, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 

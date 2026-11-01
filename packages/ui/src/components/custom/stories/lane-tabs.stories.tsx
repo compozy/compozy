@@ -11,7 +11,7 @@ const meta: Meta<typeof LaneTabs> = {
     docs: {
       description: {
         component:
-          'Dense lane tab strip — TechSpec composite. Bottom-rule on `--line`, active lane gets a 1.5px `--accent` underline anchored to the rule. Counts render in a flat `--canvas-soft` mono-badge; a count of `"pending"` holds the slot with a placeholder until the number is read. Arrow / Home / End keyboard navigation is wired natively.',
+          'Dense lane tab strip — TechSpec composite. Bottom-rule on `--line`, active lane gets a 1.5px `--color-brand` underline anchored to the rule. Counts render in a flat `--canvas-soft` mono-badge; a count of `"pending"` holds the slot with a placeholder until the number is read. Arrow / Home / End keyboard navigation is wired natively.',
       },
     },
   },

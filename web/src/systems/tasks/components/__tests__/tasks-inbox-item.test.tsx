@@ -92,7 +92,7 @@ describe("TasksInboxItem", () => {
     expect(glyph).toHaveAttribute("data-state", "attention");
   });
 
-  it("Should render Reject as a ghost-danger button and Approve as the filled secondary row action", () => {
+  it("Should render Reject as a ghost-destructive button and Approve as the filled secondary row action", () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();
     const item = buildInboxItemFixture({

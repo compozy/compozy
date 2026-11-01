@@ -7,8 +7,8 @@ import type { PillTone } from "../components/custom/pill-types";
  * consumes, so the six signal tones never drift back into hand-rolled Records.
  *
  * Decisions (UI-ALIGNMENT-SPEC §B8):
- * - `text` is toned text on the DARK ramp: the accent tone reads `accent-strong`
- *   (brighter than `accent`, which is reserved for text on an accent tint), and
+ * - `text` is toned text on the DARK ramp: the accent tone reads `brand-strong`
+ *   (brighter than `brand`, which is reserved for text on an accent tint), and
  *   neutral is always `neutral-ink` — never ad-hoc `muted`/`subtle`.
  * - `bg` is the solid signal hue for bars/dots; `tint` the low-alpha wash;
  *   `solid` the filled swatch + readable ink.
@@ -23,15 +23,15 @@ export interface ToneClasses {
 export const TONE_CLASSES: Record<PillTone, ToneClasses> = {
   neutral: {
     text: "text-neutral-ink",
-    bg: "bg-muted",
+    bg: "bg-muted-foreground",
     tint: "bg-neutral-tint",
-    solid: "bg-muted text-canvas",
+    solid: "bg-muted-foreground text-canvas",
   },
-  accent: {
-    text: "text-accent-strong",
-    bg: "bg-accent",
-    tint: "bg-accent-tint",
-    solid: "bg-accent text-accent-ink",
+  brand: {
+    text: "text-brand-strong",
+    bg: "bg-brand",
+    tint: "bg-brand-tint",
+    solid: "bg-brand text-brand-ink",
   },
   success: {
     text: "text-success",
@@ -45,11 +45,11 @@ export const TONE_CLASSES: Record<PillTone, ToneClasses> = {
     tint: "bg-warning-tint",
     solid: "bg-warning text-canvas",
   },
-  danger: {
-    text: "text-danger",
-    bg: "bg-danger",
-    tint: "bg-danger-tint",
-    solid: "bg-danger text-canvas",
+  destructive: {
+    text: "text-destructive",
+    bg: "bg-destructive",
+    tint: "bg-destructive-tint",
+    solid: "bg-destructive text-canvas",
   },
   info: { text: "text-info", bg: "bg-info", tint: "bg-info-tint", solid: "bg-info text-canvas" },
 };

@@ -89,7 +89,9 @@ function SessionContextTooltipLine({
               </span>
             </>
           ) : null}
-          <span className="font-mono text-mono-id font-normal text-muted">{row.amount}</span>
+          <span className="font-mono text-mono-id font-normal text-muted-foreground">
+            {row.amount}
+          </span>
         </p>
       );
     case "headline":
@@ -151,7 +153,7 @@ export function SessionContextControl({
       <TooltipContent
         role="tooltip"
         id={tooltipId}
-        className="min-w-53 max-w-70 flex-col items-start gap-1.25 px-2.75 py-2.25 text-eyebrow leading-normal text-muted"
+        className="min-w-53 max-w-70 flex-col items-start gap-1.25 px-2.75 py-2.25 text-eyebrow leading-normal text-muted-foreground"
         side="top"
         align="start"
       >

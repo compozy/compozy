@@ -77,7 +77,7 @@ export function SessionDeleteDialog({
           </DialogDescription>
         </DialogHeader>
         {retrying ? (
-          <p role="alert" className="text-small-body text-danger">
+          <p role="alert" className="text-small-body text-destructive">
             Couldn't delete: {failure.error}
           </p>
         ) : null}

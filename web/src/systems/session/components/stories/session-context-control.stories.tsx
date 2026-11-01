@@ -55,8 +55,8 @@ export const NarrowRow: Story = {
   decorators: [
     Story => (
       <div className="flex w-60 flex-wrap items-center gap-2 rounded-xl border border-line p-2">
-        <span className="text-small-body text-muted">Claude Code</span>
-        <span className="text-small-body text-muted">Main worktree</span>
+        <span className="text-small-body text-muted-foreground">Claude Code</span>
+        <span className="text-small-body text-muted-foreground">Main worktree</span>
         <Story />
       </div>
     ),

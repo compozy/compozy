@@ -1,9 +1,9 @@
 "use client";
 
 import { startOfDay } from "date-fns";
-import { CalendarClock, X } from "lucide-react";
 import * as React from "react";
 
+import { CalendarClock, X } from "../../icons";
 import {
   dateTimePickerPresetValue,
   dateTimePickerSlotLabels,

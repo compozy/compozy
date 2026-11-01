@@ -22,7 +22,7 @@ function HeartbeatOpsSkeletonContent() {
         ))}
       </MetadataList>
       <div className="flex flex-col gap-2">
-        <p className="eyebrow text-muted">Wake target</p>
+        <p className="eyebrow text-muted-foreground">Wake target</p>
         <Skeleton className="h-input" />
       </div>
       <Skeleton className="h-button-sm w-24" />

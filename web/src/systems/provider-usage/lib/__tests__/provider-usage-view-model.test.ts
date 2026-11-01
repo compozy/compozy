@@ -46,7 +46,7 @@ describe("severity", () => {
     expect(severityForPercent(99.9)).toBe("warning");
     expect(severityForPercent(100)).toBe("exhausted");
     expect(severityForPercent(112)).toBe("exhausted");
-    expect(toneForSeverity("exhausted")).toBe("danger");
+    expect(toneForSeverity("exhausted")).toBe("destructive");
     expect(toneForSeverity("neutral")).toBe("neutral");
   });
 

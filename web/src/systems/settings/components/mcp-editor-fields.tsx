@@ -20,7 +20,7 @@ export function MCPFieldLabel({
       htmlFor={htmlFor}
     >
       {children}
-      {hint ? <Eyebrow className="ml-auto text-muted">{hint}</Eyebrow> : null}
+      {hint ? <Eyebrow className="ml-auto text-muted-foreground">{hint}</Eyebrow> : null}
     </label>
   );
 }
@@ -51,7 +51,7 @@ export function MCPNameField({
         onChange={event => onChange(event.target.value)}
         data-testid="settings-mcp-servers-editor-name-input"
       />
-      {error ? <p className="mt-1.5 text-caption text-danger">{error}</p> : null}
+      {error ? <p className="mt-1.5 text-caption text-destructive">{error}</p> : null}
     </div>
   );
 }

@@ -241,7 +241,7 @@ describe("SecretField", () => {
     expect(onModeChange).not.toHaveBeenCalled();
   });
 
-  it("Should mark the selected source neutrally, never with accent", () => {
+  it("Should mark the selected source neutrally, never with brand", () => {
     render(
       <SecretFieldHarness
         binding={{
@@ -260,10 +260,10 @@ describe("SecretField", () => {
     const [selected, unselected] = screen.getAllByRole("radio");
     expect(selected).toHaveAttribute("aria-checked", "true");
     expect(unselected).toHaveAttribute("aria-checked", "false");
-    // Accent is reserved for true CTAs; selection reads as glaze + rim.
+    // Brand is reserved for true CTAs; selection reads as glaze + rim.
     expect(selected.className).toContain("data-[selected]:bg-selected");
     expect(selected.className).toContain("data-[selected]:border-line-strong");
-    expect(selected.className).not.toMatch(/accent/);
+    expect(selected.className).not.toMatch(/brand/);
     expect(selected).toHaveClass(DIALOG_TOUCH_TARGET_CLASS);
   });
 });

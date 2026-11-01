@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { UserRound } from "lucide-react";
+import { UserRound } from "@compozy/ui/icons";
 
 import {
   cn,
@@ -78,7 +78,7 @@ export function ProfileSwitcher({
                   data-testid="os-menubar-profile"
                   aria-label={quiet ? "Profile" : `Profile: ${shownName}`}
                   className={cn(
-                    "grid size-rail-item shrink-0 place-items-center rounded-lg text-muted outline-none",
+                    "grid size-rail-item shrink-0 place-items-center rounded-lg text-muted-foreground outline-none",
                     "transition-[background-color,color] duration-base ease-spring",
                     "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring",
                     "data-[popup-open]:bg-rail-selected data-[popup-open]:text-fg"

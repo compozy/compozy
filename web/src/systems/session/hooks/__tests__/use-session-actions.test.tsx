@@ -87,7 +87,6 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   }),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/user-feedback", () => ({ notifyUser: vi.fn() }));
 
 import {
@@ -111,10 +110,16 @@ import {
   unarchiveSession,
 } from "../../adapters/session-api";
 import { SessionApiError, SessionGoalCommandError } from "../../adapters/session-api-errors";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import { notifyUser } from "@/lib/user-feedback";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+  vi.spyOn(toast, "info").mockReturnValue("toast");
+});
 const WORKSPACE_ID = "ws_alpha";
 
 const queuedInput: SessionInputPayload = {

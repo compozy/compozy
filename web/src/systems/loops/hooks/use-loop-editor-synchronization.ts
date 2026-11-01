@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { definitionToGraph } from "../lib/codec";
 import { editorDefinitionFromLoop } from "../lib/loop-editor-definition";

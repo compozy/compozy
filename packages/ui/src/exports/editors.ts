@@ -51,7 +51,6 @@ export {
 } from "../components/custom/confirm-dialog";
 export { FormSection, type FormSectionProps } from "../components/custom/form-section";
 export { HelpTip, type HelpTipProps } from "../components/custom/help-tip";
-export { EditorFooter, type EditorFooterProps } from "../components/custom/editor-footer";
 export { Panel, type PanelProps } from "../components/custom/panel";
 export { JsonViewer, type JsonViewerProps } from "../components/custom/json-viewer";
 export { MetadataTile, type MetadataTileProps } from "../components/custom/metadata-tile";

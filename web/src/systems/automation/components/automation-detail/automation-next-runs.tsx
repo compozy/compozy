@@ -7,7 +7,7 @@ import type { AutomationNextRun } from "../../lib/automation-detail";
 /** A single upcoming fire time: faint index, relative label, absolute UTC stamp. */
 function NextRunRow({ run }: { run: AutomationNextRun }) {
   return (
-    <li className="flex min-h-7 items-center gap-2.5 border-t border-line-soft text-eyebrow text-muted first:border-t-0">
+    <li className="flex min-h-7 items-center gap-2.5 border-t border-line-soft text-eyebrow text-muted-foreground first:border-t-0">
       <span className="w-4 font-mono text-badge text-faint">{run.index}</span>
       <span className="min-w-21.5 font-medium text-fg">
         {run.relative}

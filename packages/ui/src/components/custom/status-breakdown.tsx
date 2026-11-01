@@ -46,7 +46,7 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
             >
               <span
                 className={cn(
-                  "inline-flex items-center gap-2 text-form-label text-muted",
+                  "inline-flex items-center gap-2 text-form-label text-muted-foreground",
                   item.showBar === false ? "min-w-0 flex-1" : "w-24 shrink-0 truncate"
                 )}
               >
@@ -64,7 +64,7 @@ function StatusBreakdown({ items, total, className, ...props }: StatusBreakdownP
               ) : null}
               <span
                 className={cn(
-                  "inline-flex shrink-0 items-baseline justify-end font-mono text-mono-id tabular-nums text-muted",
+                  "inline-flex shrink-0 items-baseline justify-end font-mono text-mono-id tabular-nums text-muted-foreground",
                   item.showBar === false ? "min-w-14" : "w-12"
                 )}
               >

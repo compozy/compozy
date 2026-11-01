@@ -36,8 +36,8 @@ export function OperatorNote({
       role="note"
       className="not-prose rounded-xl border border-line bg-canvas-soft p-5 md:px-6"
     >
-      <Eyebrow className="text-accent">{label}</Eyebrow>
-      <div className="mt-3 text-base leading-7 text-muted">{children}</div>
+      <Eyebrow className="text-brand">{label}</Eyebrow>
+      <div className="mt-3 text-base leading-7 text-muted-foreground">{children}</div>
     </aside>
   );
 }
@@ -60,10 +60,10 @@ export function RouteRow({ href, label, title, description, meta }: RouteRowProp
 
       <div className="min-w-0">
         <p className="text-lg font-semibold tracking-tight text-fg">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-muted md:justify-end">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground md:justify-end">
         {meta ? (
           <span className="hidden md:inline">{meta}</span>
         ) : (
@@ -71,7 +71,7 @@ export function RouteRow({ href, label, title, description, meta }: RouteRowProp
         )}
         <ArrowRight
           aria-hidden
-          className="size-4 text-accent transition-transform group-hover:translate-x-0.5"
+          className="size-4 text-brand transition-transform group-hover:translate-x-0.5"
         />
       </div>
     </Link>
@@ -86,11 +86,11 @@ export function GuideCard({ href, label, title, description, meta }: GuideCardPr
   return (
     <Link
       href={href}
-      className="group flex min-h-55 flex-col justify-between rounded-xl border border-line bg-canvas-soft p-5 transition-colors hover:border-accent/40 md:p-6"
+      className="group flex min-h-55 flex-col justify-between rounded-xl border border-line bg-canvas-soft p-5 transition-colors hover:border-brand/40 md:p-6"
     >
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <Eyebrow className="text-accent">{label}</Eyebrow>
+          <Eyebrow className="text-brand">{label}</Eyebrow>
           {meta ? (
             <Eyebrow className="rounded-md border border-line bg-elevated px-2 py-1 text-subtle">
               {meta}
@@ -99,14 +99,14 @@ export function GuideCard({ href, label, title, description, meta }: GuideCardPr
         </div>
 
         <p className="mt-4 text-xl leading-7 font-semibold tracking-tight text-fg">{title}</p>
-        <p className="mt-3 text-sm leading-6 text-muted">{description}</p>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
 
-      <div className="mt-6 flex items-center gap-2 text-sm text-muted">
+      <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
         <span>Open guide</span>
         <ArrowRight
           aria-hidden
-          className="size-4 text-accent transition-transform group-hover:translate-x-0.5"
+          className="size-4 text-brand transition-transform group-hover:translate-x-0.5"
         />
       </div>
     </Link>
@@ -125,11 +125,11 @@ export function WorkflowStep({ title, children }: WorkflowStepProps) {
   return (
     <section className="grid min-w-0 gap-4 border-t border-line p-5 first:border-t-0 md:grid-cols-[40px_minmax(0,1fr)] md:px-6">
       <div className="flex size-10 items-center justify-center rounded-lg border border-line bg-elevated">
-        <CheckCircle2 className="size-4 text-accent" />
+        <CheckCircle2 className="size-4 text-brand" />
       </div>
       <div className="min-w-0">
         <p className="text-lg leading-7 font-semibold tracking-tight text-fg">{title}</p>
-        <div className="mt-2 text-sm leading-7 text-muted">{children}</div>
+        <div className="mt-2 text-sm leading-7 text-muted-foreground">{children}</div>
       </div>
     </section>
   );

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ListChecks, Plus } from "lucide-react";
+import { ListChecks, Plus } from "@compozy/ui/icons";
 
 import { Button, RouteNav, Separator, useTopbarSlot } from "@compozy/ui";
 

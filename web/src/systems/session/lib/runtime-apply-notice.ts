@@ -3,7 +3,7 @@ import { normalizeRuntimeACPSelections, type RuntimeProviderLiveApply } from "@/
 
 export interface RuntimeApplyNotice {
   text: string;
-  tone: "neutral" | "danger";
+  tone: "neutral" | "destructive";
 }
 
 /** Badges that mean the session still has a turn in flight. */
@@ -83,7 +83,7 @@ export function runtimeApplyNotice(
       status === "ready" &&
       effective?.provider === selected.provider;
     return refused
-      ? { text: "Couldn't apply this now. It retries with the next message.", tone: "danger" }
+      ? { text: "Couldn't apply this now. It retries with the next message.", tone: "destructive" }
       : { text: "Applies from the next message.", tone: "neutral" };
   }
   if (!TURN_ACTIVE_BADGES.has(session.badge)) return null;

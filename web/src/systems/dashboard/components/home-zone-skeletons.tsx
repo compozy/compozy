@@ -124,7 +124,7 @@ export function HomePulseHeatmapSkeleton() {
     <Section
       aria-hidden="true"
       label="When agents were busy"
-      right={<span className="text-eyebrow text-muted">Last 14 days</span>}
+      right={<span className="text-eyebrow text-muted-foreground">Last 14 days</span>}
     >
       <Panel bodyClassName="p-0" className="animate-skeleton-reveal">
         <div className="overflow-x-auto px-4 pt-4 pb-1.5">
@@ -159,7 +159,7 @@ export function HomeOutcomesChartSkeleton() {
       bodyClassName="flex flex-1 flex-col"
       className="flex min-h-full flex-col"
       label="How work ended"
-      right={<span className="text-eyebrow text-muted">Last 14 days</span>}
+      right={<span className="text-eyebrow text-muted-foreground">Last 14 days</span>}
     >
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="animate-skeleton-reveal flex-1">
         <div className={HOME_OUTCOMES_HEADLINE_CLASS}>
@@ -243,7 +243,7 @@ export function HomeAgentsPanelSkeleton() {
       bodyClassName="flex flex-1 flex-col"
       className="flex min-h-full flex-col"
       label="Agents"
-      right={<span className="text-eyebrow text-muted">runtime · all time</span>}
+      right={<span className="text-eyebrow text-muted-foreground">runtime · all time</span>}
     >
       <Panel
         bodyClassName="flex flex-1 flex-col p-0"

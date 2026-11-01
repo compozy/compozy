@@ -74,8 +74,10 @@ export function ObservabilitySettingsPage() {
                 key: "sessions",
                 content: (
                   <span>
-                    <span className="font-medium text-muted">{runtime.active_sessions}</span> active
-                    sessions
+                    <span className="font-medium text-muted-foreground">
+                      {runtime.active_sessions}
+                    </span>{" "}
+                    active sessions
                   </span>
                 ),
               },
@@ -101,7 +103,7 @@ export function ObservabilitySettingsPage() {
           data-testid="settings-page-observability-hero"
           usage={`${formatBytes(totalStorage)} of ${formatBytes(cap)}`}
           percent={capPercent}
-          tone={capPercent >= 95 ? "danger" : capPercent >= 80 ? "warning" : "success"}
+          tone={capPercent >= 95 ? "destructive" : capPercent >= 80 ? "warning" : "success"}
           pill={capPercent >= 80 ? "Filling up" : "Healthy"}
           legend={`App data ${formatBytes(runtime.global_db_size_bytes)} · Sessions ${formatBytes(runtime.session_db_size_bytes)} · ${formatBytes(Math.max(0, cap - totalStorage))} free`}
         />

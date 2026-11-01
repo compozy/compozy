@@ -1,8 +1,8 @@
 "use client";
 
-import { Info } from "lucide-react";
 import * as React from "react";
 
+import { Info } from "../../icons";
 import { DIALOG_TOUCH_TARGET_CLASS } from "../../lib/dialog-shell";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
@@ -45,8 +45,7 @@ export interface EntityDialogFooterProps extends Omit<
  * left, then Cancel and exactly one primary action.
  *
  * Composes `DialogFooter variant="ruled"` (which owns the ruled chrome) and
- * adds the 52px floor from `--height-editor-footer`. `EditorFooter` is the
- * page/sheet editor footer and stays untouched — this is the modal contract.
+ * adds the 52px floor from `--height-editor-footer`.
  */
 function EntityDialogFooter({
   hint,
@@ -92,7 +91,7 @@ function EntityDialogFooter({
       ) : null}
       {hint ? (
         <div
-          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-form-hint text-muted"
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-form-hint text-muted-foreground"
           data-slot="entity-dialog-footer-hint"
           data-testid={hintTestId}
         >

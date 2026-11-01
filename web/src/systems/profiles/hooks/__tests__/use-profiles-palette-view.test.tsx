@@ -6,7 +6,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { UserRound } from "lucide-react";
+import { UserRound } from "@compozy/ui/icons";
 
 import { UIProvider } from "@compozy/ui";
 

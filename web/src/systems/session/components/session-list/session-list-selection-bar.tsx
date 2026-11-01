@@ -1,4 +1,4 @@
-import { Trash2, X } from "lucide-react";
+import { Trash2, X } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -85,7 +85,7 @@ export function SessionListSelectionBar({
               aria-label={deleteLabel}
               disabled={disabled || !onDelete}
               onClick={onDelete}
-              className="shrink-0 hover:bg-danger-tint hover:text-danger focus-visible:bg-danger-tint focus-visible:text-danger"
+              className="shrink-0 hover:bg-destructive-tint hover:text-destructive focus-visible:bg-destructive-tint focus-visible:text-destructive"
               data-testid={`${testIdPrefix}-selection-delete`}
             >
               <Trash2 className="size-3.5" />

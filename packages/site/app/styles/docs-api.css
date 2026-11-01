@@ -115,5 +115,5 @@
 }
 
 .site-api-page :is(.text-red-600, .dark\:text-red-400, .text-red-400) {
-  color: var(--color-danger);
+  color: var(--color-destructive);
 }

@@ -7,7 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@compozy/ui";
-import { RotateCcw, Square } from "lucide-react";
+import { RotateCcw, Square } from "@compozy/ui/icons";
 
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { processPortsSentence, sessionProcessChoiceCopy } from "../lib/session-process-choice";

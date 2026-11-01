@@ -10,13 +10,13 @@ describe("ThemeToggle", () => {
     render(<ThemeToggle resolvedTheme="dark" />);
     const button = screen.getByRole("button", { name: "Switch to light mode" });
     expect(button).toHaveAttribute("type", "button");
-    expect(button.querySelector("svg.lucide-sun")).not.toBeNull();
+    expect(button.querySelector('[data-slot="theme-toggle-sun"]')).not.toBeNull();
   });
 
   it("Should offer dark mode with a moon while light is painted", () => {
     render(<ThemeToggle resolvedTheme="light" />);
     const button = screen.getByRole("button", { name: "Switch to dark mode" });
-    expect(button.querySelector("svg.lucide-moon")).not.toBeNull();
+    expect(button.querySelector('[data-slot="theme-toggle-moon"]')).not.toBeNull();
   });
 
   it("Should hand each press to the owner", async () => {

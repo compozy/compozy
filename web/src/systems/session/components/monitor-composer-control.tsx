@@ -1,4 +1,4 @@
-import { Radar, X } from "lucide-react";
+import { Radar, X } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -62,7 +62,7 @@ function MonitorRow({
         <span className="line-clamp-2 text-transcript-meta text-pretty text-fg">
           {monitor.description}
         </span>
-        <span className="flex min-w-0 items-center gap-1 text-transcript-caption text-muted">
+        <span className="flex min-w-0 items-center gap-1 text-transcript-caption text-muted-foreground">
           <span className="truncate">{monitorWatchLabel(monitor)}</span>
           <span aria-hidden="true">·</span>
           {waking ? (
@@ -83,7 +83,7 @@ function MonitorRow({
           aria-label={`Cancel monitor: ${monitor.description}`}
           disabled={canceling}
           onClick={() => onCancel(monitor.monitor_id)}
-          className="text-muted"
+          className="text-muted-foreground"
         >
           {canceling ? <StateGlyph size="sm" state="running" /> : <X aria-hidden="true" />}
         </Button>
@@ -95,7 +95,7 @@ function MonitorRow({
 function MonitorLoadError({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2 px-0.5">
-      <p className="text-transcript-caption text-muted">{message}</p>
+      <p className="text-transcript-caption text-muted-foreground">{message}</p>
       {onRetry ? (
         <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
           Try again
@@ -155,7 +155,11 @@ function MonitorComposerBody({
       />
     );
   }
-  return <p className="px-0.5 text-transcript-caption text-muted">Nothing is being monitored.</p>;
+  return (
+    <p className="px-0.5 text-transcript-caption text-muted-foreground">
+      Nothing is being monitored.
+    </p>
+  );
 }
 
 /**

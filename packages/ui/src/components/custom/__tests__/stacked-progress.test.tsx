@@ -11,7 +11,7 @@ describe("StackedProgress", () => {
         segments={[
           { value: 3, tone: "success" },
           { value: 0, tone: "warning" },
-          { value: 1, tone: "danger" },
+          { value: 1, tone: "destructive" },
         ]}
       />
     );

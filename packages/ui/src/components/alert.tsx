@@ -38,7 +38,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
     <div
       data-slot="alert-description"
       className={cn(
-        "text-form-input leading-normal text-muted text-balance md:text-pretty",
+        "text-form-input leading-normal text-muted-foreground text-balance md:text-pretty",
         "group-has-[>svg]/alert:col-start-2",
         "[&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-fg",
         "[&_p:not(:last-child)]:mb-2",
@@ -60,7 +60,7 @@ function AlertMeta({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-meta"
       className={cn(
-        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-form-hint text-muted",
+        "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-form-hint text-muted-foreground",
         "group-has-[>svg]/alert:col-start-2",
         className
       )}

@@ -1,4 +1,4 @@
-import { Activity, AlertCircle } from "lucide-react";
+import { Activity, AlertCircle } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

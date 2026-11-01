@@ -2,7 +2,7 @@ import { cn } from "@compozy/ui";
 import type { ComponentProps } from "react";
 import { formatDate, formatDateCompact } from "./format";
 
-export type DateStampTone = "neutral" | "accent" | "success" | "danger" | "warning" | "info";
+export type DateStampTone = "neutral" | "brand" | "success" | "destructive" | "warning" | "info";
 
 export interface DateStampProps extends Omit<ComponentProps<"time">, "children" | "dateTime"> {
   date: string;
@@ -12,10 +12,10 @@ export interface DateStampProps extends Omit<ComponentProps<"time">, "children" 
 }
 
 const toneClass: Record<DateStampTone, string> = {
-  neutral: "text-muted",
-  accent: "text-accent",
+  neutral: "text-muted-foreground",
+  brand: "text-brand",
   success: "text-success",
-  danger: "text-danger",
+  destructive: "text-destructive",
   warning: "text-warning",
   info: "text-info",
 };

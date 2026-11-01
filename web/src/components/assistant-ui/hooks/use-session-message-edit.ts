@@ -2,7 +2,7 @@ import { useAui } from "@assistant-ui/react";
 import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { createClientId } from "@/lib/client-id";
 import { releaseComposerDraftFile } from "@/systems/session/lib/session-composer-attachment-drafts";

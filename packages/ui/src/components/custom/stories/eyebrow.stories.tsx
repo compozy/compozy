@@ -10,7 +10,7 @@ const meta: Meta<typeof Eyebrow> = {
     docs: {
       description: {
         component:
-          'Canonical eyebrow primitive — Geist sentence case 12 px / 510 / -0.005em by default. `variant="caps"` is the only opt-in: the fixed uppercase kicker rendition (11 px / 600 / +0.06em — a size step down with positive tracking, because uppercase reads optically larger). Both renditions are utilities in tokens-runtime.css, so there is still one eyebrow source with no free parameters (lesson L-022). Tone stays collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted`, `text-subtle`, `text-accent`, signal palette).',
+          'Canonical eyebrow primitive — Geist sentence case 12 px / 510 / -0.005em by default. `variant="caps"` is the only opt-in: the fixed uppercase kicker rendition (11 px / 600 / +0.06em — a size step down with positive tracking, because uppercase reads optically larger). Both renditions are utilities in tokens-runtime.css, so there is still one eyebrow source with no free parameters (lesson L-022). Tone stays collapsed; apply text-color utilities through `className` when a tone is needed (`text-muted-foreground`, `text-subtle`, `text-brand`, signal palette).',
       },
     },
   },
@@ -21,13 +21,13 @@ type Story = StoryObj<typeof meta>;
 
 const TONES: { label: string; className: string }[] = [
   { label: "default (inherit)", className: "" },
-  { label: "muted", className: "text-muted" },
+  { label: "muted", className: "text-muted-foreground" },
   { label: "subtle", className: "text-subtle" },
   { label: "strong", className: "text-fg-strong" },
-  { label: "accent", className: "text-accent" },
+  { label: "brand", className: "text-brand" },
   { label: "success", className: "text-success" },
   { label: "warning", className: "text-warning" },
-  { label: "danger", className: "text-danger" },
+  { label: "destructive", className: "text-destructive" },
   { label: "info", className: "text-info" },
 ];
 
@@ -69,8 +69,8 @@ export const Caps: Story = {
   },
   render: () => (
     <div className="flex flex-col gap-3">
-      <Eyebrow className="text-muted">Active sessions</Eyebrow>
-      <Eyebrow variant="caps" className="text-muted">
+      <Eyebrow className="text-muted-foreground">Active sessions</Eyebrow>
+      <Eyebrow variant="caps" className="text-muted-foreground">
         Active sessions
       </Eyebrow>
     </div>

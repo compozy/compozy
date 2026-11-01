@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Wrench } from "lucide-react";
+import { Wrench } from "@compozy/ui/icons";
 import {
   Empty,
   Section,
@@ -16,8 +16,8 @@ import {
 } from "@compozy/ui";
 
 const DISABLED_LIST_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
-const SKILL_COLUMN_CLASS = "eyebrow text-muted";
-const DISABLED_COLUMN_CLASS = "eyebrow w-[1%] text-right text-muted";
+const SKILL_COLUMN_CLASS = "eyebrow text-muted-foreground";
+const DISABLED_COLUMN_CLASS = "eyebrow w-[1%] text-right text-muted-foreground";
 const SKELETON_COLUMNS = [{ className: "w-32" }, { align: "end", className: "w-10" }] as const;
 
 interface SettingsDisabledSkillsSectionProps {

@@ -56,7 +56,7 @@ export function GatewayPublicConsentDialog({
             Confirm what becomes publicly reachable before this is turned on.
           </DialogDescription>
         </DialogHeader>
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-form-label text-muted">
+        <ul className="flex list-disc flex-col gap-2 pl-5 text-form-label text-muted-foreground">
           {PUBLIC_OPERATOR_CONSENT_DISCLOSURE.map(line => (
             <li key={line}>{line}</li>
           ))}
@@ -70,7 +70,7 @@ export function GatewayPublicConsentDialog({
           <span>I understand what becomes publicly reachable.</span>
         </label>
         {error ? (
-          <p className="text-form-label text-danger" role="alert">
+          <p className="text-form-label text-destructive" role="alert">
             {error}
           </p>
         ) : null}

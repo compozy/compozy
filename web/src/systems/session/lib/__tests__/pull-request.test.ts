@@ -77,7 +77,7 @@ describe("pullRequestChipModel", () => {
     const draft = prChip(facts(DX_PR));
     expect(draft).toMatchObject({ number: 932, shape: "draft", word: "Draft", stale: false });
     expect(draft.signals.map(signal => [signal.label, signal.tone])).toEqual([
-      ["2 failing", "danger"],
+      ["2 failing", "destructive"],
       ["Review required", null],
     ]);
     expect(draft.failedNames).toEqual(["lint", "test-web"]);
@@ -109,7 +109,7 @@ describe("pullRequestChipModel", () => {
     );
     expect(conflicts.signals.map(signal => [signal.label, signal.tone])).toEqual([
       ["14 passed", null],
-      ["Conflicts", "danger"],
+      ["Conflicts", "destructive"],
     ]);
 
     const merged = prChip(facts({ ...READY_PR, state: "merged", ready_to_merge: false }));
@@ -195,7 +195,7 @@ describe("pullRequestChipModel", () => {
 
 describe("pullRequestPill", () => {
   it("picks the one card status: failing › changes › conflicts › ready › draft", () => {
-    expect(pullRequestPill(DX_PR, OK)).toEqual({ label: "Checks failing", tone: "danger" });
+    expect(pullRequestPill(DX_PR, OK)).toEqual({ label: "Checks failing", tone: "destructive" });
     expect(pullRequestPill({ ...READY_PR, review_decision: "changes_requested" }, OK)?.label).toBe(
       "Changes requested"
     );

@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@compozy/ui";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@compozy/ui/icons";
 
 import { useSessionGoalFeedback } from "@/systems/session/hooks/use-session-store";
 import { describeGoalCommandFailure } from "@/systems/session/lib/session-goal-chat-transport";
@@ -16,7 +16,7 @@ export function SessionGoalCommandErrorNotice({ sessionId }: { sessionId: string
   }
 
   return (
-    <Alert variant="danger" data-testid="session-goal-command-error">
+    <Alert variant="destructive" data-testid="session-goal-command-error">
       <CircleAlert />
       <AlertDescription>{guidance}</AlertDescription>
     </Alert>

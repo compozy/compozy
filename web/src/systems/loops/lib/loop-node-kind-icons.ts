@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import {
   Bot,
   CheckCheck,
@@ -18,7 +18,7 @@ import {
   Split,
   Target,
   Wrench,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import type { LoopNodeClass } from "./loop-graph";
 

@@ -1,4 +1,4 @@
-import { ArrowRight, Gavel, Minus, Pencil, RotateCcw, type LucideIcon } from "lucide-react";
+import { ArrowRight, Gavel, Minus, Pencil, RotateCcw, type LucideIcon } from "@compozy/ui/icons";
 
 import type { LoopDiffChange } from "../../lib/loop-request-vocabulary";
 import { DIFF_ROW_CLASS } from "./loop-run-diff-parts";
@@ -60,11 +60,17 @@ function LoopRunDiffInline({ row }: { row: LoopDiffRowView }) {
   const base = valueText(row.base);
   const against = valueText(row.against);
   if (base === against) {
-    return <p className="mt-1 text-form-hint leading-relaxed break-words text-muted">{against}</p>;
+    return (
+      <p className="mt-1 text-form-hint leading-relaxed break-words text-muted-foreground">
+        {against}
+      </p>
+    );
   }
   return (
-    <p className="mt-1 text-form-hint leading-relaxed break-words text-muted">
-      <span className={row.base.isAbsent ? "text-subtle" : "text-danger line-through"}>{base}</span>
+    <p className="mt-1 text-form-hint leading-relaxed break-words text-muted-foreground">
+      <span className={row.base.isAbsent ? "text-subtle" : "text-destructive line-through"}>
+        {base}
+      </span>
       <ArrowRight aria-hidden="true" className="mx-1.5 inline size-3 align-[-1px] text-faint" />
       <span className="text-fg">{against}</span>
     </p>

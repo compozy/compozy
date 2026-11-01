@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@compozy/ui/icons";
 
 import { Button, cn, Empty, MonoId, SkeletonRegion, SkeletonText, Time } from "@compozy/ui";
 

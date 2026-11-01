@@ -19,7 +19,7 @@ export interface LoopVerbConfirmCopy {
   body: string;
   confirmLabel: string;
   cancelLabel: string;
-  tone: "danger" | "warning" | "accent" | "neutral";
+  tone: "destructive" | "warning" | "brand" | "neutral";
   /** Mono trail naming the event the verb will produce. */
   micro: string;
 }
@@ -121,7 +121,7 @@ const NODE_VERB_COPY: Record<
     body: "The lane stops being scheduled. The rest of the run keeps working. Choose what happens to the attempt already in flight.",
     confirmLabel: "Pause lane",
     cancelLabel: "Keep running",
-    tone: "accent",
+    tone: "brand",
     micro: `mode: ${pauseMode}`,
   }),
   resume: node => ({
@@ -130,7 +130,7 @@ const NODE_VERB_COPY: Record<
     body: "The schedule and attempt counter from pause time are restored, and the lane picks up where it left off.",
     confirmLabel: "Resume lane",
     cancelLabel: "Keep paused",
-    tone: "accent",
+    tone: "brand",
     micro: "Picks up where it left off",
   }),
   "resume-reset-attempts": node => ({
@@ -148,7 +148,7 @@ const NODE_VERB_COPY: Record<
     body: "The remaining backoff is skipped and the next attempt runs immediately. The attempt counter carries over.",
     confirmLabel: "Resume now",
     cancelLabel: "Keep paused",
-    tone: "accent",
+    tone: "brand",
     micro: "Skips the wait before the next try",
   }),
   "resume-wait": node => ({
@@ -157,7 +157,7 @@ const NODE_VERB_COPY: Record<
     body: "Resuming by hand stands in for the event this step is waiting for. The data must match what the wait expects.",
     confirmLabel: "Resume lane",
     cancelLabel: "Keep waiting",
-    tone: "accent",
+    tone: "brand",
     micro: "Resumed by you",
   }),
   cancel: node => ({
@@ -166,7 +166,7 @@ const NODE_VERB_COPY: Record<
     body: "The lane closes immediately. Active work is stopped automatically, and finished work is kept.",
     confirmLabel: "Cancel lane",
     cancelLabel: "Keep it",
-    tone: "danger",
+    tone: "destructive",
     micro: "Stops immediately",
   }),
   requeue: node => {
@@ -178,7 +178,7 @@ const NODE_VERB_COPY: Record<
       body: `The step is no longer set aside and runs again, with all limits applying.${nextEpisode}`,
       confirmLabel: "Requeue lane",
       cancelLabel: "Keep set aside",
-      tone: "accent",
+      tone: "brand",
       micro: "Recorded as retried by you",
     };
   },
@@ -203,7 +203,7 @@ const RUN_VERB_COPY: Record<
     body: "The run closes immediately. Active sessions are stopped automatically, and finished work is kept.",
     confirmLabel: "Cancel run",
     cancelLabel: "Keep running",
-    tone: "danger",
+    tone: "destructive",
     micro: `status_changed · ${status} → canceled · cause operator_cancel`,
   }),
 };

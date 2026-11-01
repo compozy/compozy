@@ -1,4 +1,4 @@
-import { CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
+import { CornerDownRight, ListPlus, Scissors, Square } from "@compozy/ui/icons";
 import type { MouseEvent, ReactNode } from "react";
 
 import { primaryShortcutModifier } from "@/systems/os";
@@ -105,7 +105,7 @@ function SessionComposerStopControl({
             aria-label="Stop generation"
             data-state="stop"
             data-testid="composer-stop-button"
-            className="text-muted hover:bg-danger-tint hover:text-danger hover:shadow-none"
+            className="text-muted-foreground hover:bg-destructive-tint hover:text-destructive hover:shadow-none"
           />
         }
       >

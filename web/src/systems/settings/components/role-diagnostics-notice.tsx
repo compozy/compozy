@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@compozy/ui/icons";
 
 import { ActionResultBanner, MonoId } from "@compozy/ui";
 

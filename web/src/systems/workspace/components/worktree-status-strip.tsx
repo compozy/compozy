@@ -1,4 +1,4 @@
-import { CircleAlertIcon, GitMergeIcon } from "lucide-react";
+import { CircleAlertIcon, GitMergeIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Eyebrow, MonoId, Pill, cn } from "@compozy/ui";
@@ -19,7 +19,7 @@ interface CellProps {
   field: string;
   label: string;
   children: ReactNode;
-  tone?: "success" | "warning" | "danger" | "neutral";
+  tone?: "success" | "warning" | "destructive" | "neutral";
   unknown?: boolean;
   detached?: boolean;
 }
@@ -45,7 +45,7 @@ function Cell({ field, label, children, tone, unknown, detached }: CellProps) {
         aria-label={unknown ? "not read" : undefined}
         className={cn(
           "flex min-h-4.5 items-center gap-1.5 text-small-body font-medium text-fg",
-          tone === "danger" && "text-danger",
+          tone === "destructive" && "text-destructive",
           tone === "warning" && "text-warning",
           tone === "success" && "text-success",
           unknown && "font-normal text-faint"
@@ -62,7 +62,7 @@ function BranchCell({ status }: { status: WorktreeStatusPayload["status"] }) {
   if (status.detached === true && status.head_sha) {
     return (
       <Cell detached field="branch" label="Branch">
-        <span className="text-muted">pinned at </span>
+        <span className="text-muted-foreground">pinned at </span>
         <MonoId preserveCase size="sm" value={status.head_sha.slice(0, 7)} />
       </Cell>
     );
@@ -92,7 +92,7 @@ function DirtyCell({ status }: { status: WorktreeStatusPayload["status"] }) {
   if (status.dirty_files === 0) {
     return (
       <Cell field="dirty" label="Dirty" tone="neutral">
-        <span className="font-normal text-muted">clean</span>
+        <span className="font-normal text-muted-foreground">clean</span>
       </Cell>
     );
   }
@@ -146,7 +146,7 @@ function PrCell({
           {`${label} ${number}`}
         </Pill>
       ) : null}
-      <span className="text-muted">{forgeStatus.pr_state}</span>
+      <span className="text-muted-foreground">{forgeStatus.pr_state}</span>
       {staleLabel ? <span className="text-eyebrow text-faint">{`as of ${staleLabel}`}</span> : null}
     </Cell>
   );
@@ -204,14 +204,14 @@ export function WorktreeStatusStrip({
           className="flex min-w-0 flex-col gap-1 border-l border-line-soft px-3.5 py-2.5 max-md:border-t max-md:border-l-0"
           data-field="status"
           data-slot="worktree-status-cell"
-          data-tone="danger"
+          data-tone="destructive"
           role="status"
         >
           <dt>
             <Eyebrow>Status</Eyebrow>
           </dt>
           <dd
-            className="flex min-h-4.5 items-center gap-1.5 text-small-body font-medium text-danger"
+            className="flex min-h-4.5 items-center gap-1.5 text-small-body font-medium text-destructive"
             data-slot="worktree-status-value"
           >
             <CircleAlertIcon aria-hidden="true" className="size-3.5" />

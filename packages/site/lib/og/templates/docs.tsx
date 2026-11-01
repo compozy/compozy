@@ -75,7 +75,7 @@ export async function renderDocsOG({
       >
         <LogoLockup height={42} letteringFill={COLORS.textPrimary} />
         <div style={metaStyle}>
-          <span style={{ color: COLORS.accent, textTransform: "uppercase" }}>{labels.eyebrow}</span>
+          <span style={{ color: COLORS.brand, textTransform: "uppercase" }}>{labels.eyebrow}</span>
           <span style={{ width: "48px", height: "1px", background: COLORS.border }} />
           <span style={{ color: COLORS.textTertiary }}>{path}</span>
         </div>
@@ -140,7 +140,7 @@ export async function renderDocsOG({
           }}
         >
           <Chip>DOCS</Chip>
-          <Chip accent>{labels.chip}</Chip>
+          <Chip brand>{labels.chip}</Chip>
         </div>
       </div>
     </div>,

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ClockIcon, FingerprintIcon, GitBranchIcon } from "lucide-react";
 
+import { ClockIcon, FingerprintIcon, GitBranchIcon } from "../../../icons";
 import { MetadataTile } from "../metadata-tile";
 
 const meta: Meta<typeof MetadataTile> = {

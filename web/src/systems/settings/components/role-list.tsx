@@ -41,7 +41,10 @@ export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
   return (
     <section className={LIST_CLASS}>
       <header className={LIST_HEAD_CLASS}>
-        <span className="text-small-body text-muted" data-testid={`${TEST_PREFIX}-count`}>
+        <span
+          className="text-small-body text-muted-foreground"
+          data-testid={`${TEST_PREFIX}-count`}
+        >
           {summarize(roles)}
         </span>
         <Button

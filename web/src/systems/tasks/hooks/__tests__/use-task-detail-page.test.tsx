@@ -10,13 +10,6 @@ import {
 
 const hooks = vi.hoisted(() => ({ stream: vi.fn() }));
 
-vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}));
-
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   listTasks: vi.fn(),
   getTask: vi.fn(),
@@ -54,9 +47,14 @@ import {
   rejectTask,
   retryTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useTaskDetailPage } from "../use-task-detail-page";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 function createWrapper() {
   const queryClient = new QueryClient({

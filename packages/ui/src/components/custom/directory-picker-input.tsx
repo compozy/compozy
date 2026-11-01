@@ -1,9 +1,9 @@
 "use client";
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
-import { Folder } from "lucide-react";
 import * as React from "react";
 
+import { Folder } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../input-group";
@@ -134,7 +134,10 @@ function DirectoryPickerInput({
                     key={item.value}
                     value={item}
                   >
-                    <Folder aria-hidden="true" className="size-3.5 flex-none text-muted" />
+                    <Folder
+                      aria-hidden="true"
+                      className="size-3.5 flex-none text-muted-foreground"
+                    />
                     <span className="truncate font-mono text-mono-id text-fg">{item.label}</span>
                   </AutocompletePrimitive.Item>
                 )}

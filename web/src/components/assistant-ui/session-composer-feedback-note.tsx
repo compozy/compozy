@@ -6,7 +6,7 @@ import {
   Scissors,
   TriangleAlert,
   WifiOff,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
@@ -171,7 +171,10 @@ export function SessionComposerFeedbackNote({
   const view = feedbackView(feedback);
   return (
     <p
-      className={cn("flex min-w-0 items-center gap-1.5 text-micro text-muted", className)}
+      className={cn(
+        "flex min-w-0 items-center gap-1.5 text-micro text-muted-foreground",
+        className
+      )}
       data-code={
         feedback.kind === "refusal"
           ? feedback.refusal.code

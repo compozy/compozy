@@ -1,4 +1,4 @@
-import { Plus, Shield, Trash2 } from "lucide-react";
+import { Plus, Shield, Trash2 } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -121,7 +121,7 @@ export function ToolApprovalGrantsSection() {
         }}
         open={revoke.isOpen}
         title="Revoke this decision?"
-        tone="danger"
+        tone="destructive"
       />
     </Section>
   );

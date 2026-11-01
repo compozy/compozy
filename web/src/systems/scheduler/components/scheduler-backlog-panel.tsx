@@ -20,7 +20,7 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
   return (
     <div className="mt-4 border-t border-line-soft pt-3" data-testid="scheduler-backlog-panel">
       <div className="flex items-center justify-between gap-3">
-        <Eyebrow className="text-muted">Backlog</Eyebrow>
+        <Eyebrow className="text-muted-foreground">Backlog</Eyebrow>
         {isInitialLoading ? (
           <Skeleton
             aria-hidden="true"
@@ -34,7 +34,7 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
         )}
       </div>
       {errorMessage ? (
-        <p className="mt-2 text-form-label text-danger" data-testid="scheduler-backlog-error">
+        <p className="mt-2 text-form-label text-destructive" data-testid="scheduler-backlog-error">
           {errorMessage}
         </p>
       ) : isInitialLoading ? (
@@ -56,7 +56,10 @@ function SchedulerBacklogPanel({ backlog, errorMessage, isLoading }: SchedulerBa
           </div>
         </SkeletonRegion>
       ) : rows.length === 0 ? (
-        <p className="mt-2 text-form-label text-muted" data-testid="scheduler-backlog-empty">
+        <p
+          className="mt-2 text-form-label text-muted-foreground"
+          data-testid="scheduler-backlog-empty"
+        >
           No queued runs.
         </p>
       ) : (

@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "@compozy/ui/icons";
 
 import {
   Alert,
@@ -52,7 +52,7 @@ export function AgentDiagnosticsBanner({ diagnostics }: AgentDiagnosticsBannerPr
             <ul className="mt-1 flex flex-col gap-1.5">
               {diagnostics.map(item => (
                 <li
-                  className="font-mono text-mono-id text-muted"
+                  className="font-mono text-mono-id text-muted-foreground"
                   data-testid="agent-diagnostic-item"
                   key={`${item.path}:${item.error_kind}:${item.message}`}
                 >

@@ -10,7 +10,7 @@ export function ReleaseDetailRail({ release }: { release: ChangelogRelease }) {
     >
       {release.headings.length > 0 && (
         <nav aria-label="On this release">
-          <Eyebrow className="text-muted">On this release</Eyebrow>
+          <Eyebrow className="text-muted-foreground">On this release</Eyebrow>
           <ul className="mt-4 flex flex-col gap-2.5">
             {release.headings.map(heading => (
               <li
@@ -25,7 +25,7 @@ export function ReleaseDetailRail({ release }: { release: ChangelogRelease }) {
                         : undefined
                 }
               >
-                <a href={`#${heading.id}`} className="text-sm text-muted hover:text-fg">
+                <a href={`#${heading.id}`} className="text-sm text-muted-foreground hover:text-fg">
                   {heading.label}
                 </a>
               </li>
@@ -34,7 +34,7 @@ export function ReleaseDetailRail({ release }: { release: ChangelogRelease }) {
         </nav>
       )}
       <div className="rounded-xl border border-line bg-canvas-soft p-5">
-        <Eyebrow className="text-muted">Release record</Eyebrow>
+        <Eyebrow className="text-muted-foreground">Release record</Eyebrow>
         <div className="mt-4 flex flex-wrap gap-2">
           <MonoBadge>{release.channel.toUpperCase()}</MonoBadge>
           <MonoBadge>{release.assets.length} ASSETS</MonoBadge>
@@ -43,7 +43,7 @@ export function ReleaseDetailRail({ release }: { release: ChangelogRelease }) {
           href={release.url}
           target="_blank"
           rel="noreferrer noopener"
-          className="mt-5 inline-flex text-sm font-medium text-accent"
+          className="mt-5 inline-flex text-sm font-medium text-brand"
         >
           View release on GitHub →
         </a>

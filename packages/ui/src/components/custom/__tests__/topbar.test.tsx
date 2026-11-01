@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { LayoutDashboard } from "lucide-react";
 import { Profiler } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { LayoutDashboard } from "../../../icons";
 import { Topbar, TopbarSlotProvider } from "../topbar";
 import { useTopbarSlot, useTopbarSlotValue, type TopbarSlotValue } from "../hooks/use-topbar-slot";
 

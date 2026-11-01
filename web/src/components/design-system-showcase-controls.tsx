@@ -41,7 +41,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@compozy/ui";
-import { PlusIcon, SearchIcon } from "lucide-react";
+import { PlusIcon, SearchIcon } from "@compozy/ui/icons";
 
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";
@@ -90,10 +90,10 @@ export function ButtonsAndPillsSection() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone="neutral">Neutral</Pill>
-          <Pill tone="accent">Needs you</Pill>
+          <Pill tone="brand">Needs you</Pill>
           <Pill tone="success">Stable</Pill>
           <Pill tone="warning">Pending</Pill>
-          <Pill tone="danger">Error</Pill>
+          <Pill tone="destructive">Error</Pill>
           <Pill tone="info">Info</Pill>
         </div>
         <PillGroup
@@ -240,15 +240,15 @@ export function StatusAndMetricSection() {
       <div className="flex flex-wrap items-center gap-4 pt-4">
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="success" />
-          <span className="text-small-body text-muted">Connected</span>
+          <span className="text-small-body text-muted-foreground">Connected</span>
         </div>
         <div className="inline-flex items-center gap-2">
           <Pill.Dot tone="warning" pulse />
-          <span className="text-small-body text-muted">Connecting</span>
+          <span className="text-small-body text-muted-foreground">Connecting</span>
         </div>
         <div className="inline-flex items-center gap-2">
-          <Pill.Dot tone="danger" />
-          <span className="text-small-body text-muted">Disconnected</span>
+          <Pill.Dot tone="destructive" />
+          <span className="text-small-body text-muted-foreground">Disconnected</span>
         </div>
         <ConnectionIndicator status="connected" />
         <ConnectionIndicator status="connecting" />
@@ -270,7 +270,7 @@ export function StatusAndMetricSection() {
         <Pill mono tone="warning">
           PARTIAL
         </Pill>
-        <Pill mono tone="danger">
+        <Pill mono tone="destructive">
           ERROR
         </Pill>
         <Pill mono tone="info">
@@ -281,7 +281,7 @@ export function StatusAndMetricSection() {
         {STATE_GLYPH_DEMO.map(([state, label]) => (
           <div key={state} className="inline-flex items-center gap-2">
             <StateGlyph state={state} />
-            <span className="text-small-body text-muted">{label}</span>
+            <span className="text-small-body text-muted-foreground">{label}</span>
           </div>
         ))}
       </div>

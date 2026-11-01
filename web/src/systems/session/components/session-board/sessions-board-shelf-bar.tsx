@@ -1,4 +1,4 @@
-import { Archive, ChevronRight, CircleSlash, Bookmark, type LucideIcon } from "lucide-react";
+import { Archive, ChevronRight, CircleSlash, Bookmark, type LucideIcon } from "@compozy/ui/icons";
 import { use, useId, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";

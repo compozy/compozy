@@ -1,9 +1,9 @@
 "use client";
 
 import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
-import { SearchIcon, XIcon } from "lucide-react";
 import * as React from "react";
 
+import { SearchIcon, XIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { Kbd } from "../kbd";

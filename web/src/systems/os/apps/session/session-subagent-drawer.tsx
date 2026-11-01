@@ -2,7 +2,7 @@ import { AuiConfig, AuiProvider } from "@assistant-ui/react";
 import { SessionNativeSubagentActivity } from "@/components/assistant-ui/session-native-subagent-activity";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 import { Button, ResizableDrawer, Tooltip, TooltipTrigger, TooltipContent } from "@compozy/ui";
 import type { ReactNode } from "react";
 
@@ -38,7 +38,7 @@ function SubagentTranscript({
   const query = useQuery(sessionDetailOptions(workspaceId, childId));
   if (!childId)
     return (
-      <p role="status" className="p-4 text-small-body text-muted">
+      <p role="status" className="p-4 text-small-body text-muted-foreground">
         {subagent.error ||
           (subagent.status === "queued" || subagent.status === "running"
             ? "Waiting for the subagent session to start."
@@ -56,7 +56,7 @@ function SubagentTranscript({
     );
   if (!query.data)
     return (
-      <p role="status" className="p-4 text-small-body text-muted">
+      <p role="status" className="p-4 text-small-body text-muted-foreground">
         Loading session…
       </p>
     );

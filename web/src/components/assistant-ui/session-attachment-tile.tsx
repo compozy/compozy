@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 import { useEffect, useRef, useState, type ComponentProps, type RefObject } from "react";
 
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ function attachmentNameTitle(
 
 /** Chooses the size label tone from the current upload outcome. */
 function attachmentSizeTone(state: SessionAttachmentTileModel["state"]): string {
-  return state === "error" || state === "rejected" ? "text-danger" : "text-faint";
+  return state === "error" || state === "rejected" ? "text-destructive" : "text-faint";
 }
 
 interface AttachmentThumbProps {
@@ -89,7 +89,7 @@ function AttachmentThumb({
         <Eyebrow
           className={cn(
             "leading-none",
-            model.state === "rejected" ? "text-danger" : "text-subtle",
+            model.state === "rejected" ? "text-destructive" : "text-subtle",
             uploading ? "opacity-45" : null
           )}
         >
@@ -203,7 +203,7 @@ export function SessionAttachmentTile({
         aria-label={`Remove ${model.name}`}
         data-testid="composer-attachment-remove"
         onClick={onRemove}
-        className="text-faint hover:bg-danger-tint hover:text-danger"
+        className="text-faint hover:bg-destructive-tint hover:text-destructive"
       >
         <X className="size-3" />
       </Button>

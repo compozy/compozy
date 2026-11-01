@@ -40,7 +40,7 @@ export function LayoutCanvasBoardBar({ document, desktop, projection }: LayoutCa
       </div>
       {notes.length > 0 ? (
         <ul
-          className="flex flex-col gap-0.5 text-form-hint text-muted"
+          className="flex flex-col gap-0.5 text-form-hint text-muted-foreground"
           data-testid="layout-canvas-fit-notes"
           role="status"
         >

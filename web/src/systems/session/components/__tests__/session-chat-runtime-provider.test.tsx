@@ -9,7 +9,7 @@ import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-ac
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
-import { Toaster } from "@compozy/ui";
+import { toast, Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { modelCatalogKeys } from "@/systems/model-catalog";
@@ -43,7 +43,6 @@ import {
   useSessionTranscriptThreadState,
 } from "@/systems/session";
 import { sessionPromptRecovery } from "@/systems/session/lib/session-prompt-recovery";
-import { toast } from "sonner";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 

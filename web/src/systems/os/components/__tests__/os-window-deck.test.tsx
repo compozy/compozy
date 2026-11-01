@@ -304,7 +304,7 @@ describe("OsWindowDeck", () => {
     );
     // The state dot alone carries needs-input; no second hard-coded count badge.
     expect(within(sessionTab).queryByText("1")).toBeNull();
-    expect(screen.getByTestId("os-window-tab-window:tasks")).not.toHaveClass("text-accent");
+    expect(screen.getByTestId("os-window-tab-window:tasks")).not.toHaveClass("text-brand");
 
     deck = deckModel({
       sessionById: new Map([["session:review", sessionFixture({ badge: "running" })]]),

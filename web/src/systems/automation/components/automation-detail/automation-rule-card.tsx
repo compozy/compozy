@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { CircleDot, CircleStop, Clock3, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
+import { CircleDot, CircleStop, Clock3, Filter, Puzzle, Unplug, Webhook } from "@compozy/ui/icons";
 import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@compozy/ui";

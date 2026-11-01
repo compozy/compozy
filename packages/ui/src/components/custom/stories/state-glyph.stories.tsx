@@ -52,7 +52,7 @@ export const StatusColumn: Story = {
 /** `sm` sits at the end of a dense transcript tool row. */
 export const ToolRow: Story = {
   render: () => (
-    <div className="flex w-96 items-center gap-2.5 rounded-lg bg-sunken px-4 py-2 text-body text-muted">
+    <div className="flex w-96 items-center gap-2.5 rounded-lg bg-sunken px-4 py-2 text-body text-muted-foreground">
       <span className="font-medium text-fg">Run</span>
       <span className="min-w-0 truncate font-mono text-small-body">bun run test checkout</span>
       <span className="ml-auto inline-flex items-center gap-2 font-mono text-small-body text-subtle">

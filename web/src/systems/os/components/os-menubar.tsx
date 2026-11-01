@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, Command, LayoutGrid } from "lucide-react";
+import { Bell, ChevronDown, Command, LayoutGrid } from "@compozy/ui/icons";
 
 import {
   Icon,
@@ -104,7 +104,7 @@ const INTERACTIVE = [
   "focus-visible:shadow-focus-ring focus-visible:outline-none",
 ].join(" ");
 /** Tray icon button (shell-rail v2 `.ib`): 34px pill, muted 16px glyph. */
-const ICON_BUTTON = "relative grid size-8.5 place-items-center rounded-pill text-muted";
+const ICON_BUTTON = "relative grid size-8.5 place-items-center rounded-pill text-muted-foreground";
 
 interface ControlProps extends Omit<React.ComponentProps<"button">, "onClick" | "children"> {
   onClick?: () => void;
@@ -188,7 +188,10 @@ function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }
     <>
       <span className="text-item-title font-medium text-fg">{workspace.name}</span>
       {workspace.worktree ? (
-        <span data-slot="os-menubar-worktree" className="max-w-42.5 truncate text-body text-muted">
+        <span
+          data-slot="os-menubar-worktree"
+          className="max-w-42.5 truncate text-body text-muted-foreground"
+        >
           / {workspace.worktree}
         </span>
       ) : null}
@@ -200,7 +203,7 @@ function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }
           data-slot="os-menubar-warning"
         />
       ) : null}
-      <Icon as={ChevronDown} className="size-3.75 text-muted" />
+      <Icon as={ChevronDown} className="size-3.75 text-muted-foreground" />
     </>
   );
 }

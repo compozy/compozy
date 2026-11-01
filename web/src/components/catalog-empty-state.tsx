@@ -40,7 +40,7 @@ export function CatalogEmptyState({
           icon={
             <span
               aria-hidden="true"
-              className="flex size-full items-center justify-center rounded-lg bg-card text-muted shadow-card"
+              className="flex size-full items-center justify-center rounded-lg bg-card text-muted-foreground shadow-card"
             >
               <Icon className="size-4" />
             </span>

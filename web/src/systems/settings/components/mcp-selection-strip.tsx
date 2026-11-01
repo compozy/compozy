@@ -7,7 +7,7 @@ import {
   MetadataList,
   MetadataListRow,
 } from "@compozy/ui";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "@compozy/ui/icons";
 
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";
@@ -50,7 +50,9 @@ export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSele
     <Alert data-testid="settings-page-mcp-selection" role="region" aria-label={server.name}>
       <AlertTitle>
         <span className="font-mono">{server.name}</span>
-        {extension ? <span className="ml-1.5 font-normal text-muted">from {extension}</span> : null}
+        {extension ? (
+          <span className="ml-1.5 font-normal text-muted-foreground">from {extension}</span>
+        ) : null}
       </AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <span data-testid="settings-page-mcp-selection-provenance">
@@ -63,7 +65,7 @@ export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSele
         <MetadataList>
           <MetadataListRow label={mcpTransportLabel(server.transport)}>
             <span
-              className="block truncate font-mono text-mono-id text-muted"
+              className="block truncate font-mono text-mono-id text-muted-foreground"
               data-testid={`${rowTestId}-endpoint`}
             >
               {endpoint || "-"}
@@ -72,7 +74,7 @@ export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSele
           {runtimeName ? (
             <MetadataListRow label="Agents see">
               <span
-                className="font-mono text-mono-id text-muted"
+                className="font-mono text-mono-id text-muted-foreground"
                 data-testid={`${rowTestId}-runtime-name`}
               >
                 {runtimeName}
@@ -106,7 +108,7 @@ export function MCPSelectionStrip({ server, onEdit, onRemove, onClear }: MCPSele
         </Button>
         {onRemove ? (
           <Button
-            className="text-danger"
+            className="text-destructive"
             data-testid="settings-page-mcp-selection-delete"
             onClick={() => onRemove(server)}
             size="sm"

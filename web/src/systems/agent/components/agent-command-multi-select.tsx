@@ -55,7 +55,7 @@ export function AgentCommandMultiSelect({
       >
         <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
           {value.length === 0 ? (
-            <span className="truncate text-muted">{placeholder}</span>
+            <span className="truncate text-muted-foreground">{placeholder}</span>
           ) : (
             <span className="truncate text-small-body text-fg">{value.length} selected</span>
           )}

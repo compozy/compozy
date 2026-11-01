@@ -1,4 +1,4 @@
-import { GitBranchIcon, GitCommitHorizontalIcon } from "lucide-react";
+import { GitBranchIcon, GitCommitHorizontalIcon } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
@@ -141,7 +141,7 @@ function CommitBranch({ branch }: { branch?: string }) {
   if (!branch) return null;
   return (
     <span
-      className="mr-auto flex items-center gap-1.5 [&_svg]:size-3 [&_svg]:text-muted"
+      className="mr-auto flex items-center gap-1.5 [&_svg]:size-3 [&_svg]:text-muted-foreground"
       data-slot="worktree-commit-branch"
     >
       <GitBranchIcon aria-hidden="true" />

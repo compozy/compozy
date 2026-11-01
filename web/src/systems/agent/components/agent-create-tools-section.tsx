@@ -1,4 +1,4 @@
-import { Wrench } from "lucide-react";
+import { Wrench } from "@compozy/ui/icons";
 
 import { FormSection } from "@compozy/ui";
 

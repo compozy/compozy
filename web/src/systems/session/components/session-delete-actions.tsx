@@ -1,4 +1,4 @@
-import { RotateCcw, Trash2 } from "lucide-react";
+import { RotateCcw, Trash2 } from "@compozy/ui/icons";
 
 import { Button, Spinner } from "@compozy/ui";
 

@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Bare mono block for expanded tool detail — the `.trow__detail` grammar: 11px
- * mono at `--muted`, colored **text** spans only (`text-success` adds,
- * `text-danger` dels/errors, `text-subtle` context). No card, no header, no
+ * mono at `--color-muted-foreground`, colored **text** spans only (`text-success` adds,
+ * `text-destructive` dels/errors, `text-subtle` context). No card, no header, no
  * syntax theatre.
  */
 export function DetailPre({ children, className, ...props }: React.ComponentProps<"pre">) {
@@ -13,7 +13,7 @@ export function DetailPre({ children, className, ...props }: React.ComponentProp
     <pre
       data-slot="tool-detail-pre"
       className={cn(
-        "max-h-60 overflow-auto font-mono text-transcript-caption leading-prose text-muted",
+        "max-h-60 overflow-auto font-mono text-transcript-caption leading-prose text-muted-foreground",
         "break-words whitespace-pre-wrap",
         className
       )}

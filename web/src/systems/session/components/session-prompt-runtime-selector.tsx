@@ -54,7 +54,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
           data-testid="session-prompt-runtime-apply-notice"
           className={cn(
             "truncate text-form-hint",
-            runtime.applyNotice.tone === "danger" ? "text-danger" : "text-subtle"
+            runtime.applyNotice.tone === "destructive" ? "text-destructive" : "text-subtle"
           )}
         >
           {runtime.applyNotice.text}
@@ -62,7 +62,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
       ) : null}
       {runtime.availabilityError ? (
         <div className="flex min-w-0 items-center gap-1.5" role="status">
-          <p className="truncate text-form-hint text-danger">{runtime.availabilityError}</p>
+          <p className="truncate text-form-hint text-destructive">{runtime.availabilityError}</p>
           <Button
             type="button"
             variant="ghost"

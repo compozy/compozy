@@ -269,7 +269,7 @@ export function formatRunInputs(inputs?: Record<string, unknown>, max = 2): stri
     .join(" · ");
 }
 
-export type LoopBudgetTone = "neutral" | "warn" | "danger";
+export type LoopBudgetTone = "neutral" | "warn" | "destructive";
 
 export interface LoopBudgetBar {
   tokensLabel: string;
@@ -291,6 +291,6 @@ export function loopBudgetBar(run: Pick<LoopRun, "tokens_used" | "budget_tokens"
   }
   const ratio = run.tokens_used / run.budget_tokens;
   const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-  const tone: LoopBudgetTone = ratio >= 1 ? "danger" : ratio >= 0.9 ? "warn" : "neutral";
+  const tone: LoopBudgetTone = ratio >= 1 ? "destructive" : ratio >= 0.9 ? "warn" : "neutral";
   return { tokensLabel, hasCap: true, percent, tone };
 }

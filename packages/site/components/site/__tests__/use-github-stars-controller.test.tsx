@@ -1,10 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { loadGithubStars } from "../github-stars-api";
-import { useGithubStarsController } from "../use-github-stars-controller";
+import { loadGithubStars } from "@/components/site/github-stars-api";
+import { useGithubStarsController } from "@/components/site/use-github-stars-controller";
 
-vi.mock("../github-stars-api", () => ({
+vi.mock("@/components/site/github-stars-api", () => ({
   loadGithubStars: vi.fn(),
 }));
 

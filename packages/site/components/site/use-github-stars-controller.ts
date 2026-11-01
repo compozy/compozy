@@ -2,8 +2,8 @@
 
 import * as React from "react";
 
-import { loadGithubStars } from "./github-stars-api";
-import { useIsInView, type UseIsInViewOptions } from "./use-is-in-view";
+import { loadGithubStars } from "@/components/site/github-stars-api";
+import { useIsInView, type UseIsInViewOptions } from "@/components/site/use-is-in-view";
 
 export interface GithubStarsContextType {
   stars: number;

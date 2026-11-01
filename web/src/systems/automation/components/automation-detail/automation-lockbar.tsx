@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Lock } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { cn } from "@compozy/ui";
@@ -22,7 +22,7 @@ export function AutomationLockbar({ view, className, ...props }: AutomationLockb
   return (
     <div
       className={cn(
-        "mb-4.5 flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-form-label leading-relaxed text-muted",
+        "mb-4.5 flex items-start gap-2 rounded-md border border-dashed border-line px-4 py-3 text-form-label leading-relaxed text-muted-foreground",
         className
       )}
       data-testid="automation-lockbar"

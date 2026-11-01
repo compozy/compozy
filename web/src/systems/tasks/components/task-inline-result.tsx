@@ -8,7 +8,7 @@ import {
   JsonViewer,
   Markdown,
 } from "@compozy/ui";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@compozy/ui/icons";
 
 import type { TaskRun } from "../types";
 

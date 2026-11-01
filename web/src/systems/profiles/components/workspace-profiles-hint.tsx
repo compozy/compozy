@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { Info } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Button } from "@compozy/ui";

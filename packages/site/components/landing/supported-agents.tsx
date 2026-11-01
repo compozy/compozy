@@ -99,14 +99,14 @@ export function SupportedAgents() {
     <SectionFrame background="canvas" padY="md" className="border-b border-line">
       <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between lg:gap-12">
         <div className="max-w-[40ch]">
-          <Eyebrow className="text-accent">Bring the agents you use</Eyebrow>
+          <Eyebrow className="text-brand">Bring the agents you use</Eyebrow>
           <p className="mt-2 text-base leading-snug text-fg">
             CompozyOS launches built-in CLI and provider integrations as durable sessions, with
             shared tools, explicit permissions, and history that stays on your machine.
           </p>
           <Link
             href="/docs/agents/providers"
-            className="eyebrow mt-3 inline-flex items-center gap-1.5 text-muted transition-colors hover:text-accent"
+            className="eyebrow mt-3 inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-brand"
           >
             Read more about providers
             <ArrowUpRight aria-hidden className="size-3" />
@@ -163,7 +163,7 @@ function ProviderQuilt({ providers }: { providers: Provider[] }) {
                       <li
                         aria-label={provider.name}
                         tabIndex={0}
-                        className="flex aspect-square cursor-default items-center justify-center rounded-icon-well border border-line bg-canvas-soft transition-colors hover:border-accent/35 focus-visible:border-accent/35 focus-visible:outline-none"
+                        className="flex aspect-square cursor-default items-center justify-center rounded-icon-well border border-line bg-canvas-soft transition-colors hover:border-brand/35 focus-visible:border-brand/35 focus-visible:outline-none"
                       />
                     }
                   >

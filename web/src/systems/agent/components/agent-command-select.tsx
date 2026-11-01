@@ -72,7 +72,7 @@ function CatalogStatus({
   if (!catalogError && !loading) return null;
   return (
     <Eyebrow
-      className={catalogError ? "ml-auto text-danger" : "ml-auto text-muted"}
+      className={catalogError ? "ml-auto text-destructive" : "ml-auto text-muted-foreground"}
       data-testid="agent-command-select-catalog-status"
     >
       {catalogError ? "Unavailable" : "Loading"}
@@ -92,12 +92,12 @@ function SelectedAgentValue({
   const hasCategory = Boolean(agent.category_path && agent.category_path.length > 0);
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted" />
+      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted-foreground" />
       <span className="truncate text-small-body text-fg">{agent.name}</span>
-      <Eyebrow className="text-muted">{agent.provider}</Eyebrow>
+      <Eyebrow className="text-muted-foreground">{agent.provider}</Eyebrow>
       {hasCategory ? (
         <Eyebrow
-          className="text-muted ml-auto truncate"
+          className="text-muted-foreground ml-auto truncate"
           data-testid="agent-command-select-trigger-category"
         >
           {formatCategoryLabel(agent.category_path)}
@@ -119,7 +119,7 @@ function ComposerAgentValue({
 }) {
   return (
     <span className="flex min-w-0 items-center gap-2 text-left">
-      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted" />
+      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted-foreground" />
       <span className="min-w-0 max-w-56 truncate text-small-body font-medium text-fg-2 transition-colors group-hover:text-fg group-data-[popup-open]:text-fg">
         {agent.name}
       </span>
@@ -151,9 +151,9 @@ function EmptySelectionLabel({
   awaitingCatalog: boolean;
   label: string;
 }) {
-  if (catalogError) return <span className="truncate text-danger">Unable to load agents</span>;
+  if (catalogError) return <span className="truncate text-destructive">Unable to load agents</span>;
   if (awaitingCatalog) return <AgentLabelPlaceholder />;
-  return <span className="truncate text-muted">{label}</span>;
+  return <span className="truncate text-muted-foreground">{label}</span>;
 }
 
 /**

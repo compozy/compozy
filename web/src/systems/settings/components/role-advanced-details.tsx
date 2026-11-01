@@ -62,7 +62,9 @@ export function RoleAdvancedDetails({
         />
         {provenanceKeys.length > 0 ? (
           <div className="flex flex-col gap-1.5" data-testid={`${testId}-provenance`}>
-            <span className="text-form-label font-medium text-muted">Config provenance</span>
+            <span className="text-form-label font-medium text-muted-foreground">
+              Config provenance
+            </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {provenanceKeys.map(key => (
                 <SettingsProvChip key={key}>

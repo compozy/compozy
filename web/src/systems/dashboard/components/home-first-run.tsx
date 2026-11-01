@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Home } from "lucide-react";
+import { Home } from "@compozy/ui/icons";
 
 import { CatalogEmptyState } from "@/components/catalog-empty-state";
 import { useSessionCreateActions } from "@/systems/session";

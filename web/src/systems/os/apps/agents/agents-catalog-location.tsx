@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw } from "@compozy/ui/icons";
 
 import { Button, Empty, ListingPage } from "@compozy/ui";
 

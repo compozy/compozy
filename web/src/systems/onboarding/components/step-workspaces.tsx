@@ -1,4 +1,4 @@
-import { Folder, X } from "lucide-react";
+import { Folder, X } from "@compozy/ui/icons";
 
 import {
   Alert,
@@ -70,7 +70,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
           </form>
           {message ? (
             <p
-              className="mt-2 text-form-hint text-danger"
+              className="mt-2 text-form-hint text-destructive"
               data-testid="onboarding-resolve-error"
               id="onboarding-project-folder-message"
               role="alert"
@@ -83,7 +83,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex items-baseline justify-between gap-2.5">
             <Eyebrow className="text-subtle">Selected projects</Eyebrow>
-            <span className="text-micro text-muted tabular-nums">
+            <span className="text-micro text-muted-foreground tabular-nums">
               {selected.length} folder{selected.length === 1 ? "" : "s"}
             </span>
           </div>

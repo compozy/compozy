@@ -97,7 +97,7 @@ describe("SessionCompactionItem", () => {
       "context window exceeded"
     );
     expect(within(screen.getByRole("alert")).getByTestId("session-compaction-error")).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "destructive");
   });
 
   it("Should read a cancelled compaction as neutral, never as a failure", () => {

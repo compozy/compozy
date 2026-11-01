@@ -26,7 +26,7 @@ export function ObservabilityNumberField({
 }: NumberFieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      {hideLabel ? null : <Eyebrow className="text-muted">{label}</Eyebrow>}
+      {hideLabel ? null : <Eyebrow className="text-muted-foreground">{label}</Eyebrow>}
       <div className="flex items-center gap-2">
         <SettingsNumberInput
           aria-label={hideLabel ? label : undefined}
@@ -40,7 +40,7 @@ export function ObservabilityNumberField({
         {suffix ? <span className="text-form-label text-subtle">{suffix}</span> : null}
       </div>
       {errorMessage && !hideLabel ? (
-        <span className="text-eyebrow text-danger">{errorMessage}</span>
+        <span className="text-eyebrow text-destructive">{errorMessage}</span>
       ) : null}
     </div>
   );
