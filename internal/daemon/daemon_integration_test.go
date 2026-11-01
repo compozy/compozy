@@ -3937,7 +3937,7 @@ func TestInstancePayloadIntegration(t *testing.T) {
 		}
 		db := d.registry.(*globaldb.GlobalDB)
 		instance := agentinstance.Instance{ID: "missing-root-instance", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID, AgentName: "coder", State: "paused"}
-		payload, err := definitions.instancePayload(t.Context(), instance, db.InstanceReports(), db.Instances())
+		payload, err := definitions.instancePayload(t.Context(), instance, db.Instances())
 		if err != nil {
 			t.Fatal(err)
 		}

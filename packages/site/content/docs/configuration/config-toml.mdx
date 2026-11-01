@@ -2768,12 +2768,12 @@ See [User scope](/docs/user-scope) for the walkthrough.
 
 The `[agents.stays_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
 
-| Key | Default | Constraint |
-| --- | --- | --- |
-| `rotation_threshold` | `0.8` | Greater than 0, at most 1 |
-| `max_active_instances` | `10` | Positive |
-| `max_proposals` | `2` | 1–20 |
-| `triage_timeout` | `"10m"` | Positive duration |
+| Key                    | Default | Constraint                |
+| ---------------------- | ------- | ------------------------- |
+| `rotation_threshold`   | `0.8`   | Greater than 0, at most 1 |
+| `max_active_instances` | `10`    | Positive                  |
+| `max_proposals`        | `2`     | 1–20                      |
+| `triage_timeout`       | `"10m"` | Positive duration         |
 
 Checks use `[agents.heartbeat]` for `max_concurrent_triage` (default 2, positive) and
 `max_interval` (default `"24h"`, at least `quiet_backoff_cap`), alongside enablement,

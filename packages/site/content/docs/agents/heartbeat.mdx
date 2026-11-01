@@ -67,16 +67,16 @@ Use `compozy task next` to obtain claim authority; do not assume work is owned.
 If nothing is claimable, return a concise no-op summary.
 ```
 
-| Field                         | Type         | Authored | Notes                                                                                    |
-| ----------------------------- | ------------ | -------- | ---------------------------------------------------------------------------------------- |
-| `version`                     | integer      | optional | Snapshot schema version.                                                                 |
-| `enabled`                     | boolean      | optional | Local toggle; the runtime still consults `[agents.heartbeat].enabled` and config bounds. |
-| `summary`                     | string       | optional | Short reentry hint surfaced in status responses.                                         |
-| `preferences.min_interval`    | duration     | optional | Authored minimum interval; clamped to `[agents.heartbeat].min_interval`.                 |
-| `preferences.active_hours`    | array        | optional | IANA timezone allow windows. Multi-window union, midnight crossing supported.            |
-| `preferences.quiet_windows`   | array        | optional | IANA timezone deny windows; subtracted from `active_hours`.                              |
-| `context.include` | string array | optional | Hints about what context the agent should re-read on wake.                               |
-| Body                          | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
+| Field                       | Type         | Authored | Notes                                                                                    |
+| --------------------------- | ------------ | -------- | ---------------------------------------------------------------------------------------- |
+| `version`                   | integer      | optional | Snapshot schema version.                                                                 |
+| `enabled`                   | boolean      | optional | Local toggle; the runtime still consults `[agents.heartbeat].enabled` and config bounds. |
+| `summary`                   | string       | optional | Short reentry hint surfaced in status responses.                                         |
+| `preferences.min_interval`  | duration     | optional | Authored minimum interval; clamped to `[agents.heartbeat].min_interval`.                 |
+| `preferences.active_hours`  | array        | optional | IANA timezone allow windows. Multi-window union, midnight crossing supported.            |
+| `preferences.quiet_windows` | array        | optional | IANA timezone deny windows; subtracted from `active_hours`.                              |
+| `context.include`           | string array | optional | Hints about what context the agent should re-read on wake.                               |
+| Body                        | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
 
 Omitting `context` enables all five proactive collectors. An explicit `context: {include: []}`
 disables them and survives save, reload and rollback.
