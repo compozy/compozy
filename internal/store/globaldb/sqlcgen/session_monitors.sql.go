@@ -11,7 +11,7 @@ import (
 )
 
 const listSessionMonitors = `-- name: ListSessionMonitors :many
-SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, version FROM session_monitors ORDER BY created_at, id
+SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version FROM session_monitors ORDER BY created_at, id
 `
 
 func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, error) {
@@ -41,6 +41,7 @@ func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, er
 			&i.Reason,
 			&i.ExitCode,
 			&i.OwnerBinding,
+			&i.OwnerCheckFailedAt,
 			&i.Version,
 		); err != nil {
 			return nil, err
@@ -69,37 +70,39 @@ func (q *Queries) PruneFinishedSessionMonitors(ctx context.Context, firedAt stri
 const upsertSessionMonitor = `-- name: UpsertSessionMonitor :exec
 INSERT INTO session_monitors (
   id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms,
-  status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   status = excluded.status,
   fired_at = excluded.fired_at,
   reason = excluded.reason,
   exit_code = excluded.exit_code,
   owner_binding = excluded.owner_binding,
+  owner_check_failed_at = excluded.owner_check_failed_at,
   version = excluded.version
 WHERE excluded.version > session_monitors.version
 `
 
 type UpsertSessionMonitorParams struct {
-	ID           string        `json:"id"`
-	SessionID    string        `json:"session_id"`
-	WorkspaceID  string        `json:"workspace_id"`
-	ProfileID    string        `json:"profile_id"`
-	Kind         string        `json:"kind"`
-	Description  string        `json:"description"`
-	TerminalID   string        `json:"terminal_id"`
-	Until        string        `json:"until"`
-	Pattern      string        `json:"pattern"`
-	TimeoutMs    int64         `json:"timeout_ms"`
-	Status       string        `json:"status"`
-	CreatedAt    string        `json:"created_at"`
-	DeadlineAt   string        `json:"deadline_at"`
-	FiredAt      string        `json:"fired_at"`
-	Reason       string        `json:"reason"`
-	ExitCode     sql.NullInt64 `json:"exit_code"`
-	OwnerBinding string        `json:"owner_binding"`
-	Version      int64         `json:"version"`
+	ID                 string        `json:"id"`
+	SessionID          string        `json:"session_id"`
+	WorkspaceID        string        `json:"workspace_id"`
+	ProfileID          string        `json:"profile_id"`
+	Kind               string        `json:"kind"`
+	Description        string        `json:"description"`
+	TerminalID         string        `json:"terminal_id"`
+	Until              string        `json:"until"`
+	Pattern            string        `json:"pattern"`
+	TimeoutMs          int64         `json:"timeout_ms"`
+	Status             string        `json:"status"`
+	CreatedAt          string        `json:"created_at"`
+	DeadlineAt         string        `json:"deadline_at"`
+	FiredAt            string        `json:"fired_at"`
+	Reason             string        `json:"reason"`
+	ExitCode           sql.NullInt64 `json:"exit_code"`
+	OwnerBinding       string        `json:"owner_binding"`
+	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
+	Version            int64         `json:"version"`
 }
 
 func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMonitorParams) error {
@@ -121,6 +124,7 @@ func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMon
 		arg.Reason,
 		arg.ExitCode,
 		arg.OwnerBinding,
+		arg.OwnerCheckFailedAt,
 		arg.Version,
 	)
 	return err

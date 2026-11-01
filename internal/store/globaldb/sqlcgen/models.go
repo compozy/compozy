@@ -1586,24 +1586,25 @@ type SessionInputQueue struct {
 }
 
 type SessionMonitor struct {
-	ID           string        `json:"id"`
-	SessionID    string        `json:"session_id"`
-	WorkspaceID  string        `json:"workspace_id"`
-	ProfileID    string        `json:"profile_id"`
-	Kind         string        `json:"kind"`
-	Description  string        `json:"description"`
-	TerminalID   string        `json:"terminal_id"`
-	Until        string        `json:"until"`
-	Pattern      string        `json:"pattern"`
-	TimeoutMs    int64         `json:"timeout_ms"`
-	Status       string        `json:"status"`
-	CreatedAt    string        `json:"created_at"`
-	DeadlineAt   string        `json:"deadline_at"`
-	FiredAt      string        `json:"fired_at"`
-	Reason       string        `json:"reason"`
-	ExitCode     sql.NullInt64 `json:"exit_code"`
-	OwnerBinding string        `json:"owner_binding"`
-	Version      int64         `json:"version"`
+	ID                 string        `json:"id"`
+	SessionID          string        `json:"session_id"`
+	WorkspaceID        string        `json:"workspace_id"`
+	ProfileID          string        `json:"profile_id"`
+	Kind               string        `json:"kind"`
+	Description        string        `json:"description"`
+	TerminalID         string        `json:"terminal_id"`
+	Until              string        `json:"until"`
+	Pattern            string        `json:"pattern"`
+	TimeoutMs          int64         `json:"timeout_ms"`
+	Status             string        `json:"status"`
+	CreatedAt          string        `json:"created_at"`
+	DeadlineAt         string        `json:"deadline_at"`
+	FiredAt            string        `json:"fired_at"`
+	Reason             string        `json:"reason"`
+	ExitCode           sql.NullInt64 `json:"exit_code"`
+	OwnerBinding       string        `json:"owner_binding"`
+	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
+	Version            int64         `json:"version"`
 }
 
 type SessionPendingInteraction struct {

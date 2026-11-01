@@ -15,7 +15,10 @@ type Record struct {
 	ProfileID    string
 	Timeout      time.Duration
 	OwnerBinding string
-	Version      int64
+	// OwnerCheckFailedAt is when a recovering monitor's owner check first failed transiently; zero
+	// otherwise. It anchors the retry horizon across restarts.
+	OwnerCheckFailedAt time.Time
+	Version            int64
 }
 
 // Store persists monitors so they survive a daemon restart.

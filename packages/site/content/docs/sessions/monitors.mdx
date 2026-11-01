@@ -136,4 +136,9 @@ Monitors are stored by the daemon and survive a restart. After the daemon comes 
   continuation is on, the session is not archived, and its route, permissions, and tool policy have
   not changed. Otherwise the monitor is listed as `interrupted`, with the reason, and nothing wakes
   the session.
-- A session you stopped on purpose is never resumed by a monitor; its monitors are canceled.
+- A session you stopped on purpose is never resumed by a monitor; its monitors are canceled. While
+  CompozyOS is still checking an owner after a restart, its monitors are listed as active. If the owner
+  cannot be checked for a while, the check is retried for the monitor's own lifetime (at least 15 minutes)
+  before the monitor is listed as `interrupted`. If you delete a session that is not running during that
+  time, its monitors are canceled by the next check, within about 30 seconds, rather than at the moment of
+  deletion.

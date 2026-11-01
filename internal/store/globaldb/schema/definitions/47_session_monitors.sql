@@ -18,6 +18,8 @@ CREATE TABLE session_monitors (
   reason TEXT NOT NULL DEFAULT '',
   exit_code INTEGER,
   owner_binding TEXT NOT NULL DEFAULT '',
+  -- First transient owner-resume failure of a recovering monitor; anchors the retry horizon across boots.
+  owner_check_failed_at TEXT NOT NULL DEFAULT '',
   version INTEGER NOT NULL
 );
 CREATE INDEX idx_session_monitors_session ON session_monitors (session_id);

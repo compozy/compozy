@@ -101,6 +101,11 @@ Persistence can keep operator-stop cancellation, so it is implemented.
   so a legitimate route change between registration and restart yields `interrupted`, never a wake under a
   different policy.
 
+- Deleting a session that is not running raises no stop notification, so its recovering monitors are canceled by
+  the next owner check (at most 30 s later), not at the moment of deletion; this is also stated in the site docs
+  and the official skill. The first transient owner-check failure is persisted (`owner_check_failed_at`,
+  migration `00163`) so the retry window (`max(deadline, first failure + 15 min)`) is not extended by restarts.
+
 ## Cross-surface impact audit
 
 - **Native tools:** `compozy__monitor_create` result text and `monitor_list` descriptor change; the
@@ -134,8 +139,12 @@ and socket (never the default daemon), `acpmock` agents calling the real hosted 
 All paths below are relative to `docs/qa/reports/artifacts/2026-11-01-issue-1128/`. The lab binaries were
 built from commit `e6e92dea8` (see `build-commit.txt`). Later commits change documentation and evidence and
 review fixes outside the exercised paths (retry horizon and cancelability of a monitor whose owner check is
-failing, the warning bound of the log queue, the shutdown flush deadline); the exercised restart paths (resumed
-owner, typed ineligible owner, operator-stopped owner) are unchanged. The `scripts/` directory holds the fail-closed replay scripts used for this run.
+failing, the warning bound of the log queue, the shutdown flush deadline) and, after the lab, the
+single-pass registration of all recovered records before the first owner check and the additive migration
+`00163` (`owner_check_failed_at`). The lab ran against schema `00162` and a recovery pass that registered
+records one by one. The exercised restart paths (resumed owner, typed ineligible owner, operator-stopped owner)
+keep their behavior and are covered at the unit and migration level for the later changes; the lab was not
+repeated for them. The `scripts/` directory holds the fail-closed replay scripts used for this run.
 
 **A. Long external wait + duplicate registration** (`external-wait/`). A terminal polling an external marker
 file; the agent called `compozy__monitor_create` twice with the identical condition and ended its turn.

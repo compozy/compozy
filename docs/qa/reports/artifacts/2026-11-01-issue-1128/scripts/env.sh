@@ -14,8 +14,10 @@ step() {
   local f; f=$(printf "%s/%03d-%s.out" "$EV" "$n" "$name")
   local code=0
   { echo "\$ $*"; "$@" || code=$?; printf "\n[exit %s]\n" "$code"; } > "$f" 2>&1
+  local command_json
+  command_json=$(printf '%s' "$*" | jq -Rs .) || return 1
   printf '{"seq":%d,"ts":"%s","surface":"%s","action":"%s","command":%s,"exit":%s,"evidence":"evidence/%s"}\n' \
-    "$n" "$(date -u +%FT%TZ)" "$surface" "$name" "$(printf '%s' "$*" | jq -Rs .)" "$code" "$(basename $f)" >> "$JOURNEY_LOG" || return 1
+    "$n" "$(date -u +%FT%TZ)" "$surface" "$name" "$command_json" "$code" "$(basename $f)" >> "$JOURNEY_LOG" || return 1
   cat "$f"
   return "$code"
 }

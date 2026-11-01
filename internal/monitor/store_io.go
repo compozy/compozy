@@ -14,7 +14,7 @@ func (e *entry) recordLocked() Record {
 	e.version++
 	return Record{
 		Monitor: e.state, WorkspaceID: e.workspaceID, ProfileID: e.profileID,
-		Timeout: e.timeout, OwnerBinding: e.binding, Version: e.version,
+		Timeout: e.timeout, OwnerBinding: e.binding, OwnerCheckFailedAt: e.ownerCheckFailedAt, Version: e.version,
 	}
 }
 

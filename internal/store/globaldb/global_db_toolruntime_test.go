@@ -190,6 +190,7 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			CreatedAt: at, DeadlineAt: at.Add(time.Hour),
 		},
 		WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, OwnerBinding: `{"turn_id":""}`, Version: 1,
+		OwnerCheckFailedAt: at.Add(time.Minute),
 	}
 	t.Run("Should round-trip the definition and owner binding across a reopen", func(t *testing.T) {
 		if err := db.SaveMonitor(ctx, active); err != nil {
@@ -202,7 +203,7 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		db = openGlobalDBForTest(suite, path)
 		got, err := db.LoadMonitors(ctx)
 		if err != nil || len(got) != 1 || got[0].Monitor != active.Monitor || got[0].Timeout != time.Hour ||
-			got[0].OwnerBinding != active.OwnerBinding || got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {
+			got[0].OwnerBinding != active.OwnerBinding || !got[0].OwnerCheckFailedAt.Equal(active.OwnerCheckFailedAt) || got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" {
 			t.Fatalf("LoadMonitors() = %+v, %v; want %+v", got, err, active)
 		}
 	})

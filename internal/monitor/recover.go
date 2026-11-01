@@ -39,6 +39,7 @@ func (s *Service) Recover(ctx context.Context) error {
 	touched := make(map[string]struct{})
 	restored := make(map[string]struct{})
 	verdicts := make(map[string]error)
+	var occupying []*entry
 	for _, record := range records {
 		item := entryFromRecord(record)
 		if !item.occupies() {
@@ -48,7 +49,15 @@ func (s *Service) Recover(ctx context.Context) error {
 			continue
 		}
 		touched[item.state.SessionID] = struct{}{}
-		s.recoverOne(ctx, item, verdicts)
+		occupying = append(occupying, item)
+	}
+	// Every record is registered before the first owner check, so an owner stopped at any point of the
+	// recovery cancels all of its monitors through the normal stop path instead of racing the pass.
+	retryCtxs := s.registerRecovering(occupying)
+	for _, item := range occupying {
+		if retryCtx, ok := retryCtxs[item]; ok {
+			s.recoverOne(ctx, retryCtx, item, verdicts)
+		}
 	}
 	s.capRestoredHistory(restored)
 	s.pruneStore()
@@ -66,6 +75,7 @@ func entryFromRecord(record Record) *entry {
 	return &entry{
 		state: mon, terminalKey: key, timeout: record.Timeout, workspaceID: record.WorkspaceID,
 		profileID: record.ProfileID, binding: record.OwnerBinding, version: record.Version,
+		ownerCheckFailedAt: record.OwnerCheckFailedAt,
 	}
 }
 
@@ -100,31 +110,57 @@ func (s *Service) bucketLocked(sessionID string) map[string]*entry {
 	return bucket
 }
 
-func (s *Service) recoverOne(ctx context.Context, item *entry, verdicts map[string]error) {
-	if !s.applyOwnerOutcome(item, s.ownerVerdict(ctx, item, verdicts)) {
-		s.registerRecovering(item)
+func (s *Service) recoverOne(
+	ctx, retryCtx context.Context, item *entry, verdicts map[string]error,
+) {
+	if s.applyOwnerOutcome(item, s.ownerVerdict(ctx, item, verdicts)) {
+		return
 	}
+	s.noteOwnerCheckFailed(item)
+	s.wg.Go(func() { s.retryOwnerResume(retryCtx, item) })
 }
 
-// registerRecovering keeps a monitor whose owner could not be checked yet listed, counted, and
-// cancelable while the check is retried, so an owner stopped in that window cancels it before it can
-// restart its watch.
-func (s *Service) registerRecovering(item *entry) {
+// noteOwnerCheckFailed persists the first transient owner-check failure, which anchors the retry horizon
+// across restarts so repeated restarts cannot keep an overdue monitor alive forever.
+func (s *Service) noteOwnerCheckFailed(item *entry) {
 	s.mu.Lock()
-	if s.stopped {
+	if !item.ownerCheckFailedAt.IsZero() || !item.occupies() {
 		s.mu.Unlock()
 		return
 	}
-	retryCtx, cancel := context.WithCancel(s.ctx)
-	item.cancel, item.recovering = cancel, true
-	s.bucketLocked(item.state.SessionID)[item.state.ID] = item
-	s.occupied++
-	if item.terminalKey != "" {
-		s.perTerminal[item.terminalKey]++
-	}
+	item.ownerCheckFailedAt = s.now()
+	record := s.decideLocked(item)
 	s.mu.Unlock()
-	s.wg.Go(func() { s.retryOwnerResume(retryCtx, item) })
+	// A lost anchor would restart the window at the next boot, so the write rides the decision queue:
+	// immediate retries, then the background retry and the shutdown flush.
+	s.writeDecision(item, record, saveRetries)
 }
+
+// registerRecovering registers every occupying record in one pass under the service lock: listed,
+// counted, and cancelable with a per-monitor context, before any owner is checked. A stopped service
+// registers nothing.
+func (s *Service) registerRecovering(items []*entry) map[*entry]context.Context {
+	ctxs := make(map[*entry]context.Context, len(items))
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return ctxs
+	}
+	for _, item := range items {
+		retryCtx, cancel := context.WithCancel(s.ctx)
+		item.cancel, item.recovering = cancel, true
+		ctxs[item] = retryCtx
+		s.bucketLocked(item.state.SessionID)[item.state.ID] = item
+		s.occupied++
+		if item.terminalKey != "" {
+			s.perTerminal[item.terminalKey]++
+		}
+	}
+	return ctxs
+}
+
+// A deleted inactive owner raises no stop notification, so its recovering monitors are canceled by
+// the next owner check (at most ownerResumeBackoffMax later), not at deletion time.
 
 // applyOwnerOutcome acts on a definitive owner outcome and reports false for a transient failure,
 // which leaves the durable row untouched so it can be retried (and found again by the next boot).
@@ -153,10 +189,13 @@ const (
 )
 
 func (s *Service) retryOwnerResume(ctx context.Context, item *entry) {
+	// The window is anchored on the first persisted failure, so restarts cannot extend it.
+	s.mu.Lock()
 	horizon := item.state.DeadlineAt
-	if floor := s.now().Add(deliveryRetryWindow); floor.After(horizon) {
+	if floor := item.ownerCheckFailedAt.Add(deliveryRetryWindow); floor.After(horizon) {
 		horizon = floor
 	}
+	s.mu.Unlock()
 	backoff := ownerResumeBackoff
 	for s.now().Before(horizon) {
 		timer := time.NewTimer(backoff)
@@ -231,26 +270,27 @@ func (s *Service) rearm(item *entry) {
 		s.mu.Unlock()
 		return
 	}
-	if item.recovering {
-		// Already registered while retried; a monitor canceled in that window stays canceled.
-		if !item.occupies() {
-			s.mu.Unlock()
-			return
-		}
-		item.recovering = false
-		item.cancel()
-	} else {
-		s.bucketLocked(item.state.SessionID)[item.state.ID] = item
-		s.occupied++
-		if item.terminalKey != "" {
-			s.perTerminal[item.terminalKey]++
-		}
+	// Registered by Recover before any owner check; a monitor canceled in the meantime stays canceled.
+	if !item.occupies() {
+		s.mu.Unlock()
+		return
+	}
+	item.recovering = false
+	item.cancel()
+	var cleared *Record
+	if !item.ownerCheckFailedAt.IsZero() {
+		item.ownerCheckFailedAt = time.Time{}
+		record := s.decideLocked(item)
+		cleared = &record
 	}
 	runCtx, cancel := context.WithCancel(s.ctx)
 	item.cancel = cancel
 	state := item.state
 	s.logLifecycle("monitor.recovered", state, "registered")
 	s.mu.Unlock()
+	if cleared != nil {
+		s.writeDecision(item, *cleared, saveRetries)
+	}
 	s.wg.Go(func() {
 		defer cancel()
 		s.runRecovered(runCtx, state, item)

@@ -121,8 +121,10 @@ type entry struct {
 	decided, saved int64
 	// released marks cap slots already returned (a suspended owner); admitted marks a wake the queue accepted.
 	released, admitted bool
-	// recovering marks a monitor registered while its owner is being retried after a restart.
+	// recovering marks a monitor registered while its owner is being checked or retried after a restart.
 	recovering bool
+	// ownerCheckFailedAt is the first transient owner-resume failure (persisted), zero otherwise.
+	ownerCheckFailedAt time.Time
 }
 
 // occupies reports whether the monitor still holds a slot in the active caps.

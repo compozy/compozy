@@ -25,6 +25,10 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 	if !mon.FiredAt.IsZero() {
 		firedAt = mon.FiredAt.UTC().Format(time.RFC3339Nano)
 	}
+	checkFailedAt := ""
+	if !record.OwnerCheckFailedAt.IsZero() {
+		checkFailedAt = record.OwnerCheckFailedAt.UTC().Format(time.RFC3339Nano)
+	}
 	if err := g.queries.UpsertSessionMonitor(ctx, sqlcgen.UpsertSessionMonitorParams{
 		ID: mon.ID, SessionID: mon.SessionID, WorkspaceID: record.WorkspaceID, ProfileID: record.ProfileID,
 		Kind: string(mon.Kind), Description: mon.Description, TerminalID: mon.TerminalID, Until: mon.Until,
@@ -32,7 +36,7 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 		CreatedAt:  mon.CreatedAt.UTC().Format(time.RFC3339Nano),
 		DeadlineAt: mon.DeadlineAt.UTC().Format(time.RFC3339Nano),
 		FiredAt:    firedAt, Reason: mon.Reason, ExitCode: exitCode, OwnerBinding: record.OwnerBinding,
-		Version: record.Version,
+		OwnerCheckFailedAt: checkFailedAt, Version: record.Version,
 	}); err != nil {
 		return fmt.Errorf("store: save session monitor: %w", err)
 	}
@@ -83,6 +87,13 @@ func sessionMonitorRecord(row sqlcgen.SessionMonitor) (monitor.Record, error) {
 			return monitor.Record{}, fmt.Errorf("store: parse session monitor %s fired_at: %w", row.ID, err)
 		}
 	}
+	var checkFailed time.Time
+	if row.OwnerCheckFailedAt != "" {
+		if checkFailed, err = time.Parse(time.RFC3339Nano, row.OwnerCheckFailedAt); err != nil {
+			return monitor.Record{}, fmt.Errorf(
+				"store: parse session monitor %s owner_check_failed_at: %w", row.ID, err)
+		}
+	}
 	var exitCode *int
 	if row.ExitCode.Valid {
 		exitCode = new(int(row.ExitCode.Int64))
@@ -95,6 +106,6 @@ func sessionMonitorRecord(row sqlcgen.SessionMonitor) (monitor.Record, error) {
 		},
 		WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID,
 		Timeout:      time.Duration(row.TimeoutMs) * time.Millisecond,
-		OwnerBinding: row.OwnerBinding, Version: row.Version,
+		OwnerBinding: row.OwnerBinding, OwnerCheckFailedAt: checkFailed, Version: row.Version,
 	}, nil
 }

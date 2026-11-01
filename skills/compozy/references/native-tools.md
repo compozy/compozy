@@ -183,7 +183,9 @@ listable for one hour. Monitors are stored by the daemon and survive a restart: 
 original deadline, an already-fired wake is delivered once without its terminal output, a terminal that
 is gone fires `terminal_unavailable` (its command is never rerun), and the owner is resumed only when
 restart auto-continue rules allow it. Otherwise the monitor is listed `interrupted` with an `owner_*`
-reason and nothing wakes the session.
+reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
+listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
+about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
 Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or

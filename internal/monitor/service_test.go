@@ -1434,8 +1434,10 @@ func TestServiceLogQueueIsBounded(t *testing.T) {
 		if got := len(queue.items); got != maxQueuedWarningEntries {
 			t.Fatalf("queued = %d, want the warning backlog capped at %d", got, maxQueuedWarningEntries)
 		}
-		if queue.takeDropped() == 0 {
-			t.Fatal("dropped count did not record the discarded entries")
+		// 10 info drops, plus 1025 warning drops: one warning fit the reserve, so 1023 of the next 2048
+		// filled the cap and the remaining 1025 were dropped.
+		if got := queue.takeDropped(); got != 1035 {
+			t.Fatalf("dropped = %d, want 1035 (10 info + 1025 warning drops)", got)
 		}
 	})
 }
@@ -1546,6 +1548,183 @@ func TestServiceOwnerStopDuringRecoveryCancelsTheMonitor(t *testing.T) {
 			synctest.Wait()
 			if got := waker.notifications(); len(got) != 0 || store.status(created.ID) != StatusCanceled {
 				t.Fatalf("notifications = %+v status = %s, want canceled and silent", got, store.status(created.ID))
+			}
+		})
+	})
+}
+
+// hookedOwners runs hook inside Resume, so a test can stop an owner at an exact point of recovery.
+type hookedOwners struct {
+	mu      sync.Mutex
+	calls   int
+	started chan struct{}
+	release chan struct{}
+	hook    func()
+}
+
+func (o *hookedOwners) Binding(context.Context, string) (string, error) { return "binding-1", nil }
+
+func (o *hookedOwners) Resume(context.Context, string, string) error {
+	o.mu.Lock()
+	o.calls++
+	first := o.calls == 1
+	o.mu.Unlock()
+	if first && o.hook != nil {
+		o.hook()
+	}
+	if first && o.started != nil {
+		o.started <- struct{}{}
+		<-o.release
+	}
+	return nil
+}
+
+func TestServiceRecoveryRegistersEveryRecordBeforeAnyOwnerCheck(t *testing.T) {
+	suspend := func(t *testing.T, store *memoryStore) (ids []string) {
+		t.Helper()
+		first := newDurableService(t, store, &fakeOwners{}, nil, &recordingWaker{})
+		for _, description := range []string{"first watch", "second watch"} {
+			spec := timerSpec("sess-r")
+			spec.Description = description
+			created, err := first.Create(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids = append(ids, created.ID)
+		}
+		first.SuspendSession("sess-r")
+		if err := first.Shutdown(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		return ids
+	}
+
+	t.Run("Should cancel every monitor of an owner stopped mid-recovery", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			ids := suspend(t, store)
+			owners := &hookedOwners{}
+			second := newDurableService(t, store, owners, nil, waker)
+			owners.hook = func() { second.CancelSession("sess-r") }
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(20 * time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("a stopped owner was woken: %+v", got)
+			}
+			for _, id := range ids {
+				if store.status(id) != StatusCanceled {
+					t.Fatalf("durable status of %s = %s, want canceled", id, store.status(id))
+				}
+			}
+			if counts := second.ActiveCounts([]string{"sess-r"}); len(counts) != 0 {
+				t.Fatalf("cap slots still held after the stop: %+v", counts)
+			}
+		})
+	})
+
+	t.Run("Should keep a monitor canceled when its owner resume was already in flight", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			ids := suspend(t, store)
+			owners := &hookedOwners{started: make(chan struct{}, 1), release: make(chan struct{})}
+			second := newDurableService(t, store, owners, nil, waker)
+			done := make(chan error, 1)
+			go func() { done <- second.Recover(t.Context()) }()
+			<-owners.started
+			second.CancelSession("sess-r")
+			close(owners.release)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(20 * time.Minute)
+			synctest.Wait()
+			if got := waker.notifications(); len(got) != 0 {
+				t.Fatalf("a monitor canceled during an in-flight resume was woken: %+v", got)
+			}
+			for _, id := range ids {
+				if store.status(id) != StatusCanceled {
+					t.Fatalf("durable status of %s = %s, want canceled", id, store.status(id))
+				}
+			}
+		})
+	})
+}
+
+func TestServiceRecoveryAnchorsTheOwnerRetryHorizonAcrossBoots(t *testing.T) {
+	t.Run("Should not extend the retry window when restarts keep failing the owner check", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			owners := &flakyOwners{failures: 1000}
+			first := newDurableService(t, store, owners, nil, waker)
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			boot := func() *Service {
+				service := newDurableService(t, store, owners, nil, waker)
+				if err := service.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				return service
+			}
+			second := boot()
+			if got := store.records[created.ID].OwnerCheckFailedAt; got.IsZero() {
+				t.Fatal("the first transient failure was not persisted")
+			}
+			time.Sleep(10 * time.Minute)
+			synctest.Wait()
+			if err := second.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			third := boot()
+			time.Sleep(6 * time.Minute)
+			synctest.Wait()
+			if store.status(created.ID) != StatusInterrupted {
+				t.Fatalf("durable status = %s, want interrupted 15 minutes after the first failure, not a fresh window",
+					store.status(created.ID))
+			}
+			if len(third.List("sess-r")) != 1 || len(waker.notifications()) != 0 {
+				t.Fatalf("listed = %+v wakes = %d, want one interrupted monitor and no wake",
+					third.List("sess-r"), len(waker.notifications()))
+			}
+		})
+	})
+}
+
+func TestServiceOwnerCheckAnchorSurvivesAFailedWrite(t *testing.T) {
+	t.Run("Should land the first-failure anchor through the decision queue", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := &toggleStore{memoryStore: newMemoryStore()}
+			owners := &flakyOwners{failures: 1000}
+			first := newDurableService(t, store, owners, nil, &recordingWaker{})
+			created, err := first.Create(t.Context(), timerSpec("sess-r"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-r")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			store.setFail(true)
+			second := newDurableService(t, store, owners, nil, &recordingWaker{})
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if !store.records[created.ID].OwnerCheckFailedAt.IsZero() {
+				t.Fatal("anchor written while the store was failing")
+			}
+			store.setFail(false)
+			time.Sleep(durableRetryInterval + time.Second)
+			synctest.Wait()
+			if store.records[created.ID].OwnerCheckFailedAt.IsZero() {
+				t.Fatal("the anchor never landed; a restart would restart the retry window")
 			}
 		})
 	})
