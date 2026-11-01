@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Group session processes into trees (#1106)
 - Hide child sessions on the Kanban board by default (#1124)
 - Apply runtime selection changes to the live session immediately (#1108)
-- Redirect foreground shell waits to Compozy monitors (#1127)
+- Redirect foreground shell waits to CompozyOS monitors (#1127)
 - Make session monitors durable across daemon restarts and trace their lifecycle (#1129)
 
 ### Refactoring
