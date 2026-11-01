@@ -1315,6 +1315,9 @@ func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
 					if view.Availability.Executable {
 						t.Fatal("auth withdrawal retained executable tool")
 					}
+					if !hasAnyReason(view.Availability.ReasonCodes, ReasonMCPAuthRequired) {
+						t.Fatalf("reason codes = %#v, want %q", view.Availability.ReasonCodes, ReasonMCPAuthRequired)
+					}
 				}
 				original := views[1].Availability.ReasonCodes[0]
 				views[0].Availability.ReasonCodes[0] = ReasonBackendUnhealthy
