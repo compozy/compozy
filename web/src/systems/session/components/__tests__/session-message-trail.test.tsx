@@ -15,7 +15,7 @@ import { SessionMessageTrail, type SessionMessageTrailProps } from "../session-m
 // Invariant: one tick per operator message from the daemon's outline (full history), the
 // anchor is `aria-current`, hover/focus shows what was asked and the final reply, click and
 // Enter jump through the host's scroll owner, the rail is one roving tab stop, and it is
-// absent (not squeezed) below two messages.
+// absent (not squeezed) below two messages. The preview opens away from the pane's right edge.
 // Owning layer: session navigation component. Canonical suite: this file.
 // Boundary IN: outline route (mocked fetch). Boundary OUT: host jump handler.
 const WORKSPACE_ID = primarySessionFixture.workspace_id!;
@@ -147,6 +147,11 @@ describe("SessionMessageTrail", () => {
     await waitFor(() => expect(screen.getByText("Ask number 3")).toBeInTheDocument());
     expect(screen.getByText("Reply number 3")).toBeInTheDocument();
     expect(screen.getByText(/3 of 4/)).toBeInTheDocument();
+    // The rail hugs the pane's right edge, so the card opens toward the content.
+    expect(screen.getByTestId("session-trail-card").closest("[data-side]")).toHaveAttribute(
+      "data-side",
+      "left"
+    );
 
     await user.tab();
     expect(ticks[1]).toHaveFocus();

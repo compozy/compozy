@@ -53,7 +53,15 @@ function GroupSignal({ group }: { group: SessionListGroupSpec }) {
 
 /** A group's identity: the project badge, or the profile owner tag. */
 export function SessionListGroupIdentity({ group }: { group: SessionListGroupSpec }) {
-  if (group.badge) return <WorkspaceBadge identity={group.badge} variant="chrome" />;
+  if (group.badge) {
+    return (
+      <WorkspaceBadge
+        identity={group.badge}
+        variant="chrome"
+        className={cn("font-medium", group.badge.kind !== "unknown" && "text-fg")}
+      />
+    );
+  }
   if (group.owner) return <ProfileOwnerTag owner={group.owner} />;
   return null;
 }
@@ -139,6 +147,7 @@ export function SessionListGroupHeader({
           <SessionListCreateMenu
             variant="quiet"
             size="icon-xs"
+            className="text-subtle"
             label={{ session: `New session in ${name}`, menu: `New session or folder in ${name}` }}
             onNewSession={() =>
               onNewSession({

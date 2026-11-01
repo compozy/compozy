@@ -4,6 +4,8 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storyAgentNames, storySessionIds, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { primarySessionFixture, sessionTranscriptPermissionFixture } from "@/systems/session/mocks";
+import { SESSIONS_BOARD_SESSIONS } from "@/systems/session/mocks/sessions-board-fixtures";
+import type { TranscriptMessage } from "@/systems/session/types";
 import { storybookMswParameters } from "@/storybook/msw";
 import {
   StorybookRouteCanvas,
@@ -57,6 +59,57 @@ function transcriptPayload<T>(messages: T[]) {
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters(fraudSessionRoute),
+  render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
+};
+
+const LONG_SIDEBAR_SESSIONS = Object.values(SESSIONS_BOARD_SESSIONS).flat();
+const LONG_SIDEBAR_TURNS = Array.from({ length: 12 }, (_, index) => ({
+  ask: `Check launch blocker ${index + 1} before the cutover`,
+  reply: "Checked. The partner-bank timeout copy still needs compliance sign-off.",
+}));
+const LONG_SIDEBAR_TRANSCRIPT: TranscriptMessage[] = LONG_SIDEBAR_TURNS.flatMap((turn, index) => [
+  { id: `ask-${index}`, role: "user", parts: [{ type: "text", text: turn.ask }] },
+  { id: `reply-${index}`, role: "assistant", parts: [{ type: "text", text: turn.reply }] },
+]);
+// Each outline entry names its ask's transcript sequence, so every tick lands on its message.
+const LONG_SIDEBAR_OUTLINE = LONG_SIDEBAR_TURNS.map((turn, index) => ({
+  at: new Date(Date.UTC(2026, 8, 6, 14, index)).toISOString(),
+  preview: turn.ask,
+  reply_preview: turn.reply,
+  sequence: index * 2 + 1,
+  turn_id: `turn-${index + 1}`,
+}));
+
+/**
+ * The window with a long session list and the message trail on the transcript's
+ * right edge: the tonal hierarchy and the trail read together, as they ship.
+ */
+export const LongSidebarWithTrail: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudSessionRoute),
+    ...storybookMswParameters({
+      session: [
+        compozyApiMock.get("/api/sessions", () =>
+          HttpResponse.json({
+            sessions: [primarySessionFixture, ...LONG_SIDEBAR_SESSIONS],
+            page: {
+              has_more: false,
+              limit: 200,
+              total: LONG_SIDEBAR_SESSIONS.length + 1,
+            },
+          })
+        ),
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+          HttpResponse.json(transcriptPayload(LONG_SIDEBAR_TRANSCRIPT))
+        ),
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
+          () => HttpResponse.json({ entries: LONG_SIDEBAR_OUTLINE })
+        ),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />,
 };
 
