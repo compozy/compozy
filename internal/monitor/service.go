@@ -27,6 +27,15 @@ type Waker interface {
 	WakeSession(ctx context.Context, notification Notification) error
 }
 
+// Owners resolves the session that owns a monitor. Binding captures the owner's
+// restart-eligibility snapshot while it is live; Resume makes a restart-stopped
+// owner able to receive a wake, or returns ErrOwnerStopped, ErrSessionGone, or an
+// *OwnerIneligibleError.
+type Owners interface {
+	Binding(ctx context.Context, sessionID string) (string, error)
+	Resume(ctx context.Context, sessionID, binding string) error
+}
+
 // Option configures a Service.
 type Option func(*Service)
 
@@ -46,6 +55,16 @@ func WithClock(now func() time.Time) Option {
 			s.now = now
 		}
 	}
+}
+
+// WithStore makes monitors durable across daemon restarts.
+func WithStore(store Store) Option {
+	return func(s *Service) { s.store = store }
+}
+
+// WithOwners lets the service capture owner bindings and resume owners during recovery.
+func WithOwners(owners Owners) Option {
+	return func(s *Service) { s.owners = owners }
 }
 
 // WithObserver registers a callback for every change to a session's monitors:
@@ -69,24 +88,44 @@ type Service struct {
 	now       func() time.Time
 	observer  func(ctx context.Context, sessionID string)
 	notices   *noticeQueue
+	logs      *logQueue
+	store     Store
+	owners    Owners
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
 	mu          sync.Mutex
+	pending     map[string]*entry
+	retryKick   chan struct{}
 	stopped     bool
 	retired     map[string]struct{}
 	sessions    map[string]map[string]*entry
 	occupied    int
 	perTerminal map[string]int
 	lastSweep   time.Time
+	lastPrune   time.Time
 }
 
 type entry struct {
 	state       Monitor
 	terminalKey string
+	timeout     time.Duration
 	cancel      context.CancelFunc
+	workspaceID string
+	profileID   string
+	binding     string
+	version     int64
+	// decided is the version of the latest terminal decision (cancel, fired, undelivered) and saved is
+	// the highest version known durable; the decision is unconfirmed while saved < decided.
+	decided, saved int64
+	// released marks cap slots already returned (a suspended owner); admitted marks a wake the queue accepted.
+	released, admitted bool
+	// recovering marks a monitor registered while its owner is being checked or retried after a restart.
+	recovering bool
+	// ownerCheckFailedAt is the first transient owner-resume failure (persisted), zero otherwise.
+	ownerCheckFailedAt time.Time
 }
 
 // occupies reports whether the monitor still holds a slot in the active caps.
@@ -112,9 +151,16 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 		cancel:      cancel,
 		sessions:    make(map[string]map[string]*entry),
 		perTerminal: make(map[string]int),
+		pending:     make(map[string]*entry),
+		retryKick:   make(chan struct{}, 1),
 	}
 	for _, opt := range opts {
 		opt(service)
+	}
+	service.logs = newLogQueue()
+	service.wg.Go(service.dispatchLogs)
+	if service.store != nil {
+		service.wg.Go(service.retryDurable)
 	}
 	if service.observer != nil {
 		service.notices = newNoticeQueue()
@@ -129,8 +175,19 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if err != nil {
 		return Monitor{}, err
 	}
+	binding := ""
+	if s.owners != nil {
+		if binding, err = s.owners.Binding(ctx, normalized.SessionID); err != nil {
+			return Monitor{}, fmt.Errorf("monitor: capture owner binding: %w", err)
+		}
+	}
 	var watch TerminalWatch
 	if normalized.Kind == KindTerminal {
+		// A retry of an existing watch must not depend on the terminal still being resolvable: it may
+		// have expired while the original monitor is still delivering.
+		if existing, ok := s.reuse(normalized); ok {
+			return existing, nil
+		}
 		if s.terminals == nil {
 			return Monitor{}, errors.New("monitor: terminal service is unavailable")
 		}
@@ -155,6 +212,10 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
 		},
 		terminalKey: terminalKey(normalized),
+		timeout:     normalized.Timeout,
+		workspaceID: normalized.WorkspaceID,
+		profileID:   normalized.ProfileID,
+		binding:     binding,
 	}
 
 	s.mu.Lock()
@@ -163,8 +224,34 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if err != nil {
 		return Monitor{}, err
 	}
-	s.notify(created.SessionID)
+	if !created.Reused {
+		s.notify(created.SessionID)
+	}
+	s.pruneStore()
 	return created, nil
+}
+
+// reuse returns the occupying monitor identical to spec, without resolving its terminal.
+func (s *Service) reuse(spec Spec) (Monitor, bool) {
+	probe := &entry{
+		state: Monitor{
+			SessionID: spec.SessionID, Description: spec.Description, Until: spec.Until, Pattern: spec.Pattern,
+		},
+		terminalKey: terminalKey(spec), timeout: spec.Timeout,
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped {
+		return Monitor{}, false
+	}
+	existing := s.identicalLocked(probe)
+	if existing == nil {
+		return Monitor{}, false
+	}
+	reused := existing.state
+	reused.Reused = true
+	s.logLifecycle("monitor.reused", reused, "registered")
+	return reused, true
 }
 
 func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now time.Time) (Monitor, error) {
@@ -175,16 +262,27 @@ func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now t
 		return Monitor{}, ErrSessionGone
 	}
 	s.sweepLocked(now)
+	if existing := s.identicalLocked(item); existing != nil {
+		reused := existing.state
+		reused.Reused = true
+		s.logLifecycle("monitor.reused", reused, "registered")
+		return reused, nil
+	}
 	if err := s.admitLocked(item); err != nil {
 		return Monitor{}, err
+	}
+	// The first write holds the lock so a monitor is never admitted that a restart could not restore.
+	if err := s.saveNow(item.recordLocked()); err != nil {
+		return Monitor{}, fmt.Errorf("monitor: persist monitor: %w", err)
 	}
 	runCtx, cancel := context.WithCancel(s.ctx)
 	item.cancel = cancel
 	s.insertLocked(item)
 	created := item.state
+	s.logLifecycle("monitor.created", created, "registered")
 	s.wg.Go(func() {
 		defer cancel()
-		s.run(runCtx, created, spec, watch)
+		s.run(runCtx, item, created, spec, watch)
 	})
 	return created, nil
 }
@@ -218,59 +316,13 @@ func (s *Service) ActiveCounts(sessionIDs []string) map[string]int {
 	return counts
 }
 
-// Cancel stops one active or delivering monitor owned by sessionID without waking the session.
-func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
-	s.mu.Lock()
-	item, ok := s.sessions[sessionID][id]
-	if !ok {
-		s.mu.Unlock()
-		return Monitor{}, fmt.Errorf("%w: %s", ErrNotFound, id)
-	}
-	if !item.occupies() {
-		state := item.state
-		s.mu.Unlock()
-		return state, nil
-	}
-	s.finishLocked(item, StatusCanceled, s.now())
-	item.cancel()
-	s.pruneSessionLocked(sessionID, s.now())
-	state := item.state
-	s.mu.Unlock()
-	s.notify(sessionID)
-	return state, nil
-}
-
-// CancelSession stops every monitor of a stopped or removed session and drops
-// its history; nothing it registered may wake a later incarnation.
-func (s *Service) CancelSession(sessionID string) int {
-	canceled := s.cancelSession(sessionID)
-	if canceled > 0 {
-		s.notify(sessionID)
-	}
-	return canceled
-}
-
-func (s *Service) cancelSession(sessionID string) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	canceled := 0
-	now := s.now()
-	for _, item := range s.sessions[sessionID] {
-		if item.occupies() {
-			s.finishLocked(item, StatusCanceled, now)
-			item.cancel()
-			canceled++
-		}
-	}
-	delete(s.sessions, sessionID)
-	return canceled
-}
-
 // Shutdown cancels every monitor and waits for watcher goroutines.
 func (s *Service) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	s.stopped = true
 	s.mu.Unlock()
+	// Decisions whose write failed would otherwise be lost with the retry goroutine.
+	s.flushDurable(ctx)
 	s.cancel()
 	done := make(chan struct{})
 	go func() {
@@ -304,6 +356,23 @@ func (s *Service) admitLocked(item *entry) error {
 	return nil
 }
 
+// identicalLocked finds an occupying terminal monitor of the same session with
+// the same condition. Agents retry creation after ambiguous results; without
+// this, each retry would add another wake for one terminal condition.
+func (s *Service) identicalLocked(item *entry) *entry {
+	if item.terminalKey == "" {
+		return nil
+	}
+	for _, existing := range s.sessions[item.state.SessionID] {
+		if existing.occupies() && existing.terminalKey == item.terminalKey &&
+			existing.state.Until == item.state.Until && existing.state.Pattern == item.state.Pattern &&
+			existing.timeout == item.timeout && existing.state.Description == item.state.Description {
+			return existing
+		}
+	}
+	return nil
+}
+
 func (s *Service) insertLocked(item *entry) {
 	bucket := s.sessions[item.state.SessionID]
 	if bucket == nil {
@@ -317,15 +386,21 @@ func (s *Service) insertLocked(item *entry) {
 	}
 }
 
+// releaseLocked returns an occupying monitor's slots to the active caps.
+func (s *Service) releaseLocked(item *entry) {
+	item.released = true
+	s.occupied--
+	if item.terminalKey != "" {
+		if s.perTerminal[item.terminalKey]--; s.perTerminal[item.terminalKey] <= 0 {
+			delete(s.perTerminal, item.terminalKey)
+		}
+	}
+}
+
 // finishLocked moves an occupying monitor to a terminal status and releases its cap slots.
 func (s *Service) finishLocked(item *entry, status Status, at time.Time) {
-	if item.occupies() {
-		s.occupied--
-		if item.terminalKey != "" {
-			if s.perTerminal[item.terminalKey]--; s.perTerminal[item.terminalKey] <= 0 {
-				delete(s.perTerminal, item.terminalKey)
-			}
-		}
+	if item.occupies() && !item.released {
+		s.releaseLocked(item)
 	}
 	item.state.Status = status
 	if item.state.FiredAt.IsZero() {

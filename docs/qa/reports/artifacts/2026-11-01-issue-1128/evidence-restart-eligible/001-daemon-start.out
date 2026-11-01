@@ -1,0 +1,21 @@
+$ compozy daemon start
+Daemon
+======
+Status:             running
+PID:                92325
+Started:            2026-11-01T05:49:14Z
+Uptime:             1s
+Socket:             <tmp>/runtime/compozyd.sock
+HTTP:               127.0.0.1:58455
+Active Sessions:    0
+Total Sessions:     0
+Version:            dev
+Gateway Enabled:    false
+Gateway Tiers:      private:disabled/down@-- advertised=false, public:disabled/down@-- advertised=false
+Gateway Surfaces:   0
+Gateway Providers:  0
+Gateway Addresses:  0
+Gateway Devices:    0
+Gateway Refusal:    --
+
+[exit 0]

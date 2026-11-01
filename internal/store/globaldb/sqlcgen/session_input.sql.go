@@ -1451,3 +1451,24 @@ func (q *Queries) SettlePendingSessionSteer(ctx context.Context, arg SettlePendi
 	}
 	return result.RowsAffected()
 }
+
+const syntheticSessionInputAdmitted = `-- name: SyntheticSessionInputAdmitted :one
+SELECT EXISTS(
+  SELECT 1 FROM session_input_queue WHERE session_id = ? AND message_id = ?
+   AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching','sent')
+)
+`
+
+type SyntheticSessionInputAdmittedParams struct {
+	SessionID string `json:"session_id"`
+	MessageID string `json:"message_id"`
+}
+
+// A synthetic input counts as admitted once it was queued, is dispatching, or was sent; a failed or
+// canceled one was never delivered and may be admitted again.
+func (q *Queries) SyntheticSessionInputAdmitted(ctx context.Context, arg SyntheticSessionInputAdmittedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, syntheticSessionInputAdmitted, arg.SessionID, arg.MessageID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}

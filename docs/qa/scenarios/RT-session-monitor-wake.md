@@ -28,6 +28,17 @@ story: As an operator I ask an agent to run something slow and report back, and 
 8. **Operator visibility and cancel.** Register a 10-minute timer monitor and let the turn end. The session row's mark reads `monitoring` (amber radar), not `done`; the composer shows "Monitors, 1 active". Open the popover: the row shows the description and "Timer · fires in 10m". Click × : the row disappears, the button goes away, the list row returns to `done`, and no wake turn ever starts. `GET …/monitors` then reports the monitor as `canceled`.
 9. **Other profile and All profiles lens (#956).** With two profiles, give a session in the non-default profile an active monitor. Switch to All projects and the All profiles lens, open that session, and open the composer monitor popover: it lists the monitor instead of "Couldn't load monitors.". The list request carries `all_profiles=true`. Click × : the cancel request carries `profile=<owner>`, returns 200, and the button goes away. Without either selector the HTTP list still returns 404 for that session, and `all_profiles=true` on cancel returns 400. If the session itself is gone, the popover reads "This session is no longer available." and offers no retry.
 10. **Shell-wait redirect (#1122).** In a Claude session, ask for `gh pr checks <n> --watch`, `timeout 570 gh pr checks <n> --watch`, a `for … sleep 20` polling loop, and `/bin/sleep 6`. Each Bash call is denied before it runs and the reason names `compozy__terminal_exec` with the exact `command` and `args` plus `compozy__monitor_create` (`kind: "timer"` for the delay). `sleep 1`, `git log`, `gh pr checks <n>`, and `git commit -m "use gh run watch"` run. The redirected path works end to end: `terminal_exec` returns `still_running`, `monitor_create` registers on it, the turn ends, and a `monitor` wake arrives on exit. A session whose agent denies `compozy__monitor_create` or `compozy__terminal_exec` keeps a working `sleep 6`.
+11. **Long external wait and idempotent registration (#1128).** Start a terminal whose command polls an external condition for minutes (`terminal exec -- sh -c 'until [ -s <marker> ]; do sleep 2; done; echo done'`), have the agent register `compozy__monitor_create` on it twice with the same `terminal_id`, `until`, and `pattern`, and let the turn end. Expect one `active` monitor (the second call reports it already watches the condition), an idle session, and, once the condition flips and the process exits, exactly one `monitor` wake whose status line reads `exited with code 0`, followed by the agent's report. `monitor_list` then shows one `fired` monitor. A different `until` or `pattern` on the same terminal registers a separate monitor.
+
+12. **Durable monitors across a daemon restart (#1128).** In an isolated lab, register a 150 s timer and a terminal
+    monitor (`sleep 3000`) from one session, and a timer from a second session that the operator then stops with
+    `session stop`; request a daemon restart (`POST /api/settings/actions/restart`). Expect: the first session is
+    resumed, its terminal monitor fires `terminal_unavailable` (the command is never rerun) and its timer fires on
+    its original deadline, one `monitor` wake each; the operator-stopped session's monitor is `canceled`
+    (`session_stopped`), the session is not resumed and nothing wakes it. With `session.restart.auto_continue=false`
+    the monitors of a restart-interrupted session read `interrupted` with reason `owner_disabled` in
+    `monitor_list` and over HTTP, and no wake or resume ever happens. Saved evidence:
+    `docs/qa/reports/artifacts/2026-11-01-issue-1128/`.
 
 Sessions Kanban regression (pending integrated re-walk): open a monitor immediately before the turn
 settles, without waiting for a supervision sweep. Read the session over CLI and HTTP: expect
@@ -48,3 +59,18 @@ outside the turn; a shell-wait guard refuses foreground waits with the exact rep
 session can call `compozy__terminal_exec` and `compozy__monitor_create`; both tools are always loaded on
 Claude. Owning automated evidence: `internal/shellwait` tables, `TestSessionCanRedirectShellWaits`, and
 step 10.
+
+QA impact 2026-10-31 (issue #1128): `compozy__monitor_create` returns the already-active monitor when a
+session registers the same terminal condition (terminal, `until`, `pattern`) again, so a retried call adds no
+second wake; the descriptor, official skill, and site docs state that remote state such as CI is watched by
+running its bounded watch command in a terminal and setting `timeout_seconds`. The daemon logs structured
+`monitor.*` lifecycle events without descriptions, patterns, or output. Owning automated evidence:
+`TestServiceCancelAndLimits` (reuse and per-terminal cap) and step 11.
+
+QA impact 2026-11-01 (issue #1128, durability): monitors are stored (`session_monitors`, migration `00162`) and
+recovered at boot. Timers keep their deadline, fired-but-undelivered wakes are re-delivered once under the stable
+message id, a vanished terminal fires `terminal_unavailable`, an owner stopped on purpose cancels its monitors,
+and a restart-interrupted owner is readmitted only through the restart-continuation eligibility rules, otherwise
+the monitor is `interrupted` (visible, no wake). Owning automated evidence: `TestServiceRecoversDurableMonitorsAfterRestart`,
+`TestServiceRecoveryHonorsOwnerAuthority`, `TestServiceDurabilityOfDecisions`, `TestResumeMonitorOwner`,
+`TestGlobalDBSessionMonitors`, and step 12.

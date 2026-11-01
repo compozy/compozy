@@ -1279,7 +1279,7 @@ func TestInstanceWakeMigration(t *testing.T) {
 	t.Run("Should preserve legacy events and require opt in only on upgrade", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		old, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00163_schema.sql"))
+		old, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00167_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

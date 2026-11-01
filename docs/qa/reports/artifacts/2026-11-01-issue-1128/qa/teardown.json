@@ -1,0 +1,98 @@
+{
+  "clean": true,
+  "completed_at": "2026-11-01T06:00:47Z",
+  "killed": [
+    {
+      "pid": 15853,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15893,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15900,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15904,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15911,
+      "reason": "cmdline references <lab>"
+    }
+  ],
+  "matched": [
+    {
+      "pid": 15853,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15893,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15900,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15904,
+      "reason": "cmdline references <lab>"
+    },
+    {
+      "pid": 15911,
+      "reason": "cmdline references <lab>"
+    }
+  ],
+  "notes": [
+    "daemon pid 15853 survived graceful stop; escalating to signal sweep"
+  ],
+  "purged": [],
+  "skipped": [
+    {
+      "pid": 15853,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15893,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15900,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15904,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15911,
+      "reason": "process identity changed before signaling"
+    }
+  ],
+  "stale": [
+    {
+      "pid": 15853,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15893,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15900,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15904,
+      "reason": "process identity changed before signaling"
+    },
+    {
+      "pid": 15911,
+      "reason": "process identity changed before signaling"
+    }
+  ],
+  "stopped_daemon_pid": 15853,
+  "survivors": []
+}

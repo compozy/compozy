@@ -1,3 +1,9 @@
 -- +goose Up
--- add column "instance_id" to table: "agent_heartbeat_wake_events"
-ALTER TABLE `agent_heartbeat_wake_events` ADD COLUMN `instance_id` text NOT NULL DEFAULT '';
+-- add column "initiator_kind" to table: "permission_log"
+ALTER TABLE `permission_log` ADD COLUMN `initiator_kind` text NOT NULL DEFAULT '';
+-- add column "initiator_id" to table: "permission_log"
+ALTER TABLE `permission_log` ADD COLUMN `initiator_id` text NOT NULL DEFAULT '';
+-- add column "initiator_kind" to table: "sessions"
+ALTER TABLE `sessions` ADD COLUMN `initiator_kind` text NOT NULL DEFAULT '';
+-- add column "initiator_id" to table: "sessions"
+ALTER TABLE `sessions` ADD COLUMN `initiator_id` text NOT NULL DEFAULT '';

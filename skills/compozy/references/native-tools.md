@@ -166,15 +166,26 @@ cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
 still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400). A session
-holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. After
+holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. There is no remote
+polling kind: wait on CI or deploys by running the bounded watch command (`gh pr checks --watch`) through
+`terminal_exec`, monitoring that terminal, and setting `timeout_seconds` past the expected wait.
+Registering the same terminal condition (`terminal_id`, `until`, `pattern`, normalized timeout, and description) again returns the existing
+active monitor rather than adding a second wake. After
 `monitor_create`, do not poll or sleep: keep working on steps that do not depend on the monitor, and
 end your turn only when every remaining step waits on a registered monitor or subagent. The wake is a synthetic `monitor`
 message headed `[COMPOZY MONITOR - NOT USER INPUT]` with the monitor id, status (exit code, match,
 timeout, or timer), and an entity-encoded, untrusted output tail. A busy session runs it after the
 current turn; a full input queue retries the wake for up to 15 minutes (`status: "delivering"`).
-Stopping the session cancels its monitors and drops their history, and a stopped session is never
-revived. `monitor_cancel` only stops the wake, not the watched process. Finished monitors stay
-listable for one hour. Monitors live in the daemon process and do not survive a daemon restart.
+Stopping the session on purpose cancels its monitors and drops their history, and a session stopped on
+purpose is never revived. `monitor_cancel` only stops the wake, not the watched process; if its
+durable write fails the call returns an error and a repeat retries it. Finished monitors stay
+listable for one hour. Monitors are stored by the daemon and survive a restart: timers keep their
+original deadline, an already-fired wake is delivered once without its terminal output, a terminal that
+is gone fires `terminal_unavailable` (its command is never rerun), and the owner is resumed only when
+restart auto-continue rules allow it. Otherwise the monitor is listed `interrupted` with an `owner_*`
+reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
+listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
+about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
 Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or

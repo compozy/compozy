@@ -1,0 +1,6 @@
+$ dbmon
+id                session_id             kind      terminal_id        status  reason  exit_code  deadline_at                  fired_at                    binding_len  version
+----------------  ---------------------  --------  -----------------  ------  ------  ---------  ---------------------------  --------------------------  -----------  -------
+mon-60ae6ab7068b  sess-895bce8420bad44c  terminal  term-6aade59d29ac  fired   exit    0          2026-11-01T06:19:34.448935Z  2026-11-01T05:52:55.98703Z  454          3      
+
+[exit 0]

@@ -1,0 +1,157 @@
+{
+  "bootstrap_env_path": "<lab>/qa-artifacts/qa/bootstrap.env",
+  "browser": {
+    "blocker": "",
+    "mode": "browser-use"
+  },
+  "env": {
+    "AUDIT_COMMAND": "<repo>/.agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py",
+    "BEHAVIORAL_CHARTER": "<lab>/qa-artifacts/qa/behavioral-scenario-charter.yaml",
+    "BROWSER_BLOCKER": "",
+    "BROWSER_MODE": "browser-use",
+    "COMPOZY_HOME": "<tmp>/runtime",
+    "COMPOZY_HTTP_PORT": "58455",
+    "COMPOZY_UDS_PATH": "<tmp>/runtime/compozyd.sock",
+    "COMPOZY_WEB_API_PROXY_TARGET": "http://127.0.0.1:58455",
+    "JOURNEY_LOG": "<lab>/qa-artifacts/qa/journey-log.jsonl",
+    "KICKOFF_POSTED": "false",
+    "KICKOFF_TIMESTAMP": "",
+    "PLAYBOOK_REF": "",
+    "PROVIDER_ATTEMPT": "<lab>/qa-artifacts/qa/provider-attempt.json",
+    "PROVIDER_CODEX_HOME": "<tmp>/provider/.codex",
+    "PROVIDER_HOME": "<tmp>/provider",
+    "QA_OUTPUT_PATH": "<lab>/qa-artifacts",
+    "QA_PROFILE": "targeted",
+    "QA_REQUIRED_SURFACES": "cli,runtime,api",
+    "RUNTIME_WORKSPACE_PATH": "<lab>",
+    "SCENARIO_CONTRACT": "<lab>/qa-artifacts/qa/scenario-contract.json",
+    "SCENARIO_SLUG": "monitor-durable-head-20261101-054840-692446",
+    "TEARDOWN_COMMAND": "python3 <repo>/.agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --manifest <lab>/qa-artifacts/qa/bootstrap-manifest.json",
+    "TMUX_BRIDGE_SOCKET": "<tmp>/runtime/tmux-bridge.sock",
+    "WORKSPACE_PATH": "<lab>"
+  },
+  "manifest_path": "<lab>/qa-artifacts/qa/bootstrap-manifest.json",
+  "paths": {
+    "audit_command": "<repo>/.agents/skills/eng/eng-real-scenario-qa/scripts/audit-qa-evidence.py",
+    "behavioral_charter": "<lab>/qa-artifacts/qa/behavioral-scenario-charter.yaml",
+    "journey_log": "<lab>/qa-artifacts/qa/journey-log.jsonl",
+    "project_root": "<repo>",
+    "provider_attempt": "<lab>/qa-artifacts/qa/provider-attempt.json",
+    "provider_codex_home": "<tmp>/provider/.codex",
+    "provider_home": "<tmp>/provider",
+    "qa_root": "<lab>/qa-artifacts/qa",
+    "runtime_workspace": "<lab>",
+    "scenario_contract": "<lab>/qa-artifacts/qa/scenario-contract.json",
+    "teardown_command": "python3 <repo>/.agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --manifest <lab>/qa-artifacts/qa/bootstrap-manifest.json"
+  },
+  "project_contract": {},
+  "qa_output_path": "<lab>/qa-artifacts",
+  "scenario_slug": "monitor-durable-head-20261101-054840-692446",
+  "schema_version": 1,
+  "status": {
+    "health": "fresh",
+    "notes": [
+      "Allocated short runtime/provider homes for portable Unix socket paths: COMPOZY_UDS_PATH <lab>/.compozy/runtime/compozyd.sock is 116 bytes; max 103; TMUX_BRIDGE_SOCKET <lab>/.compozy/runtime/tmux-bridge.sock is 119 bytes; max 103; PROVIDER_DEFAULT_UDS <lab>/.provider-home/.compozy/daemon.sock is 121 bytes; max 103"
+    ],
+    "reused_lab": false
+  },
+  "teardown": {
+    "clean": true,
+    "completed_at": "2026-11-01T06:00:47Z",
+    "killed": [
+      {
+        "pid": 15853,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15893,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15900,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15904,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15911,
+        "reason": "cmdline references <lab>"
+      }
+    ],
+    "matched": [
+      {
+        "pid": 15853,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15893,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15900,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15904,
+        "reason": "cmdline references <lab>"
+      },
+      {
+        "pid": 15911,
+        "reason": "cmdline references <lab>"
+      }
+    ],
+    "notes": [
+      "daemon pid 15853 survived graceful stop; escalating to signal sweep"
+    ],
+    "purged": [],
+    "skipped": [
+      {
+        "pid": 15853,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15893,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15900,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15904,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15911,
+        "reason": "process identity changed before signaling"
+      }
+    ],
+    "stale": [
+      {
+        "pid": 15853,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15893,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15900,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15904,
+        "reason": "process identity changed before signaling"
+      },
+      {
+        "pid": 15911,
+        "reason": "process identity changed before signaling"
+      }
+    ],
+    "stopped_daemon_pid": 15853,
+    "survivors": []
+  },
+  "workspace_path": "<lab>"
+}

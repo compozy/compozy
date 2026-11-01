@@ -12,6 +12,9 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// monitorResultField is the structured result key carrying one monitor.
+const monitorResultField = "monitor"
+
 type nativeMonitorCreateInput struct {
 	Kind           string `json:"kind"`
 	Description    string `json:"description"`
@@ -66,12 +69,20 @@ func (n *daemonNativeTools) monitorCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
 	}
+	if created.Reused {
+		return structuredResult(map[string]any{monitorResultField: created}, fmt.Sprintf(
+			"Monitor %s already watches this request (status: %s); no duplicate was registered. "+
+				"Continue independent work; end your turn only when every remaining step waits on a monitor or subagent.",
+			created.ID, created.Status,
+		))
+	}
 	preview := fmt.Sprintf(
-		"Monitor %s is active until %s. End your turn now: this session will be woken with a "+
+		"Monitor %s is active until %s. Continue independent work; end your turn only when every remaining "+
+			"step waits on a monitor or subagent. This session will be woken with a "+
 			"[COMPOZY MONITOR] message when it fires. Do not poll or sleep while waiting.",
 		created.ID, created.DeadlineAt.Format(time.RFC3339),
 	)
-	return structuredResult(map[string]any{"monitor": created}, preview)
+	return structuredResult(map[string]any{monitorResultField: created}, preview)
 }
 
 func (n *daemonNativeTools) monitorList(
@@ -114,7 +125,7 @@ func (n *daemonNativeTools) monitorCancel(
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
 	}
 	return structuredResult(
-		map[string]any{"monitor": canceled},
+		map[string]any{monitorResultField: canceled},
 		fmt.Sprintf("Monitor %s is %s", canceled.ID, canceled.Status),
 	)
 }

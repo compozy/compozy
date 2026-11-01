@@ -1,0 +1,91 @@
+$ compozy session new --agent mon-stopped --workspace <lab> -o json
+{
+  "resolution_source": "flag",
+  "worktree_binding": {
+    "available": true
+  },
+  "pull_request": null,
+  "pull_request_lookup": null,
+  "board_column": "done",
+  "effective_workspace_access": "",
+  "scope": "workspace",
+  "process_summary": {
+    "supported": true,
+    "background": 0,
+    "terminals": 0,
+    "total": 0,
+    "ports": []
+  },
+  "queue": {
+    "entries": 0,
+    "cap": 10
+  },
+  "supervision": {
+    "work_signals": [],
+    "sources": [],
+    "quiet_warning": null
+  },
+  "busy_input": {
+    "default_mode": "steer",
+    "steer_capability": "none",
+    "steer_delivery": "interrupt_fallback"
+  },
+  "id": "sess-563d65ba52cc4a3f",
+  "profile_id": "00000000000000000000000000",
+  "profile_name": "default",
+  "profile_color": "#8E8EB5",
+  "profile_icon": "circle",
+  "agent_name": "mon-stopped",
+  "runtime": {
+    "status": "unbound",
+    "selection_revision": 0,
+    "requested": {
+      "provider": "claude",
+      "model": "claude-sonnet-5",
+      "reasoning_effort": "high",
+      "speed": "normal"
+    },
+    "last_known": {
+      "provider": "claude",
+      "model": "claude-sonnet-5",
+      "reasoning_effort": "high",
+      "speed": "normal"
+    }
+  },
+  "workspace_id": "ws_eaab30503360db34",
+  "workspace_path": "<lab>",
+  "type": "user",
+  "state": "active",
+  "badge": "idle",
+  "attachable": true,
+  "pending_interactions": [],
+  "archived_at": null,
+  "verified": false,
+  "escalated": false,
+  "available_commands": [],
+  "lineage": {
+    "root_session_id": "sess-563d65ba52cc4a3f",
+    "spawn_depth": 0,
+    "auto_stop_on_parent": false,
+    "notify_creator": false,
+    "spawn_budget": {
+      "max_children": 5,
+      "max_depth": 1,
+      "ttl_seconds": 0
+    },
+    "permission_policy": {
+      "tools": [
+        "compozy__monitor_cancel",
+        "compozy__monitor_create",
+        "compozy__monitor_list"
+      ],
+      "skills": [],
+      "mcp_servers": [],
+      "workspace_paths": []
+    }
+  },
+  "created_at": "2026-11-01T05:55:40.066016Z",
+  "updated_at": "2026-11-01T05:55:40.116653Z"
+}
+
+[exit 0]

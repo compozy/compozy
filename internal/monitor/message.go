@@ -40,6 +40,10 @@ func (n Notification) Message() string {
 			"</output>",
 		)
 	}
+	if n.Outcome.OutputLost {
+		lines = append(lines,
+			"<note>The daemon restarted after this monitor fired; its terminal output was not retained.</note>")
+	}
 	lines = append(lines, "</monitor-notification>", "", nextAction(mon, n.Outcome))
 	return strings.Join(lines, "\n")
 }

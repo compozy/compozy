@@ -1,3 +1,3 @@
 -- +goose Up
--- add column "expires_at" to table: "session_pending_interactions"
-ALTER TABLE `session_pending_interactions` ADD COLUMN `expires_at` text NULL;
+-- add column "owner_check_failed_at" to table: "session_monitors"
+ALTER TABLE `session_monitors` ADD COLUMN `owner_check_failed_at` text NOT NULL DEFAULT '';

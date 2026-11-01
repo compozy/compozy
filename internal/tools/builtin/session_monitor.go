@@ -24,7 +24,10 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"provider-internal background tasks, Monitor, and ScheduleWakeup — those cannot wake a CompozyOS session. "+
 			"After registering, keep working on steps that do not depend on it; end your turn only when every "+
 			"remaining step waits on a registered monitor or subagent. The wake arrives as a "+
-			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn.",
+			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn. "+
+			"Remote state such as CI has no polling kind: run its bounded watch command with compozy__terminal_exec, "+
+			"monitor that terminal, and set timeout_seconds past the expected wait. Registering the same terminal "+
+			"request (including timeout and description) again returns the existing monitor instead of adding a second wake.",
 		monitorCreateInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -50,7 +53,8 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 		"monitor_list",
 		"Monitor List",
 		"List this session's monitors: active ones first, then delivering (wake retrying a full input queue), "+
-			"fired, canceled, or undelivered ones from the last hour.",
+			"fired, canceled, undelivered, or interrupted (a daemon restart ended the watch and its owner could not "+
+			"be resumed) ones from the last hour.",
 		emptyInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -117,7 +121,7 @@ const monitorItemSchema = `{
 		"terminal_id":{"type":"string"},
 		"until":{"type":"string"},
 		"pattern":{"type":"string"},
-		"status":{"type":"string","enum":["active","delivering","fired","canceled","undelivered"]},
+		"status":{"type":"string","enum":["active","delivering","fired","canceled","undelivered","interrupted"]},
 		"created_at":{"type":"string","format":"date-time"},
 		"deadline_at":{"type":"string","format":"date-time"},
 		"fired_at":{"type":"string","format":"date-time"},

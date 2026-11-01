@@ -148,7 +148,7 @@ func TestPermissionInitiatorMigration(t *testing.T) {
 	t.Run("Should preserve unknown initiators on pre-migration rows", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00164_schema.sql"))
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00166_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

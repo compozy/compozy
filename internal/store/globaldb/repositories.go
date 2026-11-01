@@ -101,6 +101,7 @@ type ObserveRepo struct{ *repoBase }
 type AttentionRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
 type SessionProcessRepo struct{ *repoBase }
+type SessionMonitorRepo struct{ *repoBase }
 type VaultRepo struct{ *repoBase }
 type ExtensionEnvRepo struct{ *repoBase }
 type ExtensionInputRepo struct{ *repoBase }
@@ -148,6 +149,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.AttentionRepo = &AttentionRepo{repoBase: base}
 	g.ToolRuntimeRepo = &ToolRuntimeRepo{repoBase: base}
 	g.SessionProcessRepo = &SessionProcessRepo{repoBase: base}
+	g.SessionMonitorRepo = &SessionMonitorRepo{repoBase: base}
 	g.VaultRepo = &VaultRepo{repoBase: base}
 	g.ExtensionEnvRepo = &ExtensionEnvRepo{repoBase: base}
 	g.ExtensionInputs = &ExtensionInputRepo{repoBase: base}

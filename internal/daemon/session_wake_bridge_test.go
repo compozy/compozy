@@ -262,16 +262,22 @@ func validSessionWakeEvent() session.SpawnWakeEvent {
 }
 
 type monitorWakeManagerStub struct {
-	status     *session.Info
-	statusErr  error
-	enqueueErr error
-	calls      int
-	id         string
-	opts       session.SyntheticPromptOpts
+	status      *session.Info
+	statusErr   error
+	enqueueErr  error
+	admitted    bool
+	admittedErr error
+	calls       int
+	id          string
+	opts        session.SyntheticPromptOpts
 }
 
 func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.Info, error) {
 	return stub.status, stub.statusErr
+}
+
+func (stub *monitorWakeManagerStub) SyntheticWakeAdmitted(context.Context, string, string) (bool, error) {
+	return stub.admitted, stub.admittedErr
 }
 
 func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
@@ -316,6 +322,35 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}
 		if !strings.Contains(manager.opts.Message, "NOT USER INPUT") {
 			t.Fatalf("wake message = %q, want automated-wake header", manager.opts.Message)
+		}
+	})
+
+	t.Run("Should not admit a wake again when its queue entry was already admitted", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{
+			status:   &session.Info{ID: "sess-1", State: session.StateActive},
+			admitted: true,
+		}
+		if err := wakerFor(manager).WakeSession(testutil.Context(t), fired); err != nil {
+			t.Fatalf("WakeSession() error = %v", err)
+		}
+		if manager.calls != 0 {
+			t.Fatalf("enqueue calls = %d, want none for an already admitted wake", manager.calls)
+		}
+	})
+
+	t.Run("Should not enqueue when the wake ledger cannot be read", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{
+			status:      &session.Info{ID: "sess-1", State: session.StateActive},
+			admittedErr: errors.New("ledger unavailable"),
+		}
+		err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
+		if err == nil || errors.Is(err, monitorpkg.ErrSessionGone) ||
+			!strings.Contains(err.Error(), "read monitor wake ledger") || manager.calls != 0 {
+			t.Fatalf("WakeSession() error = %v calls = %d, want a ledger-read error and no enqueue", err, manager.calls)
 		}
 	})
 
@@ -376,4 +411,60 @@ func TestMonitorSessionWaker(t *testing.T) {
 			t.Fatalf("List() after stop = %+v, want empty", listed)
 		}
 	})
+
+	t.Run("Should keep a monitor durable when a daemon restart interrupts its owner", func(t *testing.T) {
+		t.Parallel()
+
+		durable := &monitorStoreStub{records: map[string]monitorpkg.Record{}}
+		monitors, err := monitorpkg.NewService(
+			testutil.Context(t), nil, wakerFor(&monitorWakeManagerStub{}), monitorpkg.WithStore(durable),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := monitors.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		if _, err := monitors.Create(testutil.Context(t), monitorpkg.Spec{
+			WorkspaceID: "ws-1", SessionID: "sess-1", Kind: monitorpkg.KindTimer,
+			Description: "check CI", Delay: time.Hour,
+		}); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		observer := monitorLifecycleObserver{monitors: monitors}
+		observer.release("sess-1", true)
+		if counts := monitors.ActiveCounts([]string{"sess-1"}); len(counts) != 0 {
+			t.Fatalf("ActiveCounts() after interruption = %+v, want the watch stopped", counts)
+		}
+		for _, record := range durable.records {
+			if record.Monitor.Status != monitorpkg.StatusActive {
+				t.Fatalf("durable record = %+v, want it left active for Recover", record)
+			}
+		}
+		if len(durable.records) != 1 {
+			t.Fatalf("durable records = %d, want 1", len(durable.records))
+		}
+	})
 }
+
+type monitorStoreStub struct {
+	mu      sync.Mutex
+	records map[string]monitorpkg.Record
+}
+
+func (m *monitorStoreStub) SaveMonitor(_ context.Context, record monitorpkg.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if existing, ok := m.records[record.Monitor.ID]; !ok || existing.Version < record.Version {
+		m.records[record.Monitor.ID] = record
+	}
+	return nil
+}
+
+func (m *monitorStoreStub) LoadMonitors(context.Context) ([]monitorpkg.Record, error) {
+	return nil, nil
+}
+
+func (m *monitorStoreStub) PruneFinishedMonitors(context.Context, time.Time) error { return nil }

@@ -1,0 +1,12 @@
+$ compozy session list --workspace <lab> -o json
+{
+  "resolution_source": "flag",
+  "sessions": [],
+  "page": {
+    "has_more": false,
+    "total": 0,
+    "limit": 50
+  }
+}
+
+[exit 0]

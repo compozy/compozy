@@ -20,6 +20,7 @@ var userScopeMigrationInventory = []string{
 	"session_prompt_admissions",
 	"sessions",
 	"session_process_observations",
+	"session_monitors",
 	"session_derivations",
 	"token_usage_daily",
 	"session_subagent_wakes",

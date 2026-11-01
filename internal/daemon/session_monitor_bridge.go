@@ -18,6 +18,11 @@ type monitorSessionManager interface {
 	EnqueueSyntheticWake(context.Context, string, session.SyntheticPromptOpts) (store.SessionInputQueueEntry, error)
 }
 
+// monitorWakeLedger lets a replayed wake detect that its queue entry was already admitted.
+type monitorWakeLedger interface {
+	SyntheticWakeAdmitted(context.Context, string, string) (bool, error)
+}
+
 type sessionCatalogChangePublisher interface {
 	PublishSessionCatalogChanged(context.Context, string)
 }
@@ -49,8 +54,20 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	if info.State == session.StateStopping || info.State == session.StateStopped {
 		return fmt.Errorf("%w: %s is %s", monitorpkg.ErrSessionGone, sessionID, info.State)
 	}
+	messageID := "monitor:" + notification.Monitor.ID
+	// The queue only dedupes entries that are still queued or dispatching; a wake that was already sent
+	// before a restart must not start a second turn.
+	if ledger, ok := sessions.(monitorWakeLedger); ok {
+		admitted, err := ledger.SyntheticWakeAdmitted(ctx, sessionID, messageID)
+		if err != nil {
+			return fmt.Errorf("daemon: read monitor wake ledger for %q: %w", sessionID, err)
+		}
+		if admitted {
+			return nil
+		}
+	}
 	if _, err := sessions.EnqueueSyntheticWake(ctx, sessionID, session.SyntheticPromptOpts{
-		MessageID: "monitor:" + notification.Monitor.ID,
+		MessageID: messageID,
 		Priority:  1,
 		Message:   notification.Message(),
 		Metadata: acp.PromptSyntheticMeta{
@@ -69,14 +86,80 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 // stopped or removed session never keeps watches, history, or cap slots.
 type monitorLifecycleObserver struct {
 	monitors *monitorpkg.Service
+	// restarting reports that the daemon is stopping sessions for a restart. The session's own stop
+	// classification is cleared before observers run, so the daemon's restart intent is authoritative.
+	restarting func() bool
 }
 
 func (o monitorLifecycleObserver) OnSessionCreated(context.Context, *session.Session) {}
 
 func (o monitorLifecycleObserver) OnSessionStopped(_ context.Context, stopped *session.Session) {
-	if o.monitors != nil && stopped != nil {
-		o.monitors.CancelSession(stopped.ID)
+	if o.monitors == nil || stopped == nil {
+		return
 	}
+	info := stopped.Info()
+	// The stop cause is recorded when the stop is requested; the persisted reason is classified later.
+	shutdown := info.StopCause == session.CauseShutdown || info.StopReason == store.StopShutdown ||
+		(o.restarting != nil && o.restarting())
+	o.release(stopped.ID, shutdown)
+}
+
+// release applies the stop's authority to the owner's monitors. A daemon restart interrupts the owner,
+// so its monitors survive for Recover to decide at boot. Every other stop is a decision, and nothing
+// the session registered may outlive it.
+func (o monitorLifecycleObserver) release(sessionID string, shutdown bool) {
+	if shutdown {
+		o.monitors.SuspendSession(sessionID)
+		return
+	}
+	o.monitors.CancelSession(sessionID)
+}
+
+type monitorOwnerManager interface {
+	MonitorOwnerBinding(string) (string, error)
+	ResumeMonitorOwner(context.Context, string, string) error
+}
+
+// monitorSessionOwners captures owner bindings and resumes restart-interrupted owners
+// through the session manager, which owns restart eligibility.
+type monitorSessionOwners struct {
+	sessions func() any
+}
+
+func (o monitorSessionOwners) manager() (monitorOwnerManager, error) {
+	manager, ok := o.sessions().(monitorOwnerManager)
+	if !ok {
+		return nil, errors.New("daemon: session manager cannot resume monitor owners")
+	}
+	return manager, nil
+}
+
+func (o monitorSessionOwners) Binding(_ context.Context, sessionID string) (string, error) {
+	manager, err := o.manager()
+	if err != nil {
+		return "", err
+	}
+	return manager.MonitorOwnerBinding(sessionID)
+}
+
+func (o monitorSessionOwners) Resume(ctx context.Context, sessionID, binding string) error {
+	manager, err := o.manager()
+	if err != nil {
+		return err
+	}
+	err = manager.ResumeMonitorOwner(ctx, sessionID, binding)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, session.ErrMonitorOwnerStopped):
+		return monitorpkg.ErrOwnerStopped
+	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
+		return monitorpkg.ErrSessionGone
+	}
+	if ineligible, ok := errors.AsType[*session.MonitorOwnerIneligibleError](err); ok {
+		return &monitorpkg.OwnerIneligibleError{Reason: ineligible.Reason}
+	}
+	return err
 }
 
 var _ sessionLifecycleObserver = monitorLifecycleObserver{}
@@ -139,11 +222,28 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 			manager.PublishSessionCatalogChanged(publishCtx, sessionID)
 		}
 	}
-	service, err := monitorpkg.NewService(
-		ctx, watcher, waker, monitorpkg.WithLogger(logger), monitorpkg.WithObserver(publish),
-	)
+	opts := []monitorpkg.Option{
+		monitorpkg.WithLogger(logger), monitorpkg.WithObserver(publish),
+		monitorpkg.WithOwners(monitorSessionOwners{sessions: func() any { return state.sessions }}),
+	}
+	if persistence, ok := state.registry.(monitorpkg.Store); ok {
+		opts = append(opts, monitorpkg.WithStore(persistence))
+	}
+	service, err := monitorpkg.NewService(ctx, watcher, waker, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create session monitor service: %w", err)
 	}
 	return service, nil
+}
+
+// recoverBootMonitors restores durable monitors after interrupted owners have been
+// resumed, so a recovered wake finds its owner already admitted or reports why not.
+func recoverBootMonitors(ctx context.Context, state *bootState) error {
+	if state.sessionMonitors == nil {
+		return nil
+	}
+	if err := state.sessionMonitors.Recover(ctx); err != nil {
+		return fmt.Errorf("daemon: recover session monitors: %w", err)
+	}
+	return nil
 }
