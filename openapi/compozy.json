@@ -18970,6 +18970,12 @@
       },
       "ProfileRemovalSummary": {
         "properties": {
+          "agent_instances": {
+            "type": "integer"
+          },
+          "agent_memory_files": {
+            "type": "integer"
+          },
           "agents": {
             "type": "integer"
           },
@@ -19008,6 +19014,8 @@
           }
         },
         "required": [
+          "agent_instances",
+          "agent_memory_files",
           "agents",
           "config_keys",
           "credential_overrides",

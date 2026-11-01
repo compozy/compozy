@@ -28,6 +28,9 @@ func (m *Manager) applyInstanceCeiling(
 		return nil
 	}
 	ceiling, grant, err := m.instanceCeiling(ctx, spec.sessionID, spec.instanceID)
+	if err == nil && ceiling == nil && spec.lineage != nil && spec.lineage.ParentSessionID != "" {
+		ceiling, grant, err = m.instanceCeiling(ctx, spec.lineage.ParentSessionID, "")
+	}
 	if err != nil || ceiling == nil {
 		return err
 	}

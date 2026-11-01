@@ -23,6 +23,7 @@ import (
 
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -16027,13 +16028,43 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 		memory := agentmemory.NewStore(t.TempDir())
 		catalog := newResourceCatalog(cloneAgentDef)
 		agent := compozyconfig.AgentDef{Name: "coder", Kind: compozyconfig.AgentKindStaysOn}
-		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: "coder", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
+		catalog.Replace(
+			1,
+			[]resources.Record[compozyconfig.AgentDef]{
+				{ID: "coder", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent},
+			},
+		)
 		workspace := nativeTestWorkspaceServiceWithRoot(t, t.TempDir())
 		workspace.ResolveForProfileFn = func(ctx context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspace.ResolveFn(ctx, ref)
 		}
-		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{AgentMemory: memory, AgentCatalog: agentCatalogDependency(catalog), Sessions: nativeTestSessionManager("ws-1"), Workspaces: workspace, WorkspaceResolver: workspace}, nativeApproveAllPolicyInputs())
-		scope := toolspkg.Scope{SessionID: "sess-memory", AgentName: "coder", WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID}
+		caller := instanceAdmissionInputs{
+			caller: agentinstance.Caller{
+				InstanceID: "instance-memory",
+				AgentName:  "coder",
+				ProfileID:  store.DefaultProfileID,
+			},
+		}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				AgentMemory:       memory,
+				AgentCatalog:      agentCatalogDependency(catalog),
+				Sessions:          nativeTestSessionManager("ws-1"),
+				Workspaces:        workspace,
+				WorkspaceResolver: workspace,
+				AgentInstances: func() *core.AgentInstanceAPI {
+					return &core.AgentInstanceAPI{Authority: agentinstance.Authority{Callers: caller}}
+				},
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		scope := toolspkg.Scope{
+			SessionID:   "sess-memory",
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+			ProfileID:   store.DefaultProfileID,
+		}
 		for _, item := range []struct {
 			id    toolspkg.ToolID
 			input string
@@ -16043,14 +16074,20 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			{toolspkg.ToolIDAgentMemorySearch, `{"query":"deployments"}`},
 			{toolspkg.ToolIDAgentMemoryRemove, `{"match":"deployments"}`},
 		} {
-			result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)})
+			result, err := registry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{ToolID: item.id, Input: json.RawMessage(item.input)},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if item.id == toolspkg.ToolIDAgentMemorySearch && !strings.Contains(string(result.Structured), "remember deployments") {
+			if item.id == toolspkg.ToolIDAgentMemorySearch &&
+				!strings.Contains(string(result.Structured), "remember deployments") {
 				t.Fatalf("search lost note: %s", result.Structured)
 			}
-			if item.id == toolspkg.ToolIDAgentMemoryRemove && !strings.Contains(string(result.Structured), `"removed":1`) {
+			if item.id == toolspkg.ToolIDAgentMemoryRemove &&
+				!strings.Contains(string(result.Structured), `"removed":1`) {
 				t.Fatalf("wrong removal count: %s", result.Structured)
 			}
 		}
@@ -16061,12 +16098,40 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 		if doc.Content != "" {
 			t.Fatalf("remove left notes: %s", doc.Content)
 		}
-		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"leak","agent":"other"}`)}); err == nil {
+		caller.caller.InstanceID = ""
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentMemoryAdd,
+				Input:  json.RawMessage(`{"text":"unauthorized"}`),
+			},
+		)
+		requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+		caller.caller.InstanceID = "instance-memory"
+		if _, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentMemoryAdd,
+				Input:  json.RawMessage(`{"text":"leak","agent":"other"}`),
+			},
+		); err == nil {
 			t.Fatal("accepted target override")
 		}
 		agent.Kind = compozyconfig.AgentKindOnDemand
-		catalog.Replace(2, []resources.Record[compozyconfig.AgentDef]{{ID: "coder", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
-		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"refuse"}`)}); err == nil || !strings.Contains(err.Error(), "agent_not_stays_on") {
+		catalog.Replace(
+			2,
+			[]resources.Record[compozyconfig.AgentDef]{
+				{ID: "coder", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent},
+			},
+		)
+		if _, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"refuse"}`)},
+		); err == nil ||
+			!strings.Contains(err.Error(), "agent_not_stays_on") {
 			t.Fatalf("on-demand result: %v", err)
 		}
 	})
@@ -16075,41 +16140,75 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 func TestNativeSessionPending(t *testing.T) {
 	t.Parallel()
 	for _, descendants := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should preserve pending identity and deadline with descendants %v", descendants), func(t *testing.T) {
-			t.Parallel()
-			manager := nativeTestSessionManager("ws-1")
-			deadline := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-			calls := 0
-			read := func(_ context.Context, id string, statuses []string) ([]store.PendingInteraction, error) {
-				calls++
-				if id != "sess-1" || len(statuses) != 0 {
-					t.Fatalf("query = %s/%v", id, statuses)
+		t.Run(
+			fmt.Sprintf("Should preserve pending identity and deadline with descendants %v", descendants),
+			func(t *testing.T) {
+				t.Parallel()
+				manager := nativeTestSessionManager("ws-1")
+				deadline := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+				calls := 0
+				read := func(_ context.Context, id string, statuses []string) ([]store.PendingInteraction, error) {
+					calls++
+					if id != "sess-1" || len(statuses) != 0 {
+						t.Fatalf("query = %s/%v", id, statuses)
+					}
+					return []store.PendingInteraction{
+						{
+							SessionID:         "child",
+							InteractionID:     "interaction",
+							ProviderRequestID: "request",
+							Kind:              "permission",
+							Status:            "pending",
+							ExpiresAt:         &deadline,
+						},
+					}, nil
 				}
-				return []store.PendingInteraction{{SessionID: "child", InteractionID: "interaction", ProviderRequestID: "request", Kind: "permission", Status: "pending", ExpiresAt: &deadline}}, nil
-			}
-			if descendants {
-				manager.Attention.DescendantPendingFn = read
-			} else {
-				manager.Attention.PendingFn = read
-			}
-			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Workspaces: nativeTestWorkspaceService(t), Sessions: manager}, nativeApproveAllPolicyInputs())
-			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: json.RawMessage(fmt.Sprintf(`{"workspace":"ws-1","session_id":"sess-1","descendants":%v}`, descendants))})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var response contract.SessionInteractionsResponse
-			if err := json.Unmarshal(result.Structured, &response); err != nil {
-				t.Fatal(err)
-			}
-			if len(response.Interactions) != 1 || response.Interactions[0].SessionID != "child" || response.Interactions[0].ExpiresAt == nil || !response.Interactions[0].ExpiresAt.Equal(deadline) {
-				t.Fatalf("response = %#v", response)
-			}
-			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`)})
-			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
-			if calls != 1 {
-				t.Fatalf("read calls = %d", calls)
-			}
-		})
+				if descendants {
+					manager.Attention.DescendantPendingFn = read
+				} else {
+					manager.Attention.PendingFn = read
+				}
+				registry := newDaemonNativeRegistry(
+					t,
+					&daemonNativeToolsDeps{Workspaces: nativeTestWorkspaceService(t), Sessions: manager},
+					nativeApproveAllPolicyInputs(),
+				)
+				result, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDSessionPendingInteractions,
+						Input: json.RawMessage(
+							fmt.Sprintf(`{"workspace":"ws-1","session_id":"sess-1","descendants":%v}`, descendants),
+						),
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var response contract.SessionInteractionsResponse
+				if err := json.Unmarshal(result.Structured, &response); err != nil {
+					t.Fatal(err)
+				}
+				if len(response.Interactions) != 1 || response.Interactions[0].SessionID != "child" ||
+					response.Interactions[0].ExpiresAt == nil ||
+					!response.Interactions[0].ExpiresAt.Equal(deadline) {
+					t.Fatalf("response = %#v", response)
+				}
+				_, err = registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{
+						ToolID: toolspkg.ToolIDSessionPendingInteractions,
+						Input:  json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
+					},
+				)
+				requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+				if calls != 1 {
+					t.Fatalf("read calls = %d", calls)
+				}
+			},
+		)
 	}
 }
 

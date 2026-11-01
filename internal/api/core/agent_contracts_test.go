@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -366,37 +368,131 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 	})
 }
 
+type memoryCallerReader struct{ caller agentinstance.Caller }
+
+func (r *memoryCallerReader) InstanceCaller(context.Context, string) (agentinstance.Caller, error) {
+	return r.caller, nil
+}
+
 func TestAgentMemoryRoutes(t *testing.T) {
+	t.Run("Should read Global memory as an authenticated Global agent", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:        "global-caller",
+					AgentName: "triage",
+					ProfileID: store.DefaultProfileID,
+					State:     session.StateActive,
+					Type:      session.SessionTypeUser,
+				}, nil
+			},
+		}, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			ResolveForProfileFn: func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
+				t.Fatal("Global memory tried to resolve a project workspace")
+				return workspacepkg.ResolvedWorkspace{}, nil
+			},
+		})
+		fixture.Handlers.AgentMemory = agentmemory.NewStore(t.TempDir())
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+				return []core.AgentCatalogEntry{
+					{
+						Def:          compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn},
+						MemoryOrigin: "user",
+					},
+				}, nil
+			},
+		}
+		fixture.Handlers.RegisterAgentMemoryRoutes(fixture.Engine.Group("/agents"))
+		reader := &memoryCallerReader{
+			caller: agentinstance.Caller{
+				InstanceID: "instance-global",
+				AgentName:  "triage",
+				ProfileID:  store.DefaultProfileID,
+			},
+		}
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Authority: agentinstance.Authority{Callers: reader}}
+		req := httptest.NewRequest(http.MethodGet, "/agents/triage/memory", nil)
+		req.Header.Set("X-Compozy-Session-ID", "global-caller")
+		req.Header.Set("X-Compozy-Agent", "triage")
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, req)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "max_lines") {
+			t.Fatalf("Global memory: status=%d body=%s", response.Code, response.Body.String())
+		}
+		reader.caller.InstanceID = ""
+		response = httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, req)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("non-lineage memory read: status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should take ownership from the catalog when the workspace scan found the agent first", func(t *testing.T) {
 		t.Parallel()
 		def := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}
 		resolve := func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
-			return workspacepkg.ResolvedWorkspace{ID: "ws-one", Agents: []compozyconfig.AgentDef{def}}, nil
+			return workspacepkg.ResolvedWorkspace{
+				ID:     "ws-one",
+				Name:   "My Project",
+				Agents: []compozyconfig.AgentDef{def},
+			}, nil
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{
-			ResolveForProfileFn: resolve,
-			ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
-				return resolve(ctx, ref, "")
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveForProfileFn: resolve,
+				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					return resolve(ctx, ref, "")
+				},
 			},
-		})
+		)
 		fixture.Handlers.AgentMemory = agentmemory.NewStore(t.TempDir())
-		fixture.Handlers.AgentCatalog = stubAgentCatalog{listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
-			return []core.AgentCatalogEntry{{Def: def, MemoryOrigin: "user", PackageOwned: true}}, nil
-		}}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+				return []core.AgentCatalogEntry{{Def: def, MemoryOrigin: "user", PackageOwned: true}}, nil
+			},
+		}
 		fixture.Handlers.RegisterAgentMemoryRoutes(fixture.Engine.Group("/agents"))
 		response := testutil.PerformRequest(t, fixture.Engine, "GET", "/agents/triage/memory?workspace=ws-one", nil)
 		if response.Code != 200 {
 			t.Fatalf("status %d body %s", response.Code, response.Body.String())
 		}
+		response = testutil.PerformRequest(
+			t,
+			fixture.Engine,
+			"POST",
+			"/agents/triage/memory/entries?workspace=ws-one",
+			[]byte(`{"text":"named source"}`),
+		)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "My Project") {
+			t.Fatalf("entry source: status=%d body=%s", response.Code, response.Body.String())
+		}
 	})
 
 	t.Run("Should persist notes through shared routes and reject stale edits", func(t *testing.T) {
 		t.Parallel()
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
 		fixture.Handlers.AgentMemory = agentmemory.NewStore(t.TempDir())
-		fixture.Handlers.AgentCatalog = stubAgentCatalog{listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
-			return []core.AgentCatalogEntry{{Def: compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}, MemoryOrigin: "user"}, {Def: compozyconfig.AgentDef{Name: "ordinary"}, MemoryOrigin: "user"}}, nil
-		}}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+				return []core.AgentCatalogEntry{
+					{
+						Def:          compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn},
+						MemoryOrigin: "user",
+					},
+					{Def: compozyconfig.AgentDef{Name: "ordinary"}, MemoryOrigin: "user"},
+				}, nil
+			},
+		}
 		fixture.Handlers.RegisterAgentMemoryRoutes(fixture.Engine.Group("/agents"))
 		for _, tc := range []struct {
 			method, path, body string

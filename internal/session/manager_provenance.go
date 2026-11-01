@@ -148,7 +148,13 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		return nil
 	}
 	if spec.sessionType == SessionTypeUser {
-		lineage, err := m.prepareProvenanceLineage(ctx, spec.sessionType, spec.workspace.ID, spec.lineage)
+		input := spec.lineage
+		if spec.instancePermissionCeiling != nil {
+			// The daemon reapplies its computed ceiling after validating caller provenance.
+			input = store.CloneSessionLineage(input)
+			input.PermissionPolicy = store.SessionPermissionPolicy{}
+		}
+		lineage, err := m.prepareProvenanceLineage(ctx, spec.sessionType, spec.workspace.ID, input)
 		if err != nil {
 			return err
 		}

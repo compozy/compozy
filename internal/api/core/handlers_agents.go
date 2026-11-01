@@ -19,6 +19,7 @@ import (
 type workspaceAgentEntries struct {
 	Entries       []AgentCatalogEntry
 	WorkspaceID   string
+	WorkspaceName string
 	WorkspaceRoot string
 	Config        compozyconfig.Config
 	Diagnostics   []workspacepkg.AgentDiagnostic
@@ -117,6 +118,7 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	return workspaceAgentEntries{
 		Entries:       entries,
 		WorkspaceID:   workspaceID,
+		WorkspaceName: resolved.Name,
 		WorkspaceRoot: strings.TrimSpace(resolved.RootDir),
 		Config:        resolved.Config,
 		Diagnostics:   publicAgentDiagnostics(resolved.AgentDiagnostics),

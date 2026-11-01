@@ -1051,8 +1051,16 @@ func startSubagentIntegrationParent(
 func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 	t.Run("Should wait through child approval", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, caller := startSubagentIntegrationParent(t, manager, workspace)
-		_, err := d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, parent.ID, 10)
+		ws, err := d.registry.GetWorkspace(t.Context(), workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+		ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{parent.Info().Workspace}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4763,8 +4771,16 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 			cfg.Providers[name] = provider
 		}
 	})
-	parent, caller := startSubagentIntegrationParent(t, manager, workspace)
-	instance, err := d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, parent.ID, 10)
+	ws, err := d.registry.GetWorkspace(t.Context(), workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+	ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{parent.Info().Workspace}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4773,6 +4789,12 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if row.Error != nil {
+		t.Fatalf("delegation failed: %s", *row.Error)
+	}
+	if row.ChildSessionID == nil {
+		t.Fatalf("delegation did not create a child: status=%s", row.Status)
 	}
 	child, ok := manager.Get(*row.ChildSessionID)
 	if !ok {

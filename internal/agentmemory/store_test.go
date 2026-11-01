@@ -26,6 +26,9 @@ func TestStore(t *testing.T) {
 		if empty.Content != "" {
 			t.Fatalf("expected empty: %v", empty.Content)
 		}
+		if empty.Digest != "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+			t.Fatalf("empty document digest = %q", empty.Digest)
+		}
 		doc, err := s.Add(key, now, "workspace-a", "Remember preview", "")
 		if err != nil {
 			t.Fatal(err)
@@ -51,6 +54,9 @@ func TestStore(t *testing.T) {
 		if len(history) != 3 {
 			t.Fatalf("unexpected length: %d", len(history))
 		}
+		if history[0].Digest != empty.Digest || strings.Contains(history[0].ID, ":") {
+			t.Fatalf("history digest or revision ID = %+v", history[0])
+		}
 		restored, err := s.Rollback(key, history[1].ID)
 		if err != nil {
 			t.Fatal(err)
@@ -70,7 +76,10 @@ func TestStore(t *testing.T) {
 		t.Parallel()
 		home := t.TempDir()
 		s := NewStore(home)
-		initial := "Operator preference\n- 2020-01-01 · Global · oldest\n" + strings.Repeat("- 2026-10-31 · Global · recent\n", 198)
+		initial := "Operator preference\n- 2020-01-01 · Global · oldest\n" + strings.Repeat(
+			"- 2026-10-31 · Global · recent\n",
+			198,
+		)
 		doc, err := s.Write(key, initial, digest(""))
 		if err != nil {
 			t.Fatal(err)
@@ -235,6 +244,32 @@ func TestStore(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("Should bound replacement results and preserve notes after rejection", func(t *testing.T) {
+		t.Parallel()
+		s := NewStore(t.TempDir())
+		before, err := s.Add(key, now, "Global", "xx", "2026-12-01")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.Replace(key, "x", strings.Repeat("界", 501))
+		if !errors.Is(err, ErrEntryTooLarge) {
+			t.Fatalf("replacement error = %v, want entry limit", err)
+		}
+		after, err := s.Read(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if after.Content != before.Content || after.Digest != before.Digest {
+			t.Fatal("rejected replacement changed memory")
+		}
+		after, err = s.Replace(key, "x", strings.Repeat("界", 500))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(after.Content, strings.Repeat("界", 1000)+" · until 2026-12-01") {
+			t.Fatalf("boundary replacement lost text or expiry: %q", after.Content)
+		}
+	})
 	t.Run("Should retain only fifty revisions and reject path escape", func(t *testing.T) {
 		t.Parallel()
 		s := NewStore(t.TempDir())
@@ -342,7 +377,12 @@ func TestMemoryBoundaries(t *testing.T) {
 			t.Fatal("wrong overflow selection")
 		}
 		for _, entry := range []struct{ scope, text, until string }{{"Global", "two\nlines", ""}, {"", "note", ""}, {"Global", "note", "bad-date"}} {
-			if _, err := FormatEntry(time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), entry.scope, entry.text, entry.until); err == nil {
+			if _, err := FormatEntry(
+				time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+				entry.scope,
+				entry.text,
+				entry.until,
+			); err == nil {
 				t.Fatal("accepted invalid entry")
 			}
 		}

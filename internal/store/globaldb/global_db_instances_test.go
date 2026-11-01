@@ -570,6 +570,7 @@ func (a instanceServiceAdmission) ResolveAdopt(
 }
 
 type instanceServiceStarter struct {
+	stop    func(context.Context, string) error
 	start   func(context.Context, agentinstance.StartMainSession) (string, error)
 	outcome agentinstance.StartOutcome
 	discard func(context.Context, agentinstance.Instance, string) error
@@ -581,7 +582,12 @@ var _ agentinstance.ReconciliationSessions = (*instanceServiceStarter)(nil)
 func (s *instanceServiceStarter) Start(ctx context.Context, request agentinstance.StartMainSession) (string, error) {
 	return s.start(ctx, request)
 }
-func (*instanceServiceStarter) Stop(context.Context, string) error { return nil }
+func (s *instanceServiceStarter) Stop(ctx context.Context, id string) error {
+	if s.stop != nil {
+		return s.stop(ctx, id)
+	}
+	return nil
+}
 
 func (s *instanceServiceStarter) StartOutcome(
 	context.Context,
@@ -907,6 +913,16 @@ func TestInstanceServiceRecreation(t *testing.T) {
 		if err != nil || !created {
 			t.Fatalf("first create: %#v, %v, %v", first, created, err)
 		}
+		stopErr := errors.New("stop unavailable")
+		starter.stop = func(context.Context, string) error { return stopErr }
+		if err := service.Archive(t.Context(), first.ID); !errors.Is(err, stopErr) {
+			t.Fatalf("archive stop error = %v", err)
+		}
+		retryable, err := db.Instances().Get(t.Context(), first.ID)
+		if err != nil || retryable.ArchivedAt != nil || retryable.MainSessionID != firstMain {
+			t.Fatalf("failed stop lost retryable instance: %+v, %v", retryable, err)
+		}
+		starter.stop = nil
 		if err := service.Archive(t.Context(), first.ID); err != nil {
 			t.Fatal(err)
 		}

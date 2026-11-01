@@ -74,7 +74,11 @@ func (s *Store) Replace(key Key, match, text string) (Document, error) {
 		all := lines(old)
 		for i, line := range all {
 			if strings.Contains(line, match) {
-				all[i] = strings.ReplaceAll(line, match, text)
+				replacement := strings.ReplaceAll(line, match, text)
+				if entryCharacters(replacement) > MaxEntryCharacters {
+					return "", ErrEntryTooLarge
+				}
+				all[i] = replacement
 			}
 		}
 		return join(all), nil

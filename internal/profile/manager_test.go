@@ -1195,6 +1195,31 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
+		memoryDir := filepath.Join(home.HomeDir, "agent-memory", created.ID, "user", "coder")
+		if err := os.MkdirAll(memoryDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(memoryDir, "MEMORY.md"), []byte("retained note"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `INSERT INTO agent_instances
+		(id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at,archived_at)
+		VALUES ('profile-instance',?,'coder','paused','human','operator','2026-11-01','2026-11-01','2026-11-01')`, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `UPDATE agent_instances SET archived_at = NULL WHERE id = 'profile-instance'`); err != nil {
+			t.Fatal(err)
+		}
+		blockedPlan, err := manager.PrepareDelete(ctx, "growth")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Delete(ctx, "growth", blockedPlan.Revision); !errors.Is(err, ErrOwnsWork) {
+			t.Fatalf("live instance deletion error = %v", err)
+		}
+		if _, err := database.DB().ExecContext(ctx, `UPDATE agent_instances SET archived_at = '2026-11-01' WHERE id = 'profile-instance'`); err != nil {
+			t.Fatal(err)
+		}
 		desktops.byProfile[created.ID] = 2
 		seedMCPAuthProfileLifecycleRows(ctx, t, database, "growth")
 		// Notification history belongs to the deleted profile, not to source work.
@@ -1264,6 +1289,13 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		if err != nil {
 			t.Fatal(err)
 		}
+		siblingMemory := filepath.Join(home.HomeDir, "agent-memory", sibling.ID, "user", "coder", "MEMORY.md")
+		if err := os.MkdirAll(filepath.Dir(siblingMemory), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(siblingMemory, []byte("sibling note"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		for _, profileID := range []string{created.ID, sibling.ID, ""} {
 			if _, err := database.DB().ExecContext(ctx, `INSERT INTO extension_inputs
 				(extension, profile, input_id, type, value_json, updated_at)
@@ -1289,9 +1321,18 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 				deletePlan.Removed,
 			)
 		}
+		if deletePlan.Removed.AgentInstances != 1 || deletePlan.Removed.AgentMemoryFiles != 1 {
+			t.Fatalf("missing instance/memory inventory: %+v", deletePlan.Removed)
+		}
 		deleted, err := manager.Delete(ctx, "growth", deletePlan.Revision)
 		if err != nil {
 			t.Fatalf("Delete() error = %v", err)
+		}
+		if _, err := os.Stat(memoryDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("profile memory remains: %v", err)
+		}
+		if content, err := os.ReadFile(siblingMemory); err != nil || string(content) != "sibling note" {
+			t.Fatalf("sibling memory changed: %q, %v", content, err)
 		}
 		if deleted.SweptSelections != 1 {
 			t.Fatalf("Delete().SweptSelections = %d, want 1", deleted.SweptSelections)

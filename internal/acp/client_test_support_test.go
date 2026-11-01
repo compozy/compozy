@@ -622,6 +622,11 @@ func (a *helperACPAgent) NewSession(
 		<-ctx.Done()
 		return acpsdk.NewSessionResponse{}, ctx.Err()
 	}
+	if a.scenario == "triage_config_mode" || a.scenario == "triage_config_unconfirmed" {
+		options := []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default", "plan")}
+		a.setHelperConfigOptions(options)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
+	}
 	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
@@ -1056,7 +1061,7 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	}
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
-	if a.scenario == "config_options_unconfirmed" {
+	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
 	}
 	if request.ValueId != nil {

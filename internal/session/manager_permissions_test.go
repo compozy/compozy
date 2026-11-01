@@ -111,6 +111,35 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 }
 
 func TestInstancePermissionMode(t *testing.T) {
+	t.Run("Should apply the parent instance ceiling before a derived session is registered", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		h.manager.SetInstanceCeilingReader(func(_ context.Context, id, _ string) (*store.SessionPermissionPolicy, string, error) {
+			if id == parent.ID {
+				return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
+			}
+			return nil, "", nil
+		})
+		child, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Permissions: compozyconfig.PermissionModeApproveAll,
+			Lineage: &store.SessionLineage{ParentSessionID: parent.ID, Kind: store.LineageKindFork, OriginAgentName: "coder"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+		if got := child.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
+			t.Fatalf("first derived launch permissions = %s", got)
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if got := h.driver.startCalls[len(h.driver.startCalls)-1].Permissions; got != compozyconfig.PermissionModeApproveReads {
+			t.Fatalf("provider received permissions = %s", got)
+		}
+	})
+
 	for _, tc := range []struct{ mode, want compozyconfig.PermissionMode }{
 		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveReads},
 		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},

@@ -32,6 +32,12 @@ func (r instanceMainSessions) Start(ctx context.Context, request agentinstance.S
 	if outcome.State == "accepted" {
 		return outcome.SessionID, nil
 	}
+	if outcome.State == "stopped" {
+		if err := r.DiscardFailedStart(ctx, instance, outcome.SessionID); err != nil {
+			return outcome.SessionID, err
+		}
+		outcome = agentinstance.StartOutcome{State: "missing"}
+	}
 	if outcome.State != "missing" {
 		return outcome.SessionID, agentinstance.ErrStarting
 	}
@@ -53,6 +59,13 @@ func (r instanceMainSessions) Start(ctx context.Context, request agentinstance.S
 }
 
 func (r instanceMainSessions) Stop(ctx context.Context, id string) error {
+	info, err := r.sessions.Status(ctx, id)
+	if err != nil {
+		return err
+	}
+	if info.State == session.StateStopped {
+		return nil
+	}
 	return r.sessions.Stop(ctx, id)
 }
 
@@ -72,6 +85,9 @@ func (r instanceMainSessions) StartOutcome(
 		return agentinstance.StartOutcome{}, err
 	}
 	state := "accepted"
+	if info.State == session.StateStopped {
+		state = "stopped"
+	}
 	if info.State == session.StateStarting {
 		state = "pending"
 	}

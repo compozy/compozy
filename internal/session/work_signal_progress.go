@@ -70,7 +70,7 @@ func (m *Manager) recordPersistedWorkProgress(target *Session, event acp.AgentEv
 func (m *Manager) heldPermissionSignals(_ context.Context, id string) ([]WorkSignal, error) {
 	target, ok := m.Get(id)
 	if !ok {
-		return nil, ErrSessionNotFound
+		return nil, nil
 	}
 	target.mu.RLock()
 	defer target.mu.RUnlock()

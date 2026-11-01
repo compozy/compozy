@@ -82,6 +82,8 @@ func NewService(options ...Option) (*Service, error) {
 }
 
 func (s *Service) Create(ctx context.Context, req CreateRequest) (Instance, bool, error) {
+	s.reconcileMu.Lock()
+	defer s.reconcileMu.Unlock()
 	input, err := s.admission.ResolveCreate(ctx, req)
 	if err != nil {
 		return Instance{}, false, err
@@ -141,9 +143,28 @@ func (s *Service) Resume(ctx context.Context, id string, actor workspaceaccess.A
 	return resumed, err
 }
 func (s *Service) Archive(ctx context.Context, id string) error {
+	s.reconcileMu.Lock()
+	defer s.reconcileMu.Unlock()
 	before, err := s.store.Get(ctx, id)
 	if err != nil {
 		return err
+	}
+	sessionID := before.MainSessionID
+	if sessionID == "" {
+		recovery, ok := s.starter.(ReconciliationSessions)
+		if !ok {
+			return errors.New("agentinstance: session reconciliation unavailable")
+		}
+		outcome, err := recovery.StartOutcome(ctx, before)
+		if err != nil {
+			return err
+		}
+		sessionID = outcome.SessionID
+	}
+	if sessionID != "" {
+		if err := s.starter.Stop(ctx, sessionID); err != nil {
+			return err
+		}
 	}
 	instance, err := s.store.Archive(ctx, id)
 	if err != nil {
@@ -151,9 +172,6 @@ func (s *Service) Archive(ctx context.Context, id string) error {
 	}
 	if before.ArchivedAt == nil {
 		s.notifyLifecycle(ctx, hooks.HookAgentInstanceArchived, instance)
-	}
-	if instance.MainSessionID != "" {
-		return s.starter.Stop(ctx, instance.MainSessionID)
 	}
 	return nil
 }

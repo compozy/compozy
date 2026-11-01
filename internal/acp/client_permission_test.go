@@ -176,11 +176,15 @@ func TestTriagePolicy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		p := &AgentProcess{executionPolicy: ExecutionPolicyTriage, permissions: policy,
-			toolGateway: toolExecutionGatewayFunc(func(context.Context, ToolExecutionRequest) (ToolExecutionRequest, error) {
-				t.Fatal("triage write reached gateway")
-				return ToolExecutionRequest{}, nil
-			}),
+		p := &AgentProcess{
+			executionPolicy: ExecutionPolicyTriage,
+			permissions:     policy,
+			toolGateway: toolExecutionGatewayFunc(
+				func(context.Context, ToolExecutionRequest) (ToolExecutionRequest, error) {
+					t.Fatal("triage write reached gateway")
+					return ToolExecutionRequest{}, nil
+				},
+			),
 		}
 		for _, kind := range []*acpsdk.ToolKind{nil, new(acpsdk.ToolKindEdit), new(acpsdk.ToolKindExecute)} {
 			response, err := p.resolvePermissionRequest(t.Context(), acpsdk.RequestPermissionRequest{
@@ -193,13 +197,31 @@ func TestTriagePolicy(t *testing.T) {
 				t.Fatalf("write outcome=%+v", response.Outcome)
 			}
 		}
-		if _, err := p.interceptWriteTextFileRequest(t.Context(), acpsdk.WriteTextFileRequest{}); !errors.Is(err, ErrPermissionDenied) {
+		if _, err := p.interceptWriteTextFileRequest(
+			t.Context(),
+			acpsdk.WriteTextFileRequest{},
+		); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
 			t.Fatalf("write err=%v", err)
 		}
-		if _, err := p.interceptCreateTerminalRequest(t.Context(), acpsdk.CreateTerminalRequest{}); !errors.Is(err, ErrPermissionDenied) {
+		if _, err := p.interceptCreateTerminalRequest(
+			t.Context(),
+			acpsdk.CreateTerminalRequest{},
+		); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
 			t.Fatalf("terminal err=%v", err)
 		}
-		if _, err := p.interceptProviderNativeTool(t.Context(), ToolExecutionRequest{ToolID: "unknown"}); !errors.Is(err, ErrPermissionDenied) {
+		if _, err := p.interceptProviderNativeTool(
+			t.Context(),
+			ToolExecutionRequest{ToolID: "unknown"},
+		); !errors.Is(
+			err,
+			ErrPermissionDenied,
+		) {
 			t.Fatalf("unknown err=%v", err)
 		}
 		if err := New().ConfigureRuntime(t.Context(), p, RuntimeConfig{}); !errors.Is(err, ErrPermissionDenied) {
@@ -208,13 +230,18 @@ func TestTriagePolicy(t *testing.T) {
 	})
 	t.Run("Should require explicit read only modes and discard sidecars", func(t *testing.T) {
 		t.Parallel()
-		if triageReadOnlyMode([]string{"ask", "plan", "default", "full-access"}) != "" {
+		if triageReadOnlyMode("unknown", []string{"ask", "plan", "default", "full-access"}) != "" {
 			t.Fatal("unsafe mode accepted")
 		}
-		if triageReadOnlyMode([]string{"default", "read-only"}) != "read-only" {
+		if triageReadOnlyMode("codex", []string{"default", "read-only"}) != "read-only" {
 			t.Fatal("read only mode missing")
 		}
-		if _, err := constrainTriageStart(StartOpts{ExecutionPolicy: ExecutionPolicyTriage}); !errors.Is(err, ErrTriageUnsupported) {
+		if _, err := constrainTriageStart(
+			StartOpts{ExecutionPolicy: ExecutionPolicyTriage},
+		); !errors.Is(
+			err,
+			ErrTriageUnsupported,
+		) {
 			t.Fatalf("unknown provider err=%v", err)
 		}
 		got, err := constrainTriageStart(StartOpts{ExecutionPolicy: ExecutionPolicyTriage, ProviderName: "test",
@@ -224,7 +251,8 @@ func TestTriagePolicy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Permissions != compozyconfig.PermissionModeApproveReads || len(got.MCPServers) != 0 || got.ActivateMCPServers != nil {
+		if got.Permissions != compozyconfig.PermissionModeApproveReads || len(got.MCPServers) != 0 ||
+			got.ActivateMCPServers != nil {
 			t.Fatalf("opts=%+v", got)
 		}
 	})

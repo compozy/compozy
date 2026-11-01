@@ -46,7 +46,27 @@ func (h *BaseHandlers) agentMemoryTarget(c *gin.Context) (agentmemory.Key, strin
 		if caller.Session.AgentName != name || caller.Session.ProfileID != scope.ProfileID {
 			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
 		}
-		own, err := h.workspaceAgentEntriesWithDiagnostics(c.Request.Context(), caller.Session.WorkspaceID, profileName)
+		if h.AgentInstances == nil {
+			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
+		}
+		if err := h.AgentInstances.Authority.AuthorizeMemory(
+			c.Request.Context(),
+			caller.Session.ID,
+			name,
+			scope.ProfileID,
+		); err != nil {
+			return agentmemory.Key{}, "", errors.New("agent_instance_forbidden")
+		}
+		var own workspaceAgentEntries
+		if caller.Session.WorkspaceID == "" {
+			own, err = h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)
+		} else {
+			own, err = h.workspaceAgentEntriesWithDiagnostics(
+				c.Request.Context(),
+				caller.Session.WorkspaceID,
+				profileName,
+			)
+		}
 		if err != nil {
 			return agentmemory.Key{}, "", err
 		}
@@ -84,7 +104,7 @@ func (h *BaseHandlers) agentMemoryTarget(c *gin.Context) (agentmemory.Key, strin
 		if entry.MemoryOrigin == "" {
 			return agentmemory.Key{}, "", errors.New("agent_memory_identity_unavailable")
 		}
-		source := entries.WorkspaceID
+		source := entries.WorkspaceName
 		if source == "" {
 			source = "Global"
 		}
@@ -144,7 +164,12 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 				actor := workspaceaccess.ActorRef{Kind: workspaceaccess.ActorHuman, Operator: true}
 				credentials := agentCallerCredentialsFromRequest(c)
 				if hasAgentCallerIdentityCredentials(credentials) {
-					caller, callerErr := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, "agent.memory.search", "")
+					caller, callerErr := h.resolveAgentCallerForWorkspace(
+						c.Request.Context(),
+						credentials,
+						"agent.memory.search",
+						"",
+					)
 					if callerErr != nil {
 						err = callerErr
 					} else {
@@ -153,7 +178,14 @@ func (h *BaseHandlers) agentMemoryOperation(c *gin.Context, operation string) {
 				}
 				if err == nil {
 					var matches []agentmemory.SearchResult
-					matches, err = SearchAgentMemorySessions(c.Request.Context(), h.Sessions, h.WorkspaceAccess, actor, key.ProfileID, req.Query)
+					matches, err = SearchAgentMemorySessions(
+						c.Request.Context(),
+						h.Sessions,
+						h.WorkspaceAccess,
+						actor,
+						key.ProfileID,
+						req.Query,
+					)
 					results = append(results, matches...)
 				}
 			}

@@ -19,6 +19,8 @@ type ReconciliationSessions interface {
 }
 
 func (s *Service) EnsureMain(ctx context.Context, id string) (Instance, error) {
+	s.reconcileMu.Lock()
+	defer s.reconcileMu.Unlock()
 	instance, err := s.store.Get(ctx, id)
 	if err != nil {
 		return Instance{}, err
@@ -94,7 +96,7 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 				s.notifyLifecycle(ctx, hooks.HookAgentInstanceCreated, bound)
 			}
 			return bindErr
-		case "failed":
+		case "failed", "stopped":
 			if err := recovery.DiscardFailedStart(ctx, instance, outcome.SessionID); err != nil {
 				return err
 			}

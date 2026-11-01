@@ -370,6 +370,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 	t.Run("Should bind stopped sessions and leave a removed checkout", func(t *testing.T) {
 		fixture := newSessionWorktreeRaceFixture(t, nil)
 		h := fixture.h
+		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)})
 		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
 		ctx := testutil.Context(t)
 		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})

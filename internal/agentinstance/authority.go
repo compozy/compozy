@@ -21,7 +21,27 @@ type CallerReader interface {
 
 type Authority struct{ Callers CallerReader }
 
-func (a Authority) Authorize(ctx context.Context, actor workspaceaccess.ActorRef, instance Instance, verb string) error {
+// AuthorizeMemory requires a daemon-resolved instance lineage for the named agent.
+func (a Authority) AuthorizeMemory(ctx context.Context, sessionID, agentName, profileID string) error {
+	if a.Callers == nil || sessionID == "" {
+		return ErrForbidden
+	}
+	caller, err := a.Callers.InstanceCaller(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if caller.InstanceID == "" || caller.AgentName != agentName || caller.ProfileID != profileID {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func (a Authority) Authorize(
+	ctx context.Context,
+	actor workspaceaccess.ActorRef,
+	instance Instance,
+	verb string,
+) error {
 	if actor.Operator {
 		return nil
 	}
@@ -32,7 +52,8 @@ func (a Authority) Authorize(ctx context.Context, actor workspaceaccess.ActorRef
 	if err != nil {
 		return err
 	}
-	if caller.InstanceID != instance.ID || caller.AgentName != instance.AgentName || caller.ProfileID != instance.ProfileID {
+	if caller.InstanceID != instance.ID || caller.AgentName != instance.AgentName ||
+		caller.ProfileID != instance.ProfileID {
 		return ErrForbidden
 	}
 	switch verb {
@@ -49,7 +70,12 @@ func (a Authority) Authorize(ctx context.Context, actor workspaceaccess.ActorRef
 func IntersectPermissions(a, b store.SessionPermissionPolicy) store.SessionPermissionPolicy {
 	a = store.NormalizeSessionPermissionPolicy(a)
 	b = store.NormalizeSessionPermissionPolicy(b)
-	return store.SessionPermissionPolicy{Tools: intersectAtoms(a.Tools, b.Tools), Skills: intersectAtoms(a.Skills, b.Skills), MCPServers: intersectAtoms(a.MCPServers, b.MCPServers), WorkspacePaths: intersectAtoms(a.WorkspacePaths, b.WorkspacePaths)}
+	return store.SessionPermissionPolicy{
+		Tools:          intersectAtoms(a.Tools, b.Tools),
+		Skills:         intersectAtoms(a.Skills, b.Skills),
+		MCPServers:     intersectAtoms(a.MCPServers, b.MCPServers),
+		WorkspacePaths: intersectAtoms(a.WorkspacePaths, b.WorkspacePaths),
+	}
 }
 func intersectAtoms(a, b []string) []string {
 	result := make([]string, 0)

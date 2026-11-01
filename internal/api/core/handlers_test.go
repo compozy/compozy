@@ -4396,6 +4396,31 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if _, err := fixture.Handlers.AgentMemory.Add(memoryKey, time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), "ws-registry", "old agent note", ""); err != nil {
 			t.Fatal(err)
 		}
+		memoryDir := filepath.Join(memoryHome, "agent-memory", memoryKey.ProfileID, memoryKey.Origin, memoryKey.Agent)
+		heldDir := memoryDir + ".held"
+		if err := os.Rename(memoryDir, heldDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(memoryDir, []byte("blocked"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		failed := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
+		if failed.Code != http.StatusInternalServerError || !strings.Contains(failed.Body.String(), "retire agent memory") {
+			t.Fatalf("retirement failure: status=%d body=%s", failed.Code, failed.Body.String())
+		}
+		if _, err := os.Stat(workspacePath); err != nil {
+			t.Fatalf("retirement failure removed definition: %v", err)
+		}
+		if err := os.Remove(memoryDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(heldDir, memoryDir); err != nil {
+			t.Fatal(err)
+		}
+		preserved, err := fixture.Handlers.AgentMemory.Read(memoryKey)
+		if err != nil || !strings.Contains(preserved.Content, "old agent note") {
+			t.Fatalf("retirement failure lost memory: %+v, %v", preserved, err)
+		}
 		resp := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())

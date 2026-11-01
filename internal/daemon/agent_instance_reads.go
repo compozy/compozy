@@ -19,39 +19,8 @@ type instanceAttentionReader interface {
 
 func (r instanceDefinitions) instancePayload(ctx context.Context, instance agentinstance.Instance, attention instanceAttentionReader) (contract.AgentInstancePayload, error) {
 	payload := core.AgentInstancePayload(instance)
-	var resolved workspacepkg.ResolvedWorkspace
-	var err error
-	if instance.WorkspaceID == "" {
-		resolved, err = r.workspaces.ResolveUser(ctx, instance.ProfileID)
-		payload.Scope = "Global"
-	} else {
-		name, lookupErr := r.profiles.ProfileName(ctx, instance.ProfileID)
-		if lookupErr != nil {
-			return payload, lookupErr
-		}
-		resolved, err = r.workspaces.ResolveForProfile(ctx, instance.WorkspaceID, name)
-		payload.Scope = resolved.Name
-	}
-	if err != nil {
+	if err := r.projectInstanceDefinition(ctx, instance, &payload); err != nil {
 		return payload, err
-	}
-	agent, err := r.agents.ResolveAgent(instance.AgentName, &resolved)
-	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-		agent = compozyconfig.AgentDef{Name: instance.AgentName}
-	} else if err != nil {
-		return payload, err
-	}
-	payload.Label = agent.Label()
-	payload.ResolvedAppearance, err = agent.ResolveAppearance()
-	if err != nil {
-		return payload, err
-	}
-	if agent.Provider != "" {
-		runtime, err := resolved.Config.ResolveAgent(agent)
-		if err != nil {
-			return payload, err
-		}
-		payload.Provider = runtime.Provider
 	}
 	if instance.MainSessionID != "" {
 		info, err := r.sessions.Status(ctx, instance.MainSessionID)
@@ -62,10 +31,11 @@ func (r instanceDefinitions) instancePayload(ctx context.Context, instance agent
 			projectInstanceMain(&payload, info)
 		}
 	}
-	payload.NeedsAttention, err = attention.NeedsAttention(ctx, instance.ID)
+	needsAttention, err := attention.NeedsAttention(ctx, instance.ID)
 	if err != nil {
 		return payload, err
 	}
+	payload.NeedsAttention = needsAttention
 	return payload, nil
 }
 
@@ -92,4 +62,53 @@ func projectInstanceMain(payload *contract.AgentInstancePayload, info *session.I
 	if info.PendingPermissionCount > 0 || info.PendingClarifyCount > 0 {
 		payload.Activity = "waiting"
 	}
+}
+
+func (r instanceDefinitions) projectInstanceDefinition(ctx context.Context, instance agentinstance.Instance, payload *contract.AgentInstancePayload) error {
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if instance.WorkspaceID == "" {
+		resolved, err = r.workspaces.ResolveUser(ctx, instance.ProfileID)
+		payload.Scope = "Global"
+	} else {
+		name, lookupErr := r.profiles.ProfileName(ctx, instance.ProfileID)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		resolved, err = r.workspaces.ResolveForProfile(ctx, instance.WorkspaceID, name)
+		payload.Scope = resolved.Name
+	}
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+		registered, lookupErr := r.workspaces.Get(ctx, instance.WorkspaceID)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		payload.Scope = registered.Name
+		fallback := compozyconfig.AgentDef{Name: instance.AgentName}
+		payload.Label = fallback.Label()
+		payload.ResolvedAppearance, err = fallback.ResolveAppearance()
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	agent, err := r.agents.ResolveAgent(instance.AgentName, &resolved)
+	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		agent = compozyconfig.AgentDef{Name: instance.AgentName}
+	} else if err != nil {
+		return err
+	}
+	payload.Label = agent.Label()
+	payload.ResolvedAppearance, err = agent.ResolveAppearance()
+	if err != nil {
+		return err
+	}
+	if agent.Provider != "" {
+		runtime, err := resolved.Config.ResolveAgent(agent)
+		if err != nil {
+			return err
+		}
+		payload.Provider = runtime.Provider
+	}
+	return nil
 }

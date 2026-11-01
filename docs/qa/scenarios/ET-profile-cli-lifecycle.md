@@ -65,3 +65,10 @@ An empty archived profile still deletes successfully with its exact revision; re
 confirm it is gone while both aggregate catalogs retain the other owner and its automations.
 BUG-20261003-profile-delete-orphans-automations is verified; see profile-delete-fixed-sol-*
 and the dated report. The full lifecycle charter remains Pending.
+
+2026-11-01 (always-on-agent D-11) QA impact: an unarchived instance counts as
+profile-owned work and prevents deletion. After its workspace/instance is archived
+and other owned work is removed, the delete plan counts archived instances and
+agent memory files. Deletion removes those rows and the immutable profile-ID
+memory tree through a recoverable lifecycle step. Verify another profile's notes
+remain intact. Canonical suite: `TestManagerProfileLifecycle`.

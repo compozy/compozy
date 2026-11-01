@@ -12839,6 +12839,8 @@ export interface components {
       plan_revision: string;
     };
     ProfileRemovalSummary: {
+      agent_instances: number;
+      agent_memory_files: number;
       agents: number;
       config_keys: number;
       credential_overrides: number;

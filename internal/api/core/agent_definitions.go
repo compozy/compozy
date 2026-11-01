@@ -167,11 +167,6 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
-		h.respondError(c, statusForAgentDefinitionError(err), err)
-		return
-	}
-	var mutationErr error
 	if h.AgentMemory != nil {
 		origin := resolved.Entry.MemoryOrigin
 		if origin == "" {
@@ -181,9 +176,15 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 			}
 		}
 		if err := h.AgentMemory.Retire(agentmemory.Key{ProfileID: profileScope.ProfileID, Origin: origin, Agent: name}, startedAt); err != nil {
-			mutationErr = errors.Join(mutationErr, fmt.Errorf("api: retire deleted agent memory: %w", err))
+			h.respondError(c, http.StatusInternalServerError, fmt.Errorf("api: retire agent memory: %w", err))
+			return
 		}
 	}
+	if err := compozyconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
+		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
+	var mutationErr error
 	syncStartedAt := time.Now()
 	if syncErr := h.AgentDefinitionSync.Sync(c.Request.Context()); syncErr != nil {
 		mutationErr = errors.Join(mutationErr, fmt.Errorf("api: sync deleted agent definition: %w", syncErr))

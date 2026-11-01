@@ -21,7 +21,9 @@ type nativeAgentMemoryInput struct {
 }
 
 func (n *daemonNativeTools) agentMemoryToolBindings() map[toolspkg.ToolID]nativeToolBinding {
-	available := n.dependencyAvailability(func() bool { return n.deps.AgentMemory != nil && n.deps.AgentCatalog != nil && n.deps.Sessions != nil })
+	available := n.dependencyAvailability(
+		func() bool { return n.deps.AgentMemory != nil && n.deps.AgentCatalog != nil && n.deps.Sessions != nil },
+	)
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDAgentMemoryAdd:     {call: n.agentMemoryCall, availability: available},
 		toolspkg.ToolIDAgentMemoryReplace: {call: n.agentMemoryCall, availability: available},
@@ -30,7 +32,11 @@ func (n *daemonNativeTools) agentMemoryToolBindings() map[toolspkg.ToolID]native
 	}
 }
 
-func (n *daemonNativeTools) agentMemoryCaller(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID) (agentmemory.Key, string, error) {
+func (n *daemonNativeTools) agentMemoryCaller(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+) (agentmemory.Key, string, error) {
 	if scope.SessionID == "" {
 		return agentmemory.Key{}, "", nativeRequiredInputError(id, "session_id")
 	}
@@ -38,7 +44,18 @@ func (n *daemonNativeTools) agentMemoryCaller(ctx context.Context, scope toolspk
 	if err != nil {
 		return agentmemory.Key{}, "", err
 	}
-	if info == nil || info.ProfileID == "" || info.ProfileID != scope.ProfileID || info.AgentName != scope.AgentName || info.WorkspaceID != scope.WorkspaceID {
+	if info == nil || info.ProfileID == "" || info.ProfileID != scope.ProfileID || info.AgentName != scope.AgentName ||
+		info.WorkspaceID != scope.WorkspaceID {
+		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+	}
+	if n.deps.AgentInstances == nil {
+		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+	}
+	instances := n.deps.AgentInstances()
+	if instances == nil {
+		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
+	}
+	if err := instances.Authority.AuthorizeMemory(ctx, info.ID, info.AgentName, info.ProfileID); err != nil {
 		return agentmemory.Key{}, "", nativeWorkspaceAccessDeniedError(id)
 	}
 	resolved, err := n.nativeSkillWorkspace(ctx, info.ProfileID, info.WorkspaceID)
@@ -59,16 +76,24 @@ func (n *daemonNativeTools) agentMemoryCaller(ctx context.Context, scope toolspk
 		if entry.MemoryOrigin == "" {
 			return agentmemory.Key{}, "", nativeUnavailableError(id, "agent memory identity unavailable")
 		}
-		source := info.WorkspaceID
+		source := resolved.Name
 		if source == "" {
 			source = "Global"
 		}
-		return agentmemory.Key{ProfileID: info.ProfileID, Origin: entry.MemoryOrigin, Agent: info.AgentName}, source, nil
+		return agentmemory.Key{
+			ProfileID: info.ProfileID,
+			Origin:    entry.MemoryOrigin,
+			Agent:     info.AgentName,
+		}, source, nil
 	}
 	return agentmemory.Key{}, "", nativeUnavailableError(id, "agent definition unavailable")
 }
 
-func (n *daemonNativeTools) agentMemoryCall(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) agentMemoryCall(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	var input nativeAgentMemoryInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -98,7 +123,19 @@ func (n *daemonNativeTools) agentMemoryCall(ctx context.Context, scope toolspkg.
 		results, err = n.deps.AgentMemory.Search(key, input.Query)
 		if err == nil && input.IncludeSessions {
 			var matches []agentmemory.SearchResult
-			matches, err = core.SearchAgentMemorySessions(ctx, n.deps.Sessions, n.deps.WorkspaceAccess, workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: scope.SessionID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName}, key.ProfileID, input.Query)
+			matches, err = core.SearchAgentMemorySessions(
+				ctx,
+				n.deps.Sessions,
+				n.deps.WorkspaceAccess,
+				workspaceaccess.ActorRef{
+					Kind:        workspaceaccess.ActorAgentSession,
+					SessionID:   scope.SessionID,
+					WorkspaceID: scope.WorkspaceID,
+					AgentName:   scope.AgentName,
+				},
+				key.ProfileID,
+				input.Query,
+			)
 			results = append(results, matches...)
 		}
 		result = map[string]any{"results": results}

@@ -5252,6 +5252,8 @@ export type ProfilePlanRequest = {
 };
 
 export type ProfileRemovalSummary = {
+  agent_instances: number;
+  agent_memory_files: number;
   agents: number;
   config_keys: number;
   credential_overrides: number;

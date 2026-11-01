@@ -128,3 +128,18 @@ func Snapshot(content string) string {
 	}
 	return result + TruncationMarker
 }
+
+func entryCharacters(line string) int {
+	parts := strings.SplitN(line, " · ", 3)
+	if len(parts) == 3 && strings.HasPrefix(parts[0], "- ") {
+		if _, err := time.Parse(time.DateOnly, strings.TrimPrefix(parts[0], "- ")); err == nil {
+			line = parts[2]
+			if text, expiry, ok := strings.Cut(line, " · until "); ok {
+				if _, err := time.Parse(time.DateOnly, expiry); err == nil {
+					line = text
+				}
+			}
+		}
+	}
+	return utf8.RuneCountInString(line)
+}

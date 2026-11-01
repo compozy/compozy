@@ -244,7 +244,8 @@ func renderProfileDeletePreview(name string, removed contract.ProfileRemovalSumm
 		"%s owns no work. This removes permanently:\n"+
 			"  agents: %d   skills: %d   loops: %d   mcp servers: %d\n"+
 			"  config overrides: %d keys   credential overrides: %d"+
-			"   desktops: %d saved arrangements",
+			"   desktops: %d saved arrangements\n"+
+			"  archived agent instances: %d   agent memory files: %d",
 		name,
 		removed.Agents,
 		removed.Skills,
@@ -253,5 +254,7 @@ func renderProfileDeletePreview(name string, removed contract.ProfileRemovalSumm
 		removed.ConfigKeys,
 		removed.CredentialOverrides,
 		removed.DesktopPartitions,
+		removed.AgentInstances,
+		removed.AgentMemoryFiles,
 	)
 }

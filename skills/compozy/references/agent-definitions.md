@@ -232,6 +232,23 @@ A `SOUL.md` that still carries the retired memory-policy frontmatter key from an
 valid: any value is accepted and ignored. `compozy agent soul validate` reports no diagnostic, the key is
 never rendered into a session, and CompozyOS does not rewrite the file.
 
+## Hidden Triage
+
+Hidden triage requires a confirmed read-only provider mode. Claude and OpenCode
+use the verified `plan` mode; Codex advertises `read-only`. Mode choices may arrive
+through ACP `configOptions` without a legacy modes list. The daemon confirms a
+config-option selection before prompting. Other providers' `plan` modes are not
+accepted by name alone; unsupported modes fail with `triage_unsupported`.
+
+## Stays-On Agent Memory
+
+Stays-on agent memory is partitioned by profile, definition origin, and agent name.
+Agent-authenticated memory routes and native memory tools require a daemon-resolved
+instance lineage for that agent; a manually started session with the same name is
+not sufficient. Operator memory routes retain their explicit target selection.
+Entries record the source workspace name, or `Global`. Document and history digests
+use `sha256:<hex>`; pass the complete digest back when making a digest-checked edit.
+
 ## Setup Workflow
 
 1. Set common defaults in $COMPOZY_HOME/config.toml.

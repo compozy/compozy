@@ -13,11 +13,21 @@ const ExecutionPolicyTriage = "triage"
 
 var ErrTriageUnsupported = errors.New("triage_unsupported")
 
-func triageReadOnlyMode(modes []string) string {
+func triageReadOnlyMode(provider string, modes []string) string {
 	for _, mode := range modes {
 		switch strings.ToLower(strings.TrimSpace(mode)) {
 		case "read-only", "read_only", "readonly":
 			return mode
+		}
+	}
+	// These providers advertise planning as their read-only execution mode.
+	// Keep the alias provider-scoped: an arbitrary provider's "plan" is not a guarantee.
+	switch compozyconfig.CanonicalProviderName(provider) {
+	case "claude", "opencode":
+		for _, mode := range modes {
+			if mode == "plan" {
+				return mode
+			}
 		}
 	}
 	return ""

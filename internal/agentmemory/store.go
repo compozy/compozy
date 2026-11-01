@@ -48,7 +48,8 @@ func (s *Store) directory(key Key) (string, error) {
 			return "", errors.New("invalid memory key")
 		}
 	}
-	if key.Origin != "user" && !strings.HasPrefix(key.Origin, "extension-") && !strings.HasPrefix(key.Origin, "workspace-") {
+	if key.Origin != "user" && !strings.HasPrefix(key.Origin, "extension-") &&
+		!strings.HasPrefix(key.Origin, "workspace-") {
 		return "", errors.New("invalid memory origin")
 	}
 	root, err := filepath.EvalSymlinks(s.home)
@@ -87,7 +88,7 @@ func readFile(path string) (string, error) {
 	return string(data), err
 }
 
-func digest(content string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(content))) }
+func digest(content string) string { return fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(content))) }
 func document(content string) Document {
 	return Document{Content: content, Digest: digest(content), Budget: Measure(content)}
 }
@@ -188,7 +189,11 @@ func (s *Store) save(dir, old, kept, archived string) (Document, error) {
 		if err != nil {
 			return Document{}, err
 		}
-		if err := fileutil.AtomicWriteFile(path, []byte(redact.String(join(append(lines(previous), lines(archived)...)))), 0o600); err != nil {
+		if err := fileutil.AtomicWriteFile(
+			path,
+			[]byte(redact.String(join(append(lines(previous), lines(archived)...)))),
+			0o600,
+		); err != nil {
 			return Document{}, err
 		}
 	}

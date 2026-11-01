@@ -21,6 +21,12 @@ one Global, then walk the row, its card and menu, the picker, Kanban and the col
 and resume from the menu, archive and confirm the session returns to history, and watch
 `agent_instance.updated` move a pose without a reload.
 
+2026-11-01 (D-5) provider boundary evidence: isolated live ACP triage completed
+with Claude `plan`, Codex `read-only`, and OpenCode's config-only `plan`. Each
+returned `NOTHING_TO_REPORT`; Claude also refused a requested scratch-file write.
+See `../reports/2026-11-01-always-on-b4-remediation.md` for unavailable providers,
+scope limits, and exact evidence. This does not mark the Web journey walked.
+
 QA impact 2026-11-01 (stays-on F1): built against the `_dx.md` contract with typed adapters and mocks,
 before those routes merged. Focused suites own the states. Not walked.
 
@@ -140,3 +146,21 @@ roots with no tool budget yet. Resource grants remain preserved. Directory-only 
 entries use the existing workspace API identity rule (directory basename), including
 instance ceiling filtering. Existing derive and extension host integration suites retain
 their original assertions; the root policy suite additionally covers a directory-only skill.
+
+2026-11-01 (always-on-agent D-23) QA impact: remove the filesystem root of a
+registered workspace containing an instance, then read instance lists and session
+facets. The unavailable definition uses its agent name/default appearance and the
+registered workspace name. Other instances, session activity, and pending report
+attention remain readable. Owning daemon integration: `TestInstancePayloadIntegration`.
+The current browser scenario verdict remains unchanged pending its integration walk.
+
+2026-11-01 (always-on-agent N-53) QA impact: when main recovery encounters a
+stopped creation attempt, retain its archived history and create a new candidate.
+Never publish that stopped session as the new main. Owning integration:
+`TestInstancePayloadIntegration/Should_replace_a_stopped_main_attempt_instead_of_republishing_it`.
+
+2026-11-01 (ASTRA-006, N-45, N-46) QA impact: archive serializes against main
+creation/recovery and stops the main or registered candidate before committing
+archive state. A failed stop leaves the instance visible and retryable. Repeat
+archive after stop recovery and verify the instance leaves the active catalog.
+Owning SQLite coverage: `TestInstanceServiceRecreation`.

@@ -43,7 +43,7 @@ func revisions(dir string) ([]Revision, error) {
 		if _, err := strconv.ParseUint(seq, 10, 64); err != nil {
 			continue
 		}
-		result = append(result, Revision{ID: entry.Name(), Digest: hash})
+		result = append(result, Revision{ID: entry.Name(), Digest: "sha256:" + hash})
 	}
 	slices.SortFunc(result, func(a, b Revision) int { return strings.Compare(a.ID, b.ID) })
 	return result, nil
@@ -71,7 +71,7 @@ func saveRevision(dir, content string) error {
 	if err := os.MkdirAll(path, 0o700); err != nil {
 		return err
 	}
-	id := fmt.Sprintf("%020d-%s.md", sequence+1, hash)
+	id := fmt.Sprintf("%020d-%s.md", sequence+1, strings.TrimPrefix(hash, "sha256:"))
 	if err := fileutil.AtomicWriteFile(filepath.Join(path, id), []byte(content), 0o600); err != nil {
 		return err
 	}
