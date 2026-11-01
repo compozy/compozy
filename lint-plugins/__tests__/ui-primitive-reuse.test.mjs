@@ -164,9 +164,9 @@ describe("compozy-ui-reuse lint plugin", () => {
           "Timeline",
           "ToolCallRow",
           "ActionResultBanner",
-          "OperationalLinksRow",
+          "ListingToolbar",
           "FieldLabel",
-          "RightRail",
+          "Dock",
         ]) {
           visitor.FunctionDeclaration(functionDeclaration(name));
         }
@@ -236,10 +236,10 @@ describe("compozy-ui-reuse lint plugin", () => {
     it("Should fail a web consumer redefining a primitive as a function declaration", async () => {
       const result = await runOxlint({
         filename: "web/src/systems/settings/components/panel.tsx",
-        source: "function RightRail() {\n  return null;\n}\nexport { RightRail };\n",
+        source: "function Dock() {\n  return null;\n}\nexport { Dock };\n",
       });
       expect(result.exitCode).not.toBe(0);
-      expect(result.messages.join("\n")).toContain('"RightRail" is an @compozy/ui primitive');
+      expect(result.messages.join("\n")).toContain('"Dock" is an @compozy/ui primitive');
     });
 
     it("Should fail a site consumer redefining a primitive through a wrapper call", async () => {

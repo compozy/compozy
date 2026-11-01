@@ -9,7 +9,7 @@ import {
   useGithubStarsController,
   type GithubStarsContextType,
 } from "@/components/site/use-github-stars-controller";
-import { cn } from "@compozy/ui/lib/utils";
+import { cn } from "@compozy/ui";
 import { Slot, type WithAsChild } from "@/components/site/slot";
 import { Particles, ParticlesEffect, type ParticlesEffectProps } from "@/components/site/particles";
 import { SlidingNumber, type SlidingNumberProps } from "@/components/site/sliding-number";

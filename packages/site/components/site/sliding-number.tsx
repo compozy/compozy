@@ -12,9 +12,8 @@ import {
 } from "motion/react";
 
 import { type UseIsInViewOptions } from "@/components/site/use-is-in-view";
-import { useMeasure } from "@compozy/ui/hooks/use-measure";
 import { useSlidingNumber } from "@/components/site/use-sliding-number";
-import { cn } from "@compozy/ui/lib/utils";
+import { cn, useMeasure } from "@compozy/ui";
 
 interface SlidingNumberRollerProps {
   prevValue: number;
