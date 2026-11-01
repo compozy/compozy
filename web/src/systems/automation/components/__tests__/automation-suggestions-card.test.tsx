@@ -79,7 +79,7 @@ describe("AutomationSuggestionsCard", () => {
     expect(screen.getByText(/Review changes merged since the previous run/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Daily review/ }));
-    expect(screen.getByText(/agent reviewer/)).toBeVisible();
+    expect(screen.getByText(/agent Reviewer/)).toBeVisible();
     expect(screen.getByText(/starts enabled/)).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Create automation" }));

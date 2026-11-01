@@ -1,6 +1,6 @@
 import { useDesktop } from "../../hooks/use-desktop";
 import { AgentDetailLocation } from "./agent-detail-location";
-import { AgentSettingsLocation } from "./agent-settings-location";
+import { AgentPageLocation } from "./agent-page-location";
 import { parseAgentWindowLocation } from "./agent-window-location";
 import { AgentsCatalogLocation } from "./agents-catalog-location";
 
@@ -11,16 +11,11 @@ export function AgentsWindow({ windowId }: { windowId: string }) {
   const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_AGENTS_ROUTE);
   const parsed = parseAgentWindowLocation(location);
 
-  if (parsed.kind === "settings") {
-    return (
-      <>
-        <AgentDetailLocation name={parsed.name} rawSearch={{}} />
-        <AgentSettingsLocation name={parsed.name} rawSearch={parsed.search} />
-      </>
-    );
+  if (parsed.kind === "page") {
+    return <AgentPageLocation name={parsed.name} page={parsed.page} />;
   }
   if (parsed.kind === "detail") {
-    return <AgentDetailLocation name={parsed.name} rawSearch={parsed.search} />;
+    return <AgentDetailLocation name={parsed.name} search={parsed.search} />;
   }
   return <AgentsCatalogLocation search={parsed.search} />;
 }

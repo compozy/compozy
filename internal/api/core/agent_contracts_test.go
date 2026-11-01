@@ -367,6 +367,29 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 }
 
 func TestAgentMemoryRoutes(t *testing.T) {
+	t.Run("Should take ownership from the catalog when the workspace scan found the agent first", func(t *testing.T) {
+		t.Parallel()
+		def := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}
+		resolve := func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
+			return workspacepkg.ResolvedWorkspace{ID: "ws-one", Agents: []compozyconfig.AgentDef{def}}, nil
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			ResolveForProfileFn: resolve,
+			ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return resolve(ctx, ref, "")
+			},
+		})
+		fixture.Handlers.AgentMemory = agentmemory.NewStore(t.TempDir())
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
+			return []core.AgentCatalogEntry{{Def: def, MemoryOrigin: "user", PackageOwned: true}}, nil
+		}}
+		fixture.Handlers.RegisterAgentMemoryRoutes(fixture.Engine.Group("/agents"))
+		response := testutil.PerformRequest(t, fixture.Engine, "GET", "/agents/triage/memory?workspace=ws-one", nil)
+		if response.Code != 200 {
+			t.Fatalf("status %d body %s", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should persist notes through shared routes and reject stale edits", func(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})

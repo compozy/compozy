@@ -268,6 +268,6 @@ describe("sessionBoardCardLineage", () => {
           lineage: { ...source, kind: "continue", origin_agent_name: "codex" },
         })
       )
-    ).toEqual({ kind: "continue", verb: "Continued from", title: "codex" });
+    ).toEqual({ kind: "continue", verb: "Continued from", title: "Codex" });
   });
 });

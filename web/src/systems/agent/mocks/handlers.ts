@@ -5,6 +5,7 @@ import { sessionFixtures } from "@/systems/session/mocks";
 
 import { agentFixtures, FIXTURE_AGENT_DEFINITION_DIGEST } from "./fixtures";
 import { instanceHandlers, resetAgentInstanceMock } from "./instance-handlers";
+import { memoryHandlers, resetAgentMemoryMock } from "./memory-handlers";
 import type { AgentHeartbeatPayload, AgentPayload, AgentSoulPayload } from "../types";
 
 function cloneAgents(): AgentPayload[] {
@@ -20,6 +21,7 @@ export function resetAgentMockState(): void {
   soulBodies.clear();
   heartbeatBodies.clear();
   resetAgentInstanceMock();
+  resetAgentMemoryMock();
 }
 
 function agentByName(name: string): AgentPayload | undefined {
@@ -262,6 +264,7 @@ function heartbeatRevision(
 
 export const handlers: HttpHandler[] = [
   ...instanceHandlers,
+  ...memoryHandlers,
   compozyApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentsState })),
   compozyApiMock.get("/api/agents/catalog", ({ request }) =>
     HttpResponse.json(agentCatalogMockResponse(request))

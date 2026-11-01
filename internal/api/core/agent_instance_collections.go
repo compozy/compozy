@@ -17,6 +17,10 @@ func (h *BaseHandlers) instanceReady(c *gin.Context) bool {
 	}
 	return true
 }
+
+// userScopeWorkspaceRef names the User scope: a Global instance.
+const userScopeWorkspaceRef = "@user"
+
 func (h *BaseHandlers) CreateAgentInstance(c *gin.Context) {
 	if !h.instanceReady(c) {
 		return
@@ -35,16 +39,21 @@ func (h *BaseHandlers) CreateAgentInstance(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	target, err := h.resolveAuthoredAgentTargetForRequest(c, request.Workspace, request.Agent)
-	if err != nil {
-		h.respondError(c, 422, err)
-		return
+	// A Global instance has no workspace to resolve; the service validates the definition.
+	workspaceID := ""
+	if request.Workspace != userScopeWorkspaceRef {
+		target, err := h.resolveAuthoredAgentTargetForRequest(c, request.Workspace, request.Agent)
+		if err != nil {
+			h.respondError(c, 422, err)
+			return
+		}
+		workspaceID = target.sessionWorkspaceID
 	}
 	instance, created, err := h.AgentInstances.Service.Create(
 		c.Request.Context(),
 		agentinstance.CreateRequest{
 			Agent:     request.Agent,
-			Workspace: target.sessionWorkspaceID,
+			Workspace: workspaceID,
 			Profile:   scope.ProfileID,
 			Actor:     actor,
 		},

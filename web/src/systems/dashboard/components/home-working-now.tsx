@@ -4,7 +4,6 @@ import { AlertTriangle, ChevronRight } from "@compozy/ui/icons";
 import {
   Button,
   Empty,
-  OwnerAvatar,
   Panel,
   Pill,
   Section,
@@ -22,6 +21,7 @@ import {
   HOME_RUN_TITLE_CLASS,
 } from "./home-zone-shape";
 import { HomeWorkingNowSkeleton } from "./home-zone-skeletons";
+import { AgentIdentityMark } from "@/systems/agent/components/agent-identity-mark";
 import { useSessionCreateActions } from "@/systems/session";
 import { WorkspaceBadge } from "@/systems/workspace";
 
@@ -46,7 +46,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
       <div className="min-w-0">
         <div className={HOME_RUN_TITLE_CLASS}>
           <StateGlyph state="running" />
-          <OwnerAvatar name={card.agentName} ownerId={card.agentName} ownerKind="agent" size="sm" />
+          <AgentIdentityMark name={card.agentName} quietIdle size={20} state="working" />
           <span className="truncate">{card.title}</span>
           {card.kind === "task_run" ? (
             <Pill size="xs" tone="neutral">

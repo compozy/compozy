@@ -11,7 +11,6 @@ import {
   LinkedRecordTableRoot,
   LinkedRecordTableRow,
   LinkedRecordTableTitle,
-  OwnerAvatar,
   Pill,
   SkeletonRegion,
   Spinner,
@@ -20,9 +19,10 @@ import {
   Time,
 } from "@compozy/ui";
 
-import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
+import { taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunReview } from "../types";
+import { TaskOwnerMark, TaskOwnerName } from "./task-owner-mark";
 
 export interface TaskRunsPanelProps {
   taskId: string;
@@ -126,13 +126,10 @@ function RunRow({
           <span className="inline-flex min-w-0 items-center gap-1.5 text-small-body text-muted-foreground">
             {claimant ? (
               <>
-                <OwnerAvatar
-                  name={claimant}
-                  ownerId={claimant}
-                  ownerKind={ownerAvatarKindFor(run.claimed_by?.kind)}
-                  size="sm"
-                />
-                <span className="truncate">{claimant}</span>
+                <TaskOwnerMark owner={run.claimed_by} />
+                <span className="truncate">
+                  <TaskOwnerName owner={run.claimed_by} />
+                </span>
               </>
             ) : (
               <span className="text-subtle">—</span>

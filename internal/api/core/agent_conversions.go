@@ -101,6 +101,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		CategoryPath:       append([]string(nil), agent.CategoryPath...),
 		MCPServers:         mcpServers,
 		Origin:             entry.Origin,
+		PackageOwned:       entry.PackageOwned,
 		WorkspaceID:        entry.WorkspaceID,
 		Layer:              agent.SourceLayer,
 		Shadows:            shadows,

@@ -13,6 +13,10 @@ import type { AutomationView } from "../../lib/automation-view";
 import type { AutomationJob } from "../../types";
 import { useClampOverflow } from "../../hooks/use-clamp-overflow";
 import { AutomationValueBadge } from "./automation-value-badge";
+import {
+  AgentIdentityLabel,
+  AgentIdentityMark,
+} from "@/systems/agent/components/agent-identity-mark";
 
 type TargetChipProps = Omit<ComponentProps<"span">, "children"> & { children: ReactNode };
 
@@ -216,9 +220,12 @@ export function AutomationRuleDoes({
   return (
     <>
       <span className="flex min-w-0 items-center gap-2">
-        <TargetChip>{target.agentName.charAt(0)}</TargetChip>
+        <AgentIdentityMark name={target.agentName} quietIdle size={20} />
         <span className="min-w-0 truncate text-form-input text-fg">
-          Ask <b className="font-medium text-fg-strong">{target.agentName}</b>
+          Ask{" "}
+          <b className="font-medium text-fg-strong">
+            <AgentIdentityLabel name={target.agentName} />
+          </b>
         </span>
       </span>
       <RuleSub>

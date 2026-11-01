@@ -45,6 +45,15 @@ export function useActiveProfileView(enabled = true): ProfileView {
   return { kind: "profile", profile: rememberedProfile ?? PERMANENT_PROFILE };
 }
 
+/**
+ * The concrete profile of the current view, read from the store alone, so a leaf rendered in every
+ * row adds no daemon reads. `useActiveProfileView`, mounted by the shell, keeps the store current.
+ */
+export function useCurrentProfileName(): string {
+  const local = useSelector(profileViewStore, state => state.context.view);
+  return local?.kind === "profile" ? local.profile : PERMANENT_PROFILE;
+}
+
 async function rememberProfileView(view: ProfileView): Promise<ProfileView> {
   if (view.kind === "aggregate") return view;
   await putProfileSelection({ scope: "global", profile: view.profile });

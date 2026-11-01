@@ -11,6 +11,8 @@ export type AgentMCPServer = NonNullable<AgentPayload["mcp_servers"]>[number];
 export type AgentCatalogResponse = OperationResponse<"listAgentCatalog", 200>;
 export type AgentCatalogItem = AgentCatalogResponse["agents"][number];
 export type AgentGroupedCatalogItem = NonNullable<AgentCatalogResponse["items"]>[number];
+/** A catalog item with its row's session metrics; `group=agent` returns them side by side. */
+export type AgentTeamItem = AgentGroupedCatalogItem & { sessions?: AgentCatalogItem["sessions"] };
 export type AgentCatalogFilter = OperationQuery<"listAgentCatalog">;
 export type AgentCatalogStableFilter = Omit<AgentCatalogFilter, "cursor" | "workspace">;
 export type AgentAggregateFilter = OperationQuery<"listAgentsAggregate">;
@@ -47,6 +49,20 @@ export type DeleteAgentHeartbeatResponse = OperationResponse<"deleteAgentHeartbe
 export type AgentHeartbeatStatusPayload = OperationResponse<"getAgentHeartbeatStatus", 200>;
 export type WakeAgentHeartbeatParams = OperationRequestBody<"wakeAgentHeartbeat">;
 export type WakeAgentHeartbeatResponse = OperationResponse<"wakeAgentHeartbeat", 200>;
+
+export type AgentMemoryDocument = OperationResponse<"getAgentMemory", 200>;
+export type AgentMemoryBudget = AgentMemoryDocument["budget"];
+export type PutAgentMemoryParams = OperationRequestBody<"putAgentMemory">;
+export type AddAgentMemoryParams = OperationRequestBody<"addAgentMemory">;
+export type ReplaceAgentMemoryParams = OperationRequestBody<"replaceAgentMemory">;
+export type RemoveAgentMemoryParams = OperationRequestBody<"removeAgentMemory">;
+export type RemoveAgentMemoryResponse = OperationResponse<"removeAgentMemory", 200>;
+export type SearchAgentMemoryParams = OperationRequestBody<"searchAgentMemory">;
+export type SearchAgentMemoryResponse = OperationResponse<"searchAgentMemory", 200>;
+export type ValidateAgentMemoryParams = OperationRequestBody<"validateAgentMemory">;
+export type ValidateAgentMemoryResponse = OperationResponse<"validateAgentMemory", 200>;
+export type AgentMemoryHistoryResponse = OperationResponse<"listAgentMemoryHistory", 200>;
+export type RollbackAgentMemoryParams = OperationRequestBody<"rollbackAgentMemory">;
 
 /** The stored or resolved identity block of `_dx.md`; open on the wire, closed here. */
 export interface AgentAppearancePayload {
@@ -106,16 +122,36 @@ export interface CreateAgentInstanceParams {
   workspace: string;
 }
 
+/** One wake event of `_dx.md`; `reason` is a stable code, `detail` is bounded free text. */
 export interface AgentInstanceCheckIn {
   result: string;
   reason?: string;
-  at?: string;
-  created_at?: string;
+  detail?: string;
+  at: string;
 }
 
 export interface AgentInstanceCheckInsResponse {
   check_ins: AgentInstanceCheckIn[];
   next_cursor: string;
+}
+
+export interface AgentInstanceCheckDigestItem {
+  key: string;
+  summary: string;
+}
+
+/** A dry run answers `gate` and `digest`; a real run `occurrence_id`, or `gate` if one stopped it. */
+export interface AgentInstanceCheckResponse {
+  gate?: string;
+  digest?: AgentInstanceCheckDigestItem[];
+  occurrence_id?: string;
+}
+
+export interface AgentInstanceOccurrence {
+  state: "running" | "finished";
+  result?: string;
+  reason?: string;
+  report_id?: string;
 }
 
 export interface DraftAgentInstructionsParams {
@@ -126,3 +162,20 @@ export interface DraftAgentInstructionsParams {
 export interface DraftAgentInstructionsResponse {
   instructions: string;
 }
+
+/** `_dx.md` Agent activity. Hand-typed until the route lands in the OpenAPI document. */
+export interface AgentActivityPayload {
+  reports_by_day: { day: string; quiet: number; told: number; needed_you: number }[];
+  cost_by_project: {
+    workspace_id: string;
+    scope: string;
+    usd_estimate: number;
+    tokens: number;
+  }[];
+  busy_by_hour: { weekday: number; hour: number; events: number }[];
+}
+
+export type AgentInstanceReport = OperationResponse<
+  "listAgentInstanceReports",
+  200
+>["reports"][number];

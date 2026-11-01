@@ -20,7 +20,10 @@ export function taskPriorityPresentation(priority: TaskPriority): {
   return { dotClass: PRIORITY_DOT_CLASS[priority], label: taskPriorityLabel(priority) };
 }
 
-export function taskExecutionProfileSummary(profile?: TaskExecutionProfile | null): {
+export function taskExecutionProfileSummary(
+  profile?: TaskExecutionProfile | null,
+  agentLabel: (name: string) => string = name => name
+): {
   worker: string | null;
   model: string | null;
 } {
@@ -30,11 +33,11 @@ export function taskExecutionProfileSummary(profile?: TaskExecutionProfile | nul
 
   return {
     worker: worker?.agent_name
-      ? worker.agent_name
+      ? agentLabel(worker.agent_name)
       : firstAllowed
         ? remainingAllowed.length > 0
-          ? `${firstAllowed} +${remainingAllowed.length}`
-          : firstAllowed
+          ? `${agentLabel(firstAllowed)} +${remainingAllowed.length}`
+          : agentLabel(firstAllowed)
         : worker?.mode === "inherit"
           ? "Inherited"
           : null,

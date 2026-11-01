@@ -1,22 +1,38 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 
-import type { AgentInstanceCheckIn, AgentInstancePayload } from "../types";
+import type {
+  AgentActivityPayload,
+  AgentInstanceCheckDigestItem,
+  AgentInstanceCheckIn,
+  AgentInstancePayload,
+} from "../types";
 import { agentInstanceFixture } from "./instance-fixtures";
 
 let instancesState: AgentInstancePayload[] = [];
 let checkInsState: AgentInstanceCheckIn[] = [];
+let digestState: AgentInstanceCheckDigestItem[] = [];
+let activityState: AgentActivityPayload | null = null;
 
 export function resetAgentInstanceMock(): void {
   instancesState = [];
   checkInsState = [];
+  digestState = [];
+  activityState = null;
+}
+
+/** Without a seed the activity route answers 404, the way a daemon without it does. */
+export function seedAgentActivityMock(activity: AgentActivityPayload | null): void {
+  activityState = activity;
 }
 
 export function seedAgentInstanceMock(
   instances: readonly AgentInstancePayload[],
-  checkIns: readonly AgentInstanceCheckIn[] = []
+  checkIns: readonly AgentInstanceCheckIn[] = [],
+  digest: readonly AgentInstanceCheckDigestItem[] = []
 ): void {
   instancesState = structuredClone([...instances]);
   checkInsState = structuredClone([...checkIns]);
+  digestState = structuredClone([...digest]);
 }
 
 function respond(id: unknown, patch: Partial<AgentInstancePayload>) {
@@ -29,6 +45,14 @@ function respond(id: unknown, patch: Partial<AgentInstancePayload>) {
 
 /** `_dx.md`'s instance routes: plain `http` until they join the OpenAPI document. */
 export const instanceHandlers: HttpHandler[] = [
+  http.get("*/api/agents/:name/activity", () =>
+    activityState
+      ? HttpResponse.json(activityState)
+      : HttpResponse.json({ code: "not_found" }, { status: 404 })
+  ),
+  http.get("*/api/agent-instances/:id/reports", () =>
+    HttpResponse.json({ reports: [], next_cursor: "" })
+  ),
   http.get("*/api/agent-instances", () =>
     HttpResponse.json({ instances: instancesState, next_cursor: "" })
   ),
@@ -59,6 +83,24 @@ export const instanceHandlers: HttpHandler[] = [
     instancesState = instancesState.filter(instance => instance.id !== params.id);
     return new HttpResponse(null, { status: 204 });
   }),
+  http.patch("*/api/agent-instances/:id", async ({ params, request }) => {
+    const { checks_enabled } = (await request.json()) as { checks_enabled: boolean };
+    return respond(params.id, { checks_enabled });
+  }),
+  http.post("*/api/agent-instances/:id/check", async ({ request }) => {
+    const { dry_run } = (await request.json()) as { dry_run: boolean };
+    return dry_run
+      ? HttpResponse.json({ gate: "would_run", digest: digestState })
+      : HttpResponse.json({ occurrence_id: "occ-3a91" }, { status: 202 });
+  }),
+  http.get("*/api/agent-instances/:id/occurrences/:occurrence", () =>
+    HttpResponse.json({
+      state: "finished",
+      result: "reported",
+      reason: "reported",
+      report_id: "arpt-7c1e",
+    })
+  ),
   http.get("*/api/agent-instances/:id/check-ins", () =>
     HttpResponse.json({ check_ins: checkInsState, next_cursor: "" })
   ),

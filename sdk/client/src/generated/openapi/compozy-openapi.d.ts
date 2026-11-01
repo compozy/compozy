@@ -7758,6 +7758,7 @@ export interface components {
       name: string;
       /** @enum {string} */
       origin: "global" | "workspace";
+      package_owned?: boolean;
       permissions?: string;
       prompt: string;
       provider: string;

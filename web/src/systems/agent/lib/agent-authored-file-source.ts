@@ -33,7 +33,9 @@ function finishSource(lines: string[], body: string): string {
 }
 
 /** Rebuild the managed SOUL.md source from its lossless public read projection. */
-export function serializeAgentSoulSource(payload: AgentSoulPayload): string {
+export function serializeAgentSoulSource(
+  payload: Pick<AgentSoulPayload, "frontmatter" | "body">
+): string {
   const frontmatter = payload.frontmatter;
   const lines = ["---"];
   if (frontmatter.version) lines.push(`version: ${quoteYaml(frontmatter.version)}`);
@@ -47,7 +49,9 @@ export function serializeAgentSoulSource(payload: AgentSoulPayload): string {
 }
 
 /** Rebuild the managed HEARTBEAT.md source from its allowlisted read projection. */
-export function serializeAgentHeartbeatSource(payload: AgentHeartbeatPayload): string {
+export function serializeAgentHeartbeatSource(
+  payload: Pick<AgentHeartbeatPayload, "frontmatter" | "guidance_markdown">
+): string {
   const frontmatter = payload.frontmatter;
   const preferences = frontmatter.preferences;
   const context = frontmatter.context;

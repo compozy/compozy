@@ -1,3 +1,5 @@
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
+
 import type { AttentionDelivery } from "./attention-delivery";
 
 export interface SystemNotificationContent {
@@ -11,11 +13,15 @@ export interface SystemNotificationContent {
  * the platform; only these words are ours, and they say the same thing the
  * toast says so the two channels never disagree.
  */
-export function systemNotificationContent(delivery: AttentionDelivery): SystemNotificationContent {
+export function systemNotificationContent(
+  delivery: AttentionDelivery,
+  agentLabel: (name: string) => string = humanizeAgentSlug
+): SystemNotificationContent {
   if (delivery.kind === "needs-you") {
+    const label = agentLabel(delivery.target.agentName);
     return {
-      title: delivery.target.title,
-      body: `${delivery.target.agentName}: ${delivery.target.reason}`,
+      title: label ? `${label} needs you` : delivery.target.title,
+      body: label ? `${delivery.target.title}: ${delivery.target.reason}` : delivery.target.reason,
       tag: delivery.key,
     };
   }
@@ -24,7 +30,7 @@ export function systemNotificationContent(delivery: AttentionDelivery): SystemNo
     if (single) {
       return {
         title: single.title,
-        body: `${single.agentName} finished while you were away`,
+        body: `${agentLabel(single.agentName)} finished while you were away`,
         tag: delivery.key,
       };
     }

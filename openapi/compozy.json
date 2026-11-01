@@ -1312,6 +1312,9 @@
             ],
             "type": "string"
           },
+          "package_owned": {
+            "type": "boolean"
+          },
           "permissions": {
             "type": "string"
           },

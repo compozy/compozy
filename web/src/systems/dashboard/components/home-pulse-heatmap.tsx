@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Panel, Section } from "@compozy/ui";
 
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
@@ -15,6 +17,8 @@ export interface HomePulseHeatmapProps {
   pulse: HomeOverview["pulse"];
   /** The section title; a single agent's page names it for that agent. */
   label?: string;
+  /** How the longest session names its agent; the page owns the identity read. */
+  renderAgent?: (name: string) => ReactNode;
 }
 
 function cellBackground(events: number, max: number): string | undefined {
@@ -33,6 +37,7 @@ function cellBackground(events: number, max: number): string | undefined {
 export function HomePulseHeatmap({
   pulse,
   label = "When agents were busy",
+  renderAgent = name => name,
 }: HomePulseHeatmapProps) {
   const byCell = new Map<string, HomePulseBucket>();
   let max = 0;
@@ -89,7 +94,7 @@ export function HomePulseHeatmap({
                   {formatHomeDurationSeconds(pulse.longest_session.duration_seconds, "compact")}
                 </span>{" "}
                 <span className="text-eyebrow tabular-nums text-subtle">
-                  {pulse.longest_session.agent_name} · {pulse.longest_session.date}
+                  {renderAgent(pulse.longest_session.agent_name)} · {pulse.longest_session.date}
                 </span>
               </span>
             ) : null}

@@ -131,6 +131,7 @@ export {
 export { useProfile, useProfileOperations, useProfiles } from "./hooks/use-profiles";
 export {
   useActiveProfileView,
+  useCurrentProfileName,
   useRememberedProfile,
   useSwitchProfile,
 } from "./hooks/use-profile-selection";

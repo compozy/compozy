@@ -1,6 +1,7 @@
 import { Pill, type PillTone } from "@compozy/ui";
 
 import type { SettingsSource, SettingsSourceKind } from "../types";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 interface SettingsSourceBadgeProps {
   source: SettingsSource;
@@ -58,10 +59,10 @@ function badgeTone(kind: SettingsSourceKind): PillTone {
   }
 }
 
-function sourceLabel(source: SettingsSource): string {
+function sourceLabel(source: SettingsSource, agentLabel: (name: string) => string): string {
   const parts = [KIND_LABELS[source.kind]];
   if (source.agent_name) {
-    parts.push(source.agent_name);
+    parts.push(agentLabel(source.agent_name));
   }
   if (source.workspace_id) {
     parts.push(source.workspace_id);
@@ -77,6 +78,8 @@ function SettingsSourceBadge({
   shadowed,
   "data-testid": testId,
 }: SettingsSourceBadgeProps) {
+  const identityOf = useAgentIdentityResolverView();
+  const agentLabel = (name: string) => identityOf(name).label;
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
       <Pill
@@ -84,7 +87,7 @@ function SettingsSourceBadge({
         title={KIND_FILES[source.kind]}
         data-testid={testId ? `${testId}-effective` : undefined}
       >
-        {sourceLabel(source)}
+        {sourceLabel(source, agentLabel)}
       </Pill>
       {shadowed && shadowed.length > 0 ? (
         <span
@@ -98,7 +101,7 @@ function SettingsSourceBadge({
               title={KIND_FILES[entry.kind]}
               key={`${entry.kind}-${entry.scope}-${entry.agent_name ?? ""}-${entry.profile ?? ""}-${entry.workspace_id ?? ""}`}
             >
-              {sourceLabel(entry)}
+              {sourceLabel(entry, agentLabel)}
             </Pill>
           ))}
         </span>

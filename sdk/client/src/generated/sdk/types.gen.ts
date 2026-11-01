@@ -392,6 +392,7 @@ export type AgentPayload = {
   model?: string;
   name: string;
   origin: "global" | "workspace";
+  package_owned?: boolean;
   permissions?: string;
   prompt: string;
   provider: string;

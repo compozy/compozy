@@ -497,3 +497,4 @@ export * from "./subagents";
 // Processes surface — what a session left running and the stop/keep choice (./processes).
 export * from "./processes";
 export * from "./board-drawer";
+export { useSignedOutProviders } from "./hooks/use-signed-out-providers";

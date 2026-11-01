@@ -59,4 +59,8 @@ export {
   type DateTimePickerPreset,
   type DateTimePickerProps,
 } from "../components/custom/date-time-picker";
-export { MarkdownEditor, type MarkdownEditorProps } from "../components/custom/markdown-editor";
+export {
+  MarkdownEditor,
+  type MarkdownEditorHeight,
+  type MarkdownEditorProps,
+} from "../components/custom/markdown-editor";

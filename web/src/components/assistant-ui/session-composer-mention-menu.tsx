@@ -8,8 +8,12 @@ import { Fragment, useState } from "react";
 
 import { formatRelativeTime } from "@compozy/ui";
 
+import { AgentMark } from "@/systems/agent/components/agent-mark";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+
 import {
   useSessionFileSearch,
+  useSessionMentionAgents,
   useSessionMentionSessions,
   type SessionMentionRecent,
 } from "@/systems/session";
@@ -124,12 +128,47 @@ function PathMentionRow({ item, flatIndex, query, highlightable }: MentionRowPro
   );
 }
 
-function MentionMenuRow(props: MentionRowProps) {
-  return props.item.metadata?.kind === "session" ? (
-    <SessionMentionRow {...props} />
-  ) : (
-    <PathMentionRow {...props} />
+function AgentMentionRow({ item, flatIndex, query, highlightable }: MentionRowProps) {
+  const target = typeof item.metadata?.target === "string" ? item.metadata.target : item.label;
+  const { appearance } = useAgentIdentityView(target);
+  return (
+    <TriggerMenuRow
+      item={item}
+      flatIndex={flatIndex}
+      highlightable={highlightable}
+      mark={
+        <AgentMark
+          aria-hidden="true"
+          appearance={appearance}
+          label={item.label}
+          quietIdle
+          size={16}
+          state="unknown"
+          surfaceClassName="ring-popover"
+        />
+      }
+      data-testid="composer-mention-item"
+      data-mention-kind="agent"
+    >
+      <span className="max-w-[70%] shrink-0 truncate font-medium">
+        <MatchedText text={item.label} query={query} />
+      </span>
+      {item.description ? (
+        <TriggerMenuRowSecondary>{item.description}</TriggerMenuRowSecondary>
+      ) : null}
+    </TriggerMenuRow>
   );
+}
+
+function MentionMenuRow(props: MentionRowProps) {
+  switch (props.item.metadata?.kind) {
+    case "session":
+      return <SessionMentionRow {...props} />;
+    case "agent":
+      return <AgentMentionRow {...props} />;
+    default:
+      return <PathMentionRow {...props} />;
+  }
 }
 
 function MentionMenuGroupView({
@@ -268,7 +307,8 @@ export function SessionComposerMentionMenu({
   const query = trigger?.query ?? "";
   const files = useSessionFileSearch({ workspaceId, sessionId, query, enabled: active });
   const sessions = useSessionMentionSessions({ workspaceId, sessionId, query, enabled: active });
-  const model = buildMentionMenuModel({ query, files, sessions, recents });
+  const agents = useSessionMentionAgents({ workspaceId, query, enabled: active });
+  const model = buildMentionMenuModel({ query, files, sessions, agents, recents });
   // Only rows open the listbox: an open listbox with no row would swallow
   // Enter during the first load (US-004.AC-3, VC-04). Stale rows keep it open
   // with nothing highlightable, so Enter waits for the current query's rows

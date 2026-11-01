@@ -1,7 +1,12 @@
 import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
 
+import { normalizeAgentInstance } from "../lib/agent-instance-wire";
 import type {
+  AgentActivityPayload,
   AgentInstanceCheckInsResponse,
+  AgentInstanceReport,
+  AgentInstanceCheckResponse,
+  AgentInstanceOccurrence,
   AgentInstancePayload,
   AgentInstancesResponse,
   CreateAgentInstanceParams,
@@ -9,7 +14,7 @@ import type {
   DraftAgentInstructionsResponse,
 } from "../types";
 
-const LIST_PAGE_LIMIT = 200;
+const LIST_PAGE_LIMIT = 100;
 
 /** A failed instance call with the daemon's stable code, e.g. `agent_instance_limit`. */
 export class AgentInstanceApiError extends Error {
@@ -25,10 +30,15 @@ export class AgentInstanceApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
   fallback: string;
+}
+
+/** No route answers yet. A page says so plainly; it never shows made-up data in its place. */
+export function isAgentInstanceRouteMissing(error: unknown) {
+  return error instanceof AgentInstanceApiError && [404, 405, 501].includes(error.status);
 }
 
 async function failure(response: Response, fallback: string) {
@@ -75,7 +85,7 @@ export async function fetchAgentInstances(signal?: AbortSignal): Promise<AgentIn
       signal,
       fallback: "Failed to fetch stays-on agents",
     });
-    instances.push(...page.instances);
+    instances.push(...page.instances.map(normalizeAgentInstance));
     cursor = page.next_cursor;
   } while (cursor);
   return instances;
@@ -87,7 +97,7 @@ async function instanceAction(path: string, fallback: string, body?: unknown) {
     body,
     fallback,
   });
-  return instance;
+  return normalizeAgentInstance(instance);
 }
 
 export function createAgentInstance(params: CreateAgentInstanceParams) {
@@ -115,11 +125,63 @@ export async function archiveAgentInstance(id: string): Promise<void> {
   });
 }
 
+export async function setAgentInstanceChecks(id: string, checksEnabled: boolean) {
+  const { instance } = await request<{ instance: AgentInstancePayload }>(instancePath(id), {
+    method: "PATCH",
+    body: { checks_enabled: checksEnabled },
+    fallback: "Failed to change check-ins",
+  });
+  return instance;
+}
+
+export function runAgentInstanceCheck(id: string, dryRun: boolean) {
+  return request<AgentInstanceCheckResponse>(`${instancePath(id)}/check`, {
+    method: "POST",
+    body: { dry_run: dryRun },
+    fallback: "Failed to run this check",
+  });
+}
+
+export function fetchAgentInstanceOccurrence(id: string, occurrence: string, signal?: AbortSignal) {
+  return request<AgentInstanceOccurrence>(
+    `${instancePath(id)}/occurrences/${encodeURIComponent(occurrence)}`,
+    { signal, fallback: "Failed to read this check" }
+  );
+}
+
+export async function fetchAgentInstanceReports(id: string, limit: number, signal?: AbortSignal) {
+  const { reports } = await request<{ reports: AgentInstanceReport[] }>(
+    `${instancePath(id)}/reports?limit=${limit}`,
+    { signal, fallback: "Failed to fetch what it found" }
+  );
+  return reports;
+}
+
 export function fetchAgentInstanceCheckIns(id: string, limit: number, signal?: AbortSignal) {
   return request<AgentInstanceCheckInsResponse>(`${instancePath(id)}/check-ins?limit=${limit}`, {
     signal,
     fallback: "Failed to fetch check-ins",
   });
+}
+
+/** `null` means no route answers yet, which is different from no activity. */
+export async function fetchAgentActivity(
+  name: string,
+  params: { days: number; workspace?: string | null; profile?: string },
+  signal?: AbortSignal
+): Promise<AgentActivityPayload | null> {
+  const query = new URLSearchParams({ days: String(params.days) });
+  if (params.workspace) query.set("workspace", params.workspace);
+  if (params.profile) query.set("profile", params.profile);
+  try {
+    return await request<AgentActivityPayload>(
+      `/api/agents/${encodeURIComponent(name)}/activity?${query}`,
+      { signal, fallback: "Failed to fetch this agent's activity" }
+    );
+  } catch (error) {
+    if (error instanceof AgentInstanceApiError && [404, 501].includes(error.status)) return null;
+    throw error;
+  }
 }
 
 export async function draftAgentInstructions(

@@ -838,6 +838,23 @@ func TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance(t *testing.T) {
 }
 
 func TestAgentMemoryStartup(t *testing.T) {
+	t.Run("Should read a catalog that boot creates after the assembler", func(t *testing.T) {
+		t.Parallel()
+		memory := agentmemory.NewStore(t.TempDir())
+		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn, Prompt: "Triage."}
+		var catalog *resourceCatalog[compozyconfig.AgentDef]
+		assembler := NewComposedAssembler(WithPromptSectionDescriptors(lateAgentMemoryPromptDescriptor(
+			memory,
+			func() *resourceCatalog[compozyconfig.AgentDef] { return catalog },
+		)))
+		catalog = newResourceCatalog(cloneAgentDef)
+		catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{ID: "triage", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: agent}})
+		startup := session.StartupPromptContext{ProfileID: "profile-a", SessionID: "session-a"}
+		if _, err := assembler.AssembleStartup(t.Context(), startup, agent, nil); err != nil {
+			t.Fatalf("a stays-on session must start once the catalog exists: %v", err)
+		}
+	})
+
 	t.Run("Should fence shared memory and keep assembled snapshots unchanged", func(t *testing.T) {
 		t.Parallel()
 		memory := agentmemory.NewStore(t.TempDir())

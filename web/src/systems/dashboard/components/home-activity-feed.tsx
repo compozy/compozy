@@ -18,6 +18,7 @@ import { homeActivityTone, isQuietActivityEvent } from "../lib/activity-classes"
 import type { HomeActivityEvent, HomeSurfaceStatus } from "../types";
 import { HOME_ACTIVITY_ROW_CLASS } from "./home-zone-shape";
 import { HomeActivityFeedSkeleton } from "./home-zone-skeletons";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
 
 export interface HomeActivityFeedProps {
   events: HomeActivityEvent[];
@@ -83,7 +84,11 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
             : "min-w-0 truncate text-small-body font-medium text-fg-strong"
         }
       >
-        {event.agent_name ? <span className="font-medium">{event.agent_name}</span> : null}
+        {event.agent_name ? (
+          <span className="font-medium">
+            <AgentIdentityLabel name={event.agent_name} />
+          </span>
+        ) : null}
         {event.agent_name ? " · " : ""}
         <span className={quiet ? undefined : "font-normal text-muted-foreground"}>
           {eventTitle(event)}

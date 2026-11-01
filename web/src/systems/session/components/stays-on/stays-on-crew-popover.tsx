@@ -10,8 +10,8 @@ import {
   type AgentAvatarState,
 } from "@compozy/ui";
 
+import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
-  AgentMark,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstancesByUrgency,

@@ -32,6 +32,7 @@ import {
   useActiveWorkspace,
   useWindowDataWorkspace,
 } from "@/systems/workspace";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 /**
  * One detail view-model for both daemon entities. The route keeps the entity
@@ -66,6 +67,7 @@ export function useAutomationDetailPage(
   const runsQuery = useAutomationDetailRuns(kind, id, liveDataEnabled && Boolean(entity));
 
   const settingsQuery = useSettingsAutomation();
+  const identityOf = useAgentIdentityResolverView();
   const timeZone = settingsQuery.data?.config?.timezone?.trim() || undefined;
   const runtimeUnavailable = automationUnavailableMessage(
     settingsQuery.data?.runtime ?? null,
@@ -73,7 +75,10 @@ export function useAutomationDetailPage(
   );
 
   const workspaceNameById = workspaceNameResolver(workspaces);
-  const sentenceContext = automationSentenceContext(timeZone, workspaceNameById);
+  const sentenceContext = {
+    ...automationSentenceContext(timeZone, workspaceNameById),
+    agentLabel: (name: string) => identityOf(name).label,
+  };
   const view = entity ? toAutomationView(entity, sentenceContext) : undefined;
   const { loopTarget, loopMissing } = useLoopTargetPresence(entity, liveDataEnabled);
 

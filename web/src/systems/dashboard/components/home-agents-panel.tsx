@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "@compozy/ui/icons";
 
-import { Button, cn, Empty, OwnerAvatar, Panel, Section, SkeletonRegion } from "@compozy/ui";
+import { Button, cn, Empty, Panel, Section, SkeletonRegion } from "@compozy/ui";
 
 import type { HomeAgentRow } from "../hooks/use-home-agents";
 import { HomeAgentsHeader } from "./home-zone-parts";
 import { HOME_AGENTS_NAME_CLASS, HOME_AGENTS_ROW_CLASS } from "./home-zone-shape";
 import { HomeAgentsPanelSkeleton } from "./home-zone-skeletons";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 export interface HomeAgentsPanelProps {
   rows: HomeAgentRow[];
@@ -70,8 +71,7 @@ export function HomeAgentsPanel({ rows, loading = false }: HomeAgentsPanelProps)
                   to="/agents/$name"
                 >
                   <span className={HOME_AGENTS_NAME_CLASS}>
-                    <OwnerAvatar name={row.name} ownerId={row.name} ownerKind="agent" size="sm" />
-                    <span className="truncate">{row.name}</span>
+                    <AgentIdentityChip name={row.name} size={20} />
                   </span>
                   <AgentCount value={row.active} />
                   <AgentCount className="max-[760px]:hidden" value={row.sessions} />

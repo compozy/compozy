@@ -7,6 +7,8 @@ import type { TerminalGrant } from "../lib/terminal-grant";
 
 export interface TerminalGrantRowProps {
   grant: TerminalGrant;
+  /** What the list calls the grant's agent; `grant.agentName` is its slug or "any agent". */
+  agentLabel?: string;
   onRevoke: (grant: TerminalGrant) => void;
 }
 
@@ -18,7 +20,7 @@ export interface TerminalGrantRowProps {
  * or a terminal id — so the row says what the decision covers and shows the
  * digest as the only honest identity.
  */
-export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
+export function TerminalGrantRow({ grant, agentLabel, onRevoke }: TerminalGrantRowProps) {
   const label = terminalGrantLabel(grant);
   return (
     <ListingRow
@@ -36,7 +38,7 @@ export function TerminalGrantRow({ grant, onRevoke }: TerminalGrantRowProps) {
         <ListingRow.Meta>
           <MonoId copy copyLabel="Copy fingerprint" size="sm" value={grant.inputDigest} />
           <ListingRow.MetaDot />
-          <span>{grant.agentName}</span>
+          <span>{agentLabel ?? grant.agentName}</span>
           <ListingRow.MetaDot />
           <span className="inline-flex items-center gap-1">
             remembered

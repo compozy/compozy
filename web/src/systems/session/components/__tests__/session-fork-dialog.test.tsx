@@ -112,7 +112,7 @@ describe("SessionForkDialog", () => {
 
     expect(screen.getByTestId("session-fork-submit")).toBeDisabled();
     await measured();
-    expect(screen.getByTestId("session-fork-agent")).toHaveTextContent("codex·claude");
+    expect(screen.getByTestId("session-fork-agent")).toHaveTextContent("Codex·claude");
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
       "Carries over 42 messages · 61.3 KiB"

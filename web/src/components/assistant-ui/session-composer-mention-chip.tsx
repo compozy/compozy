@@ -1,18 +1,23 @@
 import { File, Folder, MessagesSquare, type LucideIcon } from "@compozy/ui/icons";
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { AgentMark } from "@/systems/agent/components/agent-mark";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+
 import type { SessionMentionKind } from "./session-mention-model";
 
-const MENTION_ICONS: Record<SessionMentionKind, LucideIcon> = {
+type PathOrSessionKind = Exclude<SessionMentionKind, "agent">;
+
+const MENTION_ICONS: Record<PathOrSessionKind, LucideIcon> = {
   file: File,
   folder: Folder,
   session: MessagesSquare,
 };
 
-const KIND_NAMES: Record<SessionMentionKind, string> = {
+const KIND_NAMES: Record<PathOrSessionKind, string> = {
   file: "File",
   folder: "Folder",
   session: "Session",
@@ -20,9 +25,9 @@ const KIND_NAMES: Record<SessionMentionKind, string> = {
 
 export interface SessionMentionChipProps {
   kind: SessionMentionKind;
-  /** Relative path (folders end in `/`) or session id: the tooltip and screen-reader text. */
+  /** Relative path (folders end in `/`), session id or agent slug: tooltip and screen-reader text. */
   target: string;
-  /** File name, folder name ending in `/`, or session title (id when untitled). */
+  /** File name, folder name ending in `/`, session title (id when untitled), or agent label. */
   label: string;
   /** History only: a session chip opens that session (⌘/Ctrl opens a new window). */
   onOpen?: (options: { newWindow: boolean }) => void;
@@ -36,30 +41,79 @@ export interface SessionMentionChipProps {
  * reading as a runnable command. The icon carries the kind; the tooltip and
  * visually hidden text carry the full relative path or session id.
  */
-export function SessionMentionChip({
+export function SessionMentionChip({ kind, ...props }: SessionMentionChipProps) {
+  if (kind === "agent") return <AgentMentionChip {...props} />;
+  const Icon = MENTION_ICONS[kind];
+  // Screen readers get the kind and the full path or session id as hidden
+  // text inside the chip, so the name holds on a plain span too.
+  const { label, target } = props;
+  return (
+    <MentionChipFrame
+      {...props}
+      kind={kind}
+      hiddenDescription={
+        kind === "session" ? `Session ${label} (${target})` : `${KIND_NAMES[kind]} ${target}`
+      }
+      mark={
+        <Icon
+          className="mr-1 inline-block size-[1em] -translate-y-px align-middle text-muted-foreground"
+          aria-hidden="true"
+        />
+      }
+    />
+  );
+}
+
+/** An agent gone from the catalog keeps its chip, struck through; the sent text doesn't change. */
+function AgentMentionChip(props: Omit<SessionMentionChipProps, "kind">) {
+  const { appearance, known, label: current, missing } = useAgentIdentityView(props.target);
+  const label = known ? current : props.label;
+  return (
+    <MentionChipFrame
+      {...props}
+      kind="agent"
+      label={label}
+      hiddenDescription={`Agent ${label} (${props.target})${missing ? ", no longer available" : ""}`}
+      mark={
+        <AgentMark
+          aria-hidden="true"
+          appearance={appearance}
+          className="mr-1 inline-grid -translate-y-px align-middle"
+          label={label}
+          quietIdle
+          size={14}
+          state="unknown"
+        />
+      }
+      unresolved={missing}
+    />
+  );
+}
+
+function MentionChipFrame({
   kind,
   target,
   label,
   onOpen,
   token,
-}: SessionMentionChipProps) {
-  const Icon = MENTION_ICONS[kind];
-  // Screen readers get the kind and the full path or session id as hidden
-  // text inside the chip, so the name holds on a plain span too.
-  const hiddenDescription =
-    kind === "session" ? `Session ${label} (${target})` : `${KIND_NAMES[kind]} ${target}`;
+  mark,
+  hiddenDescription,
+  unresolved = false,
+}: SessionMentionChipProps & {
+  mark: ReactNode;
+  hiddenDescription: string;
+  unresolved?: boolean;
+}) {
   const content = (
     <>
-      <Icon
-        className="mr-1 inline-block size-[1em] -translate-y-px align-middle text-muted-foreground"
-        aria-hidden="true"
-      />
+      {mark}
       <span aria-hidden="true">{label}</span>
       <span className="sr-only">{hiddenDescription}</span>
     </>
   );
   const className = cn(
-    "mx-0.5 inline max-w-full align-baseline font-medium whitespace-nowrap text-fg select-none",
+    "mx-0.5 inline max-w-full align-baseline font-medium whitespace-nowrap select-none",
+    unresolved ? "text-subtle line-through" : "text-fg",
     onOpen
       ? cn(
           "cursor-pointer rounded-xxs underline-offset-3 decoration-line-focus decoration-1",
@@ -75,6 +129,7 @@ export function SessionMentionChip({
       data-mention-kind={kind}
       data-mention-target={target}
       data-mention-token={token}
+      data-mention-unresolved={unresolved || undefined}
       className={className}
       onClick={(event: MouseEvent<HTMLButtonElement>) =>
         onOpen({ newWindow: event.metaKey || event.ctrlKey })
@@ -88,6 +143,7 @@ export function SessionMentionChip({
       data-mention-kind={kind}
       data-mention-target={target}
       data-mention-token={token}
+      data-mention-unresolved={unresolved || undefined}
       className={className}
     >
       {content}

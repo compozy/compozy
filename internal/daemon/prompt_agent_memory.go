@@ -14,8 +14,9 @@ import (
 )
 
 type agentMemoryPromptSectionProvider struct {
-	store   *agentmemory.Store
-	catalog *resourceCatalog[compozyconfig.AgentDef]
+	store *agentmemory.Store
+	// catalog resolves late: boot assembles prompts before the agent catalog exists.
+	catalog func() *resourceCatalog[compozyconfig.AgentDef]
 }
 
 var _ startupPromptSectionProvider = (*agentMemoryPromptSectionProvider)(nil)
@@ -27,7 +28,7 @@ func (p *agentMemoryPromptSectionProvider) PromptStartupSection(
 	if agent.EffectiveKind() != compozyconfig.AgentKindStaysOn {
 		return "", nil
 	}
-	key, err := agentMemoryKey(p.catalog, startup.ProfileID, agent, workspace)
+	key, err := agentMemoryKey(p.catalog(), startup.ProfileID, agent, workspace)
 	if err != nil {
 		return "", err
 	}
@@ -93,6 +94,12 @@ func agentMemoryKey(catalog *resourceCatalog[compozyconfig.AgentDef], profileID 
 }
 
 func agentMemoryPromptDescriptor(store *agentmemory.Store, catalog *resourceCatalog[compozyconfig.AgentDef]) PromptSectionDescriptor {
+	return lateAgentMemoryPromptDescriptor(store, func() *resourceCatalog[compozyconfig.AgentDef] { return catalog })
+}
+
+func lateAgentMemoryPromptDescriptor(
+	store *agentmemory.Store, catalog func() *resourceCatalog[compozyconfig.AgentDef],
+) PromptSectionDescriptor {
 	return PromptSectionDescriptor{
 		Name: "agent_memory", Position: PromptSectionPositionAppend, Order: startupSoulSectionOrder + 1,
 		Provider: &agentMemoryPromptSectionProvider{store: store, catalog: catalog},

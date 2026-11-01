@@ -12,9 +12,9 @@ import {
   type PillTone,
 } from "@compozy/ui";
 
+import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   AGENT_PAUSE_COPY,
-  AgentMark,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceCheckInsOptions,
@@ -24,7 +24,7 @@ import {
   type AgentInstancePayload,
 } from "@/systems/agent";
 
-import { formatRelativeClock } from "../../lib/stays-on-time";
+import { formatRelativeClock } from "@/systems/agent";
 
 const STATE_TONE: Partial<Record<AgentAvatarState, PillTone>> = {
   "needs-you": "brand",

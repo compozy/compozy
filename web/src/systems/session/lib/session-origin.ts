@@ -1,4 +1,5 @@
 import type { SessionPayload } from "../types";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 /** Lineage kinds that carry a visible origin; spawn/provenance/recovery stay silent. */
 export type SessionOriginKind = "continue" | "fork";
@@ -44,7 +45,7 @@ export function sessionOriginView(
   const kind = sessionOriginKind(session);
   const parentSessionId = session.lineage?.parent_session_id?.trim() ?? "";
   if (kind === null || parentSessionId === "") return null;
-  const originAgent = session.lineage?.origin_agent_name?.trim() ?? "";
+  const originAgent = humanizeAgentSlug(session.lineage?.origin_agent_name?.trim() ?? "");
   const parentTitle = parent?.title.trim() ?? "";
   const fallbackSubject = kind === "continue" && originAgent !== "" ? originAgent : parentSessionId;
   const titleSubject = parentTitle || fallbackSubject;
@@ -76,7 +77,7 @@ export function sessionOriginLedgerValue(session: SessionPayload): string | null
   const kind = sessionOriginKind(session);
   if (kind === "continue") {
     const agent = session.lineage?.origin_agent_name?.trim();
-    return agent ? `continue · from ${agent}` : "continue";
+    return agent ? `continue · from ${humanizeAgentSlug(agent)}` : "continue";
   }
   if (kind === "fork") {
     const message = session.lineage?.origin_message_id?.trim();

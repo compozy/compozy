@@ -15,9 +15,9 @@ import {
   cn,
 } from "@compozy/ui";
 
+import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   AGENT_PAUSE_COPY,
-  AgentMark,
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceResumeBlocked,

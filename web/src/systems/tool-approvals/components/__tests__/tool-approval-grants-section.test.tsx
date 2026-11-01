@@ -139,8 +139,8 @@ describe("ToolApprovalGrantsSection", () => {
       "Blocked"
     );
     // The daemon reports each distinct matching scope truthfully.
-    expect(screen.getByText("claude-code")).toBeInTheDocument();
-    expect(screen.getByText("cursor")).toBeInTheDocument();
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+    expect(screen.getByText("Cursor")).toBeInTheDocument();
     expect(screen.getByText("Every request from this agent")).toBeInTheDocument();
     expect(screen.getByText("Every request, any agent")).toBeInTheDocument();
     expect(screen.getByText("Only this exact request")).toBeInTheDocument();

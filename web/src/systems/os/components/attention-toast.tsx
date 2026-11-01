@@ -1,7 +1,10 @@
 import { Megaphone } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
-import { Button, cn, Icon } from "@compozy/ui";
+import { Button, cn, Icon, type AgentAvatarState } from "@compozy/ui";
 
+import { AgentIdentityMark } from "@/systems/agent/components/agent-identity-mark";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 import { SessionBadgeGlyph } from "@/systems/session/components/session-badge-mark";
 
 import { finishedDeliveryBody, type AttentionDelivery } from "../lib/attention-delivery";
@@ -96,16 +99,53 @@ export function AttentionToastOverflowLedge({
   );
 }
 
+function attentionDeliveryWorkspace(delivery: AttentionDelivery) {
+  if (delivery.kind === "finished") return delivery.targets[0]?.workspaceId;
+  return delivery.target?.workspaceId;
+}
+
+/** A payload with no agent keeps the session's badge rather than a face for nobody. */
+function AttentionAgentMark({
+  target,
+  state,
+  fallback,
+}: {
+  target: { agentName: string; workspaceId?: string };
+  state?: AgentAvatarState;
+  fallback: ReactNode;
+}) {
+  if (!target.agentName) return fallback;
+  return (
+    <AgentIdentityMark
+      agentScope={{ workspace: target.workspaceId }}
+      name={target.agentName}
+      size={32}
+      state={state}
+      surfaceClassName="ring-popover"
+    />
+  );
+}
+
 export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
+  const identityOf = useAgentIdentityResolverView({
+    workspace: attentionDeliveryWorkspace(delivery),
+  });
   if (delivery.kind === "needs-you") {
     const { target } = delivery;
+    const label = identityOf(target.agentName).label;
     return (
       <ToastFrame
         testId="os-attention-toast-needs-you"
-        mark={<SessionBadgeGlyph badge={target.badge} />}
-        title={target.title}
-        body={target.reason}
-        meta={`${target.workspaceLabel} · ${target.agentName}`}
+        mark={
+          <AttentionAgentMark
+            fallback={<SessionBadgeGlyph badge={target.badge} />}
+            state="needs-you"
+            target={target}
+          />
+        }
+        title={label ? `${label} needs you` : target.title}
+        body={label ? `${target.title}: ${target.reason}` : target.reason}
+        meta={target.workspaceLabel}
         onActivate={onActivate}
       />
     );
@@ -117,10 +157,22 @@ export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
     return (
       <ToastFrame
         testId="os-attention-toast-finished"
-        mark={<SessionBadgeGlyph badge="done" />}
+        mark={
+          single ? (
+            <AttentionAgentMark fallback={<SessionBadgeGlyph badge="done" />} target={single} />
+          ) : (
+            <SessionBadgeGlyph badge="done" />
+          )
+        }
         title={single ? single.title : `${targets.length} sessions finished`}
         {...(single ? { body: finishedDeliveryBody(single) } : {})}
-        meta={single ? `${single.workspaceLabel} · ${single.agentName}` : workspaces}
+        meta={
+          single
+            ? [single.workspaceLabel, identityOf(single.agentName).label]
+                .filter(Boolean)
+                .join(" · ")
+            : workspaces
+        }
         {...(single
           ? { onActivate }
           : { action: { label: "Review finished", onClick: onActivate } })}
@@ -132,17 +184,24 @@ export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
     <ToastFrame
       testId="os-attention-toast-agent"
       mark={
-        <span
-          aria-hidden="true"
-          className="grid size-4.5 shrink-0 place-items-center rounded-full bg-info-tint text-info"
-        >
-          <Icon as={Megaphone} size="xs" />
-        </span>
+        <AttentionAgentMark
+          fallback={
+            <span
+              aria-hidden="true"
+              className="grid size-4.5 shrink-0 place-items-center rounded-full bg-info-tint text-info"
+            >
+              <Icon as={Megaphone} size="xs" />
+            </span>
+          }
+          target={{ agentName: target?.agentName ?? "", workspaceId: target?.workspaceId }}
+        />
       }
       title={notification.title}
       {...(notification.body ? { body: notification.body } : {})}
       // Unresolved targets omit the missing half rather than print raw IDs.
-      meta={[target?.workspaceLabel, target?.agentName].filter(Boolean).join(" · ")}
+      meta={[target?.workspaceLabel, target?.agentName ? identityOf(target.agentName).label : null]
+        .filter(Boolean)
+        .join(" · ")}
       onActivate={onActivate}
     />
   );

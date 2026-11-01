@@ -763,7 +763,7 @@ describe("SessionInspector — origin", () => {
       />
     );
 
-    expect(screen.getByTestId("ledger-origin")).toHaveTextContent("continue · from claude");
+    expect(screen.getByTestId("ledger-origin")).toHaveTextContent("continue · from Claude");
     const seed = screen.getByTestId("ledger-seed");
     expect(seed).toHaveTextContent("native clone · failed — carried context used");
     expect(within(seed).getByTitle("session/load rejected: <redacted>")).toBeInTheDocument();

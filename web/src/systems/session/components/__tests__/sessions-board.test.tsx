@@ -50,6 +50,8 @@ import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-l
 import { SessionsBoard } from "../session-board/sessions-board";
 import { SessionsBoardSelection } from "../session-board/sessions-board-selection";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
+import * as agentApi from "@/systems/agent/adapters/agent-api";
+import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
 
 const mockInstances = vi.hoisted(() => vi.fn(async () => [] as AgentInstancePayload[]));
 
@@ -134,7 +136,9 @@ function board(
 function boardWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <AgentIdentityProvider>{children}</AgentIdentityProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -164,6 +168,32 @@ function lifecycleActions(): SessionLifecycleActionHandlers {
 afterEach(() => resetSessionBoardColumnFolds());
 
 describe("SessionsBoard", () => {
+  // Invariant: a card names its agent by label with its face, and every card shares one catalog read.
+  it("Should show each card's agent label and avatar from one catalog read", async () => {
+    const fetchAgents = vi
+      .spyOn(agentApi, "fetchAgents")
+      .mockResolvedValue([
+        { name: "code_implementer", label: "Builder", resolved_appearance: null } as never,
+      ]);
+    renderBoard(
+      board({
+        working: {
+          sessions: [card("one", { agent_name: "code_implementer" })],
+          count: 1,
+        },
+        done: { sessions: [card("two", { agent_name: "code_implementer" })], count: 1 },
+      })
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Builder")).toHaveLength(2));
+    expect(screen.getByTestId("session-agent-mark-one")).toHaveAttribute(
+      "data-slot",
+      "agent-avatar"
+    );
+    expect(fetchAgents).toHaveBeenCalledTimes(1);
+    fetchAgents.mockRestore();
+  });
+
   it("Should name each column region with its facet count", () => {
     renderBoard(board({ working: { count: 9 }, done: { count: 1 } }));
     expect(screen.getByRole("region", { name: "Working, 9 sessions" })).toBeInTheDocument();
@@ -627,7 +657,9 @@ describe("SessionsBoard swimlanes", () => {
         />,
         {
           wrapper: ({ children }: { children: ReactNode }) => (
-            <QueryClientProvider client={client}>{children}</QueryClientProvider>
+            <QueryClientProvider client={client}>
+              <AgentIdentityProvider>{children}</AgentIdentityProvider>
+            </QueryClientProvider>
           ),
         }
       );

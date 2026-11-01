@@ -205,7 +205,11 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 			if name == "" {
 				continue
 			}
-			if _, exists := merged[name]; exists {
+			if existing, exists := merged[name]; exists {
+				// The workspace scan owns the definition; only the catalog knows who owns it.
+				existing.MemoryOrigin = entry.MemoryOrigin
+				existing.PackageOwned = entry.PackageOwned
+				merged[name] = existing
 				continue
 			}
 			merged[name] = entry

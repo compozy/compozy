@@ -9,6 +9,7 @@ import { usePermissionDock } from "../hooks/use-permission-dock";
 import { useSession } from "../hooks/use-sessions";
 import type { PermissionRequest } from "../types";
 import { PermissionDockView } from "./permission-dock-view";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export interface PermissionDockProps {
   enabled?: boolean;
@@ -56,7 +57,9 @@ export function PermissionDock({
     blockedDecisions,
   });
   const session = useSession(sessionId);
-  const agentName = session.data?.agent_name?.trim() || "The agent";
+  const sessionAgent = session.data?.agent_name?.trim() ?? "";
+  const agent = useAgentIdentityView(sessionAgent, { workspace: workspaceId });
+  const agentName = sessionAgent ? agent.label : "The agent";
   const catalogTitle = useKnownTerminalTitle(
     workspaceId,
     session.data?.profile_name,

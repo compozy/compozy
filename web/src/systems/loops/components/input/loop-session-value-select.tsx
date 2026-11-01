@@ -16,6 +16,7 @@ import { getSessionDisplayTitle } from "@/systems/session";
 
 import { useLoopSessionCatalog } from "../../hooks/use-loop-session-catalog";
 import { placeholderSlots } from "../../lib/placeholder-slots";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 interface LoopSessionValueSelectProps {
   workspaceId: string;
@@ -107,9 +108,12 @@ export function LoopSessionValueSelect({
                 <span className="min-w-0 flex-1 truncate text-small-body">
                   {getSessionDisplayTitle(session)}
                 </span>
-                <span className="truncate font-mono text-mono-id text-subtle">
-                  {session.agent_name}
-                </span>
+                <AgentIdentityChip
+                  agentScope={{ workspace: session.workspace_id }}
+                  className="text-mono-id text-subtle"
+                  name={session.agent_name}
+                  size={14}
+                />
               </CommandItem>
             ))}
           </CommandSelectGroup>

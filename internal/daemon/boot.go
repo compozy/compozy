@@ -312,7 +312,10 @@ func (d *Daemon) bootHarnessPromptRuntime(
 	state.agentMemory = agentmemory.NewStore(d.homePaths.HomeDir)
 	state.promptAssembler = NewComposedAssembler(
 		WithSectionSelector(NewSectionSelector(state.harnessResolver, state.harnessRecorder)),
-		WithPromptSectionDescriptors(agentMemoryPromptDescriptor(state.agentMemory, state.agentCatalog)),
+		WithPromptSectionDescriptors(lateAgentMemoryPromptDescriptor(
+			state.agentMemory,
+			func() *resourceCatalog[compozyconfig.AgentDef] { return state.agentCatalog },
+		)),
 		WithPromptSectionDescriptors(
 			defaultStartupPromptSectionDescriptorsFromProviders(
 				appendProviders,

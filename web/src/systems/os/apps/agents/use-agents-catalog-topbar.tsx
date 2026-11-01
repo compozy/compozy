@@ -3,7 +3,7 @@ import { Plus, Users2 } from "@compozy/ui/icons";
 import { Button, useTopbarSlot } from "@compozy/ui";
 
 import { agentsFleetHeadCount, type AgentsFleetPage } from "./agents-catalog-view";
-import { AgentFleetToolbar } from "@/systems/agent";
+import { AgentTeamToolbar } from "@/systems/agent";
 
 /** Publishes the fleet count, create action, and search toolbar into the window topbar. */
 export function useAgentsCatalogTopbar(page: AgentsFleetPage) {
@@ -25,20 +25,19 @@ export function useAgentsCatalogTopbar(page: AgentsFleetPage) {
       </div>
     ),
     toolbar: (
-      <AgentFleetToolbar
-        categoryOptions={page.categoryOptions}
+      <AgentTeamToolbar
+        chips={page.chips}
         definitionsFor={page.definitionsFor}
         draftQuery={page.draftQuery}
+        fields={page.fields}
+        focus={page.focus}
+        focusItems={page.focusItems}
+        onChipsChange={page.setChips}
         onDraftQueryChange={page.setDraftQuery}
-        onFiltersChange={page.setFilters}
-        onProjectsChange={page.setProjectFilter}
+        onFocusChange={page.setFocus}
         onViewChange={page.setView}
-        projectField={page.projectField}
-        projects={page.projectFilter}
-        search={page.search}
         searchInputRef={page.searchInputRef}
         showFacets={page.showFacets}
-        showViewToggle={page.showViewToggle}
         view={page.view}
       />
     ),

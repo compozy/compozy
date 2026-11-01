@@ -28,7 +28,7 @@ describe("AgentCommandSelect", () => {
       </UIProvider>
     );
     const trigger = screen.getByTestId("trigger");
-    expect(trigger).toHaveTextContent("writer");
+    expect(trigger).toHaveTextContent("Writer");
     expect(trigger).toHaveTextContent("claude");
   });
 
@@ -67,7 +67,7 @@ describe("AgentCommandSelect", () => {
       </UIProvider>
     );
     const trigger = screen.getByTestId("trigger");
-    expect(trigger).toHaveTextContent("product-launch-manager-agent");
+    expect(trigger).toHaveTextContent("Product Launch Manager Agent");
     expect(trigger).toHaveTextContent("claude");
     expect(screen.queryByTestId("agent-command-select-trigger-category")).not.toBeInTheDocument();
 
@@ -245,7 +245,7 @@ describe("AgentCommandSelect loading", () => {
     const { rerender } = render(select({ agents: [], value: "writer", loading: true }));
 
     const trigger = screen.getByTestId("trigger");
-    expect(trigger).toHaveTextContent("writer");
+    expect(trigger).toHaveTextContent("Writer");
     expect(trigger).not.toHaveTextContent("Not available");
     expect(trigger.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
 

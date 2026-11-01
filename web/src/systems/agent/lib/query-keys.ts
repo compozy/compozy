@@ -26,9 +26,18 @@ export const agentKeys = {
   /** The operator's stays-on agents across every scope; one read shared by every row. */
   instances: () => [...agentKeys.all, "instances"] as const,
   instanceCheckIns: (id: string) => [...agentKeys.all, "instance-check-ins", id] as const,
+  instanceDayCheckIns: (id: string) => [...agentKeys.instanceCheckIns(id), "day"] as const,
+  instanceOccurrence: (id: string, occurrence: string) =>
+    [...agentKeys.all, "instance-occurrence", id, occurrence] as const,
+  instanceReports: (id: string) => [...agentKeys.all, "instance-reports", id] as const,
   /** Definitions a scope can start: one `group=agent` read per scope and profile. */
   staysOnCatalog: (workspace: string, profile = "default") =>
     [...agentKeys.catalogs(), "@stays-on", workspace, profile] as const,
+  /** One card per agent for a scope; `""` is every project and User. */
+  team: (workspace: string, profile = "default") =>
+    [...agentKeys.catalogs(), "@team", workspace, profile] as const,
+  activity: (name: string, days: number, workspace?: string | null, profile = "default") =>
+    [...agentKeys.all, "activity", name, days, workspace ?? null, profile] as const,
   lists: () => [...agentKeys.all, "list"] as const,
   list: (workspace?: string | null, profile = "default") =>
     [...agentKeys.lists(), workspace ?? null, profile] as const,
@@ -38,6 +47,10 @@ export const agentKeys = {
     [...agentKeys.detail(name, workspace, profile), "soul"] as const,
   soulHistory: (name: string, workspace?: string | null, profile = "default") =>
     [...agentKeys.soul(name, workspace, profile), "history"] as const,
+  memory: (name: string, workspace?: string | null, profile = "default") =>
+    [...agentKeys.detail(name, workspace, profile), "memory"] as const,
+  memoryHistory: (name: string, workspace?: string | null, profile = "default") =>
+    [...agentKeys.memory(name, workspace, profile), "history"] as const,
   heartbeat: (name: string, workspace?: string | null, profile = "default") =>
     [...agentKeys.detail(name, workspace, profile), "heartbeat"] as const,
   heartbeatHistory: (name: string, workspace?: string | null, profile = "default") =>

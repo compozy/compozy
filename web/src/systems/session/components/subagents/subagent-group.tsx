@@ -100,7 +100,12 @@ export function SubagentGroup({
       >
         <AvatarGroup className="-space-x-1.75 *:data-[slot=avatar]:ring-canvas-soft">
           {stacked.map(subagent => (
-            <SubagentAvatar key={subagent.id} provider={subagent.runtime.provider} />
+            <SubagentAvatar
+              agent={subagent.runtime.agent}
+              className="ring-2 ring-canvas-soft"
+              key={subagent.id}
+              provider={subagent.runtime.provider}
+            />
           ))}
           {overflow > 0 ? (
             <AvatarGroupCount className="w-auto min-w-6 bg-elevated px-1.25 font-mono text-micro font-semibold text-muted-foreground tabular-nums ring-canvas-soft">

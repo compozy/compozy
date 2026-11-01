@@ -75,6 +75,8 @@ const (
 	sdkPromptPayloadValue                       = "PromptPayload"
 	sdkResourceRecordValue                      = "ResourceRecord"
 	sdkSessionContextValue                      = "SessionContext"
+	sdkAgentInstancePayloadValue                = "AgentInstancePayload"
+	sdkAgentInstanceObservationPatchValue       = "AgentInstanceObservationPatch"
 	sdkSessionAttentionChangedPayloadValue      = "SessionAttentionChangedPayload"
 	sdkSessionAttentionObservationPatchValue    = "SessionAttentionObservationPatch"
 	sdkSessionCreatePatchValue                  = "SessionCreatePatch"

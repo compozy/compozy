@@ -2,32 +2,32 @@ import type { ListingViewMode } from "@compozy/ui";
 
 import { normalizeListingSearchValue, parseListingView } from "@/lib/listing-search";
 
-import type { AgentFleetStatus } from "./fleet-signals";
+import type { AgentTeamFocus } from "./agent-team";
 
 export interface AgentsFleetSearch {
   q?: string;
-  category?: string;
-  status?: AgentFleetStatus;
+  focus?: Exclude<AgentTeamFocus, "all">;
+  project?: string;
+  model?: string;
+  owner?: string;
   view?: ListingViewMode;
 }
 
-export function parseAgentFleetStatusFilter(value: unknown): AgentFleetStatus | undefined {
-  return value === "active" || value === "idle" ? value : undefined;
-}
-
-export function parseAgentFleetCategoryFilter(value: unknown): string | undefined {
-  return normalizeListingSearchValue(value);
+function parseFocus(value: unknown): AgentsFleetSearch["focus"] {
+  return value === "needs-you" || value === "working" || value === "paused" ? value : undefined;
 }
 
 export function validateAgentsFleetSearch(search: Record<string, unknown>): AgentsFleetSearch {
   return {
     q: normalizeListingSearchValue(search.q),
-    category: parseAgentFleetCategoryFilter(search.category),
-    status: parseAgentFleetStatusFilter(search.status),
+    focus: parseFocus(search.focus),
+    project: normalizeListingSearchValue(search.project),
+    model: normalizeListingSearchValue(search.model),
+    owner: normalizeListingSearchValue(search.owner),
     view: parseListingView(search.view),
   };
 }
 
 export function hasActiveAgentFleetFilters(search: AgentsFleetSearch): boolean {
-  return Boolean(search.q || search.category || search.status);
+  return Boolean(search.q || search.focus || search.project || search.model || search.owner);
 }

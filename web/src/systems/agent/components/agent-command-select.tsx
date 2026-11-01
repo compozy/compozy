@@ -11,9 +11,10 @@ import {
   SkeletonText,
 } from "@compozy/ui";
 
-import { AgentIcon } from "./agent-icon";
+import { AgentMark } from "./agent-mark";
 import { AgentCommandList } from "./agent-command-list";
 import { formatCategoryLabel } from "../lib/agent-category";
+import { agentIdentityOf, humanizeAgentSlug } from "../lib/agent-identity";
 import type { AgentPayload } from "../types";
 
 /** Chromeless pill sized to its content, matching the composer model picker's 28px `tool` pill geometry. */
@@ -90,10 +91,18 @@ function SelectedAgentValue({
   loading: boolean;
 }) {
   const hasCategory = Boolean(agent.category_path && agent.category_path.length > 0);
+  const identity = agentIdentityOf(agent);
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted-foreground" />
-      <span className="truncate text-small-body text-fg">{agent.name}</span>
+      <AgentMark
+        aria-hidden="true"
+        appearance={identity.appearance}
+        label={identity.label}
+        quietIdle
+        size={16}
+        state="unknown"
+      />
+      <span className="truncate text-small-body text-fg">{identity.label}</span>
       <Eyebrow className="text-muted-foreground">{agent.provider}</Eyebrow>
       {hasCategory ? (
         <Eyebrow
@@ -117,11 +126,19 @@ function ComposerAgentValue({
   catalogError: string | null;
   loading: boolean;
 }) {
+  const identity = agentIdentityOf(agent);
   return (
     <span className="flex min-w-0 items-center gap-2 text-left">
-      <AgentIcon provider={agent.provider} size="xs" className="shrink-0 text-muted-foreground" />
+      <AgentMark
+        aria-hidden="true"
+        appearance={identity.appearance}
+        label={identity.label}
+        quietIdle
+        size={16}
+        state="unknown"
+      />
       <span className="min-w-0 max-w-56 truncate text-small-body font-medium text-fg-2 transition-colors group-hover:text-fg group-data-[popup-open]:text-fg">
-        {agent.name}
+        {identity.label}
       </span>
       <span className="shrink-0 text-eyebrow text-subtle">{agent.provider}</span>
       <CatalogStatus catalogError={catalogError} loading={loading} />
@@ -172,7 +189,7 @@ function PendingAgentValue({ name, variant }: { name: string; variant: "field" |
           composer ? "max-w-56 font-medium text-fg-2" : "text-fg"
         )}
       >
-        {name}
+        {humanizeAgentSlug(name)}
       </span>
       <Eyebrow className="shrink-0">
         <SkeletonText className="w-12" />

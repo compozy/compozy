@@ -124,6 +124,7 @@ type AgentPayload struct {
 	CategoryPath     []string                            `json:"category_path,omitempty"`
 	MCPServers       []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
 	Origin           AgentOrigin                         `json:"origin"`
+	PackageOwned     bool                                `json:"package_owned,omitempty"`
 	WorkspaceID      string                              `json:"workspace_id,omitempty"`
 	Layer            string                              `json:"layer,omitempty"`
 	Shadows          []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`

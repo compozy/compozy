@@ -1,12 +1,10 @@
-import { Button, MonoId, OwnerAvatar, Pill, StateGlyph } from "@compozy/ui";
+import { Button, MonoId, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { CARD_SURFACE_CLASS } from "./task-kanban-card-classes";
 
 import {
   formatRelativeTime,
-  ownerAvatarKindFor,
-  taskOwnerLabel,
   taskShortId,
   taskStateGlyph,
   taskStatusLabel,
@@ -14,6 +12,7 @@ import {
 import type { TaskListItem } from "../types";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+import { TaskOwnerMark, TaskOwnerName } from "./task-owner-mark";
 
 export interface TaskKanbanCardProps {
   task: TaskListItem;
@@ -154,22 +153,16 @@ function TaskKanbanCardFooter({
   task: TaskListItem;
   profileOwner?: ProfileOwner;
 }) {
-  const ownerLabel = taskOwnerLabel(task.owner);
-  const ownerId = task.owner?.ref ?? task.owner?.kind ?? "unassigned";
   return (
     <div className="flex min-w-0 items-center justify-between gap-2">
       <div
         className="flex min-w-0 items-center gap-1.5"
         data-testid={`tasks-kanban-card-owner-${task.id}`}
       >
-        <OwnerAvatar
-          data-testid={`tasks-kanban-card-avatar-${task.id}`}
-          name={ownerLabel}
-          ownerId={ownerId}
-          ownerKind={ownerAvatarKindFor(task.owner?.kind)}
-          size="sm"
-        />
-        <span className="min-w-0 truncate text-eyebrow text-muted-foreground">{ownerLabel}</span>
+        <TaskOwnerMark data-testid={`tasks-kanban-card-avatar-${task.id}`} owner={task.owner} />
+        <span className="min-w-0 truncate text-eyebrow text-muted-foreground">
+          <TaskOwnerName owner={task.owner} />
+        </span>
         {profileOwner ? (
           <ProfileOwnerTag
             data-testid={`tasks-kanban-card-profile-${task.id}`}

@@ -5,7 +5,6 @@ import type * as React from "react";
 import {
   Button,
   cn,
-  OwnerAvatar,
   PropertyRow,
   PropertyRowSkeleton,
   Skeleton,
@@ -15,11 +14,12 @@ import {
 } from "@compozy/ui";
 
 import { describeCost } from "@/lib/cost-provenance";
-import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
+import { taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunLineage } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunDetailView } from "../types";
 import { TaskRailSection } from "./task-rail-section";
 import { TASK_RAIL_CLASS, TASK_RAIL_FOOTER_CLASS } from "./task-surface-classes";
+import { TaskOwnerMark, TaskOwnerName } from "./task-owner-mark";
 
 export interface TaskRunRailProps extends React.ComponentProps<"div"> {
   run: TaskRunDetailView;
@@ -157,13 +157,10 @@ function TaskRunSessionSection({ run }: { run: TaskRunDetailView }) {
       )}
       {claimant ? (
         <PropertyRow label="Worked on by">
-          <OwnerAvatar
-            name={claimant}
-            ownerId={claimant}
-            ownerKind={ownerAvatarKindFor(record.claimed_by?.kind)}
-            size="sm"
-          />
-          <span className="truncate">{claimant}</span>
+          <TaskOwnerMark owner={record.claimed_by} />
+          <span className="truncate">
+            <TaskOwnerName owner={record.claimed_by} />
+          </span>
         </PropertyRow>
       ) : null}
       {cost.hasCost ? (

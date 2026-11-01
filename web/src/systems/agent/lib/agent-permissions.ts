@@ -8,7 +8,7 @@ export const AGENT_CREATE_PERMISSION_OPTIONS: readonly {
 }[] = [
   {
     value: "",
-    label: "Use the provider's setting",
+    label: "Use the default",
     description: "CompozyOS won't change how the agent asks for approval.",
   },
   {

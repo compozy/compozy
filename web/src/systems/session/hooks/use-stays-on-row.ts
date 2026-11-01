@@ -26,9 +26,11 @@ export function useStaysOnRowActions(onOpenSession: (session: SessionListTarget)
     archive: (instance: AgentInstancePayload) => actions.archive(instance.id),
     openAgent: (instance: AgentInstancePayload) =>
       navigate({ to: "/agents/$name", params: { name: instance.agent_name } }),
-    // The agent's page hosts Check-ins until its focused editor ships.
     openCheckIns: (instance: AgentInstancePayload) =>
-      navigate({ to: "/agents/$name", params: { name: instance.agent_name } }),
+      navigate({
+        to: "/agents/$name/$page",
+        params: { name: instance.agent_name, page: "check-ins" },
+      }),
   };
 }
 

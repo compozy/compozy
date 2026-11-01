@@ -61,6 +61,7 @@ import { Route as AppTerminalIndexRouteImport } from './routes/_app/terminal/ind
 import { Route as AppTerminalTerminalIdRouteImport } from './routes/_app/terminal/$terminalId'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
 import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
+import { Route as AppAgentsNamePageRouteImport } from './routes/_app/agents.$name.$page'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
 import { Route as AppAutomationsJobsJobIdRouteImport } from './routes/_app/automations.jobs.$jobId'
 import { Route as AppAutomationsTriggersTriggerIdRouteImport } from './routes/_app/automations.triggers.$triggerId'
@@ -333,6 +334,11 @@ const AppAgentsNameIndexRoute = AppAgentsNameIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppAgentsNameRoute,
 } as any)
+const AppAgentsNamePageRoute = AppAgentsNamePageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
+  getParentRoute: () => AppAgentsNameRoute,
+} as any)
 const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -436,6 +442,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/terminal/': typeof AppTerminalIndexRoute
+  '/agents/$name/$page': typeof AppAgentsNamePageRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
   '/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
@@ -494,6 +501,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/terminal': typeof AppTerminalIndexRoute
+  '/agents/$name/$page': typeof AppAgentsNamePageRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
   '/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
@@ -559,6 +567,7 @@ export interface FileRoutesById {
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/terminal/': typeof AppTerminalIndexRoute
+  '/_app/agents/$name/$page': typeof AppAgentsNamePageRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/_app/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
   '/_app/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
@@ -624,6 +633,7 @@ export interface FileRouteTypes {
     | '/marketplace/'
     | '/settings/'
     | '/terminal/'
+    | '/agents/$name/$page'
     | '/agents/$name/settings'
     | '/automations/jobs/$jobId'
     | '/automations/triggers/$triggerId'
@@ -682,6 +692,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/settings'
     | '/terminal'
+    | '/agents/$name/$page'
     | '/agents/$name/settings'
     | '/automations/jobs/$jobId'
     | '/automations/triggers/$triggerId'
@@ -746,6 +757,7 @@ export interface FileRouteTypes {
     | '/_app/marketplace/'
     | '/_app/settings/'
     | '/_app/terminal/'
+    | '/_app/agents/$name/$page'
     | '/_app/agents/$name/settings'
     | '/_app/automations/jobs/$jobId'
     | '/_app/automations/triggers/$triggerId'
@@ -1130,6 +1142,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsNameIndexRouteImport
       parentRoute: typeof AppAgentsNameRoute
     }
+    '/_app/agents/$name/$page': {
+      id: '/_app/agents/$name/$page'
+      path: '/$page'
+      fullPath: '/agents/$name/$page'
+      preLoaderRoute: typeof AppAgentsNamePageRouteImport
+      parentRoute: typeof AppAgentsNameRoute
+    }
     '/_app/agents/$name/settings': {
       id: '/_app/agents/$name/settings'
       path: '/settings'
@@ -1204,12 +1223,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAgentsNameRouteChildren {
+  AppAgentsNamePageRoute: typeof AppAgentsNamePageRoute
   AppAgentsNameSettingsRoute: typeof AppAgentsNameSettingsRoute
   AppAgentsNameIndexRoute: typeof AppAgentsNameIndexRoute
   AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
 }
 
 const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
+  AppAgentsNamePageRoute: AppAgentsNamePageRoute,
   AppAgentsNameSettingsRoute: AppAgentsNameSettingsRoute,
   AppAgentsNameIndexRoute: AppAgentsNameIndexRoute,
   AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,

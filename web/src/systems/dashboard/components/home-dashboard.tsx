@@ -12,6 +12,8 @@ import { HomeFirstRun } from "./home-first-run";
 import { HomeKpiStrip } from "./home-kpi-strip";
 import { HomeOutcomesChart } from "./home-outcomes-chart";
 import { HomePageMeta } from "./home-page-meta";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
+
 import { HomePulseHeatmap } from "./home-pulse-heatmap";
 import { HomeSystemPanel } from "./home-system-panel";
 import { HomeUsageChart } from "./home-usage-chart";
@@ -84,7 +86,10 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                     status={workingNow.status}
                     total={workingNow.total}
                   />
-                  <HomePulseHeatmap pulse={overview.pulse} />
+                  <HomePulseHeatmap
+                    pulse={overview.pulse}
+                    renderAgent={name => <AgentIdentityLabel name={name} />}
+                  />
                   <div className={HOME_ZONE_PAIR_CLASS}>
                     <HomeOutcomesChart outcomes={overview.outcomes} />
                     <HomeUsageChart

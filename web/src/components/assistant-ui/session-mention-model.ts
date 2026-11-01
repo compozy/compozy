@@ -1,5 +1,7 @@
 import type { Unstable_DirectiveFormatter, Unstable_TriggerItem } from "@assistant-ui/react";
 
+import { agentIdentityOf, humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
+import type { AgentPayload } from "@/systems/agent";
 import type {
   SessionFileEntry,
   SessionMentionRecent,
@@ -13,11 +15,11 @@ export const MENTION_TRIGGER_CHARACTER = "@";
 /** The picker requests and shows at most 50 file/folder rows (Business Rule 13). */
 export const MENTION_FILE_ROW_LIMIT = 50;
 
-export type SessionMentionKind = "file" | "folder" | "session";
+export type SessionMentionKind = "file" | "folder" | "session" | "agent";
 
 export interface SessionMentionTarget {
   kind: SessionMentionKind;
-  /** Relative path (folders end in `/`) or session id. */
+  /** Relative path (folders end in `/`), session id, or agent slug. */
   target: string;
 }
 
@@ -71,6 +73,14 @@ export function sessionMentionToken(sessionId: string): string {
   return `@session:${sessionId}`;
 }
 
+/**
+ * What the model reads for an agent: slug and name. The daemon verifies no agent token, so it
+ * stays prompt text, and nothing starts or messages the agent (US-006.EC-1).
+ */
+export function agentMentionToken(slug: string, label: string): string {
+  return `@agent:${slug} (${label})`;
+}
+
 export function mentionDirectiveId({ kind, target }: SessionMentionTarget): string {
   return `${kind}:${target}`;
 }
@@ -82,7 +92,7 @@ export function parseMentionDirectiveId(id: string): SessionMentionTarget | null
   const kind = id.slice(0, separator);
   const target = id.slice(separator + 1);
   if (target.length === 0) return null;
-  if (kind !== "file" && kind !== "folder" && kind !== "session") return null;
+  if (kind !== "file" && kind !== "folder" && kind !== "session" && kind !== "agent") return null;
   return { kind, target };
 }
 
@@ -129,7 +139,7 @@ export function sessionMentionItem(
     id: mentionDirectiveId({ kind: "session", target: session.id }),
     type: MENTION_DIRECTIVE_TYPE,
     label: sessionMentionLabel(session),
-    description: session.agent_name,
+    description: humanizeAgentSlug(session.agent_name),
     metadata: {
       kind: "session",
       target: session.id,
@@ -137,6 +147,19 @@ export function sessionMentionItem(
       titled: Boolean(session.name?.trim()),
       updatedAt: session.updated_at,
     },
+  };
+}
+
+export function agentMentionItem(
+  agent: Pick<AgentPayload, "name" | "label" | "resolved_appearance" | "description">
+): Unstable_TriggerItem {
+  const { name, label } = agentIdentityOf(agent);
+  return {
+    id: mentionDirectiveId({ kind: "agent", target: name }),
+    type: MENTION_DIRECTIVE_TYPE,
+    label,
+    description: agent.description ?? "",
+    metadata: { kind: "agent", target: name, token: agentMentionToken(name, label) },
   };
 }
 
@@ -161,7 +184,7 @@ export interface MentionMenuRow {
 }
 
 export interface MentionMenuGroup {
-  id: "files" | "sessions";
+  id: "files" | "sessions" | "agents";
   label: string;
   status: SessionMentionSourceStatus;
   rows: MentionMenuRow[];
@@ -202,6 +225,10 @@ export interface MentionMenuSources {
     stale?: boolean;
   };
   recents: readonly SessionMentionRecent[];
+  agents?: {
+    agents: readonly Pick<AgentPayload, "name" | "label" | "resolved_appearance" | "description">[];
+    status: SessionMentionSourceStatus;
+  };
 }
 
 function fileItems(sources: MentionMenuSources): Unstable_TriggerItem[] {
@@ -231,7 +258,7 @@ function groupMessage(
 }
 
 /**
- * The picker's two groups in fixed order — Files, then Sessions — each owning
+ * The picker's groups in fixed order — Files, Sessions, then Agents — each owning
  * its empty, error and loading row, so one failing source never hides the
  * other (US-001.EC-3, US-003.EC-3). Rows keep the previous answer while a new
  * one loads; a group in error offers no rows.
@@ -240,7 +267,11 @@ export function buildMentionMenuModel(sources: MentionMenuSources): MentionMenuM
   const files = sources.files.status === "error" ? [] : fileItems(sources);
   const sessions =
     sources.sessions.status === "error" ? [] : sources.sessions.sessions.map(sessionMentionItem);
-  const items = [...files, ...sessions];
+  const agents =
+    !sources.agents || sources.agents.status === "error"
+      ? []
+      : sources.agents.agents.map(agentMentionItem);
+  const items = [...files, ...sessions, ...agents];
   const groups: MentionMenuGroup[] = [
     {
       id: "files",
@@ -267,6 +298,23 @@ export function buildMentionMenuModel(sources: MentionMenuSources): MentionMenuM
       truncated: false,
     },
   ];
+  if (sources.agents) {
+    groups.push({
+      id: "agents",
+      label: "Agents",
+      status: sources.agents.status,
+      rows: agents.map((item, index) => ({
+        item,
+        flatIndex: files.length + sessions.length + index,
+      })),
+      message: groupMessage(sources.agents.status, agents.length, {
+        loading: "Loading agents…",
+        empty: "No matching agents",
+        error: "Couldn't load agents",
+      }),
+      truncated: false,
+    });
+  }
   // Rows answering an earlier query stay visible, undimmed and clickable, but
   // the keyboard reaches none until the current query's rows land: an Enter
   // racing the debounce or the request must not pick a row the typed text no

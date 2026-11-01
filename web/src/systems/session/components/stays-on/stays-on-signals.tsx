@@ -1,7 +1,7 @@
 import { Eyebrow } from "@compozy/ui";
 
+import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
-  AgentMark,
   GLOBAL_SCOPE,
   agentAvatarAppearance,
   agentInstanceAvatarState,
