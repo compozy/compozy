@@ -14,7 +14,7 @@ func sessionLinkedWorkOperation(method, id, summary string) OperationSpec {
 		Summary:     summary,
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: sessionLinkedWorkParameters(method),
+		Parameters:  sessionLinkedWorkParameters(method),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Linked work", Body: contract.SessionLinkedWorkResponse{}},
 			{Status: 400, Description: "Invalid link or repository mismatch", Body: contract.ErrorPayload{}},
