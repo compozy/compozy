@@ -304,6 +304,17 @@ describe("useSessionLinkDialogModel", () => {
     expect(search.kind === "results" ? search.branches : []).toEqual(SESSION_LINK_BRANCHES);
   });
 
+  it("Should never show the daemon's identity for a repository with no hosted forge", async () => {
+    candidates([], { supports_pr_discovery: false });
+    vi.mocked(fetchSessionLinkedWork).mockResolvedValue({
+      items: [{ ...SESSION_LINK_SETS.worktreeNoPr[0]!, repository: `local:${WORKSPACE}` }],
+    });
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.linked.size).toBeGreaterThan(0));
+    expect(result.current.forge).toBe("The forge");
+    expect(result.current.project).toBe("compozy");
+  });
+
   it("Should treat a forge failure as offline, not as a dead dialog", async () => {
     vi.mocked(searchSessionLinkCandidates).mockImplementation(async (_w, _s, query) => {
       if (query.kind === "pull_requests") throw new SessionApiError("forge down", 502);

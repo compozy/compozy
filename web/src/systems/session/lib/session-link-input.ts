@@ -38,6 +38,11 @@ export function sameRepository(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
 
+/** A repository with no hosted forge has a `local:` identity, which is never copy. */
+export function hostedRepository(repository: string | null): string | null {
+  return repository?.startsWith("local:") ? null : repository;
+}
+
 /** `owner/name` from a `host/owner/name` identity, for copy. */
 export function repositoryShortName(repository: string): string {
   return repository.split("/").slice(1).join("/") || repository;

@@ -6,6 +6,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-input";
 import { isForkUnsupported, isRepositoryMismatch } from "../adapters/session-linked-work-api";
 import type { SessionLinkDialogProps } from "../components/session-linked-work/session-link-dialog";
 import {
+  hostedRepository,
   parseSessionLinkInput,
   repositoryForgeName,
   repositoryShortName,
@@ -110,6 +111,7 @@ export function useSessionLinkDialogModel({
   const { pullRequests, branches } = candidates;
   const items = list.data?.items ?? [];
   const repository = items[0]?.repository ?? pullRequests[0]?.repository ?? null;
+  const hosted = hostedRepository(repository);
   const searching = query.trim() !== debounced || candidates.fetching;
   const exact = searching ? null : sessionLinkExactMatch(debounced, pullRequests);
   const selection = useSessionLinkSelection(exact);
@@ -150,7 +152,7 @@ export function useSessionLinkDialogModel({
 
   return {
     error,
-    forge: repositoryForgeName(repository),
+    forge: repositoryForgeName(hosted),
     forks,
     hasMore: candidates.hasMore,
     linked: linkedCandidateKeys(items),
@@ -169,8 +171,8 @@ export function useSessionLinkDialogModel({
     },
     onToggle: selection.toggle,
     pending,
-    project: repository
-      ? repositoryShortName(repository)
+    project: hosted
+      ? repositoryShortName(hosted)
       : workspaceName.split("/").at(-1) || workspaceName,
     query,
     search: sessionLinkSearch({
