@@ -118,6 +118,8 @@ const LOOKUP_CAUSE_TEXT: Record<string, string> = {
   timeout: "GitHub didn't answer in time",
   provider_disabled: "The forge provider is turned off",
   selection_incomplete: "Couldn't match a PR for this branch",
+  pr_identity_changed: "This branch now belongs to a different PR",
+  repository_changed: "This project now points at another repository",
 };
 
 /** Plain words for a sanitized lookup cause; an unrecognized cause stays generic. */
