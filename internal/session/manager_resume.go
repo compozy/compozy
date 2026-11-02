@@ -57,7 +57,7 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 			if service := m.ReplyWatches(); service != nil {
 				service.OnSessionResumed(ctx, target)
 			}
-			m.startNextQueuedInputPrompt(target)
+			m.dispatchResumedInputs(ctx, target)
 		}
 	}()
 	if m.hasPendingStopSettlement(target) {

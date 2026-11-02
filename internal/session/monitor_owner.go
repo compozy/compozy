@@ -99,7 +99,7 @@ func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) er
 		return errors.Join(err, m.StopWithCause(ctx, id, CauseShutdown, "Monitor owner needs review."))
 	}
 	m.restartInputsHeld.Delete(id)
-	m.startNextQueuedInputPrompt(id)
+	m.dispatchResumedInputs(ctx, id)
 	return nil
 }
 

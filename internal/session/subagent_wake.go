@@ -166,6 +166,14 @@ func (s *subagentService) OnParentTurnSettled(ctx context.Context, parent, turn 
 	return s.OnChildSettled(ctx, parent)
 }
 
+// OnParentResumed claims results parked while the parent was starting. A resume may
+// admit no turn, so no parent-turn edge would otherwise release them.
+func (s *subagentService) OnParentResumed(ctx context.Context, parent string) error {
+	unlock := s.lock(parent)
+	defer unlock()
+	return s.successor(ctx, parent)
+}
+
 func (s *subagentService) settleTurnSteers(ctx context.Context, parent, turn string) error {
 	wakes, err := s.parentWakes(ctx, parent)
 	if err != nil {

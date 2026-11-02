@@ -30,6 +30,16 @@ func (m *Manager) publishSubagentLifecycleEdge(ctx context.Context, before, afte
 		m.logSubagentError(service.OnParentTurnSettled(ctx, after.ID, before.Liveness.Activity.TurnID))
 	}
 }
+
+// dispatchResumedInputs runs after a resume publishes its completed start, so a wake
+// parked during that start joins the queue before the kick.
+func (m *Manager) dispatchResumedInputs(ctx context.Context, id string) {
+	if service := m.subagentService(); service != nil {
+		m.logSubagentError(service.OnParentResumed(ctx, id))
+	}
+	m.startNextQueuedInputPrompt(id)
+}
+
 func (m *Manager) publishSubagentActivity(ctx context.Context, child *Session, event acp.AgentEvent) {
 	if event.Type != acp.EventTypeToolCall && event.Type != acp.EventTypeThought {
 		return

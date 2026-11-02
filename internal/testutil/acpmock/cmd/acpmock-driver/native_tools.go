@@ -61,7 +61,8 @@ func (a *mockAgent) prepareNativeTools(
 		a.mu.Unlock()
 		return nil
 	}
-	return errors.New("acpmock: native_tool_call requires the injected compozy-hosted-tools stdio server")
+	// Daemon-owned sessions such as Goal judges run without hosted tools; only a native step needs them.
+	return nil
 }
 
 func (a *mockAgent) closeSessionNativeTools(sessionID string) error {
@@ -105,7 +106,7 @@ func (a *mockAgent) callNativeTool(
 	}
 	a.mu.Unlock()
 	if client == nil {
-		return diagnostics, errors.New("acpmock: native tool connection is unavailable")
+		return diagnostics, errors.New("acpmock: native_tool_call requires the injected hosted tools stdio server")
 	}
 	var arguments map[string]any
 	if err := json.Unmarshal(step.RawInput, &arguments); err != nil {

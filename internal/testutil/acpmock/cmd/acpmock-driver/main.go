@@ -228,6 +228,9 @@ func (a *mockAgent) LoadSession(
 	if a.agent.LoadMissing {
 		return acpsdk.LoadSessionResponse{}, &acpsdk.RequestError{Code: -32002, Message: "Resource not found"}
 	}
+	if err := waitDriverControlDelay(ctx, a.lifecycleContext(), a.agent.LoadDelayMS); err != nil {
+		return acpsdk.LoadSessionResponse{}, err
+	}
 	a.mu.Lock()
 	sessionID := strings.TrimSpace(string(params.SessionId))
 	if sessionID == "" {

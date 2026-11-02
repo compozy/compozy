@@ -11,9 +11,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -1394,4 +1397,285 @@ func TestGoalCompactionRestart(t *testing.T) {
 			t.Fatalf("durable ticket settlements=%d, want 1", settlements)
 		}
 	})
+}
+
+// Invariant: a Goal whose only outstanding work is a delegated child survives a daemon restart. The
+// bound session revives without a Goal prompt, the wait spends no turn or judge attempt while the
+// child lives, and the next work turn starts only after the child's wake was delivered, even when
+// the child settles inside the bound session's start window.
+// Owner: daemon Goal wait recovery; canonical Goal command integration suite.
+func TestGoalDelegatedChildWaitRestart(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		settleDuringStart bool
+	}{
+		{name: "Should hold the waiting Goal while the child lives and advance after its wake"},
+		{name: "Should deliver the wake of a child settled while the bound session starts", settleDuringStart: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Serial: the daemon home helpers use t.Setenv.
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+			binary := e2etest.BuildCompozyBinary(t)
+			d, manager, _ := newSubagentDaemonWithExecutable(t, nil, binary)
+			release := filepath.Join(t.TempDir(), "release-child")
+			if err := syscall.Mkfifo(release, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			loadDelayMS := 0
+			if tc.settleDuringStart {
+				loadDelayMS = 4000 // Parks the bound session in Starting while the child settles.
+			}
+			installGoalChildWaitFixture(t, d.homePaths, release, loadDelayMS)
+			root := e2etest.SeedWorkspace(t, e2etest.WorkspaceSeedOptions{
+				Files: map[string]string{
+					filepath.Join(compozyconfig.DirName, compozyconfig.ConfigName): `
+[loops.defaults.delivery.runtime_defaults.judge]
+model = "goal-e2e-judge"
+`,
+				},
+			})
+			workspace := resolveDaemonWorkspace(t, d.workspaceResolver, root)
+			parent, err := manager.Create(ctx, new(session.CreateOpts{
+				AgentName: "subagent-test", Workspace: workspace.ID, Type: session.SessionTypeUser,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := goalDaemonClient(d, workspace.ID)
+			status, started := callGoalCommandUDS(ctx, t, client, parent.ID, "/goal Finish after the child reports")
+			if status != http.StatusAccepted || started.Snapshot == nil {
+				t.Fatalf("Goal start = %d %#v", status, started)
+			}
+			runID := started.Snapshot.RunID
+			waitForGoalSnapshot(ctx, t, client, parent.ID, func(goal *compozycontract.GoalSnapshot) bool {
+				return goal != nil && goal.Status == compozycontract.GoalStatusWaiting
+			})
+			child := requireGoalDelegatedChild(ctx, t, d, workspace.ID, parent.ID)
+			waitForRuntimeCondition(t, "child turn held before restart", 15*time.Second, func() bool {
+				active, ok := manager.Get(child)
+				return ok && active.IsPrompting()
+			})
+			requireGoalWaitSpentNothing(ctx, t, client, d, parent.ID, runID, child)
+
+			home, cfg := d.homePaths, d.config
+			requestDaemonIntegrationRestart(t, d)
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+			restarted := reopenSubagentIntegrationDaemon(t, home, &cfg, binary)
+			client = goalDaemonClient(restarted, workspace.ID)
+			// The FIFO only opens against a reader, so this proves the child's turn is live again.
+			var hold *os.File
+			waitForRuntimeCondition(t, "resumed child holding its turn", 30*time.Second, func() bool {
+				hold, err = os.OpenFile(release, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+				return err == nil
+			})
+			bindingState := func() session.State {
+				info, statusErr := restarted.sessions.Status(ctx, parent.ID)
+				if statusErr != nil {
+					t.Fatal(statusErr)
+				}
+				return info.State
+			}
+			if tc.settleDuringStart {
+				waitForRuntimeCondition(t, "bound session starting", 30*time.Second, func() bool {
+					return bindingState() == session.StateStarting
+				})
+				if err := hold.Close(); err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "child settled during start", 30*time.Second, func() bool {
+					row, rowErr := restarted.registry.(store.SubagentStore).GetSubagentByChild(ctx, child)
+					return rowErr == nil && store.IsSubagentStatusTerminal(row.Status)
+				})
+				if state := bindingState(); state != session.StateStarting {
+					t.Fatalf("bound session state at child settlement = %s, want starting", state)
+				}
+			} else {
+				waitForRuntimeCondition(t, "bound session revived", 30*time.Second, func() bool {
+					return bindingState() == session.StateActive
+				})
+				// The executor rechecks each second; three rechecks must leave every Goal counter untouched.
+				deadline := time.Now().Add(3 * time.Second)
+				for time.Now().Before(deadline) {
+					requireGoalWaitSpentNothing(ctx, t, client, restarted, parent.ID, runID, child)
+					time.Sleep(100 * time.Millisecond)
+				}
+				if err := hold.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			waitForGoalSnapshot(ctx, t, client, parent.ID, func(goal *compozycontract.GoalSnapshot) bool {
+				return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusDone
+			})
+			turns := waitForGoalTurns(ctx, t, client, runID, func(page compozycontract.GoalTurnPage) bool {
+				return len(page.Turns) == 2 && page.Turns[1].ResultStatus != nil
+			})
+			assertMonotonicGoalTurns(t, turns)
+			if turns.Turns[0].VerdictOutcome != nil || countGoalVerdicts(turns) != 1 ||
+				string(*turns.Turns[1].VerdictOutcome) != "approved" {
+				t.Fatalf("Goal verdicts = %#v", turns.Turns)
+			}
+			// Provider order proves the wake ran first and no Goal prompt was replayed.
+			want := []string{"goal-work-1", "wake", "goal-work-2"}
+			if got := goalSessionProviderTurns(t, home, parent.ID); !slices.Equal(got, want) {
+				t.Fatalf("bound session provider turns = %q, want %q", got, want)
+			}
+			settled, err := restarted.registry.(store.SubagentStore).GetSubagentByChild(ctx, child)
+			if err != nil || settled.Status != store.SubagentStatusCompleted ||
+				settled.Delivery != store.SubagentDeliveryDelivered || settled.Result == nil ||
+				*settled.Result != "child finished after restart" {
+				t.Fatalf("settled child = %+v, err = %v", settled, err)
+			}
+		})
+	}
+}
+
+// installGoalChildWaitFixture scripts the provider only: Goal turn 1 delegates a real child that holds
+// until cancel, and the child's restart continuation holds until the release FIFO reaches EOF.
+func installGoalChildWaitFixture(t *testing.T, home compozyconfig.HomePaths, release string, loadDelayMS int) {
+	t.Helper()
+	path := filepath.Join(home.HomeDir, "subagents-fixture.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture acpmock.Fixture
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	delegate, err := json.Marshal(map[string]any{"task": "hold parent", "title": "Outlive the restart"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent := &fixture.Agents[0]
+	agent.LoadDelayMS = loadDelayMS
+	agent.ConfigOptions = []acpmock.SessionConfigOptionFixture{{
+		ID: "model", Name: "Model", Current: "goal-e2e-judge",
+		Values: []acpmock.SessionConfigOptionValueFixture{{Value: "goal-e2e-judge", Label: "Goal E2E judge"}},
+	}}
+	// The driver takes the first match, so these precede the generic synthetic wake turn.
+	agent.Turns = append([]acpmock.TurnFixture{
+		{
+			Name: "goal-work-1",
+			Match: acpmock.TurnMatch{
+				TurnSource: acp.PromptTurnSourceSynthetic, Goal: &acpmock.TurnMatchGoal{Turn: new(1)},
+			},
+			Steps: []acpmock.Step{
+				{
+					Kind: acpmock.StepKindNativeToolCall, ToolID: "compozy__subagent_delegate",
+					ToolCallID: "goal-delegate-child", RawInput: delegate,
+				},
+				{Kind: acpmock.StepKindAssistant, Text: "Delegated; the child reports through its wake."},
+			},
+		},
+		{
+			Name: "goal-work-2",
+			Match: acpmock.TurnMatch{
+				TurnSource: acp.PromptTurnSourceSynthetic, Goal: &acpmock.TurnMatchGoal{Turn: new(2)},
+			},
+			Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "```json\n{\"status\":\"complete\"}\n```"}},
+		},
+		{
+			Name: "goal-judge",
+			Match: acpmock.TurnMatch{
+				TurnSource: acp.PromptTurnSourceUser, Judge: &acpmock.TurnMatchJudge{Role: "agent-judge"},
+			},
+			Steps: []acpmock.Step{{
+				Kind: acpmock.StepKindAssistant,
+				Text: `{"verdict":"pass","blocking_issues":[],"evidence":{"child":"reported"}}`,
+			}},
+		},
+		{
+			Name:  "child-held-after-restart",
+			Match: acpmock.TurnMatch{UserTextContains: "The daemon restarted while your previous turn was running."},
+			Steps: []acpmock.Step{
+				{
+					Kind: acpmock.StepKindCommand, Command: "cat", Args: []string{release},
+					ToolCallID: "child-release", ExpectExitCode: new(0),
+				},
+				{Kind: acpmock.StepKindAssistant, Text: "child finished after restart"},
+			},
+		},
+	}, agent.Turns...)
+	writeSessionOriginFixture(t, path, fixture)
+}
+
+// goalDaemonClient addresses an in-process daemon through the same public UDS helpers as the harness.
+func goalDaemonClient(d *Daemon, workspaceID string) *e2etest.RuntimeHarness {
+	return &e2etest.RuntimeHarness{
+		WorkspaceID: workspaceID,
+		UDSBaseURL:  "http://unix",
+		UDSClient:   gatewayDaemonUDSClient(d.homePaths.DaemonSocket),
+	}
+}
+
+func requireGoalDelegatedChild(ctx context.Context, t *testing.T, d *Daemon, workspaceID, parentID string) string {
+	t.Helper()
+	page, err := d.registry.(store.SubagentStore).ListSubagents(ctx, store.SubagentListQuery{
+		WorkspaceID: workspaceID, ParentSessionID: parentID,
+	})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ChildSessionID == nil ||
+		page.Items[0].Origin != store.SubagentOriginDelegated || page.Items[0].Status != store.SubagentStatusRunning {
+		t.Fatalf("delegated children = %+v, err = %v", page.Items, err)
+	}
+	return *page.Items[0].ChildSessionID
+}
+
+// requireGoalWaitSpentNothing reads public state plus the provider's own prompt record.
+func requireGoalWaitSpentNothing(
+	ctx context.Context,
+	t *testing.T,
+	client *e2etest.RuntimeHarness,
+	d *Daemon,
+	parentID, runID, child string,
+) {
+	t.Helper()
+	row, err := d.registry.(store.SubagentStore).GetSubagentByChild(ctx, child)
+	if err != nil || row.Status != store.SubagentStatusRunning {
+		t.Fatalf("waited-on child = %+v, err = %v", row, err)
+	}
+	snapshot, err := getGoalSnapshot(ctx, client, parentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Goal == nil || snapshot.Goal.Status != compozycontract.GoalStatusWaiting ||
+		snapshot.Goal.TurnsUsed != 1 || snapshot.Goal.LastVerdict != nil {
+		t.Fatalf("waiting Goal = %#v", goalSnapshotValue(snapshot))
+	}
+	turns, err := getGoalTurns(ctx, client, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(turns.Turns) != 1 || countGoalVerdicts(turns) != 0 {
+		t.Fatalf("waiting Goal turns = %#v", turns)
+	}
+	judges, err := listGoalRuntimeSessions(ctx, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found := goalJudgeSessions(judges.Sessions); len(found) != 0 {
+		t.Fatalf("waiting Goal spent a judge session: %#v", found)
+	}
+	if got := goalSessionProviderTurns(t, d.homePaths, parentID); !slices.Equal(got, []string{"goal-work-1"}) {
+		t.Fatalf("waiting bound session provider turns = %q", got)
+	}
+}
+
+// goalSessionProviderTurns lists the prompts the provider itself received for one session.
+func goalSessionProviderTurns(t *testing.T, home compozyconfig.HomePaths, sessionID string) []string {
+	t.Helper()
+	records, err := acpmock.ReadDiagnostics(filepath.Join(home.LogsDir, "acpmock", "subagent-test.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(records))
+	for _, record := range acpmock.DiagnosticsForCompozySession(records, sessionID) {
+		if record.TurnName != "" {
+			names = append(names, record.TurnName)
+		}
+	}
+	return names
 }

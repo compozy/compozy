@@ -92,7 +92,7 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 		return true, err
 	}
 	m.restartInputsHeld.Delete(id)
-	m.startNextQueuedInputPrompt(id)
+	m.dispatchResumedInputs(ctx, id)
 	return true, nil
 }
 

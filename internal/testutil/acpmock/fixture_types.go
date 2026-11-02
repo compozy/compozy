@@ -43,7 +43,9 @@ type AgentFixture struct {
 	// ForkError makes session/fork fail with this message.
 	ForkError string `json:"fork_error,omitempty"`
 	// LoadMissing makes session/load fail with ACP resource-not-found for any id.
-	LoadMissing   bool                         `json:"load_missing,omitzero"`
+	LoadMissing bool `json:"load_missing,omitzero"`
+	// LoadDelayMS holds session/load open to script a provider that resumes slowly.
+	LoadDelayMS   int                          `json:"load_delay_ms,omitzero"`
 	ConfigOptions []SessionConfigOptionFixture `json:"config_options,omitempty"`
 	Turns         []TurnFixture                `json:"turns"`
 }

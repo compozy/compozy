@@ -47,7 +47,8 @@ It uses MCP `tools/call`; no operator API invocation or synthetic tool response 
 - Agents with this step connect their hosted MCP server at session initialization and reuse
   that connection across calls and turns. This preserves the single-use bind nonce. The
   connection closes on session close or driver shutdown. Fixtures without native calls
-  continue to leave the injected server untouched.
+  continue to leave the injected server untouched. Sessions the daemon starts without that
+  server, such as Goal judges, still start; only a native step executed there fails.
 
 `testdata/native_tool_delegate_fixture.json` supplies `subagent-delegator` and
 `subagent-worker`. Register both under those agent names, prompt the parent with
