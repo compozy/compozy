@@ -4,9 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	c "github.com/compozy/compozy/internal/extension/contract"
 	p "github.com/compozy/compozy/internal/extensionprotocol"
 )
+
+// forgeDiscoveryTimeout bounds one capability lookup plus provider call: a live subprocess can stall.
+const forgeDiscoveryTimeout = 15 * time.Second
 
 func (m *Manager) ForgeSearchPRs(ctx context.Context, request c.ForgePRSearchRequest) (c.ForgePRSearchResponse, error) {
 	var response c.ForgePRSearchResponse
@@ -22,6 +27,8 @@ func (m *Manager) ForgeReadPR(ctx context.Context, request c.ForgePRReadRequest)
 	return response, err
 }
 func (m *Manager) forgeDiscoveryCall(ctx context.Context, remotes []string, method p.ExtensionServiceMethod, request, response any) error {
+	ctx, cancel := context.WithTimeout(ctx, forgeDiscoveryTimeout)
+	defer cancel()
 	capabilities, err := m.ForgeCapabilities(ctx, remotes)
 	if err != nil {
 		return err

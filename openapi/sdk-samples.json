@@ -2808,6 +2808,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "refreshSessionWorkLink": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.refreshSessionWorkLink({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RefreshSessionWorkLink(ctx, client.RefreshSessionWorkLinkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionWorkLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "registerWindowManagerClient": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.registerWindowManagerClient({ path: { \"workspace_id\": \"workspace_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RegisterWindowManagerClient(ctx, client.RegisterWindowManagerClientParams{WorkspaceID: \"workspace_id\"}, client.WindowManagerClientRegistration{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",

@@ -160,8 +160,9 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if search == "" {
 		return true
 	}
+	digits := strings.TrimPrefix(search, "#")
 	for _, item := range info.linkedWork {
-		if item.SourceSessionID != "" {
+		if item.SourceSessionID != "" || item.Lookup.Cause == "repository_changed" {
 			continue
 		}
 		number := item.PRNumber
@@ -169,7 +170,7 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 			number = item.PullRequest.Number
 		}
 		if strings.Contains(strings.ToLower(item.Branch), strings.ToLower(search)) ||
-			number > 0 && strings.Contains(strconv.Itoa(number), strings.TrimPrefix(search, "#")) {
+			number > 0 && digits != "" && strings.Contains(strconv.Itoa(number), digits) {
 			return true
 		}
 	}

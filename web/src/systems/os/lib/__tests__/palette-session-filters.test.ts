@@ -138,9 +138,20 @@ describe("palette session filters (UT-061)", () => {
       expect(result.total).toBe(3);
     });
 
-    it("Should leave the fallback filter alone without ranking signals", () => {
-      const ranked = { rows: [row("a")], total: 1 };
-      expect(keepServerSessions(ranked, [row("a"), row("b")], undefined)).toBe(ranked);
+    it("Should keep every server row without ranking signals", () => {
+      const result = keepServerSessions(
+        { rows: [row("a")], total: 1 },
+        [row("a"), row("b")],
+        undefined
+      );
+      expect(result.rows.map(entry => entry.sessionId)).toEqual(["a", "b"]);
+      expect(result.total).toBe(2);
+    });
+
+    it("Should not count a row twice when the ranking cap cut it", () => {
+      const rows = ["a", "b", "c", "d"].map(row);
+      const result = keepServerSessions({ rows: rows.slice(0, 2), total: 4 }, rows, 2);
+      expect(result.total).toBe(4);
     });
   });
 });

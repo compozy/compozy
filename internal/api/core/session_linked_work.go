@@ -16,7 +16,17 @@ type SessionLinkedWorkManager interface {
 	SessionLinkedWork(context.Context, []*session.Info) (map[string]session.LinkedWorkProjection, error)
 	LinkSessionWork(context.Context, string, store.SessionWorkLink, bool) error
 	UnlinkSessionWork(context.Context, string, string, string) error
+	RefreshSessionWorkLink(context.Context, string, string, string) error
 }
+
+type linkedWorkAction int
+
+const (
+	linkedWorkList linkedWorkAction = iota
+	linkedWorkAdd
+	linkedWorkRemove
+	linkedWorkRefresh
+)
 
 func LinkedWorkErrorCode(err error) string {
 	if errors.Is(err, session.ErrLinkedWorkForkUnsupported) {
@@ -85,63 +95,45 @@ func DecorateSessionLinkedWork(
 	return nil
 }
 
-func (h *BaseHandlers) ListSessionLinkedWork(c *gin.Context) { h.sessionLinkedWork(c, false, false) }
-func (h *BaseHandlers) AddSessionWorkLink(c *gin.Context)    { h.sessionLinkedWork(c, true, false) }
-func (h *BaseHandlers) RemoveSessionWorkLink(c *gin.Context) { h.sessionLinkedWork(c, true, true) }
+func (h *BaseHandlers) ListSessionLinkedWork(c *gin.Context) { h.sessionLinkedWork(c, linkedWorkList) }
+func (h *BaseHandlers) AddSessionWorkLink(c *gin.Context)    { h.sessionLinkedWork(c, linkedWorkAdd) }
+func (h *BaseHandlers) RemoveSessionWorkLink(c *gin.Context) {
+	h.sessionLinkedWork(c, linkedWorkRemove)
+}
+func (h *BaseHandlers) RefreshSessionWorkLink(c *gin.Context) {
+	h.sessionLinkedWork(c, linkedWorkRefresh)
+}
 
-func (h *BaseHandlers) sessionLinkedWork(c *gin.Context, mutate, unlink bool) {
+func (h *BaseHandlers) sessionLinkedWork(c *gin.Context, action linkedWorkAction) {
 	_, id, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	if mutate {
-		scope, err := h.resolveProfileMutationScope(c)
-		if err != nil {
-			h.respondProfileReadScopeError(c, err)
-			return
-		}
-		if !h.requireSessionInProfile(c, info, scope) {
-			return
-		}
-	} else {
-		scope, err := h.resolveProfileReadScope(c)
-		if err != nil {
-			h.respondProfileReadScopeError(c, err)
-			return
-		}
-		if !h.requireSessionInProfile(c, info, scope) {
-			return
-		}
+	resolveScope := h.resolveProfileMutationScope
+	if action == linkedWorkList {
+		resolveScope = h.resolveProfileReadScope
+	}
+	scope, err := resolveScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !h.requireSessionInProfile(c, info, scope) {
+		return
 	}
 	manager, ok := h.Sessions.(SessionLinkedWorkManager)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("session linked work unavailable"))
 		return
 	}
-	if mutate {
+	if action != linkedWorkList {
 		var request contract.SessionWorkLinkRequest
 		if err := decodeStrictJSONBody(c, &request); err != nil {
 			h.respondError(c, http.StatusBadRequest, err)
 			return
 		}
-		var err error
-		if unlink {
-			err = manager.UnlinkSessionWork(c.Request.Context(), id, request.Repository, request.Branch)
-		} else {
-			err = manager.LinkSessionWork(
-				c.Request.Context(),
-				id,
-				store.SessionWorkLink{
-					Repository: request.Repository,
-					Branch:     request.Branch,
-					PRNumber:   request.PRNumber,
-					Provenance: userScopeValue,
-				},
-				false,
-			)
-		}
-		if err != nil {
-			c.JSON(http.StatusBadRequest, contract.ErrorPayload{Code: LinkedWorkErrorCode(err), Error: err.Error()})
+		if err := applyLinkedWorkAction(c, manager, id, action, request); err != nil {
+			h.respondLinkedWorkError(c, err)
 			return
 		}
 	}
@@ -155,6 +147,40 @@ func (h *BaseHandlers) sessionLinkedWork(c *gin.Context, mutate, unlink bool) {
 		response.Items = append(response.Items, linkedWorkItemPayload(item))
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+func applyLinkedWorkAction(
+	c *gin.Context,
+	manager SessionLinkedWorkManager,
+	id string,
+	action linkedWorkAction,
+	request contract.SessionWorkLinkRequest,
+) error {
+	ctx := c.Request.Context()
+	switch action {
+	case linkedWorkRemove:
+		return manager.UnlinkSessionWork(ctx, id, request.Repository, request.Branch)
+	case linkedWorkRefresh:
+		return manager.RefreshSessionWorkLink(ctx, id, request.Repository, request.Branch)
+	default:
+		return manager.LinkSessionWork(ctx, id, store.SessionWorkLink{
+			Repository: request.Repository,
+			Branch:     request.Branch,
+			PRNumber:   request.PRNumber,
+			Provenance: userScopeValue,
+		}, false)
+	}
+}
+
+// respondLinkedWorkError keeps 400 for refused input; anything else is the daemon's failure.
+func (h *BaseHandlers) respondLinkedWorkError(c *gin.Context, err error) {
+	if errors.Is(err, session.ErrLinkedWorkForkUnsupported) ||
+		errors.Is(err, session.ErrLinkedWorkRepository) ||
+		errors.Is(err, session.ErrLinkedWorkInvalid) {
+		c.JSON(http.StatusBadRequest, contract.ErrorPayload{Code: LinkedWorkErrorCode(err), Error: err.Error()})
+		return
+	}
+	h.respondError(c, StatusForSessionError(err), err)
 }
 
 func (h *BaseHandlers) SearchSessionWorkCandidates(c *gin.Context) {

@@ -4,10 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
+
+const linkedWorkRefreshTimeout = 10 * time.Second
 
 var ErrLinkedWorkRepository = errors.New("linked work belongs to another repository")
 var ErrLinkedWorkForkUnsupported = errors.New("pull requests from another head repository cannot be linked")
@@ -144,6 +149,42 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 		return err
 	}
 	m.publishLinkedWorkChanged(ctx, info)
+	return nil
+}
+
+// RefreshSessionWorkLink asks the forge again about one item this session lists. A forge failure
+// is recorded on the item's lookup, so the list that follows is what reports it.
+func (m *Manager) RefreshSessionWorkLink(ctx context.Context, sessionID, repository, branch string) error {
+	info, err := m.Status(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if info == nil {
+		return ErrSessionNotFound
+	}
+	views, err := m.SessionLinkedWork(ctx, []*Info{info})
+	if err != nil {
+		return err
+	}
+	listed := slices.ContainsFunc(views[info.ID].Items, func(item LinkedWorkItem) bool {
+		return item.Branch == branch && item.Repository == repository
+	})
+	if !listed {
+		return ErrLinkedWorkInvalid
+	}
+	m.mu.RLock()
+	refresher, ok := m.pullRequestReader.(interface {
+		RefreshBranch(context.Context, BranchKey) (PullRequestView, error)
+	})
+	m.mu.RUnlock()
+	if !ok {
+		return nil
+	}
+	refreshCtx, cancel := context.WithTimeout(ctx, linkedWorkRefreshTimeout)
+	defer cancel()
+	if _, err := refresher.RefreshBranch(refreshCtx, BranchKey{info.WorkspaceID, branch}); err != nil {
+		slog.WarnContext(ctx, "linked work refresh failed", "session_id", info.ID, "branch", branch, "error", err)
+	}
 	return nil
 }
 

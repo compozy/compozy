@@ -29,7 +29,7 @@ Native tools: `compozy__session_link`, `compozy__session_unlink`; mutating risk.
 
 CLI: `session link <id>` lists; `session link <id> [branch] --pr-number N` resolves/adds; `session link <id> <branch>` adds; `session unlink <id> <branch>` removes. Flags: `--repository`, `--pr-number`, and standard structured output including `-o json`.
 
-Stable link error codes: `session_link_repository_mismatch`, `session_link_invalid`, `session_link_failed`. HTTP mutation failures return 400 with code/error. Native domain failures retain those codes. Other existing authorization/session lookup errors retain their transport behavior. Candidate provider failure returns 502. No new hooks or config keys.
+Stable link error codes: `session_link_repository_mismatch`, `session_link_invalid`, `session_link_failed`. Refused input returns 400 with code/error; a daemon failure returns 5xx. Native domain failures retain those codes. Other existing authorization/session lookup errors retain their transport behavior. Candidate provider failure returns 502. No new hooks or config keys.
 
 Every successful add/unlink publishes the existing session catalog upsert for the target. Automatic native worktree creation links the returned worktree without binding or restarting the caller.
 

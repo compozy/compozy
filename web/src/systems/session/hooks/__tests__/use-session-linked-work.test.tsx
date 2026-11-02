@@ -18,6 +18,7 @@ import { SessionApiError } from "../../adapters/session-api-errors";
 import {
   addSessionWorkLink,
   fetchSessionLinkedWork,
+  refreshSessionWorkLink,
   removeSessionWorkLink,
   searchSessionLinkCandidates,
 } from "../../adapters/session-linked-work-api";
@@ -29,7 +30,11 @@ import {
   SESSION_LINK_PULL_REQUESTS,
   SESSION_LINK_SETS,
 } from "../../mocks/session-links-fixtures";
-import { sessionLinkDialogStore } from "../use-session-link-dialog";
+import {
+  closeSessionLinkDialog,
+  requestSessionLinkDialog,
+  sessionLinkDialogStore,
+} from "../use-session-link-dialog";
 import { useSessionLinkDialogModel } from "../use-session-link-dialog-model";
 import { useSessionLinkedWork } from "../use-session-linked-work";
 
@@ -37,6 +42,7 @@ vi.mock("../../adapters/session-linked-work-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-linked-work-api")>()),
   addSessionWorkLink: vi.fn(),
   fetchSessionLinkedWork: vi.fn(),
+  refreshSessionWorkLink: vi.fn(),
   removeSessionWorkLink: vi.fn(),
   searchSessionLinkCandidates: vi.fn(),
 }));
@@ -72,6 +78,7 @@ function dialog() {
         sessionId: session.id,
         workspaceId: WORKSPACE,
         workspaceName: "compozy",
+        profile: session.profile_name,
       }),
     { wrapper }
   );
@@ -82,6 +89,7 @@ function openDialog() {
   sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
   return render(
     <SessionLinkDialogHost
+      profile={session.profile_name}
       sessionId={session.id}
       workspaceId={WORKSPACE}
       workspaceName="compozy"
@@ -145,10 +153,15 @@ describe("useSessionLinkedWork", () => {
 
     act(() => result.current.unlink(first!));
     await waitFor(() => expect(list(client)?.items).toHaveLength(3));
-    expect(removeSessionWorkLink).toHaveBeenCalledWith(WORKSPACE, session.id, {
-      branch: first!.branch,
-      repository: first!.repository,
-    });
+    expect(removeSessionWorkLink).toHaveBeenCalledWith(
+      WORKSPACE,
+      session.id,
+      session.profile_name,
+      {
+        branch: first!.branch,
+        repository: first!.repository,
+      }
+    );
     await act(async () => finish({ items: items.slice(1) }));
 
     const [title, options] = vi.mocked(toast.message).mock.calls[0] ?? [];
@@ -160,12 +173,61 @@ describe("useSessionLinkedWork", () => {
     expect(undo.label).toBe("Undo");
     act(() => undo.onClick());
     await waitFor(() =>
-      expect(addSessionWorkLink).toHaveBeenCalledWith(WORKSPACE, session.id, {
+      expect(addSessionWorkLink).toHaveBeenCalledWith(WORKSPACE, session.id, session.profile_name, {
         branch: first!.branch,
         repository: first!.repository,
         pr_number: 951,
       })
     );
+  });
+
+  it("Should ask the forge about the item and show the list it answers with", async () => {
+    vi.mocked(refreshSessionWorkLink).mockResolvedValue({ items: items.slice(0, 2) });
+    const { client, wrapper } = harness();
+    const { result } = renderHook(
+      () => useSessionLinkedWork({ session, workspaceId: WORKSPACE, enabled: true }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(4));
+    act(() => result.current.refresh(second!));
+    await waitFor(() => expect(list(client)?.items).toHaveLength(2));
+    expect(refreshSessionWorkLink).toHaveBeenCalledWith(
+      WORKSPACE,
+      session.id,
+      session.profile_name,
+      { branch: second!.branch, repository: second!.repository }
+    );
+  });
+
+  it("Should show the whole list in a window that is not live", async () => {
+    const { wrapper } = harness();
+    const { result } = renderHook(
+      () => useSessionLinkedWork({ session, workspaceId: WORKSPACE, enabled: false }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(4));
+  });
+
+  it("Should open one dialog when two windows host the session", async () => {
+    const { wrapper } = harness();
+    const host = (
+      <SessionLinkDialogHost
+        profile={session.profile_name}
+        sessionId={session.id}
+        workspaceId={WORKSPACE}
+        workspaceName="compozy"
+      />
+    );
+    render(
+      <>
+        {host}
+        {host}
+      </>,
+      { wrapper }
+    );
+    act(() => requestSessionLinkDialog(session.id));
+    expect(await screen.findAllByTestId("session-link-dialog")).toHaveLength(1);
+    act(() => closeSessionLinkDialog());
   });
 
   it("Should keep Undo on the session it came from after a switch", async () => {
@@ -189,6 +251,7 @@ describe("useSessionLinkedWork", () => {
     expect(addSessionWorkLink).toHaveBeenCalledWith(
       WORKSPACE,
       session.id,
+      session.profile_name,
       expect.objectContaining({ branch: first!.branch })
     );
   });
@@ -196,7 +259,7 @@ describe("useSessionLinkedWork", () => {
   it("Should toast and undo every unlink of a burst", async () => {
     const answers = new Map<string, (value: { items: typeof items }) => void>();
     vi.mocked(removeSessionWorkLink).mockImplementation(
-      (_workspace, _session, request) =>
+      (_workspace, _session, _profile, request) =>
         new Promise(resolve => answers.set(request.branch, resolve))
     );
     vi.mocked(addSessionWorkLink).mockResolvedValue({ items });
@@ -223,6 +286,7 @@ describe("useSessionLinkedWork", () => {
       expect(addSessionWorkLink).toHaveBeenCalledWith(
         WORKSPACE,
         session.id,
+        session.profile_name,
         expect.objectContaining({ branch: first!.branch })
       )
     );
@@ -234,7 +298,7 @@ describe("useSessionLinkedWork", () => {
       { resolve: (value: { items: typeof items }) => void; reject: (cause: Error) => void }
     >();
     vi.mocked(removeSessionWorkLink).mockImplementation(
-      (_workspace, _session, request) =>
+      (_workspace, _session, _profile, request) =>
         new Promise((resolve, reject) => answers.set(request.branch, { resolve, reject }))
     );
     const { client, wrapper } = harness();
@@ -283,6 +347,7 @@ describe("useSessionLinkDialogModel", () => {
       expect(searchSessionLinkCandidates).toHaveBeenCalledWith(
         WORKSPACE,
         session.id,
+        session.profile_name,
         expect.objectContaining({ q: "nothing in these titles", kind: "pull_requests", page: 1 }),
         expect.anything()
       )
@@ -312,6 +377,7 @@ describe("useSessionLinkDialogModel", () => {
     expect(searchSessionLinkCandidates).toHaveBeenCalledWith(
       WORKSPACE,
       session.id,
+      session.profile_name,
       expect.objectContaining({ kind: "pull_requests", page: 2 }),
       expect.anything()
     );
@@ -425,14 +491,16 @@ describe("useSessionLinkDialogModel", () => {
 
   it("Should refuse a fork's pull request by name and let the rest of the selection through", async () => {
     candidates();
-    vi.mocked(addSessionWorkLink).mockImplementation(async (_workspace, _session, request) => {
-      if (request.pr_number === 963) {
-        throw new SessionApiError("fork", 400, session.id, {
-          code: "session_link_fork_unsupported",
-        });
+    vi.mocked(addSessionWorkLink).mockImplementation(
+      async (_workspace, _session, _profile, request) => {
+        if (request.pr_number === 963) {
+          throw new SessionApiError("fork", 400, session.id, {
+            code: "session_link_fork_unsupported",
+          });
+        }
+        return { items };
       }
-      return { items };
-    });
+    );
     openDialog();
     fireEvent.click(await screen.findByRole("option", { name: /monthly usage report/ }));
     fireEvent.click(screen.getByRole("option", { name: /login redirect on Safari/ }));
@@ -450,7 +518,7 @@ describe("useSessionLinkDialogModel", () => {
     sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
     const finish = new Map<number, () => void>();
     vi.mocked(addSessionWorkLink).mockImplementation(
-      (_workspace, _session, request) =>
+      (_workspace, _session, _profile, request) =>
         new Promise((resolve, reject) => {
           finish.set(request.pr_number!, () =>
             request.pr_number === 962 || request.pr_number === 951
@@ -486,10 +554,12 @@ describe("useSessionLinkDialogModel", () => {
   it("Should not leave a pasted pull request selected once it is linked", async () => {
     candidates();
     sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
-    vi.mocked(addSessionWorkLink).mockImplementation(async (_workspace, _session, request) => {
-      if (request.pr_number === 962) throw new SessionApiError("not found", 400);
-      return { items };
-    });
+    vi.mocked(addSessionWorkLink).mockImplementation(
+      async (_workspace, _session, _profile, request) => {
+        if (request.pr_number === 962) throw new SessionApiError("not found", 400);
+        return { items };
+      }
+    );
     const { result } = dialog();
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[1]!));

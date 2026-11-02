@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
@@ -402,6 +405,31 @@ func TestSessionOptionalHealthLinkedWork(t *testing.T) {
 	})
 }
 
+func TestRespondLinkedWorkError(t *testing.T) {
+	t.Parallel()
+	// Invariant: only refused input is the client's fault; a daemon failure stays a 5xx the client can retry.
+	for _, tc := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"Should keep 400 for an invalid link", session.ErrLinkedWorkInvalid, http.StatusBadRequest},
+		{"Should keep 400 for another repository", session.ErrLinkedWorkRepository, http.StatusBadRequest},
+		{"Should keep 400 for a fork", session.ErrLinkedWorkForkUnsupported, http.StatusBadRequest},
+		{"Should answer 500 for a storage failure", errors.New("database is locked"), http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			(&BaseHandlers{}).respondLinkedWorkError(ctx, tc.err)
+			if recorder.Code != tc.want {
+				t.Fatalf("status = %d, want %d", recorder.Code, tc.want)
+			}
+		})
+	}
+}
+
 type healthLinkedWorkReader struct{ SessionManager }
 
 func (healthLinkedWorkReader) InputQueueSummary(context.Context, string) (session.InputQueueSummary, error) {
@@ -425,5 +453,8 @@ func (healthLinkedWorkReader) LinkSessionWork(context.Context, string, store.Ses
 	return nil
 }
 func (healthLinkedWorkReader) UnlinkSessionWork(context.Context, string, string, string) error {
+	return nil
+}
+func (healthLinkedWorkReader) RefreshSessionWorkLink(context.Context, string, string, string) error {
 	return nil
 }

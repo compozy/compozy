@@ -20,6 +20,7 @@ import { SESSION_LINK_SETS } from "../../mocks/session-links-fixtures";
 import { leadLink, moreLabel, type SessionLinkedWorkItem } from "../../lib/session-linked-work";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { SessionWindowPresentationContext } from "../../contexts/session-window-presentation-context";
+import { closeSessionLinkDialog, sessionLinkDialogStore } from "../use-session-link-dialog";
 import type { SessionLinkedWorkModel } from "../use-session-linked-work";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 import { SessionTransportChip } from "../../components/session-transport-chip";
@@ -584,6 +585,8 @@ describe("useSessionTopbarSlot", () => {
       fireEvent.click(screen.getByTestId("session-links-more"));
       fireEvent.click(await screen.findByRole("button", { name: "Link…" }));
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      expect(sessionLinkDialogStore.getSnapshot().context.sessionId).toBe(primarySessionFixture.id);
+      closeSessionLinkDialog();
     });
 
     it("Should say +N more when the rest are not all pull requests", () => {

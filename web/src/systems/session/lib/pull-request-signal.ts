@@ -134,6 +134,8 @@ export interface PullRequestDetailLine {
   /** `null` reads in muted ink; a tone marks a decision. */
   tone: PillTone | null;
   mark: PullRequestSignalPart["mark"];
+  /** The last lookup failed, so this is the last fact we have rather than a current one. */
+  stale?: boolean;
 }
 
 function checksDetail({ checks }: SessionPullRequest): PullRequestDetailLine {
@@ -187,7 +189,7 @@ function mergeDetail(pr: SessionPullRequest): PullRequestDetailLine {
 /** Stale facts keep their words in muted ink, as the chip's own signals do. */
 function pullRequestDetailLines(pr: SessionPullRequest, fresh: boolean): PullRequestDetailLine[] {
   const lines = [checksDetail(pr), reviewDetail(pr), mergeDetail(pr)];
-  return fresh ? lines : lines.map(line => ({ ...line, tone: null }));
+  return fresh ? lines : lines.map(line => ({ ...line, tone: null, stale: true }));
 }
 
 export type PullRequestChipModel =

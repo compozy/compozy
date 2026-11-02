@@ -68,7 +68,7 @@ func DecorateSessionPullRequests(
 		SessionPullRequests(context.Context, []*session.Info) (map[string]session.PullRequestProjection, error)
 	})
 	if !ok {
-		return nil
+		return DecorateSessionLinkedWork(ctx, reader, infos, payloads)
 	}
 	views, err := projection.SessionPullRequests(ctx, infos)
 	if err != nil {

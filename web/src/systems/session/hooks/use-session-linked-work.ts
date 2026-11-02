@@ -3,7 +3,11 @@ import { useState } from "react";
 
 import { toast } from "@compozy/ui";
 
-import { addSessionWorkLink, removeSessionWorkLink } from "../adapters/session-linked-work-api";
+import {
+  addSessionWorkLink,
+  refreshSessionWorkLink,
+  removeSessionWorkLink,
+} from "../adapters/session-linked-work-api";
 import { sessionKeys } from "../lib/query-keys";
 import {
   leadLink,
@@ -19,6 +23,7 @@ import {
 } from "../lib/session-linked-work";
 import { sessionLinkedWorkOptions } from "../lib/session-linked-work-options";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
+import { PULL_REQUEST_REREAD_INTERVAL_MS } from "../lib/session-pull-request";
 import type { SessionPayload } from "../types";
 
 /**
@@ -26,7 +31,7 @@ import type { SessionPayload } from "../types";
  * unlink says how it went from here, not from the caller: `mutate` keeps only the latest call's
  * callbacks, and a burst must not lose an earlier row's toast and Undo.
  */
-export function useSessionLinkMutations(workspaceId: string, sessionId: string) {
+export function useSessionLinkMutations(workspaceId: string, sessionId: string, profile: string) {
   const queryClient = useQueryClient();
   const queryKey = sessionKeys.linkedWork(workspaceId, sessionId);
   const reread = () => invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
@@ -36,7 +41,20 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
   };
   const add = useMutation({
     mutationFn: (request: SessionWorkLinkRequest) =>
-      addSessionWorkLink(workspaceId, sessionId, request),
+      addSessionWorkLink(workspaceId, sessionId, profile, request),
+    onSuccess: settle,
+  });
+  const refresh = useMutation({
+    mutationFn: (item: SessionLinkedWorkItem) =>
+      refreshSessionWorkLink(
+        workspaceId,
+        sessionId,
+        profile,
+        linkRequest({ repository: item.repository, branch: item.branch })
+      ),
+    onError: (_error, item) => {
+      toast.error(`Couldn't refresh ${linkShortName(item)}.`);
+    },
     onSuccess: settle,
   });
   const remove = useMutation({
@@ -44,6 +62,7 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
       removeSessionWorkLink(
         workspaceId,
         sessionId,
+        profile,
         linkRequest({ repository: item.repository, branch: item.branch })
       ),
     onMutate: async item => {
@@ -70,7 +89,7 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
           label: "Undo",
           // A toast outlives a session switch, so Undo stays on the session it came from.
           onClick: () => {
-            addSessionWorkLink(workspaceId, sessionId, linkRequest(item))
+            addSessionWorkLink(workspaceId, sessionId, profile, linkRequest(item))
               .then(settle)
               .catch(() => {
                 toast.error(`Couldn't link ${linkShortName(item)} again.`);
@@ -82,7 +101,7 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
     // A snapshot predates the unlinks after it, so only the daemon's list can settle a burst.
     onSettled: reread,
   });
-  return { add, remove };
+  return { add, remove, refresh };
 }
 
 export interface SessionLinkedWorkModel {
@@ -93,7 +112,7 @@ export interface SessionLinkedWorkModel {
   /** Whether the header's status zone has clipped the chip, moving the list to the actions zone. */
   clipped: boolean;
   setClipped: (clipped: boolean) => void;
-  refresh: () => void;
+  refresh: (item: SessionLinkedWorkItem) => void;
   unlink: (item: SessionLinkedWorkItem) => void;
 }
 
@@ -110,12 +129,17 @@ export function useSessionLinkedWork({
   enabled,
 }: UseSessionLinkedWorkInput): SessionLinkedWorkModel {
   const [clipped, setClipped] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const list = useQuery({
     ...sessionLinkedWorkOptions(workspaceId, session.id),
-    enabled: enabled && !!session.id,
+    // A window that isn't live still shows the whole list; it just stops rereading it.
+    enabled: !!session.id,
+    refetchInterval: enabled ? PULL_REQUEST_REREAD_INTERVAL_MS : false,
   });
-  const { remove } = useSessionLinkMutations(workspaceId, session.id);
+  const { remove, refresh } = useSessionLinkMutations(
+    workspaceId,
+    session.id,
+    session.profile_name
+  );
   const summary = session.linked_work;
   const items = list.data?.items ?? (summary?.lead ? [summary.lead] : []);
 
@@ -124,13 +148,10 @@ export function useSessionLinkedWork({
     lead: list.data ? leadLink(list.data.items) : (summary?.lead ?? null),
     more: list.data ? moreLabel(list.data.items) : summary ? summaryMoreLabel(summary) : null,
     // Only what the person asked for: background rereads must not spin the chip every minute.
-    refreshing,
+    refreshing: refresh.isPending,
     clipped,
     setClipped,
-    refresh: () => {
-      setRefreshing(true);
-      void list.refetch().finally(() => setRefreshing(false));
-    },
+    refresh: item => refresh.mutate(item),
     unlink: item => remove.mutate(item),
   };
 }

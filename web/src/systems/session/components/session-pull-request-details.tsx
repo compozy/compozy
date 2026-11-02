@@ -41,7 +41,8 @@ function DetailLines({ model }: { model: PullRequestModel }) {
         <li className="flex flex-col gap-1" data-line={line.id} key={line.id}>
           <span
             className={cn(
-              "flex items-center gap-2 text-small-body text-fg",
+              "flex items-center gap-2 text-small-body",
+              line.stale ? "text-muted-foreground" : "text-fg",
               line.tone === "destructive" && "text-destructive"
             )}
           >

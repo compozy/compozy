@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1982,8 +1983,9 @@ func TestSessionWorkLinkPersistence(t *testing.T) {
 		}
 		wrong := link
 		wrong.WorkspaceID = "other"
-		if err := db.SaveSessionWorkLink(ctx, wrong, false); err == nil {
-			t.Fatal("cross-workspace link accepted")
+		err = db.SaveSessionWorkLink(ctx, wrong, false)
+		if err == nil || !strings.Contains(err.Error(), "does not belong to workspace") {
+			t.Fatalf("SaveSessionWorkLink(cross-workspace) error = %v, want ownership refusal", err)
 		}
 	})
 }

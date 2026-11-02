@@ -10,6 +10,7 @@ func registrySessionOperations() []OperationSpec {
 		sessionLinkedWorkOperation(httpMethodGet, "listSessionLinkedWork", "List session linked work"),
 		sessionLinkedWorkOperation(httpMethodPost, "addSessionWorkLink", "Link work to a session"),
 		sessionLinkedWorkOperation(httpMethodDelete, "removeSessionWorkLink", "Unlink session work"),
+		sessionLinkedWorkRefreshOperation(),
 		getSessionByIDOperationSpec(),
 		getSessionOwnerOperationSpec(),
 		getSessionOperationSpec(),

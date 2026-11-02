@@ -6247,6 +6247,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ask the forge again about one linked item */
+    post: operations["refreshSessionWorkLink"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -52562,8 +52579,10 @@ export interface operations {
   searchSessionWorkCandidates: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
         /** @description Candidate source; defaults to pull requests with local branch fallback */
         kind?: "branches" | "pull_requests";
         /** @description Search repository pull requests or local branches */
@@ -52643,8 +52662,10 @@ export interface operations {
   listSessionLinkedWork: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -52774,6 +52795,75 @@ export interface operations {
     };
   };
   removeSessionWorkLink: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionWorkLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Linked work */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionLinkedWorkResponse"];
+        };
+      };
+      /** @description Invalid link or repository mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Linked work unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  refreshSessionWorkLink: {
     parameters: {
       query?: {
         /** @description Act as this profile by name */

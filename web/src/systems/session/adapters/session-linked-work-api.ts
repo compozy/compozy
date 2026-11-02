@@ -31,6 +31,11 @@ function linksPath(workspaceId: string, sessionId: string) {
   return { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId };
 }
 
+/** A write acts as the profile that owns the session, whichever lens is showing it. */
+function mutationParams(workspaceId: string, sessionId: string, profile: string) {
+  return { path: linksPath(workspaceId, sessionId), query: profile ? { profile } : {} };
+}
+
 export async function fetchSessionLinkedWork(
   workspaceId: string,
   sessionId: string,
@@ -39,7 +44,7 @@ export async function fetchSessionLinkedWork(
   const fallback = `Failed to read what is linked to session "${sessionId}"`;
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
-    { params: { path: linksPath(workspaceId, sessionId) }, signal }
+    { params: { path: linksPath(workspaceId, sessionId), query: { all_profiles: true } }, signal }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, fallback, sessionId);
@@ -50,13 +55,14 @@ export async function fetchSessionLinkedWork(
 export async function addSessionWorkLink(
   workspaceId: string,
   sessionId: string,
+  profile: string,
   body: SessionWorkLinkRequest,
   signal?: AbortSignal
 ): Promise<SessionLinkedWorkResponse> {
   const fallback = "Couldn't link this to the session";
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
-    { params: { path: linksPath(workspaceId, sessionId) }, body, signal }
+    { params: mutationParams(workspaceId, sessionId, profile), body, signal }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, fallback, sessionId);
@@ -67,13 +73,33 @@ export async function addSessionWorkLink(
 export async function removeSessionWorkLink(
   workspaceId: string,
   sessionId: string,
+  profile: string,
   body: SessionWorkLinkRequest,
   signal?: AbortSignal
 ): Promise<SessionLinkedWorkResponse> {
   const fallback = "Couldn't unlink this from the session";
   const { data, error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
-    { params: { path: linksPath(workspaceId, sessionId) }, body, signal }
+    { params: mutationParams(workspaceId, sessionId, profile), body, signal }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, fallback, sessionId);
+  }
+  return requireResponseData(data, response, fallback);
+}
+
+/** Asks the forge again about one item, then answers with the whole list. */
+export async function refreshSessionWorkLink(
+  workspaceId: string,
+  sessionId: string,
+  profile: string,
+  body: SessionWorkLinkRequest,
+  signal?: AbortSignal
+): Promise<SessionLinkedWorkResponse> {
+  const fallback = "Couldn't refresh this";
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh",
+    { params: mutationParams(workspaceId, sessionId, profile), body, signal }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, fallback, sessionId);
@@ -93,7 +119,7 @@ export async function searchSessionLinkCandidates(
     {
       params: {
         path: linksPath(workspaceId, sessionId),
-        query: { q, kind, page: String(page), limit: String(limit) },
+        query: { q, kind, page: String(page), limit: String(limit), all_profiles: true },
       },
       signal,
     }

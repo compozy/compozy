@@ -138,9 +138,8 @@ function useLinkedWorkList(
       onUnlink: linkedWork.unlink,
       onOpenSession: id => input.onOpenSession?.(id),
       onRefresh: item => {
-        // The explicit refresh reaches the forge for the session's own branch only.
         if (pullRequestRefresh && isOwnBranch(item, session)) pullRequestRefresh.refresh();
-        else linkedWork.refresh();
+        else linkedWork.refresh(item);
       },
       onPrompt: input.onSendPrompt,
     },

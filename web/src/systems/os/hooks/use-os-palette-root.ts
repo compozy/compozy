@@ -112,6 +112,7 @@ function paletteRowSources({
     tabs: destination ? [] : entities.tabs,
     worktrees: destination ? [] : entities.worktrees,
     domainRows: domainSections.flatMap(section => section.rows),
+    linkRows: entities.linkSessionId ? ["session-link"] : [],
   };
 }
 

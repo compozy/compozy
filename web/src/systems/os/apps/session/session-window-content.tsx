@@ -400,6 +400,7 @@ export function SessionWindowContent({
               ) : null}
               <SessionPullRequestExitSurface model={pullRequestExitSurface} />
               <SessionLinkDialogHost
+                profile={session.profile_name}
                 sessionId={sessionId}
                 workspaceId={workspaceId}
                 workspaceName={session.workspace_path ?? workspaceId}

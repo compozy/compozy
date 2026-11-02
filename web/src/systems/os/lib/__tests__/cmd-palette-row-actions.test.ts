@@ -283,6 +283,7 @@ describe("cmd-palette row subject resolution", () => {
     tabs: [TAB],
     worktrees: [worktree()],
     domainRows: [DOMAIN_ROW],
+    linkRows: [],
   };
 
   it("Should resolve every row kind back from its list value", () => {

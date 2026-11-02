@@ -18,13 +18,16 @@ func appendSessionCatalogSearch(
 		if err != nil {
 			return nil, nil, fmt.Errorf("store: encode search repositories: %w", err)
 		}
+		text := strings.TrimSpace(query.Search)
+		branchTerm := store.LowerSessionCatalogSearchText(text)
+		number, numberArgs := sessionCatalogNumberMatch("COALESCE(search_link.pr_number, search_pr.pr_number)", text)
 		linked := ` OR EXISTS (SELECT 1 FROM session_work_links AS search_link
  LEFT JOIN forge_pull_requests AS search_pr ON search_pr.workspace_id = search_link.workspace_id
  AND search_pr.repo_key = search_link.repo_key AND search_pr.branch = search_link.branch
- AND search_pr.repo_key = json_extract(?, '$.' || json_quote(search_link.workspace_id))
  WHERE search_link.session_id = sessions.id AND search_link.workspace_id = sessions.workspace_id
- AND search_link.unlinked = 0 AND (instr(lower(search_link.branch), ?) > 0
- OR instr(CAST(COALESCE(search_link.pr_number, search_pr.pr_number) AS TEXT), ?) > 0))`
+ AND search_link.repo_key = json_extract(?, '$.' || json_quote(search_link.workspace_id))
+ AND search_link.unlinked = 0 AND (instr(compozy_unicode_lower(search_link.branch), ?) > 0` + number + `))`
+		linkedArgs := append([]any{string(repos), branchTerm}, numberArgs...)
 		own, ownArgs, err := sessionCatalogOwnWorkSearch(query)
 		if err != nil {
 			return nil, nil, err
@@ -37,14 +40,7 @@ func appendSessionCatalogSearch(
 				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
 					"instr(compozy_unicode_lower(agent_name), ?) > 0"+linked+")",
 			)
-			args = append(
-				args,
-				search,
-				search,
-				string(repos),
-				strings.ToLower(strings.TrimSpace(query.Search)),
-				strings.TrimPrefix(strings.TrimSpace(query.Search), "#"),
-			)
+			args = append(args, search, search)
 		} else {
 			where = append(where, `(instr(lower(id), ?) > 0 OR
 			instr(lower(COALESCE(name, '')), ?) > 0 OR
@@ -53,11 +49,19 @@ func appendSessionCatalogSearch(
 			for range 4 {
 				args = append(args, search)
 			}
-			args = append(args, string(repos), search, strings.TrimPrefix(search, "#"))
 		}
-		args = append(args, ownArgs...)
+		args = append(append(args, linkedArgs...), ownArgs...)
 	}
 	return where, args, nil
+}
+
+// sessionCatalogNumberMatch skips an empty term: instr matches "" everywhere, so `#` alone would too.
+func sessionCatalogNumberMatch(column, text string) (string, []any) {
+	digits := strings.TrimPrefix(text, "#")
+	if digits == "" {
+		return "", nil
+	}
+	return " OR instr(CAST(" + column + " AS TEXT), ?) > 0", []any{digits}
 }
 
 func sessionCatalogOwnWorkSearch(query store.SessionCatalogPageQuery) (string, []any, error) {
@@ -69,7 +73,8 @@ func sessionCatalogOwnWorkSearch(query store.SessionCatalogPageQuery) (string, [
 	if err != nil {
 		return "", nil, fmt.Errorf("store: encode search default branches: %w", err)
 	}
-	search := strings.ToLower(strings.TrimSpace(query.Search))
+	text := strings.TrimSpace(query.Search)
+	number, numberArgs := sessionCatalogNumberMatch("pr.pr_number", text)
 	return ` OR EXISTS (SELECT 1 FROM (
  SELECT own.id, own.workspace_id, own.worktree_id,
  CASE WHEN COALESCE(own.worktree_id,'') <> '' THEN
@@ -88,6 +93,6 @@ func sessionCatalogOwnWorkSearch(query store.SessionCatalogPageQuery) (string, [
  SELECT 1 FROM json_each(?, '$.' || json_quote(own_link.workspace_id)) d WHERE d.value = own_link.branch))
  AND NOT EXISTS (SELECT 1 FROM session_work_links l WHERE l.session_id = own_link.id
  AND l.branch = own_link.branch AND l.repo_key = json_extract(?, '$.' || json_quote(own_link.workspace_id)))
- AND (instr(lower(own_link.branch),?) > 0 OR instr(CAST(pr.pr_number AS TEXT),?) > 0))`,
-		[]any{string(repos), string(defaults), string(repos), search, strings.TrimPrefix(search, "#")}, nil
+ AND (instr(compozy_unicode_lower(own_link.branch),?) > 0` + number + `))`,
+		append([]any{string(repos), string(defaults), string(repos), store.LowerSessionCatalogSearchText(text)}, numberArgs...), nil
 }

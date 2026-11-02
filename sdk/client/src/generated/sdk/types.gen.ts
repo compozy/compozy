@@ -36759,9 +36759,13 @@ export type SearchSessionWorkCandidatesData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
     /**
      * Candidate source; defaults to pull requests with local branch fallback
      */
@@ -36888,9 +36892,13 @@ export type ListSessionLinkedWorkData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links";
 };
@@ -36981,6 +36989,62 @@ export type AddSessionWorkLinkResponses = {
 
 export type AddSessionWorkLinkResponse =
   AddSessionWorkLinkResponses[keyof AddSessionWorkLinkResponses];
+
+export type RefreshSessionWorkLinkData = {
+  /**
+   * JSON request body
+   */
+  body: SessionWorkLinkRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh";
+};
+
+export type RefreshSessionWorkLinkErrors = {
+  /**
+   * Invalid link or repository mismatch
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Linked work unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RefreshSessionWorkLinkError =
+  RefreshSessionWorkLinkErrors[keyof RefreshSessionWorkLinkErrors];
+
+export type RefreshSessionWorkLinkResponses = {
+  /**
+   * Linked work
+   */
+  200: SessionLinkedWorkResponse;
+};
+
+export type RefreshSessionWorkLinkResponse =
+  RefreshSessionWorkLinkResponses[keyof RefreshSessionWorkLinkResponses];
 
 export type ListSessionMonitorsData = {
   body?: never;

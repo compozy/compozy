@@ -33,6 +33,7 @@ export function SessionLinkedWorkPanel({
   openDetailFor,
 }: SessionLinkedWorkPanelProps) {
   const [query, setQuery] = useState("");
+  const searchable = items.length >= LIST_SEARCH_MIN;
   return (
     <div className="flex max-h-[min(78vh,52rem)] min-h-0 flex-col" data-slot="session-linked-work">
       <div className="flex items-center gap-2 px-4 pt-3.5 pb-3">
@@ -51,7 +52,7 @@ export function SessionLinkedWorkPanel({
           Link…
         </Button>
       </div>
-      {items.length >= LIST_SEARCH_MIN ? (
+      {searchable ? (
         <div className="px-4 pb-2">
           <SearchInput
             aria-label="Filter linked work"
@@ -69,7 +70,7 @@ export function SessionLinkedWorkPanel({
           items={items}
           openDetailFor={openDetailFor}
           openMenuFor={openMenuFor}
-          query={query}
+          query={searchable ? query : ""}
         />
       </div>
       <div

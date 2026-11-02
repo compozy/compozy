@@ -51,11 +51,13 @@ function Candidate({
   candidate,
   checked,
   linked,
+  outdated,
   onToggle,
 }: {
   candidate: SessionWorkCandidate;
   checked: boolean;
   linked: boolean;
+  outdated: boolean;
   onToggle: () => void;
 }) {
   const number = candidate.pr_number;
@@ -65,7 +67,7 @@ function Candidate({
       aria-checked={linked ? undefined : checked}
       className="min-h-14 gap-3 rounded-lg px-3 py-2.5"
       data-slot="session-link-candidate"
-      disabled={linked}
+      disabled={linked || outdated}
       onSelect={onToggle}
       value={candidateKey(candidate)}
     >
@@ -137,6 +139,103 @@ function NoResult({
   );
 }
 
+function LinkNotices({
+  offline,
+  forgeless,
+  forge,
+  forks,
+  error,
+}: Pick<SessionLinkDialogProps, "offline" | "forgeless" | "forge" | "forks" | "error">) {
+  return (
+    <>
+      {offline ? (
+        <Alert variant="warning">
+          <AlertTitle>
+            {forgeless ? "Pull requests aren't available here" : `${forge} isn't connected`}
+          </AlertTitle>
+          <AlertDescription>
+            {forgeless
+              ? "This project isn't on a hosted service. You can still link a branch."
+              : `You can still link a branch. Its pull request shows up once ${forge} is back.`}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {forks.length > 0 ? (
+        <Alert variant="destructive">
+          <AlertTitle>{linkForkTitle(forks)}</AlertTitle>
+          <AlertDescription>Pull requests from forks can't be linked yet.</AlertDescription>
+        </Alert>
+      ) : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+    </>
+  );
+}
+
+function CandidateResults({
+  search,
+  loading,
+  selected,
+  linked,
+  outdated = false,
+  hasMore,
+  fetchingMore = false,
+  onToggle,
+  onLoadMore,
+}: Pick<
+  SessionLinkDialogProps,
+  | "loading"
+  | "selected"
+  | "linked"
+  | "outdated"
+  | "hasMore"
+  | "fetchingMore"
+  | "onToggle"
+  | "onLoadMore"
+> & { search: Extract<SessionLinkSearch, { kind: "results" }> }) {
+  const chosen = new Set(selected.map(candidateKey));
+  const row = (candidate: SessionWorkCandidate) => (
+    <Candidate
+      candidate={candidate}
+      checked={chosen.has(candidateKey(candidate))}
+      key={candidateKey(candidate)}
+      linked={candidateIsLinked(candidate, linked)}
+      onToggle={() => onToggle(candidate)}
+      outdated={outdated}
+    />
+  );
+  return (
+    <>
+      {search.pullRequests.length > 0 ? (
+        <CommandGroup className={GROUP_CLASS} heading="Pull requests">
+          {search.pullRequests.map(row)}
+        </CommandGroup>
+      ) : null}
+      {search.branches.length > 0 ? (
+        <CommandGroup className={GROUP_CLASS} heading="Branches with no pull request">
+          {search.branches.map(row)}
+        </CommandGroup>
+      ) : null}
+      {loading ? <Spinner aria-label="Searching" className="mx-auto my-6 size-4" /> : null}
+      {hasMore ? (
+        <Button
+          className="mx-auto mt-2 flex"
+          disabled={fetchingMore}
+          onClick={onLoadMore}
+          size="xs"
+          type="button"
+          variant="quiet"
+        >
+          Show more
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 export interface SessionLinkDialogProps {
   query: string;
   search: SessionLinkSearch;
@@ -155,6 +254,10 @@ export interface SessionLinkDialogProps {
   linked: ReadonlySet<string>;
   selected: readonly SessionWorkCandidate[];
   hasMore: boolean;
+  /** The next page is on its way; another click would ask for the same one. */
+  fetchingMore?: boolean;
+  /** The rows belong to the last search, so they can't be picked yet. */
+  outdated?: boolean;
   pending: boolean;
   /** Why the last confirm failed, when the search itself can't say it. */
   error: string | null;
@@ -177,6 +280,8 @@ export function SessionLinkDialog({
   linked,
   selected,
   hasMore,
+  fetchingMore,
+  outdated,
   pending,
   error,
   onQueryChange,
@@ -185,16 +290,6 @@ export function SessionLinkDialog({
   onConfirm,
   onOpenChange,
 }: SessionLinkDialogProps) {
-  const chosen = new Set(selected.map(candidateKey));
-  const row = (candidate: SessionWorkCandidate) => (
-    <Candidate
-      candidate={candidate}
-      checked={chosen.has(candidateKey(candidate))}
-      key={candidateKey(candidate)}
-      linked={candidateIsLinked(candidate, linked)}
-      onToggle={() => onToggle(candidate)}
-    />
-  );
   return (
     <Dialog onOpenChange={onOpenChange} open>
       <DialogContent className="sm:max-w-150" data-testid="session-link-dialog" unframed>
@@ -206,29 +301,13 @@ export function SessionLinkDialog({
         </DialogHeader>
         <Command className="min-w-0 rounded-none bg-transparent" shouldFilter={false}>
           <div className="flex flex-col gap-3 px-5 pt-4 pb-3">
-            {offline ? (
-              <Alert variant="warning">
-                <AlertTitle>
-                  {forgeless ? "Pull requests aren't available here" : `${forge} isn't connected`}
-                </AlertTitle>
-                <AlertDescription>
-                  {forgeless
-                    ? "This project isn't on a hosted service. You can still link a branch."
-                    : `You can still link a branch. Its pull request shows up once ${forge} is back.`}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {forks.length > 0 ? (
-              <Alert variant="destructive">
-                <AlertTitle>{linkForkTitle(forks)}</AlertTitle>
-                <AlertDescription>Pull requests from forks can't be linked yet.</AlertDescription>
-              </Alert>
-            ) : null}
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
+            <LinkNotices
+              error={error}
+              forge={forge}
+              forgeless={forgeless}
+              forks={forks}
+              offline={offline}
+            />
             <CommandInput
               autoFocus
               onValueChange={onQueryChange}
@@ -238,32 +317,17 @@ export function SessionLinkDialog({
           </div>
           <CommandList className="h-96 max-h-[48vh] px-3 pb-3">
             {search.kind === "results" ? (
-              <>
-                {search.pullRequests.length > 0 ? (
-                  <CommandGroup className={GROUP_CLASS} heading="Pull requests">
-                    {search.pullRequests.map(row)}
-                  </CommandGroup>
-                ) : null}
-                {search.branches.length > 0 ? (
-                  <CommandGroup className={GROUP_CLASS} heading="Branches with no pull request">
-                    {search.branches.map(row)}
-                  </CommandGroup>
-                ) : null}
-                {loading ? (
-                  <Spinner aria-label="Searching" className="mx-auto my-6 size-4" />
-                ) : null}
-                {hasMore ? (
-                  <Button
-                    className="mx-auto mt-2 flex"
-                    onClick={onLoadMore}
-                    size="xs"
-                    type="button"
-                    variant="quiet"
-                  >
-                    Show more
-                  </Button>
-                ) : null}
-              </>
+              <CandidateResults
+                fetchingMore={fetchingMore}
+                hasMore={hasMore}
+                linked={linked}
+                loading={loading}
+                onLoadMore={onLoadMore}
+                onToggle={onToggle}
+                outdated={outdated}
+                search={search}
+                selected={selected}
+              />
             ) : (
               <NoResult forge={forge} project={project} search={search} />
             )}

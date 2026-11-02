@@ -122,13 +122,13 @@ export function filterPaletteSessions(
 export function keepServerSessions(
   ranked: { rows: readonly OsPaletteSessionResult[]; total: number },
   rows: readonly OsPaletteSessionResult[],
-  /** Absent without ranking signals: the rows are already the filtered list. */
+  /** Absent without ranking signals. */
   cap: number | undefined
 ): { rows: readonly OsPaletteSessionResult[]; total: number } {
-  if (cap === undefined) return ranked;
   const seen = new Set(ranked.rows.map(row => row.sessionId));
   const rest = rows.filter(row => !seen.has(row.sessionId));
-  return { rows: [...ranked.rows, ...rest].slice(0, cap), total: ranked.total + rest.length };
+  // Rows ranking cut for the cap are back in `rest`, so `ranked.total` would count them twice.
+  return { rows: [...ranked.rows, ...rest].slice(0, cap), total: ranked.rows.length + rest.length };
 }
 
 export function composePaletteSessionPage(

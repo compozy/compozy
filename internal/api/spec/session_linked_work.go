@@ -14,10 +14,7 @@ func sessionLinkedWorkOperation(method, id, summary string) OperationSpec {
 		Summary:     summary,
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: withProfileSelector(
-			pathParam("workspace_id", "Workspace id"),
-			pathParam("session_id", "Session id"),
-		),
+		Parameters: sessionLinkedWorkParameters(method),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Linked work", Body: contract.SessionLinkedWorkResponse{}},
 			{Status: 400, Description: "Invalid link or repository mismatch", Body: contract.ErrorPayload{}},
@@ -30,6 +27,25 @@ func sessionLinkedWorkOperation(method, id, summary string) OperationSpec {
 		op.AppAccess = AppAccessDenied
 		op.RequestBody = contract.SessionWorkLinkRequest{}
 	}
+	return op
+}
+
+// sessionLinkedWorkParameters offers the all-profiles lens on reads only: a write resolves an owner.
+func sessionLinkedWorkParameters(method string) []ParameterSpec {
+	path := []ParameterSpec{pathParam("workspace_id", "Workspace id"), pathParam("session_id", "Session id")}
+	if method == httpMethodGet {
+		return withProfileScope(path...)
+	}
+	return withProfileSelector(path...)
+}
+
+func sessionLinkedWorkRefreshOperation() OperationSpec {
+	op := sessionLinkedWorkOperation(
+		httpMethodPost,
+		"refreshSessionWorkLink",
+		"Ask the forge again about one linked item",
+	)
+	op.Path = "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh"
 	return op
 }
 

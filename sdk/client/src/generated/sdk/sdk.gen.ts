@@ -1212,6 +1212,9 @@ import type {
   RefreshSessionSoulData,
   RefreshSessionSoulErrors,
   RefreshSessionSoulResponses,
+  RefreshSessionWorkLinkData,
+  RefreshSessionWorkLinkErrors,
+  RefreshSessionWorkLinkResponses,
   RegisterWindowManagerClientData,
   RegisterWindowManagerClientErrors,
   RegisterWindowManagerClientResponses,
@@ -8597,6 +8600,33 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Ask the forge again about one linked item
+   */
+  public refreshSessionWorkLink<ThrowOnError extends boolean = true>(
+    options: Options<RefreshSessionWorkLinkData, ThrowOnError>
+  ): RequestResult<
+    RefreshSessionWorkLinkResponses,
+    RefreshSessionWorkLinkErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RefreshSessionWorkLinkResponses,
+      RefreshSessionWorkLinkErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh",
       ...options,
       headers: {
         "Content-Type": "application/json",

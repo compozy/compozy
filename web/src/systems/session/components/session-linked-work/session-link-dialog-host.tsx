@@ -7,6 +7,7 @@ interface SessionLinkDialogHostProps {
   sessionId: string;
   workspaceId: string;
   workspaceName: string;
+  profile: string;
 }
 
 export function SessionLinkDialogHost(props: SessionLinkDialogHostProps) {

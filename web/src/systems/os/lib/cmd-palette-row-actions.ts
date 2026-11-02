@@ -386,6 +386,8 @@ export interface PaletteRowSources {
   readonly tabs: readonly OsPaletteTabResult[];
   readonly worktrees: readonly OsPaletteWorktreeResult[];
   readonly domainRows: readonly OsPaletteDomainRow[];
+  /** The focused session's link row: a plain command row with no action panel. */
+  readonly linkRows: readonly string[];
 }
 
 /**

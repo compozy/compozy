@@ -111,6 +111,7 @@ function SessionBoardCardButton({
   return (
     <SessionBoardCardView
       {...props}
+      linkedMore={more ?? undefined}
       metaExtra={more ? <SessionBoardLinkedWorkCount label={more} /> : undefined}
       onOpen={() => props.onOpen(props.session)}
       session={linkedSessionFacts(props.session)}

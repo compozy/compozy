@@ -84,6 +84,8 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   archived?: boolean;
   /** Follows the PR number in the meta row. */
   metaExtra?: ReactNode;
+  /** `metaExtra` in words, for the card's accessible name. */
+  linkedMore?: string;
   /** Who started a spawned session; the live card supplies it. */
   creatorBadge?: ReactNode;
   /** The provider mark and model label shown beside the agent name. */
@@ -109,6 +111,7 @@ function sessionBoardCardLabel({
   waiting,
   rollup,
   draft,
+  linkedMore,
 }: {
   session: SessionBoardPayload;
   lineage: SessionBoardCardLineage | null;
@@ -117,9 +120,11 @@ function sessionBoardCardLabel({
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
   rollup: SessionBoardCardRollup | null;
   draft: boolean;
+  linkedMore: string | undefined;
 }): string {
   return [
     title,
+    linkedMore,
     status?.label,
     waiting?.word,
     lineage ? `${lineage.verb} ${lineage.title}` : null,
@@ -151,6 +156,7 @@ export function SessionBoardCardView({
   onActivate,
   creatorBadge,
   metaExtra,
+  linkedMore,
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
@@ -161,7 +167,16 @@ export function SessionBoardCardView({
   const waiting = sessionBoardCardWaiting(session);
   const rollup = sessionBoardCardRollup(session);
   const lineage = sessionBoardCardLineage(session);
-  const label = sessionBoardCardLabel({ session, lineage, title, status, waiting, rollup, draft });
+  const label = sessionBoardCardLabel({
+    session,
+    lineage,
+    title,
+    status,
+    waiting,
+    rollup,
+    draft,
+    linkedMore,
+  });
   return (
     <button
       aria-current={current ? "true" : undefined}

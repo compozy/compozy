@@ -15,6 +15,7 @@ describe("palette selection values", () => {
         tabs: [{ windowId: "w1" }],
         worktrees: [{ key: "wt1" }],
         domainRows: [{ key: "task:1" }],
+        linkRows: ["session-link"],
       },
       fallback: { value: "ask:general" },
     });

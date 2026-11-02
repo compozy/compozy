@@ -4649,6 +4649,50 @@ func TestManagerBoardCatalog(t *testing.T) {
 		}
 	})
 
+	t.Run("Should match a linked branch only in the current repository and by its folded name", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			manager := newWorkspaceSessionReadFixture(t, 4, 1)
+			catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+			const repo = "example.com/a/b"
+			reader := &pullRequestQueryReader{repositories: map[string]string{"ws-read-00": repo}}
+			manager.ConfigurePullRequests(reader, catalog)
+			for _, link := range []store.SessionWorkLink{
+				{SessionID: "sess-read-000", Repository: repo, Branch: "FÉATURE", PRNumber: 7},
+				{SessionID: "sess-read-001", Repository: "example.com/old/repo", Branch: "moved"},
+			} {
+				link.WorkspaceID, link.Provenance = "ws-read-00", "user"
+				if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if active {
+				for _, id := range []string{"sess-read-000", "sess-read-001"} {
+					manager.sessions[id] = &Session{
+						ID:          id,
+						WorkspaceID: "ws-read-00",
+						ProfileID:   store.DefaultProfileID,
+						AgentName:   "coder",
+						State:       StateActive,
+						CreatedAt:   benchmarkSessionTime,
+						UpdatedAt:   benchmarkSessionTime,
+					}
+				}
+			}
+			for search, want := range map[string]int{"féature": 1, "moved": 0, "#": 0} {
+				page, err := manager.ListPage(t.Context(), ListQuery{
+					ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+					WorkspaceID: "ws-read-00",
+					Search:      search,
+					Limit:       DefaultListLimit,
+				})
+				if err != nil || page.Total != want {
+					t.Fatalf("active=%v search=%q total=%d want=%d err=%v", active, search, page.Total, want, err)
+				}
+			}
+		}
+	})
+
 	t.Run("Should discover old stopped PR branches outside the selected column and page", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -5032,6 +5076,47 @@ func (r *catalogBranchReadCounter) SessionCatalogBranches(
 
 // Invariant: lineage roll-up is read-only, deduplicated behind direct work, and never controls the parent board.
 // Owner: session projection; canonical pull-request query suite.
+func TestRefreshSessionWorkLink(t *testing.T) {
+	t.Parallel()
+	// Invariant: Refresh reaches the forge for an item the session lists, and only for one.
+	manager := newWorkspaceSessionReadFixture(t, 2, 1)
+	catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+	const repo = "example.com/a/b"
+	reader := &refreshingLinkedWorkReader{}
+	reader.repositories = map[string]string{"ws-read-00": repo}
+	manager.ConfigurePullRequests(reader, catalog)
+	link := store.SessionWorkLink{
+		SessionID: "sess-read-000", WorkspaceID: "ws-read-00", Repository: repo, Branch: "topic", Provenance: "user",
+	}
+	if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("Should ask the forge about a listed item", func(t *testing.T) {
+		if err := manager.RefreshSessionWorkLink(t.Context(), link.SessionID, repo, "topic"); err != nil {
+			t.Fatal(err)
+		}
+		if want := (BranchKey{"ws-read-00", "topic"}); len(reader.refreshed) != 1 || reader.refreshed[0] != want {
+			t.Fatalf("refreshed=%v want %v", reader.refreshed, want)
+		}
+	})
+	t.Run("Should refuse a branch the session does not list", func(t *testing.T) {
+		err := manager.RefreshSessionWorkLink(t.Context(), link.SessionID, repo, "elsewhere")
+		if !errors.Is(err, ErrLinkedWorkInvalid) || len(reader.refreshed) != 1 {
+			t.Fatalf("err=%v refreshed=%v", err, reader.refreshed)
+		}
+	})
+}
+
+type refreshingLinkedWorkReader struct {
+	pullRequestQueryReader
+	refreshed []BranchKey
+}
+
+func (r *refreshingLinkedWorkReader) RefreshBranch(_ context.Context, key BranchKey) (PullRequestView, error) {
+	r.refreshed = append(r.refreshed, key)
+	return PullRequestView{}, nil
+}
+
 func TestSessionLinkedWorkProjection(t *testing.T) {
 	t.Parallel()
 	// Invariant: branch-only descendants never contribute to linked-work summaries.

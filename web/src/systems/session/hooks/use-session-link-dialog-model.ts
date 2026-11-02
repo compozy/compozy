@@ -53,6 +53,9 @@ function useSessionLinkCandidates(workspaceId: string, sessionId: string, query:
     offline: (pulls.isError && !refused) || !discovery,
     refused,
     fetching: pulls.isFetching || branchReads.isFetching || pulls.isPlaceholderData,
+    fetchingMore: pulls.isFetchingNextPage || branchReads.isFetchingNextPage,
+    // The last search's rows, kept on screen until this one answers.
+    outdated: pulls.isPlaceholderData || branchReads.isPlaceholderData,
     hasMore: pulls.hasNextPage || branchReads.hasNextPage,
     loadMore: () => {
       if (pulls.hasNextPage) void pulls.fetchNextPage();
@@ -91,12 +94,14 @@ interface UseSessionLinkDialogModelInput {
   sessionId: string;
   workspaceId: string;
   workspaceName: string;
+  profile: string;
 }
 
 export function useSessionLinkDialogModel({
   sessionId,
   workspaceId,
   workspaceName,
+  profile,
 }: UseSessionLinkDialogModelInput): SessionLinkDialogProps {
   const [query, setQuery] = useState("");
   const [refused, setRefused] = useState(false);
@@ -106,7 +111,7 @@ export function useSessionLinkDialogModel({
   const debounced = useDebouncedValue(query.trim());
   const list = useQuery(sessionLinkedWorkOptions(workspaceId, sessionId));
   const candidates = useSessionLinkCandidates(workspaceId, sessionId, debounced);
-  const { add } = useSessionLinkMutations(workspaceId, sessionId);
+  const { add } = useSessionLinkMutations(workspaceId, sessionId, profile);
 
   const { pullRequests, branches } = candidates;
   const items = list.data?.items ?? [];
@@ -155,8 +160,10 @@ export function useSessionLinkDialogModel({
     forge: repositoryForgeName(hosted),
     forgeless: repository !== null && hosted === null,
     forks,
+    fetchingMore: candidates.fetchingMore,
     hasMore: candidates.hasMore,
     linked: linkedCandidateKeys(items),
+    outdated: candidates.outdated || query.trim() !== debounced,
     loading: searching && pullRequests.length + branches.length === 0,
     offline: candidates.offline,
     onConfirm: () => void confirm(),
