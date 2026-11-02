@@ -36,3 +36,9 @@ Markdown, or several lines, the name stays a single plain line of at most eight 
 line is usable, the attempt counts as a failure and the session stays "New session" until a later turn succeeds.
 Titles stored before this fix stay as they are, because a session has no record of whether a person or the daemon
 set its name. Rename an affected session to fix it. Names set by a person are never rewritten.
+
+No label prefixes (issue #1143): the title is written in the conversation's language and never opens with a label
+such as `Título sugerido:`, `Título da sessão:`, or `Suggested title:`. A conversation in Portuguese gets a
+Portuguese title with no label. A real title that holds a colon or the word "title", such as
+`Fix title: colon handling`, stays whole. A reply that is only a label counts as an unusable title. Titles stored
+before this fix stay as they are.
