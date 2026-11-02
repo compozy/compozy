@@ -97,7 +97,10 @@ func (r *instanceMainRotator) rotationFailed(
 	if candidate != "" {
 		cause = errors.Join(cause, r.sessions.Stop(cleanupCtx, candidate))
 	}
-	payload, err := json.Marshal(map[string]string{"reason": reason, "since": r.now().UTC().Format(time.RFC3339Nano)})
+	payload, err := json.Marshal(map[string]string{
+		loopActionRuntimeReasonKey: reason,
+		"since":                    r.now().UTC().Format(time.RFC3339Nano),
+	})
 	if err != nil {
 		return errors.Join(cause, err)
 	}

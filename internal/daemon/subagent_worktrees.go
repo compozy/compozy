@@ -239,7 +239,7 @@ func (a daemonSubagentWorktrees) Observe(ctx context.Context, ws, id, base strin
 			facts.PRURL = pr.PRURL
 			facts.PRNumber = pr.PRNumber
 		default:
-			facts.PRStatus = "unknown"
+			facts.PRStatus = daemonUnknownValue
 		}
 	}
 	return facts

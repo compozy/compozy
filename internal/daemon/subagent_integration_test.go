@@ -87,7 +87,7 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 	t.Run("Should deliver one prioritized wake across providers", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		ctx := t.Context()
-		parent, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		parent, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -320,7 +320,7 @@ agent = "designer"
 		})
 		d.agentCatalog.Replace(d.agentCatalog.Revision()+1, records)
 		for _, profileID := range []string{profile.ID, store.DefaultProfileID} {
-			parent, err := manager.Create(t.Context(), session.CreateOpts{Workspace: workspace, ProfileID: profileID})
+			parent, err := manager.Create(t.Context(), new(session.CreateOpts{Workspace: workspace, ProfileID: profileID}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -775,7 +775,7 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
 	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		parent, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -809,7 +809,7 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 	})
 	t.Run("Should persist native work without child sessions", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		parent, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -856,7 +856,7 @@ func TestSubagentSteerDaemonIntegration(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonIntegration(t, outcome)
 			parent, err := manager.Create(
 				t.Context(),
-				session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+				new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -1020,7 +1020,7 @@ func startSubagentIntegrationParent(
 	if len(policies) > 0 {
 		opts.Lineage = &store.SessionLineage{PermissionPolicy: policies[0]}
 	}
-	parent, err := manager.Create(t.Context(), opts)
+	parent, err := manager.Create(t.Context(), &(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2464,14 +2464,14 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 		t.Run("Should reconcile real target edge "+action+" IT-008 IT-009 IT-010", func(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonIntegration(t)
 			ctx := t.Context()
-			sender, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+			sender, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := manager.Stop(ctx, sender.ID); err != nil {
 				t.Fatal(err)
 			}
-			target, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+			target, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2583,11 +2583,11 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 		t.Parallel()
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		ctx := t.Context()
-		sender, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		sender, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		target, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		target, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3406,7 +3406,7 @@ func TestSessionMessageOriginDaemonIntegration(t *testing.T) {
 				},
 			)
 			writeSessionOriginFixture(t, fixturePath, fixture)
-			target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3462,7 +3462,7 @@ func TestSessionMessageOriginDaemonIntegration(t *testing.T) {
 			writeSessionOriginFixture(t, fixturePath, fixture)
 			sender, err := m.Create(
 				t.Context(),
-				session.CreateOpts{AgentName: "subagent-test", Workspace: ws, Name: "Origin sender"},
+				new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws, Name: "Origin sender"}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -3595,7 +3595,7 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 		t.Helper()
 		peers := make([]*session.Session, count)
 		for i := range peers {
-			peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			peer, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3776,11 +3776,11 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 	for _, mode := range []string{"direct", "queue", "steer", "interrupt", "busy sender"} {
 		t.Run("Should automatically reply through "+mode, func(t *testing.T) {
 			d, m, ws := newSubagentDaemonIntegration(t, "injected")
-			sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
-			target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3936,7 +3936,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		if err := json.Unmarshal(raw, &fixture); err != nil {
 			t.Fatal(err)
 		}
-		target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3983,7 +3983,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		})
 		fixture.Agents[0].Turns = append(turns, fixture.Agents[0].Turns...)
 		writeSessionOriginFixture(t, path, fixture)
-		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4124,11 +4124,11 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 func runReplyWatchCrashChild(t *testing.T, manifest string) {
 	t.Helper()
 	d, m, ws := newSubagentDaemonIntegration(t)
-	sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+	sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+	target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4200,7 +4200,7 @@ func TestSessionMessageOriginResponseBeforeReceiptIntegration(t *testing.T) {
 			}, "injected")
 			var peers [3]*session.Session
 			for i := range peers {
-				peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+				peer, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -4375,11 +4375,11 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			cfg.Session.Supervision.StopGrace = 2 * time.Second
 			cfg.Session.Supervision.IdleReleaseAfter = 2 * time.Second
 		}, "injected")
-		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4462,7 +4462,7 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 	t.Run("Should fail only the stranded dispatching lease on restart", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		target, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		target, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}

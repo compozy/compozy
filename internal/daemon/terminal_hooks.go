@@ -141,7 +141,7 @@ func terminalHookEnvelope(event terminalpkg.Event) (hookspkg.PayloadBase, hooksp
 
 func terminalHookExit(exit *terminalpkg.Exit) hookspkg.TerminalExit {
 	if exit == nil {
-		return hookspkg.TerminalExit{Cause: "unknown"}
+		return hookspkg.TerminalExit{Cause: daemonUnknownValue}
 	}
 	return hookspkg.TerminalExit{Cause: exit.Cause, Code: exit.Code, Signal: exit.Signal}
 }

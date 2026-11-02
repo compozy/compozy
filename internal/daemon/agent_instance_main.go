@@ -11,6 +11,11 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+const (
+	daemonAcceptedValue = "accepted"
+	daemonStoppedValue  = "stopped"
+)
+
 type instanceMainAttempts interface {
 	InstanceMainAttempt(context.Context, string) (string, error)
 }
@@ -29,16 +34,16 @@ func (r instanceMainSessions) Start(ctx context.Context, request agentinstance.S
 	if err != nil {
 		return "", err
 	}
-	if outcome.State == "accepted" {
+	if outcome.State == daemonAcceptedValue {
 		return outcome.SessionID, nil
 	}
-	if outcome.State == "stopped" {
+	if outcome.State == daemonStoppedValue {
 		if err := r.DiscardFailedStart(ctx, instance, outcome.SessionID); err != nil {
 			return outcome.SessionID, err
 		}
-		outcome = agentinstance.StartOutcome{State: "missing"}
+		outcome = agentinstance.StartOutcome{State: taskRecoverySessionMissing}
 	}
-	if outcome.State != "missing" {
+	if outcome.State != taskRecoverySessionMissing {
 		return outcome.SessionID, agentinstance.ErrStarting
 	}
 	opts := session.CreateOpts{
@@ -56,7 +61,7 @@ func (r instanceMainSessions) Start(ctx context.Context, request agentinstance.S
 	if instance.WorkspaceID == "" {
 		opts.Scope = workspacepkg.ScopeUser
 	}
-	info, err := r.sessions.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
+	info, err := r.sessions.CreateAccepted(ctx, new(session.CreateAcceptedOpts{Session: opts}))
 	if err != nil {
 		id, lookupErr := r.attempts.InstanceMainAttempt(context.WithoutCancel(ctx), instance.ID)
 		return id, errors.Join(err, lookupErr)
@@ -84,15 +89,15 @@ func (r instanceMainSessions) StartOutcome(
 		return agentinstance.StartOutcome{}, err
 	}
 	if id == "" {
-		return agentinstance.StartOutcome{State: "missing"}, nil
+		return agentinstance.StartOutcome{State: taskRecoverySessionMissing}, nil
 	}
 	info, err := r.sessions.Status(ctx, id)
 	if err != nil {
 		return agentinstance.StartOutcome{}, err
 	}
-	state := "accepted"
+	state := daemonAcceptedValue
 	if info.State == session.StateStopped {
-		state = "stopped"
+		state = daemonStoppedValue
 	}
 	if info.State == session.StateStarting {
 		state = "pending"

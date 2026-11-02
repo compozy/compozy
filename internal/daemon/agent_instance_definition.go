@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -45,7 +46,7 @@ func (r instanceDefinitions) InstanceDefinition(
 	if err != nil {
 		return instanceDefinition{}, err
 	}
-	if agent.Kind != "stays_on" {
+	if agent.Kind != compozyconfig.AgentKindStaysOn {
 		return instanceDefinition{}, agentinstance.ErrNotStaysOn
 	}
 	runtime, err := resolved.Config.ResolveAgent(agent)

@@ -590,7 +590,7 @@ func seedDaemonHeartbeatWakePolicyWithConfig(
 	}); err != nil {
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
-	if err := db.RegisterSession(ctx, store.SessionInfo{
+	if err := db.RegisterSession(ctx, new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     agentName,
@@ -599,7 +599,7 @@ func seedDaemonHeartbeatWakePolicyWithConfig(
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     createdAt,
 		UpdatedAt:     createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	resolved, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
@@ -648,7 +648,7 @@ func registerDaemonHeartbeatSession(
 ) {
 	t.Helper()
 
-	if err := db.RegisterSession(ctx, store.SessionInfo{
+	if err := db.RegisterSession(ctx, new(store.SessionInfo{
 		ID:            sessionID,
 		ProfileID:     store.DefaultProfileID,
 		AgentName:     agentName,
@@ -657,7 +657,7 @@ func registerDaemonHeartbeatSession(
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     createdAt,
 		UpdatedAt:     createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%s) error = %v", sessionID, err)
 	}
 }

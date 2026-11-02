@@ -43,7 +43,7 @@ func (a loopCoordinatorRunActivator) logFailure(run taskpkg.Run, reason string, 
 		logger = a.state.logger
 	}
 	args := []any{
-		"reason", strings.TrimSpace(reason),
+		loopActionRuntimeReasonKey, strings.TrimSpace(reason),
 		daemonLogRunIDKey, strings.TrimSpace(run.ID),
 	}
 	if err != nil {

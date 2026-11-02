@@ -81,12 +81,12 @@ func assertNoChildWork(t *testing.T, agent string, typ session.Type, lineage sto
 		t.Fatal(err)
 	}
 	// The related session has no readable state: counting it would have to read it.
-	if err := registry.RegisterSession(ctx, store.SessionInfo{
+	if err := registry.RegisterSession(ctx, new(store.SessionInfo{
 		ProfileID: store.DefaultProfileID, ID: "sess-related", AgentName: agent,
 		WorkspaceID: "ws-work", SessionType: string(typ),
 		State: string(session.StateActive), RuntimeStatus: store.SessionRuntimeUnbound,
 		Lineage: &lineage, CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	manager, err := session.NewManager(session.WithHomePaths(homePaths), session.WithLogger(discardLogger()))

@@ -654,7 +654,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 			Worktrees:  service,
 			Sessions: &apitest.StubSessionManager{CreateAcceptedFn: func(
 				context.Context,
-				session.CreateAcceptedOpts,
+				*session.CreateAcceptedOpts,
 			) (*session.Info, error) {
 				return nil, errors.New("accept failed")
 			}},

@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+const daemonGlobalLabel = "Global"
+
 func (n *daemonNativeTools) nativeAgentActivity(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -73,7 +75,7 @@ func (n *daemonNativeTools) nativeAgentActivity(
 	}
 	label := target.Name
 	if workspaceID == "" {
-		label = "Global"
+		label = daemonGlobalLabel
 	}
 	for index := range result.CostByProject {
 		result.CostByProject[index].Scope = label

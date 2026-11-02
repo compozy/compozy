@@ -1037,9 +1037,10 @@ func (c *nativeEntityAgentCatalog) GetAgent(
 	name string,
 ) (core.AgentCatalogEntry, error) {
 	entries := append(slices.Clone(c.global), c.workspace...)
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		if entry.Def.Name == name {
-			return entry, nil
+			return *entry, nil
 		}
 	}
 	return core.AgentCatalogEntry{}, os.ErrNotExist
@@ -7847,7 +7848,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 				return caller, nil
 			},
-			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+			CreateAcceptedFn: func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := *optsInput
+
 				accepted = append(accepted, opts)
 				return &session.Info{
 					ID:          "sess-child",
@@ -8264,7 +8267,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		manager := &nativeSessionPageHealthManager{
-			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+			CreateAcceptedFn: func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := *optsInput
+
 				acceptedCreate = opts
 				return &session.Info{
 					ID:          "sess-created",
@@ -10454,10 +10459,10 @@ func TestDaemonBootToolRegistry(t *testing.T) {
 			t.Fatal(err)
 		}
 		state := &bootState{cfg: cfg, registry: registry, workspaceResolver: resolver, profiles: profiles}
-		if err := registry.RegisterSession(t.Context(), store.SessionInfo{
+		if err := registry.RegisterSession(t.Context(), new(store.SessionInfo{
 			ID: "sess-approval", AgentName: "general", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID,
 			State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
-		}); err != nil {
+		})); err != nil {
 			t.Fatal(err)
 		}
 		state.sessions = &fakeSessionManager{infos: []*session.Info{{
@@ -15400,7 +15405,9 @@ func TestNativeUserSession(t *testing.T) {
 		t.Parallel()
 		var accepted *session.CreateAcceptedOpts
 		manager := &nativeSessionPageHealthManager{
-			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+			CreateAcceptedFn: func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := *optsInput
+
 				accepted = &opts
 				return &session.Info{
 					ID:        "session-user",
@@ -15517,7 +15524,9 @@ func TestNativeGrantSelection(t *testing.T) {
 					EffectiveWorkspaceAccess: workspaceaccess.Unrestricted,
 				}, nil
 			},
-			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+			CreateAcceptedFn: func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := *optsInput
+
 				accepted = &opts
 				return &session.Info{ID: "child", ProfileID: opts.Session.ProfileID, State: session.StateActive}, nil
 			},
@@ -16036,10 +16045,10 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			},
 		)
 		workspace := nativeTestWorkspaceServiceWithRoot(t, t.TempDir())
-		workspace.ResolveForProfileFn = func(ctx context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
+		workspace.ResolveForProfileFn = func(ctx context.Context, ref, _ string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspace.ResolveFn(ctx, ref)
 		}
-		caller := instanceAdmissionInputs{
+		caller := &instanceAdmissionInputs{
 			caller: agentinstance.Caller{
 				InstanceID: "instance-memory",
 				AgentName:  "coder",
@@ -16238,9 +16247,10 @@ func TestNativeHiddenTriage(t *testing.T) {
 				nativeApproveAllPolicyInputs(),
 			)
 			input := `{"workspace":"ws-1","session_id":"hidden"}`
-			if id == toolspkg.ToolIDSessionPrompt {
+			switch id {
+			case toolspkg.ToolIDSessionPrompt:
 				input = `{"workspace":"ws-1","session_id":"hidden","message":"Run work","message_id":"msg-hidden","idempotency_key":"hidden-key"}`
-			} else if id == toolspkg.ToolIDSessionStop {
+			case toolspkg.ToolIDSessionStop:
 				input = `{"session_id":"hidden"}`
 			}
 			_, err := registry.Call(

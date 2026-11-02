@@ -60,7 +60,8 @@ func collectAgentProbeTargetsWithDiagnostics(
 		slices.SortStableFunc(agents, func(a, b core.AgentCatalogEntry) int {
 			return strings.Compare(strings.TrimSpace(a.Def.Name), strings.TrimSpace(b.Def.Name))
 		})
-		for _, entry := range agents {
+		for i := range agents {
+			entry := &agents[i]
 			agent := entry.Def
 			resolved, err := cfg.ResolveAgent(agent)
 			if err != nil {

@@ -84,11 +84,11 @@ func testPromptInputCompositeIntegrationPreservesStoredMessages(t *testing.T) {
 	driver := newHarnessIntegrationDriver()
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
-	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+	created, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName: resolvedWorkspace.Agents[0].Name,
 		Name:      "worker",
 		Workspace: resolvedWorkspace.ID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -206,7 +206,7 @@ func TestPromptInputCompositeIntegrationWorkspaceFilesRemainUserOwned(t *testing
 		)
 		created, err := manager.Create(
 			testutil.Context(t),
-			session.CreateOpts{AgentName: resolvedWorkspace.Agents[0].Name, Workspace: resolvedWorkspace.ID},
+			new(session.CreateOpts{AgentName: resolvedWorkspace.Agents[0].Name, Workspace: resolvedWorkspace.ID}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -299,7 +299,7 @@ func TestPromptInputCompositeIntegrationSoulRetiredPolicy(t *testing.T) {
 		)
 		created, err := manager.Create(
 			testutil.Context(t),
-			session.CreateOpts{AgentName: "coder", Workspace: workspace.ID},
+			new(session.CreateOpts{AgentName: "coder", Workspace: workspace.ID}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -473,7 +473,7 @@ func TestPromptInputCompositeIntegrationActiveAgentMemory(t *testing.T) {
 		}
 		driver := newHarnessIntegrationDriver()
 		manager := newHarnessIntegrationManager(t, home, deps, workspace, driver, session.WithSessionCatalog(db))
-		first, err := manager.Create(t.Context(), session.CreateOpts{AgentName: agent.Name, Workspace: workspace.ID})
+		first, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: agent.Name, Workspace: workspace.ID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -501,7 +501,7 @@ func TestPromptInputCompositeIntegrationActiveAgentMemory(t *testing.T) {
 		if len(starts) != 1 || !strings.Contains(starts[0].SystemPrompt, "original memory sentinel") || strings.Contains(starts[0].SystemPrompt, "updated memory sentinel") {
 			t.Fatalf("active startup: %+v", starts)
 		}
-		second, err := manager.Create(t.Context(), session.CreateOpts{AgentName: agent.Name, Workspace: workspace.ID})
+		second, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: agent.Name, Workspace: workspace.ID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -548,7 +548,7 @@ func TestPromptInputCompositeIntegrationActiveAgentMemory(t *testing.T) {
 			t.Fatal(err)
 		}
 		otherManager := newHarnessIntegrationManager(t, home, deps, otherWorkspace, newHarnessIntegrationDriver(), session.WithSessionCatalog(db))
-		caller, err := otherManager.Create(t.Context(), session.CreateOpts{AgentName: agent.Name, Workspace: otherWorkspace.ID, Permissions: compozyconfig.PermissionModeDenyAll})
+		caller, err := otherManager.Create(t.Context(), new(session.CreateOpts{AgentName: agent.Name, Workspace: otherWorkspace.ID, Permissions: compozyconfig.PermissionModeDenyAll}))
 		if err != nil {
 			t.Fatal(err)
 		}

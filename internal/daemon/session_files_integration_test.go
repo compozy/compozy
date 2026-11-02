@@ -116,9 +116,9 @@ func TestDaemonSearchSessionFilesCreationProfileCWDIT010(t *testing.T) {
 	for name, body := range map[string]string{"root.txt": "root\n", "pkg/main.go": "package pkg\n"} {
 		writeDaemonFile(t, filepath.Join(h.root, filepath.FromSlash(name)), body)
 	}
-	created, err := h.manager.Create(t.Context(), session.CreateOpts{
+	created, err := h.manager.Create(t.Context(), new(session.CreateOpts{
 		AgentName: mentionIntegrationAgent, Workspace: h.workspace, Name: "pkg session", CWD: "pkg",
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(cwd pkg) error = %v", err)
 	}

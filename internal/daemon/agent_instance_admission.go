@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -48,7 +49,7 @@ func (a *instanceAdmission) ResolveCreate(
 	if err != nil {
 		return agentinstance.Instance{}, err
 	}
-	if definition.Kind != "stays_on" {
+	if definition.Kind != compozyconfig.AgentKindStaysOn {
 		return agentinstance.Instance{}, agentinstance.ErrNotStaysOn
 	}
 	result := agentinstance.Instance{
@@ -101,7 +102,7 @@ func (a *instanceAdmission) ValidateResume(ctx context.Context, instance agentin
 	if err != nil {
 		return err
 	}
-	if definition.Kind != "stays_on" {
+	if definition.Kind != compozyconfig.AgentKindStaysOn {
 		return agentinstance.ErrNotStaysOn
 	}
 	return nil
@@ -121,7 +122,7 @@ func (a *instanceAdmission) ResolveAdopt(
 	if info.Lineage != nil && info.Lineage.ParentSessionID != "" {
 		return agentinstance.Instance{}, agentinstance.ErrSessionNotRoot
 	}
-	if info.SessionType != "user" || info.ArchivedAt != nil {
+	if info.SessionType != string(TurnOriginUser) || info.ArchivedAt != nil {
 		return agentinstance.Instance{}, agentinstance.ErrScopeMismatch
 	}
 	if info.ProfileID != req.Profile || info.AgentName != req.Agent || info.WorkspaceID != req.Workspace {

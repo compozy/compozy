@@ -80,7 +80,7 @@ func agentMemoryKey(catalog *resourceCatalog[compozyconfig.AgentDef], profileID 
 	if winner == nil || winner.Spec.SourcePath != agent.SourcePath {
 		return agentmemory.Key{}, errors.New("daemon: agent memory definition unavailable")
 	}
-	origin := "user"
+	origin := string(TurnOriginUser)
 	workspaceID, workspaceScoped := lens.entryScope(winner.Scope)
 	if winner.Owner.Kind.Normalize() == extensionResourceOwnerKind {
 		if winner.Owner.ID == "" {

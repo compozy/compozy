@@ -24,7 +24,7 @@ import (
 const loopRuntimeSessionPrefix = "loop"
 
 type loopPromptSessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error)
@@ -101,7 +101,7 @@ func (r *loopGateJudgeRunner) Judge(
 	}
 	opts.RuntimeMode = session.RuntimeModeVerdictOnly
 	opts.Permissions = compozyconfig.PermissionModeDenyAll
-	created, createErr := r.sessions.Create(ctx, opts)
+	created, createErr := r.sessions.Create(ctx, &(opts))
 	if created == nil {
 		if createErr != nil {
 			return gate.JudgeResponse{}, createErr

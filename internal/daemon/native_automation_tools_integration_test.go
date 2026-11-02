@@ -389,7 +389,9 @@ func newNativeAutomationSessionManager() *apitest.StubSessionManager {
 	statuses := map[string]*session.Info{}
 	var seq int
 	return &apitest.StubSessionManager{
-		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+			opts := *optsInput
+
 			mu.Lock()
 			defer mu.Unlock()
 			seq++
