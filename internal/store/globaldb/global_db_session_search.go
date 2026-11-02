@@ -90,6 +90,8 @@ func sessionCatalogOwnWorkSearch(query store.SessionCatalogPageQuery) (string, [
  ) AS own_link
  LEFT JOIN forge_pull_requests pr ON pr.workspace_id = own_link.workspace_id
  AND pr.branch = own_link.branch AND pr.repo_key = json_extract(?, '$.' || json_quote(own_link.workspace_id))
+ AND NOT EXISTS (SELECT 1 FROM json_each(?, '$.' || json_quote(own_link.workspace_id)) own_default
+ WHERE own_default.value = own_link.branch)
  WHERE own_link.branch <> ''
  AND (COALESCE(own_link.worktree_id,'') <> '' OR NOT EXISTS (
  SELECT 1 FROM json_each(?, '$.' || json_quote(own_link.workspace_id)) d WHERE d.value = own_link.branch))
@@ -97,6 +99,12 @@ func sessionCatalogOwnWorkSearch(query store.SessionCatalogPageQuery) (string, [
  AND l.branch = own_link.branch AND l.repo_key = json_extract(?, '$.' || json_quote(own_link.workspace_id)))
  AND (instr(compozy_unicode_lower(own_link.branch),?) > 0` + number + `))`,
 		append(
-			[]any{string(repos), string(defaults), string(repos), store.LowerSessionCatalogSearchText(text)},
+			[]any{
+				string(repos),
+				string(defaults),
+				string(defaults),
+				string(repos),
+				store.LowerSessionCatalogSearchText(text),
+			},
 			numberArgs...), nil
 }

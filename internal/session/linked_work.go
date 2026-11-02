@@ -134,9 +134,6 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 	if repository == "" {
 		repository = repo
 	}
-	if repo == "" || repository != repo {
-		return ErrLinkedWorkRepository
-	}
 	branch = strings.TrimSpace(branch)
 	link := store.SessionWorkLink{
 		SessionID:   info.ID,
@@ -166,6 +163,10 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 	// A child owns its link: a tombstone here would report success and leave the item listed.
 	if rolledUp && !direct {
 		return ErrLinkedWorkInvalid
+	}
+	// A link from before a remote change stays removable under its stored identity.
+	if !direct && (repo == "" || repository != repo) {
+		return ErrLinkedWorkRepository
 	}
 	if err := links.UnlinkSessionWork(ctx, link); err != nil {
 		return err

@@ -3795,6 +3795,15 @@ func TestSessionLinkedWorkCatalogReview(t *testing.T) {
 		if err != nil || page.Total != 0 {
 			t.Fatalf("default branch review=%+v err=%v", page, err)
 		}
+		// The bound branch is searchable, but the projection never shows that branch's PR.
+		for search, want := range map[string]int{"900": 0, "main": 1} {
+			found := q
+			found.Columns, found.Search = nil, search
+			page, err = db.PageSessions(ctx, found)
+			if err != nil || page.Total != want {
+				t.Fatalf("default branch search %q total=%d want=%d err=%v", search, page.Total, want, err)
+			}
+		}
 		source, args, err := sessionCatalogBoardSource(q.RepositoryKeys, nil)
 		if err != nil {
 			t.Fatal(err)

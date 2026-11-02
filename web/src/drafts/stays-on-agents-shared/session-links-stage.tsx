@@ -144,9 +144,9 @@ function FixtureLinkDialog({
       onConfirm={() => {
         const linked = linkedCandidateKeys(items);
         onLink(
-          selected
-            .filter(candidate => !candidateIsLinked(candidate, linked))
-            .map(sessionLinkFromCandidate)
+          selected.flatMap(candidate =>
+            candidateIsLinked(candidate, linked) ? [] : [sessionLinkFromCandidate(candidate)]
+          )
         );
         onOpenChange(false);
       }}

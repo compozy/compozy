@@ -103,7 +103,11 @@ func CapabilityServiceMethods(provides []string) []string {
 	for _, provide := range normalizeUniqueStrings(provides) {
 		methodsForProvide := RequiredServiceMethods(provide)
 		if provide == CapabilityProvideForgeProvider {
-			methodsForProvide = append(methodsForProvide, string(ExtensionServiceMethodForgePRSearch), string(ExtensionServiceMethodForgePRRead))
+			methodsForProvide = append(
+				methodsForProvide,
+				string(ExtensionServiceMethodForgePRSearch),
+				string(ExtensionServiceMethodForgePRRead),
+			)
 		}
 		for _, method := range methodsForProvide {
 			if _, ok := seen[method]; ok {

@@ -5111,6 +5111,32 @@ func TestUnlinkRolledUpWork(t *testing.T) {
 	})
 }
 
+func TestUnlinkMovedRepositoryWork(t *testing.T) {
+	t.Parallel()
+	// Invariant: a link stranded by a remote change can still be removed from the session.
+	t.Run("Should unlink under the stored repository", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws-read-00": "example.com/new/repo"}}
+		manager.ConfigurePullRequests(reader, catalog)
+		const old = "example.com/old/repo"
+		link := store.SessionWorkLink{
+			SessionID: "sess-read-000", WorkspaceID: "ws-read-00", Repository: old, Branch: "topic", Provenance: "user",
+		}
+		if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.UnlinkSessionWork(t.Context(), link.SessionID, old, "topic"); err != nil {
+			t.Fatal(err)
+		}
+		err := manager.UnlinkSessionWork(t.Context(), link.SessionID, old, "never-linked")
+		if !errors.Is(err, ErrLinkedWorkRepository) {
+			t.Fatalf("unlisted link error = %v, want ErrLinkedWorkRepository", err)
+		}
+	})
+}
+
 func TestRefreshSessionWorkLink(t *testing.T) {
 	t.Parallel()
 	// Invariant: Refresh reaches the forge for an item the session lists, and only for one.
