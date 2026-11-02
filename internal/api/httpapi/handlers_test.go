@@ -61,6 +61,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 	slices.Sort(got)
 
 	want := []string{
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/links",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/links",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/links",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/link-candidates",
 		"DELETE /api/app-tokens/:app_token_id",
 		"GET /api/app-tokens",
 		"GET /api/processes",

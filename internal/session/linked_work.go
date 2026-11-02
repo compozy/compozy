@@ -41,7 +41,12 @@ type LinkedWorkSummary struct {
 	Lead         *LinkedWorkItem `json:"lead,omitempty"`
 }
 
-func (m *Manager) LinkSessionWork(ctx context.Context, sessionID string, link store.SessionWorkLink, automatic bool) error {
+func (m *Manager) LinkSessionWork(
+	ctx context.Context,
+	sessionID string,
+	link store.SessionWorkLink,
+	automatic bool,
+) error {
 	info, err := m.Status(ctx, sessionID)
 	if err != nil {
 		return err
@@ -80,7 +85,7 @@ func (m *Manager) LinkSessionWork(ctx context.Context, sessionID string, link st
 	if err := links.SaveSessionWorkLink(ctx, link, automatic); err != nil {
 		return fmt.Errorf("session: link work: %w", err)
 	}
-	m.PublishSessionCatalogChanged(ctx, info.ID)
+	m.publishLinkedWorkChanged(ctx, info)
 	return nil
 }
 
@@ -110,7 +115,13 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 		}
 		repository = reader.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID})[info.WorkspaceID]
 	}
-	link := store.SessionWorkLink{SessionID: info.ID, WorkspaceID: info.WorkspaceID, Repository: repository, Branch: branch, Provenance: "user"}
+	link := store.SessionWorkLink{
+		SessionID:   info.ID,
+		WorkspaceID: info.WorkspaceID,
+		Repository:  repository,
+		Branch:      branch,
+		Provenance:  "user",
+	}
 	// Persist a tombstone even for the derived current branch.
 	if err := links.SaveSessionWorkLink(ctx, link, true); err != nil {
 		return fmt.Errorf("session: prepare unlink: %w", err)
@@ -118,7 +129,7 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 	if err := links.UnlinkSessionWork(ctx, link); err != nil {
 		return err
 	}
-	m.PublishSessionCatalogChanged(ctx, info.ID)
+	m.publishLinkedWorkChanged(ctx, info)
 	return nil
 }
 
@@ -136,4 +147,21 @@ func BoardColumnWithLinkedWork(badge Badge, own PullRequestState, linkedOpen, pe
 		return BoardInReview
 	}
 	return column
+}
+
+func (m *Manager) publishLinkedWorkChanged(ctx context.Context, info *Info) {
+	workspaceID, profileID := info.WorkspaceID, info.ProfileID
+	seen := make(map[string]bool)
+	for info != nil && info.WorkspaceID == workspaceID && info.ProfileID == profileID && !seen[info.ID] {
+		seen[info.ID] = true
+		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+		if info.Lineage == nil || info.Lineage.ParentSessionID == "" {
+			return
+		}
+		parent, err := m.Status(ctx, info.Lineage.ParentSessionID)
+		if err != nil {
+			return
+		}
+		info = parent
+	}
 }

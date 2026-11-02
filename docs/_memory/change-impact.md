@@ -5184,3 +5184,8 @@ Owner: `docs/prompts/20261102-1950_backend-task.md`, branch `proto/session-links
 - Isolation: session workspace/profile authorization precedes API access; lineage recursion stays within workspace/profile; writes validate session membership. Native tools cannot select another session.
 - Web: generated clients include full items and catalog summaries. The following frontend task owns production UI, copy/glossary and live scenario verification.
 - Official skill: native tools reference documents self-targeting, unlink and summary semantics.
+||||||| parent of 7b8815ddc (fix: keep legacy forge providers loading and refresh linked ancestors)
+
+### PR #1161 backend review corrections
+
+Updates the Session linked work audit above. Native link/unlink metadata and risk inventories now include both existing mutating tool descriptors. HTTP/UDS routes and DTOs, CLI verbs, hooks, config and official `skills/compozy/` instructions retain their existing shapes. Legacy forge providers need only their original required methods; discovery methods remain optional. Automatic upserts enrich worktree identity while retaining provenance and unlink tombstones; no schema or migration changes. Link mutations wake the child and each ancestor within the same workspace/profile, with visited IDs bounding cyclic lineage. Web consumes existing catalog upserts to refresh rolled-up summaries. QA additions are in `ET-session-pull-request-link`; evidence and limits are in `docs/qa/reports/session-linked-work/backend-fixes.md`.

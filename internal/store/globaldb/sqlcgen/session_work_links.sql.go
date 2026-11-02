@@ -144,7 +144,10 @@ func (q *Queries) ReadSessionWorkLinks(ctx context.Context, ids any) ([]ReadSess
 const saveAutomaticSessionWorkLink = `-- name: SaveAutomaticSessionWorkLink :execrows
 INSERT INTO session_work_links(session_id, workspace_id, repo_key, branch, pr_number, worktree_id, worktree_name, provenance)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-ON CONFLICT(session_id, repo_key, branch) DO NOTHING
+ON CONFLICT(session_id, repo_key, branch) DO UPDATE SET
+ pr_number = COALESCE(excluded.pr_number, session_work_links.pr_number),
+ worktree_id = CASE WHEN excluded.worktree_id <> '' THEN excluded.worktree_id ELSE session_work_links.worktree_id END,
+ worktree_name = CASE WHEN excluded.worktree_name <> '' THEN excluded.worktree_name ELSE session_work_links.worktree_name END
 `
 
 type SaveAutomaticSessionWorkLinkParams struct {

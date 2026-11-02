@@ -1829,6 +1829,66 @@ func (s *worktreeInspectionStore) GetStatus(ctx context.Context, workspaceID, id
 // Owner: durable session work links; canonical worktree store suite.
 func TestSessionWorkLinkPersistence(t *testing.T) {
 	t.Parallel()
+	t.Run("Should enrich a manual link automatically without restoring an unlink", func(t *testing.T) {
+		t.Parallel()
+		db, err := OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		ctx := t.Context()
+		ws := registerWorkspaceForGlobalTests(t, db, "auto-links", t.TempDir())
+		info := sessionInfoForWorkspaceStateIndexTest(
+			"automatic-linked",
+			ws,
+			"stopped",
+			time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		)
+		if err := db.RegisterSession(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		link := store.SessionWorkLink{
+			SessionID:   info.ID,
+			WorkspaceID: ws,
+			Repository:  "example.com/owner/repo",
+			Branch:      "topic",
+			Provenance:  "user",
+			PRNumber:    42,
+		}
+		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+			t.Fatal(err)
+		}
+		for _, unlinked := range []bool{false, true} {
+			if unlinked {
+				if err := db.UnlinkSessionWork(ctx, link); err != nil {
+					t.Fatal(err)
+				}
+			}
+			automatic := link
+			automatic.WorktreeID, automatic.WorktreeName, automatic.Provenance = "tree", "new-tree", "created"
+			if err := db.SaveSessionWorkLink(ctx, automatic, true); err != nil {
+				t.Fatal(err)
+			}
+			got, err := db.SessionWorkLinks(ctx, []string{info.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got[info.ID]) != 1 {
+				t.Fatalf("links=%+v", got)
+			}
+			item := got[info.ID][0]
+			if item.WorktreeID != "tree" || item.WorktreeName != "new-tree" || item.Provenance != "user" ||
+				item.Unlinked != unlinked ||
+				item.PRNumber != 42 {
+				t.Fatalf("link=%+v", item)
+			}
+		}
+	})
+
 	t.Run("Should retain soft unlink and worktree identity across reopen", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -1847,7 +1907,16 @@ func TestSessionWorkLinkPersistence(t *testing.T) {
 		if err := db.RegisterSession(ctx, &info); err != nil {
 			t.Fatal(err)
 		}
-		link := store.SessionWorkLink{SessionID: info.ID, WorkspaceID: ws, Repository: "example.com/owner/repo", Branch: "topic", WorktreeID: "removed-tree", WorktreeName: "kept-name", Provenance: "created", PRNumber: 42}
+		link := store.SessionWorkLink{
+			SessionID:    info.ID,
+			WorkspaceID:  ws,
+			Repository:   "example.com/owner/repo",
+			Branch:       "topic",
+			WorktreeID:   "removed-tree",
+			WorktreeName: "kept-name",
+			Provenance:   "created",
+			PRNumber:     42,
+		}
 		if err := db.SaveSessionWorkLink(ctx, link, true); err != nil {
 			t.Fatal(err)
 		}
@@ -1868,7 +1937,9 @@ func TestSessionWorkLinkPersistence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(got[info.ID]) != 1 || !got[info.ID][0].Unlinked || !got[info.ID][0].WorktreeRemoved || got[info.ID][0].WorktreeName != "kept-name" || got[info.ID][0].PRNumber != 42 {
+		if len(got[info.ID]) != 1 || !got[info.ID][0].Unlinked || !got[info.ID][0].WorktreeRemoved ||
+			got[info.ID][0].WorktreeName != "kept-name" ||
+			got[info.ID][0].PRNumber != 42 {
 			t.Fatalf("links=%+v", got)
 		}
 		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {

@@ -104,3 +104,11 @@ Session linked work web walk (live walk report lists the steps not yet walked):
 8. Link an unrelated open PR to a working session and watch its card stay in Working through several turns.
 
 Owning automated checks: `lib/__tests__/pull-request.test.ts` (ordering, grouping, labels, input parsing), `use-session-topbar-slot.test.tsx` (head, rolled-up rows, narrow entry), `use-session-linked-work.test.tsx` (unlink with Undo, server search, dialog states), `use-session-catalog-streams.test.tsx` (refresh with no new turn), `palette-session-filters.test.ts` (server hits stay), and `E2E-006` in CI. Proto states: `session-links-header`, `session-links-surfaces`. Live forge and provider legs remain owned by the controller's QA walk.
+
+PR #1161 backend review regressions:
+
+- Initialize a forge provider exposing only capabilities, status and PR creation. It loads without PR discovery; branch linking remains available. Automated owner: `TestInitializeLegacyForgeProvider`.
+- Manually link a branch, then create its worktree through the calling session. The existing link gains the worktree ID/name and retains user provenance. Repeat after unlink: the tombstone remains. Automated owner: `TestSessionWorkLinkPersistence` (real SQLite).
+- Link and unlink a child's work while parent and grandparent catalogs are subscribed. Both receive scoped upserts immediately. Foreign workspace/profile ancestry receives none; a cycle cannot repeat publication. Automated owner: `TestSessionCatalogBroadcaster/Should wake every scoped ancestor on link and unlink`.
+
+These regressions pass in focused backend suites. The browser/provider walk is not repeated by this backend remediation task.

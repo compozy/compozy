@@ -176,6 +176,83 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should wake every scoped ancestor on link and unlink", func(t *testing.T) {
+		t.Parallel()
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cleanupTestManager(t, manager)
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws": "example.com/a/b"}}
+		manager.ConfigurePullRequests(reader, &linkedWorkQueryStore{})
+		sessions := []*Session{
+			{ID: "outside", WorkspaceID: "other", ProfileID: store.DefaultProfileID},
+			{
+				ID:          "root",
+				WorkspaceID: "ws",
+				ProfileID:   store.DefaultProfileID,
+				Lineage:     &store.SessionLineage{ParentSessionID: "outside"},
+			},
+			{
+				ID:          "parent",
+				WorkspaceID: "ws",
+				ProfileID:   store.DefaultProfileID,
+				Lineage:     &store.SessionLineage{ParentSessionID: "root"},
+			},
+			{
+				ID:          "child",
+				WorkspaceID: "ws",
+				ProfileID:   store.DefaultProfileID,
+				Lineage:     &store.SessionLineage{ParentSessionID: "parent"},
+			},
+		}
+		for _, sess := range sessions {
+			manager.sessions[sess.ID] = sess
+		}
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		for _, boundary := range []string{"workspace", "profile", "cycle"} {
+			switch boundary {
+			case "profile":
+				sessions[0].WorkspaceID, sessions[0].ProfileID = "ws", "other-profile"
+			case "cycle":
+				sessions[1].Lineage.ParentSessionID = "child"
+			}
+			for _, unlink := range []bool{false, true} {
+				if unlink {
+					err = manager.UnlinkSessionWork(t.Context(), "child", "example.com/a/b", "topic")
+				} else {
+					err = manager.LinkSessionWork(t.Context(), "child", store.SessionWorkLink{Branch: "topic"}, false)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, id := range []string{"child", "parent", "root"} {
+					select {
+					case event := <-events:
+						if event.SessionID != id || event.Kind != CatalogEventUpserted || event.WorkspaceID != "ws" ||
+							event.ProfileID != store.DefaultProfileID {
+							t.Fatalf("event=%+v want=%s", event, id)
+						}
+					default:
+						t.Fatalf("missing upsert for %s", id)
+					}
+				}
+				select {
+				case event := <-events:
+					t.Fatalf("escaped scope: %+v", event)
+				default:
+				}
+			}
+		}
+	})
+
 	t.Run("Should publish PR cache wakes to all owning profiles without a session id", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

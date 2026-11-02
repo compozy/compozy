@@ -33,4 +33,7 @@ FROM family f JOIN sessions s ON s.id = f.id;
 -- name: SaveAutomaticSessionWorkLink :execrows
 INSERT INTO session_work_links(session_id, workspace_id, repo_key, branch, pr_number, worktree_id, worktree_name, provenance)
 VALUES (sqlc.arg(session_id), sqlc.arg(workspace_id), sqlc.arg(repo_key), sqlc.arg(branch), sqlc.narg(pr_number), sqlc.arg(worktree_id), sqlc.arg(worktree_name), sqlc.arg(provenance))
-ON CONFLICT(session_id, repo_key, branch) DO NOTHING;
+ON CONFLICT(session_id, repo_key, branch) DO UPDATE SET
+ pr_number = COALESCE(excluded.pr_number, session_work_links.pr_number),
+ worktree_id = CASE WHEN excluded.worktree_id <> '' THEN excluded.worktree_id ELSE session_work_links.worktree_id END,
+ worktree_name = CASE WHEN excluded.worktree_name <> '' THEN excluded.worktree_name ELSE session_work_links.worktree_name END;
