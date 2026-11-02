@@ -197,7 +197,9 @@ export function linkOriginLabel(item: SessionLinkedWorkItem): string | null {
 export function linkStatus(item: SessionLinkedWorkItem): PullRequestPill {
   const chip = linkChip(item);
   if (chip.kind === "branch") {
-    const unknown = chip.marker === "unavailable" || chip.marker === "incomplete";
+    // A stored number means a pull request exists; only its facts are missing.
+    const unknown =
+      chip.marker === "unavailable" || chip.marker === "incomplete" || !!item.pr_number;
     return { label: unknown ? "PR status unknown" : "No pull request yet", tone: "neutral" };
   }
   const { pull_request: pr, pull_request_lookup: lookup } = linkFacts(item);

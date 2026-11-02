@@ -210,6 +210,7 @@ describe("useSessionLinkedWork", () => {
   });
 
   it("Should open the dialog only in the focused window of two showing the session", async () => {
+    candidates();
     const { wrapper } = harness();
     const host = (focused: boolean) => (
       <SessionLinkDialogHost
@@ -220,15 +221,19 @@ describe("useSessionLinkedWork", () => {
         workspaceName="compozy"
       />
     );
-    render(
+    const view = (first: boolean, second: boolean) => (
       <>
-        {host(false)}
-        {host(true)}
-      </>,
-      { wrapper }
+        {host(first)}
+        {host(second)}
+      </>
     );
+    const { rerender } = render(view(false, true), { wrapper });
     act(() => requestSessionLinkDialog(session.id));
     expect(await screen.findAllByTestId("session-link-dialog")).toHaveLength(1);
+    const dialogElement = screen.getByTestId("session-link-dialog");
+    // Focus moving away keeps the same dialog, so what was picked in it survives.
+    rerender(view(true, false));
+    expect(screen.getAllByTestId("session-link-dialog")).toEqual([dialogElement]);
     act(() => closeSessionLinkDialog());
   });
 

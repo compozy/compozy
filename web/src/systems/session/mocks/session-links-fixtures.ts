@@ -353,7 +353,7 @@ export function sessionLinkSummaryFixture(items: readonly SessionLinkedWorkItem[
 /** The item a picked candidate reads as once linked. */
 export function sessionLinkFromCandidate(picked: SessionWorkCandidate): SessionLinkedWorkItem {
   const known = SESSION_LINKS_FIFTY.find(item => item.branch === picked.branch);
-  if (known) return known;
+  if (known) return { ...known, provenance: "user" };
   return picked.pr_number
     ? pr(picked.pr_number, picked.title ?? picked.branch, picked.branch, {}, { provenance: "user" })
     : branchOnly(picked.branch, { provenance: "user" });

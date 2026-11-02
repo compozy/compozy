@@ -478,6 +478,12 @@ describe("session linked work", () => {
   });
 
   describe("link input", () => {
+    it("Should read a nested project path from a pasted link", () => {
+      expect(
+        parseSessionLinkInput("https://gitlab.com/group/subgroup/repo/-/merge_requests/12")
+      ).toEqual({ kind: "link", repository: "gitlab.com/group/subgroup/repo", number: 12 });
+    });
+
     const search = {
       repository: "github.com/compozy/compozy",
       pullRequests: SESSION_LINK_PULL_REQUESTS,

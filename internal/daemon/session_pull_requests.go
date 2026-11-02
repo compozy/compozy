@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -31,13 +32,19 @@ func (a sessionPullRequestAdapter) PullRequests(
 		if !ok {
 			workspace, err := a.resolver.ResolveWorktreeWorkspace(ctx, key.WorkspaceID, "")
 			if err == nil {
-				if key, keyErr := a.service.RepoKey(ctx, workspace.Root); keyErr == nil {
-					repo = key
+				if identity, keyErr := a.linkRepository(ctx, key.WorkspaceID, workspace.Root); keyErr == nil {
+					repo = identity
 				}
 			}
 			repos[key.WorkspaceID] = repo
 		}
 		if repo == "" {
+			out[key] = session.PullRequestView{
+				Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "unsupported_remote", Stale: true},
+			}
+			continue
+		}
+		if strings.HasPrefix(repo, localRepositoryPrefix) {
 			out[key] = session.PullRequestView{
 				Lookup: session.PullRequestLookup{State: session.LookupOK},
 			}
@@ -247,6 +254,10 @@ func (a sessionPullRequestAdapter) DefaultBranches(
 }
 
 // Local identities are workspace-scoped and never passed to forge providers.
+const localRepositoryPrefix = "local:"
+
+// linkRepository answers local only when git said there is no usable origin. A lookup that failed
+// or timed out must not save a link under an identity the real origin would then refuse.
 func (a sessionPullRequestAdapter) linkRepository(ctx context.Context, workspaceID, root string) (string, error) {
 	key, err := a.service.RepoKey(ctx, root)
 	if err == nil && key != "" {
@@ -255,5 +266,8 @@ func (a sessionPullRequestAdapter) linkRepository(ctx context.Context, workspace
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
-	return "local:" + workspaceID, nil
+	if errors.Is(err, worktree.ErrOriginLookupFailed) || errors.Is(err, context.DeadlineExceeded) {
+		return "", err
+	}
+	return localRepositoryPrefix + workspaceID, nil
 }

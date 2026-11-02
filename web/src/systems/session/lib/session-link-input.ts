@@ -11,7 +11,7 @@ export type SessionLinkInput =
   | { kind: "link"; repository: string; number: number };
 
 const PULL_REQUEST_URL =
-  /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/(?:-\/)?(?:pull|pulls|merge_requests|pull-requests)\/(\d+)(?:[/?#]\S*)?$/i;
+  /^https?:\/\/([^/\s]+)\/([^/\s]+(?:\/[^/\s]+)+?)(?:\.git)?\/(?:-\/)?(?:pull|pulls|merge_requests|pull-requests)\/(\d+)(?:[/?#]\S*)?$/i;
 const PULL_REQUEST_NUMBER = /^#?(\d+)$/;
 
 export function parseSessionLinkInput(query: string): SessionLinkInput {
@@ -20,8 +20,8 @@ export function parseSessionLinkInput(query: string): SessionLinkInput {
   if (url) {
     return {
       kind: "link",
-      repository: `${url[1]}/${url[2]}/${url[3]}`,
-      number: Number(url[4]),
+      repository: `${url[1]}/${url[2]}`,
+      number: Number(url[3]),
     };
   }
   const number = PULL_REQUEST_NUMBER.exec(text);

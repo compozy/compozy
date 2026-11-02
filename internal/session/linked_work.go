@@ -139,11 +139,22 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 	if err != nil {
 		return err
 	}
+	direct, rolledUp := false, false
 	for _, item := range projection[info.ID].Items {
-		if item.SourceSessionID == "" && item.Repository == repository && item.Branch == branch {
-			link.WorktreeID, link.WorktreeName = item.WorktreeID, item.WorktreeName
-			link.Provenance, link.PRNumber = item.Provenance, item.PRNumber
+		if item.Repository != repository || item.Branch != branch {
+			continue
 		}
+		if item.SourceSessionID != "" {
+			rolledUp = true
+			continue
+		}
+		direct = true
+		link.WorktreeID, link.WorktreeName = item.WorktreeID, item.WorktreeName
+		link.Provenance, link.PRNumber = item.Provenance, item.PRNumber
+	}
+	// A child owns its link: a tombstone here would report success and leave the item listed.
+	if rolledUp && !direct {
+		return ErrLinkedWorkInvalid
 	}
 	if err := links.UnlinkSessionWork(ctx, link); err != nil {
 		return err

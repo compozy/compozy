@@ -13,8 +13,8 @@ interface SessionLinkDialogHostProps {
 }
 
 export function SessionLinkDialogHost({ focused, ...props }: SessionLinkDialogHostProps) {
-  const open = useSessionLinkDialogOpen(props.sessionId);
-  return open && focused ? <OpenSessionLinkDialog {...props} /> : null;
+  const open = useSessionLinkDialogOpen(props.sessionId, focused);
+  return open ? <OpenSessionLinkDialog {...props} /> : null;
 }
 
 function OpenSessionLinkDialog(props: Omit<SessionLinkDialogHostProps, "focused">) {

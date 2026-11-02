@@ -42,7 +42,8 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string, 
   const add = useMutation({
     mutationFn: (request: SessionWorkLinkRequest) =>
       addSessionWorkLink(workspaceId, sessionId, profile, request),
-    onSuccess: settle,
+    // Adds run in parallel, so a response can predate its neighbours: only a reread settles them.
+    onSuccess: reread,
   });
   const refresh = useMutation({
     mutationFn: (item: SessionLinkedWorkItem) =>
