@@ -167,7 +167,7 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, acp.ErrPermissionDenied
 	}
 	if normalized.SpawnRole == store.SubagentSpawnRole {
-		if err := m.validateSubagentSpawn(parent, &normalized); err != nil {
+		if err := m.validateSubagentSpawn(ctx, parent, &normalized); err != nil {
 			return SpawnOpts{}, nil, nil, err
 		}
 	}

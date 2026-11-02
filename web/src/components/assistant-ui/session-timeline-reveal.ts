@@ -17,6 +17,12 @@ export function rowContainsPart(row: SessionRow, partIndex: number): boolean {
     case "session-message":
       return row.part.partIndex === partIndex || row.toolPart?.partIndex === partIndex;
     case "work":
+      return (
+        row.entries.some(entry => entry.partIndex === partIndex) ||
+        [...(row.approvals?.values() ?? [])].some(parts =>
+          parts.some(part => part.partIndex === partIndex)
+        )
+      );
     case "live-tool":
       return row.entries.some(entry => entry.partIndex === partIndex);
     case "turn-fold":

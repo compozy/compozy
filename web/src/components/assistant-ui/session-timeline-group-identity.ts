@@ -23,12 +23,16 @@ export function workGroupId(
   const identities = entries.map(workEntryIdentity);
   const identitySet = new Set(identities);
 
-  const retainedAnchor = [...(options.workGroupAnchors?.values() ?? [])].find(
+  const retainedAnchors = [...(options.workGroupAnchors?.values() ?? [])].filter(
     anchor =>
       anchor.turnId === first.turnId &&
       identitySet.has(anchor.anchorEntryId) &&
       !options.usedGroupIds?.has(anchor.groupId)
   );
+  // Runs merge when a boundary between them leaves the flow: the opened one keeps its identity.
+  const retainedAnchor =
+    retainedAnchors.find(anchor => options.expandedWorkGroupIds?.has(anchor.groupId)) ??
+    retainedAnchors[0];
   if (retainedAnchor) return retainedAnchor.groupId;
 
   const orderedIdentities = [...new Set(identities)].sort(compareIdentities);

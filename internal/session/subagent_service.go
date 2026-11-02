@@ -24,6 +24,7 @@ type subagentSnapshot struct {
 type subagentRuntime interface {
 	Snapshot(context.Context, string) (subagentSnapshot, error)
 	Resolve(context.Context, *Info, SubagentTarget) (SubagentTarget, error)
+	PermissionLimit(context.Context, *Info, SubagentTarget) (SubagentPermissionLimit, error)
 	Capabilities(context.Context, *Info) ([]SubagentAgentOption, []SubagentProviderOption, error)
 	Spawn(context.Context, SpawnOpts) (string, error)
 	// Admit sends the first prompt. resume revives a stopped child (recovery

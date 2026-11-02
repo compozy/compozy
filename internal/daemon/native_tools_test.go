@@ -14184,6 +14184,12 @@ type nativeSubagentServiceStub struct {
 
 var _ session.SubagentService = (*nativeSubagentServiceStub)(nil)
 
+func (s *nativeSubagentServiceStub) PermissionLimit(
+	_ context.Context, parent *session.Info, _ session.SubagentTarget,
+) (session.SubagentPermissionLimit, error) {
+	return session.SubagentPermissionLimit{Mode: compozyconfig.PermissionMode(parent.EffectivePermissions)}, nil
+}
+
 func (s *nativeSubagentServiceStub) Capabilities(
 	c context.Context,
 	r session.SubagentCaller,
@@ -14262,6 +14268,32 @@ func TestNativeSubagentPermissionBoundary(t *testing.T) {
 				PermissionMode: compozyconfig.PermissionModeDenyAll,
 				Narrowing:      &session.SubagentPermissionNarrowing{Tools: []string{}, Skills: []string{"review"}},
 			},
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should compare the requested mode with the child's level in an instance lineage", func(t *testing.T) {
+		t.Parallel()
+		limiter := &subagentLimitStub{limit: session.SubagentPermissionLimit{
+			Mode: compozyconfig.PermissionModeApproveReads, ChildOwnsLevel: true,
+		}}
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Sessions: &apitest.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{EffectivePermissions: "approve-all"}, nil
+				},
+			},
+			Subagents: func() session.SubagentService { return limiter },
+		}}
+		err := n.validateSubagentPermissions(
+			t.Context(), session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeApproveAll},
+		)
+		detail, ok := errors.AsType[*session.SubagentError](err)
+		if !ok || detail.Code != "permission_escalation_denied" {
+			t.Fatalf("error = %v", err)
+		}
+		if err := n.validateSubagentPermissions(
+			t.Context(), session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeApproveReads},
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -16441,4 +16473,15 @@ func (m *nativeTreeSessions) ArchiveWithChildren(
 
 func (m *nativeTreeSessions) DeleteWithChildren(context.Context, string, string) ([]string, error) {
 	return nil, nil
+}
+
+type subagentLimitStub struct {
+	session.SubagentService
+	limit session.SubagentPermissionLimit
+}
+
+func (s *subagentLimitStub) PermissionLimit(
+	context.Context, *session.Info, session.SubagentTarget,
+) (session.SubagentPermissionLimit, error) {
+	return s.limit, nil
 }
