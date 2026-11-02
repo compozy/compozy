@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -1903,6 +1904,16 @@ func (f *fakeTargets) set(id, state string) {
 	}
 }
 
+func (f *fakeTargets) setAll(states map[string]string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	maps.Copy(f.states, states)
+	select {
+	case f.changes <- struct{}{}:
+	default:
+	}
+}
+
 func (f *fakeTargets) closeChanges() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1922,10 +1933,15 @@ func (f *fakeTargets) ReadTargets(ctx context.Context, spec Spec) []TargetStatus
 	f.reads++
 	if f.hang != nil {
 		hang := f.hang
+		seen := make([]TargetStatus, 0, len(spec.Targets))
+		for _, id := range spec.Targets {
+			seen = append(seen, TargetStatus{SessionID: id, State: f.states[id]})
+		}
 		f.mu.Unlock()
 		<-hang
 		f.mu.Lock()
-		return nil
+		f.hang = nil
+		return seen
 	}
 	if f.stall {
 		f.mu.Unlock()
@@ -2179,13 +2195,57 @@ func TestServiceSessionMonitorConditions(t *testing.T) {
 			defer release()
 			time.Sleep(11 * time.Second)
 			reads := targets.readCount()
-			time.Sleep(10*time.Second + targetReadTimeout)
-			got := wokenTargets(t, waker, 1)
+			time.Sleep(4*time.Second + time.Millisecond)
+			synctest.Wait()
+			got := waker.notifications()
+			if len(got) != 1 {
+				t.Fatalf("notifications = %+v at the timeout plus the final read budget, want one wake", got)
+			}
 			if got[0].Outcome.Reason != ReasonTimeout || got[0].Outcome.Targets[0].State != "running" {
 				t.Fatalf("outcome = %+v, want a timeout with the last known state", got[0].Outcome)
 			}
 			if targets.readCount() != reads {
 				t.Fatalf("reads = %d, want no read started while one is in flight (%d)", targets.readCount(), reads)
+			}
+		})
+	})
+
+	t.Run("Should discard a read that lands after its budget", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			if _, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			release := targets.hangReads()
+			targets.set("sess-a", TargetStateIdle)
+			time.Sleep(targetReadGap + targetReadTimeout + time.Second)
+			synctest.Wait()
+			targets.set("sess-a", "running")
+			release()
+			wokenTargets(t, waker, 0)
+			time.Sleep(targetSweepInterval + time.Second)
+			wokenTargets(t, waker, 0)
+		})
+	})
+
+	t.Run("Should report a remembered state for an unreadable target in a held wake", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running", "sess-b": "running"})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			spec := sessionSpec("sess-o", "sess-a", "sess-b")
+			spec.Until = UntilAny
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			targets.setAll(map[string]string{"sess-a": TargetStateUnknown, "sess-b": TargetStateIdle})
+			got := wokenTargets(t, waker, 1)
+			if status := got[0].Outcome.Targets[0]; status.State != "running" || status.Matched {
+				t.Fatalf("sess-a = %+v, want its remembered state, unmatched", status)
 			}
 		})
 	})

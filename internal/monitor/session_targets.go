@@ -266,11 +266,13 @@ func (s *Service) awaitTargetRead(
 
 // targetReader runs one watch's reads off the watch goroutine, because a session read can stall past
 // its context. At most one read is in flight: a watch whose read stalled waits for that read again
-// instead of starting another, and the service joins it at shutdown.
+// instead of starting another, and the service joins it at shutdown. A read that outlived its budget
+// is discarded when it lands, because what it saw may no longer hold.
 type targetReader struct {
 	service *Service
 	spec    Spec
 	pending chan []TargetStatus
+	expired bool
 	known   []TargetStatus
 }
 
@@ -288,30 +290,33 @@ func (r *targetReader) read(ctx context.Context, budget time.Duration) ([]Target
 	default:
 	}
 	marked, held := evaluateTargets(r.spec, statuses)
-	if held {
-		return marked, true, nil
-	}
 	r.known = keepKnownTargets(marked, r.known)
-	return r.known, false, nil
+	return r.known, held, nil
 }
 
 func (r *targetReader) await(ctx context.Context, budget time.Duration) ([]TargetStatus, error) {
-	if r.pending == nil {
-		r.pending = make(chan []TargetStatus, 1)
-		r.start(ctx, budget)
-	}
 	timer := time.NewTimer(budget)
 	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-r.service.quiesced:
-		return nil, errWatchQuiesced
-	case <-timer.C:
-		return unknownTargets(r.spec), nil
-	case statuses := <-r.pending:
-		r.pending = nil
-		return statuses, nil
+	for {
+		if r.pending == nil {
+			r.pending = make(chan []TargetStatus, 1)
+			r.expired = false
+			r.start(ctx, budget)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-r.service.quiesced:
+			return nil, errWatchQuiesced
+		case <-timer.C:
+			r.expired = true
+			return unknownTargets(r.spec), nil
+		case statuses := <-r.pending:
+			r.pending = nil
+			if !r.expired {
+				return statuses, nil
+			}
+		}
 	}
 }
 
