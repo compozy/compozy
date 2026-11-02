@@ -23,6 +23,7 @@ import (
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -1316,4 +1317,106 @@ func newTestLocalToolHost(
 
 func testDiscardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// Invariant: package preparation precedes ACP deadlines and concurrent installs never overlap.
+// Owner: local launcher; canonical suite: launcher_tool_host_test.go.
+func TestLocalLauncherNPXPreparation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should prepare concurrent starts before the bounded handshake", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("shell fixture; Windows subprocess parity is cross-built")
+		}
+		root := t.TempDir()
+		runner := filepath.Join(root, "npx")
+		script := "#!/bin/sh\ncase \"$*\" in\n*'--call exit 0'*)\n" +
+			"mkdir guard || exit 42\nsleep 0.75\nrmdir guard\ntouch ready\nexit 0;;\nesac\n" +
+			"test -f ready || exit 43\nexec " + helperCommand(t) + "\n"
+		if err := os.WriteFile(runner, []byte(script), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		driver := New(WithControlTimeout(500*time.Millisecond), WithStopTimeout(3*time.Second))
+		var wg sync.WaitGroup
+		for _, args := range [][]string{
+			{"-y", "custom-adapter@latest", "--acp"},
+			{"-y", "--package=custom-adapter@latest", "custom-adapter", "--acp"},
+			{"-y", "-p", "custom-adapter@latest", "-c", "custom-adapter --acp"},
+		} {
+			wg.Go(func() {
+				proc, err := driver.Start(t.Context(), StartOpts{
+					AgentName: "cold-adapter", Command: shellquote.Join(append([]string{runner}, args...)...),
+					Cwd: root, Env: helperEnv("initialize_contract", ""), Inspection: true,
+				})
+				if err != nil {
+					t.Errorf("Start() = %v", err)
+					return
+				}
+				if err := driver.Stop(t.Context(), proc); err != nil {
+					t.Errorf("Stop() = %v", err)
+				}
+			})
+		}
+		wg.Wait()
+	})
+	t.Run("Should stop interrupted preparation and allow retry", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("shell fixture; Windows subprocess parity is cross-built")
+		}
+		root := t.TempDir()
+		runner := filepath.Join(root, "npx")
+		if err := os.WriteFile(runner, []byte("#!/bin/sh\nread line\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+		spec := LaunchSpec{ResolvedExecutable: runner, Args: []string{"-y", "custom"}, Cwd: root, Env: os.Environ()}
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+		err := launcher.prepareNPX(ctx, spec)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("prepareNPX() = %v, want deadline", err)
+		}
+		if item, ok := diagnosticspkg.ItemFromError(err); ok {
+			t.Fatalf("caller cancellation was reclassified: %#v", item)
+		}
+		if err := os.WriteFile(runner, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := launcher.prepareNPX(t.Context(), spec); err != nil {
+			t.Fatalf("retry = %v", err)
+		}
+	})
+}
+
+func TestLocalLauncherNPXResolution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should diagnose an unresolvable npm package as a configuration error", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix executable fixture")
+		}
+		root := t.TempDir()
+		runner := filepath.Join(root, "npx")
+		if err := os.WriteFile(
+			runner,
+			[]byte("#!/bin/sh\necho 'npm error code ETARGET' >&2\nexit 1\n"),
+			0o700,
+		); err != nil {
+			t.Fatal(err)
+		}
+		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+		err := launcher.prepareNPX(t.Context(), LaunchSpec{ResolvedExecutable: runner,
+			Args: []string{"-y", "missing@invalid"}, Cwd: root, Env: os.Environ()})
+		got := ClassifyProbeError("custom", err)
+		if got.State != providers.ProviderAuthStateUnknown || got.Action != providers.ProviderFailureActionInspect ||
+			!strings.Contains(got.Message, "Correct the provider command") {
+			t.Fatalf("resolution classification = %#v, error %v", got, err)
+		}
+		failure, ok := FailureFromError(err, store.FailureStartup)
+		if !ok || failure.ReasonCode != store.FailureReasonNPXResolve {
+			t.Fatalf("failure = %#v", failure)
+		}
+	})
 }

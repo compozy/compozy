@@ -2,20 +2,30 @@ package core
 
 import (
 	"context"
+	"sync"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/doctor"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
 
+// Keep independent diagnostic outcomes while reusing one session inventory.
 func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions) (contract.DoctorPayload, error) {
 	start := h.nowUTC()
 	registry := doctor.NewRegistry()
+	loadSessions := h.doctorSessionLoader()
 	if err := registry.Register(&doctor.ProbeFunc{
 		ProbeID:       "runtime.status",
 		ProbeCategory: contract.CategoryDaemon,
 		RunFunc: func(ctx context.Context, _ *doctor.ProbeEnv) ([]contract.DiagnosticItem, error) {
-			status, err := h.statusPayload(ctx, "")
+			status, err := h.statusPayloadWithAggregate(ctx, "",
+				func(ctx context.Context) (contract.SessionAggregatePayload, error) {
+					infos, err := loadSessions(ctx)
+					return aggregateSessionInfos(infos), err
+				},
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -24,17 +34,7 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 	}); err != nil {
 		return contract.DoctorPayload{}, err
 	}
-	if err := registry.Register(&doctor.ProbeFunc{
-		ProbeID:       "runtime.providers",
-		ProbeCategory: contract.CategoryProvider,
-		RunFunc: func(ctx context.Context, _ *doctor.ProbeEnv) ([]contract.DiagnosticItem, error) {
-			providers, err := h.providerStatusPayloads(ctx)
-			if err != nil {
-				return nil, err
-			}
-			return providerDiagnosticItems(providers), nil
-		},
-	}); err != nil {
+	if err := h.registerProviderDoctorProbes(registry, loadSessions); err != nil {
 		return contract.DoctorPayload{}, err
 	}
 	if err := h.registerExtensionDoctorProbe(registry); err != nil {
@@ -87,6 +87,70 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 		Summary:       doctorSummary(items),
 		Items:         items,
 	}, nil
+}
+
+func (h *BaseHandlers) registerProviderDoctorProbes(registry *doctor.Registry,
+	loadSessions func(context.Context) ([]*session.Info, error)) error {
+	if err := registry.Register(&doctor.ProbeFunc{
+		ProbeID:       "runtime.providers",
+		ProbeCategory: contract.CategoryProvider,
+		RunFunc: func(ctx context.Context, _ *doctor.ProbeEnv) ([]contract.DiagnosticItem, error) {
+			providers, err := h.providerStatusPayloads(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return providerDiagnosticItems(providers), nil
+		},
+	}); err != nil {
+		return err
+	}
+	if err := registry.Register(&doctor.ProbeFunc{
+		ProbeID: "runtime.adapter_startups", ProbeCategory: contract.CategoryProvider,
+		RunFunc: func(ctx context.Context, _ *doctor.ProbeEnv) ([]contract.DiagnosticItem, error) {
+			return h.adapterStartupDiagnostics(ctx, loadSessions)
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Cache only the session inventory; probes retain their own diagnostic outcomes.
+func (h *BaseHandlers) doctorSessionLoader() func(context.Context) ([]*session.Info, error) {
+	var once sync.Once
+	var infos []*session.Info
+	var err error
+	return func(ctx context.Context) ([]*session.Info, error) {
+		once.Do(func() {
+			if h.Sessions != nil {
+				infos, err = h.Sessions.ListAll(ctx)
+			}
+		})
+		return infos, err
+	}
+}
+
+// Startup reason codes remain meaningful even when the failure summary is truncated.
+func (h *BaseHandlers) adapterStartupDiagnostics(ctx context.Context,
+	loadSessions func(context.Context) ([]*session.Info, error)) ([]contract.DiagnosticItem, error) {
+	if h.Sessions == nil {
+		return nil, nil
+	}
+	infos, err := loadSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var items []contract.DiagnosticItem
+	for _, info := range infos {
+		if info == nil || info.State != session.StateStopped || info.Failure == nil {
+			continue
+		}
+		if item, ok := acp.NPXStartupDiagnostic(info.Failure); ok {
+			item.ID = "doctor.session." + info.ID + ".adapter"
+			items = append(items, item)
+		}
+	}
+	return items, nil
 }
 
 func (h *BaseHandlers) registerSessionMetadataDoctorProbe(registry *doctor.Registry) error {
