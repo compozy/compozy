@@ -181,12 +181,7 @@ and a CEL condition, so there is never a preprocessing or escaping step between 
 ```yaml
 graph:
   nodes:
-    - {
-        id: load_tasks,
-        class: action,
-        kind: ext__notes__list,
-        params: { pattern: "tasks/*.md" },
-      }
+    - { id: load_tasks, class: action, kind: ext__notes__list, params: { pattern: "tasks/*.md" } }
     - {
         id: run_task,
         class: action,

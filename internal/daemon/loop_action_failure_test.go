@@ -94,6 +94,20 @@ func TestLoopActionFailureMetadataShouldPreserveSafeOperatorDetail(t *testing.T)
 		}
 	})
 
+	t.Run("Should name a removed action tool without exposing internal errors", func(t *testing.T) {
+		t.Parallel()
+		failure := operatorSafeActionFailure(&looppkg.ReasonError{
+			Code: looppkg.ReasonCodeUnknownActionKind,
+			Err:  errors.New("api_key=private-value"),
+			Meta: map[string]string{"kind": "ext__spec_cycle__import_tasks"},
+		})
+		if !strings.Contains(failure.Cause, "ext__spec_cycle__import_tasks") ||
+			strings.Contains(failure.Cause, "private-value") ||
+			failure.Recovery == "" {
+			t.Fatalf("failure = %#v, want named tool and safe recovery", failure)
+		}
+	})
+
 	t.Run("Should preserve the classified attempt timeout code", func(t *testing.T) {
 		t.Parallel()
 

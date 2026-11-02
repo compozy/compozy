@@ -157,7 +157,7 @@ func (m *Manager) syncTriggerResourcesForSource(
 		if err := next.Validate("trigger"); err != nil {
 			return 0, 0, err
 		}
-		if err := m.validateTriggerLoopTarget(ctx, next); err != nil && !isUnavailableSavedLoopTarget(err) {
+		if err := m.validateSavedTriggerLoopTarget(ctx, next); err != nil {
 			return 0, 0, err
 		}
 
@@ -203,4 +203,12 @@ func (m *Manager) syncTriggerResourcesForSource(
 		removed++
 	}
 	return synced, removed, nil
+}
+
+func (m *Manager) validateSavedTriggerLoopTarget(ctx context.Context, trigger Trigger) error {
+	err := m.validateTriggerLoopTarget(ctx, trigger)
+	if isUnavailableSavedLoopTarget(err) {
+		return nil
+	}
+	return err
 }

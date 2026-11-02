@@ -4569,6 +4569,55 @@ func TestCoordinatorRunnerShouldResetStallWhenBlockingIssueSignatureChanges(t *t
 func TestCoordinatorRunnerShouldIsolateRepeatedFailures(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should fail a removed action without reattempt or quarantine", func(t *testing.T) {
+		t.Parallel()
+		loopRun := Run{
+			ID:          "looprun-removed",
+			WorkspaceID: "ws-1",
+			LoopName:    "delivery",
+			Status:      StatusRunning,
+			Generation:  1,
+		}
+		coordinatorRun := task.Run{
+			ID:        "run-coordinator-removed",
+			TaskID:    "task-coordinator-removed",
+			RunKind:   task.RunKindCoordinator,
+			LoopRunID: string(loopRun.ID),
+			Status:    task.TaskRunStatusClaimed,
+		}
+		failureRef, ok := ActionFailureOutputRef(
+			NewActionFailure(
+				string(ReasonCodeUnknownActionKind),
+				"Tool ext__removed is unavailable",
+				"Update the Loop",
+			),
+		)
+		if !ok {
+			t.Fatal("invalid failure fixture")
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{
+				outputs: map[int][]GenerationOutput{
+					1: {{Generation: 1, NodeID: "removed", Status: generationOutputFailed, OutputRef: failureRef}},
+				},
+			},
+			dsl.Definition{
+				Graph: dsl.Graph{Nodes: []dsl.Node{{ID: "removed", Class: dsl.NodeClassAction, Kind: "ext__removed"}}},
+			},
+		)
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) || plan.NextCoordinator != nil {
+			t.Fatalf("plan = %#v, want terminal failure without successor", plan)
+		}
+	})
+
 	t.Run("Should quarantine a repeated failing node while preserving its healthy sibling", func(t *testing.T) {
 		t.Parallel()
 

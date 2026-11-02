@@ -78,6 +78,9 @@ func operatorSafeActionFailure(cause error) looppkg.ActionFailure {
 			code = provided
 		}
 		switch reasonErr.Code {
+		case looppkg.ReasonCodeUnknownActionKind:
+			message = fmt.Sprintf("Action tool %q is not available.", reasonErr.Meta["kind"])
+			recovery = "Restore the required tool or update the Loop definition, then start a new run."
 		case looppkg.ReasonCodeActionTimeout:
 			message = "The action exceeded its configured attempt timeout."
 			recovery = "Review the action timeout and target health before retrying."

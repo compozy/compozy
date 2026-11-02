@@ -15,10 +15,10 @@ Resolve the spec directory under the workspace root to an absolute path. Read `_
 If `_slices.md` is missing, propose slices in that file and wait for operator acceptance before dispatch. Keep its dependency table current when accepted scope changes:
 
 ```markdown
-| Slice | Layer | Depends on | Scope | Spec refs |
-| ----- | ----- | ---------- | ----- | --------- |
-| S1 | backend | none | Export contract | US-001 |
-| S2 | frontend | S1 | Export dialog | US-002 |
+| Slice | Layer    | Depends on | Scope           | Spec refs |
+| ----- | -------- | ---------- | --------------- | --------- |
+| S1    | backend  | none       | Export contract | US-001    |
+| S2    | frontend | S1         | Export dialog   | US-002    |
 ```
 
 Read `_run.md` before writing it. If another owner is named, use `session_status`: take over only after it is stopped. An active owner means report the owner and stop; uncertain status does not authorize takeover. Only the named conductor writes `_run.md`. Find the integration worktree with `worktree_list`, or create `spec-<slug>` on branch `feat/<slug>` with `worktree_create`. `_run.md` stays in the absolute workspace-root spec directory, never committed:

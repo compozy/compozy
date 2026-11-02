@@ -23,6 +23,7 @@ Use for a requested specification, not as a prerequisite to an ordinary fix. Aut
    ```
 
    One row per independently verifiable slice. `Layer` names the owning layer, `Depends on` lists slice IDs or `none`, and `Spec refs` cites the stories or sections it delivers. Choose slice count from dependencies and risk, and let unrelated slices run in parallel. The first slices should reach the earliest useful end-to-end outcome.
+
 8. Perform an inline self-check: verify that the motivating outcome is covered, public contracts agree across companions, changed interfaces use the project's language, each test invariant has an owning suite, every story belongs to a slice, slice dependencies are acyclic, and existing input/reference paths resolve in the target project or this skill's bundled resources. Mark new files and output destinations as planned; they need not exist before implementation. Record inapplicable sections and unresolved decisions explicitly. Check the earliest useful end-to-end outcome.
 9. Save reviewable files and summarize unresolved decisions. After the user approves the saved spec, offer the optional peer review in `references/peer-review.md`. Do not start implementation merely because spec writing is complete.
 

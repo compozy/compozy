@@ -195,6 +195,7 @@ func statusForSessionError(err error) int {
 func statusForSessionLookupError(err error) (int, bool) {
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound),
+		errors.Is(err, skills.ErrAgentNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, store.ErrConversationRewindTargetNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),

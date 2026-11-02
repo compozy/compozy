@@ -250,5 +250,6 @@ func deferTargetUnavailableFailure(
 func shouldTerminalizeFailedGeneration(run Run, failed GenerationOutput, status string, live bool) bool {
 	return live || status != string(StatusFailed) ||
 		normalizeReattemptStrategy(run.ReattemptStrategy) == ReattemptHalt ||
-		classifyGenerationOutputFailure(failed, task.Run{}).Code == string(tools.ErrorCodeInvalidInput)
+		classifyGenerationOutputFailure(failed, task.Run{}).Code == string(tools.ErrorCodeInvalidInput) ||
+		classifyGenerationOutputFailure(failed, task.Run{}).Code == string(ReasonCodeUnknownActionKind)
 }

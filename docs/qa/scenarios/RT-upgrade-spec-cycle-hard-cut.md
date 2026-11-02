@@ -29,9 +29,9 @@ Upgrade without any manual step and confirm:
 
 1. The daemon starts, and unrelated features work.
 2. Removed Loops, agents, tools and skills are gone from listings.
-3. `review_fixer` history stays readable, and resuming it fails with a clear error.
+3. `review_fixer` history stays readable, and resuming it names the unavailable agent. Prompting it returns HTTP 404, never HTTP 500.
 4. The automation records stay unchanged, and each run fails alone with a clear error.
-5. The override row stays and is never read. The active run fails at its first removed step with a clear error, its history stays, and other runs complete.
+5. The override row stays and is never read. The active run fails at its first removed step with a clear error, its history stays, and other runs complete. Also rerun from a removed tool node: the run must settle as failed without reattempting or parking in quarantine; its failure names the missing ToolID.
 6. The same-name workspace Loop keeps working.
 7. The stays-on instance pauses as `definition_missing`.
 8. Batuta still loads, and only `batuta-deliver` fails when run.

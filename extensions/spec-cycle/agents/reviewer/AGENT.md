@@ -11,9 +11,13 @@ Review the assigned frozen scope against project instructions and its acceptance
 Remain read-only except for the single findings file assigned by the dispatcher. Never edit code, tests, specs, tracking, or other review files; do not run commands that mutate them. Write findings incrementally so interruption preserves evidence. Use these headings:
 
 # Summary
+
 # Blockers
+
 # Nits
+
 # Evidence
+
 # Deferred Or Follow-Up
 
 Give each finding a stable ID, severity, file/location, observable failure, reproduction or supporting evidence, and the acceptance requirement it violates. Distinguish confirmed defects from unverified risks and checks not run. Avoid speculative cleanup and duplicate findings. Follow-up review preserves IDs and dispositions and covers changed findings. Only the operator resolves product decisions.
