@@ -119,3 +119,10 @@ mutation lock for extension-owned refs. A focused integration exercises the real
 handlers, SQLite Vault and lifecycle coordinator: both mutations wait until restoration completes,
 then their newer write or deletion wins. It uses the existing isolated fixture, not a live server
 or an authorization-boundary end-to-end journey. The orphan cleanup integration was rerun and passed.
+
+The final test refinement builds the production `httpServerOptions` and `udsServerOptions` and
+registers their real routes in isolated Gin engines. Both PUT and DELETE are exercised through
+each option set while the package lock is held; dropping either production wrapper makes the
+scenario fail. No TCP or UDS listener is opened. Existing minimum session/task/observer/workspace
+fixtures supply unrelated server dependencies. The package-health regression additionally proves
+a second-workspace failure exists before retirement and rejects a late resolved call there.

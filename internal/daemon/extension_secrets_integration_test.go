@@ -18,7 +18,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
@@ -1470,12 +1472,15 @@ func testOrphanExtensionSecretRetirement(t *testing.T) {
 	}
 }
 
-// Invariant: generic HTTP Vault mutations wait for retirement and compensation before changing owned refs.
+// Invariant: production HTTP and UDS Vault mutations wait for retirement before changing owned refs.
 // Owner: daemon API composition and lifecycle coordinator; canonical suite: TestExtensionSecrets.
 func testExtensionVaultMutationIsolation(t *testing.T) {
 	t.Helper()
-	for _, method := range []string{http.MethodPut, http.MethodDelete} {
-		t.Run(method, func(t *testing.T) {
+	for _, scenario := range []struct{ transport, method string }{
+		{"HTTP", http.MethodPut}, {"HTTP", http.MethodDelete}, {"UDS", http.MethodPut}, {"UDS", http.MethodDelete},
+	} {
+		method := scenario.method
+		t.Run("Should block "+method+" through "+scenario.transport+" until retirement completes", func(t *testing.T) {
 			t.Parallel()
 			const name = "encoded-owner"
 			harness := newExtensionSecretIntegrationHarness(
@@ -1491,12 +1496,7 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-				Vault: extensionAwareVaultService(harness.vault, harness.service),
-			})
-			engine := gin.New()
-			engine.PUT("/api/vault/secrets", handlers.PutVaultSecret)
-			engine.DELETE("/api/vault/secrets", handlers.DeleteVaultSecret)
+			engine := newExtensionVaultProductionEngine(t, harness, scenario.transport)
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			entered, release := make(chan struct{}), make(chan struct{})
@@ -1530,6 +1530,8 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 			request := httptest.NewRequest(method, "/api/vault/secrets?ref="+url.QueryEscape(ref), bytes.NewReader(body)).
 				WithContext(ctx)
 			request.Header.Set("Content-Type", "application/json")
+			request.RemoteAddr = "127.0.0.1:12345"
+			request.Host = "127.0.0.1:2123"
 			response := httptest.NewRecorder()
 			completed := make(chan struct{})
 			go func() { defer close(completed); engine.ServeHTTP(response, request) }()
@@ -1562,4 +1564,65 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// waitForExtensionPackageRefs observes the coordinator signal rather than timing a blocked writer.
+func waitForExtensionPackageRefs(t *testing.T, c *extensionLifecycleCoordinator, name string, want int) {
+	t.Helper()
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	for {
+		c.mu.Lock()
+		got := 0
+		if entry := c.packages[name]; entry != nil {
+			got = entry.refs
+		}
+		changed := c.changed
+		c.mu.Unlock()
+		if got == want {
+			return
+		}
+		select {
+		case <-changed:
+		case <-timer.C:
+			t.Fatalf("package refs for %q did not reach %d", name, want)
+		}
+	}
+}
+
+// newExtensionVaultProductionEngine exercises the production HTTP/UDS options without opening listeners.
+func newExtensionVaultProductionEngine(
+	t *testing.T, harness *extensionSecretIntegrationHarness, transport string,
+) *gin.Engine {
+	t.Helper()
+	engine := gin.New()
+	paths := harness.service.homePaths
+	deps := RuntimeDeps{HomePaths: paths, Config: compozyconfig.DefaultWithHome(paths),
+		Logger: discardLogger(), Vault: harness.vault, Extensions: harness.service}
+	if transport == "HTTP" {
+		options := httpServerOptions(&deps)
+		options = append(options, httpapi.WithEngine(engine), httpapi.WithTerminalProvider(nil),
+			httpapi.WithSessionManager(authoredContextSessionManager()),
+			httpapi.WithTaskService(&apitest.StubTaskManager{}), httpapi.WithObserver(apitest.StubObserver{}),
+			httpapi.WithWorkspaceResolver(apitest.StubWorkspaceService{}))
+		if _, err := httpapi.New(options...); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		options := udsServerOptions(&deps)
+		options = append(
+			options,
+			udsapi.WithEngine(engine),
+			udsapi.WithTerminalProvider(nil),
+			udsapi.WithSocketPath(shortSocketPath(t)),
+			udsapi.WithSessionManager(authoredContextSessionManager()),
+			udsapi.WithTaskService(&apitest.StubTaskManager{}),
+			udsapi.WithObserver(apitest.StubObserver{}),
+			udsapi.WithWorkspaceResolver(apitest.StubWorkspaceService{}),
+		)
+		if _, err := udsapi.New(options...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return engine
 }

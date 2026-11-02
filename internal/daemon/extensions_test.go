@@ -2907,27 +2907,3 @@ func TestSupersededBundledDoctorScopes(t *testing.T) {
 		})
 	}
 }
-
-// waitForExtensionPackageRefs observes the coordinator signal rather than timing a blocked writer.
-func waitForExtensionPackageRefs(t *testing.T, c *extensionLifecycleCoordinator, name string, want int) {
-	t.Helper()
-	timer := time.NewTimer(3 * time.Second)
-	defer timer.Stop()
-	for {
-		c.mu.Lock()
-		got := 0
-		if entry := c.packages[name]; entry != nil {
-			got = entry.refs
-		}
-		changed := c.changed
-		c.mu.Unlock()
-		if got == want {
-			return
-		}
-		select {
-		case <-changed:
-		case <-timer.C:
-			t.Fatalf("package refs for %q did not reach %d", name, want)
-		}
-	}
-}

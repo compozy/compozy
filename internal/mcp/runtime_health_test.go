@@ -106,14 +106,25 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 		registry.RecordFailure(registry.Begin(registry.ResolveKey(foreign)), errors.New("foreign failure"))
 		otherWorkspace := key
 		otherWorkspace.WorkspaceID = "ws-other"
+		otherResolved := registry.ResolveKey(otherWorkspace)
 		registry.RecordFailure(
-			registry.Begin(registry.ResolveKey(otherWorkspace)),
+			registry.Begin(otherResolved),
 			errors.New("other workspace failure"),
 		)
+
+		if entries := registry.Entries(
+			"kit",
+			"ws-other",
+			"same-bundle",
+		); len(entries) != 1 ||
+			entries[0].Message != "other workspace failure" {
+			t.Fatalf("other workspace health before eviction = %v", entries)
+		}
 
 		registry.EvictPackage("kit")
 		registry.RecordFailure(inflight, errors.New("late in-flight failure"))
 		registry.RecordFailure(registry.Begin(staleResolved), errors.New("late resolved failure"))
+		registry.RecordFailure(registry.Begin(otherResolved), errors.New("late other workspace failure"))
 		if entries := registry.Entries("kit", "ws-old", "same-bundle"); len(entries) != 0 {
 			t.Fatalf("retired package health = %v", entries)
 		}

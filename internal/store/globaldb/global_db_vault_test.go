@@ -343,7 +343,7 @@ func TestGlobalDBVaultSecretPrefixFiltering(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		rows, err := db.VaultRepo.ListExtensionVaultMetadata(t.Context(), name)
+		rows, err := db.ListExtensionVaultMetadata(t.Context(), name)
 		if err != nil {
 			t.Fatal(err)
 		}
