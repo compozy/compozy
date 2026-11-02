@@ -24,6 +24,15 @@ SSE reconnect, app-token middleware); this scenario owns the operator journey. U
 Never run an explicit Claude refresh against a lab whose `USER` differs from the Mac's login user:
 the Keychain lookup uses the local username and would prompt for the operator's real item.
 
+QA lab setup: bootstrap with `--profile targeted --required-surface provider
+--enable-provider-usage` when walking account usage. Collection is disabled by default,
+including playbook/live-provider labs. For a mock-only targeted API/runtime walk,
+omit the provider surface: confirm no lab `.codex/auth.json` or global skills/cache
+links, zero `provider_usage` log lines, and clean manifest teardown. Live-provider
+setup must retain authentication under its declared operator/isolated home policy.
+After teardown verify `provider_resources_removed`, no resource errors, and no copied
+credential remains. Run stale-lab recovery only for labs you are authorized to stop.
+
 Codex end to end (file credential store, `codex login` done):
 
 - the meter sits right before the bell, after the desktop pager and **All desktops**; while the

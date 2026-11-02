@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Stop one manifest-owned QA lab with verified process identities.
-
-Use --manifest <path> for normal teardown; --root <path> for a bare isolation
-root. --all is reserved for intentional stale-lab recovery. Evidence is written
-to qa/teardown.json. Exit 0 means clean, 1 means survivors/errors, 2 means usage.
-"""
+"""Stop a verified QA lab: --manifest for normal teardown, --root for bare roots.
+Use --all only for intentional stale-lab recovery. Evidence: qa/teardown.json.
+Exit 0 means clean, 1 means survivors/errors, 2 means usage."""
 
 from __future__ import annotations
 
@@ -20,6 +17,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from qa_provider_resources import clean_provider_resources, is_safe_root
 
 from qa_process_identity import (
     SignalTarget, list_processes, lsof_pids, matches_identity, pid_alive,
@@ -28,7 +26,6 @@ from qa_process_identity import (
 
 GRACE_DEFAULT_SEC = 10.0
 DAEMON_STOP_TIMEOUT_SEC = 20.0
-SAFE_ROOT_MARKERS = ("/qa-labs/", "/compozyqa-", "/compozy-iso-", "/_worktrees/")
 
 
 @dataclass
@@ -42,6 +39,7 @@ class LabTarget:
     http_port: int | None
     qa_root: Path | None
     purgeable_roots: list[Path] = field(default_factory=list)
+    provider_homes: list[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -55,10 +53,12 @@ class TeardownResult:
     skipped: list[dict] = field(default_factory=list)
     purged: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    provider_resources_removed: list[str] = field(default_factory=list)
+    provider_resource_errors: list[str] = field(default_factory=list)
 
     @property
     def clean(self) -> bool:
-        return not self.survivors
+        return not self.survivors and not self.provider_resource_errors
 
 
 def utc_now() -> str:
@@ -68,13 +68,6 @@ def utc_now() -> str:
 def load_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
-def is_safe_root(path: Path) -> bool:
-    text = str(path)
-    if len(text) < 8 or text == "/":
-        return False
-    return any(marker in text + "/" for marker in SAFE_ROOT_MARKERS)
 
 
 def read_pid_file(path: Path) -> int:
@@ -270,6 +263,8 @@ def write_evidence(target: LabTarget, result: TeardownResult, dry_run: bool) -> 
         "skipped": result.skipped,
         "purged": result.purged,
         "notes": result.notes,
+        "provider_resources_removed": result.provider_resources_removed,
+        "provider_resource_errors": result.provider_resource_errors,
     }
     if target.qa_root is not None and target.qa_root.is_dir():
         evidence_path = target.qa_root / "teardown.json"
@@ -297,7 +292,8 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
     workspace = env.get("WORKSPACE_PATH", manifest.get("workspace_path", ""))
     qa_output = env.get("QA_OUTPUT_PATH", manifest.get("qa_output_path", ""))
     compozy_home = Path(env["COMPOZY_HOME"]).resolve() if env.get("COMPOZY_HOME") else None
-    provider_home = Path(paths["provider_home"]).resolve() if paths.get("provider_home") else None
+    provider_path = env.get("PROVIDER_HOME") or paths.get("provider_home")
+    provider_home = Path(provider_path).absolute() if provider_path else None
     if workspace:
         roots.append(Path(workspace).resolve())
     if qa_output:
@@ -325,6 +321,7 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
         http_port=http_port,
         qa_root=qa_root,
         purgeable_roots=purgeable,
+        provider_homes=[provider_home] if provider_home else [],
     )
 
 
@@ -346,6 +343,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
         http_port=None,
         qa_root=None,
         purgeable_roots=[] if worktree_scoped else [root],
+        provider_homes=[root / "provider", root / ".provider-home"],
     )
 
 
@@ -394,6 +392,8 @@ def teardown_target(
     kill_tmux_server(target.tmux_socket, result, dry_run)
     pids = collect_target_pids(target, result, dry_run)
     signal_pids(pids, grace_sec, result, dry_run)
+    result.provider_resources_removed, result.provider_resource_errors = clean_provider_resources(
+        target.provider_homes, target.manifest_path, dry_run)
     for pid_file in (target.qa_root / "pids").glob("*.pid") if target.qa_root else []:
         record = registered_identity(pid_file)
         if not dry_run and record is not None and not pid_alive(record.pid):
@@ -464,6 +464,8 @@ def main() -> int:
                             "skipped": result.skipped,
                             "purged": result.purged,
                             "notes": result.notes,
+                            "provider_resources_removed": result.provider_resources_removed,
+                            "provider_resource_errors": result.provider_resource_errors,
                         }
                         for result in results
                     ],
@@ -486,6 +488,8 @@ def main() -> int:
                 print(f"TEARDOWN_PURGED={path}")
             for note in result.notes:
                 print(f"TEARDOWN_NOTE={note}")
+            for error in result.provider_resource_errors:
+                print(f"TEARDOWN_PROVIDER_RESOURCE_ERROR={error}")
         print(f"TEARDOWN_TOTAL_LABS={len(results)}")
         print(f"TEARDOWN_ALL_CLEAN={'true' if all_clean else 'false'}")
 
