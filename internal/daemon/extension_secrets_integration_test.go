@@ -1535,7 +1535,13 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 				retired <- err
 			}()
 
-			<-entered
+			select {
+			case <-entered:
+			case err := <-retired:
+				t.Fatalf("production removal returned before the retirement barrier: %v", err)
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
 			body, err := json.Marshal(
 				contract.PutVaultSecretRequest{
 					Ref:         ref,
@@ -1559,9 +1565,15 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 				t.Fatalf("generic mutation escaped retirement lock: %v", err)
 			}
 			releaseOnce.Do(func() { close(release) })
-			if err := <-retired; err == nil || !strings.Contains(err.Error(), "vault-isolation-removal-failure") {
-				t.Fatalf("production removal compensation = %v", err)
+			select {
+			case err := <-retired:
+				if err == nil || !strings.Contains(err.Error(), "vault-isolation-removal-failure") {
+					t.Fatalf("production removal compensation = %v", err)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
 			}
+
 			if _, err := harness.service.registry.Get(name); err != nil {
 				t.Fatalf("package not restored after failed removal: %v", err)
 			}
