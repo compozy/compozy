@@ -29,3 +29,9 @@ markers after answering from another surface, without invalidating unrelated run
 detail scopes. Existing scenario verdict/history is retained; the enclosing audit
 owns the runtime replay and current-head CI. Focused evidence is recorded in
 `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA impact 2026-11-02 (stream freshness review): lifecycle invalidation can restart
+active cached aggregate reads without waiting for their pre-event request. Initial
+and disabled reads keep their trailing freshness obligation. Workspace/aggregate
+prefixes are unchanged. Focused hook checks pass; the enclosing audit retains the
+runtime/CI walk. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

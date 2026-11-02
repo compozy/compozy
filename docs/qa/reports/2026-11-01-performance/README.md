@@ -56,7 +56,7 @@ per experiment. Benchmark timings include unrelated shared-host noise.
 | Loop complete roster, 10,000 outputs | 141.979 ms; 142.72 MB/op | 8.795 ms; 6.72 MB/op | [Loop/scheduler](loop-loops.md) |
 | Scheduler selection, 500 runs and sessions in 50 workspaces | 12.072 ms; 42.89 MB/op | 1.198 ms; 2.27 MB/op | [Loop/scheduler](loop-loops.md); same 500 targets |
 | Scheduler selection, single-workspace control | 30.767 ms; 42.89 MB/op | 26.155 ms; 2.20 MB/op | [Loop/scheduler](loop-loops.md) |
-| Worktree aggregate, 64 rows / two workspaces | 5.620 ms; 64 workspace + 64 PR reads | 2.682 ms; 2 workspace + 1 PR reads | [Worktree/workspace](worktree-workspace.md) |
+| Worktree aggregate, 64 rows / two workspaces | 6.292 ms; 64 workspace + 64 PR reads | 2.628 ms; 2 workspace + 1 PR reads | [Worktree/workspace](worktree-workspace.md) |
 | Clean worktree status with real Git | 45.699 ms; three Git subprocesses | 16.169 ms; one Git subprocess | [Worktree/workspace](worktree-workspace.md) |
 | Extension tool List + Resolve, 128 extensions | 11.434 ms; 29,549 allocations | 6.206 ms; 15,531 allocations | [Extension/marketplace](extension-marketplace.md) |
 | Extension inventory, 128 extensions | 1.990 ms; 128 attachment reads | 0.452 ms; one attachment read | [Extension/marketplace](extension-marketplace.md) |
@@ -105,7 +105,10 @@ behavior; diagnostic panels keep the complete status operation.
   never skips hashing. No authorization, provider credential or configuration TTL was added.
 - Attachment retention still sweeps authoritative state and rereads pins between reservation
   passes. Worktree status/activity hydration still has per-row work. These costs are not hidden
-  by the filesystem and PR-batching figures.
+  by the filesystem and PR-batching figures. The daemon shares one attachment Store per
+  root under its singleton lock. Neither version provides an atomic count limit between
+  independent Stores writing the same root; the [attachment review](terminal-terminal.md)
+  records the widened unsupported window and both baseline/current interleavings.
 - Single-toolset timings overlapped host noise and did not improve; all-workspace session
   timings also varied too much for a latency claim. Allocation measures remain separately reported.
 - Rejected: query-hash indexing that could violate custom TanStack hashes; a facet CTE and
@@ -132,6 +135,14 @@ The [navigation reproduction](review-session-navigation.md) separately isolates 
 identity deferral that left the old conversation interactive after a successful retarget.
 The fix immediately binds the new identity and its loading state; it does not depend on
 finishing the departing conversation's animation. Existing keyed providers and scope guards remain.
+
+The [external review dispositions](validation.md#external-review-follow-up) record confirmed
+read/read credential ordering, transient workspace-resolution and stalled Loop-read defects, stronger error/identity
+controls, and the evidence for retaining attachment ownership and per-sweep pause projection.
+Successful credential reads, including verified cached evidence, now fence older observations;
+failed validation does not advance that fence. Active cached Loop reads can restart immediately;
+initial/inactive/static reads retain their trailing obligation and may still keep a round open
+until settlement. No additional speedup is inferred from the credential follow-up timings.
 
 ## Resource limits
 

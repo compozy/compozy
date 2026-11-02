@@ -26,3 +26,9 @@ reconciliation survives stream error or disposal. Recheck final request/provenan
 state when a request is answered during an active read and the run view closes.
 Focused results and pending runtime/current-head CI evidence are tracked in
 `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA impact 2026-11-02 (stream freshness review): request events can restart an older
+active cached inventory read while preserving deferred invalidation for initial
+or disabled reads. Disposal still retains accepted reconciliation. The focused
+hook suite and lifecycle controls pass; runtime/CI verification remains with the
+enclosing audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

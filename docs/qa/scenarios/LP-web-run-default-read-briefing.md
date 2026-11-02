@@ -64,3 +64,11 @@ briefing and roster contract suites pass under the race detector, including a
 large-run progress and the public paginated roster together in the isolated runtime
 walk. Focused evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
 Runtime/browser and current-head CI verification remain with the enclosing audit.
+
+QA impact 2026-11-02 (stream freshness review): a lifecycle event now restarts an
+older active cached briefing read even while an initial or disabled roster read
+is pending under the same run prefix. Initial and disabled reads retain trailing
+invalidation; a disabled read refreshes only on activation. The canonical hook
+suite passes 31 cases and the eight existing lifecycle controls pass. The enclosing
+audit owns runtime/CI verification; the focused evidence and remaining dependence
+on read settlement are recorded in `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

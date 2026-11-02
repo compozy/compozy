@@ -35,12 +35,17 @@ func (s *Manager) fenceRead(ctx context.Context, profile string) {
 		files, cacheable := credentialFileStats(paths)
 		if cacheable && check.fence != nil && check.fence.identity == check.identity &&
 			sameCredentialFiles(check.fence.files, files) {
+			s.applyCredentialReadCheck(profile, check, check.fence, false, nil)
 			continue
 		}
 		mismatch, err := validatePublication(
 			ctx, s.options.Collectors[check.target.ProviderID], check.target, check.identity,
 		)
-		s.applyCredentialReadCheck(profile, check, files, cacheable && err == nil, mismatch)
+		fence := check.fence
+		if cacheable && err == nil && !mismatch {
+			fence = &credentialReadFence{identity: check.identity, files: files}
+		}
+		s.applyCredentialReadCheck(profile, check, fence, mismatch, err)
 	}
 }
 
@@ -65,7 +70,7 @@ func (s *Manager) credentialReadChecks(profile string) []credentialReadCheck {
 }
 
 func (s *Manager) applyCredentialReadCheck(
-	profile string, check credentialReadCheck, files []os.FileInfo, cacheable, mismatch bool,
+	profile string, check credentialReadCheck, fence *credentialReadFence, mismatch bool, validationErr error,
 ) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -76,8 +81,10 @@ func (s *Manager) applyCredentialReadCheck(
 		return
 	}
 	if !mismatch {
-		if cacheable {
-			state.readFence = &credentialReadFence{identity: check.identity, files: files}
+		if validationErr == nil {
+			// Successful reads fence older observations just like verified collection does.
+			state.validationSeq++
+			state.readFence = fence
 		}
 		return
 	}

@@ -326,6 +326,13 @@ func TestWorktreeAggregate(t *testing.T) {
 				t.Fatalf("aggregate status/called = %d/%t; body=%s", response.Code, called, response.Body.String())
 			}
 			if test.status != http.StatusOK {
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("decode aggregate error: %v", err)
+				}
+				if payload.Error != test.catalogErr.Error() {
+					t.Fatalf("aggregate error = %q, want %q", payload.Error, test.catalogErr.Error())
+				}
 				return
 			}
 			var listing contract.WorktreesResponse

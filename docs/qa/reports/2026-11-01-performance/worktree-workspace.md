@@ -76,8 +76,8 @@ Owned changed files:
 | Clean status allocation, median | 679,556 B/op; 6,279 allocations/op | 226,674 B/op; 2,099 allocations/op | 66.6% less allocated memory and allocations |
 | Catalog burst, 100 frames, three live query observers | 400 requests: list 100, aggregate 100, detail 200 | 3 requests: one each | 99.25% fewer requests; final generation remains 100 |
 | Detail wake, four owned observers plus sibling | 8 requests: 1/2/2/2 plus sibling 1 | 4 requests: 1/1/1/1 plus sibling 0 | 50% fewer requests; owned generation advances, sibling remains unchanged |
-| 64-row SQLite aggregate, median of five runs | 5.620 ms/op | 2.682 ms/op | 52.3% less time |
-| Aggregate allocation, median | 856,387 B/op; 16,404 allocations/op | 520,530 B/op; 7,641 allocations/op | 39.2% less allocated memory; 53.4% fewer allocations |
+| 64-row SQLite aggregate, median of five runs with every row checked | 6.292 ms/op | 2.628 ms/op | 58.2% less time |
+| Aggregate allocation, median with every row checked | 856,428 B/op; 16,404 allocations/op | 520,816 B/op; 7,642 allocations/op | 39.2% less allocated memory; 53.4% fewer allocations |
 | Aggregate workspace resolutions / PR reads / status reads | 64 / 64 / 64 | 2 / 1 / 64 | Shared workspace resolution and one PR batch; status semantics unchanged |
 
 The frontend before/after uses the same observer fixture and pinned Bun 1.4.0. The baseline production source is the frozen `de5ab2f4d` tree; only the measurement tests and extracted timer constants/helper were copied into that diagnostic tree. Raw evidence: `streams-before-pinned.log`, `stream-after.log` under `.cache/performance/worktree-workspace/`. Earlier host-Bun diagnostics are retained but are not used for the paired claim. These are actual query-function invocation counts, not browser interaction-latency claims.
@@ -168,3 +168,33 @@ Only `internal/worktree/exit_actions_test.go` changed for this repair; productio
 - Focused `gofmt` completed, and the repository test-shape checker passed `internal/worktree/exit_actions_test.go`. No test inputs changed after these accepted runs.
 
 The captured failure and raw follow-up receipts are `.cache/performance/worktree-workspace/exit-refresh-before.log`, `exit-refresh-after.log`, `exit-refresh-negative.log`, `exit-refresh-package-race.log` and `exit-refresh-conventions.log`. These establish the fixture diagnosis and package behavior; integrated browser evidence and current-head CI remain root-owned.
+
+## PR #1141 review follow-up at `1665fb0c1`
+
+Named invariants before changing coverage:
+
+- A transient workspace-resolution failure for one row must not suppress cached PR facts for later rows in the same listing when resolution succeeds. A successful resolution remains shared for the remaining rows; repository identity still follows the existing `RepoKey` cache policy. Owner: worktree inspection hydration over the real SQLite repository. Canonical suite: `TestGlobalDBWorktreeStore` in `internal/store/globaldb/global_db_worktree_test.go`.
+- Every timed aggregate benchmark operation must return all 64 rows with complete status and PR facts. Owner: `BenchmarkWorktreeAggregateInspection` in that same canonical file. The comparison must use the same guard, fixture, runtime and execution budget on both implementations.
+
+Both findings are valid and fixed locally:
+
+| Review thread | Evidence and disposition |
+| --- | --- |
+| `PRRT_kwDORy7nkc6yiTjZ` | Before the fix, the request-local map retained an empty entry after a resolver error. The new canonical case failed on the second row's missing PR facts. Production now skips that failed resolution without adding a map entry, allowing the ordinary next row to resolve again. Its success is shared with the third row. The existing `RepoKey` policy, including negative identity observations, remains unchanged. Fixed and verified locally; commit/current-head CI and GitHub thread resolution remain root-owned. |
+| `PRRT_kwDORy7nkc6yiTjQ` | The benchmark previously checked only row zero. Every timed operation now checks all 64 rows, including status identity, nonempty status/PR facts and their fixture values. A test-only overlay that removes only the final row's PR facts fails at row 63. Both benchmark implementations use the identical strengthened guard. Fixed and verified locally; commit/current-head CI and GitHub thread resolution remain root-owned. |
+
+The regression case uses three authorized rows, real SQLite persistence, real Git repository identity and a failure injected only at the workspace resolver I/O boundary. It retains local status for all rows, leaves the unresolved first branch without forge facts, hydrates both later branches, and observes two resolver calls, one PR batch and three status reads. No retry loop, background work, new timeout, TTL or cross-request state is added; only later rows already present in the same listing can attempt resolution again.
+
+Focused receipts, all through `python3 .cache/performance/run-bounded.py`:
+
+- Fail-before: `go test ./internal/store/globaldb -run '^TestGlobalDBWorktreeStore$/Should_resolve_later_listing_rows_after_a_transient_workspace_failure$' -count=1 -parallel=2` failed on row 1 in 1.026 s (`resolve-transient-before.log`).
+- After: `go test ./internal/store/globaldb -run '^TestGlobalDBWorktreeStore$/Should_(hydrate_ordered|exclude_unauthorized|resolve_the_current|resolve_later_listing)' -count=1 -parallel=2` passed all four owning cases in 1.549 s (`resolve-transient-after.log`). The same selection with `env CGO_ENABLED=1`, `-race` and the repository's modernc-only `-gcflags=modernc.org/...=-d=checkptr=0` passed in 5.867 s (`resolve-transient-race.log`).
+- Existing status/PR policy: `env CGO_ENABLED=1 go test -race ./internal/worktree -run '^(TestServiceStatus|TestPullRequestService)$' -count=1 -parallel=2` passed in 2.360 s (`resolve-transient-worktree-race.log`).
+- Benchmark negative control: `go test -overlay .cache/performance/worktree-workspace/aggregate-last-row-negative-overlay.json ./internal/store/globaldb -run '^$' -bench '^BenchmarkWorktreeAggregateInspection$' -benchtime=1x -count=1` failed with `incomplete listing row 63` in 1.038 s (`aggregate-last-row-negative.log`). The overlay leaves row zero intact and never changes the checked-out production file.
+- Focused `gofmt` completed. The test-shape checker reports only the unchanged `TestSessionBranchSnapshots` inline-case shape, matching the already archived `de5ab2f4d` result; no new case is flagged (`resolve-transient-conventions.log`, `test-conventions-baseline.log`).
+
+The updated benchmark pair uses `-run '^$' -bench '^BenchmarkWorktreeAggregateInspection$' -benchtime=200ms -count=5`, Go 1.27.3 on darwin/arm64 and the same bounded runner. The baseline command runs with `go -C .cache/performance/baseline test -overlay <absolute aggregate-full-guard-baseline-overlay.json>` against the frozen `de5ab2f4d` production tree. Only the test harness is overlaid, adapting the former two-argument `ListAggregate` call; the guard bytes match the current benchmark exactly. The baseline aggregate/inspection/status-details source bytes were checked against `de5ab2f4d`.
+
+The new median is 6.292139 → 2.628459 ms/op (58.23% less time), 856,428 → 520,816 B/op (39.19% less allocation) and 16,404 → 7,642 allocations/op (53.41% fewer allocations). Workspace/PR/status reads remain 64/64/64 → 2/1/64. These values replace the earlier aggregate timing/allocation pair in the results table; earlier receipts remain historical evidence from the first guard. Raw pair: `aggregate-full-guard-before.log`, `aggregate-full-guard-after.log`; computed medians, equal-guard verification, runtime and final source hashes: `review-worktree-summary.json`, all under `.cache/performance/worktree-workspace/`.
+
+One discarded baseline attempt named the symlink rather than the canonical source path in its Go overlay, so no benchmark was discovered. Its zero-case output is retained separately as `aggregate-full-guard-before-no-benchmark.log` and is excluded from the comparison. The accepted canonical-path run contains all five benchmark samples. No production/test input changed after the accepted checks; no commit or full gate was run by this worker.

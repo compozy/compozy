@@ -76,3 +76,12 @@ ordering, default archived-workspace exclusion and explicitly selected history. 
 suite and real-SQLite worktree suite own automated evidence; this revision's transport/browser
 scenario re-walk remains pending. Evidence and limits: [API and Tasks audit](../reports/2026-11-01-performance/api-tasks.md)
 and [worktree audit](../reports/2026-11-01-performance/worktree-workspace.md).
+
+2026-11-02 review follow-up: if one row encounters a transient workspace lookup
+failure, later rows for that workspace must retry resolution and retain available
+forge facts; after success, subsequent rows share that resolution. The existing
+`TestGlobalDBWorktreeStore` fixture verifies three ordered rows using real SQLite
+and Git, with a controlled lookup failure at the I/O boundary. It fails before the
+correction and passes under race afterward. The aggregate benchmark also checks
+local and forge status on every one of its 64 rows. These checks do not replace
+the enclosing transport journey or alter its historical verdict.

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { useLoopStream } from "@/systems/loops";
+import { loopsKeys, useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
 
 const LOOP_EVENT_KINDS = [
@@ -131,6 +131,129 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
 }
 
 describe("useLoopStream", () => {
+  it.each(["cached read only", "initial sibling", "disabled prefetch sibling"])(
+    "Should replace a pre-event cached read while reconciling %s",
+    async boundary => {
+      vi.useFakeTimers();
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const eventSource = new FakeLoopStreamEventSource();
+      const eventSourceFactory = () => eventSource;
+      let revision = 0;
+      let reads = 0;
+      let canceled = 0;
+      let releaseOlderRead = () => {};
+      const observer = new QueryObserver(queryClient, {
+        queryKey: loopsKeys.runBriefing("ws_1", "looprun_1"),
+        initialData: { revision: 0 },
+        staleTime: Infinity,
+        queryFn: ({ signal }) => {
+          const readRevision = revision;
+          if (++reads > 1) return Promise.resolve({ revision: readRevision });
+          return new Promise<{ revision: number }>((resolve, reject) => {
+            releaseOlderRead = () => resolve({ revision: readRevision });
+            signal.addEventListener(
+              "abort",
+              () => {
+                canceled++;
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          });
+        },
+      });
+      const unsubscribe = observer.subscribe(() => undefined);
+      const olderRead = observer.refetch();
+      let siblingReads = 0;
+      let siblingCanceled = 0;
+      let releaseSiblingRead = () => {};
+      const siblingOptions = {
+        queryKey: loopsKeys.runRoster("ws_1", "looprun_1"),
+        queryKeyHashFn: (key: readonly unknown[]) => JSON.stringify(["custom", key]),
+        enabled: boundary === "initial sibling",
+        staleTime: Infinity,
+        queryFn: ({ signal }: { signal: AbortSignal }) => {
+          const readRevision = revision;
+          if (++siblingReads > 1) return Promise.resolve({ revision: readRevision });
+          return new Promise<{ revision: number }>((resolve, reject) => {
+            releaseSiblingRead = () => resolve({ revision: readRevision });
+            signal.addEventListener(
+              "abort",
+              () => {
+                siblingCanceled++;
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          });
+        },
+      };
+      const siblingObserver = new QueryObserver(queryClient, siblingOptions);
+      const unsubscribeSibling = siblingObserver.subscribe(() => undefined);
+      const prefetch =
+        boundary === "disabled prefetch sibling"
+          ? queryClient.prefetchQuery(siblingOptions)
+          : undefined;
+      const unrelatedKey = loopsKeys.runBriefing("ws_2", "looprun_2");
+      queryClient.setQueryData(unrelatedKey, { revision: 0 });
+      const { unmount } = renderHook(
+        () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory }),
+        { wrapper: createWrapper(queryClient) }
+      );
+      try {
+        expect(reads).toBe(1);
+        await act(async () => {
+          revision = 1;
+          eventSource.emitNamed("node_running", buildFrame({ kind: "node_running" }));
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        // Neither pre-event response has been released. The cached query can
+        // already converge, including when a sibling uses a custom key hash.
+        expect(observer.getCurrentResult().data).toEqual({ revision: 1 });
+        expect(reads).toBe(2);
+        expect(canceled).toBe(1);
+        expect(siblingReads).toBe(boundary === "cached read only" ? 0 : 1);
+        expect(siblingCanceled).toBe(0);
+        await act(async () => {
+          releaseSiblingRead();
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        await prefetch;
+        if (boundary === "disabled prefetch sibling") {
+          expect(siblingReads).toBe(1);
+          expect(siblingObserver.getCurrentQuery().state.isInvalidated).toBe(true);
+          await act(async () => {
+            siblingObserver.setOptions({ ...siblingOptions, enabled: true });
+            await vi.advanceTimersByTimeAsync(1);
+          });
+        }
+        if (boundary !== "cached read only") {
+          expect(siblingReads).toBe(2);
+          expect(siblingObserver.getCurrentResult().data).toEqual({ revision: 1 });
+        }
+        expect(reads).toBe(2);
+        await act(async () => {
+          revision = 2;
+          eventSource.emitNamed("status_changed", buildFrame({ kind: "status_changed" }));
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(observer.getCurrentResult().data).toEqual({ revision: 2 });
+        expect(reads).toBe(3);
+        expect(canceled).toBe(1);
+        expect(queryClient.getQueryState(unrelatedKey)?.isInvalidated).toBe(false);
+      } finally {
+        unmount();
+        releaseOlderRead();
+        releaseSiblingRead();
+        unsubscribe();
+        unsubscribeSibling();
+        queryClient.clear();
+        await olderRead;
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it.each(["active", "disposed", "disabled", "disabled without prefetch", "failed initial read"])(
     "Should reconcile a wake across an initial read with an %s observer",
     async boundary => {

@@ -84,10 +84,11 @@ func (s *Service) hydrateDisplayPullRequests(ctx context.Context, inspections []
 		repo, resolved := repositories[item.WorkspaceID]
 		if !resolved {
 			workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
-			if err == nil {
-				if key, keyErr := s.pullRequests.RepoKey(ctx, workspace.Root); keyErr == nil {
-					repo = key
-				}
+			if err != nil {
+				continue
+			}
+			if key, keyErr := s.pullRequests.RepoKey(ctx, workspace.Root); keyErr == nil {
+				repo = key
 			}
 			repositories[item.WorkspaceID] = repo
 		}

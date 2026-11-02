@@ -184,10 +184,16 @@ func TestQueryTaskSummaryKeepsProfileReadsIsolated(t *testing.T) {
 		if err != nil || metrics.TaskForcedStopsTotal != 1 {
 			t.Fatalf("scoped metrics = %+v, %v; want one visible forced stop", metrics, err)
 		}
-		if _, err := h.observer.QueryTaskMetrics(t.Context(), TaskMetricsQuery{
+		_, err = h.observer.QueryTaskMetrics(t.Context(), TaskMetricsQuery{
 			ReadScope: store.ReadScope{AllProfiles: true},
-		}); err == nil {
-			t.Fatal("all-profile metrics must still validate every included audit row")
+		})
+		parseErr, ok := errors.AsType[*time.ParseError](err)
+		if !ok || parseErr.Value != "invalid" ||
+			!strings.Contains(err.Error(), "observe: list task events for summary:") {
+			t.Fatalf(
+				"all-profile metrics error = %v, want included audit timestamp parse error for %q",
+				err, "invalid",
+			)
 		}
 		empty, err := h.observer.loadTaskSnapshot(t.Context(), TaskSummaryQuery{
 			ReadScope: store.ReadScope{AllProfiles: true}, Search: "no-such-task",

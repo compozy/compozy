@@ -272,6 +272,16 @@ func TestPackageCache(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
+		// Settle the raced path on a regular corrupt blob to verify its error classification.
+		if err := os.WriteFile(staging, []byte("tampered"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(staging, path); err != nil {
+			t.Fatal(err)
+		}
+		if err := cache.Check(t.Context(), digest); !errors.Is(err, ErrPackageUnavailable) {
+			t.Fatalf("settled corrupt Check = %v, want ErrPackageUnavailable", err)
+		}
 	})
 	t.Run("Should preserve pinned blobs and evict unreferenced bytes oldest first", func(t *testing.T) {
 		t.Parallel()

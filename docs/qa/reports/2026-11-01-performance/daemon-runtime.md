@@ -145,3 +145,48 @@ Receipts under `.cache/performance/daemon-runtime/`:
 - `runtime-selector-probe.config.mts` and `runtime-frame-delay.ts`: the temporary diagnostic configuration and scheduling boundary. The earlier `.ts` configuration failed ESM loading before tests ran; its `runtime-selector-frame-probe-before.txt` receipt is retained but excluded from the causal evidence.
 
 The paired wrapper selected Bun 1.4.0, but Turbo's task log reported the inner Bun executable at `/opt/homebrew/bin/bun`; the paired comparisons used the same environment. The root owner was notified of this toolchain observation. This repair establishes asynchronous test readiness and preserves the lazy-projection performance evidence; it does not claim a new application speedup or replace current-head CI.
+
+## PR #1141 review: specific error evidence and pause authority
+
+### Included audit-row decoding (`PRRT_kwDORy7nkc6yiTi4`)
+
+Accepted. Invariant: an audit row outside the requested profile cannot break the visible metrics, while including the corrupt row must fail at that row's timestamp decoding. Owner: observe task-metrics projection over the real GlobalDB. Canonical suite: `internal/observe/tasks_test.go`, `TestQueryTaskSummaryKeepsProfileReadsIsolated/Should decode audit rows only for visible tasks`.
+
+The existing all-profile assertion accepted any error. It now requires an unwrapped `*time.ParseError` with `Value == "invalid"` and the `observe: list task events for summary:` diagnostic. This follows the actual `taskEventFromGeneratedFields` → `store.ParseTimestamp` error chain; the timestamp parser does not return `task.ErrValidation`. The successful scoped metric and empty-population assertions remain unchanged. The existing store cancellation assertion remains unchanged and was included in the focused run.
+
+A temporary negative control changed only the all-profile request's `OriginKind` to an unsupported value. The old assertion incorrectly passed (`observe-audit-review-control-origin-before.txt`, 4.433 s). The strengthened assertion rejected that unrelated query-validation error at the expected assertion (`observe-audit-review-control-after.txt`). The valid request was restored before final race validation, which passed against the intentionally malformed SQLite audit row. No new test case, mock, or production change was needed.
+
+### Nil session diagnostic (`PRRT_kwDORy7nkc6yiUWj`)
+
+Accepted. Invariant: `CapabilitiesForSession` rejects nil session information with its declared diagnostic before attempting dependency reads, while preserving context cancellation and dependency failures. Owner: situation service; canonical suite: `internal/situation/service_test.go`, `TestCapabilitiesForSession/Should propagate cancellation and dependency failures`.
+
+The nil-session assertion now requires the exact `situation: session info is required` diagnostic. The existing `errors.Is` assertions for cancellation and the failing skill registry remain intact, so the injected dependency deadline error cannot substitute for the nil-input result. The current production guard already supplies the required diagnostic; only the test changed.
+
+### Per-sweep pause sampling (`PRRT_kwDORy7nkc6yiUWg`)
+
+Disposition: retain the production implementation. The local maps in `schedulerTaskSource.joinRunsWithTasks` and `filterPausedRuns` sample each distinct task once per call; they do not survive into the next sweep. `TestSchedulerTaskProjection` verifies a committed ancestor pause is reread on the next call and removes all affected child runs without reordering eligible peers.
+
+The scheduler emits an advisory notification rather than claiming a run. `schedulerWakeMessage` explicitly states that a queued run may be claimable and that the notification does not assign ownership. The prompt admission gate is not a task-pause barrier. A concurrent pause can therefore cross an already selected notification; the old per-run read path also separated reads, selection, and dispatch and did not provide a zero-notification-after-pause guarantee.
+
+The live authority is the subsequent claim: `task.Service.ClaimNextRun` → `claimNextRunSettlement` → `WithLeaseSettlementTransaction` → `claimNextRunWithExecutor`. Its `baseClaimPredicates` rereads direct task pause, global scheduler pause, and recursive ancestor pause from SQLite inside the writer transaction. Pause mutation uses the same immediate writer-transaction mechanism. Both exact-run and next-run selection use those base predicates. A pause committed before the claim transaction therefore prevents ownership acquisition even if a notification used an older sweep snapshot.
+
+This matches [TA-010](../../scenarios/TA-010.md), whose pause contract makes runs claim-ineligible. The existing `TestGlobalDBClaimNextRunRespectsEffectiveTaskPause` and `TestGlobalDBTaskPauseControlsClaimEligibilityAndBacklog` controls passed again, including inherited pause and subsequent resume. No concrete contract violation requiring a production edit was found. The previously measured 768 → 128 SQL-read reduction is retained; no new performance result or notification-linearization guarantee is claimed.
+
+Read-only authority inspection covered `internal/daemon/scheduler_task_source_runs.go`, `scheduler_waker.go`, `scheduler_runtime_test.go`; `internal/scheduler/wake_dispatch.go`; `internal/task/scheduler_controls.go`, `manager_admission.go`, `lease_manager_claim.go`, `lease_manager_settlement.go`; `internal/store/globaldb/global_db_task_pause.go`, `global_db_task_claim.go`, `global_db_task_claim_select.go`, `global_db_task_lease_settlement_tx.go`, `global_db_task_transaction.go`, `global_db_task_claim_test.go`; and the store writer implementation in `internal/store/write.go` and `write_diagnostics.go`.
+
+### Focused validation and freeze
+
+Race-enabled real-SQLite checks passed in observe (5.761 s), situation (2.102 s), daemon (6.187 s), and globaldb (5.602 s):
+
+```sh
+python3 .cache/performance/run-bounded.py env CGO_ENABLED=1 go test -race \
+  ./internal/observe ./internal/situation ./internal/daemon ./internal/store/globaldb \
+  -run '^(TestQueryTaskSummaryKeepsProfileReadsIsolated|TestCapabilitiesForSession|TestSchedulerTaskProjection|TestGlobalDBTaskEventsForTasks|TestGlobalDBClaimNextRunRespectsEffectiveTaskPause|TestGlobalDBTaskPauseControlsClaimEligibilityAndBacklog)$' \
+  -count=1 -parallel=2
+```
+
+The test-conventions checker reports five existing inline suites in `tasks_test.go` and eight in `service_test.go`, outside the edited subtests. An in-memory comparison with each file at HEAD confirmed identical findings before and after; the full-file heuristic is not reported as clean. The edited cases retain the canonical `Should ...` subtest shape and parallelism. Receipt: `.cache/performance/daemon-runtime/review-assertions-validation.txt`.
+
+Initial control/checker invocation mistakes were retained separately and excluded from behavioral evidence: the first control draft used a nonexistent `TaskMetricsQuery.Scope` field, and the first checker command supplied two paths to its single-file CLI. Neither ran the intended tests. The final valid control and validation receipts above are authoritative.
+
+The batch is frozen with changes only to the two existing test files and this report. No production source, new test file, broad gate, commit, or PR reply was changed by this worker. Integrated lint and current-head CI remain root-owned.

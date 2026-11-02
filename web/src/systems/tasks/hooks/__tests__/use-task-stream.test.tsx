@@ -6,6 +6,7 @@ import {
   QueryClient,
   QueryClientProvider,
   QueryObserver,
+  type QueryKey,
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -103,6 +104,7 @@ describe("useTaskStream", () => {
         defaultOptions: { queries: { retry: false, staleTime: Infinity } },
       });
       const unsubscribe: (() => void)[] = [];
+      const requestedKeys: QueryKey[] = [];
       let requests = 0;
       for (let index = 0; index < 50; index++) {
         const taskId = `task_${index}`;
@@ -118,8 +120,9 @@ describe("useTaskStream", () => {
           queryClient.setQueryData(queryKey, data);
           const observer = new QueryObserver(queryClient, {
             queryKey,
-            queryFn: async () => {
+            queryFn: async ({ queryKey: requestedKey }) => {
               requests++;
+              requestedKeys.push(requestedKey);
               return data;
             },
           });
@@ -133,6 +136,13 @@ describe("useTaskStream", () => {
         expect(refresh.getSnapshot().context.phase).toBe("idle");
       });
       requestsPerEvent.push(requests);
+      expect(requestedKeys).toHaveLength(2);
+      expect(requestedKeys).toEqual(
+        expect.arrayContaining([
+          tasksKeys.runDetail("run_0"),
+          tasksKeys.inspectRun("run_0", { profile: "default" }),
+        ])
+      );
       refresh.trigger.disposed();
       unsubscribe.forEach(release => release());
       queryClient.clear();

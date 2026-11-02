@@ -96,6 +96,47 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
+	// Invariant: a transient resolver failure does not hide later rows' cached PR facts.
+	// Owner: inspection hydration over the real SQLite repository; canonical worktree store suite.
+	t.Run("Should resolve later listing rows after a transient workspace failure", func(t *testing.T) {
+		t.Parallel()
+		fixture, service := newWorktreeInspectionFixture(t, 3)
+		fixture.resolveError = func() error {
+			if fixture.resolves == 1 {
+				return errors.New("workspace temporarily unavailable")
+			}
+			return nil
+		}
+		listing, err := service.ListAggregate(
+			t.Context(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			map[string]bool{"ws-bench-0": true},
+		)
+		if err != nil || listing == nil || len(listing.Worktrees) != 3 {
+			t.Fatalf("transient resolution listing = %#v, %v", listing, err)
+		}
+		for index, item := range listing.Worktrees {
+			if item.Worktree.WorkspaceID != "ws-bench-0" || item.Status == nil ||
+				item.Status.WorktreeID != item.Worktree.ID || item.Status.DirtyFiles == nil {
+				t.Fatalf("listing row %d lost its cached local status: %#v", index, item)
+			}
+			if index == 0 {
+				if item.ForgeStatus != nil {
+					t.Fatalf("unresolved row has forge facts: %#v", item)
+				}
+				continue
+			}
+			if item.ForgeStatus == nil || item.ForgeStatus.PRNumber == nil ||
+				*item.ForgeStatus.PRNumber != *item.Status.DirtyFiles+1 {
+				t.Fatalf("listing row %d lost its cached PR after resolver recovery: %#v", index, item)
+			}
+		}
+		if fixture.resolves != 2 || fixture.pullReads != 1 || fixture.statusReads != 3 {
+			t.Fatalf("recovered listing reads = workspace:%d PR:%d status:%d",
+				fixture.resolves, fixture.pullReads, fixture.statusReads)
+		}
+	})
+
 	t.Run("Should exclude unauthorized workspaces and profiles before inspection", func(t *testing.T) {
 		t.Parallel()
 		fixture, service := newWorktreeInspectionFixture(t, 1)
@@ -1491,9 +1532,15 @@ func BenchmarkWorktreeAggregateInspection(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if len(listing.Worktrees) != 64 || listing.Worktrees[0].ForgeStatus == nil ||
-			listing.Worktrees[0].Status == nil {
+		if listing == nil || len(listing.Worktrees) != 64 {
 			b.Fatalf("incomplete listing: %#v", listing)
+		}
+		for index, item := range listing.Worktrees {
+			if item.Status == nil || item.Status.WorktreeID != item.Worktree.ID || item.Status.DirtyFiles == nil ||
+				item.ForgeStatus == nil || item.ForgeStatus.PRNumber == nil ||
+				*item.ForgeStatus.PRNumber != *item.Status.DirtyFiles+1 {
+				b.Fatalf("incomplete listing row %d: %#v", index, item)
+			}
 		}
 	}
 	b.ReportMetric(float64(fixture.resolves)/float64(b.N), "workspace_reads/op")
@@ -1600,6 +1647,7 @@ type worktreeInspectionStore struct {
 	*WorktreeRepo
 	db                               *GlobalDB
 	resolves, pullReads, statusReads int
+	resolveError                     func() error
 }
 
 func (s *worktreeInspectionStore) ResolveWorktreeWorkspace(
@@ -1607,6 +1655,11 @@ func (s *worktreeInspectionStore) ResolveWorktreeWorkspace(
 	id, _ string,
 ) (worktreepkg.Workspace, error) {
 	s.resolves++
+	if s.resolveError != nil {
+		if err := s.resolveError(); err != nil {
+			return worktreepkg.Workspace{}, err
+		}
+	}
 	ws, err := s.db.GetWorkspace(ctx, id)
 	if err != nil {
 		return worktreepkg.Workspace{}, err

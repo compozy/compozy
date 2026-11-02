@@ -2085,8 +2085,9 @@ func TestCapabilitiesForSession(t *testing.T) {
 		) {
 			t.Fatalf("registry error = %v", err)
 		}
-		if _, err := service.CapabilitiesForSession(t.Context(), nil); err == nil {
-			t.Fatal("nil session accepted")
+		if _, err := service.CapabilitiesForSession(t.Context(), nil); err == nil ||
+			err.Error() != "situation: session info is required" {
+			t.Fatalf("nil session error = %v, want situation: session info is required", err)
 		}
 	})
 }

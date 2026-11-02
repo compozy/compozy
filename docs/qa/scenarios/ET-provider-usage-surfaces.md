@@ -129,3 +129,11 @@ measurements of its injected I/O delay are not production/provider latency claim
 service tests and the contention benchmark are recorded in
 `../reports/2026-11-01-performance/usage-dashboard.md`; real transport/browser re-walk remains
 owned by the enclosing audit until evidence is recorded there.
+
+2026-11-02 review follow-up: repeat A-to-B-to-A with a newer successful `Envelope`
+read instead of a collection, including a restored unchanged-file cache hit. The
+older B mismatch must not clear the successfully revalidated A snapshot. A newer
+failed validation must not suppress that mismatch. The existing `TestUsageService`
+table covers these boundaries with real temporary files and loopback HTTP; both
+positive races failed before the correction and the final focused race suite passes.
+This adds no claim about live provider credentials or the broader scenario verdict.

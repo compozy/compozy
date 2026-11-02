@@ -23,7 +23,10 @@ unchanged public and persisted shapes need no compatibility shim or migration.
   workspace-file format changes. Queries use existing indexes and generated SQLC code.
   Profile/workspace filtering precedes rich projection where possible. Credential checks
   move outside the shared mutex with identity/publication fences; a late read cannot publish
-  or clear another ownership generation. Attachment checks retain authoritative retention,
+  or clear another ownership generation. Positive read evidence, including unchanged-file
+  evidence, also fences older reads; validation errors do not. Failed workspace resolution
+  is not cached across later display rows, preserving transient recovery while batching successes.
+  Attachment checks retain authoritative retention,
   pins, scope and content verification. Package availability reuse is bounded and keyed by
   digest plus held-file identity/change evidence; installation always rehashes.
 - **Web:** session/task/worktree invalidation avoids unrelated scopes; Dashboard/Loop bursts

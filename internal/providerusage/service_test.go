@@ -79,7 +79,8 @@ func TestUsageService(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			service, collector, catalog, _ := credentialFenceFixture(t)
+			fixture := credentialFenceFixture(t)
+			service, collector, catalog := fixture.service, fixture.collector, fixture.catalog
 			gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
 			release := sync.OnceFunc(func() { close(gate.release) })
 			collector.gate.Store(gate)
@@ -132,13 +133,24 @@ func TestUsageService(t *testing.T) {
 			}
 		})
 	}
-	for _, change := range []string{"identity", "epoch", "publication"} {
+	for _, change := range []string{"identity", "epoch", "publication", "read", "cached read", "failed read"} {
 		name := "Should preserve a newer credential " + change + " over an older pending read mismatch"
+		if change == "failed read" {
+			name = "Should retain a pending credential mismatch after an unverified newer read"
+		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			service, collector, _, path := credentialFenceFixture(t)
+			fixture := credentialFenceFixture(t)
+			service, collector, path := fixture.service, fixture.collector, fixture.path
 			original, err := os.ReadFile(path)
 			requireNoError(t, err)
+			preservedPath := ""
+			if change == "cached read" {
+				_, err = service.Envelope(t.Context(), "personal")
+				requireNoError(t, err)
+				preservedPath = path + ".original"
+				requireNoError(t, os.Rename(path, preservedPath))
+			}
 			renewed := bytes.ReplaceAll(original, []byte("fixture-owner"), []byte("next-owner"))
 			requireNoError(t, os.WriteFile(path, renewed, 0o600))
 			gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
@@ -160,7 +172,10 @@ func TestUsageService(t *testing.T) {
 			if change == "epoch" {
 				service.ClearCredentials("personal", "codex")
 			}
-			if change != "identity" {
+			if preservedPath != "" {
+				requireNoError(t, os.Remove(path))
+				requireNoError(t, os.Rename(preservedPath, path))
+			} else if change != "identity" {
 				requireNoError(t, os.WriteFile(path, original, 0o600))
 			}
 			if change == "publication" {
@@ -168,9 +183,22 @@ func TestUsageService(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
-			latest, err := service.Refresh(ctx, RefreshRequest{
-				ProfileID: "personal", Intent: IntentExplicit, Wait: time.Second,
-			})
+			if change == "failed read" {
+				failedRead := &credentialProbeGate{
+					entered: make(chan struct{}), release: make(chan struct{}),
+					err: NewUsageError(ErrorCodeProviderUnavailable, "Codex"),
+				}
+				close(failedRead.release)
+				collector.gate.Store(failedRead)
+			}
+			var latest Envelope
+			if change == "read" || change == "cached read" || change == "failed read" {
+				latest, err = service.Envelope(ctx, "personal")
+			} else {
+				latest, err = service.Refresh(ctx, RefreshRequest{
+					ProfileID: "personal", Intent: IntentExplicit, Wait: time.Second,
+				})
+			}
 			requireNoError(t, err)
 			requireEqual(t, StatusOK, latest.Targets[0].Status)
 			// Hold any accidental recollection so it cannot hide a stale read clearing the new snapshot.
@@ -180,8 +208,12 @@ func TestUsageService(t *testing.T) {
 			release()
 			<-ownerDone
 			requireNoError(t, ownerErr)
-			requireEqual(t, StatusOK, ownerEnvelope.Targets[0].Status)
-			requireEqual(t, len(latest.Targets[0].Windows), len(ownerEnvelope.Targets[0].Windows))
+			wantStatus, wantWindows := StatusOK, len(latest.Targets[0].Windows)
+			if change == "failed read" {
+				wantStatus, wantWindows = StatusRefreshing, 0
+			}
+			requireEqual(t, wantStatus, ownerEnvelope.Targets[0].Status)
+			requireEqual(t, wantWindows, len(ownerEnvelope.Targets[0].Windows))
 		})
 	}
 	for _, change := range []string{"native login", "config directory", "secure storage directory", "home"} {
@@ -1711,6 +1743,7 @@ type controlledCredentialProbe struct {
 type credentialProbeGate struct {
 	entered chan struct{}
 	release chan struct{}
+	err     error
 }
 
 func (c *controlledCredentialProbe) Identity(
@@ -1724,11 +1757,21 @@ func (c *controlledCredentialProbe) Identity(
 		case <-ctx.Done():
 			return CredentialIdentity{}, ctx.Err()
 		}
+		if gate.err != nil {
+			return identity, gate.err
+		}
 	}
 	return identity, err
 }
 
-func credentialFenceFixture(t testing.TB) (*Manager, *controlledCredentialProbe, *TargetCatalog, string) {
+type credentialFenceTestFixture struct {
+	service   *Manager
+	collector *controlledCredentialProbe
+	catalog   *TargetCatalog
+	path      string
+}
+
+func credentialFenceFixture(t testing.TB) credentialFenceTestFixture {
 	t.Helper()
 	now := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(now)
@@ -1770,12 +1813,13 @@ func credentialFenceFixture(t testing.TB) (*Manager, *controlledCredentialProbe,
 	if err != nil || len(env.Targets) != 1 || env.Targets[0].Status != StatusOK {
 		t.Fatalf("seed usage: status=%v err=%v", env.Targets, err)
 	}
-	return service, collector, catalog, path
+	return credentialFenceTestFixture{service: service, collector: collector, catalog: catalog, path: path}
 }
 
 func BenchmarkUsageCredentialReadContention(b *testing.B) {
 	b.ReportAllocs()
-	service, collector, _, path := credentialFenceFixture(b)
+	fixture := credentialFenceFixture(b)
+	service, collector, path := fixture.service, fixture.collector, fixture.path
 	var elapsed time.Duration
 	iteration := 0
 	for b.Loop() {
@@ -1805,4 +1849,17 @@ func BenchmarkUsageCredentialReadContention(b *testing.B) {
 		timer.Stop()
 	}
 	b.ReportMetric(float64(elapsed.Nanoseconds())/float64(b.N), "other-read-ns/op")
+}
+
+func BenchmarkUsageCredentialReadCached(b *testing.B) {
+	b.ReportAllocs()
+	service := credentialFenceFixture(b).service
+	if _, err := service.Envelope(b.Context(), "personal"); err != nil {
+		b.Fatal(err)
+	}
+	for b.Loop() {
+		if _, err := service.Envelope(b.Context(), "personal"); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

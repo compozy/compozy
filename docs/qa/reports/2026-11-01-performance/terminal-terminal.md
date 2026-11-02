@@ -172,3 +172,60 @@ Disposition: `desktop/schema` has an already shared, one-time compiled productio
 other seven entries are fixture executables. No concrete production performance defect was found
 in this inventory supplement. Blocking fixture input, intentional flooding, binary-sized test
 hashing and visible phase delays remain explicitly classified as test workload/lifecycle costs.
+
+## PR #1141 shared-root retention triage — 2026-11-02
+
+Review thread: `PRRT_kwDORy7nkc6yiUWd`, concerning the retained-inventory reuse in
+`internal/attachments/store_fs_put.go`. Current source inspected:
+`1665fb0c1c20c3244bd0d8ca2dc992458eeabcbc`; comparison source: `de5ab2f4d`.
+
+The finding describes a reproducible change when two independently opened stores mutate one
+root. It does not identify a supported production concurrency regression. The sole non-test
+constructor call is `internal/daemon/boot_session_attachments.go:54`, using the home-derived
+`SessionAttachmentsDir` (`internal/config/home.go:252`). `boot_components.go` runs
+`bootRuntimeFoundation` before attachment construction; `boot_runtime_foundation.go` acquires
+the singleton daemon lock first. `internal/daemon/lock.go` uses `flock.TryLock` and rejects a
+second owner. The constructed object is shared by its sweeper, HTTP dependencies
+(`runtime_dependencies.go:37`), native tools (`native_tools_dependencies_builder.go:31`) and
+session manager (`session_manager_deps.go:102`). Its mutex serializes mutation, retention and
+scope-deletion leases. The existing `ScopeLeaseGuard` documentation already limits its deletion
+fence to "this store instance". No independently active same-root writer path was found in the
+shipped wiring; sequential reopen remains supported and each operation still lists afresh.
+
+Diagnostic question and owning suite: filesystem retention accounting belongs to the existing
+`TestFilesystemAttachmentStoreRetention` suite in `internal/attachments/store_fs_test.go`.
+A temporary Go overlay added two controlled interleavings inside that suite, using real files,
+two store objects, `MaxCount=2`, one seed object and two new publications. The existing pin-source
+and file-write seams scheduled the second store's publication at exact boundaries. The final
+count was read directly from the raw inventory: `Stat` would sweep again and mask the result.
+These diagnostic cases assert successful publication and hook execution, and log the count;
+they do not assert an unsupported global cap. No tracked source or test file was changed.
+The baseline overlay substitutes only the original Put/sweep files, isolating inventory reuse.
+
+| Second store publication boundary | Original Put/sweep retained count | Current retained count | Causal conclusion |
+| --- | ---: | ---: | --- |
+| After the first inventory, before capacity reservation | 2 | 3 | Reusing the inventory widens this cross-instance window. |
+| After capacity reservation, before the first store publishes | 3 | 3 | The original relist also had a cross-instance check/publish race. |
+
+Both bounded runs passed (baseline 0.480 s; current 0.455 s), including the unchanged canonical
+`Should refresh pins again before reserving capacity for a new attachment` regression. Fresh
+queue-pin lookups remain authoritative on both retention passes; no pin cache or retention rule
+was changed. These are deterministic filesystem interleaving results, not race-detector runs or
+new performance measurements. The earlier paired Put measurements remain unchanged.
+
+```sh
+python3 .cache/performance/run-bounded.py go test -overlay=.cache/performance/terminal-terminal/pr1141-shared-root-baseline-overlay.json ./internal/attachments -run '^TestFilesystemAttachmentStoreRetention$/(Should_diagnose_shared_root|Should_refresh_pins_again)' -count=1 -parallel=2 -v
+python3 .cache/performance/run-bounded.py go test -overlay=.cache/performance/terminal-terminal/pr1141-shared-root-current-overlay.json ./internal/attachments -run '^TestFilesystemAttachmentStoreRetention$/(Should_diagnose_shared_root|Should_refresh_pins_again)' -count=1 -parallel=2 -v
+```
+
+Raw receipts: `.cache/performance/terminal-terminal/pr1141-shared-root-{baseline,current}.txt`.
+The matching overlay JSON files and `pr1141-shared-root-tests.txt` retain the diagnostic fixture.
+
+Disposition accepted by the root owner: keep production unchanged. Precisely, this optimization
+widens an unsupported cross-instance window, while neither version promised an atomic
+cross-instance count cap. Restoring the second list would close only the first demonstrated
+window, discard the measured traversal improvement, and leave the second race. Supporting
+independent concurrent stores would require shared coordination across sweep, publish, removal
+and recovery; introducing that behavior is outside this finding. No new lock or ownership
+contract was added. Existing pinned content may also intentionally exceed ordinary sweep
+bounds; this triage does not reinterpret retention as an unconditional absolute cap.

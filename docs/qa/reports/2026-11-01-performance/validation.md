@@ -14,7 +14,7 @@ home. No live provider credentials were copied or used.
 | `make go-lint` with explicit changed-package scopes and concurrency 2 | Passed, zero issues in normal and integration-tag lanes; changed-file formatter and source policies passed. Uses repository pin golangci-lint 2.15.0. |
 | Root Turbo Web `lint typecheck build --filter=./web --only` | All three tasks passed. Lint: zero warnings/errors. SDK dependency built first through root Turbo. Build retains existing CSS/chunk-size/plugin-timing diagnostics; no threshold or assertion was weakened. |
 | Changed concurrent Go owners | Focused race checks passed; real SQLite, real Git, real filesystem and loopback I/O are identified in each owner report. |
-| Changed frontend owners | Canonical QueryObserver/component suites passed, including 63 dashboard tests, 28 Loop stream tests and 68 OS interaction tests after review/lint follow-ups. Other focused counts are in the reports; overlapping suites are not summed. |
+| Changed frontend owners | Canonical QueryObserver/component suites passed, including 63 dashboard tests, 31 Loop stream tests and 68 OS interaction tests after review/lint follow-ups. Other focused counts are in the reports; overlapping suites are not summed. |
 | Real worktree lifecycle integration subset | Passed under race in 10.959 s: truthful status corruption/recovery, upstream divergence, refusal of dirty/unpushed loss, and external commit reread. |
 | Independent cross-reviews | Five reports; UW-001 and RD-001 reproduced before and resolved after; L1 initial-fetch freshness hole resolved with 28 canonical and eight independent checks. Extension precedence: 4,608 independent SQLite combinations passed. |
 | Source size and whitespace | Changed production sources remain at most 500 lines; final diff check passed. Test files reuse existing suites except the absent scheduler-action hook suite. |
@@ -114,6 +114,50 @@ commands and measured fixtures are also checked in with each report.
   and `internal/worktree`, with zero issues in normal and integration-tag lanes,
   all 86 changed Go files passing formatter checks, and source policies passing.
   Receipt: `.cache/performance/go-lint-followup-accepted.log`.
+
+## External review follow-up
+
+All 27 jobs in [CI run 41387686539](https://github.com/compozy/compozy/actions/runs/41387686539)
+passed on `1665fb0c1c20c3244bd0d8ca2dc992458eeabcbc`, including eight Go race shards,
+four Web E2E shards, runtime/desktop E2E, frontend checks, platform builds and recovery.
+Greptile reported 5/5. That evidence predates the following review remediation;
+the replacement head must pass fresh required CI before delivery.
+
+| Review comment | Disposition and causal evidence | Owning report |
+| --- | --- | --- |
+| [Catalog error identity](https://github.com/compozy/compozy/pull/1141#discussion_r4438972319) | Accepted. The existing API case now requires the exact injected catalog error as well as HTTP 500 and no hydration. A wrong dependency error passed the old assertion and fails the strengthened one. | [API/tasks](api-tasks.md) |
+| [Package integrity error](https://github.com/compozy/compozy/pull/1141#discussion_r4438972328) | Accepted. After concurrent readers finish, deterministic corruption must report `ErrPackageUnavailable`. A generic digest error is rejected; all original concurrent no-false-success checks remain. | [Extension/marketplace](extension-marketplace.md) |
+| [Audit timestamp error](https://github.com/compozy/compozy/pull/1141#discussion_r4438972335) | Accepted. The all-profile read must expose the corrupt row's `time.ParseError`, value and context. An unrelated invalid-filter control passes the old assertion and fails the new one. | [Daemon/runtime](daemon-runtime.md) |
+| [Read/read credential ordering](https://github.com/compozy/compozy/pull/1141#discussion_r4438972345) | Fixed. A newer successful read, including unchanged-file evidence, advances the guarded validation sequence so an older mismatch cannot clear its snapshot. Errors do not advance the sequence. | [Usage/dashboard](usage-dashboard.md) |
+| [Credential race regression](https://github.com/compozy/compozy/pull/1141#discussion_r4438972357) | Accepted. Existing table cases reproduce read/read and cached-read ABA failures before the fix; a failed-validation control preserves mismatch handling. Race and negative controls pass. | [Usage/dashboard](usage-dashboard.md) |
+| [Complete worktree benchmark](https://github.com/compozy/compozy/pull/1141#discussion_r4438972367) | Accepted. Every one of the 64 rows must retain local and forge status. Dropping only the final row's PR data fails. The equally guarded pair was remeasured: 6.292 → 2.628 ms/op, workspace reads 64 → 2 and PR reads 64 → 1. | [Worktree/workspace](worktree-workspace.md) |
+| [Transient workspace lookup](https://github.com/compozy/compozy/pull/1141#discussion_r4438972378) | Fixed. Failed workspace resolution is no longer memoized as an empty repository for later rows. A real SQLite/Git fixture fails before, then retries once and shares the subsequent successful resolution. | [Worktree/workspace](worktree-workspace.md) |
+| [Task query identity](https://github.com/compozy/compozy/pull/1141#discussion_r4438972387) | Accepted. The existing event test requires both exact `run_0` query keys in addition to the total count. Refetching a sibling task now fails; all 19 canonical cases pass. | [API/tasks](api-tasks.md) |
+| [Attachment shared-root relist](https://github.com/compozy/compozy/pull/1141#discussion_r4438977542) | Not applied. Real filesystem interleavings confirm a wider window between independent stores, but both versions permit cross-instance count overflow. Shipped daemon wiring has one shared Store under its singleton lock; fresh pins remain authoritative. The unsupported window and lack of atomic cross-instance capacity are documented, not hidden. | [Terminal/attachments](terminal-terminal.md) |
+| [Per-sweep pause sampling](https://github.com/compozy/compozy/pull/1141#discussion_r4438977546) | Not applied. Wake notifications are advisory. The transaction that claims a run rereads direct, global and ancestor pauses; the previous per-run reads also could not linearize notifications against pause. Existing inherited-pause/resume and next-sweep tests pass. | [Daemon/runtime](daemon-runtime.md) |
+| [Nil-session diagnostic](https://github.com/compozy/compozy/pull/1141#discussion_r4438977550) | Accepted. The existing guard test requires its exact nil-input diagnostic while retaining cancellation and dependency-error assertions. | [Daemon/runtime](daemon-runtime.md) |
+| [Pre-event Loop read](https://github.com/compozy/compozy/pull/1141#discussion_r4438977553) | Fixed. Active cached reads invalidate immediately; only initial/inactive/static reads retain a trailing obligation. Three failing-before cases cover a warm query alone and mixed prefixes with initial or disabled-prefetch siblings, including a custom query hash. All 31 canonical and eight independent controls pass. | [Loop/scheduler](loop-loops.md) |
+
+The credential follow-up preserves unrelated-profile isolation and cached-read allocation
+counts; overlapping timing ranges do not establish an additional speedup. The Loop burst
+still produces three reads and zero cancellations for 100 events and reaches revision 100.
+A stalled pre-event warm read can now be canceled once; initial/inactive or newly started
+reads still keep their coalesced round open until settlement. No arbitrary timeout or
+additional coordinator was introduced. Error assertions and ownership controls were
+strengthened within existing suites; no test timeout or acceptance threshold was relaxed.
+
+Integrated follow-up checks passed after the production fixes:
+
+- Scoped canonical Go lint for API, package cache, observe, provider usage, situation,
+  GlobalDB and worktree reported zero issues in normal and integration-tag lanes;
+  formatting passed for all 86 changed Go files and source policies passed.
+  Receipt: `.cache/performance/review-go-lint.log`.
+- Root Turbo Web lint, typecheck and build passed all three tasks in 35.582 s.
+  Lint reported zero warnings/errors; existing build diagnostics remain recorded.
+  Receipt: `.cache/performance/review-web-lint-types-build.log`.
+- React Doctor inspected 57 changed source files, scored 93/100 and reported no
+  issues. Receipt: `.cache/performance/react-doctor-review.log`. Its deprecated
+  `--diff` spelling was honored; repository-pinned CI remains authoritative.
 
 ## Browser and CI delivery
 

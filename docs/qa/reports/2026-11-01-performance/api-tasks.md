@@ -127,3 +127,30 @@ No SDK source, generated output, or tests changed. No SDK test, benchmark, daemo
 - **SDK-A2 — stdio cancellation begins after synchronous output admission.** `sdk/go/transport.go:197` calls `writeFrame` before reaching the context select at line 202. `writeFrame` at lines 400–413 waits on the shared write mutex and the arbitrary `io.Writer`; cancellation cannot interrupt a peer that stops consuming output at this point. `transport_inbound.go:25–36` additionally admits one goroutine per inbound request, so the per-frame cap is not an aggregate in-flight cap. These are concrete static backpressure limits, not evidence that normal daemon traffic currently saturates the SDK. Existing cancellation coverage begins after the initial request has been consumed. No concurrency limit or detached-writer workaround was introduced: bidirectional callbacks require the reader to remain able to deliver responses, and arbitrary reader/writer ownership must be preserved. A future measured change needs a stalled-peer fixture and explicit lifecycle/admission semantics in the existing transport suite.
 
 The supplemental pass retains no SDK optimization. It adds source-level coverage and identifies the two boundedness follow-ups above without promoting static reasoning, existing CI runs, or unrelated API measurements into SDK runtime evidence.
+
+## PR #1141 assertion strengthening — 2026-11-02
+
+Before editing tests, the owning invariants and suites are:
+
+- Workspace aggregate failure: a workspace catalog failure returns that failure's error payload and prevents hydration; an unrelated earlier profile-resolution failure must not satisfy the case. Owner: API core admission ordering. Canonical suite: `TestWorktreeAggregate` in `internal/api/core/worktrees_test.go`. Review thread: `PRRT_kwDORy7nkc6yiTis`.
+- Task live refresh: each event for `task_0` refetches exactly its populated `run_0` detail and default-profile inspection query among 50 active pairs, while retaining the five-sample two-request count. Owner: Tasks live-query coordination. Canonical suite: `web/src/systems/tasks/hooks/__tests__/use-task-stream.test.tsx`. Review thread: `PRRT_kwDORy7nkc6yiTji`.
+
+Independent inspection confirmed both existing assertions are weaker than their case names: status plus hydration count cannot distinguish another HTTP 500 before selection, and two requests alone cannot distinguish a different task's pair. The existing suites own both invariants; no new test file or production behavior change is needed.
+
+The Go case now decodes `contract.ErrorPayload` and requires its `Error` to equal the workspace catalog failure. The Tasks case records the actual key supplied to each query function, requires exactly two keys containing `tasksKeys.runDetail("run_0")` and `tasksKeys.inspectRun("run_0", { profile: "default" })`, and retains the five-sample `[2, 2, 2, 2, 2]` assertion. Query execution order is not constrained.
+
+| Focused negative control | Original assertion | Strengthened assertion | Receipts under `.cache/performance/api-tasks/` |
+| --- | --- | --- | --- |
+| Remove the profile service only in a disposable Go source overlay; run the workspace-selection-failure subtest. This produces an unrelated earlier HTTP 500 without hydration. | Passed, 2.299 s package duration. | Failed specifically with `aggregate error = "profile service is unavailable", want "catalog unavailable"`. | `review-api-control-before.log`, `review-api-control-after.log`; overlay files retained in the same ignored evidence directory. |
+| Temporarily request a refresh for `task_1` in the 50-pair fixture while retaining the case's expected `run_0` identity. | Passed: one selected test, 18 skipped; the count remained two per event. | Failed specifically because both requested keys contained `run_1` instead of `run_0`; the two-key count still passed. | `review-task-control-before.log`, `review-task-control-after.log`. |
+
+Both controls were removed from the working test sources before final verification. Go overlays never changed production sources. Commands were run through `run-bounded.py`; the Go controls used `env CGO_ENABLED=1 go test -race -overlay=<control-overlay.json> ./internal/api/core -run '^TestWorktreeAggregate$/^Should_stop_before_hydration_when_workspace_selection_fails$' -count=1`, and the frontend controls used root `bunx turbo run test --filter=./web --only -- src/systems/tasks/hooks/__tests__/use-task-stream.test.tsx -t 'Should refresh only the event task' --maxWorkers=1`. These are assertion-sensitivity checks, not new performance measurements.
+
+Final focused verification, with all control mutations removed:
+
+- `python3 .cache/performance/run-bounded.py env CGO_ENABLED=1 go test -race ./internal/api/core -run '^TestWorktreeAggregate$' -count=1`: pass, 2.361 s package duration; `review-api-final.log`.
+- `python3 .cache/performance/run-bounded.py bunx turbo run test --filter=./web --only -- src/systems/tasks/hooks/__tests__/use-task-stream.test.tsx --maxWorkers=1`: pass, 19/19 tests, cache miss; `review-task-final.log`.
+- `gofmt` and `oxfmt` applied through the bounded runner. Direct changed-file `bunx oxlint --deny-warnings` exited 0; `review-task-lint.log`. Consolidated lint/typecheck and exact-head PR CI remain root-owned.
+- The required Go test-shape checker reports only the existing `TestCreateSessionWorktreeBinding` direct-assertion finding; `review-test-conventions.log`. That function is byte-identical to the pre-edit `HEAD`, confirmed through the bounded runner in `review-test-conventions-baseline.log`. The newly strengthened case remains in the existing named parallel subtest.
+
+Frozen for root handoff: only the two existing test files and this report are owned changes for these review threads. No new production behavior, public contract, generated file, or QA journey change; no commit or full gate run by this worker.

@@ -53,16 +53,26 @@ function refreshKeys(
 }
 
 async function refreshLoopQuery(queryClient: QueryClient, queryKey: QueryKey): Promise<void> {
-  // An initial read can predate the event and still be reused by invalidation.
-  // Let it settle first so its response cannot clear this refresh obligation.
-  const reads = queryClient
+  // Active cached reads can restart immediately. Other in-flight reads must
+  // settle before trailing invalidation so they cannot erase an accepted wake.
+  const trailingReads = queryClient
     .getQueryCache()
     .findAll({ queryKey, fetchStatus: "fetching" })
-    .flatMap(query => (query.promise ? [query.promise] : []));
-  if (reads.length > 0) await Promise.allSettled(reads);
-  // Keep the default active-only refetch: disabled observers retain invalidation
-  // until enabled, including when an older prefetch was already in flight.
-  await queryClient.invalidateQueries({ queryKey });
+    .flatMap(query => {
+      const read = query.promise;
+      return read && (query.state.data === undefined || !query.isActive() || query.isStatic())
+        ? [{ query, read }]
+        : [];
+    });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey }),
+    ...trailingReads.map(async ({ query, read }) => {
+      await Promise.allSettled([read]);
+      // Preserve the matched query's identity, including custom key hashing.
+      // Default active-only refetch leaves disabled observers stale until enabled.
+      await queryClient.invalidateQueries({ predicate: candidate => candidate === query });
+    }),
+  ]);
 }
 
 /**

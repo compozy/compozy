@@ -40,3 +40,9 @@ All projects run lists must converge to the final server order and needs-you mar
 Re-walk with a rapid run lifecycle burst and a pending refresh when leaving the run.
 Focused results and pending runtime/current-head CI evidence are tracked in
 `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA impact 2026-11-02 (stream freshness review): include a cached roster/list with
+an older pending read when a lifecycle event arrives. Its active cached read can
+restart immediately; initial or disabled sibling reads still reconcile after
+settlement. Focused hook checks pass; runtime/CI verification remains with the
+enclosing audit. Evidence and limits: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
