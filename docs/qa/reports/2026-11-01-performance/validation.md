@@ -137,6 +137,7 @@ the replacement head must pass fresh required CI before delivery.
 | [Per-sweep pause sampling](https://github.com/compozy/compozy/pull/1141#discussion_r4438977546) | Not applied. Wake notifications are advisory. The transaction that claims a run rereads direct, global and ancestor pauses; the previous per-run reads also could not linearize notifications against pause. Existing inherited-pause/resume and next-sweep tests pass. | [Daemon/runtime](daemon-runtime.md) |
 | [Nil-session diagnostic](https://github.com/compozy/compozy/pull/1141#discussion_r4438977550) | Accepted. The existing guard test requires its exact nil-input diagnostic while retaining cancellation and dependency-error assertions. | [Daemon/runtime](daemon-runtime.md) |
 | [Pre-event Loop read](https://github.com/compozy/compozy/pull/1141#discussion_r4438977553) | Fixed. Active cached reads invalidate immediately; only initial/inactive/static reads retain a trailing obligation. Three failing-before cases cover a warm query alone and mixed prefixes with initial or disabled-prefetch siblings, including a custom query hash. All 31 canonical and eight independent controls pass. | [Loop/scheduler](loop-loops.md) |
+| [Reverse credential observation order](https://github.com/compozy/compozy/pull/1141#discussion_r4439116140) | Fixed after reproducing against `56176f829`. A mismatch that collides only with a newer validation sequence now obtains fresh evidence outside the mutex; application order cannot establish observation order. Existing ownership guards, per-attempt cancellation and the exact validation error classification remain. | [Usage/dashboard](usage-dashboard.md) |
 
 The credential follow-up preserves unrelated-profile isolation and cached-read allocation
 counts; overlapping timing ranges do not establish an additional speedup. The Loop burst
@@ -158,6 +159,46 @@ Integrated follow-up checks passed after the production fixes:
 - React Doctor inspected 57 changed source files, scored 93/100 and reported no
   issues. Receipt: `.cache/performance/react-doctor-review.log`. Its deprecated
   `--diff` spelling was honored; repository-pinned CI remains authoritative.
+
+The subsequent reverse-order credential correction passed the complete canonical
+`TestUsageService` race suite in 1.417 s. Four negative overlays separately prove
+revalidation, the sequence guard, cancellation and unchanged same-owner error behavior.
+The identical paired benchmark retains 2,296 B/op and 31 allocations for cached reads;
+overlapping timing ranges do not support another speedup claim. An independent source
+review checked both orderings, repeated collisions, ABA/cache and lifecycle/error cases
+against the frozen source and the owner's receipts, with no further concrete finding.
+That review did not execute another suite; see [its scope and limits](review-usage-worktree.md).
+
+## Runtime CI deadline and artifact retention
+
+[CI run 41392366822](https://github.com/compozy/compozy/actions/runs/41392366822) on
+`56176f8293d0954e9188041bb47f4796e10138ba` completed with 25 successful jobs and two
+failed jobs. The primary failure was one runtime scenario; the E2E aggregate failed
+because of it. All eight Go race shards, four Web E2E shards, frontend checks,
+desktop E2E/static checks, platform builds, codegen and recovery passed.
+
+`TestDaemonE2EHostedMCPProjectsAndCallsNonBootstrapNativeTool` reached its existing
+30-second context deadline at the first ACP `noop` prompt, before the explicit hosted
+MCP client/tool call. The isolated local reproduction used the same canonical case and
+`56176f829` production through a Go overlay inherited by child builds. It passed:
+66.206 s command, 32.027 s package, 25.11 s subtest including harness construction.
+Recorded ACP startup was 451 ms and hosted binding 9 ms. This does not establish a
+cause or a product fix for the CI timeout; production, assertions and timeouts remain intact.
+
+The failed job also exposed a concrete diagnostic defect: Go 1.27 removed its artifact
+directory when the child test process exited without `-artifacts`, and the uploader's
+pattern did not select the reported location. The canonical integration runner now
+retains artifacts in an absolute temporary `compozy-e2e-artifacts-*` directory and the
+runtime uploader selects its `_artifacts` tree. The nightly uploader's broader existing
+prefix remains compatible. No new tracked test or runtime behavior was added.
+
+A temporary probe in the existing Mage suite called the real runner and canonical
+manifest fixture. Before: zero retained manifests, expected failure in 11.812 s.
+After: one complete manifest and daemon log survived the child process, pass in
+6.136 s. Scoped canonical Mage lint passed with zero issues, including formatter/source
+checks for all changed Go files. See [daemon/runtime](daemon-runtime.md) for commands,
+receipts, caller/path checks and the remaining uncertainty. The next head must pass
+fresh CI; an isolated local pass does not replace that acceptance.
 
 ## Browser and CI delivery
 

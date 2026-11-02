@@ -137,6 +137,12 @@ func TestIntegration() error {
 }
 
 func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[string]string) error {
+	artifactDir, err := os.MkdirTemp("", "compozy-e2e-artifacts-")
+	if err != nil {
+		return fmt.Errorf("create e2e artifact directory: %w", err)
+	}
+	// Keep evidence after the test process exits; CI uploads this existing E2E prefix.
+	fmt.Printf("E2E artifacts: %s\n", artifactDir)
 	args := []string{
 		"--format",
 		"pkgname",
@@ -148,6 +154,9 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		"-timeout",
 		goIntegrationTestTimeout,
 		"-count=1",
+		"-artifacts",
+		"-outputdir",
+		artifactDir,
 		"-tags",
 		"integration",
 	}

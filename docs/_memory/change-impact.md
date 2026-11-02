@@ -26,6 +26,8 @@ unchanged public and persisted shapes need no compatibility shim or migration.
   or clear another ownership generation. Positive read evidence, including unchanged-file
   evidence, also fences older reads; validation errors do not. Failed workspace resolution
   is not cached across later display rows, preserving transient recovery while batching successes.
+  A sequence-only collision on a credential mismatch triggers fresh evidence outside the mutex;
+  application order alone does not establish observation order. Error classification is unchanged.
   Attachment checks retain authoritative retention,
   pins, scope and content verification. Package availability reuse is bounded and keyed by
   digest plus held-file identity/change evidence; installation always rehashes.

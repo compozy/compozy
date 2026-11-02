@@ -25,18 +25,21 @@ type credentialReadCheck struct {
 // Only local evidence is probed; collection and Keychain reads stay off the read path.
 func (s *Manager) fenceRead(ctx context.Context, profile string) {
 	for _, check := range s.credentialReadChecks(profile) {
-		if ctx.Err() != nil {
-			return
-		}
-		paths := credentialEvidencePaths(check.target)
-		if len(paths) == 0 {
-			continue
-		}
+		s.fenceReadCheck(ctx, profile, check)
+	}
+}
+
+func (s *Manager) fenceReadCheck(ctx context.Context, profile string, check credentialReadCheck) {
+	paths := credentialEvidencePaths(check.target)
+	if len(paths) == 0 {
+		return
+	}
+	for ctx.Err() == nil {
 		files, cacheable := credentialFileStats(paths)
 		if cacheable && check.fence != nil && check.fence.identity == check.identity &&
 			sameCredentialFiles(check.fence.files, files) {
-			s.applyCredentialReadCheck(profile, check, check.fence, false, nil)
-			continue
+			s.applyCredentialReadCheck(profile, &check, check.fence, false, nil)
+			return
 		}
 		mismatch, err := validatePublication(
 			ctx, s.options.Collectors[check.target.ProviderID], check.target, check.identity,
@@ -45,7 +48,9 @@ func (s *Manager) fenceRead(ctx context.Context, profile string) {
 		if cacheable && err == nil && !mismatch {
 			fence = &credentialReadFence{identity: check.identity, files: files}
 		}
-		s.applyCredentialReadCheck(profile, check, fence, mismatch, err)
+		if !s.applyCredentialReadCheck(profile, &check, fence, mismatch, err) {
+			return
+		}
 	}
 }
 
@@ -70,15 +75,23 @@ func (s *Manager) credentialReadChecks(profile string) []credentialReadCheck {
 }
 
 func (s *Manager) applyCredentialReadCheck(
-	profile string, check credentialReadCheck, fence *credentialReadFence, mismatch bool, validationErr error,
-) {
+	profile string, check *credentialReadCheck, fence *credentialReadFence, mismatch bool, validationErr error,
+) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := check.target.ProviderID
 	state := check.state
 	if !s.currentLocked(profile, id, state) || !state.hasIdentity ||
-		state.epoch != check.epoch || state.identity != check.identity || state.validationSeq != check.validationSeq {
-		return
+		state.epoch != check.epoch || state.identity != check.identity {
+		return false
+	}
+	if state.validationSeq != check.validationSeq {
+		if mismatch {
+			// Apply order alone cannot establish which credential observation was newer.
+			check.validationSeq = state.validationSeq
+			check.fence = state.readFence
+		}
+		return mismatch
 	}
 	if !mismatch {
 		if validationErr == nil {
@@ -86,7 +99,7 @@ func (s *Manager) applyCredentialReadCheck(
 			state.validationSeq++
 			state.readFence = fence
 		}
-		return
+		return false
 	}
 	state.epoch++
 	state.snapshot = initialSnapshot(state.target, s.options.Collectors[id])
@@ -97,6 +110,7 @@ func (s *Manager) applyCredentialReadCheck(
 	p := s.profiles[profile]
 	s.changedLocked(p)
 	s.admitFlightsLocked(p, []string{id}, RefreshRequest{ProfileID: profile, Intent: IntentBackground})
+	return false
 }
 
 func credentialFileStats(paths []string) ([]os.FileInfo, bool) {

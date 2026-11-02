@@ -73,3 +73,26 @@ No actionable introduced defect was found in these paths:
 ## Limits
 
 This is a targeted working-tree review with one independently executed adversarial repro, not an exhaustive concurrency proof. No full suite, gate, daemon, browser, production credential source, Keychain, real provider endpoint, or production state was used. Frontend conclusions combine source/test review with the owner's focused receipt; native browser scheduling and reconnect over a real network were not independently exercised. Final delivery gates and broader runtime QA remain with the root. No additional production/test edits were made by this reviewer.
+
+## Reverse credential observation review — 2026-11-02
+
+An independent follow-up reviewed the correction for [Greptile's reverse-order finding](https://github.com/compozy/compozy/pull/1141#discussion_r4439116140).
+Frozen source SHA-256: `read_fence.go` = `5f3afd19903208f4e4eece9baf92e1a4f206c55cec1803e155b32a2d7403f7e0`;
+`service_test.go` = `fc53936ae45337e5ff1984b4b2a17be168273697208d74426ac6ac26b688c576`.
+Both hashes were checked by the reviewer.
+
+The review covered both read orderings, collection/read and cached-read ABA, persistent
+owner B, repeated sequence collisions, cancellation, same-owner errors and state/epoch/identity
+replacement. It found no further concrete defect in the frozen diff. Revalidation is limited
+to mismatches whose sequence changed; credential I/O remains outside the manager mutex.
+Moving the fixture's recollection gate to `Collect` permits legitimate identity rereads while
+still exposing any incorrectly cleared snapshot before collection can repair it.
+
+An intermediate proposal to promote `(false, error)` into a mismatch was rejected before
+publication. Production Codex identity loading can return the same account with `AuthMissing`,
+and same-owner publication errors retain last-good measurements. The final code preserves
+the validation pair; the owner added a failing negative control for the rejected promotion.
+
+Evidence boundary: static review plus inspection of the owner's canonical race, four
+negative controls, scoped lint and paired benchmark receipts in [usage/dashboard](usage-dashboard.md).
+The follow-up reviewer did not execute tests, benchmarks or CI and made no source edits.

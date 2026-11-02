@@ -137,3 +137,19 @@ failed validation must not suppress that mismatch. The existing `TestUsageServic
 table covers these boundaries with real temporary files and loopback HTTP; both
 positive races failed before the correction and the final focused race suite passes.
 This adds no claim about live provider credentials or the broader scenario verdict.
+
+2026-11-02 reverse-order review follow-up: pause an owner-A credential probe, write
+owner B, and pause a second probe after it reads B. Let A apply first, then release
+B. The second `Envelope` must obtain fresh evidence after the sequence collision
+and discard A's quota while B remains current. Repeat across three collisions;
+cancel during a recheck and verify that no further credential probe starts. A
+recheck that observes the same owner with a validation error must retain the
+last-good quota without inventing an ownership mismatch. Existing A-to-B-to-A,
+cached-read, failed-read and unrelated-profile checks remain required.
+
+Targeted evidence: the reverse-order case failed before the production correction;
+the canonical `TestUsageService` race suite and package lint pass, with behavioral
+negative controls for rereading, the sequence fence, cancellation and error handling.
+See the reverse observation-order section of
+`../reports/2026-11-01-performance/usage-dashboard.md`. This uses temporary synthetic
+credentials and loopback HTTP; it does not change the broader scenario verdict.

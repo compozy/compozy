@@ -70,6 +70,124 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 
 func TestUsageService(t *testing.T) {
 	for _, test := range []struct {
+		name         string
+		collisions   int
+		cancel       bool
+		recheckError bool
+	}{
+		{name: "Should discard old-owner quota after a later read observes a changed owner", collisions: 1},
+		{name: "Should resolve repeated read sequence collisions without hiding a changed owner", collisions: 3},
+		{name: "Should stop credential revalidation when the reader is canceled", collisions: 2, cancel: true},
+		{name: "Should preserve recheck validation errors without inventing a mismatch", collisions: 1, recheckError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := credentialFenceFixture(t)
+			service, collector, path := fixture.service, fixture.collector, fixture.path
+			original, err := os.ReadFile(path)
+			requireNoError(t, err)
+			changed := bytes.ReplaceAll(original, []byte("fixture-owner"), []byte("next-owner"))
+			writes := 0
+			writeCredential := func(data []byte) {
+				t.Helper()
+				writes++
+				requireNoError(t, os.WriteFile(path, data, 0o600))
+				stamp := service.options.Clock.Now().Add(time.Duration(writes) * time.Second)
+				requireNoError(t, os.Chtimes(path, stamp, stamp))
+			}
+			collectGate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+			collector.collectGate.Store(collectGate)
+			t.Cleanup(func() { close(collectGate.release) })
+			type pendingRead struct {
+				done     chan struct{}
+				release  func()
+				envelope Envelope
+				err      error
+			}
+			waitForProbe := func(gate *credentialProbeGate) {
+				t.Helper()
+				select {
+				case <-gate.entered:
+				case <-time.After(5 * time.Second):
+					t.Fatal("credential probe did not start")
+				}
+			}
+			startRead := func(ctx context.Context) *pendingRead {
+				t.Helper()
+				gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+				read := &pendingRead{
+					done: make(chan struct{}), release: sync.OnceFunc(func() { close(gate.release) }),
+				}
+				collector.gate.Store(gate)
+				go func() {
+					defer close(read.done)
+					read.envelope, read.err = service.Envelope(ctx, "personal")
+				}()
+				t.Cleanup(func() { read.release(); <-read.done })
+				waitForProbe(gate)
+				return read
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			matching := startRead(t.Context())
+			writeCredential(changed)
+			mismatching := startRead(ctx)
+			releaseMismatch := mismatching.release
+			for collision := range test.collisions {
+				matching.release()
+				<-matching.done
+				requireNoError(t, matching.err)
+				requireEqual(t, StatusOK, matching.envelope.Targets[0].Status)
+				if collision+1 == test.collisions {
+					break
+				}
+				writeCredential(original)
+				matching = startRead(t.Context())
+				writeCredential(changed)
+				nextProbe := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+				releaseNext := sync.OnceFunc(func() { close(nextProbe.release) })
+				t.Cleanup(releaseNext)
+				collector.gate.Store(nextProbe)
+				releaseMismatch()
+				waitForProbe(nextProbe)
+				releaseMismatch = releaseNext
+			}
+			switch {
+			case test.recheckError:
+				writeCredential(original)
+				failedRead := &credentialProbeGate{
+					entered: make(chan struct{}), release: make(chan struct{}),
+					err: NewUsageError(ErrorCodeProviderUnavailable, "Codex"),
+				}
+				close(failedRead.release)
+				collector.gate.Store(failedRead)
+				calls := collector.calls.Load()
+				releaseMismatch()
+				<-mismatching.done
+				requireNoError(t, mismatching.err)
+				requireEqual(t, StatusOK, mismatching.envelope.Targets[0].Status)
+				requireEqual(t, len(matching.envelope.Targets[0].Windows), len(mismatching.envelope.Targets[0].Windows))
+				requireEqual(t, calls+1, collector.calls.Load())
+			case test.cancel:
+				calls := collector.calls.Load()
+				cancel()
+				select {
+				case <-mismatching.done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("canceled credential revalidation did not stop")
+				}
+				requireEqual(t, calls, collector.calls.Load())
+				requireEqual(t, StatusOK, mismatching.envelope.Targets[0].Status)
+			default:
+				releaseMismatch()
+				<-mismatching.done
+				requireNoError(t, mismatching.err)
+				requireEqual(t, StatusRefreshing, mismatching.envelope.Targets[0].Status)
+				requireEqual(t, 0, len(mismatching.envelope.Targets[0].Windows))
+			}
+		})
+	}
+	for _, test := range []struct {
 		name   string
 		action string
 	}{
@@ -203,7 +321,7 @@ func TestUsageService(t *testing.T) {
 			requireEqual(t, StatusOK, latest.Targets[0].Status)
 			// Hold any accidental recollection so it cannot hide a stale read clearing the new snapshot.
 			recollect := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
-			collector.gate.Store(recollect)
+			collector.collectGate.Store(recollect)
 			t.Cleanup(func() { close(recollect.release) })
 			release()
 			<-ownerDone
@@ -1737,7 +1855,9 @@ func TestUsagePartialSnapshots(t *testing.T) {
 // controlledCredentialProbe gates one completed local credential read to expose lock ownership.
 type controlledCredentialProbe struct {
 	Collector
-	gate atomic.Pointer[credentialProbeGate]
+	gate        atomic.Pointer[credentialProbeGate]
+	collectGate atomic.Pointer[credentialProbeGate]
+	calls       atomic.Int32
 }
 
 type credentialProbeGate struct {
@@ -1749,6 +1869,7 @@ type credentialProbeGate struct {
 func (c *controlledCredentialProbe) Identity(
 	ctx context.Context, target Target, intent Intent,
 ) (CredentialIdentity, error) {
+	c.calls.Add(1)
 	identity, err := c.Collector.Identity(ctx, target, intent)
 	if gate := c.gate.Swap(nil); gate != nil {
 		close(gate.entered)
@@ -1762,6 +1883,20 @@ func (c *controlledCredentialProbe) Identity(
 		}
 	}
 	return identity, err
+}
+
+func (c *controlledCredentialProbe) Collect(
+	ctx context.Context, target Target, intent Intent, identity CredentialIdentity,
+) (Snapshot, error) {
+	if gate := c.collectGate.Swap(nil); gate != nil {
+		close(gate.entered)
+		select {
+		case <-gate.release:
+		case <-ctx.Done():
+			return Snapshot{}, ctx.Err()
+		}
+	}
+	return c.Collector.Collect(ctx, target, intent, identity)
 }
 
 type credentialFenceTestFixture struct {

@@ -301,6 +301,9 @@ Successful credential reads, including verified cached evidence, now fence older
 failed validation does not advance that fence. Active cached Loop reads can restart immediately;
 initial/inactive/static reads retain their trailing obligation and may still keep a round open
 until settlement. No additional speedup is inferred from the credential follow-up timings.
+The reverse credential ordering also requires fresh evidence after a sequence-only mismatch
+collision: successful application order alone does not establish which observation was newer.
+This recheck preserves the existing error classification and stops new attempts on cancellation.
 
 ## Verification boundaries
 

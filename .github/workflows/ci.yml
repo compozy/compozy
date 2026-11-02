@@ -743,7 +743,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: e2e-runtime-artifacts
-          path: /tmp/compozy-e2e-*
+          path: /tmp/compozy-e2e-artifacts-*/_artifacts
           if-no-files-found: ignore
           retention-days: 7
 
