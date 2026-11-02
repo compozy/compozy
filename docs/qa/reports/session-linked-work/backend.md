@@ -23,7 +23,7 @@ Mutation body: `{repository?: string, branch: string, pr_number?: number}`. An e
 
 Item fields: repository, branch, optional pr_number, worktree_id, worktree_name, worktree_removed, provenance, runs_here, optional source_session_id and source_session_title, pull_request and pull_request_lookup. PR payload gains optional title. Lookup retains its existing error/cause/staleness semantics. Worktree IDs and names survive removal.
 
-Session catalog payload gains `linked_work: {total, needs_you, lead?}`. The full list uses the links resource. Existing branch, pull_request and pull_request_lookup fields retain their original own-branch meanings.
+Session catalog payload gains `linked_work: {total, pull_requests, needs_you, lead?}`. The PR count includes observed PRs and retained explicit PR identities even when lookup fails. The full list uses the links resource. Existing branch, pull_request and pull_request_lookup fields retain their original own-branch meanings.
 
 Native tools: `compozy__session_link`, `compozy__session_unlink`; mutating risk. Inputs: required branch, optional repository and positive pr_number; additional properties are refused. There is no session override. Scope supplies session/workspace identity. Agent link provenance is `agent`; HTTP/CLI is `user`; native worktree creation is `created`. An agent may unlink its own direct links.
 
@@ -48,9 +48,9 @@ Forge capability: optional `supports_pr_discovery`; optional JSON-RPC methods `f
 
 ## Board behavior
 
-Needs you wins first; pending queued or dispatching input means Working; existing Working and Waiting badge behavior wins over all PRs. Own-branch PR behavior is preserved, including Unknown with an own open PR. A direct linked open PR changes Done to In review only for Idle, Done or Stopped badges. Child-only work never contributes DirectOpen. Closed/unlinked direct work no longer contributes to that linked-PR predicate.
+Needs you, Working and Waiting retain their badge precedence. Queued or dispatching input changes Idle/Done to Working only when direct work has an open PR, including the own-branch PR. Queue membership does not affect Stopped, Unknown, or sessions without open direct work. Own-branch PR behavior is preserved, including Unknown with an own open PR. A direct linked open PR changes Done to In review only for Idle, Done or Stopped badges. Child-only work never contributes DirectOpen. Closed/unlinked direct work no longer contributes to that linked-PR predicate.
 
-Active rows use BadgeForInfo and BoardColumnWithLinkedWork. Durable SQL independently derives the badge from durable fields and joins current repository cached facts plus direct unlinked=false links. It checks queue membership before the linked PR predicate. The new SQL test computes BadgeForInfo independently from runtime inputs rather than supplying SQL with a precomputed badge. The canonical board suite continues owning filtered counts/facets/pagination. Waiting, health and supervision remain runtime-only inputs routed through the active-row path; this change does not invent durable versions of them.
+Active rows use BadgeForInfo and BoardColumnWithLinkedWork. Durable SQL independently derives the badge from durable fields and joins current repository cached facts plus direct unlinked=false links. Its queue predicate requires an Idle/Done badge and either an open direct link or open own-branch PR. The new SQL test computes BadgeForInfo independently from runtime inputs rather than supplying SQL with a precomputed badge. The canonical board suite continues owning filtered counts/facets/pagination. Waiting, health and supervision remain runtime-only inputs routed through the active-row path; this change does not invent durable versions of them.
 
 ## Verification
 
@@ -113,4 +113,62 @@ Final TypeScript delivery check passed from the repository root:
 bunx turbo run typecheck --filter=@compozy/extension-sdk --filter=@compozy/client
 ```
 
-All three tasks succeeded (including the prerequisite codegen-check). The final standalone `make codegen-check` also exited 0. Final backend feature head: `5307d78ec2d9a669be0b2dccefdd6e36ab0c66ed`; the following commit only updates this report. The only remaining working-tree modification is the inherited `web/proto.config.ts`.
+All three tasks succeeded (including the prerequisite codegen-check). The final standalone `make codegen-check` also exited 0. Historical backend feature head: `5307d78ec2d9a669be0b2dccefdd6e36ab0c66ed`. The correction series below supersedes the board, summary, catalog search and app-access claims above. A concurrent frontend agent owns working-tree changes under web/.
+
+## Root-review corrections
+
+Owner: `docs/prompts/20261102-2020_backend-fixes.md`. All six fixes were reproduced before the corresponding production change.
+
+- `e0ad20297`: board regression. `TestBoardColumnWithLinkedWork` failed for queued Idle/Done without open work, Stopped, Unknown and Waiting. The SQLite `TestSessionCatalogBoard/Should derive linked board columns from runtime inputs` failed for active-idle, stopped and unknown sessions. Both suites now cross direct-link open state, own-PR open state, queue state (including queued and dispatching in SQLite), and runtime badge/state. SQL independently derives its badge.
+- `5d9263efb`: summary correctness. `TestSessionLinkedWorkProjection/Should sort fresh decisions before ready work and unknown lookups` failed for Ready, stale/error lookups and the remaining ranks. Needs you now counts only fresh open PRs with failing checks, requested changes or conflicts. Order: needs-you, fresh ready non-draft PRs, other open/no-PR work, unknown lookups, merged/closed. Lead follows the same order. The old identity-fence assertion now locates the unknown item after fresh open work; its identity checks remain intact. The cache fixture now explicitly reports successful lookups.
+- `46c8c7601`: bounded reads. `TestSessionLinkedWorkProjection/Should resolve repositories once per profile and workspace` observed four repository calls for three distinct pairs. Resolution is memoized by both profile and workspace, including empty results. Defaults, branch snapshots and PR cache still each receive one batch read.
+- `c2df7bddb`: PR count. `TestSessionLinkedWorkSummary` failed because `pull_requests` was absent from the public summary. Domain projection, payload mapping, OpenAPI and generated Go/TypeScript clients now expose the integer. Mixed-list projection verifies eight PR items among ten items.
+- `5c163bbd8`: catalog search. `TestManagerBoardCatalog/Should search direct linked identities before paging active and durable rows` returned total zero for `#42`. Active filtering and SQL now match linked branch or PR number, with or without #, before count/page cuts. The real-SQLite test covers default and title_agent search, one-item pages, exact total, cursor continuation, workspace scope and tombstones, with both durable-only and active-overlaid rows.
+- `ee7633eda`: app access. The canonical `TestAppAccessPolicy` failed on both authored and rendered decisions for add, remove and candidate search. These now deny app tokens, like worktree bind; listing linked work stays allowed, like session reads. OpenAPI and SDK samples were regenerated.
+
+Invariant ownership: board decisions belong to the existing Go badge and durable catalog board suites; list sorting/counts and batch cost belong to the session projection suite; the additive summary field belongs to the API schema suite; catalog matching/count/page behavior belongs to the existing manager catalog suite using real SQLite; token authority belongs to the canonical API app-access policy suite.
+
+No schema, CLI verb, native ID, forge method, hook or config change is introduced by these corrections. Existing migrations were left untouched. No web build, gate, full-suite run, E2E, daemon startup, push or PR was attempted. Commits use explicit owned paths. Hooks were disabled because lint-staged can stash concurrent work, which the task explicitly forbids; gofmt and focused verification were run directly.
+
+The broader focused race run exposed an existing assertion that active catalog reads use one PR batch (`TestManagerBoardCatalog/Should overlay active PR columns and direct children before filtering and counting`): it saw two. Commit `cae99b502` removes the duplicate own-branch projection read when linked-work storage is configured. The shared projection retains the legacy own-branch state independently of link tombstones and keeps the fallback for readers without linked-work support. The existing assertion was preserved and passed on rerun.
+
+Exact correction verification commands:
+
+```sh
+go test ./internal/session ./internal/store/globaldb -run 'TestBoardColumnWithLinkedWork|TestSessionCatalogBoard/Should_derive_linked'
+go test ./internal/session -run 'TestSessionLinkedWorkProjection'
+go test ./internal/session -run 'TestSessionLinkedWorkProjection/Should_resolve'
+go test ./internal/api/spec -run 'TestSessionLinkedWorkSummary'
+go test ./internal/api/spec -run 'TestAppAccessPolicy'
+go test ./internal/api/spec ./internal/session -run 'TestSessionLinkedWorkSummary|TestSessionLinkedWorkProjection'
+go test ./internal/session -run 'TestManagerBoardCatalog/Should_search_direct'
+go test ./internal/api/spec -run 'TestAppAccessPolicy|TestSessionLinkedWorkSummary'
+make codegen
+```
+
+These are the red/green reproduction commands described above; each owning test subsequently passed after its production fix. `make codegen` ran twice, both exit 0: once for the summary field and once for app policy.
+
+```sh
+go build ./internal/session ./internal/store/globaldb ./internal/api/contract ./internal/api/core ./internal/api/spec
+go vet ./internal/session ./internal/store/globaldb ./internal/api/contract ./internal/api/core ./internal/api/spec
+CGO_ENABLED=1 go test -race ./internal/session ./internal/store/globaldb ./internal/api/core ./internal/api/spec -run 'TestSessionLinkedWorkProjection|TestSessionPullRequestProjection|TestBoardColumn|TestSessionCatalogBoard|TestManagerBoardCatalog|TestPageSessionsVisibilityExclusion|TestPageSessionsStableKeyset|TestAppAccessPolicy|TestSessionLinkedWorkSummary|TestSessionPayloadOptionalRelations'
+```
+
+Build and vet passed. This race command passed globaldb (29.319s), core (3.834s), and spec (12.631s), and failed session only on the duplicate-batch assertion above. The chained codegen-check was consequently skipped in that attempt. After the production repair:
+
+```sh
+CGO_ENABLED=1 go test -race ./internal/session -run 'TestSessionLinkedWorkProjection|TestSessionPullRequestProjection|TestBoardColumn|TestManagerBoardCatalog'
+go build ./internal/session ./internal/store/globaldb ./internal/api/contract ./internal/api/core ./internal/api/spec
+go vet ./internal/session ./internal/store/globaldb ./internal/api/contract ./internal/api/core ./internal/api/spec
+make codegen-check
+```
+
+The repeated session race subset passed (8.330s); build and vet passed again. Final codegen-check outcome is recorded below.
+
+Test-convention checker: run `python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py <file>` separately for badge_test.go, query_test.go, global_db_session_index_test.go, spec_test.go and app_access_test.go under their paths above. Badge and app-access pass. Query reports nine pre-existing direct-assertion tests; globaldb reports five; spec reports the pre-existing `TestStopWhenSpecSchemaShouldMatchTheDualWireFormat`. None names an added case. An initial attempt supplied multiple file arguments, which the checker rejects; it was immediately rerun once per file. No unrelated suite reshaping was performed.
+
+Final `make codegen-check` exited 0. The targeted rerun chain (session race tests, build, vet and codegen-check) exited 0 as confirmed by the daemon-owned terminal result. `git diff --check` passed. The matching-layer case `TestSessionMatchesListQuery/Should match direct work identities and exclude child rollups` additionally verifies that child branch/PR identities cannot match the parent.
+
+Remaining acceptance scope: live forge, linked-work transport journey and UI dogfood remain unrun here. No migration suite was repeated because this correction series changes no schema or migration bytes. The original slice's migration evidence above is historical. Concurrent frontend files remain outside these commits.
+
+Commit `test: exclude child work from parent catalog search` adds the matching-layer regression. Exact command `CGO_ENABLED=1 go test -race ./internal/session -run 'TestSessionMatchesListQuery'` passed (3.395s, exit 0). The repeated test-shape check retained the same nine pre-existing query-suite findings. Documentation formatter invocation exited 0 but the report path is ignored by formatter configuration; `git diff --check` remains the whitespace evidence.

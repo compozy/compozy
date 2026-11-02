@@ -77,4 +77,16 @@ Session linked work extension (backend slice; live walk pending):
 - Link a branch or PR with `session link <id> <branch> [--pr-number N] -o json`; read it through HTTP and UDS. Reject another repository with `session_link_repository_mismatch`.
 - Remove the worktree: linked work retains its name, branch and PR identity and sets `worktree_removed`.
 - Link the same PR to parent and child: parent shows one item, direct wins. Archived children still contribute; child-only work never changes the parent's column.
-- Keep an unrelated open PR linked while running several turns. Working and Needs you retain precedence; queued and dispatching inputs keep the session in Working. An unknown session moves only under the legacy own-branch rule.
+- Keep an unrelated open PR linked while running several turns. Working and Needs you retain precedence; queued and dispatching inputs keep Idle/Done sessions in Working only with open direct work (including their own branch PR). Stopped ignores queued input and goes to In review with open direct work; sessions without open direct work retain their existing column. An unknown session moves only under the legacy own-branch rule.
+
+Root-review regression checks (backend automated evidence; live UI walk remains pending):
+
+- Mixed work lists count only fresh failing checks, requested changes or conflicts as Needs you. Ready comes next, then other open/branch items, unknown lookups and terminal PRs. Stale facts never trigger a decision; the lead follows this order.
+- Compare summary `total` and `pull_requests` with the full deduplicated list, including a known PR whose lookup failed.
+- Search a linked branch, PR number and #number with a one-item catalog page. Active and durable sessions return the same exact total and cursor results. Unlinked and child-only identities do not make a parent match; another workspace/profile stays excluded.
+- An app token may read linked work under existing session-read scope, but add, remove and candidate search return `app_token_route_forbidden`.
+
+Owning automated checks: `TestBoardColumnWithLinkedWork`, `TestSessionCatalogBoard`,
+`TestSessionLinkedWorkProjection`, `TestManagerBoardCatalog`,
+`TestSessionLinkedWorkSummary`, and `TestAppAccessPolicy`. These exercise backend behavior,
+including real SQLite; they do not claim the live UI or provider walk passed.
