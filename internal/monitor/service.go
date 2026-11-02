@@ -54,6 +54,8 @@ type Service struct {
 	// quiesced closes before a shutdown stops sessions, and ends every session watch without an outcome.
 	quiesced    chan struct{}
 	quiesceOnce sync.Once
+	// watchGate holds session watches during boot; it is closed by default.
+	watchGate <-chan struct{}
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -119,6 +121,7 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 		pending:     make(map[string]*entry),
 		retryKick:   make(chan struct{}, 1),
 		quiesced:    make(chan struct{}),
+		watchGate:   openWatchGate(),
 	}
 	for _, opt := range opts {
 		opt(service)
@@ -133,6 +136,12 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 		service.wg.Go(service.dispatchNotices)
 	}
 	return service, nil
+}
+
+func openWatchGate() <-chan struct{} {
+	gate := make(chan struct{})
+	close(gate)
+	return gate
 }
 
 // Create validates spec, starts watching, and returns the active monitor.

@@ -1866,6 +1866,7 @@ type fakeTargets struct {
 	states  map[string]string
 	changes chan struct{}
 	err     error
+	reads   int
 }
 
 func newFakeTargets(states map[string]string) *fakeTargets {
@@ -1892,9 +1893,16 @@ func (f *fakeTargets) closeChanges() {
 	f.changes = nil
 }
 
+func (f *fakeTargets) readCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reads
+}
+
 func (f *fakeTargets) ReadTargets(_ context.Context, spec Spec) []TargetStatus {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.reads++
 	statuses := make([]TargetStatus, 0, len(spec.Targets))
 	for _, id := range spec.Targets {
 		statuses = append(statuses, TargetStatus{SessionID: id, State: f.states[id]})
@@ -1930,6 +1938,7 @@ func newTargetService(t *testing.T, targets SessionTargets, waker Waker, store S
 
 func wokenTargets(t *testing.T, waker *recordingWaker, want int) []Notification {
 	t.Helper()
+	time.Sleep(targetReadGap + time.Millisecond)
 	synctest.Wait()
 	got := waker.notifications()
 	if len(got) != want {
@@ -2084,6 +2093,117 @@ func TestServiceSessionMonitorConditions(t *testing.T) {
 		})
 	})
 
+	t.Run("Should settle a timeout from a final read of the targets", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			targets.changes, targets.err = nil, errors.New("catalog unavailable")
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			spec := sessionSpec("sess-o", "sess-a")
+			spec.Timeout = 10 * time.Second
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(5 * time.Second)
+			targets.set("sess-a", TargetStateIdle)
+			time.Sleep(6 * time.Second)
+			got := wokenTargets(t, waker, 1)
+			if got[0].Outcome.Reason != ReasonConditionMet || !got[0].Outcome.Targets[0].Matched {
+				t.Fatalf("outcome = %+v, want the condition reported as met", got[0].Outcome)
+			}
+		})
+	})
+
+	t.Run("Should bound reads while a busy target signals changes", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			service := newTargetService(t, targets, &recordingWaker{}, nil)
+			if _, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			for range 100 {
+				targets.set("sess-a", "running")
+				time.Sleep(10 * time.Millisecond)
+				synctest.Wait()
+			}
+			if got := targets.readCount(); got > 3 {
+				t.Fatalf("reads = %d over one second of changes, want at most 3", got)
+			}
+		})
+	})
+
+	t.Run("Should count an interrupted target for all, and for any only when stopped is selected", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			until  string
+			states []string
+			want   bool
+		}{
+			{name: "all", until: UntilAll, states: []string{TargetStateIdle}, want: true},
+			{name: "any with failed only", until: UntilAny, states: []string{TargetStateFailed}, want: false},
+			{name: "any with stopped", until: UntilAny, states: []string{TargetStateStopped}, want: true},
+		} {
+			t.Run("Should evaluate "+tc.name, func(t *testing.T) {
+				spec := Spec{Until: tc.until, States: tc.states, Targets: []string{"sess-a"}}
+				_, held := evaluateTargets(spec, []TargetStatus{{SessionID: "sess-a", State: TargetStateInterrupted}})
+				if held != tc.want {
+					t.Fatalf("held = %v, want %v", held, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should hold watches until the boot gate opens", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": TargetStateIdle})
+			waker := &recordingWaker{}
+			gate := make(chan struct{})
+			service, err := NewService(t.Context(), nil, waker, WithSessionTargets(targets), WithSessionWatchGate(gate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+			if _, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a")); err != nil {
+				t.Fatal(err)
+			}
+			wokenTargets(t, waker, 0)
+			if got := targets.readCount(); got != 0 {
+				t.Fatalf("reads = %d before the gate opened, want none", got)
+			}
+			close(gate)
+			wokenTargets(t, waker, 1)
+		})
+	})
+
+	t.Run("Should never wake after cancel and hold a per-session slot", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			created, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Cancel("sess-o", created.ID); err != nil {
+				t.Fatal(err)
+			}
+			targets.set("sess-a", TargetStateIdle)
+			wokenTargets(t, waker, 0)
+			targets.set("sess-a", "running")
+			for index := range MaxActivePerSession {
+				spec := sessionSpec("sess-o", "sess-a")
+				spec.Description = fmt.Sprintf("watch %d", index)
+				if _, err := service.Create(t.Context(), spec); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a")); !errors.Is(err, ErrLimit) {
+				t.Fatalf("Create() error = %v, want ErrLimit", err)
+			}
+		})
+	})
+
 	t.Run("Should reuse an identical request whatever its target order", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			targets := newFakeTargets(map[string]string{"sess-a": "running", "sess-b": "running"})
@@ -2216,6 +2336,34 @@ func TestServiceSessionMonitorsAcrossRestart(t *testing.T) {
 			got := wokenTargets(t, waker, 1)
 			if state := got[0].Outcome.Targets; len(state) != 1 || state[0].State != TargetStateIdle {
 				t.Fatalf("targets = %+v, want the stored idle state", state)
+			}
+		})
+	})
+
+	t.Run("Should reuse a recovered monitor for an identical request", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			first := newTargetService(t, targets, waker, store)
+			created, err := first.Create(t.Context(), sessionSpec("sess-o", "sess-a"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first.SuspendSession("sess-o")
+			if err := first.Shutdown(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			second := newTargetService(t, targets, waker, store)
+			if err := second.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			again, err := second.Create(t.Context(), sessionSpec("sess-o", "sess-a"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !again.Reused || again.ID != created.ID {
+				t.Fatalf("again = %+v, want reuse of %s", again, created.ID)
 			}
 		})
 	})

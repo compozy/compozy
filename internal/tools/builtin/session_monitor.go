@@ -22,8 +22,8 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"compozy__terminal_open until it exits or its output matches a pattern; kind=timer fires once after "+
 			"delay_seconds; kind=session watches other same-workspace sessions in target_session_ids until any or "+
 			"all of them reach states (one wake with each session's state; failed, stopped, or deleted sessions "+
-			"always count). Register kind=session after the sessions have accepted their prompts: an idle target "+
-			"already counts. Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
+			"always count). Sessions with queued input are still working. A target is read as it is now, and a "+
+			"condition that already holds fires at once. Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
 			"provider-internal background tasks, Monitor, and ScheduleWakeup — those cannot wake a CompozyOS session. "+
 			"After registering, keep working on steps that do not depend on it; end your turn only when every "+
 			"remaining step waits on a registered monitor or subagent. The wake arrives as a "+
@@ -110,8 +110,8 @@ const monitorCreateInputSchema = `{
 			"description":"Session monitors only: other same-workspace sessions to watch."},
 		"states":{"type":"array","minItems":1,"uniqueItems":true,
 			"items":{"type":"string","enum":["idle","waiting-for-input","waiting-for-auth","needs-attention",
-				"hung","unhealthy","stopped","failed"]},
-			"description":"Session monitors only: states that satisfy a target. Omit for all but hung and unhealthy."}
+				"hung","stopped","failed"]},
+			"description":"Session monitors only: states that satisfy a target. Omit for all but hung."}
 	},
 	"additionalProperties":false
 }`

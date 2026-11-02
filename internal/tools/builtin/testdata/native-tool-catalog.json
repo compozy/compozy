@@ -1860,7 +1860,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "80c300b606a72b7c99231ddfdddc8142aaf6f4e5e475a14847e0d9e5311ea547",
+    "input_schema_digest": "5e48767f1560e08b82b48179cc71e3025cbad23578d90abfa00839fee825d23f",
     "output_schema_digest": "cc5077a0804ea77a3690d5f9ed6175497cd3bec7978bad6ee8b7738e2454d762"
   },
   {

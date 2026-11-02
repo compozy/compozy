@@ -292,14 +292,23 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 }
 
 type monitorTargetManagerStub struct {
-	infos  map[string]*session.Info
-	errs   map[string]error
-	events chan session.CatalogEvent
-	scope  session.CatalogScope
+	infos    map[string]*session.Info
+	errs     map[string]error
+	queues   map[string]int
+	queueErr error
+	events   chan session.CatalogEvent
+	scope    session.CatalogScope
 }
 
 func (stub *monitorTargetManagerStub) Status(_ context.Context, id string) (*session.Info, error) {
 	return stub.infos[id], stub.errs[id]
+}
+
+func (stub *monitorTargetManagerStub) InputQueueSummary(
+	_ context.Context,
+	id string,
+) (session.InputQueueSummary, error) {
+	return session.InputQueueSummary{PendingInputs: stub.queues[id]}, stub.queueErr
 }
 
 func (stub *monitorTargetManagerStub) SubscribeSessionCatalogEvents(
@@ -321,7 +330,10 @@ func TestMonitorSessionTargets(t *testing.T) {
 				"sess-idle": {ID: "sess-idle", Name: "Idle", State: session.StateActive},
 				"sess-busy": {ID: "sess-busy", State: session.StateStarting},
 				"sess-auth": {ID: "sess-auth", State: session.StateStopped, PendingPermission: true},
+				"sess-next": {ID: "sess-next", State: session.StateActive},
+				"sess-down": {ID: "sess-down", State: session.StateStopped, StopReason: store.StopShutdown},
 			},
+			queues: map[string]int{"sess-next": 1},
 			errs: map[string]error{
 				"sess-gone":  session.ErrSessionNotFound,
 				"sess-moved": store.ErrSessionSuperseded,
@@ -330,18 +342,43 @@ func TestMonitorSessionTargets(t *testing.T) {
 		}
 		targets := monitorSessionTargets{sessions: func() any { return stub }}
 		got := targets.ReadTargets(testutil.Context(t), monitorpkg.Spec{
-			Targets: []string{"sess-idle", "sess-busy", "sess-auth", "sess-gone", "sess-moved", "sess-flaky"},
+			Targets: []string{
+				"sess-idle",
+				"sess-busy",
+				"sess-auth",
+				"sess-next",
+				"sess-down",
+				"sess-gone",
+				"sess-moved",
+				"sess-flaky",
+			},
 		})
 		want := []monitorpkg.TargetStatus{
 			{SessionID: "sess-idle", Name: "Idle", State: monitorpkg.TargetStateIdle},
 			{SessionID: "sess-busy", State: string(session.BadgeRunning)},
 			{SessionID: "sess-auth", State: monitorpkg.TargetStateStopped},
+			{SessionID: "sess-next", State: string(session.BadgeRunning)},
+			{SessionID: "sess-down", State: monitorpkg.TargetStateInterrupted},
 			{SessionID: "sess-gone", State: monitorpkg.TargetStateGone},
 			{SessionID: "sess-moved", State: monitorpkg.TargetStateGone},
 			{SessionID: "sess-flaky", State: monitorpkg.TargetStateUnknown},
 		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("ReadTargets() = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("Should not report a settled state when the input queue cannot be read", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &monitorTargetManagerStub{
+			infos:    map[string]*session.Info{"sess-a": {ID: "sess-a", State: session.StateActive}},
+			queueErr: errors.New("database is busy"),
+		}
+		targets := monitorSessionTargets{sessions: func() any { return stub }}
+		got := targets.ReadTargets(testutil.Context(t), monitorpkg.Spec{Targets: []string{"sess-a"}})
+		if got[0].State != monitorpkg.TargetStateUnknown {
+			t.Fatalf("state = %q, want unknown", got[0].State)
 		}
 	})
 

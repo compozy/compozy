@@ -52,3 +52,9 @@ func WithObserver(observe func(ctx context.Context, sessionID string)) Option {
 func WithSessionTargets(targets SessionTargets) Option {
 	return func(s *Service) { s.targets = targets }
 }
+
+// WithSessionWatchGate holds session watches until gate closes. The daemon closes it once restarted
+// sessions are resumed and supervised, because a target read before that reports a false state.
+func WithSessionWatchGate(gate <-chan struct{}) Option {
+	return func(s *Service) { s.watchGate = gate }
+}

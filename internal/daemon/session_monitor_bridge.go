@@ -206,6 +206,7 @@ func (w *monitorTerminalWatcher) WatchTerminal(
 }
 
 func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpkg.Service, error) {
+	state.sessionWatchGate = make(chan struct{})
 	logger := state.logger
 	if logger == nil {
 		logger = slog.Default()
@@ -234,6 +235,7 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 		monitorpkg.WithLogger(logger), monitorpkg.WithObserver(publish),
 		monitorpkg.WithOwners(monitorSessionOwners{sessions: func() any { return state.sessions }}),
 		monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return state.sessions }}),
+		monitorpkg.WithSessionWatchGate(state.sessionWatchGate),
 	}
 	if persistence, ok := state.registry.(monitorpkg.Store); ok {
 		opts = append(opts, monitorpkg.WithStore(persistence))

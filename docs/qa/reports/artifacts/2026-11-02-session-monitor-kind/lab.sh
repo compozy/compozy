@@ -30,7 +30,8 @@ python3 - "$FX" <<'PY'
 import json,sys
 opts=[{"id":"model","name":"Model","current":"claude-sonnet-5-5","values":[{"value":"claude-sonnet-5-5","label":"Sonnet"},{"value":"sonnet","label":"Sonnet alias"}]}]
 t=[{"name":"hold","match":{"user_text_contains":"[hold]"},"steps":[{"kind":"driver_control","driver_control":{"action":"block_until_cancel"}}]},
-   {"name":"quick","match":{"user_text_contains":"[quick]"},"steps":[{"kind":"assistant","text":"quick done"}]}]
+   {"name":"quick","match":{"user_text_contains":"[quick]"},"steps":[{"kind":"assistant","text":"quick done"}]},
+   {"name":"own","match":{"user_text_contains":"[own]"},"steps":[{"kind":"native_tool_call","tool_id":"compozy__monitor_create","tool_call_id":"own","raw_input":{"kind":"timer","delay_seconds":600,"description":"own background work"}},{"kind":"assistant","text":"own monitor registered"}]}]
 json.dump({"version":2,"agents":[
  {"name":"mon-target","provider":"claude","permissions":"approve-all","prompt":"t","config_options":opts,"turns":t},
  {"name":"mon-owner","provider":"claude","permissions":"approve-all","prompt":"o","config_options":opts,"turns":[]}]},open(sys.argv[1],"w"))
@@ -40,10 +41,10 @@ for i in $(seq 1 60); do compozy workspace list -o json >/dev/null 2>&1 && break
 compozy workspace add "$LAB" -o json > "$EV/workspace-add.out" 2>&1
 cat "$EV/workspace-add.out" | head -3
 mk() { compozy session new --agent "$1" --workspace "$LAB" -o json | jq -r .id; }
-T1=$(mk mon-target); T2=$(mk mon-target); T3=$(mk mon-target); T4=$(mk mon-target); T5=$(mk mon-target); T6=$(mk mon-target)
+T1=$(mk mon-target); T2=$(mk mon-target); T3=$(mk mon-target); T4=$(mk mon-target); T5=$(mk mon-target); T6=$(mk mon-target); T7=$(mk mon-target); T8=$(mk mon-target)
 WS=$(compozy session status "$T1" -o json | jq -r '.workspace_id // .session.workspace_id')
 echo "targets $T1 $T2 $T3 $T4 $T5 $T6 ws=$WS"
-python3 - "$FX" "$T1" "$T2" "$T3" "$T4" "$T5" "$T6" <<'PY'
+python3 - "$FX" "$T1" "$T2" "$T3" "$T4" "$T5" "$T6" "$T7" "$T8" <<'PY'
 import json,sys
 fx=sys.argv[1]; T=sys.argv[2:]
 d=json.load(open(fx))
@@ -56,6 +57,8 @@ o["turns"]=[
  turn("[all]",{"kind":"session","description":"all workers","target_session_ids":[T[0],T[1]],"until":"all"}),
  turn("[any]",{"kind":"session","description":"first worker","target_session_ids":[T[2],T[3]],"until":"any"}),
  turn("[restart]",{"kind":"session","description":"across restart","target_session_ids":[T[4]]}),
+ turn("[queued]",{"kind":"session","description":"queued target","target_session_ids":[T[6]]}),
+ turn("[ownwork]",{"kind":"session","description":"target with own work","target_session_ids":[T[7]]}),
  turn("[tmo]",{"kind":"session","description":"times out","target_session_ids":[T[5]],"timeout_seconds":3}),
  {"name":"wake","match":{"user_text_contains":"COMPOZY MONITOR"},"steps":[{"kind":"assistant","text":"woken"}]}]
 json.dump(d,open(fx,"w"))
@@ -64,7 +67,7 @@ mons() { curl -s --unix-socket "$COMPOZY_UDS_PATH" "http://unix/api/workspaces/$
 badge() { compozy session status "$1" -o json | jq -r '.badge // .session.badge'; }
 hold() { compozy session prompt "$1" "[hold] work" >/dev/null 2>&1 & p=$!; (sleep 2; kill $p 2>/dev/null) & }
 until_status() { for i in $(seq 1 ${3:-40}); do mons "$1" | grep -q "\"status\":\"$2\"" && return 0; sleep 0.5; done; return 1; }
-wakes() { compozy session events "$1" -o json 2>/dev/null | grep -o 'COMPOZY MONITOR - NOT USER INPUT' | wc -l | tr -d ' '; }
+wakes() { compozy session events "$1" -o json 2>/dev/null | jq '[.[]|select(.type=="synthetic_reentry")]|length'; }
 for t in $T1 $T2 $T3 $T4 $T5 $T6; do hold $t; done
 sleep 3
 echo "--- badges: T1=$(badge $T1) T3=$(badge $T3)"
@@ -76,13 +79,25 @@ compozy session prompt-cancel "$T1" > /dev/null; sleep 3
 echo "A after T1 settled ($(badge $T1)): $(mons $A) badge=$(badge $A)"
 compozy session prompt-cancel "$T2" > /dev/null
 until_status "$A" fired; echo "A after T2 settled: $(mons $A)"; sleep 2
-echo "A wake text count: $(wakes $A); badge=$(badge $A)"
+echo "A wakes=$(wakes $A); badge=$(badge $A)"
 compozy session events "$A" -o json > "$EV/A-events.json" 2>&1
 
 echo "=== B any + operator stop"
 B=$(mk mon-owner); compozy session prompt "$B" "[any] watch" > /dev/null 2>&1
 sleep 1; compozy session stop "$T3" > /dev/null 2>&1
 until_status "$B" fired; echo "B: $(mons $B)"
+
+echo "=== E queued second turn"
+hold "$T7"; sleep 3
+compozy session prompt "$T7" "[hold] second turn" --queue >/dev/null 2>&1 & q=$!; (sleep 2; kill $q 2>/dev/null) &
+sleep 3
+E=$(mk mon-owner); compozy session prompt "$E" "[queued] watch" > /dev/null 2>&1
+sleep 1; echo "E before: $(mons $E) T7=$(badge $T7)"
+compozy session prompt-cancel "$T7" > /dev/null; sleep 4
+echo "E after first turn ended (must stay active): $(mons $E) T7=$(badge $T7)"
+compozy session prompt-cancel "$T7" > /dev/null
+until_status "$E" fired; echo "E after second turn: $(mons $E) wakes=$(wakes $E)"
+compozy session events "$E" -o json > "$EV/E-events.json" 2>&1
 
 echo "=== D timeout"
 D=$(mk mon-owner); compozy session prompt "$D" "[tmo] watch" > /dev/null 2>&1
@@ -91,6 +106,10 @@ until_status "$D" fired; echo "D: $(mons $D)"
 echo "=== C restart"
 C=$(mk mon-owner); compozy session prompt "$C" "[restart] watch" > /dev/null 2>&1
 sleep 1; echo "C before: $(mons $C) T5=$(badge $T5)"
+compozy session prompt "$T8" "[own] start background work" > /dev/null 2>&1
+sleep 1; echo "T8 before restart: $(badge $T8) own=$(mons $T8)"
+G=$(mk mon-owner); compozy session prompt "$G" "[ownwork] watch" > /dev/null 2>&1
+sleep 1; echo "G before restart (must stay active): $(mons $G)"
 OP=$(curl -s -X POST --unix-socket "$COMPOZY_UDS_PATH" http://unix/api/settings/actions/restart | jq -r .operation_id)
 echo "restart op $OP"
 for i in $(seq 1 90); do s=$(curl -s --max-time 3 --unix-socket "$COMPOZY_UDS_PATH" "http://unix/api/settings/actions/restart/$OP" 2>/dev/null | jq -r '.status // "unavailable"'); [ "$s" = ready ] && break; sleep 1; done
@@ -99,5 +118,10 @@ sqlite3 -readonly -header -column "$COMPOZY_HOME/compozy.db" "select id,session_
 sleep 8
 echo "C after boot: $(mons $C) T5=$(badge $T5) C=$(badge $C) wakes=$(wakes $C)"
 compozy session events "$C" -o json > "$EV/C-events.json" 2>&1
+echo "G after boot (must stay active): $(mons $G) T8=$(badge $T8) wakes=$(wakes $G)"
+compozy session events "$G" -o json > "$EV/G-events.json" 2>&1
+compozy session events "$A" -o json > "$EV/A-events.json" 2>&1
+echo "A wakes=$(wakes $A) B wakes=$(wakes $B) D wakes=$(wakes $D)"
 grep -h 'monitor\.' "$COMPOZY_HOME"/logs/*.log 2>/dev/null | tail -30 > "$EV/monitor-log.txt"
+compozy daemon stop >/dev/null 2>&1
 echo DONE

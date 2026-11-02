@@ -8,8 +8,9 @@ import (
 	"time"
 )
 
-// Target states reported for a session monitor. Failed, stopped and gone are final: a target in one
-// of them can never change on its own, so it always counts toward the condition.
+// Target states reported for a session monitor. Conditions read the state a target is in now: a target
+// that passed through a state and moved on has not reached it. Failed, stopped and gone are final: a
+// target in one of them can never change on its own, so it always counts toward the condition.
 const (
 	TargetStateIdle            = "idle"
 	TargetStateDone            = "done"
@@ -17,9 +18,11 @@ const (
 	TargetStateWaitingForAuth  = "waiting-for-auth"
 	TargetStateNeedsAttention  = "needs-attention"
 	TargetStateHung            = "hung"
-	TargetStateUnhealthy       = "unhealthy"
 	TargetStateStopped         = "stopped"
 	TargetStateFailed          = "failed"
+	// TargetStateInterrupted marks a target a daemon restart stopped and did not resume. It says nothing
+	// about the target's work, so it ends an all condition but satisfies any only if stopped was selected.
+	TargetStateInterrupted = "interrupted"
 	// TargetStateGone marks a target that was deleted or superseded.
 	TargetStateGone = "gone"
 	// TargetStateUnknown marks a target whose state could not be read; it never satisfies a condition.
@@ -29,6 +32,9 @@ const (
 // targetSweepInterval re-reads targets between change notifications. Those notifications are best
 // effort, so the sweep is what guarantees a monitor cannot miss a target reaching the condition.
 const targetSweepInterval = 30 * time.Second
+
+// targetReadGap bounds reads driven by a busy target: every event of every target signals a change.
+const targetReadGap = time.Second
 
 // errWatchQuiesced ends a session watch without an outcome; the monitor stays active for the next boot.
 var errWatchQuiesced = errors.New("monitor: session watches are quiesced")
@@ -63,7 +69,7 @@ func defaultTargetStates() []string {
 func selectableTargetState(state string) bool {
 	switch state {
 	case TargetStateIdle, TargetStateWaitingForInput, TargetStateWaitingForAuth, TargetStateNeedsAttention,
-		TargetStateHung, TargetStateUnhealthy, TargetStateStopped, TargetStateFailed:
+		TargetStateHung, TargetStateStopped, TargetStateFailed:
 		return true
 	default:
 		return false
@@ -93,7 +99,7 @@ func normalizeSessionSpec(spec Spec) (Spec, error) {
 	}
 	if !allSelectable(spec.States) {
 		return Spec{}, invalid("states must be idle, waiting-for-input, waiting-for-auth, needs-attention, " +
-			"hung, unhealthy, stopped or failed")
+			"hung, stopped or failed")
 	}
 	if spec.Timeout == 0 {
 		spec.Timeout = DefaultSessionTimeout
@@ -132,16 +138,18 @@ func sessionKey(spec Spec) string {
 	return strings.Join(spec.Targets, ",") + "\x00" + strings.Join(spec.States, ",")
 }
 
-// targetMatched reports whether status counts toward a condition over states. A session with open
-// work of its own reports "waiting", which deliberately does not count as idle: it is not finished.
-func targetMatched(status TargetStatus, states []string) bool {
+// targetMatched reports whether status counts toward spec's condition. A session with open work of
+// its own reports "waiting", which deliberately does not count as idle: it is not finished.
+func targetMatched(status TargetStatus, spec Spec) bool {
 	switch status.State {
 	case TargetStateStopped, TargetStateFailed, TargetStateGone:
 		return true
+	case TargetStateInterrupted:
+		return spec.Until == UntilAll || slices.Contains(spec.States, TargetStateStopped)
 	case TargetStateDone:
-		return slices.Contains(states, TargetStateIdle)
+		return slices.Contains(spec.States, TargetStateIdle)
 	default:
-		return slices.Contains(states, status.State)
+		return slices.Contains(spec.States, status.State)
 	}
 }
 
@@ -150,7 +158,7 @@ func evaluateTargets(spec Spec, statuses []TargetStatus) ([]TargetStatus, bool) 
 	marked := make([]TargetStatus, len(statuses))
 	matched := 0
 	for index, status := range statuses {
-		status.Matched = targetMatched(status, spec.States)
+		status.Matched = targetMatched(status, spec)
 		if status.Matched {
 			matched++
 		}
@@ -181,9 +189,18 @@ func (s *Service) sessionWatch(spec Spec) Watch {
 }
 
 // followTargets subscribes before its first read, so a change between the two re-evaluates the targets.
+// A recovered watch first waits for the gate: until sessions are resumed and supervised, a target's
+// state is not yet its real state.
 func (s *Service) followTargets(
 	ctx context.Context, spec Spec, changes <-chan struct{}, timeout, sweep <-chan time.Time,
 ) (Outcome, error) {
+	select {
+	case <-ctx.Done():
+		return Outcome{}, ctx.Err()
+	case <-s.quiesced:
+		return Outcome{}, errWatchQuiesced
+	case <-s.watchGate:
+	}
 	for {
 		marked, held, err := s.readTargets(ctx, spec)
 		if err != nil {
@@ -192,20 +209,56 @@ func (s *Service) followTargets(
 		if held {
 			return Outcome{Reason: ReasonConditionMet, Targets: marked}, nil
 		}
-		select {
-		case <-ctx.Done():
-			return Outcome{}, ctx.Err()
-		case <-s.quiesced:
-			return Outcome{}, errWatchQuiesced
-		case <-timeout:
-			return Outcome{Reason: ReasonTimeout, Targets: marked}, nil
-		case <-sweep:
-		case _, open := <-changes:
-			if !open {
-				changes = nil
-			}
+		timedOut, closed, err := s.awaitTargetRead(ctx, changes, timeout, sweep)
+		if err != nil {
+			return Outcome{}, err
+		}
+		if closed {
+			changes = nil
+		}
+		if timedOut {
+			return s.finalTargetRead(ctx, spec)
 		}
 	}
+}
+
+// awaitTargetRead blocks until the next read is due. Changes only count once targetReadGap has passed,
+// while the timeout and the sweep stay immediate. It reports a timeout or a closed change signal.
+func (s *Service) awaitTargetRead(
+	ctx context.Context, changes <-chan struct{}, timeout, sweep <-chan time.Time,
+) (timedOut, closed bool, err error) {
+	gap := time.NewTimer(targetReadGap)
+	defer gap.Stop()
+	var ready <-chan struct{}
+	for {
+		select {
+		case <-ctx.Done():
+			return false, false, ctx.Err()
+		case <-s.quiesced:
+			return false, false, errWatchQuiesced
+		case <-timeout:
+			return true, false, nil
+		case <-sweep:
+			return false, false, nil
+		case <-gap.C:
+			ready = changes
+		case _, open := <-ready:
+			return false, !open, nil
+		}
+	}
+}
+
+// finalTargetRead settles a timeout from the targets as they are now, so a target that settled since
+// the last read is never reported as still working.
+func (s *Service) finalTargetRead(ctx context.Context, spec Spec) (Outcome, error) {
+	marked, held, err := s.readTargets(ctx, spec)
+	if err != nil {
+		return Outcome{}, err
+	}
+	if held {
+		return Outcome{Reason: ReasonConditionMet, Targets: marked}, nil
+	}
+	return Outcome{Reason: ReasonTimeout, Targets: marked}, nil
 }
 
 // readTargets discards a read that overlaps quiescing: it may have observed a target the daemon itself

@@ -169,11 +169,14 @@ still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 t
 `kind="session"` watches 1 to 32 other same-workspace sessions in `target_session_ids` until `until="all"`
 (default) or `until="any"` of them reach `states`, then wakes you once with each target's state. `states`
 defaults to `idle`, `waiting-for-input`, `waiting-for-auth`, `needs-attention`, `stopped`, and `failed`,
-and also accepts `hung` and `unhealthy`. `done` counts as `idle`. A target that is stopped, failed,
-archived, or deleted (`gone`) always counts, so it cannot leave you waiting. A target with its own open work
-reads `waiting` and does not count as idle. `timeout_seconds` defaults to 7,200, caps at 21,600, and the
+and also accepts `hung`. `done` counts as `idle`. Targets are read as they are now, not as a history: one
+that passed through a state and moved on has not reached it. A target that is stopped, failed, archived, or
+deleted (`gone`) always counts, so it cannot leave you waiting. A target a daemon restart stopped without
+resuming reads `interrupted`: it ends an `all` condition, and satisfies `any` only if `stopped` is selected.
+A target with its own open work reads `waiting`, and one with queued input reads `running`; neither counts
+as idle. `timeout_seconds` defaults to 7,200, caps at 21,600, and the
 monitor still wakes you on timeout with the targets that did not settle. A condition that already holds
-fires at once, so register after the targets have accepted their prompts. A session
+fires at once. A session
 holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. There is no remote
 polling kind: wait on CI or deploys by running the bounded watch command (`gh pr checks --watch`) through
 `terminal_exec`, monitoring that terminal, and setting `timeout_seconds` past the expected wait.
@@ -191,7 +194,7 @@ durable write fails the call returns an error and a repeat retries it. Finished 
 listable for one hour. Monitors are stored by the daemon and survive a restart: timers keep their
 original deadline, an already-fired wake is delivered once without its terminal output, a terminal that
 is gone fires `terminal_unavailable` (its command is never rerun), a session monitor re-evaluates its
-targets as they are after the restart and keeps its deadline, a fired one reports the states that fired it,
+targets once restarted sessions are resumed and supervised, and keeps its deadline, a fired one reports the states that fired it,
 and the owner is resumed only when restart auto-continue rules allow it. A shutdown never fires a session monitor. Otherwise the monitor is listed `interrupted` with an `owner_*`
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within

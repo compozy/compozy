@@ -12,6 +12,7 @@ import (
 
 type monitorTargetManager interface {
 	Status(context.Context, string) (*session.Info, error)
+	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 	SubscribeSessionCatalogEvents(
 		context.Context,
 		session.CatalogScope,
@@ -60,18 +61,47 @@ func readMonitorTarget(
 	case err == nil && info != nil:
 		status.Name = info.Name
 		status.State = monitorTargetState(info)
+		if settledBadgeState(status.State) {
+			status.State = queuedTargetState(ctx, manager, target, status.State)
+		}
 	}
 	return status
 }
 
+func settledBadgeState(state string) bool {
+	return state == monitorpkg.TargetStateIdle || state == monitorpkg.TargetStateDone
+}
+
+// queuedTargetState keeps a target with queued input from reading as settled: between two turns its
+// badge is idle or done for a moment, but its next turn is already committed.
+func queuedTargetState(
+	ctx context.Context,
+	manager monitorTargetManager,
+	target, state string,
+) string {
+	queue, err := manager.InputQueueSummary(ctx, target)
+	switch {
+	case err != nil:
+		return monitorpkg.TargetStateUnknown
+	case queue.PendingInputs > 0:
+		return string(session.BadgeRunning)
+	default:
+		return state
+	}
+}
+
 // monitorTargetState folds a stopped session to a final state: its badge can still describe why it
 // stopped, such as pending authentication, but a stopped session cannot make progress on its own.
+// A session the daemon stopped and did not resume is reported apart, because its work did not end.
 func monitorTargetState(info *session.Info) string {
 	badge := session.BadgeForInfo(info)
-	if info.State == session.StateStopped && badge != session.BadgeFailed {
-		return monitorpkg.TargetStateStopped
+	if info.State != session.StateStopped || badge == session.BadgeFailed {
+		return string(badge)
 	}
-	return string(badge)
+	if info.StopReason == store.StopShutdown {
+		return monitorpkg.TargetStateInterrupted
+	}
+	return monitorpkg.TargetStateStopped
 }
 
 // TargetChanges reduces the workspace catalog to a signal for spec's targets. The catalog closes a

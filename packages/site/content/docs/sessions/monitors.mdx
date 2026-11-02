@@ -70,9 +70,12 @@ they are done. The wake lists each session and its state.
 - By default a session counts once it is idle, needs input or approval, needs attention, stopped, or
   failed. Use `states` to narrow or widen that list.
 - A stopped, failed, archived, or deleted session always counts, so it can't leave the agent waiting.
-- A session waiting on its own background work doesn't count as idle yet.
-- If the condition already holds, the monitor fires right away, so register it after the sessions have
-  accepted their prompts.
+- A session waiting on its own background work, or with queued messages, doesn't count as idle yet.
+- A session that a daemon restart stopped and didn't resume reads `interrupted`. It ends an `all` wait, and
+  it ends an `any` wait only if `stopped` is in `states`.
+- The monitor checks each session as it is now. A session that needed input and got an answer before
+  the check doesn't count.
+- If the condition already holds, the monitor fires right away.
 - A session monitor survives a daemon restart and is checked again afterward. Restarting the daemon
   doesn't fire it.
 
