@@ -154,6 +154,12 @@ export function SubagentDetail({
           <DetailFacts stale={stale} subagent={subagent} />
           <SubagentWorktreeFactRows subagent={subagent} />
         </div>
+        {children && subagent.child_session_id && subagent.error ? (
+          // The child's transcript shows its own failure, not the row's.
+          <p className="px-4 text-small-body text-pretty text-destructive" role="alert">
+            {subagent.error}
+          </p>
+        ) : null}
         {children ?? (
           <div className="px-4 pb-2">
             <DetailFallback subagent={subagent} />

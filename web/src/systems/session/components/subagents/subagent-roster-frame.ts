@@ -10,3 +10,5 @@ export const SUBAGENT_ROSTER_ROW_FRAME =
 
 export const SUBAGENT_ROSTER_MAIN_FRAME =
   "grid min-h-12 min-w-0 grid-cols-[32px_minmax(0,1fr)] items-start gap-3 rounded-lg py-2 pl-2 text-left outline-none focus-visible:shadow-focus-inset";
+
+export const SUBAGENT_ROSTER_FIRST_PAGE = 6;

@@ -341,3 +341,15 @@ func TestLiveBroadcast(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: a negative counter is not a reported total, so the frame carries no usage at all.
+func TestNativeTaskUsageDropsNegativeCounters(t *testing.T) {
+	t.Parallel()
+	if got := nativeTaskUsage(&wireClaudeTaskUsage{TotalTokens: -1, ToolUses: 3}); got != nil {
+		t.Fatalf("usage = %+v, want nil", got)
+	}
+	got := nativeTaskUsage(&wireClaudeTaskUsage{TotalTokens: 900, ToolUses: 4})
+	if got == nil || got.TotalTokens != 900 || got.ToolUses != 4 {
+		t.Fatalf("usage = %+v", got)
+	}
+}

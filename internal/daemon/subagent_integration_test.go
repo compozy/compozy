@@ -1631,7 +1631,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 			ParentSessionID: parent.ID, ParentTurnID: caller.TurnID, AgentName: "subagent-test",
 			SpawnRole: "subagent", AutoStopOnParent: true, NotifyCreatorSet: true,
 			IdempotencyKey: row.ID,
-			Subagent:       &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: row.TaskChars},
+			Subagent:       &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: int(row.TaskChars)},
 		})
 		if err != nil {
 			t.Fatal(err)

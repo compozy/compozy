@@ -298,7 +298,7 @@ func validClaudeTaskID(id string) bool {
 }
 
 func nativeTaskUsage(usage *wireClaudeTaskUsage) *NativeTaskUsage {
-	if usage == nil {
+	if usage == nil || usage.TotalTokens < 0 || usage.ToolUses < 0 {
 		return nil
 	}
 	return &NativeTaskUsage{TotalTokens: usage.TotalTokens, ToolUses: usage.ToolUses, DurationMs: usage.DurationMs}

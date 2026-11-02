@@ -13800,6 +13800,16 @@ func TestNativeSubagentBindings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		var emitted struct {
+			Usage *struct {
+				TotalTokens int64 `json:"total_tokens"`
+				ToolUses    int64 `json:"tool_uses"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(encoded, &emitted); err != nil || emitted.Usage == nil ||
+			emitted.Usage.TotalTokens != 900 || emitted.Usage.ToolUses != 4 {
+			t.Fatalf("usage = %+v, err = %v", emitted.Usage, err)
+		}
 		for _, descriptor := range builtintools.NativeDescriptors() {
 			if descriptor.ID == toolspkg.ToolIDSubagentDelegate || descriptor.ID == toolspkg.ToolIDSubagentStatus {
 				requireNativeOutputSchemaAccepts(t, descriptor, encoded)

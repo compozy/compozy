@@ -6,8 +6,9 @@ import { PopoverTitle } from "@compozy/ui";
 import { useSubagentPanelFocus } from "../../hooks/use-subagent-panel-focus";
 import { SubagentDetail } from "./subagent-detail";
 import { SubagentFleetBar } from "./subagent-fleet-bar";
+import { SUBAGENT_ROSTER_FIRST_PAGE } from "./subagent-roster-frame";
 import type { SubagentCounts } from "./subagent-format";
-import { subagentFinishedLabel } from "./subagent-row-format";
+import { subagentFinishedLabel, subagentRosterViewWith } from "./subagent-row-format";
 import {
   SubagentRoster,
   type SubagentRosterProps,
@@ -50,7 +51,7 @@ function SubagentListPane({
   view,
   onViewChange,
 }: Omit<SubagentPanelProps, "selectedId" | "renderContent"> & {
-  view: SubagentRosterView | undefined;
+  view: SubagentRosterView;
   onViewChange: (view: SubagentRosterView) => void;
 }) {
   return (
@@ -71,7 +72,6 @@ function SubagentListPane({
       {subagents.length > 0 ? (
         <SubagentRoster
           className="mx-0 max-h-[min(28rem,calc(var(--available-height,28rem)-5rem))] p-2"
-          defaultPreviousOpen={counts.live === 0}
           onOpen={(subagent, options) => {
             if (options.newWindow) onOpen?.(subagent, options);
             else onSelect(subagent.id);
@@ -99,8 +99,13 @@ export function SubagentPanel({
   const reduced = useReducedMotionConfig();
   const selected = subagents.find(subagent => subagent.id === selectedId) ?? null;
   const track = useSubagentPanelFocus(selected?.id ?? null);
-  // The list unmounts behind the detail; coming back finds it unfolded as it was left.
-  const [view, setView] = useState<SubagentRosterView>();
+  // The list unmounts behind the detail; coming back finds it unfolded as it was left, with the
+  // row in reach even if it finished meanwhile.
+  const [view, setView] = useState<SubagentRosterView>({
+    limit: SUBAGENT_ROSTER_FIRST_PAGE,
+    previousOpen: list.counts.live === 0,
+  });
+  const [returningTo, setReturningTo] = useState<string | null>(null);
   const direction = selected ? 1 : -1;
   return (
     <div className="relative overflow-hidden">
@@ -127,7 +132,19 @@ export function SubagentPanel({
               {renderContent?.(selected)}
             </SubagentDetail>
           ) : (
-            <SubagentListPane {...list} onViewChange={setView} stale={stale} view={view} />
+            <SubagentListPane
+              {...list}
+              onSelect={id => {
+                setReturningTo(id);
+                onSelect(id);
+              }}
+              onViewChange={next => {
+                setReturningTo(null);
+                setView(next);
+              }}
+              stale={stale}
+              view={subagentRosterViewWith(subagents, view, returningTo)}
+            />
           )}
         </m.div>
       </AnimatePresence>

@@ -22,6 +22,7 @@ import {
   subagentRosterGroups,
 } from "./subagent-format";
 import {
+  SUBAGENT_ROSTER_FIRST_PAGE,
   SUBAGENT_ROSTER_LIST_FRAME,
   SUBAGENT_ROSTER_MAIN_FRAME,
   SUBAGENT_ROSTER_ROW_FRAME,
@@ -33,7 +34,6 @@ import { subagentPullRequest, subagentWorktree } from "./subagent-worktree-forma
 import type { SubagentView } from "./types";
 import { useSubagentStop } from "./use-subagent-stop";
 
-const SUBAGENT_ROSTER_FIRST_PAGE = 6;
 const SUBAGENT_ROSTER_PAGE = 12;
 
 export interface SubagentRosterProps {
