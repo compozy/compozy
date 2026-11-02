@@ -20,7 +20,12 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"for every wait on external work, inside or outside your turn: CI, deploys, builds, polling remote state, "+
 			"or a delay. kind=terminal watches a terminal_id from compozy__terminal_exec (still_running) or "+
 			"compozy__terminal_open until it exits or its output matches a pattern; kind=timer fires once after "+
-			"delay_seconds. Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
+			"delay_seconds; kind=session watches other sessions of this workspace and profile in "+
+			"target_session_ids until any or "+
+			"all of them reach states (one wake with each session's state; failed, stopped, or deleted sessions "+
+			"always count). Sessions with queued input are still working. A target is read as it is now, and "+
+			"a condition that already holds fires at once. "+
+			"Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
 			"provider-internal background tasks, Monitor, and ScheduleWakeup — those cannot wake a CompozyOS session. "+
 			"After registering, keep working on steps that do not depend on it; end your turn only when every "+
 			"remaining step waits on a registered monitor or subagent. The wake arrives as a "+
@@ -44,6 +49,8 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"watch terminal",
 			"schedule wakeup",
 			"notify on exit",
+			"wait for sessions",
+			"wake when all sessions finish",
 		},
 	)
 	create.OutputSchema = json.RawMessage(monitorOutputSchema)
@@ -90,15 +97,23 @@ const monitorCreateInputSchema = `{
 	"type":"object",
 	"required":["kind","description"],
 	"properties":{
-		"kind":{"type":"string","enum":["terminal","timer"]},
+		"kind":{"type":"string","enum":["terminal","timer","session"]},
 		"description":{"type":"string","minLength":1,"maxLength":200,
 			"description":"What this monitor waits for; echoed back in the wake."},
 		"terminal_id":` + terminalIDPropertySchema + `,
-		"until":{"type":"string","enum":["exit","match"],"description":"Terminal condition; defaults to exit."},
+		"until":{"type":"string","enum":["exit","match","any","all"],
+			"description":"Terminal: exit (default) or match. Session: all (default) or any."},
 		"pattern":{"type":"string","minLength":1,"maxLength":512,"description":"Go regular expression for until=match."},
 		"timeout_seconds":{"type":"integer","minimum":1,"maximum":21600,
-			"description":"Terminal monitors only; defaults to 1800. The monitor still wakes the session on timeout."},
-		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."}
+			"description":"Defaults to 1800 for terminal and 7200 for session. A timeout still wakes the session."},
+		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."},
+		"target_session_ids":{"type":"array","minItems":1,"maxItems":32,
+			"items":{"type":"string","minLength":1},
+			"description":"Session monitors only: other sessions of this workspace and profile to watch."},
+		"states":{"type":"array","minItems":1,"uniqueItems":true,
+			"items":{"type":"string","enum":["idle","waiting-for-input","waiting-for-auth","needs-attention",
+				"hung","stopped","failed"]},
+			"description":"Session monitors only: states that satisfy a target. Omit for all but hung."}
 	},
 	"additionalProperties":false
 }`
@@ -116,7 +131,7 @@ const monitorItemSchema = `{
 	"properties":{
 		"monitor_id":{"type":"string"},
 		"session_id":{"type":"string"},
-		"kind":{"type":"string","enum":["terminal","timer"]},
+		"kind":{"type":"string","enum":["terminal","timer","session"]},
 		"description":{"type":"string"},
 		"terminal_id":{"type":"string"},
 		"until":{"type":"string"},
@@ -126,7 +141,19 @@ const monitorItemSchema = `{
 		"deadline_at":{"type":"string","format":"date-time"},
 		"fired_at":{"type":"string","format":"date-time"},
 		"reason":{"type":"string"},
-		"exit_code":{"type":"integer"}
+		"exit_code":{"type":"integer"},
+		"target_session_ids":{"type":"array","items":{"type":"string"}},
+		"states":{"type":"array","items":{"type":"string"}},
+		"targets":{"type":"array","items":{
+			"type":"object",
+			"required":["session_id","state","matched"],
+			"properties":{
+				"session_id":{"type":"string"},
+				"name":{"type":"string"},
+				"state":{"type":"string"},
+				"matched":{"type":"boolean"}
+			}
+		}}
 	}
 }`
 

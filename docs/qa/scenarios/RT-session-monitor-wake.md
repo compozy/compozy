@@ -40,6 +40,18 @@ story: As an operator I ask an agent to run something slow and report back, and 
     `monitor_list` and over HTTP, and no wake or resume ever happens. Saved evidence:
     `docs/qa/reports/artifacts/2026-11-01-issue-1128/`.
 
+13. **Waiting on other sessions.** Start two top-level sessions with slow prompts and, from a third session, call
+    `compozy__monitor_create` with `kind: "session"`, both ids in `target_session_ids`, and `until: "all"`, then let
+    its turn end. Expect the owner to stay `waiting` (`active_monitor` signal) past the first target settling, and
+    exactly one `monitor` wake once both settle, with `reason: "monitor_condition_met"`, both targets listed, and the
+    Web divider reading "Sessions settled". Repeat with `until: "any"` (wakes on the first). Stop one target
+    mid-run: it counts as settled. Restart the daemon while the monitor is active: the restart itself fires nothing,
+    and the monitor fires once after the boot when the targets have settled. Target the caller or a session from
+    another workspace: refused, no monitor is created. The composer popover reads "All of 2 sessions".
+
+    Evidence: `docs/qa/reports/2026-11-02-session-monitor-kind.md` (acpmock lab). Web divider, popover, and workspace
+    refusal are covered by their automated suites.
+
 Sessions Kanban regression (pending integrated re-walk): open a monitor immediately before the turn
 settles, without waiting for a supervision sweep. Read the session over CLI and HTTP: expect
 `badge=waiting`, `waiting_on=monitor`, and an `active_monitor` work signal. No finished delivery may

@@ -14755,7 +14755,10 @@ export interface components {
       pattern?: string;
       reason?: string;
       session_id: string;
+      states?: string[];
       status: string;
+      target_session_ids?: string[];
+      targets?: components["schemas"]["SessionMonitorTargetPayload"][];
       terminal_id?: string;
       until?: string;
     };
@@ -14764,6 +14767,12 @@ export interface components {
     };
     SessionMonitorSummaryPayload: {
       active: number;
+    };
+    SessionMonitorTargetPayload: {
+      matched: boolean;
+      name?: string;
+      session_id: string;
+      state: string;
     };
     SessionMonitorsResponse: {
       monitors: components["schemas"]["SessionMonitorPayload"][];

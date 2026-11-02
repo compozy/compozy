@@ -23,6 +23,9 @@ type nativeMonitorCreateInput struct {
 	Pattern        string `json:"pattern"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
 	DelaySeconds   int    `json:"delay_seconds"`
+	// TargetSessionIDs and States apply to session monitors.
+	TargetSessionIDs []string `json:"target_session_ids"`
+	States           []string `json:"states"`
 }
 
 type nativeMonitorCancelInput struct {
@@ -59,12 +62,20 @@ func (n *daemonNativeTools) monitorCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	kind := monitorpkg.Kind(strings.TrimSpace(input.Kind))
+	if kind == monitorpkg.KindSession {
+		err = n.authorizeMonitorTargets(ctx, scope, req.ToolID, sessionID, input.TargetSessionIDs)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	created, err := service.Create(ctx, monitorpkg.Spec{
 		WorkspaceID: workspaceID, ProfileID: strings.TrimSpace(scope.ProfileID), SessionID: sessionID,
-		Kind: monitorpkg.Kind(strings.TrimSpace(input.Kind)), Description: input.Description,
+		Kind: kind, Description: input.Description,
 		TerminalID: input.TerminalID, Until: input.Until, Pattern: input.Pattern,
 		Timeout: time.Duration(input.TimeoutSeconds) * time.Second,
 		Delay:   time.Duration(input.DelaySeconds) * time.Second,
+		Targets: input.TargetSessionIDs, States: input.States,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)
@@ -83,6 +94,35 @@ func (n *daemonNativeTools) monitorCreate(
 		created.ID, created.DeadlineAt.Format(time.RFC3339),
 	)
 	return structuredResult(map[string]any{monitorResultField: created}, preview)
+}
+
+// authorizeMonitorTargets admits only other sessions of the owner's workspace and profile. A monitor
+// reports each target's name and state to anyone who can read the owner, so a target from another
+// profile would expose a session its profile reads cannot see.
+func (n *daemonNativeTools) authorizeMonitorTargets(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+	ownerID string,
+	targets []string,
+) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	_, owner, err := n.nativeOrchestrationTarget(ctx, scope, id, ownerID, false)
+	if err != nil {
+		return err
+	}
+	for _, target := range targets {
+		_, info, err := n.nativeOrchestrationTarget(ctx, scope, id, target, true)
+		if err != nil {
+			return err
+		}
+		if info.ProfileID != owner.ProfileID {
+			return nativeWorkspaceAccessDeniedError(id)
+		}
+	}
+	return nil
 }
 
 func (n *daemonNativeTools) monitorList(

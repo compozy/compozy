@@ -165,11 +165,24 @@ Provider-internal background shells, monitors, scheduled wakeups, and "I will re
 cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
-still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400). A session
+still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400).
+`kind="session"` watches 1 to 32 other sessions of the same workspace and profile in `target_session_ids` until `until="all"`
+(default) or `until="any"` of them reach `states`, then wakes you once with each target's state. `states`
+defaults to `idle`, `waiting-for-input`, `waiting-for-auth`, `needs-attention`, `stopped`, and `failed`,
+and also accepts `hung`. `done` counts as `idle`. Targets are read as they are now, not as a history: one
+that passed through a state and moved on has not reached it. A target that is stopped, failed, archived, or
+deleted (`gone`) always counts, so it cannot leave you waiting. A target a daemon restart stopped without
+resuming reads `interrupted`: it ends an `all` condition, and satisfies `any` only if `stopped` is selected.
+A target with its own open work reads `waiting`, and one with queued input reads `running`; neither counts
+as idle. `timeout_seconds` defaults to 7,200, caps at 21,600, and the
+monitor still wakes you on timeout, up to 8 seconds late so it can read the targets once more, with the
+targets that did not settle. A state that could not be read is reported as last known and never counts. A condition that already holds
+fires at once. A session
 holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. There is no remote
 polling kind: wait on CI or deploys by running the bounded watch command (`gh pr checks --watch`) through
 `terminal_exec`, monitoring that terminal, and setting `timeout_seconds` past the expected wait.
-Registering the same terminal condition (`terminal_id`, `until`, `pattern`, normalized timeout, and description) again returns the existing
+Registering the same terminal condition (`terminal_id`, `until`, `pattern`, normalized timeout, and description) or
+session condition (targets in any order, `until`, `states`, timeout, and description) again returns the existing
 active monitor rather than adding a second wake. After
 `monitor_create`, do not poll or sleep: keep working on steps that do not depend on the monitor, and
 end your turn only when every remaining step waits on a registered monitor or subagent. The wake is a synthetic `monitor`
@@ -181,8 +194,9 @@ purpose is never revived. `monitor_cancel` only stops the wake, not the watched 
 durable write fails the call returns an error and a repeat retries it. Finished monitors stay
 listable for one hour. Monitors are stored by the daemon and survive a restart: timers keep their
 original deadline, an already-fired wake is delivered once without its terminal output, a terminal that
-is gone fires `terminal_unavailable` (its command is never rerun), and the owner is resumed only when
-restart auto-continue rules allow it. Otherwise the monitor is listed `interrupted` with an `owner_*`
+is gone fires `terminal_unavailable` (its command is never rerun), a session monitor re-evaluates its
+targets once restarted sessions are resumed and supervised, and keeps its deadline, a fired one reports the states that fired it,
+and the owner is resumed only when restart auto-continue rules allow it. A shutdown never fires a session monitor. Otherwise the monitor is listed `interrupted` with an `owner_*`
 reason and nothing wakes the session. While an owner check is retried after a restart the monitor stays
 listed as active; deleting a non-running owner in that window cancels its monitors at the next check (within
 about 30 seconds). A transient failure is retried for at least 15 minutes from its first persisted failure.
@@ -261,7 +275,9 @@ native calls requesting it return `invalid_request` with
 re-arms the same watch; the result reports its persisted state (`armed`, `fired`, `delivered`, or
 `abandoned`). Deleting or archiving an unconsumed target produces `unknown` immediately.
 
-`compozy__session_wait` blocks on one same-workspace session other than the caller. `until` accepts
+`compozy__session_wait` blocks on one same-workspace session other than the caller, inside your turn.
+To end your turn and be woken when one or more sessions settle, use `compozy__monitor_create` with
+`kind="session"`. `until` accepts
 the canonical attention/lifecycle badges; omission uses the settled set, and `done` satisfies `idle`.
 `timeout_ms` defaults to 300,000 and cannot exceed 1,800,000. Outcomes are `state-reached`, `timeout`,
 `session-gone`, `canceled`, and `overflow`. A native wait emits activity heartbeats while blocked so

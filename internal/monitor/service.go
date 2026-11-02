@@ -12,12 +12,12 @@ import (
 	"time"
 )
 
-// TerminalWatch blocks until the watched terminal condition resolves or ctx ends.
-type TerminalWatch func(ctx context.Context) (Outcome, error)
+// Watch blocks until the watched terminal condition resolves or ctx ends.
+type Watch func(ctx context.Context) (Outcome, error)
 
 // TerminalWatcher resolves a terminal at creation time and returns the blocking watch.
 type TerminalWatcher interface {
-	WatchTerminal(ctx context.Context, spec Spec) (TerminalWatch, error)
+	WatchTerminal(ctx context.Context, spec Spec) (Watch, error)
 }
 
 // Waker admits one fired monitor to its owning session. It returns as soon as
@@ -36,48 +36,6 @@ type Owners interface {
 	Resume(ctx context.Context, sessionID, binding string) error
 }
 
-// Option configures a Service.
-type Option func(*Service)
-
-// WithLogger sets the service logger.
-func WithLogger(logger *slog.Logger) Option {
-	return func(s *Service) {
-		if logger != nil {
-			s.logger = logger
-		}
-	}
-}
-
-// WithClock overrides the wall clock used for timestamps and retention.
-func WithClock(now func() time.Time) Option {
-	return func(s *Service) {
-		if now != nil {
-			s.now = now
-		}
-	}
-}
-
-// WithStore makes monitors durable across daemon restarts.
-func WithStore(store Store) Option {
-	return func(s *Service) { s.store = store }
-}
-
-// WithOwners lets the service capture owner bindings and resume owners during recovery.
-func WithOwners(owners Owners) Option {
-	return func(s *Service) { s.owners = owners }
-}
-
-// WithObserver registers a callback for every change to a session's monitors:
-// one starts, fires, is canceled, delivered, or abandoned. Calls run one at a
-// time on a service-owned goroutine with a bounded context, never on the
-// caller's path, and stop when the service shuts down. Changes that arrive
-// while a session's refresh is still pending coalesce into that one call.
-func WithObserver(observe func(ctx context.Context, sessionID string)) Option {
-	return func(s *Service) {
-		s.observer = observe
-	}
-}
-
 // Service owns every live monitor and the goroutines that watch them. State is
 // indexed by owning session; active monitors are capped per session, per
 // terminal, and per daemon, and finished ones expire after finishedRetention.
@@ -91,6 +49,13 @@ type Service struct {
 	logs      *logQueue
 	store     Store
 	owners    Owners
+	targets   SessionTargets
+
+	// quiesced closes before a shutdown stops sessions, and ends every session watch without an outcome.
+	quiesced    chan struct{}
+	quiesceOnce sync.Once
+	// watchGate holds session watches during boot; it is closed by default.
+	watchGate <-chan struct{}
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -111,6 +76,8 @@ type Service struct {
 type entry struct {
 	state       Monitor
 	terminalKey string
+	// sessionKey identifies a session monitor's condition; empty for other kinds.
+	sessionKey  string
 	timeout     time.Duration
 	cancel      context.CancelFunc
 	workspaceID string
@@ -153,6 +120,8 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 		perTerminal: make(map[string]int),
 		pending:     make(map[string]*entry),
 		retryKick:   make(chan struct{}, 1),
+		quiesced:    make(chan struct{}),
+		watchGate:   openWatchGate(),
 	}
 	for _, opt := range opts {
 		opt(service)
@@ -169,6 +138,12 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 	return service, nil
 }
 
+func openWatchGate() <-chan struct{} {
+	gate := make(chan struct{})
+	close(gate)
+	return gate
+}
+
 // Create validates spec, starts watching, and returns the active monitor.
 func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	normalized, err := normalizeSpec(spec)
@@ -181,8 +156,14 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			return Monitor{}, fmt.Errorf("monitor: capture owner binding: %w", err)
 		}
 	}
-	var watch TerminalWatch
-	if normalized.Kind == KindTerminal {
+	var watch Watch
+	switch normalized.Kind {
+	case KindSession:
+		if s.targets == nil {
+			return Monitor{}, errors.New("monitor: session targets are unavailable")
+		}
+		watch = s.sessionWatch(normalized)
+	case KindTerminal:
 		// A retry of an existing watch must not depend on the terminal still being resolvable: it may
 		// have expired while the original monitor is still delivering.
 		if existing, ok := s.reuse(normalized); ok {
@@ -195,6 +176,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 		if err != nil {
 			return Monitor{}, err
 		}
+	case KindTimer:
 	}
 	id, err := newID()
 	if err != nil {
@@ -210,8 +192,10 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 			ID: id, SessionID: normalized.SessionID, Kind: normalized.Kind, Description: normalized.Description,
 			TerminalID: normalized.TerminalID, Until: normalized.Until, Pattern: normalized.Pattern,
 			Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
+			TargetSessionIDs: normalized.Targets, States: normalized.States,
 		},
 		terminalKey: terminalKey(normalized),
+		sessionKey:  sessionKey(normalized),
 		timeout:     normalized.Timeout,
 		workspaceID: normalized.WorkspaceID,
 		profileID:   normalized.ProfileID,
@@ -254,7 +238,7 @@ func (s *Service) reuse(spec Spec) (Monitor, bool) {
 	return reused, true
 }
 
-func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now time.Time) (Monitor, error) {
+func (s *Service) startLocked(item *entry, spec Spec, watch Watch, now time.Time) (Monitor, error) {
 	if s.stopped {
 		return Monitor{}, ErrStopped
 	}
@@ -356,15 +340,15 @@ func (s *Service) admitLocked(item *entry) error {
 	return nil
 }
 
-// identicalLocked finds an occupying terminal monitor of the same session with
-// the same condition. Agents retry creation after ambiguous results; without
-// this, each retry would add another wake for one terminal condition.
+// identicalLocked finds an occupying terminal or session monitor of the same
+// session with the same condition. Agents retry creation after ambiguous results;
+// without this, each retry would add another wake for one condition.
 func (s *Service) identicalLocked(item *entry) *entry {
-	if item.terminalKey == "" {
+	if item.terminalKey == "" && item.sessionKey == "" {
 		return nil
 	}
 	for _, existing := range s.sessions[item.state.SessionID] {
-		if existing.occupies() && existing.terminalKey == item.terminalKey &&
+		if existing.occupies() && existing.terminalKey == item.terminalKey && existing.sessionKey == item.sessionKey &&
 			existing.state.Until == item.state.Until && existing.state.Pattern == item.state.Pattern &&
 			existing.timeout == item.timeout && existing.state.Description == item.state.Description {
 			return existing
