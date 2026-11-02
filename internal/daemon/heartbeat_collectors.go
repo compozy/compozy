@@ -3,7 +3,10 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/monitor"
@@ -12,10 +15,16 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
+type workLogWorkspaceResolver interface {
+	Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+}
+
 type instanceDigestCollector struct {
-	instances *globaldb.InstanceRepo
-	sessions  *session.Manager
-	monitors  *monitor.Service
+	workspaces workLogWorkspaceResolver
+	logger     *slog.Logger
+	instances  *globaldb.InstanceRepo
+	sessions   *session.Manager
+	monitors   *monitor.Service
 }
 
 func (c instanceDigestCollector) Collect(
@@ -52,6 +61,13 @@ func (c instanceDigestCollector) Collect(
 				},
 			)
 		}
+	}
+	if (include == nil || slices.Contains(include, "work_log")) && scope.WorkspaceID != "" {
+		workspace, err := c.workspaces.Resolve(ctx, scope.WorkspaceID)
+		if err != nil {
+			return heartbeat.CheckDigest{}, fmt.Errorf("resolve work log workspace: %w", err)
+		}
+		facts.WorkLog, facts.WorkLogTruncated = readWorkspaceWorkLog(workspace.RootDir, c.logger)
 	}
 	return heartbeat.CollectDigest(scope, facts, include, policy, instructions)
 }

@@ -10979,3 +10979,62 @@ func (r *recordingRegistry) PermissionEntries(
 ) ([]store.PermissionLogEntry, error) {
 	return nil, nil
 }
+
+func TestReadWorkspaceWorkLog(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"missing", "valid", "truncated", "symlink file", "symlink parent", "malformed"} {
+		t.Run("Should safely read work log with "+mode, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := filepath.Join(root, ".compozy")
+			outside := t.TempDir()
+			if mode == "symlink parent" {
+				if err := os.Symlink(outside, dir); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "work-log.md")
+			content := "# Work log\n\n- [ ] wl-20261102-01 | 2026-11-02T14:00:00Z | Export\n"
+			if mode == "truncated" {
+				content += strings.Repeat(" ", 64*1024) + "\n- [ ] wl-20261102-02 | 2026-11-02T14:00:00Z | Hidden\n"
+			}
+			if mode == "malformed" {
+				content = "# Work log\n\nbad\n" + content
+			}
+			if mode == "symlink file" {
+				target := filepath.Join(outside, "work-log.md")
+				if err := os.WriteFile(target, []byte(content), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatal(err)
+				}
+			} else if mode != "missing" {
+				if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var logs bytes.Buffer
+			facts, truncated := readWorkspaceWorkLog(root, slog.New(slog.NewTextHandler(&logs, nil)))
+			want := 1
+			if mode == "missing" || strings.HasPrefix(mode, "symlink") {
+				want = 0
+			}
+			if len(facts) != want || truncated != (mode == "truncated") {
+				t.Fatal(facts, truncated)
+			}
+			if strings.HasPrefix(mode, "symlink") &&
+				!strings.Contains(logs.String(), "work_log: path outside workspace") {
+				t.Fatal(logs.String())
+			}
+			if mode == "truncated" && strings.Contains(logs.String(), "ignored line") {
+				t.Fatal(logs.String())
+			}
+			if mode == "malformed" && !strings.Contains(logs.String(), "ignored line 3") {
+				t.Fatal(logs.String())
+			}
+		})
+	}
+}

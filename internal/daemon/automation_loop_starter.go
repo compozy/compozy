@@ -104,6 +104,9 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 		InputMapping: req.InputMapping,
 	}
 	if err := looppkg.ValidateStartTarget(ctx, s.resolver, validation); err != nil {
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
+		}
 		return err
 	}
 	resolved, err := s.resolver.ResolveLoop(
@@ -147,6 +150,9 @@ func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(
 		strings.TrimSpace(req.LoopName),
 	)
 	if err != nil {
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			return "", fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
+		}
 		return "", err
 	}
 	for _, node := range resolved.Definition.Graph.Nodes {

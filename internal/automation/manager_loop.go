@@ -2,10 +2,13 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 )
+
+var ErrLoopTargetNotFound = errors.New("automation: loop target not found")
 
 // WithLoopStarter injects the loop start boundary used for loop-target automations.
 func WithLoopStarter(starter LoopStarter) Option {
@@ -54,12 +57,16 @@ func (m *Manager) defaultSchedulerCatchUpPolicy(
 	if !ok || resolver == nil || job.LoopTarget == nil {
 		return SchedulerCatchUpPolicySkipMissed, nil
 	}
-	return resolver.DefaultLoopCatchUpPolicy(ctx, LoopCatchUpPolicyRequest{
+	policy, err := resolver.DefaultLoopCatchUpPolicy(ctx, LoopCatchUpPolicyRequest{
 		ProfileID:   strings.TrimSpace(job.ProfileID),
 		WorkspaceID: strings.TrimSpace(job.LoopTarget.WorkspaceID),
 		LoopName:    strings.TrimSpace(job.LoopTarget.LoopName),
 		Kind:        loopStartKindForAutomation(&job, nil),
 	})
+	if errors.Is(err, ErrLoopTargetNotFound) {
+		return SchedulerCatchUpPolicySkipMissed, nil
+	}
+	return policy, err
 }
 
 func targetKindOrDefault(kind TargetKind, target *LoopTarget) TargetKind {

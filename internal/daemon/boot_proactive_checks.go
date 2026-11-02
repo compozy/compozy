@@ -31,9 +31,10 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	cfg, hb := state.cfg.Agents.StaysOn, state.cfg.Agents.Heartbeat
 	environment := &instanceCheckEnvironment{
-		instances: provider.Instances(),
-		sessions:  manager,
-		monitors:  state.sessionMonitors,
+		instanceDigestCollector: instanceDigestCollector{
+			instances: provider.Instances(), sessions: manager, monitors: state.sessionMonitors,
+			workspaces: state.workspaceResolver, logger: state.logger,
+		},
 		definitions: instanceDefinitions{
 			workspaces: state.workspaceResolver,
 			profiles:   state.profiles,

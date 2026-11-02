@@ -7315,3 +7315,72 @@ func TestPermissionDailyRollups(t *testing.T) {
 		}
 	})
 }
+
+func TestReleasedSpecCycleReferenceUpgrade(t *testing.T) {
+	t.Run("Should preserve v0.4.8 references through the current migration stream", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00164_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := globalMigrationTestContext(t)
+		now := "2026-11-02T12:00:00Z"
+		statements := []struct {
+			query string
+			args  []any
+		}{
+			{
+				`INSERT INTO workspaces(id,root_dir,add_dirs,name,created_at,updated_at) VALUES('ws-upgrade',?,'[]','upgrade',?,?)`,
+				[]any{t.TempDir(), now, now},
+			},
+			{
+				`INSERT INTO sessions(id,name,agent_name,workspace_id,session_type,state,created_at,updated_at,profile_id) VALUES('sess-upgrade','Saved','review_fixer','ws-upgrade','user','stopped',?,?,?)`,
+				[]any{now, now, store.DefaultProfileID},
+			},
+			{
+				`INSERT INTO automation_jobs(id,profile_id,scope,name,agent_name,workspace_id,prompt,schedule,retry,fire_limit,source,created_at,updated_at) VALUES('job-upgrade',?,'workspace','Saved job','review_fixer','ws-upgrade','Saved prompt','{"mode":"every","interval":"24h"}','{"strategy":"none"}','{"max":12,"window":"1h"}','dynamic',?,?)`,
+				[]any{store.DefaultProfileID, now, now},
+			},
+			{
+				`INSERT INTO automation_triggers(id,profile_id,scope,name,agent_name,workspace_id,prompt,event,retry,fire_limit,source,target_kind,loop_workspace_id,loop_name,created_at,updated_at) VALUES('trg-upgrade',?,'workspace','Saved trigger','','ws-upgrade','','ext.saved','{"strategy":"none"}','{"max":12,"window":"1h"}','dynamic','loop','ws-upgrade','implement-tasks',?,?)`,
+				[]any{store.DefaultProfileID, now, now},
+			},
+			{
+				`INSERT INTO loop_config(workspace_id,profile_id,loop_name,iteration_cap) VALUES('ws-upgrade',?,'implement-tasks',17)`,
+				[]any{store.DefaultProfileID},
+			},
+		}
+		for _, statement := range statements {
+			if _, err := prior.ExecContext(ctx, statement.query, statement.args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, query := range []string{
+			`SELECT agent_name FROM sessions WHERE id='sess-upgrade'`,
+			`SELECT agent_name FROM automation_jobs WHERE id='job-upgrade'`,
+			`SELECT loop_name FROM automation_triggers WHERE id='trg-upgrade'`,
+			`SELECT loop_name FROM loop_config WHERE workspace_id='ws-upgrade'`,
+		} {
+			var value string
+			if err := upgraded.db.QueryRowContext(ctx, query).Scan(&value); err != nil {
+				t.Fatal(err)
+			}
+			if value != "review_fixer" && value != "implement-tasks" {
+				t.Fatalf("saved reference = %q", value)
+			}
+		}
+	})
+}

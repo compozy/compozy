@@ -3,6 +3,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	jsonv1 "encoding/json"
 	"encoding/json/v2"
@@ -16,6 +17,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,8 +26,11 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
+	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
@@ -3746,6 +3751,74 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should send a follow-up from a monitor wake after reaching the hop limit", func(t *testing.T) {
+		t.Parallel()
+		d, m, ws := newSubagentDaemonIntegration(t, "injected")
+		fixturePath := filepath.Join(d.homePaths.HomeDir, "subagents-fixture.json")
+		raw, err := os.ReadFile(fixturePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fixture acpmock.Fixture
+		if err := json.Unmarshal(raw, &fixture); err != nil {
+			t.Fatal(err)
+		}
+		for i := range fixture.Agents[0].Turns {
+			if fixture.Agents[0].Turns[i].Name == "wake" {
+				fixture.Agents[0].Turns[i].Steps = []acpmock.Step{
+					{
+						Kind:          acpmock.StepKindDriverControl,
+						DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+					},
+				}
+			}
+		}
+		writeSessionOriginFixture(t, fixturePath, fixture)
+		peers := startPeers(t, m, ws, 3)
+		for hop := 1; hop <= 8; hop++ {
+			if err := steer(
+				t,
+				d,
+				ws,
+				peers[(hop-1)%3],
+				peers[hop%3],
+				fmt.Sprintf("monitor-chain-%d", hop),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		parent := peers[2]
+		requireToolCode(
+			t,
+			steer(t, d, ws, parent, peers[0], "before-monitor"),
+			toolspkg.ErrorCodeSessionMessageHopLimit,
+		)
+		oldTurn := parent.CurrentTurnID()
+		if _, err := m.CancelPrompt(t.Context(), parent.ID); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "parent idle", 10*time.Second, func() bool { return !parent.IsPrompting() })
+		waker := monitorSessionWaker{sessions: func() monitorSessionManager { return m }}
+		if err := waker.WakeSession(
+			t.Context(),
+			monitorpkg.Notification{
+				Monitor: monitorpkg.Monitor{ID: "mon-0123456789ab", SessionID: parent.ID},
+				Outcome: monitorpkg.Outcome{Reason: "exit"},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "monitor turn", 10*time.Second, func() bool {
+			return parent.IsPrompting() && parent.CurrentTurnID() != "" && parent.CurrentTurnID() != oldTurn
+		})
+		if hop, err := m.CurrentTurnEffectiveHop(t.Context(), parent.ID); err != nil || hop != 0 {
+			t.Fatalf("monitor hop = %d, %v", hop, err)
+		}
+		if err := steer(t, d, ws, parent, peers[0], "after-monitor"); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("Should keep a two-session conversation at hop one", func(t *testing.T) {
 		d, m, ws := newSubagentDaemonIntegration(t, "injected")
 		peers := startPeers(t, m, ws, 2)
@@ -4997,4 +5070,346 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 		t.Fatal(err)
 	}
 	<-t.Context().Done()
+}
+
+func TestWorkLogCollectorIntegration(t *testing.T) {
+	for _, failed := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should collect workspace work and suppress only successful triage failed=%v", failed),
+			func(t *testing.T) {
+				t.Parallel()
+				var clock atomic.Int64
+				clock.Store(time.Now().Add(time.Hour).UnixNano())
+				d, m, ws := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+					d.now = func() time.Time { return time.Unix(0, clock.Load()).UTC() }
+					agentPath := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+					raw, err := os.ReadFile(agentPath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					raw = bytes.Replace(
+						raw,
+						[]byte("name: subagent-test\n"),
+						[]byte("name: subagent-test\nkind: stays_on\n"),
+						1,
+					)
+					if err := os.WriteFile(agentPath, raw, 0600); err != nil {
+						t.Fatal(err)
+					}
+					policy := "---\nversion: 1\nenabled: true\ncontext:\n  include: [work_log]\n---\n"
+					if err := os.WriteFile(
+						filepath.Join(filepath.Dir(agentPath), "HEARTBEAT.md"),
+						[]byte(policy),
+						0600,
+					); err != nil {
+						t.Fatal(err)
+					}
+					fixturePath := filepath.Join(d.homePaths.HomeDir, "subagents-fixture.json")
+					raw, err = os.ReadFile(fixturePath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					var fixture acpmock.Fixture
+					if err := json.Unmarshal(raw, &fixture); err != nil {
+						t.Fatal(err)
+					}
+					fixture.Agents[0].ConfigOptions = []acpmock.SessionConfigOptionFixture{
+						{
+							ID:       "mode",
+							Name:     "Mode",
+							Category: "mode",
+							Current:  "read-only",
+							Values: []acpmock.SessionConfigOptionValueFixture{
+								{Value: "read-only", Label: "Read only"},
+							},
+						},
+					}
+					reply := "NOTHING_TO_REPORT"
+					if failed {
+						reply = "invalid triage output"
+					}
+					fixture.Agents[0].Turns = append(
+						[]acpmock.TurnFixture{
+							{
+								Name:  "work-log-triage",
+								Match: acpmock.TurnMatch{RawUserTextContains: "work:wl-20261102-01"},
+								Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: reply}},
+							},
+						},
+						fixture.Agents[0].Turns...)
+					writeSessionOriginFixture(t, fixturePath, fixture)
+				})
+				parent, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				repo := d.registry.(instanceRepositoryProvider).Instances()
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         parent.ProfileID,
+						AgentName:         "subagent-test",
+						WorkspaceID:       ws,
+						PermissionCeiling: string(mustWorkLogCeiling(t, parent.Info().Workspace)),
+						CreatedByKind:     "human",
+					},
+					parent.ID,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				workspace, err := d.registry.GetWorkspace(t.Context(), ws)
+				if err != nil {
+					t.Fatal(err)
+				}
+				dir := filepath.Join(workspace.RootDir, ".compozy")
+				if err := os.MkdirAll(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+				content := "# Work log\n\n- [ ] wl-20261102-01 | " + d.now().
+					Add(-31*time.Minute).
+					Format(time.RFC3339) +
+					" | Export\n"
+				if err := os.WriteFile(filepath.Join(dir, "work-log.md"), []byte(content), 0600); err != nil {
+					t.Fatal(err)
+				}
+				checks := d.runtimeWorkers.proactiveChecks
+				if err := checks.Tick(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				var first agentinstance.CheckIn
+				waitForRuntimeCondition(t, "first work log triage", 15*time.Second, func() bool {
+					rows, err := repo.ListCheckIns(t.Context(), instance.ID, "", 10)
+					if err != nil || len(rows) == 0 {
+						return false
+					}
+					first = rows[0]
+					return first.Result == "quiet" || first.Result == "failed"
+				})
+				if failed && first.Reason != "triage_output_invalid" || !failed && first.Result != "quiet" {
+					t.Fatalf("first triage = %+v", first)
+				}
+				clock.Store(d.now().Add(2 * time.Hour).UnixNano())
+				if err := checks.Tick(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "work log follow-up decision", 15*time.Second, func() bool {
+					rows, err := repo.ListCheckIns(t.Context(), instance.ID, "", 10)
+					if err != nil || len(rows) < 2 || rows[0].ID == first.ID {
+						return false
+					}
+					if failed {
+						return rows[0].Result == "failed"
+					}
+					return rows[0].Reason == "digest_unchanged"
+				})
+			},
+		)
+	}
+}
+
+func TestRemovedResourceUpgradeIntegration(t *testing.T) {
+	t.Run("Should boot with saved missing references without deleting user state", func(t *testing.T) {
+		t.Parallel()
+		d, m, ws := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) { cfg.Automation.Enabled = true })
+		parent, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := m.Prompt(t.Context(), parent.ID, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range events {
+		}
+		if err := m.Stop(t.Context(), parent.ID); err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		instance, err := db.Instances().
+			Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.ProfileID, AgentName: "subagent-test", WorkspaceID: ws, PermissionCeiling: string(mustWorkLogCeiling(t, parent.Info().Workspace)), CreatedByKind: "human"}, parent.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		job, err := d.automation.CreateJob(
+			t.Context(),
+			automationpkg.Job{
+				ProfileID:   parent.ProfileID,
+				Scope:       automationpkg.AutomationScopeWorkspace,
+				Name:        "saved removed agent",
+				AgentName:   "subagent-test",
+				WorkspaceID: ws,
+				Prompt:      "child work",
+				Schedule:    &automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "24h"},
+				Enabled:     true,
+				Retry:       automationpkg.RetryConfig{Strategy: automationpkg.RetryStrategyNone},
+				FireLimit:   automationpkg.DefaultFireLimitConfig(),
+				Source:      automationpkg.JobSourceDynamic,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		trigger, err := d.automation.CreateTrigger(
+			t.Context(),
+			automationpkg.Trigger{
+				ProfileID:   parent.ProfileID,
+				Scope:       automationpkg.AutomationScopeWorkspace,
+				Name:        "saved removed agent trigger",
+				WorkspaceID: ws,
+				Event:       "ext.upgrade",
+				AgentName:   "subagent-test",
+				Prompt:      "child work",
+				Enabled:     true,
+				Retry:       automationpkg.RetryConfig{Strategy: automationpkg.RetryStrategyNone},
+				FireLimit:   automationpkg.DefaultFireLimitConfig(),
+				Source:      automationpkg.JobSourceDynamic,
+			},
+			automationpkg.WebhookSecretWrite{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		override := looppkg.LoopConfig{IterationCap: new(17)}
+		if err := db.UpsertLoopConfig(
+			t.Context(),
+			looppkg.WorkspaceID(ws),
+			parent.ProfileID,
+			"removed-delivery",
+			override,
+		); err != nil {
+			t.Fatal(err)
+		}
+		savedOverride, err := db.GetLoopConfig(
+			t.Context(),
+			looppkg.WorkspaceID(ws),
+			parent.ProfileID,
+			"removed-delivery",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace, err := d.registry.GetWorkspace(t.Context(), ws)
+		if err != nil {
+			t.Fatal(err)
+		}
+		userFile := filepath.Join(workspace.RootDir, "saved-task.md")
+		if err := os.WriteFile(userFile, []byte("preserved task"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		home, cfg := d.homePaths, d.config
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(filepath.Join(home.AgentsDir, "subagent-test", "AGENT.md")); err != nil {
+			t.Fatal(err)
+		}
+		cfg.Defaults.Agent = "general"
+		cfg.Automation.Jobs = []compozyconfig.AutomationJob{
+			{
+				Source:     automationpkg.JobSourceConfig,
+				Scope:      automationpkg.AutomationScopeWorkspace,
+				Name:       "saved config loop",
+				Workspace:  ws,
+				TargetKind: automationpkg.TargetKindLoop,
+				LoopTarget: &automationpkg.LoopTarget{WorkspaceID: ws, LoopName: "removed-delivery"},
+				Schedule:   automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeEvery, Interval: "24h"},
+				Enabled:    true,
+				Retry:      automationpkg.RetryConfig{Strategy: automationpkg.RetryStrategyNone},
+				FireLimit:  automationpkg.DefaultFireLimitConfig(),
+			},
+		}
+		cfg.Automation.Triggers = []compozyconfig.AutomationTrigger{
+			{
+				Source:     automationpkg.JobSourceConfig,
+				Scope:      automationpkg.AutomationScopeWorkspace,
+				Name:       "saved config trigger",
+				Workspace:  ws,
+				TargetKind: automationpkg.TargetKindLoop,
+				LoopTarget: &automationpkg.LoopTarget{WorkspaceID: ws, LoopName: "removed-delivery"},
+				Event:      "ext.removed",
+				Enabled:    true,
+				Retry:      automationpkg.RetryConfig{Strategy: automationpkg.RetryStrategyNone},
+				FireLimit:  automationpkg.DefaultFireLimitConfig(),
+			},
+		}
+
+		next := reopenSubagentIntegrationDaemon(t, home, &cfg)
+		reopened := next.registry.(*globaldb.GlobalDB)
+		gotJob, err := next.automation.GetJob(t.Context(), job.ID)
+		if err != nil || !reflect.DeepEqual(gotJob, job) {
+			t.Fatalf("job changed: %+v, %v", gotJob, err)
+		}
+		gotTrigger, err := next.automation.GetTrigger(t.Context(), trigger.ID)
+		if err != nil || !reflect.DeepEqual(gotTrigger, trigger) {
+			t.Fatalf("trigger changed: %+v, %v", gotTrigger, err)
+		}
+		gotOverride, err := reopened.GetLoopConfig(
+			t.Context(),
+			looppkg.WorkspaceID(ws),
+			parent.ProfileID,
+			"removed-delivery",
+		)
+		if err != nil || !reflect.DeepEqual(gotOverride, savedOverride) {
+			t.Fatal(gotOverride, err)
+		}
+		gotInstance, err := reopened.Instances().Get(t.Context(), instance.ID)
+		if err != nil || gotInstance.PauseReason != "definition_missing" {
+			t.Fatal(gotInstance, err)
+		}
+		history, err := next.sessions.(*session.Manager).Events(t.Context(), parent.ID, store.EventQuery{Limit: 100})
+		if err != nil || len(history) == 0 {
+			t.Fatal(history, err)
+		}
+		if _, err := next.sessions.(*session.Manager).Resume(
+			t.Context(),
+			parent.ID,
+		); err == nil ||
+			!strings.Contains(err.Error(), "subagent-test") {
+			t.Fatalf("resume error = %v", err)
+		}
+		run, err := next.automation.TriggerJob(t.Context(), job.ID)
+		if err == nil || !strings.Contains(err.Error(), "subagent-test") {
+			t.Fatalf("missing reference run = %+v, %v", run, err)
+		}
+		waitForRuntimeCondition(t, "isolated missing-agent run failure", 15*time.Second, func() bool {
+			row, err := reopened.GetRun(t.Context(), run.ID)
+			return err == nil && row.Status == automationpkg.RunFailed && strings.Contains(row.Error, "subagent-test")
+		})
+		page, err := next.automation.ListJobs(
+			t.Context(),
+			automationpkg.JobListQuery{
+				ReadScope:   store.ReadScope{ProfileID: parent.ProfileID},
+				WorkspaceID: ws,
+				Source:      automationpkg.JobSourceConfig,
+				Limit:       100,
+			},
+		)
+		if err != nil || len(page.Jobs) != 1 {
+			t.Fatal(page, err)
+		}
+		loopRun, err := next.automation.TriggerJob(t.Context(), page.Jobs[0].ID)
+		if err == nil || !strings.Contains(err.Error(), "removed-delivery") {
+			t.Fatalf("missing reference run = %+v, %v", loopRun, err)
+		}
+		waitForRuntimeCondition(t, "isolated missing-loop run failure", 15*time.Second, func() bool {
+			row, err := reopened.GetRun(t.Context(), loopRun.ID)
+			return err == nil && row.Status == automationpkg.RunFailed &&
+				strings.Contains(row.Error, "removed-delivery")
+		})
+		content, err := os.ReadFile(userFile)
+		if err != nil || string(content) != "preserved task" {
+			t.Fatal(string(content), err)
+		}
+	})
+}
+
+func mustWorkLogCeiling(t *testing.T, path string) []byte {
+	t.Helper()
+	value, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{path}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
 }

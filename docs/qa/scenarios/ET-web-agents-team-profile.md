@@ -83,3 +83,10 @@ PR 1134 regression checks:
 - Mention a display name containing parentheses and a newline; the transcript chip preserves
   the full label. No session starts as a side effect.
 - Read check-ins through HTTP and native tools; bounded details survive the shared projection.
+
+Spec-cycle B1 check-in impact: for a workspace instance with `context.include: [work_log]`,
+write `.compozy/work-log.md` with a `[ ]` entry older than 30 minutes. Check-ins triage receives
+`work:<id>` once, suppresses an unchanged successful digest within MaxInterval, and retries a
+failed triage. User/global instances collect nothing. A symlink outside the workspace is never
+read; overflow produces `work:log-truncated`. Backend execution evidence and remaining release
+walks are tracked in `docs/qa/reports/2026-11-02-spec-cycle/B1.md`; the editor change belongs to F1.

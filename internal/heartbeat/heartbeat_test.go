@@ -1134,3 +1134,98 @@ func TestTriageReplyOutcome(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkLogDigest(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 2, 15, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, line string
+		want       int
+		malformed  bool
+	}{
+		{"Should report a stale accepted entry", "- [ ] wl-20261102-01 | 2026-11-02T14:29:00Z | Export", 1, false},
+		{"Should ignore a recent entry", "- [ ] wl-20261102-01 | 2026-11-02T14:31:00Z | Export", 0, false},
+		{"Should ignore the exact age boundary", "- [ ] wl-20261102-01 | 2026-11-02T14:30:00Z | Export", 0, false},
+		{"Should ignore dispatched work", "- [~] wl-20261102-01 | 2026-11-02T14:00:00Z | Export", 0, false},
+		{"Should ignore closed work", "- [x] wl-20261102-01 | 2026-11-02T14:00:00Z | Export", 0, false},
+		{"Should reject invalid identifiers", "- [ ] wl-1 | 2026-11-02T14:00:00Z | Export", 0, true},
+		{"Should reject invalid timestamps", "- [ ] wl-20261102-01 | yesterday | Export", 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			facts, malformed := ParseWorkLog("# Work log\n\n" + tc.line)
+			if tc.malformed && !slices.Equal(malformed, []int{3}) || !tc.malformed && len(malformed) > 0 {
+				t.Fatalf("malformed = %v", malformed)
+			}
+			digest, err := CollectDigest(
+				CollectorScope{WorkspaceID: "ws", Now: now},
+				CollectorFacts{WorkLog: facts},
+				[]string{"work_log"},
+				"",
+				"",
+			)
+			if err != nil || len(digest.Items) != tc.want {
+				t.Fatalf("digest = %+v, %v", digest, err)
+			}
+		})
+	}
+	t.Run("Should select the oldest nine deterministically and signal overflow", func(t *testing.T) {
+		t.Parallel()
+		var facts []WorkLogFact
+		for i := 12; i > 0; i-- {
+			facts = append(
+				facts,
+				WorkLogFact{
+					ID:         fmt.Sprintf("wl-20261102-%02d", i),
+					AcceptedAt: now.Add(-time.Hour).Add(time.Duration(i) * time.Minute),
+				},
+			)
+		}
+		digest, err := CollectDigest(
+			CollectorScope{WorkspaceID: "ws", Now: now},
+			CollectorFacts{WorkLog: facts, WorkLogTruncated: true},
+			[]string{"work_log"},
+			"",
+			"",
+		)
+		if err != nil || len(digest.Items) != 11 {
+			t.Fatalf("digest = %+v, %v", digest, err)
+		}
+		for i := 1; i <= 9; i++ {
+			if digest.Items[i-1].Key != fmt.Sprintf("work:wl-20261102-%02d", i) {
+				t.Fatal(digest.Items)
+			}
+			if !slices.Contains(digest.Items, DigestItem{Key: fmt.Sprintf("work:wl-20261102-%02d", i)}) {
+				t.Fatal(digest.Items)
+			}
+		}
+		for _, key := range []string{"work:more", "work:log-truncated"} {
+			if !slices.Contains(digest.Items, DigestItem{Key: key}) {
+				t.Fatal(digest.Items)
+			}
+		}
+	})
+	t.Run("Should preserve valid lines alongside malformed lines", func(t *testing.T) {
+		t.Parallel()
+		facts, bad := ParseWorkLog("# Work log\n\nbad\n- [ ] wl-20261102-01 | 2026-11-02T14:00:00Z | Export")
+		if len(facts) != 1 || !slices.Equal(bad, []int{3}) {
+			t.Fatal(facts, bad)
+		}
+	})
+	t.Run("Should collect nothing for User or global scope", func(t *testing.T) {
+		t.Parallel()
+		digest, err := CollectDigest(
+			CollectorScope{Now: now},
+			CollectorFacts{
+				WorkLog:          []WorkLogFact{{ID: "wl-20261102-01", AcceptedAt: now.Add(-time.Hour)}},
+				WorkLogTruncated: true,
+			},
+			[]string{"work_log"},
+			"",
+			"",
+		)
+		if err != nil || len(digest.Items) != 0 {
+			t.Fatal(digest, err)
+		}
+	})
+}

@@ -81,7 +81,7 @@ func (m *Manager) syncJobResourcesForSource(
 		if err := next.Validate("job"); err != nil {
 			return 0, 0, err
 		}
-		if err := m.validateJobLoopTarget(ctx, next); err != nil {
+		if err := m.validateJobLoopTarget(ctx, next); err != nil && !errors.Is(err, ErrLoopTargetNotFound) {
 			return 0, 0, err
 		}
 		currentRecord, exists := currentByID[next.ID]
@@ -157,7 +157,7 @@ func (m *Manager) syncTriggerResourcesForSource(
 		if err := next.Validate("trigger"); err != nil {
 			return 0, 0, err
 		}
-		if err := m.validateTriggerLoopTarget(ctx, next); err != nil {
+		if err := m.validateTriggerLoopTarget(ctx, next); err != nil && !errors.Is(err, ErrLoopTargetNotFound) {
 			return 0, 0, err
 		}
 

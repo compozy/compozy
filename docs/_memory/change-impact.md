@@ -5052,3 +5052,13 @@ RT-session-monitor-wake step 10.
 
 - **Review repairs.** Instance pages authorize before filling the visible page; report cursors require a successor. Dry-run digests are arrays of bounded, redacted summaries, and check-in reads retain bounded audit details. Monitor recovery honors persisted supersession. Restart recovery preserves admitted cadence; manual hook vetoes audit without an occurrence or cadence change. Extension-authored context and Web identities use their recorded profile/workspace. Native diagnostic reads batch provider availability per session. No additional compatibility shim or state migration is needed for these repairs.
 - **Repair validation.** The User Memory editor accepts the explicit `@user` selector. Catalog publication includes personal and workspace profile definitions even without a skill registry, using canonical workspace IDs. Memory ownership follows the authored definition rather than a replicated visibility scope: user definitions share notes across projects, while repository overrides retain separate notes. API/native reads and startup projection use the same origin rule. Check-ins selects a placement belonging to the open definition when the definition itself is in User scope.
+
+## Spec-cycle simplification B1 — 2026-11-02
+
+Owner: `spec-cycle-simplify` B1; evidence: `docs/qa/reports/2026-11-02-spec-cycle/B1.md`.
+Heartbeat adds `context.include: work_log` and read-only workspace work hints, without new native
+IDs, CLI verbs, HTTP/UDS DTOs, hooks, config.toml keys or SQLite shapes. Canonical workspace
+containment applies before reads; User/global scopes collect no file. Managed automation sync
+preserves references to absent loops and fails locally on execution. Other validation errors
+remain errors. No extension resources or user task files are deleted. The official skill and
+Web source selector co-ship in B2/F1; release/scenario QA belongs to the integration slice.
