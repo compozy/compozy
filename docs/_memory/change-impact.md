@@ -5088,6 +5088,34 @@ step 13.
 - **Review repairs.** Instance pages authorize before filling the visible page; report cursors require a successor. Dry-run digests are arrays of bounded, redacted summaries, and check-in reads retain bounded audit details. Monitor recovery honors persisted supersession. Restart recovery preserves admitted cadence; manual hook vetoes audit without an occurrence or cadence change. Extension-authored context and Web identities use their recorded profile/workspace. Native diagnostic reads batch provider availability per session. No additional compatibility shim or state migration is needed for these repairs.
 - **Repair validation.** The User Memory editor accepts the explicit `@user` selector. Catalog publication includes personal and workspace profile definitions even without a skill registry, using canonical workspace IDs. Memory ownership follows the authored definition rather than a replicated visibility scope: user definitions share notes across projects, while repository overrides retain separate notes. API/native reads and startup projection use the same origin rule. Check-ins selects a placement belonging to the open definition when the definition itself is in User scope.
 
+||||||| parent of 2daabf375 (fix: resolve pull request candidates directly by number)
+## Session linked work — 2026-11-02
+
+Owner: `docs/prompts/20261102-1950_backend-task.md`, branch `proto/session-links`.
+
+- Native tools: additive `compozy__session_link` and `compozy__session_unlink`, self-targeted through Scope. Worktree creation records an automatic link without binding.
+- Root-review corrections: summary adds integer `pull_requests`; Needs you uses fresh decision facts; pending input only affects Idle/Done with open direct work; catalog search matches direct linked branches/PR numbers before pagination. Add/remove/candidate discovery deny app tokens; reads retain session-read access. Owning evidence: `docs/qa/reports/session-linked-work/backend.md`.
+- HTTP/UDS/CLI: additive session links and candidate discovery resources; `session link` lists or adds, `session unlink` soft removes. Existing branch/PR fields retain their meaning.
+- Extensibility: optional `forge/pr_search`, `forge/pr_read`, `supports_pr_discovery`, and PR title. Existing providers retain the required three methods. No hooks or config keys change.
+- User state: appended migration 00177 creates session links and adds cached PR titles. Soft removal survives automatic refresh. Worktree identity is retained after removal.
+- Isolation: session workspace/profile authorization precedes API access; lineage recursion stays within workspace/profile; writes validate session membership. Native tools cannot select another session.
+- Web: generated clients include full items and catalog summaries. The following frontend task owns production UI, copy/glossary and live scenario verification.
+- Official skill: native tools reference documents self-targeting, unlink and summary semantics.
+
+## Session linked work — 2026-11-02
+
+Owner: `docs/prompts/20261102-1950_backend-task.md`, branch `proto/session-links`.
+
+- Native tools: additive `compozy__session_link` and `compozy__session_unlink`, self-targeted through Scope. Worktree creation records an automatic link without binding.
+- Root-review corrections: summary adds integer `pull_requests`; Needs you uses fresh decision facts; pending input only affects Idle/Done with open direct work; catalog search matches direct linked branches/PR numbers before pagination. Add/remove/candidate discovery deny app tokens; reads retain session-read access. Owning evidence: `docs/qa/reports/session-linked-work/backend.md`.
+- Round 2 candidate correction: number, #number and same-repository forge links resolve through the existing provider-neutral `forge/pr_read` path before normal search. Cross-repository links are refused. Existing DTOs, native IDs, CLI verbs, hooks/config, persisted state and official skill contract remain unchanged; Web consumes the resolved candidate without a frontend change. Evidence: `docs/qa/reports/session-linked-work/backend.md`.
+- HTTP/UDS/CLI: additive session links and candidate discovery resources; `session link` lists or adds, `session unlink` soft removes. Existing branch/PR fields retain their meaning.
+- Extensibility: optional `forge/pr_search`, `forge/pr_read`, `supports_pr_discovery`, and PR title. Existing providers retain the required three methods. No hooks or config keys change.
+- User state: appended migration 00177 creates session links and adds cached PR titles. Soft removal survives automatic refresh. Worktree identity is retained after removal.
+- Isolation: session workspace/profile authorization precedes API access; lineage recursion stays within workspace/profile; writes validate session membership. Native tools cannot select another session.
+- Web: generated clients include full items and catalog summaries. The following frontend task owns production UI, copy/glossary and live scenario verification.
+- Official skill: native tools reference documents self-targeting, unlink and summary semantics.
+
 ## Spec-cycle QA remediation — 2026-11-02
 
 The existing B1/B2 audit below owns the wider change. Removed action kinds now terminalize their

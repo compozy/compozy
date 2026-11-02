@@ -190,3 +190,47 @@ make codegen-check
 ```
 
 The final build/vet/codegen-check chain exited 0 (daemon terminal term-e7db1834366a). All correction source and test changes are committed. The report is followed by a documentation-only evidence commit; remaining working-tree changes belong to the concurrent frontend task.
+
+
+## Round 2: exact PR candidate resolution
+
+Owner: item 7 of `docs/prompts/20261102-2020_backend-fixes.md`.
+Invariant and owner: exact PR identities resolve independently of text search, scoped to the session repository; the existing daemon `TestSessionPullRequestAdapters` suite owns this provider I/O boundary. Its fixtures use real Git repositories and inject only the forge I/O interface.
+
+Before the production change, the new bare-number, #number and three forge-link cases returned no candidate; the mixed search returned PR 7 before requested PR 42, and the foreign-repository case performed search instead of refusing the link. The reproduction command exited 1:
+
+```sh
+go test -tags integration ./internal/daemon -run 'TestSessionPullRequestAdapters/Should_(resolve|prepend|keep_a_missing|refuse_another|retain_normal)'
+```
+
+`WorkCandidates` now recognizes positive numbers and HTTP(S) forge PR links, normalizes repository identity with the existing worktree boundary and refuses other repositories with `ErrLinkedWorkRepository`. On the first page it resolves through `WorkPR`/`forge/pr_read`, prepends the complete candidate and removes its duplicate from the normal search page. There is no provider-specific host logic. Later pages and branch discovery keep their existing behavior. Normal search pagination and `has_more` are retained; the first page can contain one additional direct candidate, so no search hit is dropped at a page boundary. A failed search still returns a successfully resolved identity. A failed direct read falls back to normal search because the optional provider protocol has no shared not-found error; an absent read plus empty search produces no candidate. Provider outages therefore retain the pre-existing search error behavior when both paths fail.
+
+No schema, migration, public DTO, SDK, CLI, native tool, hook or configuration change. No generated output changes are needed. The existing cross-surface audit and QA scenario were updated. No web files were edited; `web/proto.config.ts` remains uncommitted.
+
+
+Round 2 verification (all Go subprocesses removed every inherited `COMPOZY_*` variable; race tests also set `CGO_ENABLED=1`):
+
+```sh
+go test -tags integration ./internal/daemon -run 'TestSessionPullRequestAdapters'
+CGO_ENABLED=1 go test -race -tags integration ./internal/daemon -run 'TestSessionPullRequestAdapters'
+go build ./internal/daemon
+go vet -tags integration ./internal/daemon
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 fmt internal/daemon/session_work_candidates.go internal/daemon/boot_worktrees_test.go
+python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/boot_worktrees_test.go
+git diff --check
+```
+
+The initial green focused test passed (1.642s); race passed (6.901s), and the final repeated race/build/vet chain passed (race 6.104s, all exit 0). Formatter and whitespace checks passed. The shape checker exits 1 only for existing direct-assertion tests `TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot` and `TestWorktreeTurnRefreshNotifier`, outside this change. No new case is flagged.
+
+The initial sandboxed build could not write the Go build cache; the same focused commands passed after cache access was allowed. An initial lint attempt used v2.13.1 and failed to decode Go 1.27 export data. The checkout pins v2.15.0 in `magefiles/defaults.go`; its first attempt encountered a concurrent lint lock, without interrupting that process. The final focused lint uses the pinned version with two workers and independent-run permission.
+
+Not run: live forge/provider or UI acceptance, full tests, E2E, gates, repository-wide lint, codegen or migration checks. No wire/schema/generated artifact changed. No daemon was started, no push or PR was performed. The live QA scenario remains pending. Residual limits: provider read-by-number must be available; unsupported providers retain branch fallback, and the optional provider protocol still lacks a shared typed not-found error. Normal search paging remains intact with at most one extra direct candidate on page 1.
+
+
+Final focused lint passed, exit 0, `0 issues`:
+
+```sh
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allow-parallel-runners --concurrency=2 --new-from-rev=HEAD ./internal/daemon
+```
+
+Only the five owned backend/QA paths were staged. The commit disables hooks for that invocation because lint-staged may stash unrelated work, which the task forbids; the focused tests, build, vet, formatter, lint and whitespace checks above were executed directly. The unrelated `web/proto.config.ts` change remains unstaged and uncommitted.

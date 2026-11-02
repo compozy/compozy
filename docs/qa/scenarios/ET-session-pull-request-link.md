@@ -84,6 +84,7 @@ Root-review regression checks (backend automated evidence; live UI walk remains 
 - Mixed work lists count only fresh failing checks, requested changes or conflicts as Needs you. Ready comes next, then other open/branch items, unknown lookups and terminal PRs. Stale facts never trigger a decision; the lead follows this order.
 - Compare summary `total` and `pull_requests` with the full deduplicated list, including a known PR whose lookup failed.
 - Search a linked branch, PR number and #number with a one-item catalog page. Active and durable sessions return the same exact total and cursor results. Unlinked and child-only identities do not make a parent match; another workspace/profile stays excluded.
+- Search a known PR by number, #number and a same-repository forge URL while text search returns no matches: the first candidate must contain the requested number, branch and title. Normal search results remain after it, with the resolved PR deduplicated. A confirmed missing number stays absent; another repository is refused before provider calls. Repeat text search and page 2 to confirm normal discovery still works. Automated owner: `TestSessionPullRequestAdapters`; live provider/UI walk remains pending.
 - An app token may read linked work under existing session-read scope, but add, remove and candidate search return `app_token_route_forbidden`.
 
 Owning automated checks: `TestBoardColumnWithLinkedWork`, `TestSessionCatalogBoard`,
