@@ -111,6 +111,7 @@ export function SessionToolGroupRow({ row, turnFailed, onToggle }: SessionToolGr
               <div key={`${entry.kind}:${entry.id}`} className="session-rail-step min-w-0">
                 <SessionWorkEntryView
                   entry={entry}
+                  approvals={row.approvals}
                   disclosed
                   onRail
                   active={row.active}
