@@ -1299,6 +1299,19 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	}
 	now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
 
+	t.Run("Should match direct work identities and exclude child rollups", func(t *testing.T) {
+		t.Parallel()
+		info := &Info{ID: "root", WorkspaceID: "ws", linkedWork: []LinkedWorkItem{{Branch: "direct", PRNumber: 42}, {Branch: "child-work", PRNumber: 73, SourceSessionID: "child"}}}
+		for _, c := range []struct {
+			search string
+			want   bool
+		}{{"direct", true}, {"42", true}, {"#42", true}, {"child-work", false}, {"73", false}, {"#73", false}} {
+			if got := sessionMatchesListQuery(info, ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Search: c.search}, benchmarkSessionTime); got != c.want {
+				t.Errorf("search=%s matched=%v want=%v", c.search, got, c.want)
+			}
+		}
+	})
+
 	t.Run("Should match visible Unicode casing for active catalog rows", func(t *testing.T) {
 		t.Parallel()
 		for _, match := range []struct{ title, agent, query string }{
