@@ -146,6 +146,10 @@ func (h *BaseHandlers) SearchSessionWorkCandidates(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "30"))
 	response, err := reader.SessionWorkCandidates(c.Request.Context(), id, c.Query("q"), c.Query("kind"), page, limit)
 	if err != nil {
+		if errors.Is(err, session.ErrLinkedWorkRepository) || errors.Is(err, session.ErrLinkedWorkInvalid) {
+			c.JSON(http.StatusBadRequest, contract.ErrorPayload{Code: LinkedWorkErrorCode(err), Error: err.Error()})
+			return
+		}
 		h.respondError(c, http.StatusBadGateway, err)
 		return
 	}

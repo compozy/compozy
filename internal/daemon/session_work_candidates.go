@@ -68,7 +68,7 @@ func (a sessionPullRequestAdapter) WorkCandidates(
 ) (session.WorkCandidates, error) {
 	result := session.WorkCandidates{Items: []session.WorkCandidate{}}
 	if kind != "" && kind != "branches" && kind != "pull_requests" {
-		return result, errors.New("invalid candidate kind")
+		return result, fmt.Errorf("%w: candidate kind %q", session.ErrLinkedWorkInvalid, kind)
 	}
 	repo, err := a.candidateRepository(ctx, workspaceID)
 	if err != nil {
