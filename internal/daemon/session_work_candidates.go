@@ -111,16 +111,17 @@ func (a sessionPullRequestAdapter) WorkCandidates(
 	if err != nil {
 		return result, err
 	}
-	branches := make([]string, 0, page*limit+1)
+	branches := []string{}
 	for branch := range strings.FieldsSeq(string(output)) {
 		if strings.Contains(strings.ToLower(branch), strings.ToLower(query)) {
 			branches = append(branches, branch)
-			if len(branches) >= page*limit+1 {
-				break
-			}
 		}
 	}
-	start := min((page-1)*limit, len(branches))
+	// `page` comes from the caller: compare by division so a huge value can't overflow the product.
+	start := len(branches)
+	if page-1 <= len(branches)/limit {
+		start = min((page-1)*limit, len(branches))
+	}
 	end := min(start+limit, len(branches))
 	for _, branch := range branches[start:end] {
 		result.Items = append(result.Items, session.WorkCandidate{Repository: repo, Branch: branch})

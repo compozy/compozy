@@ -296,7 +296,6 @@ export function candidateIsLinked(
   candidate: SessionWorkCandidate,
   linked: ReadonlySet<string>
 ): boolean {
-  return (
-    linked.has(candidateKey(candidate)) || linked.has(`${candidate.repository}:${candidate.branch}`)
-  );
+  // A reused branch can hold a newer PR: only the same number is already linked.
+  return linked.has(candidateKey(candidate));
 }

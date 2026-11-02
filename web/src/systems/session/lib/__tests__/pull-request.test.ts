@@ -473,6 +473,8 @@ describe("session linked work", () => {
       SESSION_LINK_PULL_REQUESTS.find(candidate => candidate.pr_number === number)!;
     expect(candidateIsLinked(pick(944), linked)).toBe(true);
     expect(candidateIsLinked(pick(951), linked)).toBe(false);
+    // A newer pull request on a reused branch is a different pick.
+    expect(candidateIsLinked({ ...pick(944), pr_number: 9944 }, linked)).toBe(false);
   });
 
   describe("link input", () => {

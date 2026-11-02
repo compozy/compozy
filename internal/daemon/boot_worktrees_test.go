@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -952,6 +953,10 @@ func TestSessionPullRequestAdapters(t *testing.T) {
 				got.HasMore != (page == 1) {
 				t.Fatalf("page=%d got=%+v err=%v", page, got, err)
 			}
+		}
+		beyond, err := adapter.WorkCandidates(t.Context(), "ws", "find", "branches", math.MaxInt, 100)
+		if err != nil || len(beyond.Items) != 0 || beyond.HasMore {
+			t.Fatalf("page past the end got=%+v err=%v", beyond, err)
 		}
 	})
 
