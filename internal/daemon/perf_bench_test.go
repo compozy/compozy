@@ -11,9 +11,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/situation"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -358,4 +361,70 @@ func daemonBenchmarkKernel(b *testing.B) *resources.Kernel {
 		b.Fatalf("resources.NewKernel() error = %v", err)
 	}
 	return kernel
+}
+
+func BenchmarkSchedulerSessionCapabilities(b *testing.B) {
+	db, err := openDaemonTestGlobalDBAtPath(b.Context(), filepath.Join(b.TempDir(), store.GlobalDatabaseName))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	infos := make([]*session.Info, 128)
+	for i := range infos {
+		infos[i] = &session.Info{
+			ID:        fmt.Sprintf("session-%d", i),
+			ProfileID: store.DefaultProfileID,
+			State:     session.StateActive,
+		}
+	}
+	source := schedulerSessionSource{
+		sessions:  &fakeSessionManager{infos: infos},
+		situation: situation.NewService(situation.Deps{TaskStore: db}),
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		snapshots, err := source.Sessions(b.Context())
+		if err != nil || len(snapshots) != len(infos) {
+			b.Fatalf("Sessions() = %d, %v", len(snapshots), err)
+		}
+	}
+}
+
+func BenchmarkSchedulerTaskReadProjection(b *testing.B) {
+	db, err := openDaemonTestGlobalDBAtPath(b.Context(), filepath.Join(b.TempDir(), store.GlobalDatabaseName))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	runs := make([]taskpkg.Run, 0, 256)
+	for taskIndex := range 64 {
+		record := daemonTaskRecordForTest(fmt.Sprintf("task-%d", taskIndex), now)
+		if err := db.CreateTask(b.Context(), record); err != nil {
+			b.Fatal(err)
+		}
+		for runIndex := range 4 {
+			runs = append(runs, taskpkg.Run{ID: fmt.Sprintf("run-%d-%d", taskIndex, runIndex), TaskID: record.ID})
+		}
+	}
+	source := schedulerTaskSource{store: db}
+	b.ReportAllocs()
+	for b.Loop() {
+		snapshots, err := source.joinRunsWithTasks(b.Context(), runs)
+		if err != nil {
+			b.Fatal(err)
+		}
+		snapshots, err = source.filterPausedRuns(b.Context(), snapshots)
+		if err != nil || len(snapshots) != len(runs) {
+			b.Fatalf("scheduler projection = %d, %v", len(snapshots), err)
+		}
+	}
 }

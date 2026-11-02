@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"os"
@@ -888,5 +889,20 @@ func assertRedactionRemovedValue(t testing.TB, got string, secret string) {
 	}
 	if !strings.Contains(got, Marker) {
 		t.Fatalf("redacted value = %q, want marker %q", got, Marker)
+	}
+}
+
+func BenchmarkDynamicSecretReferences(b *testing.B) {
+	registry := newDynamicSecretRegistry()
+	for index := range 1024 {
+		registry.register(fmt.Sprintf("benchmark-secret-%04d", index))
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		registry.register("benchmark-secret-0000")
+		registry.unregister("benchmark-secret-0000")
+	}
+	if len(registry.valuesSnapshot()) != 1024 {
+		b.Fatal("reference updates changed the secret population")
 	}
 }

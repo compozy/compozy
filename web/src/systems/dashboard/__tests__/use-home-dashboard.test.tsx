@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { StatusPayload } from "@/systems/status";
-import { statusFixture } from "@/systems/status/mocks";
+import { runtimeIdentityFixture, statusFixture } from "@/systems/status/mocks";
 
 import { makeEmptyHomeOverview, makeHomeOverview } from "../mocks/fixtures";
 import type { HomeOverview } from "../types";
@@ -37,6 +37,7 @@ const busyPulse = () => ({
 const getHomeOverview = vi.fn();
 const getHomeActivity = vi.fn();
 const fetchStatus = vi.fn();
+const fetchRuntimeIdentity = vi.fn();
 const useHomeLive = vi.fn();
 const useHomeWorkingNow = vi.fn();
 const profileScope = vi.hoisted(() => ({
@@ -82,6 +83,8 @@ vi.mock("@/systems/status/adapters/daemon-api", async importOriginal => {
   return {
     ...actual,
     fetchStatus: (...args: Parameters<typeof actual.fetchStatus>) => fetchStatus(...args),
+    fetchRuntimeIdentity: (...args: Parameters<typeof actual.fetchRuntimeIdentity>) =>
+      fetchRuntimeIdentity(...args),
   };
 });
 
@@ -104,14 +107,6 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => activeWorkspaceState,
 }));
 
-vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
-  useDaemonHealth: () => ({
-    connectionStatus: "connected" as const,
-    health: undefined,
-    isInitialLoading: false,
-  }),
-}));
-
 import { homePrefsStore } from "../hooks/use-home-prefs-store";
 import { useHomeDashboard } from "../hooks/use-home-dashboard";
 import { buildHomeSystemModel } from "../lib/home-system";
@@ -132,6 +127,8 @@ describe("useHomeDashboard", () => {
     useHomeLive.mockReset();
     useHomeWorkingNow.mockReset();
     getHomeActivity.mockResolvedValue([]);
+    fetchRuntimeIdentity.mockReset();
+    fetchRuntimeIdentity.mockResolvedValue(runtimeIdentityFixture);
     fetchStatus.mockReset();
     fetchStatus.mockResolvedValue({
       ...statusFixture,

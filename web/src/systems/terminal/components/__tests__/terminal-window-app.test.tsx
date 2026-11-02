@@ -1,6 +1,10 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { terminalStoreLogic } from "../../stores/terminal-store";
+import { useTerminalScopeCleanup } from "../../hooks/use-terminal-scope-cleanup";
+import { terminalScopeKey } from "../../lib/terminal-scope-key";
 
 import * as terminalAPI from "../../adapters/terminal-api";
 
@@ -1042,5 +1046,34 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     expect(actions.onStop).toHaveBeenCalledExactlyOnceWith(DEV_SERVER_TERMINAL.id);
     expect(actions.onCloseTerminal).not.toHaveBeenCalled();
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
+  });
+});
+
+describe("terminal catalog pane lifetime", () => {
+  it("Should release removed pane state while preserving a live connection in the same scope", () => {
+    const store = terminalStoreLogic.createStore();
+    const scopeKey = terminalScopeKey("ws-atlas", TERMINAL_FIXTURE_PROFILE);
+    store.trigger.scopeBound({ scopeKey });
+    store.trigger.paneOpened({ terminalId: DEV_SERVER_TERMINAL.id });
+    store.trigger.attached({ terminalId: DEV_SERVER_TERMINAL.id, mode: "pty", cols: 96, rows: 28 });
+    store.trigger.paneOpened({ terminalId: PSQL_TERMINAL.id });
+    const live = store.getSnapshot().context.panes[DEV_SERVER_TERMINAL.id];
+    const { rerender } = renderHook(
+      ({ terminals }: { terminals: TerminalInfo[] }) =>
+        useTerminalScopeCleanup({
+          workspaceId: "ws-atlas",
+          profile: TERMINAL_FIXTURE_PROFILE,
+          terminals,
+          store,
+        }),
+      { initialProps: { terminals: [DEV_SERVER_TERMINAL, PSQL_TERMINAL] } }
+    );
+
+    rerender({ terminals: [DEV_SERVER_TERMINAL] });
+
+    expect(Object.keys(store.getSnapshot().context.panes)).toEqual([DEV_SERVER_TERMINAL.id]);
+    expect(store.getSnapshot().context.panes[DEV_SERVER_TERMINAL.id]).toBe(live);
+    act(() => store.trigger.presenceObserved({ terminalId: PSQL_TERMINAL.id, viewers: 5 }));
+    expect(Object.keys(store.getSnapshot().context.panes)).toEqual([DEV_SERVER_TERMINAL.id]);
   });
 });

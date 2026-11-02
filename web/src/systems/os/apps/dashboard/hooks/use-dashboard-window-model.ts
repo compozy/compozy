@@ -4,10 +4,10 @@ import {
   useSessionCreateHasActiveWorkspace,
   useSessionCreateIsCreating,
 } from "@/systems/session";
-import { useDaemonHealth } from "@/systems/status";
+import { useDaemonConnectionStatus } from "@/systems/status";
 
 export function useDashboardWindowModel(windowId: string) {
-  const { connectionStatus } = useDaemonHealth();
+  const connectionStatus = useDaemonConnectionStatus();
   const { openForAgent } = useSessionCreateActions();
   const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
   const isCreating = useSessionCreateIsCreating();

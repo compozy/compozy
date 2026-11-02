@@ -1009,6 +1009,56 @@ describe("useWindowLiveDataEnabled", () => {
     expect(result.current).toEqual({ primary: false, peer: false, third: false });
   });
 
+  it("Should fill the live budget by layer and ID while excluding hidden windows", () => {
+    const shell = createShell();
+    const candidates = [
+      { ...windowFixture("window:z", 4), layer: 100 },
+      { ...windowFixture("window:a", 5), layer: 100 },
+      { ...windowFixture("window:lower", 6), layer: 99 },
+      { ...windowFixture("window:minimized", 7), layer: 200, minimized: true },
+      { ...windowFixture("window:hidden-tab", 8), layer: 200, stackActive: false },
+      { ...windowFixture("window:other-desktop", 9), layer: 200, desktopId: "other" },
+    ];
+    shell.setRuntimeState({
+      windows: Object.fromEntries(candidates.map(window => [window.id, window])),
+      focusedId: null,
+      client: { ...shell.state.client!, focusOrder: [] },
+    });
+    const { result } = renderHook(
+      () => ({
+        a: useWindowLiveDataEnabled("window:a"),
+        z: useWindowLiveDataEnabled("window:z"),
+        lower: useWindowLiveDataEnabled("window:lower"),
+        minimized: useWindowLiveDataEnabled("window:minimized"),
+        hidden: useWindowLiveDataEnabled("window:hidden-tab"),
+        other: useWindowLiveDataEnabled("window:other-desktop"),
+      }),
+      { wrapper: shell.wrapper }
+    );
+    expect(result.current).toEqual({
+      a: true,
+      z: true,
+      lower: false,
+      minimized: false,
+      hidden: false,
+      other: false,
+    });
+    act(() =>
+      shell.setRuntimeState({
+        focusedId: "window:lower",
+        client: { ...shell.state.client!, focusOrder: ["window:hidden-tab", "window:lower"] },
+      })
+    );
+    expect(result.current).toEqual({
+      a: true,
+      z: false,
+      lower: true,
+      minimized: false,
+      hidden: false,
+      other: false,
+    });
+  });
+
   it("Should disable retained window work while the browser document is hidden", () => {
     let visibilityState: DocumentVisibilityState = "visible";
     vi.spyOn(document, "visibilityState", "get").mockImplementation(() => visibilityState);

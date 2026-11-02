@@ -45,6 +45,21 @@ func processOwner(info *session.Info) sessionprocess.Owner {
 	}
 	return o
 }
+func (b sessionProcessSource) ProcessActivity() (live bool, toolBusy bool) {
+	if activity, ok := b.state.sessions.(interface{ ProcessActivity() (bool, bool) }); ok {
+		return activity.ProcessActivity()
+	}
+	for _, info := range b.state.sessions.List() {
+		if info == nil {
+			continue
+		}
+		owner := processOwner(info)
+		live = live || owner.Live
+		toolBusy = toolBusy || (owner.Live && owner.ToolBusy)
+	}
+	return live, toolBusy
+}
+
 func (b sessionProcessSource) Owners(context.Context) ([]sessionprocess.Owner, error) {
 	infos := b.state.sessions.List()
 	owners := make([]sessionprocess.Owner, 0, len(infos))

@@ -21,13 +21,15 @@ func (s *Session) Info() *Info {
 
 // infoLocked returns a session snapshot; the caller must hold s.mu for reading or writing.
 func (s *Session) infoLocked() *Info {
-	acpCaps := cloneCaps(s.ACPCaps)
+	var acpCaps acp.Caps
 	acpCapsKnown := s.ACPCapsKnown
 	var leaderKernelToken string
 	if s.process != nil {
 		leaderKernelToken = s.process.KernelToken
-		acpCaps = cloneCaps(s.process.CapsSnapshot())
+		acpCaps = s.process.CapsSnapshot()
 		acpCapsKnown = true
+	} else {
+		acpCaps = cloneCaps(s.ACPCaps)
 	}
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
 	resolution := speedpkg.CloneResolution(s.SpeedResolution)

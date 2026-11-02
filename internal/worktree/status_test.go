@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -113,6 +115,31 @@ func TestServiceStatus(t *testing.T) {
 		}
 		if got := events.count(EventStatusRefreshed); got != 1 {
 			t.Fatalf("status refreshed events = %d, want one", got)
+		}
+	})
+
+	// Invariant: a clean snapshot has zero diff totals while retaining branch divergence.
+	t.Run("Should read clean status without starting redundant diff processes", func(t *testing.T) {
+		t.Parallel()
+		item := statusTestWorktree()
+		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+			if strings.Join(call.args, " ") != "status --porcelain=v2 --branch -z" {
+				return gitResponse{err: errors.New("unexpected clean-checkout command")}
+			}
+			return gitResponse{stdout: []byte("# branch.oid abc\x00# branch.head feature/status\x00" +
+				"# branch.upstream origin/feature/status\x00# branch.ab +2 -1\x00")}
+		}}
+		service := NewService(newMemoryWorktreeStore(), runner, WithClock(statusTestClock))
+		status := service.collectStatus(t.Context(), item)
+		if status.ReadError != "" || status.DirtyFiles == nil || *status.DirtyFiles != 0 ||
+			status.Insertions == nil || *status.Insertions != 0 || status.Deletions == nil || *status.Deletions != 0 ||
+			status.Ahead == nil || *status.Ahead != 2 || status.Behind == nil || *status.Behind != 1 ||
+			status.HeadSHA == nil || *status.HeadSHA != "abc" || status.RefreshedAt == nil ||
+			!status.RefreshedAt.Equal(statusTestClock()) {
+			t.Fatalf("clean status = %#v, want zero diff totals with complete branch facts", status)
+		}
+		if len(runner.invocations()) != 1 {
+			t.Fatalf("clean status commands = %#v, want only porcelain", runner.invocations())
 		}
 	})
 
@@ -364,4 +391,43 @@ func attachTestPullRequests(
 	}
 	t.Cleanup(service.pullRequests.Close)
 	return cache
+}
+
+func BenchmarkCollectCleanWorktreeStatus(b *testing.B) {
+	runner, err := NewRealGitRunner(0)
+	if err != nil {
+		b.Fatal(err)
+	}
+	root := b.TempDir()
+	for _, args := range [][]string{{"init", "--initial-branch=main"}, {"config", "user.name", "Performance fixture"}, {"config", "user.email", "fixture@example.test"}} {
+		if _, _, err := runner.Run(b.Context(), root, args...); err != nil {
+			b.Fatal(err)
+		}
+	}
+	for index := range 256 {
+		if err := os.WriteFile(
+			filepath.Join(root, fmt.Sprintf("file-%03d.txt", index)),
+			[]byte("fixture\n"),
+			0600,
+		); err != nil {
+			b.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "fixture"}} {
+		if _, _, err := runner.Run(b.Context(), root, args...); err != nil {
+			b.Fatal(err)
+		}
+	}
+	service := NewService(newMemoryWorktreeStore(), runner)
+	item := Worktree{ID: "fixture", Path: root}
+	b.ReportAllocs()
+	for b.Loop() {
+		status := service.collectStatus(b.Context(), item)
+		if status.ReadError != "" || status.DirtyFiles == nil || *status.DirtyFiles != 0 || status.Insertions == nil ||
+			*status.Insertions != 0 ||
+			status.Deletions == nil ||
+			*status.Deletions != 0 {
+			b.Fatalf("unexpected clean status %#v", status)
+		}
+	}
 }

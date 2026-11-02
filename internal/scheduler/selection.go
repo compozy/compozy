@@ -30,10 +30,13 @@ func (s *Scheduler) selectWakeTargets(
 	sortRunsForWake(orderedPending)
 	orderedSessions := slices.Clone(sessions)
 	sortSessionsForWake(orderedSessions)
+	sessionsByWorkspace := groupSessionsByWorkspace(orderedSessions)
 
 	occupied := activeSessionIDs(active)
 	state := s.wakeStateSnapshot(now)
 	result := selectionResult{capacityWaitingReasons: make(map[string]string)}
+	// Each disposition is consumed and selected sessions copied before the next run.
+	available := make([]SessionSnapshot, 0, len(sessions))
 
 	for idx := range orderedPending {
 		work := &orderedPending[idx]
@@ -42,7 +45,11 @@ func (s *Scheduler) selectWakeTargets(
 			continue
 		}
 
-		disposition := classifyRunCapacity(work, orderedSessions, occupied)
+		workspaceID := strings.TrimSpace(work.Task.WorkspaceID)
+		if work.Task.Scope.Normalize() == taskpkg.ScopeGlobal {
+			workspaceID = ""
+		}
+		disposition := classifyRunCapacity(work, sessionsByWorkspace[workspaceID], occupied, available)
 		queuedAge, hasQueuedAge := effectiveQueuedAge(now, work.Run.QueuedAt, starvationNotBefore)
 		starved := s.starveThresholds.MinQueuedAge > 0 && hasQueuedAge &&
 			queuedAge >= s.starveThresholds.MinQueuedAge
@@ -93,6 +100,15 @@ func (s *Scheduler) selectWakeTargets(
 		result.targets = append(result.targets, WakeTarget{Work: *work, Session: chosen, Reason: s.wakeReason})
 	}
 	return result
+}
+
+func groupSessionsByWorkspace(sessions []SessionSnapshot) map[string][]SessionSnapshot {
+	groups := make(map[string][]SessionSnapshot)
+	for _, candidate := range sessions {
+		workspaceID := strings.TrimSpace(candidate.WorkspaceID)
+		groups[workspaceID] = append(groups[workspaceID], candidate)
+	}
+	return groups
 }
 
 func isPotentiallyClaimable(work *RunSnapshot) bool {

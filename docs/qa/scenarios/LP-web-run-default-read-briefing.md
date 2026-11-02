@@ -56,3 +56,11 @@ orchestrated), and `looprun-c494117598fe2188` (failed, quarantined `orchestrate`
 (`RegisterRoutedGraph`) recaptured at 1440×900 through the eng-ui-screenshot helper.
 
 2026-10-05 functional replay: Targeted Usage regression replay on the completed human review displays 0m00s / 10m, matching the daemon's adjusted active span. Evidence: loops-human-review-usage-fixed.png and loops-human-review-done-uds.json. This is a focused retest; unchanged briefing contracts retain their prior provenance. Delivery gate passed; fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
+
+QA impact 2026-11-01 (responsiveness audit): complete briefing/progress rosters now
+project all node items once, independently of the public page limit. The existing
+briefing and roster contract suites pass under the race detector, including a
+1,200-item, two-generation fixture with state filtering and stable order. Recheck
+large-run progress and the public paginated roster together in the isolated runtime
+walk. Focused evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+Runtime/browser and current-head CI verification remain with the enclosing audit.

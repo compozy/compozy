@@ -63,3 +63,14 @@ tracked by ET-web-marketplace-kind-navigation.
 
 QA impact 2026-08-02: the shared Marketplace shell now exposes exactly three kinds. Reset for the
 adjacent acquisition canary.
+
+
+## QA impact and focused evidence 2026-11-02 — responsiveness audit
+
+Browse and detail availability checks avoid repeatedly hashing unchanged cached packages while preserving current file/digest/error checks. The Web source was not changed. A package disappearing after a warm browse must become `package_unavailable`, and restoring approved bytes must recover availability without a remote fetch.
+
+Focused verification passed under `-race`: `TestCatalogServiceDetailAndStatus` (`internal/marketplace/service_test.go`) completed in 5.964 s (`.cache/performance/extension-marketplace/marketplace-race-final.txt`). Its real SQLite/file fixture covers browse/detail agreement and recovery. `TestPackageCache` separately owns corruption, expected-digest and replacement behavior. The 8 MiB availability benchmark improved from 4,724,509 to 180,411 ns/op (five 200 ms samples, median); this is a backend availability measurement, not browser interaction latency.
+
+Existing root CI mappings, not rerun by this worker: `TestCatalogServiceHTTPProjectionIntegration` (`internal/marketplace/service_integration_test.go`); browser `E2E-001 / E2E-005: operator browses independent sources and retains installed packages across source recovery` and `E2E-006: Retry recovers one failed source and shipped logos load under production CSP` (`web/e2e/__tests__/marketplace.spec.ts`). These remain the owners for source degradation/recovery and production-bundle rendering.
+
+Historical browser verdicts remain unchanged. No current screenshot, keyboard, narrow-window, CSP or live source-recovery pass is claimed. Evidence and limitations: [extension/marketplace audit](../reports/2026-11-01-performance/extension-marketplace.md).

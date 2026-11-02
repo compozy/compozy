@@ -10,6 +10,20 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func BenchmarkParseSkillContent(b *testing.B) {
+	content := []byte(benchmarkSkillContent("benchmark-skill", benchmarkDescription(0)))
+	b.ReportAllocs()
+	for b.Loop() {
+		metadata, _, err := parseSkillContent(content)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if metadata.Name != "benchmark-skill" {
+			b.Fatalf("parsed name = %q", metadata.Name)
+		}
+	}
+}
+
 func BenchmarkMergedSkillList(b *testing.B) {
 	b.ReportAllocs()
 

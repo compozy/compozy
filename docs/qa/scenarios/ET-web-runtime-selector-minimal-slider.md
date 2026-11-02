@@ -56,3 +56,11 @@ refresh. Keep distinct exact model versions and account/profile/workspace scope 
 QA 2026-09-16, issue #655: Rendered full/recent/favorite Fable selection, valid/invalid effort switching, rapid-input persistence, and narrow viewport passed. Next-prompt provider acknowledgement remains blocked. The installed adapter independently confirmed the account Fable usage limit; a later application attempt also reported native authentication resolution failure. No selected intent was reported as applied. See the current report for public rendered evidence and the remaining recovery steps.
 
 QA impact 2026-10-31, #1107: the session composer selector now applies same-provider changes to the live session and shows an apply note derived from the provider's runtime_live_apply capability; see RT-session-runtime-live-apply. Flag only.
+
+
+QA impact 2026-11-01 (responsiveness audit): closed runtime selectors defer popup row projection.
+Verify the selected model and valid advertised controls remain visible while closed; update the
+catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keyboard selection and
+Escape focus restoration against the latest data. The existing runtime-selector component suite
+owns focused coverage; the new check includes catalog updates while closed. This note does not
+claim a fresh live-provider/browser walk; integrated runtime evidence belongs to the audit QA tail.

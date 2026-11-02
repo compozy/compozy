@@ -217,6 +217,27 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 			t.Fatalf("ConfigOptions mutated through Info() copy: %#v", latest.ACPCaps.ConfigOptions)
 		}
 	})
+
+	t.Run("Should isolate live process capabilities from retained and returned snapshots", func(t *testing.T) {
+		t.Parallel()
+		caps := acp.Caps{SupportedModes: []string{"live"}, ConfigOptions: []acp.SessionConfigOption{{
+			ID: "model", CurrentValueID: "live-model", Values: []acp.SessionConfigOptionValue{{Value: "live-model"}},
+		}}}
+		target := &Session{
+			ACPCaps: acp.Caps{SupportedModes: []string{"retained"}},
+			process: NewAgentProcess(AgentProcessOptions{Caps: caps}),
+		}
+		first := target.Info()
+		if first.ACPCaps.SupportedModes[0] != "live" || !first.ACPCapsKnown {
+			t.Fatalf("live capabilities = %#v", first.ACPCaps)
+		}
+		first.ACPCaps.SupportedModes[0] = "changed"
+		first.ACPCaps.ConfigOptions[0].CurrentValueID = "changed"
+		first.ACPCaps.ConfigOptions[0].Values[0].Value = "changed"
+		if got := target.Info().ACPCaps; !reflect.DeepEqual(got, caps) {
+			t.Fatalf("mutated future capabilities = %#v, want %#v", got, caps)
+		}
+	})
 }
 
 func TestRuntimeBindingSnapshotRestore(t *testing.T) {

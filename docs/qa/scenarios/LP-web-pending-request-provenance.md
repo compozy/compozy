@@ -18,3 +18,11 @@ overlaps: LP-web-run-default-read-briefing; LP-web-timeline-graph-rows
 
 Open a run with a pending human request in a later round. Keep Inspect closed and confirm the card
 alone identifies the asking step and round in plain language.
+
+QA impact 2026-11-01 (responsiveness audit): request events continue to refresh
+run detail, briefing/roster/story, workspace and All projects run/request lists,
+and the workspace node inventory. Bursts share one in-flight read round; pending
+reconciliation survives stream error or disposal. Recheck final request/provenance
+state when a request is answered during an active read and the run view closes.
+Focused results and pending runtime/current-head CI evidence are tracked in
+`docs/qa/reports/2026-11-01-performance/loop-loops.md`.

@@ -17,12 +17,8 @@ vi.mock("../../../hooks/use-desktop", () => ({
   useDesktop: (selector: (state: typeof desktop) => unknown) => selector(desktop),
 }));
 
-vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
-  useDaemonHealth: () => ({
-    connectionStatus: connection.status,
-    health: undefined,
-    isInitialLoading: false,
-  }),
+vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
+  useDaemonConnectionStatus: () => connection.status,
 }));
 
 vi.mock("@/systems/session/hooks/use-session-create", () => ({

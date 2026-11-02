@@ -42,6 +42,7 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				wantMutationID string
 			}{
 				{name: "list", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees", wantStatus: http.StatusOK},
+				{name: "aggregate", method: http.MethodGet, path: "/api/worktrees?all_workspaces=true&workspace_ids=ws-registry", wantStatus: http.StatusOK},
 				{name: "create", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees", body: `{"name":"feature"}`, wantStatus: http.StatusAccepted},
 				{name: "adopt", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/adopt", body: `{"path":"/repo/feature"}`, wantStatus: http.StatusOK},
 				{name: "inspect by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusOK, wantRef: "parity"},
@@ -202,7 +203,9 @@ func newWorktreeParityUDSRouter(t *testing.T, service core.WorktreeService) http
 }
 
 func parityWorkspaceService() testutil.StubWorkspaceService {
-	return testutil.StubWorkspaceService{ResolveFn: func(
+	return testutil.StubWorkspaceService{ListFn: func(context.Context) ([]workspace.Workspace, error) {
+		return []workspace.Workspace{{ID: "ws-registry", Name: "Parity", RootDir: "/repo"}}, nil
+	}, ResolveFn: func(
 		context.Context,
 		string,
 	) (workspace.ResolvedWorkspace, error) {
@@ -330,6 +333,16 @@ func (s *parityWorktreeService) ListDetails(context.Context, string, bool) (*wor
 		Discovered: []worktree.DiscoveredWorktree{},
 		Repo:       worktree.RepoState{GitBacked: true, GitAvailable: true},
 	}, nil
+}
+
+func (s *parityWorktreeService) ListAggregate(
+	ctx context.Context, scope store.ReadScope, allowed map[string]bool,
+) (*worktree.DetailedListing, error) {
+	listing, err := s.ListDetails(ctx, "", false)
+	if !scope.Matches(s.item.ProfileID) || !allowed[s.item.WorkspaceID] {
+		listing.Worktrees = []worktree.Inspection{}
+	}
+	return listing, err
 }
 
 func (s *parityWorktreeService) Resolve(_ context.Context, _ string, ref string) (*worktree.Worktree, error) {

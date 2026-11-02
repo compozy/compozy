@@ -1,0 +1,92 @@
+# Provider usage and dashboard performance audit
+
+Baseline: `de5ab2f4d`. This report covers separately assigned Go packages and frontend systems. All numbers are fixture measurements, not production-user latency.
+
+## Dashboard system
+
+Audited `hooks/use-home-dashboard.ts`, `use-home-live.ts`, `home-live-refresh-store.ts`, `use-home-working-now.ts`, `use-home-system.ts`, `use-home-agents.ts`, `use-elapsed-ticker.ts`; canonical query options/keys, adapters, components and existing suites. Working-now session and agent reads are already bounded to six; elapsed timers share one clock. React Compiler owns render memoization. No speculative memoization or new cache is warranted.
+
+Confirmed and fixed: each task lifecycle frame invalidated overview, task-dashboard and inbox queries immediately, including while prior reads were pending. TanStack Query canceled and restarted those reads. The coordinator now retains the immediate first refresh, coalesces additional events while it is in flight, and performs a trailing refresh after settlement. Failed reads still trigger the owed trailing refresh. Scope generations fence late completions, including switching away and back to the same profile. Cleanup retains an owed generation until its leading read settles, then invalidates once using the original QueryClient callback. Disabled queries remain dirty until re-enabled, and initially empty active queries get the trailing read. Retired settlements do not change the active generation; closed-source frames are ignored.
+
+Controlled fixture: three active real TanStack Query observers, 100 synchronous task lifecycle events, deferred query functions at the I/O boundary, five samples on the same arm64 host with pinned Bun 1.4.0. Every sample verified final revision 100 in all three caches.
+
+| Metric | Baseline | Changed | Reduction |
+| --- | ---: | ---: | ---: |
+| Query executions per 100 lifecycle events | 300 | 6 | 98% |
+| Canceled query executions | 297 | 0 | 100% |
+| Median synchronous dispatch CPU | 2.2000 ms | 0.1862 ms | 91.54% |
+| Dispatch CPU range (five samples) | 1.2870–6.5269 ms | 0.1435–1.4120 ms | Descriptive only |
+| Final revision in overview/dashboard/inbox | 100/100/100 | 100/100/100 | Preserved |
+
+Reproduce with `python3 .cache/performance/run-bounded.py bun web/e2e/scripts/benchmark-home-live.ts` from the repository root, using the same harness on `de5ab2f4d` and changed source. Raw experiment logs are `.cache/performance/usage-dashboard/home-pinned-before.log` and `home-pinned-after-final.log`. Query counts are deterministic in this fixture; CPU is supplemental and is not browser INP, real endpoint latency, heap usage or production-user telemetry. No new dependency, staleness timeout or polling interval was introduced.
+
+Before changing tests: invariant = lifecycle bursts preserve immediate first refresh and eventual latest aggregate data without cancel/restart storms; owning layer = dashboard stream-to-query coordination; canonical suite = `web/src/systems/dashboard/__tests__/use-home-live.test.tsx`. Profile/workspace changes and unmount must fence trailing callbacks. A pending lifecycle update must survive closure with a disabled or initially empty observer: after the leading read settles, disabled data remains invalidated until re-enabled and an active initial query fetches the latest revision.
+
+## Provider usage Go package
+
+Audited manager resolution, lifecycle scheduling, collector flights, publication, credential read fences, target catalog and built-in collectors. Collectors already have per-target single-flight admission and independent goroutines; background collection does not wait on preceding providers. Starting more goroutines for snapshot copies would add work without evidence. Credential caches are ownership-sensitive and must not become time-based shortcuts.
+
+Confirmed and fixed: the service-wide mutex covered local credential stat/validation I/O. Read checks now capture target state under the mutex, perform file/identity validation outside it, and apply only if target pointer, epoch, exact credential identity and validation sequence still match. Only a successfully verified publication advances that sequence; an unverified retry/error status update does not. This fences A-to-B-to-A credential changes even when the same owner republishes without an epoch change. The existing unchanged-file fast path and immediate logout/ownership invalidation remain. No goroutine, auth TTL or new retained cache was added. Overlapping changed-file reads may independently validate evidence; no request-wide lock or speculative single-flight cache is introduced.
+
+Controlled fixture: real temporary Codex credential files, a loopback quota endpoint, and a one-shot gate after reading credential identity that delays I/O completion by 20 ms. Each run uses five samples of five iterations on Apple M4 Max, darwin/arm64, `GOMAXPROCS=2`. The custom metric times only a concurrent unrelated empty-profile envelope read (no credential I/O of its own); the normal benchmark duration includes the intentionally delayed owner.
+
+| Metric | Baseline | Changed | Interpretation |
+| --- | ---: | ---: | --- |
+| Median unrelated-profile envelope read | 21.678700 ms | 1.458 µs | Removes the unrelated reader from the credential I/O critical section |
+| Unrelated-profile read range | 21.038825–22.757625 ms | 1.409–1.617 µs | Five samples, controlled injected delay |
+| Median full fixture iteration | 21.819133 ms | 20.953817 ms | Owner still waits for the injected 20 ms; no owner-I/O speedup claimed |
+| Median whole-fixture bytes allocated | 4,728 B/op | 4,856 B/op | Transient capture adds allocation; no memory reduction claimed |
+| Median whole-fixture allocations | 60 allocs/op | 61 allocs/op | Includes I/O, goroutine and timer overhead; not retained heap |
+
+Reproduce via `python3 .cache/performance/run-bounded.py go test ./internal/providerusage -run '^$' -bench '^BenchmarkUsageCredentialReadContention$' -benchtime=5x -count=5`. Use the same current test harness with the baseline `service.go`, `read_fence.go` and `flight.go` (the experiment uses Go `-overlay`) for baseline comparison. Raw logs for the allocation-instrumented pair are `.cache/performance/usage-dashboard/fence-before-alloc.log` and `fence-after-final.log`. The initial pre-edit baseline independently measured 21.087242 ms median unrelated-profile latency (`fence-before.log`). These numbers demonstrate isolation under controlled slow I/O, not real provider, filesystem or production-user latency. The allocation table covers the full fixture, including its I/O, goroutine and timer work; it is not a live-memory or memory-leak measurement.
+
+The canonical `TestUsageService` suite passed with `CGO_ENABLED=1 go test -race -parallel=2 ./internal/providerusage -run '^TestUsageService$' -count=1 -timeout=120s` (1.420 s package time). It covers existing logout, atomic replacement, account rotation, config generation and cancellation behavior, plus delayed reads across unrelated-profile access, credential clearing, target removal and a newer successful publication after identity/epoch changes and same-owner A-to-B-to-A republication. All test I/O uses isolated files and loopback; no live provider account was read.
+
+## Validation
+
+The complete dashboard group passed 63 tests in nine files through root Turbo (`--only --filter=./web -- src/systems/dashboard/__tests__ --maxWorkers=1`); the live-stream suite owns 15 cases. The disabled/initially empty closure cases both failed before the correction (`home-close-before.log`). An additional same-profile A-to-B-to-A scenario with separate QueryClients checks that retired work preserves the active generation's trailing read; it passed in the final group run (`dashboard-final-test.log`), with six reads and zero cancellations per QueryClient and revision 4 retained in both.
+
+Provider-usage contention measurement and focused race checks passed. The original baseline fails the new unrelated-profile invariant at its 5-second blocking watchdog; changed source passes. The same-owner publication case exposed the ABA regression before the validation sequence was added (`fence-aba-before.log`), and removing only that guard reproduces it (`fence-missing-validation.log`). The canonical test-shape checker passes after handling an existing ignored shutdown error in the touched suite. Independent reviews closed `UW-001` (credential ABA) and `RD-001` (retired refresh freshness) after inspecting the fixes and receipts; the dashboard reviewer also reran its own QueryClient diagnostic. See [usage/worktree review](review-usage-worktree.md) and [dashboard/ring review](review-ring-dashboard.md). Root owns consolidated lint/typecheck, real runtime scenario verification and final CI.
+
+## Additional Go packages (individual audit)
+
+| Package | Inspected owners | Performance/concurrency disposition |
+| --- | --- | --- |
+| `internal/providers` | `prestart.go`, `prestart_cache.go`, `prestart_cache_key.go`, `prestart_fingerprint.go`, `prestart_availability.go`, `runner.go`, auth classification and probe environment | Existing 30-second cache is bounded to 128 entries, keyed by credential/config evidence and invalidated by generation. Concurrent cold probes can duplicate work, but no measured workload justifies changing cancellation/auth semantics in this pass. Startup command execution stays outside cache locks; no added goroutines. |
+| `internal/modelcatalog` | `service.go`, `service_bootstrap.go`, `service_refresh.go`, `service_refresh_plan.go`, `live_sources.go`, execution-context mapping and selector projection | Bootstrap/refresh source traversal is serial; per-provider flights already deduplicate concurrent requests. A blanket parallel conversion is unsafe because staged refresh maps and shared source snapshots require coordinated ownership. No speculative parallelization retained. Context/credential partitions, source generations and deterministic fallback remain unchanged. |
+| `internal/providerauth` | `command.go`, `native_cli.go` | Command parsing and environment projection have no background loops. Diagnostics use a non-mutating home resolver. Fresh PATH/environment/security checks must not become unkeyed caches. No measured bottleneck or goroutine opportunity in these small synchronous helpers. |
+| `internal/providerenv` | `env.go` | Provider-home creation verifies symlink components and containment on each creation path; read-only environment resolution skips filesystem creation. Small bounded environment transformations do not warrant goroutines; skipping path validation for a cache would weaken isolation. |
+| `internal/providerexec` | `native_cli.go`, `opencode.go` | Pure command adaptation and fingerprinting except authoritative executable resolution. Native fallback is limited to genuinely missing builtins. No recurring scan or retained worker; extra caches would need PATH/cwd/selector identity and lack a measured win. |
+| `internal/resources` | `reconcile.go`, `reconcile_queue.go`, `reconcile_pass.go`, `kernel_snapshot.go`, `kernel_transaction.go`, `kernel_records.go`, `perf_bench_test.go` | Reconcile queue already coalesces dirty generations and joins one worker; boot order is topological. Snapshot writes preload source records and run transactionally; per-new-record conflict reads preserve cross-source ownership. Do not parallelize writes inside one SQLite transaction or reorder dependent projectors. No measured change retained. |
+| `internal/gateway` | `auth_limiter.go`, `ingress_limiter.go`, `connection_registry.go`, `status.go`, `connectivity.go`, provider supervision and mutation gate | Authentication source tracking is capped at 4,096. Revocation copies/removes connection state under lock then cancels all streams before waiting outside it. The independent provider supervisor already owns background monitoring. Status projection iterates small tier/provider inventories. No measured bottleneck or safe additional goroutine work identified. |
+| `internal/update` | `manager.go`, `multi_check.go`, `cache.go`, `operation_archive.go`, operation coordinator/runtime | Release checks share a serialized manager, cache and minimum refresh interval; client disconnect does not cancel the bounded shared refresh. Update history is scanned separately for app/runtime; that growth is a candidate for a future update-history workload, not evidence of concurrent-session interaction cost. Publication/application ordering is authoritative, so no speculative goroutines introduced. |
+| `internal/desktoprelease` | `github_backend.go`, `authority.go`, `authority_inventory.go`, inventory and channel generation | Release publication is an explicit administrative pipeline, not an active-session click path. Independent blob upload might admit bounded concurrency, but no latency profile supports it and ordered verification/CAS must remain. No changes to remote publication. |
+| `internal/version` | `version.go` | Constant-size build metadata snapshot under `RWMutex`; test override has a separate owner lock. No I/O, unbounded data or goroutine opportunity. |
+
+## Additional frontend systems (individual audit)
+
+| System | Inspected owners | Disposition |
+| --- | --- | --- |
+| `agent` | `hooks/use-agents.ts`, `use-agent-sessions.ts`, canonical `query-options.ts`, `query-keys.ts`, catalog normalization/flattening and metrics | Catalogs retain paginated envelopes and bound server pages; profile/workspace are explicit in query identity; aggregate catalog is one request rather than per-workspace fan-out. Mutations seed exact detail entries. Existing behavior retained. |
+| `model-catalog` | `hooks/use-runtime-model-catalog.ts`, `use-initial-model-catalog-refresh.ts`, `use-provider-models.ts`, `lib/query-options.ts`, `to-runtime-selector-options.ts` | One aggregate model query replaces per-provider requests. Existing memoized projections and query-owned one-time initial refresh are already present. Polling is bounded to 60 seconds, stale time 30 seconds; no additional cache or memo introduced. |
+| `provider-usage` | `use-provider-usage.ts`, `use-provider-usage-stream.ts`, `query-options.ts`, view-model and adapters | Tray/popover/app share one stream lease per QueryClient/profile; cleanup drops the lease at zero subscribers, and late closed-source frames are fenced. Each revision still rereads the canonical envelope; possible burst coalescing remains a measured-workload candidate, without inventing a staleness window. |
+| `providers` | complete six-file system: index/types, adapter, query keys/options and hook | Shared query factories with 30-second stale time, 60-second polling, aborted requests and no retries for permanent 4xx responses. No duplicated local server state or timer-per-row. No change warranted by observed code. |
+| `gateway` | `use-gateway-page.ts`, `use-gateway-audit.ts`, `use-gateway-access.ts`, `use-gateway-mutations.ts`, `query-options.ts`, exposure model and store | Posture and devices load independently through shared queries; 30-second polling follows asynchronous reconciliation. Audit is opt-in and never ambient/polled. Derived active/revoked populations remain view-model work. No change warranted by observed code. |
+
+The unchanged rows above are static audits, not claims of measured performance or runtime verification. No production credentials, provider homes, default daemon or remote release operations were accessed.
+
+## Desktop release command
+
+`cmd/compozy-desktop-release/main.go` dispatches explicit publication, repair and inventory commands to the release authority with signal cancellation and a bounded HTTP client. It is outside the active-session interaction path; no ambient polling or retained worker was found, and release mutations were not executed.
+
+Dashboard connection-only reads now consume `useDaemonConnectionStatus` and the bounded runtime-identity endpoint; the actual System panel retains full status data. Owning behavior suite: `use-home-dashboard.test.tsx`; invariant = scoped dashboard data/status remain observable while connectivity uses identity only. This is coordinated with the daemon/runtime worker; aggregate metrics for that change belong to its report. The test replaces the old hook stub with a runtime-identity adapter boundary, retaining the real connection-status hook.
+
+Before adding Go coverage: invariant = a credential evidence read for one profile must not hold the manager mutex across I/O, and a delayed result must not restore a snapshot after an intervening credential clear/removal, or invalidate a newer successful publication after credential rotation/reset or an A-to-B-to-A publication without an epoch change. Owning layer = provider-usage Manager read/publication fence. Canonical suite = `internal/providerusage/service_test.go` / `TestUsageService`. The companion benchmark uses real temporary Codex credential files and a loopback HTTP quota response; a one-shot gate at the credential-probe I/O boundary introduces a controlled 20 ms stall. It measures unrelated-profile envelope latency separately from the stalled owner's total duration.
+
+## Cross-surface impact
+
+No native tool IDs, HTTP/UDS DTOs, config keys, hooks, extension SDK contracts, stored data shapes or official skill instructions change. Provider-usage ownership and profile isolation are preserved at the same boundary. Web behavior changes only in dashboard refresh coordination and its connection-status data source. Affected QA scenarios are `RT-home-dashboard-zones` and `ET-provider-usage-surfaces`; their dated impact notes preserve earlier evidence and distinguish focused tests from the enclosing audit's runtime re-walk.
+
+## Final scoped lint follow-up
+
+The final lint found `collectOnce` above the existing function-length limit. Its existing error/cancellation classification was extracted unchanged into `collectionOutcome`; validation ordering, `validationSeq` and publication remain unchanged. `TestUsageService` passed again with `-race` (1.417 s), and pinned golangci-lint 2.15.0 reported zero issues for the package. Receipts: `providerusage-race-final.log` and `providerusage-lint-final.log` under `.cache/performance/usage-dashboard/`. The integration-tag lint reported only an existing `golines` issue in the unchanged `claude_keychain_darwin_integration_test.go:79`; the enclosing audit owns that formatting and the final integrated lint.

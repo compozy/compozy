@@ -1,8 +1,10 @@
 package globaldb
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -15,6 +17,209 @@ import (
 // Canonical suite: workspace-predicated worktree storage and SQL constraints.
 func TestGlobalDBWorktreeStore(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: batched display hydration preserves ordered, workspace-qualified cached facts.
+	// Owner: inspection service over the real SQLite repository; canonical worktree store suite.
+	t.Run("Should hydrate ordered worktree listings with workspace-qualified PR facts", func(t *testing.T) {
+		t.Parallel()
+		fixture, service := newWorktreeInspectionFixture(t, 3)
+		ctx := t.Context()
+		now := time.Now().UTC()
+		for index := range 3 {
+			key := worktreepkg.PullRequestKey{
+				WorkspaceID: "ws-bench-1",
+				RepoKey:     "github.com/acme/repo-1",
+				Branch:      fmt.Sprintf("topic-%d", index),
+			}
+			if err := fixture.SavePullRequest(ctx, worktreepkg.PullRequestEntry{
+				Key:         key,
+				LookupState: "ok",
+				Facts:       &worktreepkg.ForgeStatus{FetchedAt: &now, PRNumber: new(index + 101)},
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err := fixture.ListAggregate(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listing, err := service.ListAggregate(
+			ctx,
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			map[string]bool{"ws-bench-0": true, "ws-bench-1": true},
+		)
+		if err != nil || listing == nil || len(listing.Worktrees) != len(rows) {
+			t.Fatalf("aggregate listing = %#v, %v", listing, err)
+		}
+		for index, item := range listing.Worktrees {
+			if item.Worktree.ID != rows[index].ID || item.Status == nil || item.Status.WorktreeID != item.Worktree.ID ||
+				item.Status.DirtyFiles == nil ||
+				item.ForgeStatus == nil ||
+				item.ForgeStatus.PRNumber == nil {
+				t.Fatalf("listing row %d = %#v, want ordered complete facts", index, item)
+			}
+			number := *item.Status.DirtyFiles + 1
+			if item.Worktree.WorkspaceID == "ws-bench-1" {
+				number += 100
+			}
+			if *item.ForgeStatus.PRNumber != number || item.AgentActivity != worktreepkg.AgentActivityIdle {
+				t.Fatalf("listing row %d = %#v, want PR %d and idle activity", index, item, number)
+			}
+		}
+		if fixture.resolves != 2 || fixture.pullReads != 1 || fixture.statusReads != 6 {
+			t.Fatalf(
+				"aggregate reads = workspace:%d PR:%d status:%d",
+				fixture.resolves,
+				fixture.pullReads,
+				fixture.statusReads,
+			)
+		}
+		fixture.resolves, fixture.pullReads, fixture.statusReads = 0, 0, 0
+		detail, err := service.ListDetails(ctx, "ws-bench-1", false)
+		if err != nil || detail == nil || len(detail.Worktrees) != 3 {
+			t.Fatalf("workspace listing = %#v, %v", detail, err)
+		}
+		for _, item := range detail.Worktrees {
+			if item.Worktree.WorkspaceID != "ws-bench-1" || item.ForgeStatus == nil ||
+				item.ForgeStatus.PRNumber == nil ||
+				*item.ForgeStatus.PRNumber < 101 {
+				t.Fatalf("workspace listing leaked PR identity: %#v", item)
+			}
+		}
+		if fixture.resolves != 2 || fixture.pullReads != 1 || fixture.statusReads != 3 {
+			t.Fatalf(
+				"workspace reads = workspace:%d PR:%d status:%d",
+				fixture.resolves,
+				fixture.pullReads,
+				fixture.statusReads,
+			)
+		}
+	})
+
+	t.Run("Should exclude unauthorized workspaces and profiles before inspection", func(t *testing.T) {
+		t.Parallel()
+		fixture, service := newWorktreeInspectionFixture(t, 1)
+		ctx := t.Context()
+		const otherProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := fixture.db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles(id,name,color,icon,created_at) VALUES(?, 'Other', 'blue', 'folder', ?)`,
+			otherProfile,
+			store.FormatTimestamp(time.Now()),
+		); err != nil {
+			t.Fatal(err)
+		}
+		other, err := fixture.Get(ctx, "ws-bench-0", "wt-0-0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		other.ID, other.Name, other.Path = "wt-other-profile", "other-profile", t.TempDir()
+		other.ProfileID = otherProfile
+		if err := fixture.Insert(ctx, *other); err != nil {
+			t.Fatal(err)
+		}
+		scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+		listing, err := service.ListAggregate(ctx, scope, map[string]bool{"ws-bench-0": true})
+		if err != nil || listing == nil || len(listing.Worktrees) != 1 || listing.Worktrees[0].Worktree.ID != "wt-0-0" {
+			t.Fatalf("scoped listing = %#v, %v", listing, err)
+		}
+		if fixture.resolves != 1 || fixture.pullReads != 1 || fixture.statusReads != 1 {
+			t.Fatalf(
+				"unauthorized rows hydrated: workspace:%d PR:%d status:%d",
+				fixture.resolves,
+				fixture.pullReads,
+				fixture.statusReads,
+			)
+		}
+		fixture.resolves, fixture.pullReads, fixture.statusReads = 0, 0, 0
+		for _, allowed := range []map[string]bool{nil, {}, {"ws-bench-0": false}} {
+			listing, err := service.ListAggregate(ctx, scope, allowed)
+			if err != nil || listing == nil || len(listing.Worktrees) != 0 {
+				t.Fatalf("empty authorization = %#v, %v", listing, err)
+			}
+		}
+		if fixture.resolves != 0 || fixture.pullReads != 0 || fixture.statusReads != 0 {
+			t.Fatal("empty authorization performed inspection reads")
+		}
+		listing, err = service.ListAggregate(
+			ctx,
+			store.ReadScope{AllProfiles: true},
+			map[string]bool{"ws-bench-0": true},
+		)
+		if err != nil || listing == nil || len(listing.Worktrees) != 2 {
+			t.Fatalf("explicit aggregate scope = %#v, %v", listing, err)
+		}
+	})
+
+	t.Run("Should resolve the current workspace root on each aggregate read", func(t *testing.T) {
+		t.Parallel()
+		fixture, service := newWorktreeInspectionFixture(t, 2)
+		ctx := t.Context()
+		scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+		allowed := map[string]bool{"ws-bench-0": true}
+		if _, err := service.ListAggregate(ctx, scope, allowed); err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		runner, err := worktreepkg.NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, args := range [][]string{{"init", "--initial-branch=main"}, {"remote", "add", "origin", "https://github.com/acme/replacement.git"}} {
+			if _, _, err := runner.Run(ctx, root, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := fixture.db.db.ExecContext(
+			ctx,
+			`UPDATE workspaces SET root_dir=? WHERE id='ws-bench-0'`,
+			root,
+		); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		if err := fixture.SaveStatus(
+			ctx,
+			"ws-bench-0",
+			"wt-0-0",
+			worktreepkg.Status{WorktreeID: "wt-0-0", DirtyFiles: new(42), RefreshedAt: &now},
+		); err != nil {
+			t.Fatal(err)
+		}
+		key := worktreepkg.PullRequestKey{
+			WorkspaceID: "ws-bench-0",
+			RepoKey:     "github.com/acme/replacement",
+			Branch:      "topic-0",
+		}
+		if err := fixture.SavePullRequest(
+			ctx,
+			worktreepkg.PullRequestEntry{
+				Key:         key,
+				LookupState: "ok",
+				Facts:       &worktreepkg.ForgeStatus{FetchedAt: &now, PRNumber: new(789)},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		listing, err := service.ListAggregate(ctx, scope, allowed)
+		if err != nil || listing == nil || len(listing.Worktrees) != 2 {
+			t.Fatalf("fresh listing = %#v, %v", listing, err)
+		}
+		for _, item := range listing.Worktrees {
+			if item.Worktree.ID == "wt-0-0" &&
+				(item.Status == nil || item.Status.DirtyFiles == nil || *item.Status.DirtyFiles != 42 || item.ForgeStatus == nil || item.ForgeStatus.PRNumber == nil || *item.ForgeStatus.PRNumber != 789) {
+				t.Fatalf("fresh workspace root/status retained old facts: %#v", item)
+			}
+			if item.Worktree.ID == "wt-0-1" && item.ForgeStatus != nil {
+				t.Fatalf("prior repository PR leaked into new root: %#v", item)
+			}
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := service.ListAggregate(canceled, scope, allowed); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled aggregate = %v", err)
+		}
+	})
 
 	t.Run("Should retain missing worktrees until every bound session is archived", func(t *testing.T) {
 		t.Parallel()
@@ -1268,4 +1473,158 @@ func TestSessionBranchSnapshots(t *testing.T) {
 	if err != nil || got[ids[0]] != "topic" || got[ids[1]] != "" {
 		t.Fatalf("removed branches=%#v %v", got, err)
 	}
+}
+
+// Benchmark the real SQLite inspection path, including its workspace and PR hydration.
+func BenchmarkWorktreeAggregateInspection(b *testing.B) {
+	ctx := b.Context()
+	fixture, service := newWorktreeInspectionFixture(b, 32)
+	scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+	allowed := map[string]bool{"ws-bench-0": true, "ws-bench-1": true}
+	if _, err := service.ListAggregate(ctx, scope, allowed); err != nil {
+		b.Fatal(err)
+	}
+	fixture.resolves, fixture.pullReads, fixture.statusReads = 0, 0, 0
+	b.ReportAllocs()
+	for b.Loop() {
+		listing, err := service.ListAggregate(ctx, scope, allowed)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(listing.Worktrees) != 64 || listing.Worktrees[0].ForgeStatus == nil ||
+			listing.Worktrees[0].Status == nil {
+			b.Fatalf("incomplete listing: %#v", listing)
+		}
+	}
+	b.ReportMetric(float64(fixture.resolves)/float64(b.N), "workspace_reads/op")
+	b.ReportMetric(float64(fixture.pullReads)/float64(b.N), "pr_reads/op")
+	b.ReportMetric(float64(fixture.statusReads)/float64(b.N), "status_reads/op")
+}
+
+func newWorktreeInspectionFixture(
+	tb testing.TB,
+	rowsPerWorkspace int,
+) (*worktreeInspectionStore, *worktreepkg.Service) {
+	tb.Helper()
+	ctx := tb.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(tb.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() {
+		if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+			tb.Error(err)
+		}
+	})
+	runner, err := worktreepkg.NewRealGitRunner(0)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	fixture := &worktreeInspectionStore{WorktreeRepo: db.Worktrees, db: db}
+	now := time.Now().UTC()
+	for workspace := range 2 {
+		id := fmt.Sprintf("ws-bench-%d", workspace)
+		root := tb.TempDir()
+		if _, _, err := runner.Run(ctx, root, "init", "--initial-branch=main"); err != nil {
+			tb.Fatal(err)
+		}
+		remote := fmt.Sprintf("https://github.com/acme/repo-%d.git", workspace)
+		if _, _, err := runner.Run(ctx, root, "remote", "add", "origin", remote); err != nil {
+			tb.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES(?,?,?,?,?)`,
+			id,
+			root,
+			id,
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		); err != nil {
+			tb.Fatal(err)
+		}
+		for index := range rowsPerWorkspace {
+			item := worktreepkg.Worktree{
+				ID:          fmt.Sprintf("wt-%d-%d", workspace, index),
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: id,
+				Name:        fmt.Sprintf("work-%d", index),
+				Branch:      fmt.Sprintf("topic-%d", index),
+				Path:        filepath.Join(root, fmt.Sprintf("work-%d", index)),
+				State:       worktreepkg.StateReady,
+				Origin:      worktreepkg.OriginManual,
+				SetupState:  worktreepkg.SetupNone,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+			if err := db.Worktrees.Insert(ctx, item); err != nil {
+				tb.Fatal(err)
+			}
+			if err := db.Worktrees.SaveStatus(
+				ctx,
+				id,
+				item.ID,
+				worktreepkg.Status{WorktreeID: item.ID, DirtyFiles: new(index), RefreshedAt: &now},
+			); err != nil {
+				tb.Fatal(err)
+			}
+			key := worktreepkg.PullRequestKey{
+				WorkspaceID: id,
+				RepoKey:     fmt.Sprintf("github.com/acme/repo-%d", workspace),
+				Branch:      item.Branch,
+			}
+			if err := db.Worktrees.SavePullRequest(
+				ctx,
+				worktreepkg.PullRequestEntry{
+					Key:         key,
+					LookupState: "ok",
+					Facts:       &worktreepkg.ForgeStatus{FetchedAt: &now, PRNumber: new(index + 1)},
+				},
+			); err != nil {
+				tb.Fatal(err)
+			}
+		}
+	}
+	pulls := worktreepkg.NewPullRequestService(ctx, fixture, nil, runner, nil)
+	tb.Cleanup(pulls.Close)
+	service := worktreepkg.NewService(
+		fixture,
+		runner,
+		worktreepkg.WithWorkspaceResolver(fixture),
+		worktreepkg.WithPullRequests(pulls),
+	)
+	return fixture, service
+}
+
+type worktreeInspectionStore struct {
+	*WorktreeRepo
+	db                               *GlobalDB
+	resolves, pullReads, statusReads int
+}
+
+func (s *worktreeInspectionStore) ResolveWorktreeWorkspace(
+	ctx context.Context,
+	id, _ string,
+) (worktreepkg.Workspace, error) {
+	s.resolves++
+	ws, err := s.db.GetWorkspace(ctx, id)
+	if err != nil {
+		return worktreepkg.Workspace{}, err
+	}
+	return worktreepkg.Workspace{ID: ws.ID, Root: ws.RootDir}, nil
+}
+func (s *worktreeInspectionStore) ListWorktreeWorkspaces(context.Context) ([]worktreepkg.Workspace, error) {
+	return nil, nil
+}
+
+func (s *worktreeInspectionStore) ReadPullRequests(
+	ctx context.Context,
+	keys []worktreepkg.PullRequestKey,
+) (map[worktreepkg.PullRequestKey]worktreepkg.PullRequestEntry, error) {
+	s.pullReads++
+	return s.WorktreeRepo.ReadPullRequests(ctx, keys)
+}
+func (s *worktreeInspectionStore) GetStatus(ctx context.Context, workspaceID, id string) (*worktreepkg.Status, error) {
+	s.statusReads++
+	return s.WorktreeRepo.GetStatus(ctx, workspaceID, id)
 }

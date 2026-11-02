@@ -1,12 +1,18 @@
 // Types
-export type { DaemonStatusPayload, DoctorPayload, HealthPayload, StatusPayload } from "./types";
+export type {
+  DaemonStatusPayload,
+  DoctorPayload,
+  HealthPayload,
+  RuntimeIdentityPayload,
+  StatusPayload,
+} from "./types";
 
 // Adapters
-export { fetchStatus } from "./adapters/daemon-api";
+export { fetchRuntimeIdentity, fetchStatus } from "./adapters/daemon-api";
 
 // Query infrastructure
 export { statusKeys } from "./lib/query-keys";
-export { statusOptions } from "./lib/query-options";
+export { runtimeIdentityOptions, statusOptions } from "./lib/query-options";
 
 // Hooks
 export {
@@ -16,3 +22,4 @@ export {
 export { deriveDaemonConnectionStatus, useDaemonHealth } from "./hooks/use-daemon-health";
 export { useDaemonStatus } from "./hooks/use-daemon-status";
 export { useStatus } from "./hooks/use-status";
+export { useRuntimeIdentity } from "./hooks/use-runtime-identity";

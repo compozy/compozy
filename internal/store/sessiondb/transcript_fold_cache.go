@@ -3,6 +3,7 @@ package sessiondb
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
@@ -42,7 +43,7 @@ func (c *transcriptFoldCache) commit() {
 	c.folds = append(c.staged, c.folds...)
 	c.staged = nil
 	if len(c.folds) > maxCachedTranscriptFolds {
-		c.folds = c.folds[:maxCachedTranscriptFolds]
+		c.folds = slices.Delete(c.folds, maxCachedTranscriptFolds, len(c.folds))
 	}
 }
 
@@ -65,7 +66,7 @@ func (c *transcriptFoldCache) stage(fold *transcript.EntryFold) {
 func takeMatchingFold(folds *[]*transcript.EntryFold, identity transcript.EntryIdentity) *transcript.EntryFold {
 	for index, fold := range *folds {
 		if fold.Matches(identity) {
-			*folds = append((*folds)[:index], (*folds)[index+1:]...)
+			*folds = slices.Delete(*folds, index, index+1)
 			return fold
 		}
 	}

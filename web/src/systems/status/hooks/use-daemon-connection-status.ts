@@ -1,11 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import type { ConnectionStatus } from "@compozy/ui";
 
-import { statusOptions } from "../lib/query-options";
+import { useRuntimeIdentity } from "./use-runtime-identity";
 import { deriveDaemonConnectionStatus } from "./use-daemon-health";
 
 function useDaemonConnectionStatus(): ConnectionStatus {
-  return deriveDaemonConnectionStatus(useQuery(statusOptions()));
+  return deriveDaemonConnectionStatus(useRuntimeIdentity());
 }
 
 export { useDaemonConnectionStatus };

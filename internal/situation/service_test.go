@@ -1977,3 +1977,116 @@ func TestContextForSessionReportsTheSessionDefaultModel(t *testing.T) {
 		}
 	})
 }
+
+func TestCapabilitiesForSession(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve capability resolution and bounds without unrelated context reads", func(t *testing.T) {
+		t.Parallel()
+		info := &session.Info{
+			ID:          "sess-capabilities",
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "coder",
+			WorkspaceID: "ws-capabilities",
+			Provider:    "codex",
+		}
+		deps := Deps{
+			SectionLimit: 2,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
+					if id != info.WorkspaceID {
+						t.Fatalf("workspace = %q", id)
+					}
+					return workspacepkg.ResolvedWorkspace{ID: id}, nil
+				},
+			),
+			AgentResolver: agentResolverFunc(
+				func(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					if name != info.AgentName || resolved.ID != info.WorkspaceID {
+						t.Fatal("capability resolution lost session scope")
+					}
+					return compozyconfig.AgentDef{
+						Name: name,
+						Capabilities: &compozyconfig.CapabilityCatalog{Capabilities: []compozyconfig.CapabilityDef{
+							{ID: " review ", Summary: " Review code "}, {ID: "build", Summary: "Build code"},
+						}},
+					}, nil
+				},
+			),
+			SkillRegistry: skillRegistryFunc(
+				func(_ context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error) {
+					if resolved.ID != info.WorkspaceID {
+						t.Fatal("skill resolution lost workspace")
+					}
+					return []*skillspkg.Skill{{Meta: skillspkg.SkillMeta{Name: "test"}, Enabled: true}}, nil
+				},
+			),
+		}
+		full, err := NewService(deps).ContextForSession(t.Context(), info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps.TaskStoreFunc = func() TaskStore { t.Error("capability read resolved task context"); return nil }
+		deps.SoulSnapshotsFunc = func() SoulSnapshotStore { t.Error("capability read resolved soul context"); return nil }
+		deps.SpawnAllowanceFunc = func() SpawnAllowanceResolver { t.Error("capability read resolved spawn limits"); return nil }
+		capabilities, err := NewService(deps).CapabilitiesForSession(t.Context(), info)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if capabilities.Section != full.Capabilities.Section ||
+			!slices.Equal(capabilities.Capabilities, full.Capabilities.Capabilities) {
+			t.Fatalf("capabilities = %#v, full context = %#v", capabilities, full.Capabilities)
+		}
+		if capabilities.Section.Returned != 2 || !capabilities.Section.Truncated ||
+			capabilities.Capabilities[0].ID != "build" {
+			t.Fatalf("capabilities lost ordering or bounds: %#v", capabilities)
+		}
+	})
+	t.Run("Should retain fresh agent capabilities across reads", func(t *testing.T) {
+		t.Parallel()
+		capability := "build"
+		service := NewService(
+			Deps{
+				AgentResolver: agentResolverFunc(
+					func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+						return compozyconfig.AgentDef{
+							Name: "coder",
+							Capabilities: &compozyconfig.CapabilityCatalog{
+								Capabilities: []compozyconfig.CapabilityDef{{ID: capability}},
+							},
+						}, nil
+					},
+				),
+			},
+		)
+		info := &session.Info{AgentName: "coder"}
+		for _, expected := range []string{"build", "review"} {
+			capability = expected
+			result, err := service.CapabilitiesForSession(t.Context(), info)
+			if err != nil || len(result.Capabilities) != 1 || result.Capabilities[0].ID != expected {
+				t.Fatalf("capabilities = %#v, %v", result, err)
+			}
+		}
+	})
+	t.Run("Should propagate cancellation and dependency failures", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		service := NewService(Deps{})
+		if _, err := service.CapabilitiesForSession(ctx, &session.Info{}); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation = %v", err)
+		}
+		service = NewService(Deps{SkillRegistry: contextErrorSkillRegistry{err: context.DeadlineExceeded}})
+		if _, err := service.CapabilitiesForSession(
+			t.Context(),
+			&session.Info{},
+		); !errors.Is(
+			err,
+			context.DeadlineExceeded,
+		) {
+			t.Fatalf("registry error = %v", err)
+		}
+		if _, err := service.CapabilitiesForSession(t.Context(), nil); err == nil {
+			t.Fatal("nil session accepted")
+		}
+	})
+}

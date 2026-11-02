@@ -67,3 +67,12 @@ refresh and provider-unavailable behavior. Automated coverage: `TestServiceStatu
 Native refusal parity (#1012): duplicate creation returns `worktree_name_taken`; removal while session-bound returns `worktree_session_active` with a readable explanation. A real workspace prune failure retains `tool_backend_failed` / `backend_unhealthy` and a sanitized cause. Verify that refusals do not replace or remove the checkout.
 
 The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.
+
+2026-11-01 responsiveness audit impact: compare HTTP and UDS aggregate worktree reads with
+`all_workspaces=true`, a selected profile, and explicit `workspace_ids`. Only selected registered
+workspaces may reach metadata hydration; an empty authorized selection returns no rows, and a
+workspace-catalog failure stops before hydration. Verify unchanged owner labels, deterministic
+ordering, default archived-workspace exclusion and explicitly selected history. The API admission
+suite and real-SQLite worktree suite own automated evidence; this revision's transport/browser
+scenario re-walk remains pending. Evidence and limits: [API and Tasks audit](../reports/2026-11-01-performance/api-tasks.md)
+and [worktree audit](../reports/2026-11-01-performance/worktree-workspace.md).

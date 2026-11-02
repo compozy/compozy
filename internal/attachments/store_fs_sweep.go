@@ -31,6 +31,16 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 	if err != nil {
 		return err
 	}
+	_, err = s.sweepItemsLocked(ctx, items, reserveCount, reserveBytes)
+	return err
+}
+
+func (s *FilesystemAttachmentStore) sweepItemsLocked(
+	ctx context.Context,
+	items []retainedAttachment,
+	reserveCount int,
+	reserveBytes int64,
+) ([]retainedAttachment, error) {
 	now := s.now().UTC()
 	retained := items[:0]
 	pinsBySession := make(map[string]map[string]struct{})
@@ -39,9 +49,10 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 		if s.retentionPins != nil {
 			pins, ok := pinsBySession[item.sessionID]
 			if !ok {
+				var err error
 				pins, err = s.retentionPins.PinnedAttachmentIDs(ctx, item.sessionID)
 				if err != nil {
-					return fmt.Errorf("read attachment retention pins for session %q: %w", item.sessionID, err)
+					return nil, fmt.Errorf("read attachment retention pins for session %q: %w", item.sessionID, err)
 				}
 				pinsBySession[item.sessionID] = pins
 			}
@@ -49,7 +60,7 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 		}
 		if !item.pinned && now.Sub(item.createdAt) > s.retention.MaxAge {
 			if err := s.removePair(item.contentPath); err != nil {
-				return fmt.Errorf("%w: remove expired attachment: %w", ErrPersistence, err)
+				return nil, fmt.Errorf("%w: remove expired attachment: %w", ErrPersistence, err)
 			}
 			continue
 		}
@@ -62,7 +73,7 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 	}
 	for len(retained)+reserveCount > s.retention.MaxCount || totalBytes+reserveBytes > s.retention.MaxBytes {
 		if len(retained) == 0 {
-			return fmt.Errorf(
+			return nil, fmt.Errorf(
 				"%w: reserved attachment exceeds retention bounds",
 				ErrPersistence,
 			)
@@ -70,18 +81,18 @@ func (s *FilesystemAttachmentStore) sweepLocked(
 		evictIndex := slices.IndexFunc(retained, func(item retainedAttachment) bool { return !item.pinned })
 		if evictIndex < 0 {
 			if reserveCount == 0 && reserveBytes == 0 {
-				return nil
+				return retained, nil
 			}
-			return fmt.Errorf("%w: retained attachments are pinned by pending input", ErrPersistence)
+			return nil, fmt.Errorf("%w: retained attachments are pinned by pending input", ErrPersistence)
 		}
 		oldest := retained[evictIndex]
 		if err := s.removePair(oldest.contentPath); err != nil {
-			return fmt.Errorf("%w: evict attachment: %w", ErrPersistence, err)
+			return nil, fmt.Errorf("%w: evict attachment: %w", ErrPersistence, err)
 		}
 		totalBytes -= oldest.bytes
 		retained = slices.Delete(retained, evictIndex, evictIndex+1)
 	}
-	return nil
+	return retained, nil
 }
 
 func (s *FilesystemAttachmentStore) listAttachments(ctx context.Context) ([]retainedAttachment, error) {

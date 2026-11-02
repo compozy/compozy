@@ -48,6 +48,7 @@ export interface TerminalStoreState {
 type TerminalStoreEvents = {
   /** Rebinds after any workspace, profile, or aggregate-scope change. */
   scopeBound: { scopeKey: string | null };
+  panesReconciled: { scopeKey: string; terminalIds: readonly string[] };
   paneOpened: { terminalId: string };
   statusChanged: { terminalId: string; status: TerminalStreamStatus };
   attached: {
@@ -101,6 +102,14 @@ export const terminalStoreLogic = createStoreLogic<TerminalStoreState, TerminalS
     // entirely, so nothing stale can render while the new scope loads.
     scopeBound: (context, event) =>
       context.scopeKey === event.scopeKey ? undefined : { scopeKey: event.scopeKey, panes: {} },
+    panesReconciled: (context, event) => {
+      if (context.scopeKey !== event.scopeKey) return undefined;
+      const retained = new Set(event.terminalIds);
+      const entries = Object.entries(context.panes);
+      const live = entries.filter(([id]) => retained.has(id));
+      if (live.length === entries.length) return undefined;
+      return { ...context, panes: Object.fromEntries(live) };
+    },
     paneOpened: (context, event) =>
       context.panes[event.terminalId]
         ? undefined

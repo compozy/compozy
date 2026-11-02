@@ -208,6 +208,49 @@ describe("RuntimeSelector read-only contract", () => {
 // ---------------------------------------------------------------------------
 
 describe("RuntimeSelector single-button trigger", () => {
+  it("Should reopen with the latest catalog while preserving the closed selection", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const value: RuntimeSelectorValue = {
+      provider: "codex",
+      model: "gpt-a",
+      reasoning_effort: "",
+    };
+    const selector = (models: RuntimeModelOption[]) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TooltipProvider delay={0}>
+          <RuntimeSelector
+            value={value}
+            onChange={onChange}
+            providers={[codexProvider]}
+            models={models}
+            triggerTestId="rt-trigger"
+          />
+        </TooltipProvider>
+      </UIProvider>
+    );
+    const { rerender } = render(selector([model("gpt-a", { name: "Original model" })]));
+    await openSelector(user);
+    expect(row("gpt-a")).toHaveTextContent("Original model");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("runtime-selector-popup")).toBeNull());
+
+    rerender(
+      selector([model("gpt-a", { name: "Updated model" }), model("gpt-b", { name: "New model" })])
+    );
+    expect(screen.getByTestId("rt-trigger")).toHaveTextContent("Updated model");
+    expect(onChange).not.toHaveBeenCalled();
+
+    await openSelector(user);
+    expect(row("gpt-a")).toHaveTextContent("Updated model");
+    expect(row("gpt-a").querySelector("[data-selected-check]")).not.toBeNull();
+    await user.click(row("gpt-b"));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "codex", model: "gpt-b" }),
+      undefined
+    );
+  });
+
   it("Should render one click surface that toggles the popup open and closed", async () => {
     const user = userEvent.setup();
     renderSelector({

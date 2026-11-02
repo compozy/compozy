@@ -121,6 +121,7 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 	workspaceID = strings.TrimSpace(workspaceID)
 	m.mu.RLock()
 	byName := make(map[string]*ExtensionInfo, len(m.extensions)+len(m.devExtensions))
+	developmentNames := make(map[string]struct{})
 	for name, ext := range m.extensions {
 		byName[name] = new(cloneExtensionInfo(&ext.info))
 	}
@@ -128,24 +129,26 @@ func (m *Manager) ListForWorkspace(workspaceID string) []ExtensionInfo {
 		for key, ext := range m.devExtensions {
 			if key.WorkspaceID == workspaceID {
 				byName[key.Name] = new(ext.info)
+				developmentNames[key.Name] = struct{}{}
 			}
 		}
 	}
 	m.mu.RUnlock()
+	var installedNames map[string]struct{}
+	if m.registry != nil {
+		// A failed authority read hides installed packages but retains the captured dev overlays.
+		names, err := m.registry.workspaceInstallationNames(context.Background(), workspaceID)
+		if err == nil {
+			installedNames = names
+		}
+	}
 	infos := make([]ExtensionInfo, 0, len(byName))
 	for _, info := range byName {
 		if m.registry != nil {
-			key := InstanceKey{Name: info.Name, WorkspaceID: workspaceID}
-			m.mu.RLock()
-			development := workspaceID != "" && m.devExtensions[key] != nil
-			m.mu.RUnlock()
-			if !development {
-				installations, err := m.registry.Installations(context.Background(), info.Name)
-				if err != nil || !slices.ContainsFunc(installations, func(item Installation) bool {
-					return item.Scope.WorkspaceID == "" || item.Scope.WorkspaceID == workspaceID
-				}) {
-					continue
-				}
+			_, development := developmentNames[info.Name]
+			_, installed := installedNames[info.Name]
+			if !development && !installed {
+				continue
 			}
 		}
 		infos = append(infos, *info)

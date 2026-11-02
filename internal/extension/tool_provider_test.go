@@ -18,6 +18,7 @@ import (
 	"time"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -1232,6 +1233,121 @@ func TestExtensionToolProviderCatalog(t *testing.T) {
 
 func TestExtensionToolProviderDispatch(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should expose dev-only tools only while their workspace generation remains linked and enabled",
+		func(t *testing.T) {
+			t.Parallel()
+			env := newRegistryTestEnv(t)
+			fixture := createExtensionToolTestExtension(t, "dev-only-tools", "fake-extension", nil, nil, true)
+			info := ExtensionInfo{
+				Name: fixture.manifest.Name, Version: fixture.manifest.Version,
+				ManifestPath: filepath.Join(fixture.dir, manifestJSONFileName), Checksum: fixture.checksum,
+				Source: SourceWorkspace, Enabled: true,
+			}
+			link := DevLinkRequest{
+				Name: info.Name, WorkspaceID: "ws-dev-tools", OriginPath: fixture.dir,
+				GenerationHash: fixture.checksum,
+			}
+			if _, err := env.registry.LinkDev(link); err != nil {
+				t.Fatal(err)
+			}
+			runtime := &fakeScopedExtensionToolRuntime{
+				fakeExtensionToolRuntime: &fakeExtensionToolRuntime{},
+				infosByWorkspace: map[string][]ExtensionInfo{
+					link.WorkspaceID: {info}, "foreign": {info},
+				},
+			}
+			provider, err := NewExtensionToolProvider(env.registry, func() ExtensionToolRuntime { return runtime })
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCount := func(workspace string, want int) {
+				t.Helper()
+				catalog, err := provider.List(t.Context(), toolspkg.Scope{WorkspaceID: workspace})
+				if err != nil || len(catalog) != want {
+					t.Fatalf("List(%q) = %#v, %v, want %d tools", workspace, catalog, err, want)
+				}
+			}
+			assertCount(link.WorkspaceID, 1)
+			assertCount("foreign", 0)
+			if err := env.registry.SetEnabledForProfile(info.Name, store.DefaultProfileID, false); err != nil {
+				t.Fatal(err)
+			}
+			assertCount(link.WorkspaceID, 0)
+			if err := env.registry.SetEnabledForProfile(info.Name, store.DefaultProfileID, true); err != nil {
+				t.Fatal(err)
+			}
+			assertCount(link.WorkspaceID, 1)
+			link.GenerationHash = strings.Repeat("f", 64)
+			if _, err := env.registry.LinkDev(link); err != nil {
+				t.Fatal(err)
+			}
+			assertCount(link.WorkspaceID, 0)
+			if err := env.registry.UnlinkDev(info.Name, link.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+			assertCount(link.WorkspaceID, 0)
+		},
+	)
+
+	t.Run("Should reread attachment reach and profile enablement for every catalog", func(t *testing.T) {
+		t.Parallel()
+		env, fixture, descriptor := createExtensionToolProviderFixture(t, "ext-attachment-reach", true)
+		profileID := insertActiveRegistryProfile(t, env, "marketing")
+		workspaceID := "ws-tool-catalog"
+		if _, err := env.db.ExecContext(t.Context(), `INSERT INTO workspaces
+ (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			workspaceID, t.TempDir(), "Tools", store.FormatTimestamp(env.installedAt),
+			store.FormatTimestamp(env.installedAt)); err != nil {
+			t.Fatal(err)
+		}
+		profileScope := InstallationScope{ProfileID: profileID}
+		workspaceScope := InstallationScope{WorkspaceID: workspaceID}
+		for _, scope := range []InstallationScope{profileScope, workspaceScope} {
+			if err := env.registry.AttachInstallation(t.Context(), fixture.manifest.Name, scope); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := env.registry.DetachInstallation(t.Context(), fixture.manifest.Name, InstallationScope{}); err != nil {
+			t.Fatal(err)
+		}
+		provider, err := NewExtensionToolProvider(env.registry, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCatalog := func(scope toolspkg.Scope, visible bool) {
+			t.Helper()
+			catalog, err := provider.List(t.Context(), scope)
+			if err != nil {
+				t.Fatalf("List(%+v) error = %v", scope, err)
+			}
+			if visible {
+				if len(catalog) != 1 || catalog[0].ID != descriptor.Tool.ID {
+					t.Fatalf("List(%+v) = %#v, want attached tool", scope, catalog)
+				}
+			} else if len(catalog) != 0 {
+				t.Fatalf("List(%+v) = %#v, want no tools", scope, catalog)
+			}
+		}
+		assertCatalog(toolspkg.Scope{}, false)
+		assertCatalog(toolspkg.Scope{WorkspaceID: workspaceID}, true)
+		assertCatalog(toolspkg.Scope{WorkspaceID: "foreign"}, false)
+		assertCatalog(toolspkg.Scope{ProfileID: profileID, WorkspaceID: "foreign"}, true)
+		if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, profileID, false); err != nil {
+			t.Fatal(err)
+		}
+		assertCatalog(toolspkg.Scope{ProfileID: profileID, WorkspaceID: workspaceID}, false)
+		assertCatalog(toolspkg.Scope{WorkspaceID: workspaceID}, true)
+		if err := env.registry.SetEnabledForProfile(fixture.manifest.Name, profileID, true); err != nil {
+			t.Fatal(err)
+		}
+		assertCatalog(toolspkg.Scope{ProfileID: profileID, WorkspaceID: workspaceID}, true)
+		if err := env.registry.DetachInstallation(t.Context(), fixture.manifest.Name, workspaceScope); err != nil {
+			t.Fatal(err)
+		}
+		assertCatalog(toolspkg.Scope{WorkspaceID: workspaceID}, false)
+		assertCatalog(toolspkg.Scope{ProfileID: profileID, WorkspaceID: workspaceID}, true)
+	})
 
 	t.Run("Should expose profile-placed tools only in the named profile", func(t *testing.T) {
 		t.Parallel()

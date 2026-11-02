@@ -1,7 +1,10 @@
 package marketplace
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -20,6 +23,30 @@ import (
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
+
+func BenchmarkCatalogPackageAvailability(b *testing.B) {
+	payload := bytes.Repeat([]byte("package-content\n"), 512*1024)
+	digest := sha256.Sum256(payload)
+	cache := &pluginsource.PackageCache{Root: b.TempDir()}
+	entry := Entry{SourceName: "community", DigestSHA256: hex.EncodeToString(digest[:]), Installable: true}
+	if err := cache.Put(b.Context(), entry.DigestSHA256, bytes.NewReader(payload)); err != nil {
+		b.Fatal(err)
+	}
+	service := &CatalogService{packageCache: cache}
+	if err := service.projectPackageAvailability(b.Context(), &entry); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.SetBytes(int64(len(payload)))
+	for b.Loop() {
+		if err := service.projectPackageAvailability(b.Context(), &entry); err != nil {
+			b.Fatal(err)
+		}
+		if !entry.Installable {
+			b.Fatal("valid package became unavailable")
+		}
+	}
+}
 
 func TestNewCatalogServiceValidation(t *testing.T) {
 	t.Parallel()
@@ -82,6 +109,78 @@ func TestNewCatalogServiceValidation(t *testing.T) {
 
 func TestCatalogServiceDetailAndStatus(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should update browse and detail installability from current cache availability without remote fetches",
+		func(t *testing.T) {
+			t.Parallel()
+			at := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+			cache := &pluginsource.PackageCache{Root: t.TempDir()}
+			payload := []byte("approved package")
+			digest := sha256.Sum256(payload)
+			entry := testEntry("cached", "Cached", "Package availability")
+			entry.DigestSHA256, entry.Installable = hex.EncodeToString(digest[:]), true
+			if err := cache.Put(t.Context(), entry.DigestSHA256, bytes.NewReader(payload)); err != nil {
+				t.Fatal(err)
+			}
+			source := &recordingSource{fetch: func(context.Context) (*Document, error) {
+				return testDocument(at, entry), nil
+			}}
+			bindings := marketplaceTestBindings(t, &recordingSource{fetch: func(context.Context) (*Document, error) {
+				return testDocument(at), nil
+			}})
+			bindings = append(bindings, SourceBinding{
+				Config: ResolvedSource{
+					Name:    "team",
+					Ref:     "github:team/plugins",
+					Kind:    SourceKindCustom,
+					Enabled: true,
+				},
+				Fetcher: source,
+			})
+			service, err := NewService(t.Context(), openMarketplaceTestStore(t), bindings, time.Hour, time.Minute,
+				WithPackageCache(cache), WithNow(func() time.Time { return at }))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := service.Refresh(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			assertAvailability := func(available bool) {
+				t.Helper()
+				page, err := service.Browse(t.Context(), "", 0, 10)
+				if err != nil || len(page.Entries) != 1 {
+					t.Fatalf("Browse() = %+v, %v", page, err)
+				}
+				detail, err := service.Detail(t.Context(), "team", entry.EntryID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, current := range []Entry{page.Entries[0], *detail} {
+					if current.Installable != available ||
+						(!available && current.InstallBlocker != "package_unavailable") {
+						t.Fatalf("entry availability = %+v, want installable=%t", current, available)
+					}
+				}
+			}
+			assertAvailability(true)
+			if err := os.Remove(filepath.Join(cache.Root, entry.DigestSHA256+".tar")); err != nil {
+				t.Fatal(err)
+			}
+			assertAvailability(false)
+			if err := cache.Put(t.Context(), entry.DigestSHA256, bytes.NewReader(payload)); err != nil {
+				t.Fatal(err)
+			}
+			assertAvailability(true)
+			if source.calls.Load() != 1 {
+				t.Fatal("availability projection fetched the remote source")
+			}
+		},
+	)
 
 	now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
 	newService := func(t *testing.T) *CatalogService {

@@ -91,3 +91,43 @@ active/foreign/archived/discovered exclusions, immutable targets during live upd
 partial results and failed-only retry. Metadata dismissal preserves replacements and history;
 repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
 Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).
+
+
+2026-11-02 responsiveness follow-up (focused evidence; browser matrix pending): the same nest
+continues to consume authoritative worktree listings. Aggregate reads now filter the requested
+profile and allowed workspace population before inspection, resolve each workspace once per
+request for PR identity, and read PR facts as one batch. Verify that all three navigation
+surfaces retain row order and state, that each PR remains tied to its exact workspace/repository/
+branch, and that a changed workspace root or status is visible on the next read. Under live
+catalog bursts, the selected nest must converge within the 150 ms quiet window or the 1 s ceiling
+for continuous frames; changing or closing the active scope must not leave foreign listeners
+or lose its pending reread.
+
+Recorded engineering evidence is in
+[the worktree/workspace performance report](../reports/2026-11-01-performance/worktree-workspace.md):
+
+- The existing `TestGlobalDBWorktreeStore` suite passed the three added cases for ordered
+  workspace-qualified PR hydration, authorization before inspection, and current-root/status
+  freshness with cancellation five times using real SQLite and temporary Git repositories
+  (`.cache/performance/worktree-workspace/aggregate-after.log`). The same cases passed with
+  `-race` in 9.430 s using the repository's normal modernc-only checkptr setting
+  (`aggregate-race.log`).
+- The 64-row/two-workspace fixture retained every authorized row and reduced workspace
+  resolutions from 64 to two and PR reads from 64 to one. Five-run median inspection time was
+  5.620 -> 2.682 ms/op; per-row status reads remain unchanged. This measures local inspection,
+  without the daemon's full runtime resolver or active-session guard, not rendered interaction
+  latency.
+- The 28 focused catalog-stream/worktree-stream/exit hook tests passed under root Turbo with
+  Bun 1.4.0 (`stream-after.log`), including latest-generation convergence, continuous-frame
+  ceiling, scope replacement, failure handoff, disposal and sibling-query isolation. The real
+  Git status benchmark and status/PR/discovery race evidence are recorded in the same report;
+  the root-owned real-Git lifecycle integration receipt remains pending at this note.
+
+The existing browser owner is `web/e2e/__tests__/os-shell.spec.ts`, E2E-005,
+`operator sees one nested worktree tree across all three workspace-listing surfaces`: it maps
+menubar keyboard selection, the command switcher and overview, worktree-scoped session/task
+requests, selection inheritance by a new window, and returning to the parent workspace.
+`web/e2e/__tests__/worktrees.spec.ts` maps creation pending/ready/cancel and the live worktree
+context. These are existing mappings, not new execution receipts. The browser replay, large-nest
+scroll/focus matrix, independent-window matrix and current-head CI remain pending; the historical
+frontmatter and prior evidence are preserved without a new scenario verdict.

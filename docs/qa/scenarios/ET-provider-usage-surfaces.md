@@ -116,3 +116,16 @@ expiry were not part of this targeted walk.
 
 Targeted evidence: [issue-1023 report](../reports/2026-10-29-issue-1023.md). The broader scenario
 retains its existing status; unrelated transports and packaged-desktop journeys are not claimed.
+
+QA impact 2026-11-01 (responsiveness audit): hold a local credential-evidence read for one
+profile while reading another profile and clearing/removing the original profile's provider
+route. Unrelated reads and authoritative invalidation must complete independently of that I/O;
+a late read result must not restore quota/account data after credential reset or route removal.
+Repeat the existing logout, atomic credential-file replacement and ownership-change checks,
+including A-to-B-to-A login while a read waits and a newer verified A publication succeeds
+without a credential-clear operation. The delayed B mismatch must not clear that newer quota.
+The controlled fixture uses temporary synthetic credentials and loopback quota HTTP only;
+measurements of its injected I/O delay are not production/provider latency claims. Focused
+service tests and the contention benchmark are recorded in
+`../reports/2026-11-01-performance/usage-dashboard.md`; real transport/browser re-walk remains
+owned by the enclosing audit until evidence is recorded there.

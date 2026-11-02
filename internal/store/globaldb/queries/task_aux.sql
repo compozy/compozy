@@ -106,6 +106,13 @@ WHERE CAST(sqlc.arg(task_id) AS TEXT) = ''
 ORDER BY timestamp DESC, id DESC
 LIMIT sqlc.arg(result_limit);
 
+-- name: ListTaskEventsForTasks :many
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE task_id IN (SELECT CAST(value AS TEXT) FROM json_each(CAST(sqlc.arg(task_ids_json) AS TEXT)))
+ORDER BY timestamp DESC, id DESC;
+
 -- name: TaskWakeEventExists :one
 SELECT EXISTS(
   SELECT 1

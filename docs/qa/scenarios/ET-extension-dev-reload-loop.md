@@ -75,3 +75,14 @@ QA result 2026-08-12: Bruno linked and invoked `epoch-probe`, then reloaded it w
 `stream_epoch`. Removing and relinking created a different epoch with an empty snapshot. Reusing the
 old cursor produced one atomic `extension_log_reset`; the native logs tool returned the same empty
 replacement. The isolated lab ended with no surviving processes.
+
+
+## QA impact and focused evidence 2026-11-02 — responsiveness audit
+
+The request-scoped visibility query joins the current workspace development link and generation. A dev-only tool must disappear when its link is removed, its generation no longer matches, or its profile is disabled; unrelated workspaces must not acquire its tools. Published resources behind a workspace override remain independently addressable.
+
+Focused verification passed under `-race`: `TestExtensionToolProviderDispatch/Should expose dev-only tools only while their workspace generation remains linked and enabled`, plus `TestExtensionToolProviderProjectionGeneration` and `TestExtensionToolProviderCatalog` (`internal/extension/tool_provider_test.go`). The selected extension suites completed in 6.804 s (`.cache/performance/extension-marketplace/extension-race-final.txt`), including generation replacement, enablement and unlink assertions against the real registry.
+
+Existing root CI mappings, not rerun by this worker: `TestManagerDevelopmentLifecycle` and `TestManagerDevelopmentReloadConcurrency` (`internal/extension/dev_integration_test.go`); `TestDaemonE2EExtensionAuthoringShouldCompleteTheDevelopmentLoopWithoutTrustPrompts` (`internal/daemon/daemon_extension_authoring_e2e_integration_test.go`); browser `operator inspects a workspace dev overlay with logs and installs a local path through the union contract` (`web/e2e/__tests__/extensions.spec.ts`).
+
+No new watcher, real reload/log-stream or browser walk ran in this audit. Historical live verdicts remain intact; the focused receipt verifies the changed visibility boundary. Details: [extension/marketplace audit](../reports/2026-11-01-performance/extension-marketplace.md).

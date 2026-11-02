@@ -55,6 +55,7 @@ type worktreeServiceStub struct {
 	createAccepted  func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 	adopt           func(context.Context, string, string, string) (*worktree.Worktree, error)
 	listDetails     func(context.Context, string, bool) (*worktree.DetailedListing, error)
+	listAggregate   func(context.Context, store.ReadScope, map[string]bool) (*worktree.DetailedListing, error)
 	remove          func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	removeFound     func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	deleteBranch    func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
@@ -267,6 +268,80 @@ func TestProfileAwareWorktreeHandlers(t *testing.T) {
 	})
 }
 
+func TestWorktreeAggregate(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name       string
+		query      string
+		allowed    map[string]bool
+		catalogErr error
+		status     int
+	}{
+		{
+			name:    "Should select registered workspaces before hydration",
+			query:   "&workspace_ids=ws-visible&workspace_ids=ws-unregistered",
+			allowed: map[string]bool{"ws-visible": true}, status: http.StatusOK,
+		},
+		{
+			name:  "Should preserve an empty workspace selection",
+			query: "&workspace_ids=ws-unregistered", allowed: map[string]bool{}, status: http.StatusOK,
+		},
+		{
+			name:  "Should stop before hydration when workspace selection fails",
+			query: "&workspace_ids=ws-visible", catalogErr: errors.New("catalog unavailable"),
+			status: http.StatusInternalServerError,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			handlers := &BaseHandlers{
+				Profiles: worktreeProfileServiceStub{},
+				Workspaces: workspaceServiceStub{list: func(context.Context) ([]workspacepkg.Workspace, error) {
+					return []workspacepkg.Workspace{{ID: "ws-visible"}, {ID: "ws-other"}}, test.catalogErr
+				}},
+				Worktrees: worktreeServiceStub{listAggregate: func(
+					_ context.Context, scope store.ReadScope, allowed map[string]bool,
+				) (*worktree.DetailedListing, error) {
+					called = true
+					if scope.ProfileID != "profile-marketing" || scope.AllProfiles ||
+						!reflect.DeepEqual(allowed, test.allowed) {
+						t.Fatalf("aggregate selection = %#v/%v, want marketing/%v", scope, allowed, test.allowed)
+					}
+					listing := &worktree.DetailedListing{Worktrees: []worktree.Inspection{}}
+					if allowed["ws-visible"] {
+						listing.Worktrees = append(listing.Worktrees, worktree.Inspection{Worktree: worktree.Worktree{
+							ID: "wt-visible", WorkspaceID: "ws-visible", ProfileID: scope.ProfileID,
+						}})
+					}
+					return listing, nil
+				}},
+			}
+			router := gin.New()
+			router.GET("/worktrees", handlers.ListWorktreeAggregate)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+				"/worktrees?all_workspaces=true&profile=marketing"+test.query, http.NoBody))
+			if response.Code != test.status || called != (test.catalogErr == nil) {
+				t.Fatalf("aggregate status/called = %d/%t; body=%s", response.Code, called, response.Body.String())
+			}
+			if test.status != http.StatusOK {
+				return
+			}
+			var listing contract.WorktreesResponse
+			if err := json.Unmarshal(response.Body.Bytes(), &listing); err != nil {
+				t.Fatal(err)
+			}
+			if len(listing.Worktrees) != len(test.allowed) {
+				t.Fatalf("worktrees = %#v, want %d", listing.Worktrees, len(test.allowed))
+			}
+			if len(listing.Worktrees) > 0 && listing.Worktrees[0].ProfileName != "marketing" {
+				t.Fatalf("worktree owner = %#v, want marketing", listing.Worktrees[0])
+			}
+		})
+	}
+}
+
 type worktreeProfileServiceStub struct {
 	ProfileService
 	state profilepkg.State
@@ -407,6 +482,17 @@ func (s worktreeServiceStub) ListDetails(
 		return s.listDetails(ctx, workspaceID, refresh)
 	}
 	return nil, fmt.Errorf("unexpected ListDetails call")
+}
+
+func (s worktreeServiceStub) ListAggregate(
+	ctx context.Context,
+	scope store.ReadScope,
+	allowed map[string]bool,
+) (*worktree.DetailedListing, error) {
+	if s.listAggregate != nil {
+		return s.listAggregate(ctx, scope, allowed)
+	}
+	return nil, fmt.Errorf("unexpected ListAggregate call")
 }
 
 func (s worktreeServiceStub) Resolve(ctx context.Context, workspaceID, ref string) (*worktree.Worktree, error) {

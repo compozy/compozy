@@ -92,13 +92,7 @@ func (s *Manager) collectOnce(
 	if err == nil {
 		snapshot, err = collector.Collect(ctx, target, intent, identity)
 	}
-	var outcome *UsageError
-	if err != nil {
-		outcome = AsUsageError(err, target.ProviderName)
-	}
-	if ctx.Err() != nil && outcome == nil {
-		outcome = NewUsageError(ErrorCodeProviderUnavailable, target.ProviderName)
-	}
+	outcome := collectionOutcome(ctx, target.ProviderName, err)
 	if err, recollect := s.resolvePublication(ctx, profile, id, state, epoch, identity, intent, started); err != nil {
 		return err, recollect
 	}
@@ -110,6 +104,7 @@ func (s *Manager) collectOnce(
 		return outcome, true
 	}
 
+	validated := false
 	if identity != (CredentialIdentity{}) {
 		mismatch, validationErr := validatePublication(fenceCtx, collector, currentTarget, identity)
 		if mismatch {
@@ -119,6 +114,7 @@ func (s *Manager) collectOnce(
 		if validationErr != nil && outcome == nil {
 			outcome = AsUsageError(validationErr, target.ProviderName)
 		}
+		validated = validationErr == nil
 	}
 
 	s.mu.Lock()
@@ -130,6 +126,10 @@ func (s *Manager) collectOnce(
 		s.mu.Unlock()
 		return outcome, true
 	}
+	if validated {
+		// A newer verified publication fences delayed read evidence, including A-to-B-to-A logins.
+		state.validationSeq++
+	}
 	s.publishLocked(profile, id, state, target, identity, snapshot, outcome)
 	status := state.snapshot.Status
 	source := snapshotSource(state.snapshot)
@@ -137,6 +137,17 @@ func (s *Manager) collectOnce(
 	s.observeCollection(profile, id, source, status, intent, started, outcome)
 
 	return outcome, false
+}
+
+func collectionOutcome(ctx context.Context, provider string, err error) *UsageError {
+	var outcome *UsageError
+	if err != nil {
+		outcome = AsUsageError(err, provider)
+	}
+	if ctx.Err() != nil && outcome == nil {
+		outcome = NewUsageError(ErrorCodeProviderUnavailable, provider)
+	}
+	return outcome
 }
 
 func (s *Manager) fenceTarget(profile, id string, state *targetState, epoch uint64) (Target, bool) {

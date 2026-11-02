@@ -16,16 +16,18 @@ const (
 	capacityReasonStarting          = "starting"
 )
 
+// Returned candidates borrow available's backing array until its caller reuses it.
 func classifyRunCapacity(
 	work *RunSnapshot,
 	sessions []SessionSnapshot,
 	occupied map[string]struct{},
+	available []SessionSnapshot,
 ) CapacityDisposition {
 	if work == nil {
 		return CapacityDisposition{Kind: CapacityUnmatched}
 	}
 
-	available := make([]SessionSnapshot, 0, len(sessions))
+	available = available[:0]
 	waitingReason := ""
 	indeterminate := false
 	for _, candidate := range sessions {

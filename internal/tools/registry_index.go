@@ -108,12 +108,8 @@ func (r *RuntimeRegistry) policyInputsFor(ctx context.Context, scope Scope) (Pol
 	return clonePolicyInputs(inputs), nil
 }
 
-func (r *RuntimeRegistry) toolsetView(ctx context.Context, scope Scope, toolset Toolset) (ToolsetView, error) {
-	index, err := r.buildIndex(ctx, scope)
-	if err != nil {
-		return ToolsetView{}, err
-	}
-	expanded, err := r.toolsets.Expand(toolset.ID, index.ids())
+func (r *RuntimeRegistry) toolsetView(toolset Toolset, universe []ToolID) ToolsetView {
+	expanded, err := r.toolsets.Expand(toolset.ID, universe)
 	if err != nil {
 		reason, ok := ReasonOf(err)
 		if !ok {
@@ -122,12 +118,12 @@ func (r *RuntimeRegistry) toolsetView(ctx context.Context, scope Scope, toolset 
 		return ToolsetView{
 			Toolset:     cloneToolset(toolset),
 			ReasonCodes: []ReasonCode{reason},
-		}, nil
+		}
 	}
 	return ToolsetView{
 		Toolset:       cloneToolset(toolset),
 		ExpandedTools: expanded,
-	}, nil
+	}
 }
 
 func (i *registryIndex) ids() []ToolID {

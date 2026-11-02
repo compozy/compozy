@@ -42,6 +42,34 @@ func (r *Registry) activeInstallations(ctx context.Context, name string) ([]Inst
 	return r.listInstallations(ctx, name, true)
 }
 
+func (r *Registry) toolVisibility(
+	ctx context.Context, profileID, workspaceID string,
+) (map[string]globaldb.ExtensionToolVisibility, error) {
+	if err := r.checkReady("read extension tool visibility"); err != nil {
+		return nil, err
+	}
+	profileID, err := normalizeExtensionProfileID(profileID)
+	if err != nil {
+		return nil, err
+	}
+	return globaldb.NewExtensionRegistryRepo(r.db).ToolVisibility(ctx, profileID, strings.TrimSpace(workspaceID))
+}
+
+func (r *Registry) workspaceInstallationNames(ctx context.Context, workspaceID string) (map[string]struct{}, error) {
+	if err := r.checkReady("list workspace extension installations"); err != nil {
+		return nil, err
+	}
+	names, err := globaldb.NewExtensionRegistryRepo(r.db).WorkspaceInstallations(ctx, strings.TrimSpace(workspaceID))
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		result[name] = struct{}{}
+	}
+	return result, nil
+}
+
 func (r *Registry) listInstallations(ctx context.Context, name string, activeOnly bool) ([]Installation, error) {
 	if err := r.checkReady("list extension installations"); err != nil {
 		return nil, err

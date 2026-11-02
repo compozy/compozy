@@ -60,6 +60,31 @@ afterEach(() => {
 });
 
 describe("useSettingsRestart", () => {
+  it("keeps live restart fields current and preserves the shared status response", async () => {
+    vi.mocked(fetchStatus).mockResolvedValue(statusFixture);
+    const { wrapper, queryClient } = createWrapper();
+    const { result } = renderHook(() => useSettingsRestart(), { wrapper });
+    await waitFor(() => expect(result.current.activeSessionCount).toBe(3));
+    expect(result.current.isRestartRequired).toBe(false);
+
+    const busyStatus = {
+      ...statusFixture,
+      daemon: { ...statusFixture.daemon, active_sessions: 120 },
+    };
+    act(() => queryClient.setQueryData(statusKeys.current(), busyStatus));
+    await waitFor(() => expect(result.current.activeSessionCount).toBe(120));
+    expect(result.current.isRestartRequired).toBe(false);
+
+    const pendingRestartStatus = {
+      ...busyStatus,
+      config: { ...statusFixture.config, restart_required: true },
+    };
+    act(() => queryClient.setQueryData(statusKeys.current(), pendingRestartStatus));
+    await waitFor(() => expect(result.current.isRestartRequired).toBe(true));
+    expect(result.current.activeSessionCount).toBe(120);
+    expect(queryClient.getQueryData(statusKeys.current())).toEqual(pendingRestartStatus);
+  });
+
   it("Should discover external restart requirements and snooze only the observed candidate", async () => {
     vi.mocked(fetchStatus).mockResolvedValue(statusFixture);
     vi.mocked(getSettingsRestartStatus).mockResolvedValue({

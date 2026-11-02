@@ -84,7 +84,8 @@ function invalidateTaskAggregates(queryClient: QueryClient): Promise<unknown[]> 
 /**
  * One logs EventSource keeps the home dashboard live: every event lands in the
  * activity cache; task lifecycle events refresh attention/outcome aggregates
- * immediately; everything else refreshes the overview at most once per minute
+ * immediately, coalescing in-flight changes into one trailing read; everything
+ * else refreshes the overview at most once per minute
  * (the pulse heatmap moves slowly by design).
  */
 export function useHomeLive({
@@ -116,13 +117,14 @@ export function useHomeLive({
     }
 
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
+    let active = true;
     const activityFilter = activityFilterFor(workspaceId, lensKey);
     // The url identifies workspace and lens together, so a frame still in flight
     // from the source a switch just replaced is fenced out by its own scope.
     refreshStore.trigger.scopeActivated({ scope: url });
 
     source.onmessage = (event: MessageEvent) => {
-      if (typeof event.data !== "string") {
+      if (!active || typeof event.data !== "string") {
         return;
       }
       try {
@@ -151,9 +153,11 @@ export function useHomeLive({
     };
 
     return () => {
+      active = false;
       source.onmessage = null;
       source.onerror = null;
       source.close();
+      refreshStore.trigger.scopeDeactivated({ scope: url });
     };
     // `url` is the stream's identity: changing lens or workspace rebuilds it,
     // which tears the previous source down before the next one opens.

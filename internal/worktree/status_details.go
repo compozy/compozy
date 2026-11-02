@@ -68,6 +68,44 @@ func (s *Service) readDisplayPullRequest(ctx context.Context, item Worktree) *Fo
 	return entry.Facts
 }
 
+// hydrateDisplayPullRequests shares workspace resolution only within this read.
+// Each later read resolves the current root and retains the PR cache's freshness policy.
+func (s *Service) hydrateDisplayPullRequests(ctx context.Context, inspections []Inspection) {
+	if s.pullRequests == nil || len(inspections) == 0 {
+		return
+	}
+	repositories := make(map[string]string)
+	keys := make([]PullRequestKey, 0, len(inspections))
+	for _, inspection := range inspections {
+		item := inspection.Worktree
+		if item.Branch == "" {
+			continue
+		}
+		repo, resolved := repositories[item.WorkspaceID]
+		if !resolved {
+			workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
+			if err == nil {
+				if key, keyErr := s.pullRequests.RepoKey(ctx, workspace.Root); keyErr == nil {
+					repo = key
+				}
+			}
+			repositories[item.WorkspaceID] = repo
+		}
+		if repo != "" {
+			keys = append(keys, PullRequestKey{item.WorkspaceID, repo, item.Branch})
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+	entries := s.pullRequests.Read(ctx, keys)
+	for index := range inspections {
+		item := inspections[index].Worktree
+		key := PullRequestKey{item.WorkspaceID, repositories[item.WorkspaceID], item.Branch}
+		inspections[index].ForgeStatus = entries[key].Facts
+	}
+}
+
 func (s *Service) requestPullRequestRefresh(ctx context.Context, item Worktree) {
 	if s.pullRequests == nil {
 		return

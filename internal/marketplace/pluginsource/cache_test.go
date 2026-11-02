@@ -95,8 +95,22 @@ func TestPackageCache(t *testing.T) {
 		payload := []byte("approved")
 		digest := cacheDigest(payload)
 		putCacheBlob(t, cache, payload)
-		if err := os.WriteFile(filepath.Join(cache.Root, digest+".tar"), []byte("corrupted"), 0o600); err != nil {
+		if err := cache.Check(t.Context(), digest); err != nil {
 			t.Fatal(err)
+		}
+		path := filepath.Join(cache.Root, digest+".tar")
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("tampered"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+			t.Fatal(err)
+		}
+		if err := cache.Check(t.Context(), digest); !errors.Is(err, ErrPackageUnavailable) {
+			t.Fatalf("same-size/same-mtime corrupt Check = %v", err)
 		}
 		reader, err := cache.Open(t.Context(), digest)
 		if reader != nil || !errors.Is(err, ErrPackageUnavailable) {
@@ -104,6 +118,160 @@ func TestPackageCache(t *testing.T) {
 		}
 		putCacheBlob(t, cache, payload)
 		assertCacheBytes(t, cache, digest, payload)
+		if err := cache.Check(t.Context(), digest); err != nil {
+			t.Fatalf("repaired Check = %v", err)
+		}
+	})
+	t.Run("Should bind availability verification to the expected digest", func(t *testing.T) {
+		t.Parallel()
+		cache := &PackageCache{Root: t.TempDir()}
+		payload := []byte("approved")
+		digest := cacheDigest(payload)
+		putCacheBlob(t, cache, payload)
+		otherDigest := cacheDigest([]byte("different"))
+		if err := os.Link(
+			filepath.Join(cache.Root, digest+".tar"),
+			filepath.Join(cache.Root, otherDigest+".tar"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := cache.Check(t.Context(), digest); err != nil {
+			t.Fatal(err)
+		}
+		if err := cache.Check(t.Context(), otherDigest); !errors.Is(err, ErrPackageUnavailable) {
+			t.Fatalf("mismatched digest Check = %v", err)
+		}
+	})
+	t.Run(
+		"Should recheck cancellation missing files replacements and symlinks after availability is warm",
+		func(t *testing.T) {
+			t.Parallel()
+			cache := &PackageCache{Root: t.TempDir()}
+			payload := []byte("approved")
+			digest := cacheDigest(payload)
+			putCacheBlob(t, cache, payload)
+			path := filepath.Join(cache.Root, digest+".tar")
+			if err := cache.Check(t.Context(), digest); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			if err := cache.Check(ctx, digest); !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled warm Check = %v", err)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := cache.Check(t.Context(), digest); !errors.Is(err, ErrPackageUnavailable) {
+				t.Fatalf("missing warm Check = %v", err)
+			}
+			if err := os.WriteFile(path, []byte("tampered"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := cache.Check(t.Context(), digest); !errors.Is(err, ErrPackageUnavailable) {
+				t.Fatalf("replaced warm Check = %v", err)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			outside := filepath.Join(t.TempDir(), "outside")
+			if err := os.WriteFile(outside, payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, path); err != nil {
+				t.Fatal(err)
+			}
+			if err := cache.Check(t.Context(), digest); err == nil {
+				t.Fatal("Check accepted replacement symlink")
+			}
+			actual, err := os.ReadFile(outside)
+			if err != nil || !bytes.Equal(actual, payload) {
+				t.Fatalf("external bytes = %q, %v", actual, err)
+			}
+		},
+	)
+	t.Run("Should surface filesystem permission errors after availability is warm", func(t *testing.T) {
+		t.Parallel()
+		cache := &PackageCache{Root: t.TempDir()}
+		payload := []byte("approved")
+		digest := cacheDigest(payload)
+		putCacheBlob(t, cache, payload)
+		if err := cache.Check(t.Context(), digest); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(cache.Root, digest+".tar")
+		if err := os.Chmod(path, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(path, 0o600); err != nil {
+				t.Error(err)
+			}
+		})
+		file, err := os.Open(path)
+		if err == nil {
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+			t.Skip("host can read files without read permission")
+		}
+		if !errors.Is(err, os.ErrPermission) {
+			t.Fatal(err)
+		}
+		if err := cache.Check(t.Context(), digest); !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("permission-denied Check = %v", err)
+		}
+	})
+	t.Run("Should reject corrupt files and symlinks while they are concurrently replaced", func(t *testing.T) {
+		t.Parallel()
+		cache := &PackageCache{Root: t.TempDir()}
+		payload := []byte("approved")
+		digest := cacheDigest(payload)
+		putCacheBlob(t, cache, payload)
+		if err := cache.Check(t.Context(), digest); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(cache.Root, digest+".tar")
+		if err := os.WriteFile(path, []byte("tampered"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		outside := filepath.Join(t.TempDir(), "outside")
+		if err := os.WriteFile(outside, []byte("tampered"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		staging := filepath.Join(cache.Root, ".replace")
+		done := make(chan error, 1)
+		var group sync.WaitGroup
+		group.Go(func() {
+			for range 16 {
+				if err := os.WriteFile(staging, []byte("tampered"), 0o600); err != nil {
+					done <- err
+					return
+				}
+				if err := os.Rename(staging, path); err != nil {
+					done <- err
+					return
+				}
+				if err := os.Symlink(outside, staging); err != nil {
+					done <- err
+					return
+				}
+				if err := os.Rename(staging, path); err != nil {
+					done <- err
+					return
+				}
+			}
+			done <- nil
+		})
+		for range 16 {
+			if err := cache.Check(t.Context(), digest); err == nil {
+				t.Error("Check accepted a concurrently replaced corrupt file")
+			}
+		}
+		group.Wait()
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
 	})
 	t.Run("Should preserve pinned blobs and evict unreferenced bytes oldest first", func(t *testing.T) {
 		t.Parallel()
@@ -262,7 +430,13 @@ func TestPackageCache(t *testing.T) {
 		var group sync.WaitGroup
 		errorsCh := make(chan error, 8)
 		for range 8 {
-			group.Go(func() { errorsCh <- cache.Put(t.Context(), digest, bytes.NewReader(payload)) })
+			group.Go(func() {
+				if err := cache.Put(t.Context(), digest, bytes.NewReader(payload)); err != nil {
+					errorsCh <- err
+					return
+				}
+				errorsCh <- cache.Check(t.Context(), digest)
+			})
 		}
 		group.Wait()
 		close(errorsCh)

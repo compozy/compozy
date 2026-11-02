@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -65,6 +66,43 @@ func (g *TaskRepo) ListTaskEvents(ctx context.Context, query taskpkg.EventQuery)
 		events = append(events, event)
 	}
 
+	return events, nil
+}
+
+// ListTaskEventsForTasks returns audit rows for an already scoped task population.
+// Empty populations return no rows, and duplicate task IDs never duplicate events.
+func (g *TaskRepo) ListTaskEventsForTasks(ctx context.Context, taskIDs []string) ([]taskpkg.Event, error) {
+	if err := g.checkReady(ctx, "list task events for tasks"); err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(taskIDs))
+	for _, id := range taskIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return []taskpkg.Event{}, nil
+	}
+	encoded, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("store: encode task event task ids: %w", err)
+	}
+	rows, err := g.queries.ListTaskEventsForTasks(ctx, string(encoded))
+	if err != nil {
+		return nil, fmt.Errorf("store: query task events for tasks: %w", err)
+	}
+	events := make([]taskpkg.Event, 0, len(rows))
+	for _, row := range rows {
+		event, mapErr := taskEventFromGeneratedFields(
+			row.ID, row.TaskID, row.RunID, row.EventType, row.ActorKind, row.ActorID,
+			row.OriginKind, row.OriginRef, row.PayloadJson, row.Timestamp,
+		)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		events = append(events, event)
+	}
 	return events, nil
 }
 

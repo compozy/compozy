@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -173,29 +172,28 @@ func (p *ExtensionToolProvider) manifestToolSources(
 	workspaceID string,
 	infos []ExtensionInfo,
 ) ([]extensionManifestToolSource, error) {
+	visibility, err := p.registry.toolVisibility(ctx, profileID, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("extension: resolve tool visibility: %w", err)
+	}
 	sources := make([]extensionManifestToolSource, 0, len(infos))
 	for i := range infos {
 		info := infos[i]
 		if normalizeExtensionFormat(info.Format) == FormatAgentPlugin {
 			continue
 		}
-		key, err := p.manifestInstallationKey(ctx, &info, profileID, workspaceID)
-		if errors.Is(err, ErrExtensionNotFound) {
+		state, exists := visibility[info.Name]
+		if !exists {
 			continue
 		}
-		if err != nil {
-			return nil, err
+		key := ProfileInstanceKey(info.Name, profileID, state.InstallationWorkspaceID)
+		if workspaceID != "" && state.DevLinked &&
+			strings.TrimSpace(state.DevGeneration) == strings.TrimSpace(info.Checksum) {
+			key = ProfileInstanceKey(info.Name, profileID, workspaceID)
+		} else if !state.Installed {
+			continue
 		}
-		enabled, err := p.registry.IsEnabledForProfile(info.Name, profileID)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"extension: resolve tool enablement for %q and profile %q: %w",
-				info.Name,
-				profileID,
-				err,
-			)
-		}
-		info.Enabled = enabled
+		info.Enabled = state.Enabled
 		source := extensionManifestToolSource{info: info}
 		if !info.Enabled {
 			source.snapshot.fingerprint = extensionManifestDisabledFingerprint
@@ -208,29 +206,6 @@ func (p *ExtensionToolProvider) manifestToolSources(
 		sources = append(sources, source)
 	}
 	return sources, nil
-}
-
-func (p *ExtensionToolProvider) manifestInstallationKey(
-	ctx context.Context,
-	info *ExtensionInfo,
-	profileID, workspaceID string,
-) (InstanceKey, error) {
-	if workspaceID != "" {
-		link, err := p.registry.GetDevLink(info.Name, workspaceID)
-		if err == nil && strings.TrimSpace(link.BundleGeneration) == strings.TrimSpace(info.Checksum) {
-			return ProfileInstanceKey(info.Name, profileID, workspaceID), nil
-		}
-		if err != nil && !errors.Is(err, ErrExtensionNotDevLinked) {
-			return InstanceKey{}, err
-		}
-	}
-	installation, err := p.registry.ResolveInstallation(ctx, info.Name, InstallationScope{
-		ProfileID: profileID, WorkspaceID: workspaceID,
-	})
-	if err != nil {
-		return InstanceKey{}, err
-	}
-	return ProfileInstanceKey(info.Name, profileID, installation.Scope.WorkspaceID), nil
 }
 
 func (p *ExtensionToolProvider) manifestSnapshot(path string) extensionManifestSnapshot {
