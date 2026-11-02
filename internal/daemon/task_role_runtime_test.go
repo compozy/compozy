@@ -1063,7 +1063,7 @@ func newShutdownOrderingSessionManager() *shutdownOrderingSessionManager {
 
 func (s *shutdownOrderingSessionManager) Create(
 	ctx context.Context,
-	_ session.CreateOpts,
+	_ *session.CreateOpts,
 ) (*session.Session, error) {
 	s.startOnce.Do(func() { close(s.createStarted) })
 	<-ctx.Done()
@@ -1087,19 +1087,23 @@ func newBlockingTaskRoleRuntimeSessions() *blockingTaskRoleRuntimeSessions {
 
 func (s *blockingTaskRoleRuntimeSessions) Create(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (*session.Session, error) {
+	opts := *optsInput
+
 	s.startOnce.Do(func() { close(s.createStarted) })
 	select {
 	case <-s.createRelease:
-		return s.taskRoleRuntimeSessions.Create(ctx, opts)
+		return s.taskRoleRuntimeSessions.Create(ctx, &(opts))
 	case <-ctx.Done():
 		s.cancelOnce.Do(func() { close(s.createCanceled) })
 		return nil, fmt.Errorf("blocked task role session create: %w", ctx.Err())
 	}
 }
 
-func (s *taskRoleRuntimeSessions) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (s *taskRoleRuntimeSessions) Create(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

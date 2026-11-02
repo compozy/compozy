@@ -156,6 +156,22 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 	})
 
+	t.Run("Should never wake the main session for a triage run", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := &recordingSpawnWakeNotifier{}
+		manager := spawnWakeTestManager(notifier, nil)
+		info := spawnWakeTestInfo(true)
+		info.Type = SessionTypeTriage
+
+		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeDone)
+		manager.dispatchSpawnWake(testutil.Context(t), info, BadgeStopped)
+
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("wake calls = %#v, want none", events)
+		}
+	})
+
 	t.Run("Should deliver one completed wake for a done badge", func(t *testing.T) {
 		t.Parallel()
 
@@ -521,9 +537,9 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 				ParentSessionID: parent.ID, RootSessionID: parent.ID, Kind: store.LineageKindProvenance,
 			}
 		}
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Name: "executor", Workspace: h.workspaceID, Lineage: lineage,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(child) error = %v", err)
 		}

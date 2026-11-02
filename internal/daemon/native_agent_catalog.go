@@ -30,14 +30,15 @@ func (n *daemonNativeTools) workspaceAgents(
 		if err != nil {
 			return nil, fmt.Errorf("daemon: list agent catalog entries: %w", err)
 		}
-		for _, entry := range catalogAgents {
+		for i := range catalogAgents {
+			entry := &catalogAgents[i]
 			agent := entry.Def
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
 				continue
 			}
 			if _, exists := merged[name]; !exists {
-				merged[name] = entry
+				merged[name] = *entry
 			}
 		}
 	}

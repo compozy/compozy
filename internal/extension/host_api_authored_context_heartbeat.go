@@ -221,6 +221,7 @@ func (h *HostAPIHandler) handleAgentsHeartbeatWake(ctx context.Context, raw json
 		source = heartbeat.WakeSourceManual
 	}
 	decision, err := h.heartbeatWake.Wake(ctx, heartbeat.WakeRequest{
+		ProfileID:   target.profileID,
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
 		SessionID:   sessionID,

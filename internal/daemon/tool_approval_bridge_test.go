@@ -1311,3 +1311,82 @@ func TestToolApprovalKind(t *testing.T) {
 		})
 	}
 }
+
+func TestToolApprovalWaitResolver(t *testing.T) {
+	t.Parallel()
+	t.Run("Should recheck unattended membership for each request and preserve the fallback", func(t *testing.T) {
+		t.Parallel()
+		bridge := newToolApprovalBridge(nil, 90*time.Second, nil, nil, nil)
+		wait := 12 * time.Hour
+		bridge.permissionWaitResolver = func(id string) time.Duration {
+			if id != "session-a" {
+				t.Fatalf("session id = %q", id)
+			}
+			return wait
+		}
+		toolID := toolApprovalTestView().Descriptor.ID
+		if got := bridge.sessionRequestTimeout("session-a", toolID); got != wait {
+			t.Fatalf("wait = %v", got)
+		}
+		wait = time.Minute
+		if got := bridge.sessionRequestTimeout("session-a", toolID); got != wait {
+			t.Fatalf("updated wait = %v", got)
+		}
+		wait = 0
+		if got := bridge.sessionRequestTimeout("session-a", toolID); got != 90*time.Second {
+			t.Fatalf("fallback = %v", got)
+		}
+	})
+}
+
+// IT-018: native approvals use the instance deadline beyond the normal 600-second limit.
+// Owner: native approval bridge; canonical suite: tool_approval_bridge_test.go.
+func TestInstanceNativeApprovalBeyondDefaultTimeout(t *testing.T) {
+	t.Run("Should accept native approval after eleven minutes", func(t *testing.T) {
+		t.Parallel()
+		clock := clockwork.NewFakeClock()
+		started := make(chan struct{})
+		answer := make(chan struct{})
+		requester := permissionRequesterFunc(
+			func(ctx context.Context, _ string, _ acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+				close(started)
+				select {
+				case <-ctx.Done():
+					return acp.RequestPermissionResponse{}, ctx.Err()
+				case <-answer:
+					return acp.RequestPermissionResponse{
+						Outcome: acpsdk.NewRequestPermissionOutcomeSelected(toolApprovalAllowOnceID),
+					}, nil
+				}
+			},
+		)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Minute,
+			nil,
+			nil,
+			nil,
+		)
+		bridge.clock = clock
+		bridge.permissionWaitResolver = func(string) time.Duration { return 12 * time.Hour }
+		view := toolApprovalTestView()
+		view.Descriptor.ID = toolspkg.ToolIDTerminalExec
+		call := toolApprovalTestCall(view.Descriptor.ID, "ws-1")
+		call.Input = json.RawMessage(`{"command":"bun","args":["test"]}`)
+		done := make(chan error, 1)
+		go func() {
+			done <- bridge.RequestToolApproval(t.Context(), toolspkg.Scope{SessionID: "child"}, &call, &view)
+		}()
+		<-started
+		clock.Advance(11 * time.Minute)
+		select {
+		case err := <-done:
+			t.Fatalf("native approval ended before instance deadline: %v", err)
+		default:
+		}
+		close(answer)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	})
+}

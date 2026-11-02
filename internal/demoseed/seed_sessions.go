@@ -87,7 +87,7 @@ func writeSessionRecords(
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), &meta); err != nil {
 		return fmt.Errorf("demo seed: write metadata for session %q: %w", story.ID, err)
 	}
-	if err := db.RegisterSession(ctx, store.SessionInfo{
+	if err := db.RegisterSession(ctx, new(store.SessionInfo{
 		ID: story.ID, ProfileID: store.DefaultProfileID,
 		Name: story.Name, AgentName: story.AgentName, Provider: story.Provider,
 		Model: story.Model, WorkspaceID: record.ID, SessionType: story.SessionType,
@@ -95,7 +95,7 @@ func writeSessionRecords(
 		State:   string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
 		StopReason: stopReason, StopDetail: stopDetail, Failure: sessionFailure(story),
 		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
-	}); err != nil {
+	})); err != nil {
 		return fmt.Errorf("demo seed: register session %q: %w", story.ID, err)
 	}
 	return nil

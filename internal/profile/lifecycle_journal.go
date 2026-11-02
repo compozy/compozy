@@ -22,6 +22,7 @@ const (
 	stepRemoveProfile           = "remove_profile"
 	stepRemoveDesktopPartitions = "remove_desktop_partitions"
 	stepRemoveUserJournal       = "remove_user_journal"
+	stepRemoveAgentMemory       = "remove_agent_memory"
 )
 
 const lifecycleOperationRetentionWindow = 30 * 24 * time.Hour

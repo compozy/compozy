@@ -51,6 +51,7 @@ func enforcePrivateGlobalDBFiles(path string) error {
 		return nil
 	}
 	for _, candidate := range []string{trimmed, trimmed + "-wal", trimmed + "-shm"} {
+		// #nosec G703 -- this is the operator-selected database already opened above, plus its SQLite sidecars.
 		info, err := os.Stat(candidate)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -65,6 +66,7 @@ func enforcePrivateGlobalDBFiles(path string) error {
 		if mode&0o077 == 0 {
 			continue
 		}
+		// #nosec G703 -- restrict only the same operator-selected database family inspected above.
 		if err := os.Chmod(candidate, mode&0o700); err != nil {
 			return fmt.Errorf("store: restrict global database file permissions %q: %w", candidate, err)
 		}

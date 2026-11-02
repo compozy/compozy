@@ -17,6 +17,12 @@ import { useToolApprovalGrantsPanel } from "../hooks/use-tool-approval-grants-pa
 import type { ToolApprovalGrant } from "../types";
 import { ToolApprovalGrantSetDialog } from "./tool-approval-grant-set-dialog";
 import { ToolApprovalGrantRow } from "./tool-approval-grant-row";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
+
+/** The row reads a slug here; a grant for any agent keeps its words. */
+function terminalAgentLabel(grant: { agentName: string }) {
+  return grant.agentName === "any agent" ? grant.agentName : humanizeAgentSlug(grant.agentName);
+}
 
 const TEST_ID = "settings-page-general-tool-approvals";
 const LIST_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
@@ -111,7 +117,7 @@ export function ToolApprovalGrantsSection() {
         note={
           target
             ? `${target.decision}${target.input_digest ? " · exact input" : ""}${
-                target.agent_name ? ` · agent ${target.agent_name}` : ""
+                target.agent_name ? ` · agent ${humanizeAgentSlug(target.agent_name)}` : ""
               }`
             : undefined
         }
@@ -153,7 +159,12 @@ function renderGrantRows(
           label="Terminal"
         >
           {terminalGrants.map(({ source, grant }) => (
-            <TerminalGrantRow grant={grant} key={source.id} onRevoke={() => onRevoke(source)} />
+            <TerminalGrantRow
+              agentLabel={terminalAgentLabel(grant)}
+              grant={grant}
+              key={source.id}
+              onRevoke={() => onRevoke(source)}
+            />
           ))}
         </ListGroup>
       ) : null}

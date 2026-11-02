@@ -21,6 +21,34 @@ export type ActorIdentity = {
   ref: string;
 };
 
+export type AgentInstancePayload = {
+  activity: string;
+  agent_name: string;
+  checks_enabled: boolean;
+  created: boolean;
+  created_at: string;
+  failure_streak: number;
+  fatigue_limit: number;
+  id: string;
+  label: string;
+  last_wake_at: string;
+  main_session_id: string;
+  needs_attention: boolean;
+  next_wake_at: string;
+  now: string;
+  pause_reason: string;
+  profile_id: string;
+  provider: string;
+  quiet_streak: number;
+  resolved_appearance: {
+    [key: string]: unknown;
+  };
+  scope: string;
+  state: string;
+  updated_at: string;
+  workspace_id: string;
+};
+
 export type Chip = {
   count?: number | null;
   fallback?: string;
@@ -1288,7 +1316,11 @@ export type StreamSessionCatalogResponses = {
   /**
    * Profile-scoped session catalog event stream for the selected workspace or explicit owner-labeled all-workspaces aggregate
    */
-  200: SessionCatalogEventPayload | SessionAttentionEventPayload | OperatorNotificationEventPayload;
+  200:
+    | SessionCatalogEventPayload
+    | SessionAttentionEventPayload
+    | OperatorNotificationEventPayload
+    | AgentInstancePayload;
 };
 
 export type StreamSessionCatalogResponse =

@@ -17,6 +17,10 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { UIProvider } from "@compozy/ui";
+import { agentKeys } from "@/systems/agent";
+import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
+import { SessionMentionChip } from "../session-composer-mention-chip";
 import {
   $getRoot,
   $getSelection,
@@ -1099,7 +1103,7 @@ describe("SessionThread transcript states", () => {
     );
     const divider = screen.getByTestId("session-origin-divider");
     expect(divider).toHaveAttribute("data-link", "false");
-    expect(divider).toHaveTextContent("Continued from claude");
+    expect(divider).toHaveTextContent("Continued from Claude");
     expect(screen.queryByTestId("session-origin-divider-link")).not.toBeInTheDocument();
     expect(screen.queryByText(/to get started/i)).not.toBeInTheDocument();
   });
@@ -1199,6 +1203,17 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("composer-input")).toHaveTextContent("Session is starting…");
     expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Stop generation" })).not.toBeInTheDocument();
+  });
+
+  it("Should keep a session stopped before its first turn open for the next prompt", () => {
+    renderThreadState({
+      status: "success",
+      sessionState: "stopped",
+      failure: { kind: "cancellation", summary: "daemon stopped by user" },
+    });
+
+    expect(screen.queryByTestId("thread-session-startup-failure")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-input")).not.toHaveTextContent("Session failed to start");
   });
 
   it("Should surface durable startup failure and link to the agent runtime settings", async () => {
@@ -8338,7 +8353,7 @@ describe("SessionThread composer mentions", () => {
     const sessions = within(menu).getByTestId("composer-mention-group-sessions");
     await within(sessions).findByRole("option", { name: /Fix login bug/ });
     expect(within(sessions).getAllByRole("option")).toHaveLength(1);
-    expect(sessions).toHaveTextContent("codex · 4m ago");
+    expect(sessions).toHaveTextContent("Codex · 4m ago");
     // Debounced: the settled query reaches the daemon with the picker's 50-row limit.
     await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("clie"));
     expect(fileQueries.at(-1)?.get("limit")).toBe("50");
@@ -8829,5 +8844,41 @@ describe("SessionThread composer mentions", () => {
     expect(within(menu).queryByRole("option", { name: /Goal/i })).not.toBeInTheDocument();
     unregister();
     expect(Math.max(...walksPerUpdate)).toBe(1);
+  });
+});
+
+// Invariant: an agent gone from the catalog keeps its chip, marked unresolved, and a live one wears
+// its current label. Owner: the mention chip; canonical suite: this file.
+describe("SessionMentionChip agent kind", () => {
+  function renderChip(agents: unknown[]) {
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(agentKeys.list(null, "default"), agents);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AgentIdentityProvider>
+          <UIProvider>
+            <SessionMentionChip kind="agent" label="Release Captain" target="release_captain" />
+          </UIProvider>
+        </AgentIdentityProvider>
+      </QueryClientProvider>
+    );
+    return screen.getByTestId("session-mention-chip");
+  }
+
+  it("Should show the avatar and current label of an agent the catalog holds", () => {
+    const chip = renderChip([
+      { name: "release_captain", label: "Ship Captain", resolved_appearance: null },
+    ]);
+
+    expect(chip).toHaveTextContent("Ship Captain");
+    expect(chip).not.toHaveAttribute("data-mention-unresolved");
+    expect(chip.querySelector('[data-slot="agent-avatar"]')).not.toBeNull();
+  });
+
+  it("Should mark a deleted agent's chip unresolved and keep its name", () => {
+    const chip = renderChip([]);
+
+    expect(chip).toHaveAttribute("data-mention-unresolved", "true");
+    expect(chip).toHaveTextContent("Release Captain");
   });
 });

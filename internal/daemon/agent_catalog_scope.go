@@ -88,3 +88,37 @@ func (l agentCatalogLens) entryScope(scope resources.ResourceScope) (workspaceID
 	}
 	return "", false
 }
+
+// Resolved workspace catalogs also publish inherited user definitions. Their visibility
+// scope does not change the authored definition's memory ownership.
+func (l agentCatalogLens) userAgentSources(records []resources.Record[compozyconfig.AgentDef]) map[string]bool {
+	sources := make(map[string]bool)
+	for i := range records {
+		record := &records[i]
+		_, visible := l.rank(record.Scope)
+		_, workspace := l.entryScope(record.Scope)
+		if visible && !workspace && record.Spec.SourcePath != "" &&
+			record.Owner.Kind.Normalize() != extensionResourceOwnerKind {
+			sources[record.Spec.SourcePath] = true
+		}
+	}
+	return sources
+}
+
+func (l agentCatalogLens) memoryOrigin(
+	record *resources.Record[compozyconfig.AgentDef], userSources map[string]bool,
+) string {
+	if record.Owner.Kind.Normalize() == extensionResourceOwnerKind {
+		if record.Owner.ID == "" {
+			return ""
+		}
+		return "extension-" + record.Owner.ID
+	}
+	if workspaceID, workspace := l.entryScope(record.Scope); workspace && !userSources[record.Spec.SourcePath] {
+		if workspaceID == "" {
+			return ""
+		}
+		return "workspace-" + workspaceID
+	}
+	return string(TurnOriginUser)
+}

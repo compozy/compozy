@@ -209,7 +209,8 @@ func (o *Observer) collectFailureHealth(ctx context.Context) (FailureHealth, err
 	}
 	recent := make([]SessionFailureHealth, 0, len(sessions))
 	degradedTotal := 0
-	for _, info := range sessions {
+	for i := range sessions {
+		info := &sessions[i]
 		if info.Failure == nil {
 			continue
 		}
@@ -287,7 +288,8 @@ func (o *Observer) activeSnapshot(ctx context.Context) (int, int, []SessionActiv
 	count := 0
 	agents := make(map[string]struct{})
 	activities := make([]SessionActivityHealth, 0)
-	for _, info := range sessions {
+	for i := range sessions {
+		info := &sessions[i]
 		state := strings.TrimSpace(info.State)
 		if state == "" || state == string(session.StateStopped) || state == sessionStateOrphaned {
 			continue

@@ -21,6 +21,7 @@ import {
 import { useSteerProvenance } from "@/systems/session/hooks/use-steer-provenance";
 
 import {
+  agentMentionDirectives,
   sessionMentionDirectives,
   sessionSkillInvocationDirectives,
 } from "./session-directive-registry";
@@ -109,7 +110,13 @@ export function UserMessageParts() {
     <MessagePrimitive.Parts>
       {({ part }) => {
         if (part.type === "text") {
-          return <SessionTextPart {...part} directives={directives} mentions={mentions} />;
+          return (
+            <SessionTextPart
+              {...part}
+              directives={directives}
+              mentions={[...mentions, ...agentMentionDirectives(part.text)]}
+            />
+          );
         }
         if (part.type === "data") {
           if (part.name === SESSION_ATTACHMENT_PART_NAME && isSessionAttachmentRef(part.data)) {

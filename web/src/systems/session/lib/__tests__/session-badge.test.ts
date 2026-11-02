@@ -63,6 +63,7 @@ describe("session badge dictionary", () => {
       expect(signal.displayLabel).toMatch(/^[A-Z][a-z -]+$/);
     }
     expect(SESSION_BADGE_SIGNAL["waiting-for-input"].displayLabel).toBe("Needs your answer");
+    expect(SESSION_BADGE_SIGNAL["waiting-for-auth"].displayLabel).toBe("Needs your approval");
     expect(SESSION_BADGE_SIGNAL.hung.displayLabel).toBe("Stuck");
     const byState = new Map<string, SessionBadgeToken[]>();
     for (const badge of SESSION_BADGES) {

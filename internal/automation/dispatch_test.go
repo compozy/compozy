@@ -2058,7 +2058,9 @@ func newRecordingSessionCreator(plans ...sessionAttemptPlan) *recordingSessionCr
 	}
 }
 
-func (c *recordingSessionCreator) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (c *recordingSessionCreator) Create(ctx context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -2295,4 +2297,25 @@ func TestAutomationSessionTaskActorContextBindsUserSessionsToTheirProfile(t *tes
 			t.Fatalf("actor = %#v, %v, want the ws-a agent actor", actor, err)
 		}
 	})
+}
+
+func TestDispatchInitiatorIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		request DispatchRequest
+		want    string
+	}{
+		{name: "Should attribute a job session to its definition", request: DispatchRequest{Job: &Job{ID: "job-origin"}}, want: "job-origin"},
+		{name: "Should attribute a trigger session to its definition", request: DispatchRequest{Trigger: &Trigger{ID: "trigger-origin"}}, want: "trigger-origin"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dispatcher := &Dispatcher{}
+			opts := dispatcher.createOpts(tc.request)
+			if string(opts.Origin.Kind) != "automation" || opts.Origin.ID != tc.want {
+				t.Fatalf("origin = %#v, want automation/%s", opts.Origin, tc.want)
+			}
+		})
+	}
 }

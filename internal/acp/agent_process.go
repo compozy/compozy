@@ -18,14 +18,15 @@ import (
 
 // AgentProcess represents one running ACP-backed agent subprocess.
 type AgentProcess struct {
-	PID         int
-	AgentName   string
-	Command     string
-	Args        []string
-	Cwd         string
-	SessionID   string
-	StartedAt   time.Time
-	KernelToken string
+	executionPolicy string
+	PID             int
+	AgentName       string
+	Command         string
+	Args            []string
+	Cwd             string
+	SessionID       string
+	StartedAt       time.Time
+	KernelToken     string
 
 	capsMu          sync.RWMutex
 	caps            Caps
@@ -74,14 +75,17 @@ type AgentProcess struct {
 	unknownUpdates          map[string]struct{}
 	usageAliasWarning       sync.Once
 	usageRangeWarning       sync.Once
+	triagePolicyErr         error // Protected by promptMu; a mode violation permanently fences new prompts.
 	promptMu                sync.RWMutex
 	activePrompt            *activePromptState
 
-	pendingPermissionMu  sync.Mutex
-	pendingPermissions   map[string]*pendingPermission
-	permissionRequestSeq uint64
-	permissionTimeout    time.Duration
-	controlTimeout       time.Duration
+	pendingPermissionMu    sync.Mutex
+	pendingPermissions     map[string]*pendingPermission
+	permissionRequestSeq   uint64
+	permissionTimeout      time.Duration
+	permissionWaitResolver PermissionWaitResolver
+	compozySessionID       string
+	controlTimeout         time.Duration
 
 	systemPromptMu       sync.Mutex
 	systemPrompt         string

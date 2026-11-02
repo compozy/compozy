@@ -493,8 +493,8 @@ func workspaceResolverForFixture(fixture *authoredContextFixture) testutil.StubW
 	}
 }
 
-func authoredContextSessionManager() testutil.StubSessionManager {
-	return testutil.StubSessionManager{
+func authoredContextSessionManager() *testutil.StubSessionManager {
+	return &testutil.StubSessionManager{
 		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err

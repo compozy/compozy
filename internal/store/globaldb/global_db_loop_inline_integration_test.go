@@ -36,7 +36,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 			registerGoalSessionIdentityForTest(
 				t,
 				globalDB,
-				goalSessionInfoForTest(origin.SessionID, "ws-inline-race", now),
+				new(goalSessionInfoForTest(origin.SessionID, "ws-inline-race", now)),
 				store.SessionCreationIdentity{
 					CreationProfileRef: origin.CreationProfileRef,
 					PolicySpecDigest:   origin.PolicySpecDigest,
@@ -90,7 +90,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(origin.SessionID, "ws-inline-replace-race", now),
+			new(goalSessionInfoForTest(origin.SessionID, "ws-inline-replace-race", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: origin.CreationProfileRef,
 				PolicySpecDigest:   origin.PolicySpecDigest,
@@ -181,7 +181,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(origin.SessionID, "ws-inline-index", now),
+			new(goalSessionInfoForTest(origin.SessionID, "ws-inline-index", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: origin.CreationProfileRef,
 				PolicySpecDigest:   origin.PolicySpecDigest,
@@ -250,7 +250,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(origin.SessionID, "ws-inline-replace-rollback", now),
+			new(goalSessionInfoForTest(origin.SessionID, "ws-inline-replace-rollback", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: origin.CreationProfileRef,
 				PolicySpecDigest:   origin.PolicySpecDigest,
@@ -319,7 +319,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(origin.SessionID, "ws-inline", now),
+			new(goalSessionInfoForTest(origin.SessionID, "ws-inline", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: origin.CreationProfileRef,
 				PolicySpecDigest:   origin.PolicySpecDigest,
@@ -440,7 +440,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(origin.SessionID, "ws-inline-terminal", now),
+			new(goalSessionInfoForTest(origin.SessionID, "ws-inline-terminal", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: origin.CreationProfileRef,
 				PolicySpecDigest:   origin.PolicySpecDigest,

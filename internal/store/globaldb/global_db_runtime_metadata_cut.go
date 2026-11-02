@@ -60,6 +60,7 @@ type runtimeMetadataCut struct {
 }
 
 func readRuntimeMetadataCut(path string) (runtimeMetadataCut, error) {
+	// #nosec G703 -- the caller enumerates session directories under the operator-selected database home.
 	payload, err := os.ReadFile(path)
 	if err != nil {
 		return runtimeMetadataCut{}, fmt.Errorf("store: read session metadata %q before runtime cut: %w", path, err)

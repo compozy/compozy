@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -36,10 +37,10 @@ func TestCreateFailsWhenSessionPreCreateDenied(t *testing.T) {
 	)
 
 	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
-	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err == nil {
 		t.Fatal("Create() error = nil, want pre-create denial")
 	}
@@ -80,13 +81,13 @@ func TestCreateUsesPatchedSessionPreCreatePayload(t *testing.T) {
 		)
 
 		h := newHarness(t, WithHookSet(fullHookSet(hooks)))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:   "coder",
 			Name:        "original",
 			Workspace:   h.workspaceID,
 			Type:        SessionTypeUser,
 			Permissions: compozyconfig.PermissionModeApproveReads,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -133,10 +134,10 @@ func TestCreateRejectsInvalidPreCreateProvenance(t *testing.T) {
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: parent.ID,
-		})
+		}))
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("Create(pre-create changed system type) error = %v, want %v", err, ErrValidation)
 		}
@@ -231,13 +232,13 @@ func TestCreateProtectsDaemonOwnedSessionTypeFromPreCreatePatch(t *testing.T) {
 			}
 			startCallsBeforeCreate := len(h.driver.startCalls)
 
-			_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder",
 				Name:      "protected-type-target",
 				Workspace: h.workspaceID,
 				Type:      tt.requestedType,
 				Lineage:   lineage,
-			})
+			}))
 			if !errors.Is(err, ErrValidation) {
 				t.Fatalf(
 					"Create(type transition %q -> %q) error = %v, want %v",
@@ -330,10 +331,10 @@ func TestPostCreateAsyncHookSurvivesRequestCancellation(t *testing.T) {
 
 	h := newHarness(t, WithHookSet(fullHookSet(hooks)))
 	requestCtx, cancelRequest := context.WithCancel(testutil.Context(t))
-	session, err := h.manager.Create(requestCtx, CreateOpts{
+	session, err := h.manager.Create(requestCtx, new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -351,5 +352,47 @@ func TestPostCreateAsyncHookSurvivesRequestCancellation(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for async session.post_create hook")
+	}
+}
+
+func TestInstanceLaunchCeiling(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		patch  func(*acp.StartOpts, string)
+		denied bool
+	}{
+		{"Should preserve an unchanged bounded launch", func(*acp.StartOpts, string) {}, false},
+		{"Should reject a hook widening approval mode", func(opts *acp.StartOpts, _ string) {
+			opts.Permissions = compozyconfig.PermissionModeApproveAll
+		}, true},
+		{"Should reject a hook adding an MCP server", func(opts *acp.StartOpts, _ string) {
+			opts.MCPServers = append(opts.MCPServers, compozyconfig.MCPServer{Name: "admin"})
+		}, true},
+		{"Should reject a hook moving execution outside the ceiling", func(opts *acp.StartOpts, outside string) {
+			opts.Cwd = outside
+		}, true},
+		{"Should reject a hook adding a directory outside the ceiling", func(opts *acp.StartOpts, outside string) {
+			opts.AdditionalDirs = []string{outside}
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root, outside := t.TempDir(), t.TempDir()
+			spec := &sessionStartSpec{instancePermissionCeiling: &store.SessionPermissionPolicy{
+				WorkspacePaths: []string{root}, MCPServers: []string{"docs"},
+			}}
+			before := acp.StartOpts{Cwd: root, Permissions: compozyconfig.PermissionModeApproveReads,
+				MCPServers: []compozyconfig.MCPServer{{Name: "docs"}}}
+			after := before
+			tc.patch(&after, outside)
+			err := validateInstanceLaunch(spec, before, after)
+			if tc.denied {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("launch widening: %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

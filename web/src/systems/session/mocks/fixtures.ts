@@ -110,6 +110,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     pending_interactions: [
       {
         interaction_id: "interaction_story_clarify",
+        session_id: storySessionIds.cto,
         kind: "clarify",
         provider_request_id: "clarify_story_launch_channel",
         turn_id: "turn_story_clarify",
@@ -139,6 +140,7 @@ const sessionFixtureRows: SessionFixtureInput[] = [
     pending_interactions: [
       {
         interaction_id: "interaction_story_permission",
+        session_id: storySessionIds.cfo,
         kind: "permission",
         provider_request_id: "permission_story_revenue_export",
         turn_id: "turn_story_permission",

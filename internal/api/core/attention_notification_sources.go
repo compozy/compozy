@@ -145,7 +145,7 @@ func sessionNotificationQueryItems(
 				reason = session.LaterReturnReason
 			}
 			for _, interaction := range info.PendingInteractions {
-				if interaction.Status == "pending" && interaction.Title != "" {
+				if interaction.Status == store.PendingInteractionStatusPending && interaction.Title != "" {
 					reason = interaction.Title
 					break
 				}
@@ -182,7 +182,7 @@ func (h *BaseHandlers) loopNotificationItems(
 	query := LoopRequestListQuery{
 		AllWorkspaces: true,
 		ReadScope:     store.ReadScope{AllProfiles: true},
-		State:         "pending",
+		State:         store.PendingInteractionStatusPending,
 		Limit:         200,
 	}
 	for {

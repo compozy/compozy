@@ -25,7 +25,9 @@ const (
 )
 
 // RegisterSession inserts or refreshes a session index row.
-func (g *SessionRepo) RegisterSession(ctx context.Context, session store.SessionInfo) error {
+func (g *SessionRepo) RegisterSession(ctx context.Context, sessionInput *store.SessionInfo) error {
+	session := *sessionInput
+
 	if err := g.checkReady(ctx, "register session"); err != nil {
 		return err
 	}
@@ -42,7 +44,7 @@ func (g *SessionRepo) RegisterSession(ctx context.Context, session store.Session
 	}
 
 	if err := g.withImmediateTransaction(ctx, "register session", func(exec globalSQLExecutor) error {
-		return g.admitSessionRegistration(ctx, exec, normalized)
+		return g.admitSessionRegistration(ctx, exec, &(normalized))
 	}); err != nil {
 		return fmt.Errorf("store: register session %q: %w", normalized.ID, err)
 	}
@@ -293,11 +295,12 @@ func (g *SessionRepo) ReconcileSessions(
 		}
 		seen := make(map[string]store.SessionInfo, len(sessions))
 
-		for _, session := range sessions {
+		for i := range sessions {
+			session := &sessions[i]
 			if err := session.Validate(); err != nil {
 				return err
 			}
-			normalized := session
+			normalized := *session
 			if normalized.CreatedAt.IsZero() {
 				normalized.CreatedAt = g.now()
 			}
@@ -314,7 +317,7 @@ func (g *SessionRepo) ReconcileSessions(
 			if _, ok := existing[normalized.ID]; !ok {
 				attemptResult.Indexed = append(attemptResult.Indexed, normalized.ID)
 			}
-			if err := g.registerSession(ctx, exec, normalized); err != nil {
+			if err := g.registerSession(ctx, exec, &(normalized)); err != nil {
 				return fmt.Errorf("store: reconcile session %q: %w", normalized.ID, err)
 			}
 		}
@@ -343,19 +346,27 @@ func (g *SessionRepo) ReconcileSessions(
 }
 
 func (g *SessionRepo) admitSessionRegistration(
-	ctx context.Context, exec globalSQLExecutor, session store.SessionInfo,
+	ctx context.Context, exec globalSQLExecutor, sessionInput *store.SessionInfo,
 ) error {
+	session := *sessionInput
+
 	if session.State != globalDBSessionStateStopped {
 		if err := store.RequireWorkspaceActive(ctx, exec, session.WorkspaceID); err != nil {
 			return err
 		}
 	}
-	return g.registerSession(ctx, exec, session)
+	return g.registerSession(ctx, exec, &(session))
 }
 
 // registerSession mirrors catalog metadata during recovery without admitting runtime work.
-func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecutor, session store.SessionInfo) error {
-	record, err := newSessionCatalogRecord(session)
+func (g *SessionRepo) registerSession(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	sessionInput *store.SessionInfo,
+) error {
+	session := *sessionInput
+
+	record, err := newSessionCatalogRecord(&(session))
 	if err != nil {
 		return err
 	}
@@ -372,7 +383,7 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 		)
 	}
 	if affected == 0 {
-		if availabilityErr := sessionWorktreeAvailabilityError(ctx, queries, session); availabilityErr != nil {
+		if availabilityErr := sessionWorktreeAvailabilityError(ctx, queries, &(session)); availabilityErr != nil {
 			return availabilityErr
 		}
 		existingWorkspaceID, err := queries.GetSessionWorkspaceID(ctx, session.ID)
@@ -390,8 +401,10 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 func sessionWorktreeAvailabilityError(
 	ctx context.Context,
 	queries *sqlcgen.Queries,
-	session store.SessionInfo,
+	sessionInput *store.SessionInfo,
 ) error {
+	session := *sessionInput
+
 	worktreeID := strings.TrimSpace(session.WorktreeID)
 	if worktreeID == "" {
 		return nil
@@ -424,7 +437,9 @@ type sessionCatalogRecord struct {
 	activityJSON         string
 }
 
-func newSessionCatalogRecord(session store.SessionInfo) (sessionCatalogRecord, error) {
+func newSessionCatalogRecord(sessionInput *store.SessionInfo) (sessionCatalogRecord, error) {
+	session := *sessionInput
+
 	lineage := store.NormalizeSessionLineage(session.ID, session.Lineage)
 	if err := store.ValidateSessionLineage(session.ID, lineage); err != nil {
 		return sessionCatalogRecord{}, err

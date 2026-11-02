@@ -226,7 +226,7 @@ type profileCountsResult struct {
 }
 
 var ownedWorkTables = []string{
-	"sessions", "tasks", "loop_runs", "automation_jobs", "automation_triggers",
+	"agent_instances", "sessions", "tasks", "loop_runs", "automation_jobs", "automation_triggers",
 	"automation_suggestions", "worktrees", "notification_cursors",
 	"tool_approval_grants", "dead_entities", "token_usage_daily",
 }
@@ -234,6 +234,8 @@ var ownedWorkTables = []string{
 func ownedWorkSource(table string) string {
 	var kind string
 	switch table {
+	case "agent_instances":
+		return `(SELECT profile_id FROM agent_instances WHERE archived_at IS NULL)`
 	case "automation_jobs":
 		kind = "automation.job"
 	case "automation_triggers":

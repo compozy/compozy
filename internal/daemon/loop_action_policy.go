@@ -63,7 +63,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 	if opts == nil {
 		return loopSessionPolicyResolution{}, errors.New("daemon: loop session options are required")
 	}
-	resolved, err := g.resolveWorkspace(ctx, *opts)
+	resolved, err := g.resolveWorkspace(ctx, opts)
 	if err != nil {
 		return loopSessionPolicyResolution{}, err
 	}
@@ -175,8 +175,10 @@ func mergeLoopActionDeniedTools(groups ...[]string) []string {
 
 func (g *loopSessionPolicyGate) resolveWorkspace(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	opts := *optsInput
+
 	if g == nil || g.workspaceResolver == nil {
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}

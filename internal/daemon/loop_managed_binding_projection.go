@@ -37,8 +37,10 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 	req looppkg.ActionSessionBindRequest,
 	key goalpkg.BindingKey,
 	profile store.SessionCreationProfile,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (goalpkg.SessionBinding, store.SessionCreationIdentity, error) {
+	opts := *optsInput
+
 	if strings.TrimSpace(req.ExpectedCheckpointPhase) != "" || req.CellFence != nil {
 		if b.bindingAllocator == nil {
 			return goalpkg.SessionBinding{}, store.SessionCreationIdentity{}, errors.New(
@@ -62,7 +64,7 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 				ExpectedCheckpointHandle:       req.ExpectedCheckpointHandle,
 				IdentityHandle:                 strings.TrimSpace(req.Handle),
 				CreationProfile:                profile,
-				CreationOptions:                bindingCreationOptions(opts, ""),
+				CreationOptions:                bindingCreationOptions(&(opts), ""),
 			},
 		)
 		if err != nil {
@@ -73,7 +75,7 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 
 	epoch := req.TargetBindingEpoch
 	attemptID, sessionID := bindingAttemptIdentity(req, epoch)
-	identity, err := bindingCreationIdentity(profile, opts, sessionID)
+	identity, err := bindingCreationIdentity(profile, &(opts), sessionID)
 	if err != nil {
 		return goalpkg.SessionBinding{}, store.SessionCreationIdentity{}, err
 	}
@@ -190,7 +192,7 @@ func (b *loopActionSessionBinder) revalidatePersistedProfile(
 			"persisted creation profile no longer passes the effective policy gate",
 		)
 	}
-	applied := appliedRuntimeFromCreateOptions(opts)
+	applied := appliedRuntimeFromCreateOptions(&(opts))
 	if allowRuntimeOverride && req.Runtime != nil {
 		requested := req.RuntimeValue()
 		if strings.TrimSpace(requested.Provider) != "" {

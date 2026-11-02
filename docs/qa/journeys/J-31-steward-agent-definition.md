@@ -2,13 +2,13 @@
 
 ```mermaid
 flowchart TD
-  A[Entry: agent detail deep link] --> B[Inspect four tabs]
-  B --> C[Edit Soul or Heartbeat]
+  A[Entry: agent detail deep link] --> B[Inspect profile and focused editors]
+  B --> C[Edit What it does or Check-ins]
   C --> D{Digest current?}
   D -->|yes| E[Save and re-read]
   D -->|409| F[Reload, reapply, retry]
-  E --> G[Wake one eligible session]
-  G --> H[Open settings and save whole definition]
+  E --> G[Try a dry run, then run a real check]
+  G --> H[Open Model or What it can use and save]
   H --> I[Fresh reload confirms daemon truth]
   C -.-> X[Abandon with dirty editor]
   X --> Y[Guard keeps editing or discards explicitly]
@@ -23,18 +23,18 @@ journey:
   value_statement: "An operator can inspect and safely edit definition-owned state without losing concurrent work."
   personas: [Bruno, Sol]
   entry_points:
-    - url: /agents/$name?tab=instructions
+    - url: /agents/$name
       origin: direct
   actions:
     - step: 1
-      verb: Inspect tabs and authored files
+      verb: Inspect profile, places, and authored files
       expected_observable: Origin, runtime, configuration, sessions, diagnostics, and file state match daemon reads
     - step: 2
-      verb: Edit authored context and settings
+      verb: Edit focused pages, Memory, and authored context
       expected_observable: CAS, validation, permission, and unsaved states are explicit and keyboard reachable
   goal:
     observable: Fresh reads show the saved definition and authored files
-    side_effects: [definition-updated, authored-context-updated, optional-session-wake]
+    side_effects: [definition-updated, authored-context-updated, optional-instance-check]
   true_end_state: Reloaded detail and structured reads agree on digest, origin, and values
   exit:
     natural: Agent overview

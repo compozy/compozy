@@ -1,8 +1,11 @@
 package daemon
 
 import (
+	"errors"
 	"sort"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/acp"
 
@@ -89,6 +92,7 @@ func (b *harnessReentryBridge) nextWake(sessionID string) (harnessSyntheticWake,
 }
 
 func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
+	b.refreshWakeTarget(&item)
 	existing, err := b.syntheticEventExists(item.targetSessionID, item.runID)
 	if err == nil && existing {
 		b.finalizeRunOutcome(
@@ -104,7 +108,7 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 		return
 	}
 
-	eventsCh, promptErr := b.sessions.PromptSynthetic(b.ctx, item.targetSessionID, session.SyntheticPromptOpts{
+	opts := session.SyntheticPromptOpts{
 		Message:                 item.syntheticMessage,
 		InterruptIfAgentWaiting: true,
 		Metadata: acp.PromptSyntheticMeta{
@@ -114,7 +118,11 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 			Reason:         item.syntheticMeta.Reason,
 			Summary:        item.syntheticMeta.Summary,
 		},
-	})
+	}
+	eventsCh, promptErr := b.sessions.PromptSynthetic(b.ctx, item.targetSessionID, opts)
+	if errors.Is(promptErr, store.ErrSessionSuperseded) && b.refreshWakeTarget(&item) {
+		eventsCh, promptErr = b.sessions.PromptSynthetic(b.ctx, item.targetSessionID, opts)
+	}
 	if promptErr != nil {
 		b.finalizeRunOutcome(
 			item.runID,
@@ -149,6 +157,7 @@ func (b *harnessReentryBridge) dispatchHeartbeatWake(item harnessSyntheticWake) 
 		return false
 	}
 	decision, err := b.heartbeatWake.Wake(b.ctx, heartbeat.WakeRequest{
+		ProfileID:   item.targetProfileID,
 		WorkspaceID: strings.TrimSpace(item.targetWorkspaceID),
 		AgentName:   strings.TrimSpace(item.targetAgentName),
 		SessionID:   strings.TrimSpace(item.targetSessionID),
@@ -213,5 +222,19 @@ func (b *harnessReentryBridge) dispatchHeartbeatWake(item harnessSyntheticWake) 
 			string(decision.Reason),
 		)
 	}
+	return true
+}
+
+func (b *harnessReentryBridge) refreshWakeTarget(item *harnessSyntheticWake) bool {
+	metadata := detachedHarnessRunMetadata{}
+	metadata.WakeTarget.SessionID = item.targetSessionID
+	target := b.resolveWakeTargetSnapshot(metadata)
+	if target.Missing || target.SessionID == item.targetSessionID {
+		return false
+	}
+	item.targetSessionID = target.SessionID
+	item.targetAgentName = target.AgentName
+	item.targetProfileID = target.ProfileID
+	item.targetWorkspaceID = target.WorkspaceID
 	return true
 }

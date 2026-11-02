@@ -46,7 +46,10 @@ func resolveStoredSessionWorkspace(
 	return resolved, nil
 }
 
-func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (workspacepkg.ResolvedWorkspace, error) {
+func (m *Manager) resolveCreateWorkspace(
+	ctx context.Context,
+	opts *CreateOpts,
+) (workspacepkg.ResolvedWorkspace, error) {
 	resolver, err := m.requireWorkspaceResolver()
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err

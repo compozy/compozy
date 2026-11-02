@@ -548,7 +548,7 @@ func exerciseGatewayAuthenticatedProductAndStatusParityIntegration(t *testing.T)
 	issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindCLIProfile)
 	handlers := newTestHandlers(
 		t,
-		stubSessionManager{},
+		&stubSessionManager{},
 		stubObserver{HealthFn: func(context.Context) (observe.Health, error) {
 			return observe.Health{Status: "ok"}, nil
 		}},

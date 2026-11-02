@@ -149,6 +149,14 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  sdkSessionHealthUpdateAfterPayloadValue,
 		Value: hooks.SessionHealthUpdateAfterPayload{},
 	},
+	sdkAgentInstancePayloadValue: {
+		Name:  sdkAgentInstancePayloadValue,
+		Value: hooks.AgentInstancePayload{},
+	},
+	sdkAgentInstanceObservationPatchValue: {
+		Name:  sdkAgentInstanceObservationPatchValue,
+		Value: hooks.AgentInstanceObservationPatch{},
+	},
 	sdkSessionAttentionChangedPayloadValue: {
 		Name:  sdkSessionAttentionChangedPayloadValue,
 		Value: hooks.SessionAttentionChangedPayload{},
@@ -157,6 +165,7 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 		Name:  sdkSessionAttentionObservationPatchValue,
 		Value: hooks.SessionAttentionObservationPatch{},
 	},
+	sdkAgentHeartbeatWakePatchValue: {Name: sdkAgentHeartbeatWakePatchValue, Value: hooks.AgentHeartbeatWakePatch{}},
 	sdkAuthoredContextObservationPatchValue: {
 		Name:  sdkAuthoredContextObservationPatchValue,
 		Value: hooks.AuthoredContextObservationPatch{},

@@ -21,7 +21,7 @@ func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -39,7 +39,7 @@ func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {
 	t.Run("Should return not found when session resume and clear stubs have no implementation", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-default"), nil
 			},
@@ -98,7 +98,7 @@ func TestTestutilAutomationToggleFallbacksReturnDeterministicErrors(t *testing.T
 		}
 		fixture := newHandlerFixtureWithAutomation(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubAutomationManager{
 				GetJobFn: func(context.Context, string) (automationpkg.Job, error) {
@@ -136,7 +136,7 @@ func TestTestutilAutomationToggleFallbacksReturnDeterministicErrors(t *testing.T
 		}
 		fixture := newHandlerFixtureWithAutomation(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubAutomationManager{
 				GetTriggerFn: func(context.Context, string) (automationpkg.Trigger, error) {

@@ -37,50 +37,42 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	payload = contract.SessionPayload{
 		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
 		Scope:                    scope,
+		InstanceID:               info.InstanceID,
 		Supervision:              session.CloneSupervisionState(info.Supervision),
 		BusyInput:                info.BusyInput,
 		ID:                       info.ID,
 		ProfileID:                strings.TrimSpace(info.ProfileID),
 		Name:                     info.Name,
 		AgentName:                info.AgentName,
-		Runtime: contract.SessionRuntimePayload{
-			Status:            info.RuntimeStatus,
-			Transition:        info.RuntimeTransition,
-			Failure:           diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
-			Generation:        info.RuntimeGeneration,
-			Recovery:          sessionRuntimeRecoveryPayload(info.RuntimeRecovery),
-			Selected:          contract.PromptRuntimeSelectionPayloadFromSelection(info.SelectedRuntime),
-			SelectionRevision: info.RuntimeSelectionRevision,
-			ACPSessionID:      info.ACPSessionID,
-		},
-		WorkspaceID:         ref.WorkspaceID,
-		WorkspacePath:       ref.WorkspacePath,
-		WorktreeID:          strings.TrimSpace(info.WorktreeID),
-		Type:                info.Type,
-		State:               info.State,
-		Badge:               session.BadgeForInfo(info),
-		BoardColumn:         session.BoardColumnFor(session.BadgeForInfo(info), ""),
-		WaitingOn:           sessionPayloadWaitingOn(info, session.BadgeForInfo(info)),
-		Attachable:          session.AttachableForInfo(info, now),
-		AttachedTo:          strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:     cloneTimePtr(info.AttachExpiresAt),
-		TranscriptEpoch:     info.TranscriptEpoch,
-		AttentionChangedAt:  cloneTimePtr(info.AttentionChangedAt),
-		PendingInteractions: PendingInteractionPayloadsFromStore(info.PendingInteractions),
-		ArchivedAt:          cloneTimePtr(info.ArchivedAt),
-		Later:               sessionLaterPayload(info.Later),
-		ReturnedFromLaterAt: cloneTimePtr(info.LaterReturnedAt),
-		StopReason:          info.StopReason,
-		StopCause:           sessionStopCause(info),
-		Verified:            new(info.State == session.StateStopped),
-		Escalated:           new(info.StopEscalated),
-		Attention:           sessionAttention(info),
-		StopDetail:          info.StopDetail,
-		Failure:             SessionFailurePayloadFromStore(info.Failure),
-		AvailableCommands:   availableCommandPayloads(info.AdvertisedCommands),
-		Lineage:             contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt:           info.CreatedAt,
-		UpdatedAt:           info.UpdatedAt,
+		Runtime:                  sessionRuntimePayloadFromInfo(info),
+		WorkspaceID:              ref.WorkspaceID,
+		WorkspacePath:            ref.WorkspacePath,
+		WorktreeID:               strings.TrimSpace(info.WorktreeID),
+		Type:                     info.Type,
+		State:                    info.State,
+		Badge:                    session.BadgeForInfo(info),
+		BoardColumn:              session.BoardColumnFor(session.BadgeForInfo(info), ""),
+		WaitingOn:                sessionPayloadWaitingOn(info, session.BadgeForInfo(info)),
+		Attachable:               session.AttachableForInfo(info, now),
+		AttachedTo:               strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:          info.TranscriptEpoch,
+		AttentionChangedAt:       cloneTimePtr(info.AttentionChangedAt),
+		PendingInteractions:      PendingInteractionPayloadsFromStore(info.PendingInteractions),
+		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
+		Later:                    sessionLaterPayload(info.Later),
+		ReturnedFromLaterAt:      cloneTimePtr(info.LaterReturnedAt),
+		StopReason:               info.StopReason,
+		StopCause:                sessionStopCause(info),
+		Verified:                 new(info.State == session.StateStopped),
+		Escalated:                new(info.StopEscalated),
+		Attention:                sessionAttention(info),
+		StopDetail:               info.StopDetail,
+		Failure:                  SessionFailurePayloadFromStore(info.Failure),
+		AvailableCommands:        availableCommandPayloads(info.AdvertisedCommands),
+		Lineage:                  contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:                info.CreatedAt,
+		UpdatedAt:                info.UpdatedAt,
 	}
 	populateSessionRuntimePayload(&payload, info)
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
@@ -183,6 +175,8 @@ func PendingInteractionPayloadsFromStore(values []store.PendingInteraction) []co
 		value = store.SanitizePendingInteraction(value)
 		result = append(result, contract.PendingInteractionPayload{
 			InteractionID:     strings.TrimSpace(value.InteractionID),
+			SessionID:         strings.TrimSpace(value.SessionID),
+			ExpiresAt:         cloneTimePtr(value.ExpiresAt),
 			Kind:              strings.TrimSpace(value.Kind),
 			ProviderRequestID: strings.TrimSpace(value.ProviderRequestID),
 			TurnID:            strings.TrimSpace(value.TurnID),
@@ -262,7 +256,7 @@ func runtimeSelectionFromStoreInfo(selection *store.SessionRuntimeSelection) *se
 func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
 	visible := make([]*session.Info, 0, len(infos))
 	for _, info := range infos {
-		if info == nil || isInternalSessionInfo(info.Lineage) {
+		if info == nil || info.Type == session.SessionTypeTriage || isInternalSessionInfo(info.Lineage) {
 			continue
 		}
 		visible = append(visible, info)
@@ -356,4 +350,17 @@ func sessionPayloadWaitingOn(info *session.Info, badge session.Badge) session.Wa
 		return ""
 	}
 	return session.WaitingOnFor(info.Supervision.WorkSignals)
+}
+
+func sessionRuntimePayloadFromInfo(info *session.Info) contract.SessionRuntimePayload {
+	return contract.SessionRuntimePayload{
+		Status:            info.RuntimeStatus,
+		Transition:        info.RuntimeTransition,
+		Failure:           diagnostics.RedactAndBound(info.RuntimeFailure, maxDiagnosticPayloadBytes),
+		Generation:        info.RuntimeGeneration,
+		Recovery:          sessionRuntimeRecoveryPayload(info.RuntimeRecovery),
+		Selected:          contract.PromptRuntimeSelectionPayloadFromSelection(info.SelectedRuntime),
+		SelectionRevision: info.RuntimeSelectionRevision,
+		ACPSessionID:      info.ACPSessionID,
+	}
 }

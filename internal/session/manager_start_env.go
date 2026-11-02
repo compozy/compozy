@@ -66,6 +66,13 @@ func (m *Manager) sessionStartOpts(
 			mcpServers,
 		),
 	}
+	if s.sessionType == SessionTypeTriage {
+		opts.ExecutionPolicy = acp.ExecutionPolicyTriage
+		opts.Permissions = compozyconfig.PermissionModeApproveReads
+		opts.MCPServers = nil
+		opts.ActivateMCPServers = nil
+		opts.ShellWaitGuard = false
+	}
 	return applyProviderRuntimeAdapter(resolved, opts)
 }
 

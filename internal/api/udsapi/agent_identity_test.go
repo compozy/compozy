@@ -84,7 +84,7 @@ func TestAgentMeRejectsInvalidCallerIdentity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			manager := stubSessionManager{
+			manager := &stubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 					if tt.statusErr != nil {
 						return nil, tt.statusErr
@@ -118,7 +118,7 @@ func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 	t.Run("Should return validated caller identity", func(t *testing.T) {
 		t.Parallel()
 
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				if id != "sess-1" {
 					return nil, session.ErrSessionNotFound
@@ -199,7 +199,7 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 			sourceWorkspaceID = "ws-source"
 			targetWorkspaceID = "ws-target"
 		)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				if id != "sess-approve-reads" {
 					return nil, session.ErrSessionNotFound

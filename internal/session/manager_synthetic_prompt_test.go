@@ -18,12 +18,12 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "system-session",
 		Workspace: h.workspaceID,
 		Type:      SessionTypeSystem,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(system) error = %v", err)
 	}

@@ -29,6 +29,7 @@ import {
   type AttentionJumpTarget,
 } from "./use-attention-jump";
 import { useAttentionPolicy } from "./use-attention-policy";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 const TOAST_DURATION_MS = 8_000;
 export const MAX_VISIBLE_NEEDS_YOU_TOASTS = 4;
@@ -153,6 +154,8 @@ export function useAttentionNotifier({
     appActive: true,
     resolve: () => null,
   });
+  const identityOf = useAgentIdentityResolverView();
+  const identityOfRef = useRef(identityOf);
   const renderRef = useRef<(batch: AttentionDelivery[]) => void>(() => undefined);
 
   const targets = targetsFromSections(sections);
@@ -218,7 +221,7 @@ export function useAttentionNotifier({
     if (systemNotificationsArmed(policy.system) && !appActive) {
       for (const delivery of batch) {
         showSystemNotification({
-          ...systemNotificationContent(delivery),
+          ...systemNotificationContent(delivery, name => identityOfRef.current(name).label),
           onActivate: () => activate(delivery, jump, onOpenBell, contextRef.current.resolve),
         });
       }
@@ -254,6 +257,7 @@ export function useAttentionNotifier({
 
   useEffect(() => {
     contextRef.current = context;
+    identityOfRef.current = identityOf;
     renderRef.current = render;
     // A refetch may have named an edge that arrived before its catalog wake.
     engineRef.current?.refresh();

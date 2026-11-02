@@ -59,13 +59,15 @@ func (e *CreationError) Unwrap() error {
 
 // IdempotentSessionCreator creates one preallocated session or reuses its exact identity.
 type IdempotentSessionCreator interface {
-	EnsureCreated(context.Context, CreateOpts) (EnsureCreatedResult, error)
+	EnsureCreated(context.Context, *CreateOpts) (EnsureCreatedResult, error)
 }
 
 var _ IdempotentSessionCreator = (*Manager)(nil)
 
 // EnsureCreated creates one preallocated session exactly once by immutable creation identity.
-func (m *Manager) EnsureCreated(ctx context.Context, opts CreateOpts) (EnsureCreatedResult, error) {
+func (m *Manager) EnsureCreated(ctx context.Context, optsInput *CreateOpts) (EnsureCreatedResult, error) {
+	opts := *optsInput
+
 	if ctx == nil {
 		return EnsureCreatedResult{}, creationError(
 			EffectKnownFalse,
@@ -88,7 +90,7 @@ func (m *Manager) EnsureCreated(ctx context.Context, opts CreateOpts) (EnsureCre
 			errors.New("session: desired id, creation profile, and creation identity are required"),
 		)
 	}
-	if err := validateRequestedCreationIdentity(opts); err != nil {
+	if err := validateRequestedCreationIdentity(&opts); err != nil {
 		return EnsureCreatedResult{}, creationError(
 			EffectKnownFalse,
 			SessionCreationCodeIdentityMismatch,
@@ -104,7 +106,7 @@ func (m *Manager) EnsureCreated(ctx context.Context, opts CreateOpts) (EnsureCre
 		return EnsureCreatedResult{SessionID: desiredID, Outcome: EnsureCreatedOutcomeExistingMatch}, nil
 	}
 
-	spec, err := m.prepareCreateStart(ctx, opts)
+	spec, err := m.prepareCreateStart(ctx, &opts)
 	if err != nil {
 		return EnsureCreatedResult{}, creationError(
 			EffectKnownFalse,
@@ -345,7 +347,7 @@ func creationOptionsForSpec(spec *sessionStartSpec) *store.SessionCreationOption
 	}
 }
 
-func validateRequestedCreationIdentity(opts CreateOpts) error {
+func validateRequestedCreationIdentity(opts *CreateOpts) error {
 	profile := cloneCreationProfile(opts.CreationProfile)
 	identity := cloneCreationIdentity(opts.CreationIdentity)
 	if profile == nil || identity == nil {

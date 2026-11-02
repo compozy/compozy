@@ -173,9 +173,9 @@ func (h mentionIntegrationDaemon) create(t *testing.T, name string) *session.Ses
 
 func (h mentionIntegrationDaemon) createWithAgent(t *testing.T, agentName, name string) *session.Session {
 	t.Helper()
-	created, err := h.manager.Create(t.Context(), session.CreateOpts{
+	created, err := h.manager.Create(t.Context(), new(session.CreateOpts{
 		AgentName: agentName, Workspace: h.workspace, Name: name,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

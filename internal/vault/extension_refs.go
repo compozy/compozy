@@ -18,7 +18,7 @@ func ValidateExtensionSecretRefOwner(ref, extension string) error {
 	parts := strings.Split(strings.TrimPrefix(ref, "vault:extensions/"), "/")
 	owner := ""
 	switch {
-	case len(parts) >= 3 && parts[0] == "global":
+	case len(parts) >= 3 && (parts[0] == "global" || parts[0] == "user"):
 		owner = parts[1]
 	case len(parts) >= 4 && parts[0] == "ws" && parts[1] != "":
 		owner = parts[2]
@@ -71,7 +71,7 @@ func ExtensionSecretRefOwner(ref string) (string, error) {
 	parts := strings.Split(strings.TrimPrefix(ref, "vault:extensions/"), "/")
 	segment := ""
 	switch {
-	case len(parts) >= 3 && parts[0] == "global":
+	case len(parts) >= 3 && (parts[0] == "global" || parts[0] == "user"):
 		segment = parts[1]
 	case len(parts) >= 4 && parts[0] == "ws" && parts[1] != "":
 		segment = parts[2]

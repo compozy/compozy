@@ -6,6 +6,13 @@ import { cn } from "../../lib/utils";
 import { markdownEditorAttributes, useMarkdownEditor } from "./hooks/use-markdown-editor";
 import { MarkdownEditorToolbar } from "./markdown-editor-toolbar";
 
+export type MarkdownEditorHeight = "compact" | "tall";
+
+const HEIGHT_CLASS: Record<MarkdownEditorHeight, string> = {
+  compact: "max-h-60",
+  tall: "[&_.tiptap]:min-h-96",
+};
+
 export interface MarkdownEditorProps {
   /** Markdown source; the editor re-reads it only when it differs from what it holds. */
   value: string;
@@ -17,8 +24,10 @@ export interface MarkdownEditorProps {
   autoFocus?: boolean;
   id?: string;
   className?: string;
-  /** Classes for the scrolling content area (height bounds). */
+  /** Classes for the scrolling content area (type and padding). */
   contentClassName?: string;
+  /** `compact` scrolls inside a short field; `tall` grows into a page-sized editor. */
+  height?: MarkdownEditorHeight;
   toolbarLabel?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
@@ -52,6 +61,7 @@ export function MarkdownEditor({
   id,
   className,
   contentClassName,
+  height = "compact",
   toolbarLabel = "Formatting",
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
@@ -92,7 +102,11 @@ export function MarkdownEditor({
       data-testid={testId}
     >
       <MarkdownEditorToolbar disabled={disabled} editor={editor} label={toolbarLabel} />
-      <EditorContent className="max-h-60 min-h-0 overflow-y-auto" editor={editor} />
+      <EditorContent
+        className={cn("min-h-0 overflow-y-auto", HEIGHT_CLASS[height])}
+        data-height={height}
+        editor={editor}
+      />
     </div>
   );
 }

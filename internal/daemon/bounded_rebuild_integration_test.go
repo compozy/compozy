@@ -49,7 +49,7 @@ func TestDaemonBoundedRebuild(t *testing.T) {
 			manager := newBoundedRebuildManager(t, home, deps, resolved, daemon)
 			active, err := manager.Create(
 				t.Context(),
-				session.CreateOpts{AgentName: "rebuild-agent", Workspace: resolved.ID},
+				new(session.CreateOpts{AgentName: "rebuild-agent", Workspace: resolved.ID}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -152,7 +152,7 @@ func TestDaemonBoundedRebuildPressure(t *testing.T) {
 		manager := newBoundedRebuildManager(t, home, deps, resolved, daemon)
 		active, err := manager.Create(
 			t.Context(),
-			session.CreateOpts{AgentName: "rebuild-agent", Workspace: resolved.ID},
+			new(session.CreateOpts{AgentName: "rebuild-agent", Workspace: resolved.ID}),
 		)
 		if err != nil {
 			t.Fatal(err)

@@ -47,7 +47,7 @@ func registerSubagentSession(t *testing.T, db *GlobalDB, workspace, id, parent, 
 			SpawnRole:       role,
 		}
 	}
-	if err := db.RegisterSession(t.Context(), info); err != nil {
+	if err := db.RegisterSession(t.Context(), &(info)); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/managedsidecar"
 	"github.com/compozy/compozy/internal/soul"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -22,6 +24,7 @@ func (m *Manager) persistResolvedSoul(
 	config compozyconfig.SoulConfig,
 	source string,
 	now time.Time,
+	profileID string,
 ) (*soul.Snapshot, error) {
 	if resolved == nil {
 		return nil, errors.New("session: resolved soul is required")
@@ -51,6 +54,7 @@ func (m *Manager) persistResolvedSoul(
 		resolved,
 		provenance,
 		now.UTC(),
+		profileID,
 	)
 	if err != nil {
 		return nil, err
@@ -138,4 +142,21 @@ func (s *sessionStartSpec) applySoulSnapshot(snapshot *soul.Snapshot) {
 		s.soulSnapshotID = strings.TrimSpace(snapshot.ID)
 		s.soulDigest = strings.TrimSpace(snapshot.Digest)
 	}
+}
+
+func soulSnapshotWorkspaceID(workspace *workspacepkg.ResolvedWorkspace, agent compozyconfig.AgentDef) string {
+	switch agent.SourceLayer {
+	case "user", "profile":
+		return ""
+	case "project", "project_profile":
+		return workspace.ID
+	}
+	agentPath := agent.SourcePath
+	if strings.TrimSpace(agentPath) == "" || !filepath.IsAbs(agentPath) {
+		return workspace.ID
+	}
+	if _, within := managedsidecar.RelativeWithinRoot(workspace.RootDir, agentPath); !within {
+		return ""
+	}
+	return workspace.ID
 }

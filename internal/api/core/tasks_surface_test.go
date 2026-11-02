@@ -636,7 +636,7 @@ func TestSchedulerControlHandlersDelegateToTaskService(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -1082,7 +1082,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, observer, tasks, workspaces)
+	fixture := newHandlerFixtureWithTasks(t, &testutil.StubSessionManager{}, observer, tasks, workspaces)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
@@ -1361,7 +1361,7 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{
 			PublishTaskFn: func(
@@ -1563,7 +1563,7 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 		)
 	}
 
-	taskless := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
+	taskless := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
 	taskless.Handlers.Tasks = nil
 	if resp := performRequest(
 		t,
@@ -1617,7 +1617,7 @@ func TestTaskAggregateHandlers(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			observer,
 			tasks,
 			testutil.StubWorkspaceService{},

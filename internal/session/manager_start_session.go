@@ -22,6 +22,7 @@ func (s *sessionStartSpec) newStartingSession(
 	}
 
 	return &Session{
+		InitiatorKind: s.initiatorKind, InitiatorID: s.initiatorID,
 		EffectiveWorkspaceAccess: s.effectiveWorkspaceAccess,
 		ID:                       s.sessionID, ProfileID: s.profileID, Name: s.sessionName, AgentName: resolved.Name,
 		Provider: strings.TrimSpace(resolved.Provider), Model: strings.TrimSpace(resolved.Model),

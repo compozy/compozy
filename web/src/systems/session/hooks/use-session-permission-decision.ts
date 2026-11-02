@@ -11,7 +11,8 @@ interface UseSessionPermissionDecisionOptions {
   workspaceId: string;
   sessionId: string;
   permission: PermissionRequest;
-  onResolved?: () => void;
+  /** Runs once the daemon has accepted the decision, never before. */
+  onResolved?: (decision: PermissionDecision) => void;
 }
 
 export function useSessionPermissionDecision({
@@ -24,7 +25,9 @@ export function useSessionPermissionDecision({
   const state = useSelector(store, snapshot => snapshot.context);
   const permissionKey = `${permission.requestId}\u0000${permission.turnId ?? ""}`;
   const isCurrentPermission = state.permissionKey === permissionKey;
-  const handleResolved = useEffectEvent(() => onResolved?.());
+  const handleResolved = useEffectEvent(({ decision }: { decision: PermissionDecision }) =>
+    onResolved?.(decision)
+  );
 
   useEffect(() => {
     const resolved = store.on("resolutionAccepted", handleResolved);

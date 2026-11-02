@@ -40,7 +40,7 @@ func TestDoctorProviderFilterIncludesProviderDiagnostics(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config:   cfg,
 			Observer: apitestutil.StubObserver{},
-			Sessions: apitestutil.StubSessionManager{},
+			Sessions: &apitestutil.StubSessionManager{},
 		})
 		router := gin.New()
 		router.GET("/doctor", handlers.GetDoctor)
@@ -82,7 +82,7 @@ func TestDoctorNPXStartupFailure(t *testing.T) {
 		var scans atomic.Int64
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config: compozyconfig.DefaultWithHome(compozyconfig.HomePaths{}), Observer: apitestutil.StubObserver{},
-			Sessions: apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+			Sessions: &apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
 				scans.Add(1)
 				return []*session.Info{{ID: "failed-start", State: session.StateStopped, Failure: &store.SessionFailure{
 					Kind:       store.FailureHandshake,
@@ -139,7 +139,7 @@ func TestDoctorProviderSurvivesSessionInventoryFailure(t *testing.T) {
 		}}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config: cfg, Observer: apitestutil.StubObserver{},
-			Sessions: apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+			Sessions: &apitestutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return nil, errors.New("session inventory unavailable")
 			}},
 		})

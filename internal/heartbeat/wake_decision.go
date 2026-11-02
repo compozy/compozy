@@ -204,7 +204,7 @@ func (s *ManagedWakeService) loadWakePolicy(
 	ctx context.Context,
 	req WakeRequest,
 ) (Snapshot, SnapshotEnvelope, WakeDecision, bool, error) {
-	snapshot, err := s.store.GetLatestValidHeartbeatSnapshot(ctx, req.WorkspaceID, req.AgentName)
+	snapshot, err := s.store.GetLatestValidHeartbeatSnapshot(ctx, req.WorkspaceID, req.AgentName, req.ProfileID)
 	if err != nil {
 		if errors.Is(err, ErrSnapshotNotFound) {
 			decision := s.newDecision(WakeResultSkipped, WakeReasonHeartbeatNoPolicy, "", "", "")

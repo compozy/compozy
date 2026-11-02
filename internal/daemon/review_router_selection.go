@@ -42,7 +42,7 @@ func (r *reviewRouter) routeRunReview(
 	}
 	info := route.info
 	if info == nil {
-		created, err := r.sessions.Create(ctx, *route.create)
+		created, err := r.sessions.Create(ctx, route.create)
 		if err != nil {
 			return false, "reviewer session create failed: " + err.Error(), err
 		}

@@ -14,6 +14,7 @@ export interface AutomationEditorDialogState {
   isPending: boolean;
   lockedLoop?: string;
   mode: "create" | "edit";
+  profile?: string;
   onCancel: () => void;
   onChange: (draft: AutomationFormDraft) => void;
   onSubmit: () => void;
@@ -94,6 +95,7 @@ export function AutomationEditorDialog({
             onCancel={editor.onCancel}
             onChange={editor.onChange}
             onSubmit={editor.onSubmit}
+            profile={editor.mode === "edit" ? editor.profile : aggregateDestination || undefined}
             profileDestination={isEdit ? null : aggregateDestination}
             section={editor.section}
             submitError={editor.submitError}

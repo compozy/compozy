@@ -1,211 +1,50 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import {
-  type AgentDetailSearch,
-  type AgentDetailTab,
-  type AgentInstructionFile,
-  type AgentPayload,
-  type AgentSessionFilter,
-  type AgentSettingsSection,
-  resolveAgentDetailSearch,
-  type ResolvedAgentDetailSearch,
   useAgent,
   useAgentCatalogMetrics,
   useAgentCreateHost,
   useAgentDeleteFlow,
-  useAgentSessions,
+  useAgentWindowScope,
+  type AgentPayload,
 } from "@/systems/agent";
-import {
-  type SessionPayload,
-  useSessionCreateActions,
-  useSessionCreateIsCreating,
-  useSessionCreatePendingAgentName,
-} from "@/systems/session";
-import { useAgentWindowScope } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
-
-import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 
 export interface UseAgentDetailResult {
   agent: AgentPayload | undefined;
   agentLoading: boolean;
   agentError: Error | null;
-  sessions: SessionPayload[];
-  archivedSessions: SessionPayload[];
-  archivedSessionsTotal: number;
-  sessionsTotal: number;
-  activeSessionsTotal: number;
-  failedSessionsTotal: number | null;
-  runtimeSeconds: number | null;
-  /** True when catalog did not return exact aggregates (or the metrics query failed). */
-  metricsUnavailable: boolean;
-  metricsLoading: boolean;
-  metricsError: boolean;
-  lastSessionActivityAt: string | null;
-  hasMoreSessions: boolean;
-  isLoadingMoreSessions: boolean;
-  onLoadMoreSessions: () => void;
-  hasMoreArchivedSessions: boolean;
-  isLoadingMoreArchivedSessions: boolean;
-  onLoadMoreArchivedSessions: () => void;
-  /** Row-page loading only — never OR'd with the metrics query. */
-  sessionsLoading: boolean;
-  /** Row-page error only — never OR'd with the metrics query. */
-  sessionsError: boolean;
-  onRetrySessions: () => void;
-  search: ResolvedAgentDetailSearch;
-  setTab: (tab: AgentDetailTab) => void;
-  setFile: (file: AgentInstructionFile) => void;
-  setFilter: (filter: AgentSessionFilter) => void;
-  isCreatingForAgent: boolean;
-  newSessionDisabled: boolean;
-  onNewSession: () => void;
-  onEditSettings: (section?: AgentSettingsSection) => void;
+  /** Sessions running now, from exact catalog metrics; zero until they answer. */
+  active: number;
   onDuplicate: () => void;
   onDelete: () => void;
   onBackToAgents: () => void;
+  onBackToAgent: () => void;
   deleteDialog: ReturnType<typeof useAgentDeleteFlow>["confirmDialog"];
-  sessionActions: ReturnType<typeof useSessionListLifecycleActions>["actions"];
-  sessionDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
-  sessionProcessDialog: ReturnType<typeof useSessionListLifecycleActions>["processDialog"];
-  sessionRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
-  sessionLaterDialog: ReturnType<typeof useSessionListLifecycleActions>["laterDialog"];
 }
 
-/** Combines agent details and session catalogs with lifecycle actions scoped to each row. */
-export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
+/** What every agent location reads: the definition, its overflow actions and the way back. */
+export function useAgentDetail(name: string): UseAgentDetailResult {
   const navigate = useNavigate();
   const { pending } = useActiveWorkspace();
-  // Agent reads follow the window: its binding (opened in place from All
-  // projects), else its desktop — a project, User (`@user`), or the user layer.
-  const {
-    workspace: agentWorkspace,
-    projectId: runtimeWorkspaceId,
-    bindingSearch,
-  } = useAgentWindowScope();
-  const { openForAgent } = useSessionCreateActions();
-  const hasRuntimeWorkspace = runtimeWorkspaceId !== null;
-  const isCreating = useSessionCreateIsCreating();
-  const pendingAgentName = useSessionCreatePendingAgentName();
+  const { workspace, projectId, bindingSearch } = useAgentWindowScope();
   const createHost = useAgentCreateHost();
-  const search = resolveAgentDetailSearch(rawSearch);
-  const {
-    data: agent,
-    isLoading: agentLoading,
-    error: agentError,
-  } = useAgent(name, agentWorkspace);
-  const metrics = useAgentCatalogMetrics(agentWorkspace, name, { enabled: !pending });
-  const {
-    sessions,
-    archivedSessions,
-    archivedTotal: archivedSessionsTotal,
-    hasMore: hasMoreSessions,
-    isLoadingMore: isLoadingMoreSessions,
-    loadMore: onLoadMoreSessions,
-    hasMoreArchived: hasMoreArchivedSessions,
-    isLoadingMoreArchived: isLoadingMoreArchivedSessions,
-    loadMoreArchived: onLoadMoreArchivedSessions,
-    isLoading: sessionsLoading,
-    isError: sessionsError,
-    retry: onRetrySessions,
-  } = useAgentSessions(agentWorkspace, name, { enabled: !pending });
-  const sessionLifecycle = useSessionListLifecycleActions();
-
-  const deleteFlow = useAgentDeleteFlow({
-    agent,
-    workspaceId: runtimeWorkspaceId,
-  });
-
-  const setTab = (tab: AgentDetailTab) => {
-    void navigate({
-      to: "/agents/$name",
-      params: { name },
-      search: { tab, file: search.file, filter: search.filter, ...bindingSearch },
-      replace: true,
-    });
-  };
-
-  const setFile = (file: AgentInstructionFile) => {
-    void navigate({
-      to: "/agents/$name",
-      params: { name },
-      search: { tab: "instructions", file, filter: search.filter, ...bindingSearch },
-      replace: true,
-    });
-  };
-
-  const setFilter = (filter: AgentSessionFilter) => {
-    void navigate({
-      to: "/agents/$name",
-      params: { name },
-      search: { tab: "sessions", file: search.file, filter, ...bindingSearch },
-      replace: true,
-    });
-  };
-
-  const onNewSession = () => {
-    openForAgent(name);
-  };
-
-  const onEditSettings = (section?: AgentSettingsSection) => {
-    void navigate({
-      to: "/agents/$name/settings",
-      params: { name },
-      search: section ? { section, ...bindingSearch } : bindingSearch,
-    });
-  };
-
-  const onDuplicate = () => {
-    if (!agent) return;
-    createHost.openForDuplicate(agent);
-  };
-
-  const onBackToAgents = () => {
-    void navigate({ to: "/agents" });
-  };
+  const { data: agent, isLoading: agentLoading, error: agentError } = useAgent(name, workspace);
+  const metrics = useAgentCatalogMetrics(workspace, name, { enabled: !pending });
+  const deleteFlow = useAgentDeleteFlow({ agent, workspaceId: projectId });
 
   return {
     agent,
     agentLoading,
     agentError: (agentError as Error | null) ?? null,
-    sessions,
-    archivedSessions,
-    archivedSessionsTotal,
-    sessionsTotal: metrics.total,
-    activeSessionsTotal: metrics.active,
-    failedSessionsTotal: metrics.failed,
-    runtimeSeconds: metrics.runtimeSeconds,
-    metricsUnavailable: metrics.isError || !metrics.sessionsAvailable,
-    metricsLoading: metrics.isLoading,
-    metricsError: metrics.isError,
-    lastSessionActivityAt: metrics.lastActivityAt,
-    hasMoreSessions,
-    isLoadingMoreSessions,
-    onLoadMoreSessions,
-    hasMoreArchivedSessions,
-    isLoadingMoreArchivedSessions,
-    onLoadMoreArchivedSessions,
-    sessionsLoading,
-    sessionsError,
-    onRetrySessions,
-    search,
-    setTab,
-    setFile,
-    setFilter,
-    isCreatingForAgent: isCreating && pendingAgentName === name,
-    newSessionDisabled: !hasRuntimeWorkspace,
-    onNewSession,
-    onEditSettings,
-    onDuplicate,
+    active: metrics.active,
+    onDuplicate: () => {
+      if (agent) createHost.openForDuplicate(agent);
+    },
     onDelete: deleteFlow.openDialog,
-    onBackToAgents,
+    onBackToAgents: () => void navigate({ to: "/agents" }),
+    onBackToAgent: () =>
+      void navigate({ to: "/agents/$name", params: { name }, search: bindingSearch }),
     deleteDialog: deleteFlow.confirmDialog,
-    sessionActions: sessionLifecycle.actions,
-    sessionDeleteDialog: sessionLifecycle.deleteDialog,
-    sessionProcessDialog: sessionLifecycle.processDialog,
-    sessionRenameDialog: sessionLifecycle.renameDialog,
-    sessionLaterDialog: sessionLifecycle.laterDialog,
   };
 }
-
-export const useAgentDetailPage = useAgentDetail;

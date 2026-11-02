@@ -132,7 +132,8 @@ func workspaceSessionRows(items []SessionRecord, human bool) [][]string {
 
 func workspaceAgentRows(items []AgentRecord, human bool) [][]string {
 	rows := make([][]string, 0, len(items))
-	for _, item := range items {
+	for index := range items {
+		item := &items[index]
 		row := []string{
 			item.Name,
 			item.Provider,

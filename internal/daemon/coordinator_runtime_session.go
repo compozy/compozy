@@ -53,7 +53,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {
-		spawned, createErr := r.sessions.Create(attemptCtx, session.CreateOpts{
+		spawned, createErr := r.sessions.Create(attemptCtx, new(session.CreateOpts{
 			AgentName:       route.AgentName,
 			Provider:        route.Provider,
 			Model:           route.Model,
@@ -70,7 +70,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			Type:                session.SessionTypeCoordinator,
 			Lineage:             coordinator.Lineage(now, cfg, policy),
 			DiscardStartFailure: true,
-		})
+		}))
 		return spawned, session.StartAccepted(createErr) || spawned != nil, createErr
 	})
 	if err != nil {

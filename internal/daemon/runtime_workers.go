@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/heartbeat"
+
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/retention"
 
@@ -11,6 +13,8 @@ import (
 )
 
 type daemonRuntimeWorkers struct {
+	proactiveChecks       *heartbeat.CheckService
+	instanceMaintenance   *retention.PeriodicWorker
 	supervision           *retention.PeriodicWorker
 	autoTitle             *autoTitleRuntime
 	runtimeMemory         *runtimeMemoryMonitor
@@ -23,8 +27,14 @@ type daemonRuntimeWorkers struct {
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	if w.proactiveChecks != nil {
+		appendWrappedError(errs, "daemon: shutdown proactive checks", w.proactiveChecks.Shutdown(ctx))
+	}
 	appendWrappedError(errs, "daemon: stop managed delivery recovery",
 		stopManagedDeliveryRecovery(ctx, w.managedDeliveries))
+	if w.instanceMaintenance != nil {
+		appendWrappedError(errs, "daemon: shutdown instance maintenance", w.instanceMaintenance.Shutdown(ctx))
+	}
 	if w.supervision != nil {
 		appendWrappedError(errs, "daemon: shutdown supervision", w.supervision.Shutdown(ctx))
 	}

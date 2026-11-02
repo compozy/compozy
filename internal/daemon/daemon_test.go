@@ -2044,7 +2044,7 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want durable acceptance", adapter)
 		}
 		opts := session.CreateAcceptedOpts{Session: session.CreateOpts{Name: "accepted-session"}}
-		info, err := acceptance.CreateAccepted(testutil.Context(t), opts)
+		info, err := acceptance.CreateAccepted(testutil.Context(t), &(opts))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -6630,7 +6630,9 @@ func (m *goleakSessionManager) StopWithCause(
 	return process.Shutdown(ctx)
 }
 
-func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (f *fakeSessionManager) Create(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.createCalls = append(f.createCalls, opts)
@@ -6654,7 +6656,7 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 }
 
 func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
-	child, err := f.Create(ctx, session.CreateOpts{
+	child, err := f.Create(ctx, new(session.CreateOpts{
 		AgentName:     opts.AgentName,
 		Provider:      opts.Provider,
 		Name:          opts.Name,
@@ -6668,7 +6670,7 @@ func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) 
 			AutoStopOnParent: opts.AutoStopOnParent,
 			PermissionPolicy: opts.PermissionPolicy,
 		},
-	})
+	}))
 	if err != nil {
 		return nil, err
 	}
@@ -7711,8 +7713,10 @@ func (f *fakeArchivingSessionManager) Unarchive(
 
 func (f *fakeAcceptingSessionManager) CreateAccepted(
 	_ context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	f.acceptedCall = opts
 	return &session.Info{ID: "accepted-session"}, nil
 }
@@ -8731,7 +8735,7 @@ func cloneRecordingWorkspace(ws workspacepkg.Workspace) workspacepkg.Workspace {
 	return ws
 }
 
-func (r *recordingRegistry) RegisterSession(context.Context, store.SessionInfo) error {
+func (r *recordingRegistry) RegisterSession(context.Context, *store.SessionInfo) error {
 	return nil
 }
 
@@ -10960,4 +10964,18 @@ func (r *recordingRegistry) SaveProcessObservations(
 	[]sessionprocess.Identity,
 ) error {
 	return nil
+}
+
+func (r *recordingRegistry) PermissionDailyRollups(
+	context.Context,
+	store.PermissionRollupQuery,
+) ([]store.PermissionDailyRollup, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) PermissionEntries(
+	context.Context,
+	store.PermissionEntriesQuery,
+) ([]store.PermissionLogEntry, error) {
+	return nil, nil
 }

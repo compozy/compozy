@@ -33,6 +33,11 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("@/systems/agent", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent")>()),
+  useAgentInstances: () => [],
+}));
+
 vi.mock("@/hooks/routes/use-session-clear-dialog", () => ({
   useSessionClearDialog: () => ({ openDialog: vi.fn() }),
 }));
@@ -60,6 +65,7 @@ vi.mock("../use-session-window-sidebar", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
+  sessionSuccessorId: () => null,
   getSessionPromptRuntimeSnapshot: () => ({ model: "gpt-5.6-terra", provider: "codex" }),
   isSessionTransportDisconnected: () => false,
   SessionTransportChip: () => null,

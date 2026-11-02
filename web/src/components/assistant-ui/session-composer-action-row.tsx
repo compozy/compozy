@@ -1,7 +1,7 @@
 import { CornerDownRight, ListPlus, Scissors, Square } from "@compozy/ui/icons";
 import type { MouseEvent, ReactNode } from "react";
 
-import { primaryShortcutModifier } from "@/systems/os";
+import { primaryShortcutModifier } from "@/systems/os/lib/window-manager-shortcuts";
 import type { SessionSteerDelivery } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import {

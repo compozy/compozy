@@ -55,7 +55,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 		WithStartedAt(startedAt),
 		WithNow(now),
 		WithPollInterval(25*time.Millisecond),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -107,7 +107,7 @@ func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
 
 		server, err := New(
 			WithHomePaths(homePaths),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -129,19 +129,19 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 	if _, err := New(WithHomePaths(homePaths), WithObserver(stubObserver{})); err == nil {
 		t.Fatal("New() without session manager error = nil, want non-nil")
 	}
-	if _, err := New(WithHomePaths(homePaths), WithSessionManager(stubSessionManager{})); err == nil {
+	if _, err := New(WithHomePaths(homePaths), WithSessionManager(&stubSessionManager{})); err == nil {
 		t.Fatal("New() without task service error = nil, want non-nil")
 	}
 	if _, err := New(
 		WithHomePaths(homePaths),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 	); err == nil {
 		t.Fatal("New() without observer error = nil, want non-nil")
 	}
 	if _, err := New(
 		WithHomePaths(homePaths),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 	); err == nil {
@@ -163,7 +163,7 @@ func TestGatewayTierServerConstruction(t *testing.T) {
 			WithGatewayChallenge(gateway.TierPrivate, gateway.NewChallengeRegistry()),
 			WithGatewayService(gatewayHTTPServiceStub{}),
 			WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -198,7 +198,7 @@ func TestGatewayTierServerConstruction(t *testing.T) {
 			WithSurfaceSet(SurfaceSetPrivate),
 			WithGatewayService(gatewayHTTPServiceStub{}),
 			WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -216,7 +216,7 @@ func TestGatewayTierServerConstruction(t *testing.T) {
 				WithHost("127.0.0.1"),
 				WithSurfaceSet(surfaceSet),
 				WithDeviceAuth(gatewayHTTPAuthenticatorStub{}),
-				WithSessionManager(stubSessionManager{}),
+				WithSessionManager(&stubSessionManager{}),
 				WithTaskService(&stubTaskManager{}),
 				WithObserver(stubObserver{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
@@ -233,7 +233,7 @@ func TestGatewayTierServerConstruction(t *testing.T) {
 			WithHomePaths(newTestHomePaths(t)),
 			WithHost("127.0.0.1"),
 			WithSurfaceSet(SurfaceSetPublicIngress),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -250,7 +250,7 @@ func TestNewRejectsResourceAuthWithoutResourceService(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	_, err := New(
 		WithHomePaths(homePaths),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -275,7 +275,7 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{
+		WithSessionManager(&stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) { return nil, nil },
 		}),
 		WithTaskService(&stubTaskManager{}),
@@ -356,7 +356,7 @@ func TestServerStartRejectsNilContextAndDuplicateStart(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -669,7 +669,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -844,7 +844,7 @@ func TestLoopbackServerRejectsMismatchedSettingsItemNames(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -936,7 +936,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -1017,7 +1017,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -1248,7 +1248,7 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -1269,7 +1269,7 @@ func TestServerStartReportsListenFailure(t *testing.T) {
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -1403,7 +1403,7 @@ func newWindowManagerLifecycleServer(t *testing.T) *Server {
 		WithConfig(&cfg),
 		WithHost(cfg.HTTP.Host),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
@@ -1485,7 +1485,7 @@ func newLifecycleServer(t *testing.T, entered chan<- struct{}, release <-chan st
 		WithHost(cfg.HTTP.Host),
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{}),
+		WithSessionManager(&stubSessionManager{}),
 		WithTaskService(&stubTaskManager{}),
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),

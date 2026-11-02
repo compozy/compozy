@@ -48,6 +48,7 @@ func (s schedulerSessionSource) Sessions(ctx context.Context) ([]schedulerpkg.Se
 			}
 		}
 		snapshots = append(snapshots, schedulerpkg.SessionSnapshot{
+			ProfileID:       info.ProfileID,
 			ID:              strings.TrimSpace(info.ID),
 			AgentName:       strings.TrimSpace(info.AgentName),
 			WorkspaceID:     strings.TrimSpace(info.WorkspaceID),

@@ -237,7 +237,9 @@ describe("DesktopMenubar project context menu", () => {
     const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
     await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
     expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
-    expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull()
+    );
   });
 
   it("Should drop the relayed menu and its idle confirm once the project leaves the catalog", async () => {

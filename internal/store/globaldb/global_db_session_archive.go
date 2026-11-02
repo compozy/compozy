@@ -80,6 +80,11 @@ func (g *SessionRepo) SetSessionArchived(
 			return store.ErrSubagentArchiveFollowsParent
 		}
 		q := sqlcgen.New(exec)
+		if archived {
+			if err := guardInstanceMainArchive(ctx, q, sessionID); err != nil {
+				return err
+			}
+		}
 		family, e := q.ListSubagentArchiveFamily(
 			ctx,
 			sqlcgen.ListSubagentArchiveFamilyParams{WorkspaceID: workspaceID, SessionID: sessionID},
@@ -130,3 +135,21 @@ func mapSessionArchivedConstraint(sessionID string, err error) error {
 }
 
 var _ store.SessionArchiveStore = (*SessionRepo)(nil)
+
+func (g *SessionRepo) GuardInstanceMain(ctx context.Context, sessionID string) error {
+	if err := g.checkReady(ctx, "guard instance main"); err != nil {
+		return err
+	}
+	return guardInstanceMainArchive(ctx, g.queries, sessionID)
+}
+
+func guardInstanceMainArchive(ctx context.Context, q *sqlcgen.Queries, sessionID string) error {
+	main, err := q.IsInstanceMainSession(ctx, sql.NullString{String: sessionID, Valid: true})
+	if err != nil {
+		return err
+	}
+	if main {
+		return store.ErrSessionIsInstanceMain
+	}
+	return nil
+}

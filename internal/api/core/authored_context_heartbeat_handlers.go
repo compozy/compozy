@@ -336,6 +336,7 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 		return
 	}
 	decision, err := h.HeartbeatWake.Wake(c.Request.Context(), heartbeat.WakeRequest{
+		ProfileID:   target.profileID,
 		WorkspaceID: target.storageWorkspaceID(),
 		AgentName:   target.agentName,
 		SessionID:   sessionID,

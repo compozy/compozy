@@ -130,7 +130,7 @@ export function SessionDeleteDialogSet({
             </span>
           ) : null}
           <SessionDeleteActions
-            childrenPending={childSessions?.included === true && childSessions.pending}
+            childrenPending={childSessions?.pending === true}
             askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
             isDeleting={isDeleting}
             retrying={partial}

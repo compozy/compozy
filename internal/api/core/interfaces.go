@@ -40,6 +40,7 @@ type AgentCatalog interface {
 
 // AgentCatalogEntry carries one definition with its durable ownership scope.
 type AgentCatalogEntry struct {
+	MemoryOrigin string
 	PackageOwned bool
 	Def          compozyconfig.AgentDef
 	Origin       contract.AgentOrigin

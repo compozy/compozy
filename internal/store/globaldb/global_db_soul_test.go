@@ -62,6 +62,7 @@ Guide the work without operational claims.
 			&resolved,
 			provenance,
 			createdAt,
+			"",
 		)
 		if err != nil {
 			t.Fatalf("SnapshotFromResolved() error = %v", err)
@@ -81,7 +82,7 @@ Guide the work without operational claims.
 			t.Fatalf("reused.ID = %q, want existing snapshot id %q", reused.ID, saved.ID)
 		}
 
-		found, ok, err := globalDB.FindSoulSnapshotByDigest(ctx, workspaceID, "reviewer", resolved.Digest)
+		found, ok, err := globalDB.FindSoulSnapshotByDigest(ctx, workspaceID, "reviewer", resolved.Digest, "")
 		if err != nil {
 			t.Fatalf("FindSoulSnapshotByDigest() error = %v", err)
 		}
@@ -404,7 +405,7 @@ func TestGlobalDBSoulSessionProvenance(t *testing.T) {
 				t.Fatalf("UpsertSoulSnapshot() error = %v", err)
 			}
 			now := time.Date(2026, 5, 2, 15, 0, 0, 0, time.UTC)
-			if err := first.RegisterSession(ctx, store.SessionInfo{
+			if err := first.RegisterSession(ctx, new(store.SessionInfo{
 				ProfileID:        store.DefaultProfileID,
 				ID:               "sess-soul",
 				AgentName:        "coder",
@@ -417,7 +418,7 @@ func TestGlobalDBSoulSessionProvenance(t *testing.T) {
 				ParentSoulDigest: "sha256:parent",
 				CreatedAt:        now,
 				UpdatedAt:        now,
-			}); err != nil {
+			})); err != nil {
 				t.Fatalf("RegisterSession() error = %v", err)
 			}
 			assertSessionSoulProvenance(t, first, "sess-soul", saved.ID, saved.Digest, "sha256:parent")
@@ -518,7 +519,7 @@ func TestGlobalDBSoulStoreDefaultsAndErrors(t *testing.T) {
 		if _, err := globalDB.GetSoulSnapshot(ctx, "snap-missing"); !errors.Is(err, soul.ErrSnapshotNotFound) {
 			t.Fatalf("GetSoulSnapshot(missing) error = %v, want ErrSnapshotNotFound", err)
 		}
-		if _, _, err := globalDB.FindSoulSnapshotByDigest(ctx, "", "coder", "sha256:missing"); !errors.Is(
+		if _, _, err := globalDB.FindSoulSnapshotByDigest(ctx, "", "coder", "sha256:missing", ""); !errors.Is(
 			err,
 			soul.ErrInvalidSnapshot,
 		) {
@@ -561,7 +562,7 @@ func TestGlobalDBSoulStoreDefaultsAndErrors(t *testing.T) {
 		if _, err := globalDB.UpsertSoulSnapshot(ctx, snapshot); err != nil {
 			t.Fatalf("UpsertSoulSnapshot(errors) error = %v", err)
 		}
-		found, ok, err := globalDB.FindSoulSnapshotByDigest(ctx, workspaceID, "coder", "sha256:absent")
+		found, ok, err := globalDB.FindSoulSnapshotByDigest(ctx, workspaceID, "coder", "sha256:absent", "")
 		if err != nil {
 			t.Fatalf("FindSoulSnapshotByDigest(absent) error = %v", err)
 		}
@@ -635,7 +636,8 @@ func assertSessionSoulProvenance(
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
-	for _, session := range sessions {
+	for i := range sessions {
+		session := &sessions[i]
 		if session.ID != sessionID {
 			continue
 		}
@@ -655,4 +657,80 @@ func assertSessionSoulProvenance(
 		return
 	}
 	t.Fatalf("session %q not found in %#v", sessionID, sessions)
+}
+
+func TestAuthoringProfileMigration(t *testing.T) {
+	t.Run("Should preserve authoring bodies and references across profile ownership migration", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00172_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		statements := []string{
+			`INSERT INTO profiles (id,name,color,icon,created_at) VALUES ('11111111111111111111111111','marketing','blue','briefcase','2026-11-01T00:00:00Z')`,
+			`INSERT INTO agent_soul_revisions (id,workspace_id,agent_name,source_path,action,body,created_at) VALUES ('old-marketing','','coder','.compozy/profiles/marketing/agents/coder/SOUL.md','put','Marketing body','2026-11-01T00:00:00Z')`,
+			`INSERT INTO agent_soul_snapshots (id,workspace_id,agent_name,source_path,digest,body,created_at) VALUES ('old-soul','','coder','agents/coder/SOUL.md','soul-digest','Soul body','2026-11-01T00:00:00Z')`,
+			`INSERT INTO agent_soul_revisions (id,workspace_id,agent_name,source_path,action,new_digest,body,created_at) VALUES ('old-soul-revision','','coder','agents/coder/SOUL.md','put','soul-digest','Soul body','2026-11-01T00:00:00Z')`,
+			`INSERT INTO agent_heartbeat_snapshots (id,workspace_id,agent_name,source_path,digest,config_digest,body,frontmatter_json,resolved_json,diagnostics_json,created_at) VALUES ('old-heartbeat','','coder','agents/coder/HEARTBEAT.md','heartbeat-digest','config-digest','Heartbeat body','{}','{}','[]','2026-11-01T00:00:00Z')`,
+			`INSERT INTO agent_heartbeat_revisions (id,workspace_id,agent_name,source_path,operation,new_digest,new_snapshot_id,body,actor_kind,actor_id,created_at) VALUES ('old-heartbeat-revision','','coder','agents/coder/HEARTBEAT.md','write','heartbeat-digest','old-heartbeat','Heartbeat body','user','operator','2026-11-01T00:00:00Z')`,
+		}
+		for _, statement := range statements {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, row := range []struct{ table, id, body string }{
+				{"agent_soul_snapshots", "old-soul", "Soul body"},
+				{"agent_soul_revisions", "old-soul-revision", "Soul body"},
+				{"agent_heartbeat_snapshots", "old-heartbeat", "Heartbeat body"},
+				{"agent_heartbeat_revisions", "old-heartbeat-revision", "Heartbeat body"},
+			} {
+				var profile, body string
+				if err := upgraded.DB().
+					QueryRowContext(ctx, "SELECT profile_id,body FROM "+row.table+" WHERE id=?", row.id).
+					Scan(&profile, &body); err != nil {
+					t.Fatal(err)
+				}
+				if profile != store.DefaultProfileID || body != row.body {
+					t.Fatalf("preserved %s: profile=%q body=%q", row.id, profile, body)
+				}
+			}
+			var namedProfile, namedBody string
+			if err := upgraded.DB().
+				QueryRowContext(ctx, "SELECT profile_id,body FROM agent_soul_revisions WHERE id='old-marketing'").
+				Scan(&namedProfile, &namedBody); err != nil {
+				t.Fatal(err)
+			}
+			if namedProfile != "11111111111111111111111111" || namedBody != "Marketing body" {
+				t.Fatalf("named profile history=%q body=%q", namedProfile, namedBody)
+			}
+			var snapshot string
+			if err := upgraded.DB().
+				QueryRowContext(ctx, "SELECT new_snapshot_id FROM agent_heartbeat_revisions WHERE id='old-heartbeat-revision'").
+				Scan(&snapshot); err != nil {
+				t.Fatal(err)
+			}
+			if snapshot != "old-heartbeat" {
+				t.Fatalf("snapshot reference = %q", snapshot)
+			}
+			status, err := store.Status(ctx, upgraded.DB(), MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 }

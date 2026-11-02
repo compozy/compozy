@@ -67,6 +67,11 @@ var (
 		"defaults.provider":                                        ConfigValueString,
 		configDefaultsModelPath:                                    ConfigValueString,
 		configDefaultsReasoningEffortPath:                          ConfigValueString,
+		"agents.stays_on.rotation_threshold":                       ConfigValueFloat,
+		"agents.stays_on.max_active_instances":                     ConfigValueInt,
+		"agents.stays_on.max_proposals":                            ConfigValueInt,
+		"agents.stays_on.triage_timeout":                           ConfigValueDuration,
+		"agents.stays_on.approval_timeout":                         ConfigValueDuration,
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
 		toolSurfaceAgentsSoulContextProjectionBytesPath:            ConfigValueInt64,
@@ -80,6 +85,10 @@ var (
 		"agents.heartbeat.active_session_only":                     ConfigValueBool,
 		"agents.heartbeat.allow_active_hours_preferences":          ConfigValueBool,
 		toolSurfaceAgentsHeartbeatWakeEventRetentionPath:           ConfigValueDuration,
+		"agents.heartbeat.quiet_backoff_cap":                       ConfigValueDuration,
+		"agents.heartbeat.max_interval":                            ConfigValueDuration,
+		"agents.heartbeat.max_concurrent_triage":                   ConfigValueInt,
+		"agents.heartbeat.fatigue_limit":                           ConfigValueInt,
 		toolSurfaceAgentsHeartbeatSessionHealthStaleAfterPath:      ConfigValueDuration,
 		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath: ConfigValueDuration,
 		"limits.max_concurrent_agents":                             ConfigValueInt,
@@ -225,6 +234,10 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		policy.Kind = kind
 		return policy, nil
 	}
+	if len(clean) == 4 && clean[0] == "agents" && clean[1] == "heartbeat" && clean[2] == "triage_models" {
+		policy.Kind = ConfigValueString
+		return policy, nil
+	}
 	joined := strings.Join(clean, ".")
 	if kind, ok := agentMutableConfigKinds[joined]; ok {
 		policy.Kind = kind
@@ -250,30 +263,8 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		policy.Kind = ConfigValueBool
 		return policy, nil
 	}
-	if len(clean) == 3 && clean[0] == providersConfigKey {
-		switch clean[2] {
-		case toolSurfaceCommandKey,
-			"auth_mode",
-			"env_policy",
-			"home_policy",
-			"steer_capability",
-			"auth_status_command":
-			policy.Kind = ConfigValueString
-			return policy, nil
-		case toolSurfaceAuthLoginCommandKey:
-			policy.Kind = ConfigValueString
-			policy.Redacted = true
-			return policy, nil
-		case "session_mcp":
-			policy.Kind = ConfigValueBool
-			return policy, nil
-		}
-	}
-	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == toolSurfaceModelsKey {
-		if clean[3] == toolSurfaceDefaultKey {
-			policy.Kind = ConfigValueString
-			return policy, nil
-		}
+	if providerPolicy, ok := providerMutableConfigPolicy(clean); ok {
+		return providerPolicy, nil
 	}
 	policy.Denial = ConfigPathForbidden
 	return policy, nil
@@ -409,4 +400,34 @@ func HookDeclarationOverlayValues(decl hookspkg.HookDecl) map[string]any {
 		values["executor"] = map[string]any{"kind": string(decl.ExecutorKind)}
 	}
 	return values
+}
+
+func providerMutableConfigPolicy(clean []string) (PathPolicy, bool) {
+	policy := PathPolicy{Segments: clean, Kind: ConfigValueString}
+	if len(clean) == 3 && clean[0] == providersConfigKey {
+		switch clean[2] {
+		case toolSurfaceCommandKey,
+			"auth_mode",
+			"env_policy",
+			"home_policy",
+			"steer_capability",
+			"auth_status_command":
+			policy.Kind = ConfigValueString
+			return policy, true
+		case toolSurfaceAuthLoginCommandKey:
+			policy.Kind = ConfigValueString
+			policy.Redacted = true
+			return policy, true
+		case "session_mcp":
+			policy.Kind = ConfigValueBool
+			return policy, true
+		}
+	}
+	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == toolSurfaceModelsKey {
+		if clean[3] == toolSurfaceDefaultKey {
+			policy.Kind = ConfigValueString
+			return policy, true
+		}
+	}
+	return PathPolicy{}, false
 }

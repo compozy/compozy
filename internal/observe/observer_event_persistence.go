@@ -68,7 +68,11 @@ func (o *Observer) writeObservedPermissionLog(
 		)
 		return nil
 	}
-	if strings.TrimSpace(event.Decision) == "" {
+	decision := strings.TrimSpace(event.Decision)
+	if strings.TrimSpace(event.ResolvedByValue()) == "timeout" {
+		decision = "expired"
+	}
+	if decision == "" {
 		return nil
 	}
 
@@ -77,7 +81,7 @@ func (o *Observer) writeObservedPermissionLog(
 		AgentName:  snapshot.agentName,
 		Action:     strings.TrimSpace(event.Action),
 		Resource:   strings.TrimSpace(event.Resource),
-		Decision:   strings.TrimSpace(event.Decision),
+		Decision:   decision,
 		PolicyUsed: policyUsed,
 		Timestamp:  timestamp,
 	})

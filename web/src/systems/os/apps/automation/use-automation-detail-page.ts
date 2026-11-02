@@ -20,6 +20,7 @@ import {
   automationListingSearch,
   type AutomationDetailRouteSearch,
   type AutomationEditorSection,
+  type AutomationEntity,
   type AutomationEntityKind,
   type AutomationRun,
   automationRunProject,
@@ -32,6 +33,7 @@ import {
   useActiveWorkspace,
   useWindowDataWorkspace,
 } from "@/systems/workspace";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 /**
  * One detail view-model for both daemon entities. The route keeps the entity
@@ -65,16 +67,8 @@ export function useAutomationDetailPage(
   );
   const runsQuery = useAutomationDetailRuns(kind, id, liveDataEnabled && Boolean(entity));
 
-  const settingsQuery = useSettingsAutomation();
-  const timeZone = settingsQuery.data?.config?.timezone?.trim() || undefined;
-  const runtimeUnavailable = automationUnavailableMessage(
-    settingsQuery.data?.runtime ?? null,
-    detailQuery.error
-  );
-
-  const workspaceNameById = workspaceNameResolver(workspaces);
-  const sentenceContext = automationSentenceContext(timeZone, workspaceNameById);
-  const view = entity ? toAutomationView(entity, sentenceContext) : undefined;
+  const { runtimeUnavailable, workspaceNameById, sentenceContext, view } =
+    useAutomationDetailPresentation(entity, workspaces, detailQuery.error);
   const { loopTarget, loopMissing } = useLoopTargetPresence(entity, liveDataEnabled);
 
   const mutations = useAutomationDetailMutations(kind);
@@ -172,4 +166,30 @@ function automationRunsState(
 function automationRunProjectResolver(workspaces: readonly { id: string; name: string }[]) {
   const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
   return (run: AutomationRun) => automationRunProject(run, names);
+}
+
+function useAutomationDetailPresentation(
+  entity: AutomationEntity | undefined,
+  workspaces: readonly { id: string; name: string }[],
+  detailError: Error | null
+) {
+  const settingsQuery = useSettingsAutomation();
+  const identityOf = useAgentIdentityResolverView({
+    workspace: entity?.workspace_id || null,
+    profile: entity?.profile_name,
+    enabled: Boolean(entity),
+  });
+  const timeZone = settingsQuery.data?.config?.timezone?.trim() || undefined;
+  const runtimeUnavailable = automationUnavailableMessage(
+    settingsQuery.data?.runtime ?? null,
+    detailError
+  );
+
+  const workspaceNameById = workspaceNameResolver(workspaces);
+  const sentenceContext = {
+    ...automationSentenceContext(timeZone, workspaceNameById),
+    agentLabel: (name: string) => identityOf(name).label,
+  };
+  const view = entity ? toAutomationView(entity, sentenceContext) : undefined;
+  return { runtimeUnavailable, workspaceNameById, sentenceContext, view };
 }

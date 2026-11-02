@@ -75,6 +75,8 @@ const (
 	sdkPromptPayloadValue                       = "PromptPayload"
 	sdkResourceRecordValue                      = "ResourceRecord"
 	sdkSessionContextValue                      = "SessionContext"
+	sdkAgentInstancePayloadValue                = "AgentInstancePayload"
+	sdkAgentInstanceObservationPatchValue       = "AgentInstanceObservationPatch"
 	sdkSessionAttentionChangedPayloadValue      = "SessionAttentionChangedPayload"
 	sdkSessionAttentionObservationPatchValue    = "SessionAttentionObservationPatch"
 	sdkSessionCreatePatchValue                  = "SessionCreatePatch"
@@ -254,6 +256,7 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkSessionAttentionChangedPayloadValue, Value: hooks.SessionAttentionChangedPayload{}},
 	{Name: sdkSessionAttentionObservationPatchValue, Value: hooks.SessionAttentionObservationPatch{}},
 	{Name: sdkAuthoredContextObservationPatchValue, Value: hooks.AuthoredContextObservationPatch{}},
+	{Name: sdkAgentHeartbeatWakePatchValue, Value: hooks.AgentHeartbeatWakePatch{}},
 	{Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
 	{Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
 	{Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
@@ -311,3 +314,5 @@ var sdkRootTypes = []NamedType{
 	{Name: "HookMatcher", Value: hooks.HookMatcher{}},
 	{Name: "HookDecl", Value: hooks.HookDecl{}},
 }
+
+const sdkAgentHeartbeatWakePatchValue = "AgentHeartbeatWakePatch"

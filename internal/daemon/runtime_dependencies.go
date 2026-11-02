@@ -26,6 +26,7 @@ func (d *Daemon) runtimeDeps(
 		heartbeat: state.heartbeatCatalog,
 	})
 	return RuntimeDeps{
+		AgentInstances:     state.agentInstances,
 		Config:             state.cfg,
 		AgentProbeConfig:   state.agentProbeConfig,
 		HomePaths:          d.homePaths,
@@ -58,6 +59,7 @@ func (d *Daemon) runtimeDeps(
 		AgentContext:          state.situationContext,
 		AgentDefinitionSync:   state.agentSkillResources,
 		SoulAuthoring:         authoredContext.SoulAuthoring,
+		AgentMemory:           state.agentMemory,
 		SoulHistoryPurger:     authoredContext.SoulHistoryPurger,
 		SoulRefresher:         authoredContext.SoulRefresher,
 		HeartbeatAuthor:       authoredContext.HeartbeatAuthoring,

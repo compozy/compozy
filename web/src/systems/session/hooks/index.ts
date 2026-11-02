@@ -157,3 +157,6 @@ export { findSessionCommand } from "./use-session-commands";
 export { useSessionFirstPrompt } from "./use-session-first-prompt";
 export { useSessionPromptStaging } from "./use-session-prompt-staging";
 export type { SessionPromptStaging } from "./use-session-prompt-staging";
+
+export { useTransportGraceElapsed } from "./use-transport-grace-elapsed";
+export { SessionAttachmentAdapter } from "./use-session-attachment-adapter";

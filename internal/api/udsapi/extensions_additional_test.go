@@ -20,7 +20,7 @@ func TestListExtensionsHandler(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
+		handlers := newTestHandlersWithExtensions(t, &stubSessionManager{}, stubObserver{}, stubExtensionService{
 			ListFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 				return []contract.ExtensionPayload{{
 					Name:    "ext-a",
@@ -56,7 +56,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
+		handlers := newTestHandlersWithExtensions(t, &stubSessionManager{}, stubObserver{}, stubExtensionService{
 			InstallFn: func(
 				_ context.Context,
 				req contract.InstallExtensionRequest,
@@ -114,7 +114,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 			homePaths := newTestHomePaths(t)
 			handlers := newTestHandlersWithExtensions(
 				t,
-				stubSessionManager{},
+				&stubSessionManager{},
 				stubObserver{},
 				stubExtensionService{},
 				homePaths,
@@ -135,7 +135,7 @@ func TestInstallExtensionHandler(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
+		handlers := newTestHandlersWithExtensions(t, &stubSessionManager{}, stubObserver{}, stubExtensionService{
 			InstallFn: func(
 				context.Context,
 				contract.InstallExtensionRequest,
@@ -182,7 +182,7 @@ func TestExtensionEnablementHandlers(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
+		handlers := newTestHandlersWithExtensions(t, &stubSessionManager{}, stubObserver{}, stubExtensionService{
 			ListEnablementFn: func(_ context.Context, name string) ([]contract.ExtensionEnablementPayload, error) {
 				if name != "ext-a" {
 					t.Fatalf("ListEnablement() name = %q, want ext-a", name)
@@ -226,7 +226,7 @@ func TestExtensionEnablementHandlers(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		engine := newTestRouter(
 			t,
-			newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{}, homePaths),
+			newTestHandlersWithExtensions(t, &stubSessionManager{}, stubObserver{}, stubExtensionService{}, homePaths),
 		)
 
 		blankName := performRequest(t, engine, http.MethodPut, "/api/extensions/%20%20/enablement",
@@ -256,7 +256,7 @@ func TestApproveSessionHandler(t *testing.T) {
 			gotReq acp.ApproveRequest
 		)
 		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{
 			ApproveFn: func(
 				_ context.Context,
 				id string,

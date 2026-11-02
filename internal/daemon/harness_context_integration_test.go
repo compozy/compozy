@@ -101,11 +101,11 @@ func testHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	capturedDeps.PromptInputAugmenter = composite
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
-	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+	created, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName: resolvedWorkspace.Agents[0].Name,
 		Name:      "user session",
 		Workspace: resolvedWorkspace.ID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -258,11 +258,11 @@ func testHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	driver := newHarnessIntegrationDriver()
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
-	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+	created, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName: resolvedWorkspace.Agents[0].Name,
 		Name:      "user session",
 		Workspace: resolvedWorkspace.ID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -396,7 +396,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				agentName := workspace.Agents[0].Name
 				parent, err := manager.Create(
 					t.Context(),
-					session.CreateOpts{AgentName: agentName, Workspace: workspace.ID},
+					new(session.CreateOpts{AgentName: agentName, Workspace: workspace.ID}),
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -406,7 +406,7 @@ func TestHarnessContextIntegrationScopesToolGuidanceForInternalCallers(t *testin
 				for _, sessionType := range []session.Type{session.SessionTypeSystem} {
 					created, createErr := manager.Create(
 						t.Context(),
-						session.CreateOpts{AgentName: agentName, Workspace: workspace.ID, Type: sessionType},
+						new(session.CreateOpts{AgentName: agentName, Workspace: workspace.ID, Type: sessionType}),
 					)
 					if createErr != nil {
 						t.Fatal(createErr)
@@ -508,9 +508,9 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			created, err := manager.Create(t.Context(), session.CreateOpts{
+			created, err := manager.Create(t.Context(), new(session.CreateOpts{
 				AgentName: workspace.Agents[0].Name, Workspace: workspace.ID, ProfileID: store.DefaultProfileID,
-			})
+			}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -747,10 +747,10 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 				})
 			} else {
 				sessionType := session.SessionTypeUser
-				created, err = manager.Create(t.Context(), session.CreateOpts{
+				created, err = manager.Create(t.Context(), new(session.CreateOpts{
 					AgentName: workspace.Agents[0].Name, Workspace: workspace.ID, Type: sessionType,
 					Lineage: &store.SessionLineage{SpawnRole: role},
-				})
+				}))
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -810,9 +810,9 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 				t.Errorf("%s lost its runtime, instructions, or input", role)
 			}
 		}
-		logical, err := manager.CreateAccepted(t.Context(), session.CreateAcceptedOpts{
+		logical, err := manager.CreateAccepted(t.Context(), new(session.CreateAcceptedOpts{
 			Session: session.CreateOpts{AgentName: workspace.Agents[0].Name, Workspace: workspace.ID},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,10 +1,10 @@
 ---
 id: MS-web-agent-create-simple-advanced
 area: MS
-title: Create agent replaces the four-step wizard with one Simple/Advanced surface
+title: New agent is one screen, with Advanced as one fold
 persona: Dora
 journey: J-31
-expected: Opening Create agent shows one surface, never a stepper — no "Step N of 4", no Back/Continue. Simple carries the basics (agent name, instructions) and the model selector with live catalog state — nothing else. Advanced adds an Organize section with the Group field (the catalog category path), the permission cards (plain labels: "Use the provider's setting", "Ask before every action", "Ask only before changes", "Never ask"), "Advanced: custom command", and "What this agent is allowed to do" (Allowed tools, Tool groups, Blocked tools, Turned-off skills), without hiding any Simple field. Explanatory prose sits behind `(?)` help tips; catalog state ("The project's default model will be used.", catalog errors) stays visible because it reports what the daemon will do. An agent name such as `audio designer` remains visible but fails Simple with an inline format error and a disabled Create button; no create request is sent. An invalid group such as `operations//incident` is an Advanced-only error: submitting reveals Advanced with the error in place, the same as an invalid advanced-only field (a blank tool entry) — instead of leaving a disabled primary with no visible cause. Submit errors render as a danger Alert at the top of the body. Leaving Advanced preserves every authored value. There is no MCP servers control anywhere in the dialog, and the created request never carries `mcp_servers`. The category path is sent as `category_path` segments split on `/`. Destination is derived from the menubar Global switch: the footer shows a `workspace-scope-statement` note ("Creates in Global — visible to every workspace." or "Creates in {workspace}."), never scope pills; Global omits `workspace` on the request.
+expected: Opening New agent shows one screen on the `xl` dialog, never a stepper or Simple/Advanced tabs. The left column holds the avatar (Character, Icon or emoji, Shuffle), Name, What it does, Instructions in `MarkdownEditor` with Watch issues, Review code and Fill with AI, then one Advanced fold. The side panel holds How it works (On demand, Stays on), Where it works with search, Global and Decide later (Stays on only), Model with live catalog state, and a live preview. Typing a Name derives the Short name, editable under Advanced. A taken name shows before submit with a suggestion. A name with no valid characters opens Advanced. Closing with entered data asks to discard. Advanced holds the Short name, the Organize Group field, the permission cards, custom command and "What this agent is allowed to do"; an invalid value there opens the fold with the error in place, and a disabled primary never hides its cause. Submit errors render as a danger Alert. There is no MCP servers control, and the request never carries `mcp_servers`. An On demand agent follows the menubar destination; a Stays on agent is defined at the user level so any project can start it. Stays on with a place creates the agent, starts its first instance and returns to Sessions. Decide later, the instance limit and a provider that isn't signed in create it unstarted, each said before submitting. A failed start keeps the agent, reports it on the screen and offers Open agent.
 entry_points: web desktop shell → New agent (menubar, command palette, agent catalog, agent detail duplicate)
 qa_status: skipped
 bug_ids:
@@ -38,3 +38,22 @@ duplication and persisted runtime values. The existing agent browser lifecycle i
 `web/e2e/__tests__/agents.spec.ts` owns the real daemon/browser slice; its current-head
 CI result is recorded in PR #983. Focused catalog/agent/shell-model suites pass 28
 tests. This does not claim a re-walk of every Simple/Advanced control above.
+
+QA impact 2026-11-01 (stays-on F1): the Simple/Advanced tabs are gone; `expected` above describes the
+one screen. Fill with AI and starting an instance need the daemon routes from the stays-on backend
+slices, so this slice verified them against typed mocks only. Focused suites own the screen's states;
+a real walk is required after those slices land. Not walked.
+
+### Missing default provider
+
+With no configured default provider, leave Model unchanged and submit an otherwise valid agent.
+The error explains that no default provider is set and asks you to choose a provider in Model.
+Select a configured provider and retry; creation succeeds without re-entering the agent details.
+The inherited-runtime help must describe a configured default conditionally.
+
+B5 focused evidence: agent API adapter and create-screen suites passed (53 tests). The live
+missing-default and recovery journey remains pending.
+
+B5 isolated re-walk passed: absent defaults.provider produced the actionable copy, selecting Codex
+GPT-6.1-Sol created the agent with the original name, description and instructions, and the public
+API confirmed provider/model. Evidence: `reports/2026-11-01-stays-on-b5-remediation.md`.

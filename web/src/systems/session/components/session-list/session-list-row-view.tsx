@@ -45,6 +45,8 @@ import {
   sessionCheckboxGesture,
   sessionSelectionGesture,
 } from "../../lib/session-selection-gesture";
+import { AgentMark } from "@/systems/agent/components/agent-mark";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export interface SessionListRowProps {
   session: SessionPayload;
@@ -143,7 +145,12 @@ function SessionListRowBody({
   const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
   const actionsVisible = showActions && !selection?.mode;
-  const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
+  const agent = useAgentIdentityView(session.agent_name, {
+    workspace: session.workspace_id,
+    profile: session.profile_name,
+  });
+  const agentLabel = session.agent_name ? agent.label : "";
+  const meta = rowMeta({ session, agentLabel, runtime, signal, orphanedSubagent });
   const badgeOf = useContext(SessionListBadgeContext);
   const badge = inheritsProject ? undefined : badgeOf?.(session);
   const hasTrailing = trailing !== undefined;
@@ -174,16 +181,30 @@ function SessionListRowBody({
       {meta.visible || hasTrailing ? (
         <SessionRowMetaLine
           session={session}
+          agentLabel={agentLabel}
           badge={badge}
           owner={owner}
           meta={meta}
           mark={
-            <SessionListProviderMark
-              sessionId={session.id}
-              runtime={runtime}
-              keyboardFocus={keyboardFocus}
-              onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
-            />
+            <>
+              {session.agent_name ? (
+                <AgentMark
+                  aria-hidden="true"
+                  appearance={agent.appearance}
+                  data-testid={`session-agent-mark-${session.id}`}
+                  label={agent.label}
+                  quietIdle
+                  size={16}
+                  state="unknown"
+                />
+              ) : null}
+              <SessionListProviderMark
+                sessionId={session.id}
+                runtime={runtime}
+                keyboardFocus={keyboardFocus}
+                onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
+              />
+            </>
           }
           trailing={hasTrailing ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null}
         />
@@ -269,6 +290,7 @@ function SessionRowTarget({
  */
 function SessionRowMetaLine({
   session,
+  agentLabel,
   badge,
   owner,
   meta,
@@ -276,6 +298,7 @@ function SessionRowMetaLine({
   trailing,
 }: {
   session: SessionPayload;
+  agentLabel: string;
   badge: WorkspaceBadgeIdentity | undefined;
   owner: ProfileOwner | undefined;
   meta: RowMeta;
@@ -294,7 +317,7 @@ function SessionRowMetaLine({
         ) : null}
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
         {mark}
-        <SessionListRowWho session={session} meta={meta} />
+        <SessionListRowWho agentLabel={agentLabel} session={session} meta={meta} />
         {sessionIsUnrestricted(session) ? (
           <SessionUnrestrictedBadge data-testid={`session-row-unrestricted-${session.id}`} />
         ) : null}

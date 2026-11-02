@@ -124,7 +124,7 @@ describe("SessionThread queue stories", () => {
     expect(rows).toHaveLength(3);
     expect(within(rows[0]!).getByTestId("composer-queued-edit")).toBeInTheDocument();
     expect(within(rows[1]!).queryByTestId("composer-queued-edit")).not.toBeInTheDocument();
-    expect(within(rows[1]!).getByTestId("composer-queued-owner")).toHaveTextContent("reviewer");
+    expect(within(rows[1]!).getByTestId("composer-queued-owner")).toHaveTextContent("Reviewer");
     expect(within(rows[2]!).queryByTestId("composer-queued-steer")).not.toBeInTheDocument();
   });
 

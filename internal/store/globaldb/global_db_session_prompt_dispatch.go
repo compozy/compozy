@@ -102,7 +102,7 @@ func markQueuedPromptAdmissionIndeterminate(
 	if affected != 1 {
 		return queuedPromptAdmissionCASFailure(ctx, exec, entry)
 	}
-	return nil
+	return sqlcgen.New(exec).FailPromptReports(ctx, entry.PromptAdmissionID)
 }
 
 func queuedPromptAdmissionCASFailure(

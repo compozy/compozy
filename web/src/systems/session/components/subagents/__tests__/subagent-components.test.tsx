@@ -3,7 +3,11 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast, UIProvider } from "@compozy/ui";
+
+import { agentKeys } from "@/systems/agent";
+import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
 
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
@@ -86,6 +90,31 @@ afterEach(() => {
 });
 
 describe("SubagentCard", () => {
+  // Invariant: the chip names its delegated agent by label, with its face.
+  it("Should render the delegated agent's label and avatar", () => {
+    const client = new QueryClient();
+    client.setQueryData(agentKeys.list(null, "default"), [
+      { name: "reviewer", label: "Review Lead", resolved_appearance: null },
+    ]);
+    render(
+      <QueryClientProvider client={client}>
+        <AgentIdentityProvider>
+          <TestUI>
+            <SubagentCard
+              subagent={subagent({ runtime: { ...subagent().runtime, agent: "reviewer" } })}
+            />
+          </TestUI>
+        </AgentIdentityProvider>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getAllByText(/Review Lead/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("img", { name: "Review Lead" })).toHaveAttribute(
+      "data-slot",
+      "agent-avatar"
+    );
+  });
+
   // Invariant: pending admission is navigable without inventing a child session.
   // Owner: subagent presentational components; canonical suite: this file.
   it("Should open a pending subagent and show its recorded runtime", () => {

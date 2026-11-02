@@ -48,11 +48,11 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 
 	h := newHarness(t)
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "primary",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -121,9 +121,9 @@ func TestSessionWorktreeBinding(t *testing.T) {
 		resolver := &fakeSessionWorktreeResolver{id: "wt-ready", root: worktreeRoot}
 		h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(resolver))
 
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "ready-ref",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(bound) error = %v", err)
 		}
@@ -169,9 +169,9 @@ func TestSessionWorktreeBinding(t *testing.T) {
 			id: "wt-ready", root: worktreeRoot,
 		}))
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-ready", CWD: h.workspace,
-		})
+		}))
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "escapes root") {
 			t.Fatalf("Create(bound escape) error = %v, want ErrValidation escape", err)
 		}
@@ -193,9 +193,9 @@ func TestSessionWorktreeBinding(t *testing.T) {
 
 			h := newHarness(t)
 			h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(&fakeSessionWorktreeResolver{err: test.err}))
-			_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder", Workspace: h.workspaceID, Worktree: "target",
-			})
+			}))
 			if !errors.Is(err, test.err) {
 				t.Fatalf("Create(%s binding) error = %v, want %v", test.name, err, test.err)
 			}
@@ -228,9 +228,9 @@ func TestSessionWorktreeBinding(t *testing.T) {
 		}}
 		h.manager = newManagerWithHarness(t, h, WithWorktreeResolver(resolver))
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-race",
-		})
+		}))
 		if !errors.Is(err, missingErr) {
 			t.Fatalf("Create(removed before start) error = %v, want %v", err, missingErr)
 		}
@@ -269,9 +269,9 @@ func TestSessionWorktreeBinding(t *testing.T) {
 			created, err := h.manager.CreateWorktreeForkAccepted(
 				testutil.Context(t),
 				origin.ID,
-				CreateAcceptedOpts{Session: CreateOpts{
+				new(CreateAcceptedOpts{Session: CreateOpts{
 					AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-fork", Type: SessionTypeUser,
-				}},
+				}}),
 			)
 			createdResult <- created
 			errResult <- err
@@ -310,9 +310,9 @@ func TestManagerWorkingDir(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(h.workspace, "pkg"), 0o755); err != nil {
 			t.Fatalf("MkdirAll(pkg) error = %v", err)
 		}
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, CWD: "pkg",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -552,10 +552,10 @@ func TestManagerWorkAdmission(t *testing.T) {
 		); !errors.Is(err, admission.ErrDraining) {
 			t.Fatalf("Prompt(second) error = %v, want ErrDraining", err)
 		}
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); !errors.Is(err, admission.ErrDraining) {
+		})); !errors.Is(err, admission.ErrDraining) {
 			t.Fatalf("Create() error = %v, want ErrDraining", err)
 		}
 
@@ -588,19 +588,19 @@ func TestManagerWorkAdmission(t *testing.T) {
 		gate := &admission.Gate{}
 		gate.Drain()
 		h := newHarness(t, WithWorkAdmissionChecker(gate))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); !errors.Is(err, admission.ErrDraining) {
+		})); !errors.Is(err, admission.ErrDraining) {
 			t.Fatalf("Create(draining) error = %v, want ErrDraining", err)
 		}
 		if changed := gate.Undrain(); !changed {
 			t.Fatal("Undrain() changed = false, want true")
 		}
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(active) error = %v", err)
 		}
@@ -623,9 +623,9 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 				Available: new(false), AvailabilityState: modelcatalog.AvailabilityStateUnknown,
 				LastError: diagnostic,
 			}}}))
-			_, err := h.manager.Create(t.Context(), CreateOpts{
+			_, err := h.manager.Create(t.Context(), new(CreateOpts{
 				AgentName: "coder", Provider: provider, Model: modelID, Workspace: h.workspaceID,
-			})
+			}))
 			negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
 			if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable ||
 				negotiationErr.Requested != modelID {
@@ -748,13 +748,13 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 		h.resolver.upsert(&resolvedWorkspace)
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			ACPOptions: []acp.SessionConfigOptionSelection{{
 				ID: "context", ValueID: "200k",
 			}},
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -815,14 +815,14 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 				SourceKind: modelcatalog.SourceKindProviderLive,
 			}},
 		}}}))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "cursor",
 			Model:           cursorModel,
 			ReasoningEffort: "high",
 			Speed:           speedpkg.SpeedFast,
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -895,12 +895,12 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 				SourceKind: modelcatalog.SourceKindProviderLive,
 			}},
 		}}}))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Provider:  runtimeProviderClaude,
 			Model:     logicalModel,
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -960,7 +960,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 				h.resolver.upsert(&workspace)
 				session, err := h.manager.Create(
 					t.Context(),
-					CreateOpts{AgentName: "coder", Provider: overlay, Model: logical, Workspace: h.workspaceID},
+					new(CreateOpts{AgentName: "coder", Provider: overlay, Model: logical, Workspace: h.workspaceID}),
 				)
 				if !available {
 					if err == nil ||
@@ -1021,10 +1021,10 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 		h.resolver.upsert(&resolvedWorkspace)
 
-		_, err = h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err = h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err == nil || !strings.Contains(err.Error(), "not advertised by the live ACP catalog") {
 			t.Fatalf("Create() error = %v, want explicit Cursor catalog-membership rejection", err)
 		}
@@ -1073,10 +1073,10 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 		h.resolver.upsert(&resolvedWorkspace)
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1129,10 +1129,10 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			return proc, nil
 		}
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1153,7 +1153,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "codex",
 			Model:           "task-profile-model",
@@ -1161,7 +1161,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			Speed:           speedpkg.SpeedFast,
 			Name:            "profiled-worker",
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1196,11 +1196,11 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Model:     "task-profile-model",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if !errors.Is(err, ErrInvalidRuntimeOverride) {
 			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
 		}
@@ -1216,13 +1216,13 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			}
 			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-reasoning"), nil
 		}
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "claude",
 			ReasoningEffort: "high",
 			Name:            "reasoned-claude-worker",
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1261,11 +1261,11 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-agent-reasoning"), nil
 		}
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "agent-reasoning-default",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1298,10 +1298,10 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			return proc, nil
 		}
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1348,11 +1348,11 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Speed:     speedpkg.Speed("turbo"),
 			Workspace: h.workspaceID,
-		})
+		}))
 		if !errors.Is(err, ErrInvalidRuntimeOverride) {
 			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
 		}
@@ -1437,11 +1437,11 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 			t.Fatalf("MkdirAll(path workspace) error = %v", err)
 		}
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:     "coder",
 			Name:          "path-session",
 			WorkspacePath: workspacePath,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(workspace path) error = %v", err)
 		}
@@ -1487,12 +1487,12 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 			t.Fatalf("MkdirAll(profile path workspace) error = %v", err)
 		}
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			ProfileID:     profileID,
 			AgentName:     "coder",
 			Name:          "profile-path-session",
 			WorkspacePath: workspacePath,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(profile workspace path) error = %v", err)
 		}
@@ -1532,11 +1532,11 @@ func TestCreateUsesProfileWorkspaceAgents(t *testing.T) {
 		h.resolver.byProfile[sessionDefaultProfileName] = profileWorkspace
 		h.resolver.mu.Unlock()
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "marketing",
 			Name:      "marketing-session",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(default profile agent) error = %v", err)
 		}
@@ -1780,12 +1780,12 @@ func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:            "coder",
 			Name:                 "restricted",
 			Workspace:            h.workspaceID,
 			AllowedToolsOverride: []string{toolspkg.ToolIDTaskRunClaimNext.String()},
-		})
+		}))
 		if !errors.Is(err, ErrHostedMCPUnavailable) {
 			t.Fatalf("Create() error = %v, want %v", err, ErrHostedMCPUnavailable)
 		}
@@ -1810,12 +1810,12 @@ func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 				Prompt:   "You are helpful.",
 			}},
 		})
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:            "coder",
 			Name:                 "restricted",
 			Workspace:            h.workspaceID,
 			AllowedToolsOverride: []string{toolspkg.ToolIDTaskRunClaimNext.String()},
-		})
+		}))
 		if !errors.Is(err, ErrHostedMCPUnavailable) {
 			t.Fatalf("Create() error = %v, want %v", err, ErrHostedMCPUnavailable)
 		}
@@ -1828,13 +1828,13 @@ func TestCreateRequiresHostedMCPForRestrictedTools(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:            "coder",
 			Name:                 "restricted-verdict",
 			Workspace:            h.workspaceID,
 			RuntimeMode:          RuntimeModeVerdictOnly,
 			AllowedToolsOverride: []string{toolspkg.ToolIDTaskRunClaimNext.String()},
-		})
+		}))
 		if !errors.Is(err, ErrHostedMCPUnavailable) {
 			t.Fatalf("Create() error = %v, want %v", err, ErrHostedMCPUnavailable)
 		}
@@ -1865,12 +1865,12 @@ func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
 			WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView}),
 		)
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:   "coder",
 			Name:        "verdict-only",
 			Workspace:   h.workspaceID,
 			RuntimeMode: RuntimeModeVerdictOnly,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 // HookRunWriter persists hook run records into an active session-scoped store.
@@ -244,6 +246,18 @@ func (h *Hooks) emitHookRun(
 func (h *Hooks) persistedPatchForEvent(event HookEvent, rawPatch json.RawMessage) json.RawMessage {
 	if len(rawPatch) == 0 || !shouldPersistPatch(event, h.debugPatchAudit) {
 		return nil
+	}
+	if event == HookAgentHeartbeatWakeBefore {
+		var patch AgentHeartbeatWakePatch
+		if err := json.Unmarshal(rawPatch, &patch); err != nil {
+			return nil
+		}
+		patch.Reason = diagnostics.RedactAndBound(strings.TrimSpace(patch.Reason), 300)
+		sanitized, err := json.Marshal(patch)
+		if err != nil {
+			return nil
+		}
+		return sanitized
 	}
 	return cloneRawJSON(rawPatch)
 }

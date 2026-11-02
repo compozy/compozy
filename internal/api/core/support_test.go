@@ -34,7 +34,7 @@ func TestSessionsSnapshotDecoratesProfileOwners(t *testing.T) {
 
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
+		&testutil.StubSessionManager{ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{{
 				ID: "sess-support", ProfileID: store.DefaultProfileID, State: session.StateStopped,
 			}}, nil

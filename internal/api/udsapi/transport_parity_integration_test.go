@@ -2931,7 +2931,7 @@ func TestUDSTransportTaskSurfaceMatchesHTTPAndDocumentedSpecOperations(t *testin
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	udsEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	udsEngine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	udsRoutes := apitestutil.RoutesFromEngine(udsEngine.Routes(), isDocumentedTaskRoute)
 	httpRoutes := apitestutil.DocumentedRoutesForTransport(apispec.TransportHTTP, isDocumentedTaskRoute)
@@ -2949,7 +2949,7 @@ func TestUDSTransportProfileSurfaceMatchesHTTPAndDocumentedSpecOperations(t *tes
 	t.Parallel()
 	t.Run("Should match the HTTP and documented profile surfaces", func(t *testing.T) {
 		t.Parallel()
-		udsEngine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+		udsEngine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
 		udsRoutes := apitestutil.ProfileRoutesFromEngine(udsEngine.Routes())
 		httpRoutes := apitestutil.DocumentedProfileRoutesForTransport(apispec.TransportHTTP)
 		if !slices.Equal(udsRoutes, httpRoutes) {

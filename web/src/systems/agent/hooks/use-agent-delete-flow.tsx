@@ -70,7 +70,8 @@ export function useAgentDeleteFlow({
   const baseDescription = agent ? (
     <>
       This removes the agent definition for <code className="font-mono text-fg">{agent.name}</code>.
-      Existing session records are kept.
+      Its sessions stay in history.
+      {agent.kind === "stays_on" ? " What it remembers is put away, not erased." : null}
     </>
   ) : null;
   const description = agent ? (

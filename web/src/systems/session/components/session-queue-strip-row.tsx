@@ -17,6 +17,7 @@ import type { SessionMessageOrigin } from "../lib/session-message-payload";
 import { SubagentAvatar } from "./subagents/subagent-avatar";
 import { DELETED_SESSION_LABEL, sessionPartyMark } from "./session-messages/session-message-party";
 import { useSessionLabel } from "./session-messages/use-session-label";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
   const parts: string[] = [];
@@ -60,8 +61,14 @@ function SessionQueuedOwner({ owner }: { owner: QueuedPromptOwner }) {
       data-owner-kind={owner.kind}
       className="inline-flex shrink-0 items-center gap-1.5 text-micro text-muted-foreground"
     >
-      <OwnerAvatar ownerKind={tier} ownerId={label} name={label} size="sm" />
-      {label}
+      {owner.kind === "agent" && owner.id ? (
+        <AgentIdentityChip name={owner.id} size={20} />
+      ) : (
+        <>
+          <OwnerAvatar ownerKind={tier} ownerId={label} name={label} size="sm" />
+          {label}
+        </>
+      )}
     </span>
   );
 }

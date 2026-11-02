@@ -12,6 +12,8 @@ import { HomeFirstRun } from "./home-first-run";
 import { HomeKpiStrip } from "./home-kpi-strip";
 import { HomeOutcomesChart } from "./home-outcomes-chart";
 import { HomePageMeta } from "./home-page-meta";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
+
 import { HomePulseHeatmap } from "./home-pulse-heatmap";
 import { HomeSystemPanel } from "./home-system-panel";
 import { HomeUsageChart } from "./home-usage-chart";
@@ -25,9 +27,15 @@ import { HOME_BODY_CLASS, HOME_ZONE_PAIR_CLASS, HOME_ZONE_STACK_CLASS } from "./
  */
 export interface HomeDashboardProps extends ComponentProps<"div"> {
   liveEnabled?: boolean;
+  onOpenActivity?: () => void;
 }
 
-export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeDashboardProps) {
+export function HomeDashboard({
+  className,
+  liveEnabled = true,
+  onOpenActivity,
+  ...props
+}: HomeDashboardProps) {
   const model = useHomeDashboard({ liveEnabled });
   const { workingNow, agents, system } = model;
 
@@ -84,7 +92,10 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                     status={workingNow.status}
                     total={workingNow.total}
                   />
-                  <HomePulseHeatmap pulse={overview.pulse} />
+                  <HomePulseHeatmap
+                    pulse={overview.pulse}
+                    renderAgent={name => <AgentIdentityLabel name={name} />}
+                  />
                   <div className={HOME_ZONE_PAIR_CLASS}>
                     <HomeOutcomesChart outcomes={overview.outcomes} />
                     <HomeUsageChart
@@ -97,6 +108,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                   <div className={HOME_ZONE_PAIR_CLASS}>
                     <HomeAgentsPanel loading={agents.loading} rows={agents.rows} />
                     <HomeActivityFeed
+                      onOpenAll={onOpenActivity}
                       errorMessage={model.activityErrorMessage}
                       events={model.activity ?? []}
                       status={model.activityStatus}

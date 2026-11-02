@@ -1099,7 +1099,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				PolicySpecDigest:   policyDigest,
 				CreationDigest:     creationDigest,
 			}
-			if _, err := fixture.db.RegisterSessionWithCreationIdentity(testutil.Context(t), store.SessionInfo{
+			if _, err := fixture.db.RegisterSessionWithCreationIdentity(testutil.Context(t), new(store.SessionInfo{
 				ProfileID:   child.ProfileID,
 				ID:          childID,
 				AgentName:   child.AgentName,
@@ -1113,7 +1113,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				CreatedAt:     parent.CreatedAt,
 				UpdatedAt:     parent.UpdatedAt,
-			}, identity); err != nil {
+			}), identity); err != nil {
 				t.Fatalf("RegisterSessionWithCreationIdentity(%q) error = %v", childID, err)
 			}
 		}
@@ -1305,14 +1305,14 @@ context_nudge_ratio = 0.0
 		PolicySpecDigest:   policyDigest,
 		CreationDigest:     creationDigest,
 	}
-	if _, err := db.RegisterSessionWithCreationIdentity(ctx, store.SessionInfo{
+	if _, err := db.RegisterSessionWithCreationIdentity(ctx, new(store.SessionInfo{
 		ProfileID: profileOwner.ID, ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		WorkspaceID: workspaceID,
 
 		SessionType: string(session.SessionTypeUser), State: string(session.StateActive),
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     now, UpdatedAt: now,
-	}, identity); err != nil {
+	}), identity); err != nil {
 		t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
 	}
 	runIDs := []looppkg.RunID{

@@ -42,7 +42,10 @@ func MonitorOwnerBinding(active *Session) (string, error) {
 }
 
 // MonitorOwnerBinding reads the binding of the live session id.
-func (m *Manager) MonitorOwnerBinding(id string) (string, error) {
+func (m *Manager) MonitorOwnerBinding(ctx context.Context, id string) (string, error) {
+	if err := m.checkPromptAdmissionSuperseded(ctx, id); err != nil {
+		return "", err
+	}
 	active, ok := m.Get(id)
 	if !ok {
 		return "", fmt.Errorf("%w: %s", ErrSessionNotFound, id)
@@ -55,6 +58,9 @@ func (m *Manager) MonitorOwnerBinding(id string) (string, error) {
 // (auto-continue, archive, worktree, route, permission, and policy changes) against the binding
 // captured while the owner was live, and never revives a session stopped on purpose.
 func (m *Manager) ResumeMonitorOwner(ctx context.Context, id, binding string) error {
+	if err := m.checkPromptAdmissionSuperseded(ctx, id); err != nil {
+		return err
+	}
 	var checkpoint store.SessionRestartCheckpoint
 	if binding == "" || json.Unmarshal([]byte(binding), &checkpoint) != nil {
 		return &MonitorOwnerIneligibleError{Reason: "binding_unknown"}

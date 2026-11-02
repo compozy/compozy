@@ -20,6 +20,18 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	for code, target := range map[string]error{
+		"session_superseded":         store.ErrSessionSuperseded,
+		"agent_kind_immutable":       compozyconfig.ErrAgentKindImmutable,
+		"agent_kind_invalid":         compozyconfig.ErrAgentKindInvalid,
+		"agent_display_name_invalid": compozyconfig.ErrAgentDisplayNameInvalid,
+		"agent_description_invalid":  compozyconfig.ErrAgentDescriptionInvalid,
+		"agent_appearance_invalid":   compozyconfig.ErrAgentAppearanceInvalid,
+	} {
+		if errors.Is(err, target) {
+			payload.Code = code
+		}
+	}
 	if busy, ok := errors.AsType[*workspace.BusyError](err); ok {
 		payload.Code = "workspace_busy"
 		for _, blocker := range busy.Blockers {
@@ -37,16 +49,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if breadth, ok := errors.AsType[*workspaceBreadthError](err); ok {
 		payload.Code = breadth.code
 	}
-	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
-		payload.Code = "workspace_config_invalid"
-		if unknown, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); ok {
-			payload.ConfigPath = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(unknown.Path))
-			payload.UnknownKeys = make([]string, len(unknown.Keys))
-			for i, key := range unknown.Keys {
-				payload.UnknownKeys[i] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(key))
-			}
-		}
-	}
+	enrichWorkspaceConfigError(&payload, err)
 	for _, sentinel := range []error{
 		session.ErrCreateScopeConflict,
 		workspace.ErrWorkspaceNameReserved,
@@ -240,5 +243,18 @@ func sessionMessageRateLimitDetails(err error) map[string]string {
 		"limit":               strconv.Itoa(limit.Limit),
 		"window":              limit.Window.String(),
 		"retry_after_seconds": strconv.FormatInt(int64(limit.RetryAfter.Seconds()), 10),
+	}
+}
+
+func enrichWorkspaceConfigError(payload *contract.ErrorPayload, err error) {
+	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
+		payload.Code = "workspace_config_invalid"
+		if unknown, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); ok {
+			payload.ConfigPath = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(unknown.Path))
+			payload.UnknownKeys = make([]string, len(unknown.Keys))
+			for i, key := range unknown.Keys {
+				payload.UnknownKeys[i] = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(key))
+			}
+		}
 	}
 }

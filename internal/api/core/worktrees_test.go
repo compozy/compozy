@@ -318,19 +318,21 @@ type worktreeObserverStub struct {
 
 type worktreeSessionAcceptanceFunc func(
 	context.Context,
-	session.CreateAcceptedOpts,
+	*session.CreateAcceptedOpts,
 ) (*session.Info, error)
 
 func (fn worktreeSessionAcceptanceFunc) CreateAccepted(
 	ctx context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
-	return fn(ctx, opts)
+	opts := *optsInput
+
+	return fn(ctx, &(opts))
 }
 
 type promptingSessionManager struct {
 	sessionManagerStub
-	createAccepted     func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
+	createAccepted     func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error)
 	isPrompting        func(string) bool
 	worktreeForkOrigin string
 }
@@ -341,18 +343,22 @@ func (m *promptingSessionManager) IsPrompting(sessionID string) bool {
 
 func (m *promptingSessionManager) CreateAccepted(
 	ctx context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
-	return m.createAccepted(ctx, opts)
+	opts := *optsInput
+
+	return m.createAccepted(ctx, &(opts))
 }
 
 func (m *promptingSessionManager) CreateWorktreeForkAccepted(
 	ctx context.Context,
 	originSessionID string,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	m.worktreeForkOrigin = originSessionID
-	return m.createAccepted(ctx, opts)
+	return m.createAccepted(ctx, &(opts))
 }
 
 func (s worktreeObserverStub) QueryEvents(
@@ -544,7 +550,9 @@ func TestCreateSessionWorktreeBinding(t *testing.T) {
 	accepted := make([]session.CreateOpts, 0, 2)
 	acceptFailure := false
 	manager := worktreeSessionAcceptanceFunc(
-		func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+		func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+			opts := *optsInput
+
 			accepted = append(accepted, opts.Session)
 			if acceptFailure {
 				return nil, errors.New("accept failed")
@@ -683,7 +691,7 @@ func TestForkSessionToWorktree(t *testing.T) {
 		prompting func(string) bool,
 		createWorktree func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error),
 		removeWorktree func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error),
-		accept func(context.Context, session.CreateAcceptedOpts) (*session.Info, error),
+		accept func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error),
 	) *BaseHandlers {
 		t.Helper()
 		if removeWorktree == nil {
@@ -746,7 +754,7 @@ func TestForkSessionToWorktree(t *testing.T) {
 		accepted := 0
 		handlers := newHandlers(t, nil, nil, nil, func(
 			context.Context,
-			session.CreateAcceptedOpts,
+			*session.CreateAcceptedOpts,
 		) (*session.Info, error) {
 			accepted++
 			return nil, nil
@@ -767,7 +775,9 @@ func TestForkSessionToWorktree(t *testing.T) {
 			}
 			promptChecks++
 			return false
-		}, nil, nil, func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+		}, nil, nil, func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+			opts := *optsInput
+
 			accepted = opts.Session
 			return &session.Info{
 				ID: "sess-child", AgentName: accepted.AgentName, WorkspaceID: accepted.Workspace,
@@ -804,7 +814,9 @@ func TestForkSessionToWorktree(t *testing.T) {
 				t.Fatalf("CreateReady() workspace/options = %q/%#v", workspaceID, opts)
 			}
 			return &worktree.Worktree{ID: "wt-created", WorkspaceID: workspaceID, State: worktree.StateReady}, nil
-		}, nil, func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+		}, nil, func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+			opts := *optsInput
+
 			accepted++
 			return &session.Info{
 				ID: "sess-child", AgentName: opts.Session.AgentName, WorkspaceID: opts.Session.Workspace,
@@ -836,7 +848,7 @@ func TestForkSessionToWorktree(t *testing.T) {
 			worktree.CreateOptions,
 		) (*worktree.Worktree, error) {
 			return &worktree.Worktree{ID: "wt-created", State: worktree.StateReady}, nil
-		}, nil, func(context.Context, session.CreateAcceptedOpts) (*session.Info, error) {
+		}, nil, func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error) {
 			accepted++
 			return nil, nil
 		})
@@ -872,7 +884,7 @@ func TestForkSessionToWorktree(t *testing.T) {
 				t.Fatalf("Remove() = workspace %q worktree %q force %v", workspaceID, worktreeID, force)
 			}
 			return nil, nil
-		}, func(context.Context, session.CreateAcceptedOpts) (*session.Info, error) {
+		}, func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error) {
 			return nil, errors.New("accept failed")
 		})
 		response := request(t, handlers, `{"new_worktree":{},"confirmed":true}`)

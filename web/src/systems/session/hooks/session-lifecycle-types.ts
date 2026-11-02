@@ -1,6 +1,6 @@
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import type { SessionBatchResult } from "../lib/session-batch";
-import type { SessionChildrenChoice } from "../lib/session-tree";
+import type { SessionChildrenChoice, SessionChildrenScope } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 import type { SessionLaterConfirmation } from "./use-session-later-actions";
 
@@ -12,6 +12,14 @@ export type SessionLifecycleAction =
   | "delete"
   | "later"
   | "back-from-later";
+
+export interface SessionProcessChoice {
+  action: "stop" | "archive";
+  sessions: readonly SessionPayload[];
+  scope?: SessionChildrenScope;
+  read?: { pending: boolean; onRetry?: () => void };
+  run: (processes?: SessionProcessPolicy, withChildren?: boolean) => void;
+}
 
 export interface SessionLifecycleActionHandlers {
   pendingAction: SessionLifecycleAction | null;

@@ -3,7 +3,7 @@
 // Boundary IN: TanStack route loader, QueryClient, query-options factory, and query hook.
 // Boundary OUT: HTTP adapters, which have their own contract suites.
 import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver, useQuery } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRouteWithContext,
@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useAgent,
-  useAgentAggregate,
+  agentTeamOptions,
   useAgentCatalog,
   useAgentCatalogMetrics,
   useAgents,
@@ -267,7 +267,7 @@ vi.mock("@/systems/loops/adapters/loop-run-reads-api", async importOriginal => (
 import { Route as AppRoute } from "../../_app";
 import { ensureRouteQueryData } from "../-route-preload";
 import { Route as AgentDetailRoute } from "../agents.$name.index";
-import { Route as AgentSettingsRoute } from "../agents.$name.settings";
+import { Route as AgentPageRoute } from "../agents.$name.$page";
 import { Route as AgentsRoute } from "../agents.index";
 import { Route as HomeRoute } from "../index";
 import { Route as JobDetailRoute } from "../automations.jobs.$jobId";
@@ -452,34 +452,19 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listTasks, adapterMocks.getTaskInbox],
   },
   {
-    name: "agents → exact workspace/filter infinite catalog options",
-    load: queryClient =>
-      invokeLoader(AgentsRoute, {
-        ...context(queryClient),
-        deps: {
-          category: "Engineering / Release",
-          limit: 50,
-          q: "review",
-          status: "active" as const,
-        },
-        location: { pathname: "/agents" },
-      }),
+    name: "agents → the exact team read",
+    load: queryClient => invokeLoader(AgentsRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
-        useAgentCatalog(workspace.id, {
-          category: "Engineering / Release",
-          limit: 50,
-          q: "review",
-          status: "active",
-        });
+        useQuery(agentTeamOptions(workspace.id, readActingProfile(queryClient)));
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgentCatalog],
   },
   {
     name: "agent settings → definition/workspace/provider options",
     load: queryClient =>
-      invokeLoader(AgentSettingsRoute, {
+      invokeLoader(AgentPageRoute, {
         ...context(queryClient),
         deps: {},
         params: { name: "codex" },
@@ -1003,7 +988,7 @@ describe("route query preloading", () => {
     if (scope.workspaceId === null) enableAllProjects();
     const projectId = scope.workspaceId === "@user" ? null : scope.workspaceId;
 
-    await invokeLoader(AgentSettingsRoute, {
+    await invokeLoader(AgentPageRoute, {
       ...context(queryClient),
       deps: { workspace: scope.binding },
       params: { name: "codex" },
@@ -1154,23 +1139,20 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should preload and reuse the agents aggregate under All projects", async () => {
+  it("Should preload and reuse the whole team under All projects", async () => {
     const queryClient = createQueryClient();
     enableAllProjects();
-    await invokeLoader(AgentsRoute, {
-      ...context(queryClient),
-      deps: { q: "reading", limit: 50 },
-    });
-    expect(adapterMocks.fetchAgentAggregate).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ profile: "default", q: "reading", limit: 50 }),
+    await invokeLoader(AgentsRoute, context(queryClient));
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ group: "agent", profile: "default" }),
       expect.any(AbortSignal)
     );
-    expect(adapterMocks.fetchAgentCatalog).not.toHaveBeenCalled();
+    expect(adapterMocks.fetchAgentCatalog.mock.calls[0]?.[0].workspace).toBeUndefined();
     const unmount = mountQueries(queryClient, () => {
-      useAgentAggregate([], { q: "reading", limit: 50 });
+      useQuery(agentTeamOptions("", "default"));
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
-    expect(adapterMocks.fetchAgentAggregate).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
   });

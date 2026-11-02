@@ -3,8 +3,9 @@ import { emptyForScope } from "@/systems/profiles";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import type { WorkspaceFolderPayload } from "../../types";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
-import type { SessionListGroupSpec } from "../../lib/session-list-groups";
+import { sessionListGroupTarget, type SessionListGroupSpec } from "../../lib/session-list-groups";
 import { sessionListShelfNoun } from "../../lib/session-list-shelf";
+import { StaysOnProjectRow } from "../stays-on/stays-on-signals";
 import {
   GroupLoadFailure,
   SessionListGroupBody,
@@ -35,6 +36,7 @@ function SessionListGroupSection({
 }) {
   const { view, testIdPrefix } = props;
   const collapsed = view.collapsedGroupKeys.has(group.key);
+  const staysOnScope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <section data-collapsed={collapsed ? "true" : undefined} data-group-key={group.key}>
       <SessionListGroupHeader
@@ -45,6 +47,15 @@ function SessionListGroupSection({
         testIdPrefix={testIdPrefix}
         arrange={arrange}
       />
+      {collapsed || !staysOnScope ? null : (
+        <StaysOnProjectRow
+          className="px-1 pt-1 pb-1.5 pl-3.5"
+          currentSessionId={props.currentSessionId}
+          name={group.badge?.name ?? "this project"}
+          onOpenSession={props.onSelectSession}
+          workspaceId={staysOnScope}
+        />
+      )}
       {collapsed ? null : (
         <SessionListBadgeContext
           value={nested || group.kind === "project" ? undefined : view.badgeOf}

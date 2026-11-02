@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *BaseHandlers) respondAgentWithEnvironment(c *gin.Context, entry AgentCatalogEntry, cfg *config.Config) {
+func (h *BaseHandlers) respondAgentWithEnvironment(c *gin.Context, entry *AgentCatalogEntry, cfg *config.Config) {
 	payload := AgentPayloadFromEntryWithConfig(entry, cfg)
 	if runtime := payload.EffectiveRuntime; runtime != nil && len(runtime.SessionEnv) != 0 {
 		statuses, err := providers.SessionEnvStatuses(c.Request.Context(), sessionEnvFromPayload(runtime.SessionEnv),

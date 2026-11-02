@@ -114,7 +114,7 @@ function SubagentCardMain({ subagent, settled }: { subagent: SubagentView; settl
   const branch = subagentWorktree(subagent)?.branch;
   return (
     <>
-      <SubagentAvatar provider={subagent.runtime.provider} />
+      <SubagentAvatar agent={subagent.runtime.agent} provider={subagent.runtime.provider} />
       <span className="flex min-w-0 flex-col gap-px">
         <span
           className={cn(

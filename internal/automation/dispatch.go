@@ -178,7 +178,7 @@ func (r DispatchRequest) Validate(path string) error {
 
 // SessionCreator is the subset of session.Manager needed by the dispatcher.
 type SessionCreator interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }

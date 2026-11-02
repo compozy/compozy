@@ -63,7 +63,7 @@ func (m *Manager) registerDerivedSession(
 		return fmt.Errorf("session: creation profile ref changed for %q", meta.ID)
 	}
 	if err := derivations.RegisterDerivedSession(
-		ctx, sessionCatalogInfoFromRuntime(session.Info()), *identity, receipt,
+		ctx, new(sessionCatalogInfoFromRuntime(session.Info())), *identity, receipt,
 	); err != nil {
 		return fmt.Errorf("session: register derived session %q: %w", meta.ID, err)
 	}

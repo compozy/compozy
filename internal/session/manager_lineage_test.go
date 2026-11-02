@@ -1,7 +1,9 @@
 package session
 
 import (
+	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -10,10 +12,77 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should persist the complete root policy for bounded instance resume", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		resolved, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		additional := t.TempDir()
+		resolved.AdditionalDirs = []string{additional}
+		resolved.Skills = []workspacepkg.SkillPath{{Name: "review"}, {Dir: "/skills/directory"}, {Name: "disabled"}}
+		h.resolver.upsert(&resolved)
+		addHarnessAgent(
+			t,
+			h,
+			compozyconfig.AgentDef{
+				Name:       "bounded-coder",
+				Provider:   "claude",
+				Prompt:     "Review work.",
+				Skills:     compozyconfig.AgentSkillsConfig{Disabled: []string{"disabled"}},
+				MCPServers: []compozyconfig.MCPServer{{Name: "docs", Command: "test-mcp"}},
+			},
+		)
+		created, err := h.manager.Create(
+			t.Context(),
+			new(CreateOpts{AgentName: "bounded-coder", Workspace: h.workspaceID}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy := readMeta(t, created.MetaPath()).Lineage.PermissionPolicy
+		want := store.NormalizeSessionPermissionPolicy(
+			store.SessionPermissionPolicy{
+				Tools:          policy.Tools,
+				Skills:         []string{"review", "directory"},
+				MCPServers:     []string{"docs"},
+				WorkspacePaths: []string{h.workspace, additional},
+			},
+		)
+		if !reflect.DeepEqual(policy, want) {
+			t.Fatalf("persisted policy = %+v, want %+v", policy, want)
+		}
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.manager.SetInstanceCeilingReader(
+			func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
+				return &policy, "", nil
+			},
+		)
+		resumed, err := h.manager.Resume(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(context.Background(), resumed.ID); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(resumed.ID)); err != nil {
+			t.Fatal(err)
+		}
+		if got := resumed.Info().Lineage.PermissionPolicy; !reflect.DeepEqual(got, want) {
+			t.Fatalf("resumed ceiling = %+v, want %+v", got, want)
+		}
+	})
 
 	t.Run("Should produce root lineage for manual sessions", func(t *testing.T) {
 		t.Parallel()
@@ -64,13 +133,13 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 			},
 		})
 
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "tool-coder",
 			Workspace: h.workspaceID,
 			AllowedToolsOverride: []string{
 				toolspkg.ToolIDTaskRead.String(),
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(narrowed tools) error = %v", err)
 		}
@@ -108,14 +177,14 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 			Tools:    []string{toolspkg.ToolIDTaskRead.String()},
 		})
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "read-only-coder",
 			Workspace: h.workspaceID,
 			AllowedToolsOverride: []string{
 				toolspkg.ToolIDTaskRead.String(),
 				toolspkg.ToolIDTaskUpdate.String(),
 			},
-		})
+		}))
 		if !errors.Is(err, ErrValidation) {
 			t.Fatalf("Create(widening tools) error = %v, want %v", err, ErrValidation)
 		}
@@ -186,12 +255,12 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 					Tools:     agentTools,
 				})
 
-				sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 					AgentName:            "unchanged-coder",
 					Type:                 tt.sessionType,
 					Workspace:            h.workspaceID,
 					AllowedToolsOverride: tt.override,
-				})
+				}))
 				if err != nil {
 					t.Fatalf("Create(%s) error = %v", tt.name, err)
 				}
@@ -215,7 +284,19 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 				if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
 					t.Fatalf("lineage tools = %#v, want concrete delegation policy %#v", got, wantTools)
 				}
+				if got := info.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(
+					got,
+					[]string{h.workspace},
+				) {
+					t.Fatalf("root workspace paths = %v, want %s", got, h.workspace)
+				}
 				meta := readMeta(t, sess.MetaPath())
+				if got := meta.Lineage.PermissionPolicy.WorkspacePaths; !testutil.EqualStringSlices(
+					got,
+					[]string{h.workspace},
+				) {
+					t.Fatalf("persisted root workspace paths = %v, want %s", got, h.workspace)
+				}
 				if got := meta.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, wantTools) {
 					t.Fatalf("persisted lineage tools = %#v, want %#v", got, wantTools)
 				}
@@ -240,7 +321,7 @@ func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 		})
 
 		childTTL := now.Add(45 * time.Minute)
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "worker",
 			Workspace: h.workspaceID,
@@ -262,7 +343,7 @@ func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 					Skills: []string{"go"},
 				},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(spawned) error = %v", err)
 		}
@@ -302,7 +383,7 @@ func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 		}
 
 		coordinatorTTL := now.Add(2 * time.Hour)
-		coordinator, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		coordinator, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "coordinator",
 			Workspace: h.workspaceID,
@@ -312,7 +393,7 @@ func TestCreateSpawnedAndCoordinatorSessionsValidateLineage(t *testing.T) {
 				TTLExpiresAt: &coordinatorTTL,
 				SpawnBudget:  store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(coordinator) error = %v", err)
 		}
@@ -340,12 +421,12 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
 
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "provenance-child",
 			Workspace: h.workspaceID,
 			Lineage:   &store.SessionLineage{ParentSessionID: parent.ID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(provenance child) error = %v", err)
 		}
@@ -372,12 +453,12 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 			t.Fatalf("meta lineage = %#v, want persisted parent %q", meta.Lineage, parent.ID)
 		}
 
-		grandchild, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		grandchild, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "provenance-grandchild",
 			Workspace: h.workspaceID,
 			Lineage:   &store.SessionLineage{ParentSessionID: child.ID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(provenance grandchild) error = %v", err)
 		}
@@ -439,11 +520,11 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 					AgentName: "coder",
 					Workspace: h.workspaceID,
 					Lineage:   tt.lineage,
-				})
+				}))
 				if err == nil {
 					cleanupSessionStop(t, h, created.ID)
 					t.Fatalf("Create(%s) error = nil, want failure", tt.name)
@@ -482,11 +563,11 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Lineage:   &store.SessionLineage{ParentSessionID: "sess-missing"},
-		})
+		}))
 		if !errors.Is(err, ErrSessionNotFound) {
 			t.Fatalf("Create(missing parent) error = %v, want %v", err, ErrSessionNotFound)
 		}
@@ -496,10 +577,10 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		root := createSession(t, h)
-		parent, err := h.manager.Create(t.Context(), CreateOpts{
+		parent, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID,
 			Lineage: &store.SessionLineage{ParentSessionID: root.ID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(parent) error = %v", err)
 		}
@@ -526,7 +607,7 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeSystem,
@@ -535,7 +616,7 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 				RootSessionID:   parent.ID,
 				SpawnDepth:      1,
 			},
-		})
+		}))
 		if err == nil || !strings.Contains(err.Error(), "provenance-linked system sessions") {
 			t.Fatalf("Create(system with parent) error = %v, want type rule rejection", err)
 		}
@@ -552,10 +633,10 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
 
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: parent.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system provenance) error = %v", err)
 		}
@@ -585,10 +666,10 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		if err := h.manager.Stop(testutil.Context(t), parent.ID); err != nil {
 			t.Fatalf("Stop(parent) error = %v", err)
 		}
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: parent.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system with stopped parent) error = %v", err)
 		}
@@ -603,10 +684,10 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 
 		const parentID = "sess-deleted"
 		h := newHarness(t)
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: parentID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system with deleted parent) error = %v", err)
 		}
@@ -628,10 +709,10 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 
 		h := newHarness(t)
 		root := createSession(t, h)
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: root.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system parent) error = %v", err)
 		}
@@ -640,10 +721,10 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 			t.Fatalf("Delete(historical root) error = %v", err)
 		}
 
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: parent.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system child with deleted historical root) error = %v", err)
 		}
@@ -661,10 +742,10 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		h := newHarness(t)
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
 			ProvenanceParentSessionID: parent.ID,
-		})
+		}))
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "requires a system session") {
 			t.Fatalf("Create(user with internal provenance) error = %v, want %v", err, ErrValidation)
 		}
@@ -676,11 +757,11 @@ func TestCreateSystemSessionRecordsInternalProvenance(t *testing.T) {
 		h := newHarness(t)
 		parent := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			Lineage:                   &store.SessionLineage{ParentSessionID: parent.ID},
 			ProvenanceParentSessionID: parent.ID,
-		})
+		}))
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "cannot be combined with lineage") {
 			t.Fatalf("Create(system with two lineage inputs) error = %v, want %v", err, ErrValidation)
 		}
@@ -786,7 +867,7 @@ func TestCreateRejectsInvalidLineage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			created, err := h.manager.Create(testutil.Context(t), tt.opts)
+			created, err := h.manager.Create(testutil.Context(t), &(tt.opts))
 			if err == nil {
 				cleanupSessionStop(t, h, created.ID)
 				t.Fatalf("Create(%s) error = nil, want failure", tt.name)

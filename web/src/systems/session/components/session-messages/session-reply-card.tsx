@@ -86,6 +86,7 @@ export function SessionReplyCard({
       data-outcome={outcome}
       avatar={
         <SubagentAvatar
+          agent={target.agentName}
           provider={sessionPartyMark(target)}
           status={OUTCOME_DOT[outcome]}
           surface="rail"

@@ -103,7 +103,7 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 		return looppkg.ActionSessionBinding{}, err
 	}
 	// Loop work is daemon-initiated and yields to host CPU pressure at admission.
-	created, err := b.sessions.Create(admission.WithBackgroundWork(ctx), opts)
+	created, err := b.sessions.Create(admission.WithBackgroundWork(ctx), &(opts))
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
@@ -116,7 +116,7 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 		)
 	}
 	info := created.Info()
-	appliedRuntime := appliedRuntimeFromCreateOptions(opts)
+	appliedRuntime := appliedRuntimeFromCreateOptions(&(opts))
 	requestedRuntime := appliedRuntime
 	if info.Speed != "" || info.SpeedResolution != nil {
 		appliedRuntime.Speed = info.EffectiveRuntime().Speed
@@ -204,7 +204,7 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, err
 	}
-	prepared, identity, err := b.prepareRunOwnedBinding(ctx, req, key, profile, opts)
+	prepared, identity, err := b.prepareRunOwnedBinding(ctx, req, key, profile, &(opts))
 	if err != nil {
 		return looppkg.ActionSessionBinding{}, b.rollbackLoopActionEnvironment(ctx, req, materialized, err)
 	}
@@ -212,12 +212,12 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 		if cleanupErr := b.rollbackLoopActionEnvironment(ctx, req, materialized, nil); cleanupErr != nil {
 			return looppkg.ActionSessionBinding{}, cleanupErr
 		}
-		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), nil
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(&(opts))), nil
 	}
 	opts.DesiredSessionID = prepared.SessionID
 	opts.CreationProfile = cloneStoreCreationProfile(profile)
 	opts.CreationIdentity = cloneStoreCreationIdentity(identity)
-	_, createErr := creator.EnsureCreated(ctx, opts)
+	_, createErr := creator.EnsureCreated(ctx, &(opts))
 	if createErr != nil {
 		createErr = b.stopAndRollbackLoopActionEnvironment(ctx, req, prepared.SessionID, materialized, createErr)
 		if _, settleErr := b.bindings.SettleStoppedSessionBindingCreation(
@@ -230,10 +230,10 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 			return actionBindingFromGoal(
 				req,
 				prepared,
-				appliedRuntimeFromCreateOptions(opts),
+				appliedRuntimeFromCreateOptions(&(opts)),
 			), errors.Join(createErr, settleErr)
 		}
-		binding := actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts))
+		binding := actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(&(opts)))
 		if creationErr, ok := errors.AsType[*session.CreationError](createErr); ok {
 			return binding, &looppkg.ActionSessionCreationError{
 				EffectKnownFalse: creationErr.Effect == session.EffectKnownFalse,
@@ -255,7 +255,7 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 			materialized,
 			err,
 		)
-		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), finalizeErr
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(&(opts))), finalizeErr
 	}
 	if stopped {
 		stoppedErr := fmt.Errorf(
@@ -263,9 +263,9 @@ func (b *loopActionSessionBinder) ensureRunOwnedBinding(
 			looppkg.ErrTransitionConflict,
 		)
 		stoppedErr = b.stopAndRollbackLoopActionEnvironment(ctx, req, prepared.SessionID, materialized, stoppedErr)
-		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(opts)), stoppedErr
+		return actionBindingFromGoal(req, prepared, appliedRuntimeFromCreateOptions(&(opts))), stoppedErr
 	}
-	return actionBindingFromGoal(req, activated, appliedRuntimeFromCreateOptions(opts)), nil
+	return actionBindingFromGoal(req, activated, appliedRuntimeFromCreateOptions(&(opts))), nil
 }
 
 func (b *loopActionSessionBinder) AdvanceActionSessionRetry(
@@ -332,7 +332,7 @@ func (b *loopActionSessionBinder) AdvanceActionSessionRetry(
 		}
 		nextEpoch := failed.BindingEpoch + 1
 		nextAttemptID, nextSessionID := bindingAttemptIdentity(req.BindRequest, nextEpoch)
-		identity, err := bindingCreationIdentity(profile, opts, nextSessionID)
+		identity, err := bindingCreationIdentity(profile, &(opts), nextSessionID)
 		if err != nil {
 			return err
 		}

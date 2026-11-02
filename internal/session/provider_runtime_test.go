@@ -249,12 +249,12 @@ func testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunI
 	}
 	firstResult := make(chan createResult, 1)
 	go func() {
-		session, createErr := h.manager.Create(t.Context(), CreateOpts{
+		session, createErr := h.manager.Create(t.Context(), new(CreateOpts{
 			ProfileID: marketingProfileID,
 			AgentName: "credential-agent",
 			Name:      "marketing-inflight",
 			Workspace: h.workspaceID,
-		})
+		}))
 		firstResult <- createResult{session: session, err: createErr}
 	}()
 	firstOpts := <-startOptions
@@ -274,12 +274,12 @@ func testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunI
 		t.Fatalf("Stop(marketing in-flight) error = %v", err)
 	}
 
-	next, err := h.manager.Create(t.Context(), CreateOpts{
+	next, err := h.manager.Create(t.Context(), new(CreateOpts{
 		ProfileID: marketingProfileID,
 		AgentName: "credential-agent",
 		Name:      "marketing-fallback",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(marketing fallback) error = %v", err)
 	}
@@ -294,12 +294,12 @@ func testProviderCredentialOverrideSurvivesInflightRemovalAndFallsBackOnNextRunI
 		t.Fatalf("Stop(marketing fallback) error = %v", err)
 	}
 
-	defaultSession, err := h.manager.Create(t.Context(), CreateOpts{
+	defaultSession, err := h.manager.Create(t.Context(), new(CreateOpts{
 		ProfileID: store.DefaultProfileID,
 		AgentName: "credential-agent",
 		Name:      "default-user-credential",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(default credential) error = %v", err)
 	}
@@ -1090,11 +1090,11 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-pi-runtime"), nil
 			}
 
-			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder",
 				Name:      "pi-native-model-contract",
 				Workspace: h.workspaceID,
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create(pi native model contract) error = %v", err)
 			}

@@ -13,6 +13,9 @@ type AuthoringStore interface {
 		workspaceID string,
 		agentName string,
 		digest string,
+		profileID string,
 	) (Snapshot, bool, error)
-	DeleteHeartbeatAgentHistory(ctx context.Context, workspaceID string, agentName string, sourcePath string) error
+	DeleteHeartbeatAgentHistory(
+		ctx context.Context, workspaceID string, agentName string, sourcePath string, profileID string,
+	) error
 }

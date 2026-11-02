@@ -200,6 +200,7 @@ describe("sessionScopedDetailOptions", () => {
 describe("sessionResolvedInteractionsOptions", () => {
   const previousRows: SessionInteractionRecord[] = [
     {
+      session_id: "sess-1",
       interaction_id: "int-1",
       kind: "permission",
       provider_request_id: "turn_001:perm_1",

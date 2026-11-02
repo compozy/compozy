@@ -150,6 +150,7 @@ describe("OsSessionsModal", () => {
       total,
       working: 0,
       needsYou: 0,
+      instancesNeedingAttention: 0,
       scope: workspaceId ? { kind: "project", workspaceId } : { kind: "user" },
       lens: { profile: "default" },
       pair: null,

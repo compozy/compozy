@@ -88,3 +88,9 @@ subagent's ACP session alive must not leave the root in Waiting or hide it from 
 Finished count. The unchanged prioritized-wake case in
 `TestSubagentDaemonIntegration` verifies this against the real daemon/store;
 see the merge-train v0.4.0 report for the scoped result.
+
+B4 supervision impact: hold a permission on a Stays on session beyond the quiet
+warning/stop interval. Confirm the supervision payload includes `held_permission`,
+the session remains active without an inactivity warning, and answering removes
+that signal. Orphaned permissions after restart must not count as live work.
+Pending live QA; focused supervision tests are not a scenario execution receipt.

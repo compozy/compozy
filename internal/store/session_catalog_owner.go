@@ -83,7 +83,8 @@ func LookupSessionOwner(
 
 	var resolved SessionOwner
 	found := false
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		if strings.TrimSpace(entry.ID) != target {
 			continue
 		}

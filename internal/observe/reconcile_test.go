@@ -33,6 +33,8 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 
 		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
 			ID:            "sess-new",
+			InitiatorKind: "extension",
+			InitiatorID:   "ext-recovered",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "New",
 			AgentName:     "coder",
@@ -69,6 +71,13 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		}
 		if sessions[0].State != "stopped" {
 			t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
+		}
+		if sessions[0].InitiatorKind != "extension" || sessions[0].InitiatorID != "ext-recovered" {
+			t.Fatalf(
+				"reconciliation lost persisted initiator: %q/%q",
+				sessions[0].InitiatorKind,
+				sessions[0].InitiatorID,
+			)
 		}
 		if sessions[0].StopReason != store.StopUserCanceled {
 			t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
@@ -367,7 +376,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 		registration, err := h.registry.RegisterSessionWithCreationIdentity(
 			testutil.Context(t),
-			indexed,
+			&(indexed),
 			creationIdentity,
 		)
 		if err != nil {
@@ -468,7 +477,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		if _, err := h.registry.RegisterSessionWithCreationIdentity(ctx, info, creationIdentity); err != nil {
+		if _, err := h.registry.RegisterSessionWithCreationIdentity(ctx, &(info), creationIdentity); err != nil {
 			t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
 		}
 
@@ -535,7 +544,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 
 		h := newHarness(t)
 		now := h.now
-		if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
+		if err := h.observer.registry.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 			ID:            "sess-orphan",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "Orphan",
@@ -546,7 +555,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 			State:         "active",
 			CreatedAt:     now,
 			UpdatedAt:     now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 

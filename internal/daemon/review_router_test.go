@@ -838,8 +838,13 @@ type reviewRouterDeadlineSessions struct {
 	ctxErr      error
 }
 
-func (s *reviewRouterDeadlineSessions) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
-	return s.base.Create(ctx, opts)
+func (s *reviewRouterDeadlineSessions) Create(
+	ctx context.Context,
+	optsInput *session.CreateOpts,
+) (*session.Session, error) {
+	opts := *optsInput
+
+	return s.base.Create(ctx, &(opts))
 }
 
 func (s *reviewRouterDeadlineSessions) ListAll(ctx context.Context) ([]*session.Info, error) {

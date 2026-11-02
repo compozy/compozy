@@ -92,7 +92,7 @@ func parseACPToggleFlags(values []string) ([]contract.AgentACPOptionSelection, e
 		}
 		seen[id] = struct{}{}
 		parsed, err := strconv.ParseBool(value)
-		if err != nil || (value != "true" && value != "false") {
+		if err != nil || (value != toolBoolTrue && value != "false") {
 			return nil, fmt.Errorf("cli: invalid --%s %q: expected id=true|false", runtimeACPToggleFlag, raw)
 		}
 		toggles = append(toggles, contract.AgentACPOptionSelection{ID: id, BoolValue: new(parsed)})

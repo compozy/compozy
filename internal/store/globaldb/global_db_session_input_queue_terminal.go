@@ -204,7 +204,7 @@ func (g *SessionRepo) CancelSessionInput(
 			return getUpdatedErr
 		}
 		entry = updated
-		return nil
+		return sqlcgen.New(exec).ReleasePromptReports(ctx, existing.PromptAdmissionID)
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
@@ -230,14 +230,22 @@ func (g *SessionRepo) CancelPendingSessionInputs(
 		now = g.now()
 	}
 	nowRaw := store.FormatTimestamp(now.UTC())
-	rows, err := g.queries.CancelPendingSessionInputs(ctx, sqlcgen.CancelPendingSessionInputsParams{
-		CanceledStatus: store.SessionInputQueueStatusCanceled, Now: nullableSessionTime(now),
-		UpdatedAt: nowRaw, SessionID: target, SessionGeneration: generation,
-		QueuedStatus:      store.SessionInputQueueStatusQueued,
-		DispatchingStatus: store.SessionInputQueueStatusDispatching,
+	var rows int64
+	err := g.withImmediateTransaction(ctx, "cancel pending session inputs", func(exec globalSQLExecutor) error {
+		var cancelErr error
+		rows, cancelErr = sqlcgen.New(exec).CancelPendingSessionInputs(ctx, sqlcgen.CancelPendingSessionInputsParams{
+			CanceledStatus: store.SessionInputQueueStatusCanceled, Now: nullableSessionTime(now),
+			UpdatedAt: nowRaw, SessionID: target, SessionGeneration: generation,
+			QueuedStatus:      store.SessionInputQueueStatusQueued,
+			DispatchingStatus: store.SessionInputQueueStatusDispatching,
+		})
+		if cancelErr != nil {
+			return fmt.Errorf("store: cancel pending session inputs: %w", cancelErr)
+		}
+		return sqlcgen.New(exec).ReleaseCanceledSessionReports(ctx, target)
 	})
 	if err != nil {
-		return 0, fmt.Errorf("store: cancel pending session inputs: %w", err)
+		return 0, err
 	}
 	return int(rows), nil
 }
@@ -254,6 +262,12 @@ func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now
 	rows, err := g.queries.ListStaleDispatchingSessionInputs(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: list stale dispatching session inputs: %w", err)
+	}
+	if err := g.queries.RecoverUncertainPromptReports(ctx); err != nil {
+		return 0, err
+	}
+	if err := g.queries.RecoverReservedPromptReports(ctx); err != nil {
+		return 0, err
 	}
 	failed := 0
 	var errs []error

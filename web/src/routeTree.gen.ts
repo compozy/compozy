@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppActivityRouteImport } from './routes/_app/activity'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppAutomationsRouteImport } from './routes/_app/automations'
 import { Route as AppJobsRouteImport } from './routes/_app/jobs'
@@ -61,6 +62,7 @@ import { Route as AppTerminalIndexRouteImport } from './routes/_app/terminal/ind
 import { Route as AppTerminalTerminalIdRouteImport } from './routes/_app/terminal/$terminalId'
 import { Route as AppTriggersTriggerIdRouteImport } from './routes/_app/triggers.$triggerId'
 import { Route as AppAgentsNameIndexRouteImport } from './routes/_app/agents.$name.index'
+import { Route as AppAgentsNamePageRouteImport } from './routes/_app/agents.$name.$page'
 import { Route as AppAgentsNameSettingsRouteImport } from './routes/_app/agents.$name.settings'
 import { Route as AppAutomationsJobsJobIdRouteImport } from './routes/_app/automations.jobs.$jobId'
 import { Route as AppAutomationsTriggersTriggerIdRouteImport } from './routes/_app/automations.triggers.$triggerId'
@@ -84,6 +86,11 @@ const DesignSystemRoute = DesignSystemRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppActivityRoute = AppActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAgentsRoute = AppAgentsRouteImport.update({
@@ -333,6 +340,11 @@ const AppAgentsNameIndexRoute = AppAgentsNameIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppAgentsNameRoute,
 } as any)
+const AppAgentsNamePageRoute = AppAgentsNamePageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
+  getParentRoute: () => AppAgentsNameRoute,
+} as any)
 const AppAgentsNameSettingsRoute = AppAgentsNameSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -388,6 +400,7 @@ const AppTasksIdRunsRunIdRoute = AppTasksIdRunsRunIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/design-system': typeof DesignSystemRoute
+  '/activity': typeof AppActivityRoute
   '/agents': typeof AppAgentsRouteWithChildren
   '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
@@ -436,6 +449,7 @@ export interface FileRoutesByFullPath {
   '/marketplace/': typeof AppMarketplaceIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/terminal/': typeof AppTerminalIndexRoute
+  '/agents/$name/$page': typeof AppAgentsNamePageRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
   '/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
@@ -450,6 +464,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/design-system': typeof DesignSystemRoute
+  '/activity': typeof AppActivityRoute
   '/automations': typeof AppAutomationsRouteWithChildren
   '/jobs': typeof AppJobsRouteWithChildren
   '/loop-runs': typeof AppLoopRunsRouteWithChildren
@@ -494,6 +509,7 @@ export interface FileRoutesByTo {
   '/marketplace': typeof AppMarketplaceIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/terminal': typeof AppTerminalIndexRoute
+  '/agents/$name/$page': typeof AppAgentsNamePageRoute
   '/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
   '/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
@@ -510,6 +526,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/design-system': typeof DesignSystemRoute
+  '/_app/activity': typeof AppActivityRoute
   '/_app/agents': typeof AppAgentsRouteWithChildren
   '/_app/automations': typeof AppAutomationsRouteWithChildren
   '/_app/jobs': typeof AppJobsRouteWithChildren
@@ -559,6 +576,7 @@ export interface FileRoutesById {
   '/_app/marketplace/': typeof AppMarketplaceIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/terminal/': typeof AppTerminalIndexRoute
+  '/_app/agents/$name/$page': typeof AppAgentsNamePageRoute
   '/_app/agents/$name/settings': typeof AppAgentsNameSettingsRoute
   '/_app/automations/jobs/$jobId': typeof AppAutomationsJobsJobIdRoute
   '/_app/automations/triggers/$triggerId': typeof AppAutomationsTriggersTriggerIdRoute
@@ -576,6 +594,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/design-system'
+    | '/activity'
     | '/agents'
     | '/automations'
     | '/jobs'
@@ -624,6 +643,7 @@ export interface FileRouteTypes {
     | '/marketplace/'
     | '/settings/'
     | '/terminal/'
+    | '/agents/$name/$page'
     | '/agents/$name/settings'
     | '/automations/jobs/$jobId'
     | '/automations/triggers/$triggerId'
@@ -638,6 +658,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/design-system'
+    | '/activity'
     | '/automations'
     | '/jobs'
     | '/loop-runs'
@@ -682,6 +703,7 @@ export interface FileRouteTypes {
     | '/marketplace'
     | '/settings'
     | '/terminal'
+    | '/agents/$name/$page'
     | '/agents/$name/settings'
     | '/automations/jobs/$jobId'
     | '/automations/triggers/$triggerId'
@@ -697,6 +719,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/design-system'
+    | '/_app/activity'
     | '/_app/agents'
     | '/_app/automations'
     | '/_app/jobs'
@@ -746,6 +769,7 @@ export interface FileRouteTypes {
     | '/_app/marketplace/'
     | '/_app/settings/'
     | '/_app/terminal/'
+    | '/_app/agents/$name/$page'
     | '/_app/agents/$name/settings'
     | '/_app/automations/jobs/$jobId'
     | '/_app/automations/triggers/$triggerId'
@@ -785,6 +809,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/activity': {
+      id: '/_app/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppActivityRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/agents': {
@@ -1130,6 +1161,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsNameIndexRouteImport
       parentRoute: typeof AppAgentsNameRoute
     }
+    '/_app/agents/$name/$page': {
+      id: '/_app/agents/$name/$page'
+      path: '/$page'
+      fullPath: '/agents/$name/$page'
+      preLoaderRoute: typeof AppAgentsNamePageRouteImport
+      parentRoute: typeof AppAgentsNameRoute
+    }
     '/_app/agents/$name/settings': {
       id: '/_app/agents/$name/settings'
       path: '/settings'
@@ -1204,12 +1242,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppAgentsNameRouteChildren {
+  AppAgentsNamePageRoute: typeof AppAgentsNamePageRoute
   AppAgentsNameSettingsRoute: typeof AppAgentsNameSettingsRoute
   AppAgentsNameIndexRoute: typeof AppAgentsNameIndexRoute
   AppAgentsNameSessionsIdRoute: typeof AppAgentsNameSessionsIdRoute
 }
 
 const AppAgentsNameRouteChildren: AppAgentsNameRouteChildren = {
+  AppAgentsNamePageRoute: AppAgentsNamePageRoute,
   AppAgentsNameSettingsRoute: AppAgentsNameSettingsRoute,
   AppAgentsNameIndexRoute: AppAgentsNameIndexRoute,
   AppAgentsNameSessionsIdRoute: AppAgentsNameSessionsIdRoute,
@@ -1430,6 +1470,7 @@ const AppTriggersRouteWithChildren = AppTriggersRoute._addFileChildren(
 )
 
 interface AppRouteChildren {
+  AppActivityRoute: typeof AppActivityRoute
   AppAgentsRoute: typeof AppAgentsRouteWithChildren
   AppAutomationsRoute: typeof AppAutomationsRouteWithChildren
   AppJobsRoute: typeof AppJobsRouteWithChildren
@@ -1449,6 +1490,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppActivityRoute: AppActivityRoute,
   AppAgentsRoute: AppAgentsRouteWithChildren,
   AppAutomationsRoute: AppAutomationsRouteWithChildren,
   AppJobsRoute: AppJobsRouteWithChildren,

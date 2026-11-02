@@ -14,6 +14,7 @@ import (
 )
 
 type resolvedAuthoringTarget struct {
+	profileID     string
 	workspaceID   string
 	workspaceRoot string
 	agentName     string
@@ -26,6 +27,7 @@ type resolvedAuthoringTarget struct {
 }
 
 type normalizedAuthoringTarget struct {
+	profileID     string
 	workspaceID   string
 	workspaceRoot string
 	agentName     string
@@ -68,6 +70,7 @@ func (s *ManagedSoulAuthoringService) resolveTarget(
 		return resolvedAuthoringTarget{}, err
 	}
 	return resolvedAuthoringTarget{
+		profileID:     normalized.profileID,
 		workspaceID:   normalized.workspaceID,
 		workspaceRoot: normalized.workspaceRoot,
 		agentName:     normalized.agentName,
@@ -85,10 +88,14 @@ func normalizeAuthoringTarget(target AuthoringTarget) (normalizedAuthoringTarget
 	if err := config.Validate(); err != nil {
 		return normalizedAuthoringTarget{}, err
 	}
+	profileID := strings.TrimSpace(target.ProfileID)
 	workspaceID := strings.TrimSpace(target.WorkspaceID)
+	if profileID == "" && workspaceID != "" {
+		profileID = "00000000000000000000000000"
+	}
 	workspaceRoot := strings.TrimSpace(target.WorkspaceRoot)
 	agentName := strings.TrimSpace(target.AgentName)
-	if workspaceID == "" {
+	if workspaceID == "" && profileID == "" {
 		return normalizedAuthoringTarget{}, errors.New("soul: authoring workspace id is required")
 	}
 	if workspaceRoot == "" {
@@ -115,6 +122,7 @@ func normalizeAuthoringTarget(target AuthoringTarget) (normalizedAuthoringTarget
 		)
 	}
 	return normalizedAuthoringTarget{
+		profileID:     profileID,
 		workspaceID:   workspaceID,
 		workspaceRoot: workspaceRoot,
 		agentName:     agentName,

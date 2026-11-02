@@ -6,6 +6,11 @@ type HookContract[P any, Patch any] struct {
 	Event HookEvent
 }
 
+var HookAgentInstanceCreatedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceCreated}
+var HookAgentInstancePausedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstancePaused}
+var HookAgentInstanceResumedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceResumed}
+var HookAgentInstanceArchivedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceArchived}
+var HookAgentInstanceAdoptedContract = HookContract[AgentInstancePayload, AgentInstanceObservationPatch]{Event: HookEventAgentInstanceAdopted}
 var HookSubagentSettledContract = HookContract[SubagentSettledPayload, SubagentObservationPatch]{Event: HookEventSubagentSettled}
 var HookSessionPreCreateContract = HookContract[SessionPreCreatePayload, SessionCreatePatch]{Event: HookEventSessionPreCreate}
 var HookSessionPostCreateContract = HookContract[SessionPostCreatePayload, SessionPostCreatePatch]{Event: HookEventSessionPostCreate}
@@ -34,7 +39,7 @@ var HookAgentStoppedContract = HookContract[AgentStoppedPayload, AgentStoppedPat
 var HookAgentSoulSnapshotResolvedContract = HookContract[AgentSoulSnapshotResolvedPayload, AuthoredContextObservationPatch]{Event: HookEventAgentSoulSnapshotResolved}
 var HookAgentSoulMutationAfterContract = HookContract[AgentSoulMutationAfterPayload, AuthoredContextObservationPatch]{Event: HookEventAgentSoulMutationAfter}
 var HookAgentHeartbeatPolicyResolvedContract = HookContract[AgentHeartbeatPolicyResolvedPayload, AuthoredContextObservationPatch]{Event: HookEventAgentHeartbeatPolicyResolved}
-var HookAgentHeartbeatWakeBeforeContract = HookContract[AgentHeartbeatWakeBeforePayload, AuthoredContextObservationPatch]{Event: HookEventAgentHeartbeatWakeBefore}
+var HookAgentHeartbeatWakeBeforeContract = HookContract[AgentHeartbeatWakeBeforePayload, AgentHeartbeatWakePatch]{Event: HookEventAgentHeartbeatWakeBefore}
 var HookAgentHeartbeatWakeAfterContract = HookContract[AgentHeartbeatWakeAfterPayload, AuthoredContextObservationPatch]{Event: HookEventAgentHeartbeatWakeAfter}
 var HookSessionHealthUpdateAfterContract = HookContract[SessionHealthUpdateAfterPayload, AuthoredContextObservationPatch]{Event: HookEventSessionHealthUpdateAfter}
 var HookTurnStartContract = HookContract[TurnStartPayload, TurnStartPatch]{Event: HookEventTurnStart}

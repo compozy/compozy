@@ -28,3 +28,8 @@ retain their existing contracts. New worktree creation must reach ready before a
 session can bind. Targeted runtime evidence is recorded in [the binding report](../reports/2026-10-28-issue-992-session-binding.md);
 current-head browser/CI results and review dispositions are recorded in [PR #1002](https://github.com/compozy/compozy/pull/1002).
 Historical passes do not validate the added path.
+
+2026-11-01 (always-on-agent N-54) QA impact: fork a narrowed instance main and
+verify that its first provider launch already observes the instance permission
+ceiling. The child must not need a stop/resume cycle to narrow its permissions.
+Owning coverage: `TestInstancePermissionMode/Should_apply_the_parent_instance_ceiling_before_a_derived_session_is_registered`.

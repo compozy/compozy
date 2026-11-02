@@ -15,6 +15,7 @@ func SnapshotFromResolved(
 	agentName string,
 	resolved *ResolvedPolicy,
 	createdAt time.Time,
+	profileID string,
 ) (Snapshot, error) {
 	if resolved == nil {
 		return Snapshot{}, fmt.Errorf("%w: resolved policy is required", ErrInvalidSnapshot)
@@ -52,6 +53,7 @@ func SnapshotFromResolved(
 	snapshot := Snapshot{
 		ID:              id,
 		WorkspaceID:     workspaceID,
+		ProfileID:       profileID,
 		AgentName:       agentName,
 		SourcePath:      resolved.SourcePath,
 		SchemaVersion:   envelope.SchemaVersion,
@@ -99,6 +101,10 @@ func DiagnosticsJSON(diagnostics []Diagnostic) (json.RawMessage, error) {
 func (s Snapshot) Normalize() Snapshot {
 	s.ID = strings.TrimSpace(s.ID)
 	s.WorkspaceID = strings.TrimSpace(s.WorkspaceID)
+	s.ProfileID = strings.TrimSpace(s.ProfileID)
+	if s.ProfileID == "" && s.WorkspaceID != "" {
+		s.ProfileID = "00000000000000000000000000"
+	}
 	s.AgentName = strings.TrimSpace(s.AgentName)
 	s.SourcePath = strings.TrimSpace(s.SourcePath)
 	s.Digest = strings.TrimSpace(s.Digest)
@@ -124,6 +130,8 @@ func (s Snapshot) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return fmt.Errorf("%w: id is required", ErrInvalidSnapshot)
+	case normalized.WorkspaceID == "" && normalized.ProfileID == "":
+		return fmt.Errorf("%w: profile id is required for user scope", ErrInvalidSnapshot)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidSnapshot)
 	case normalized.SourcePath == "":

@@ -153,7 +153,7 @@ function ruleGist(entity: AutomationEntity, ctx: SentenceContext): string {
       ? "a task"
       : target.kind === "loop"
         ? target.loopName
-        : target.agentName;
+        : (ctx.agentLabel?.(target.agentName) ?? target.agentName);
   return `${starts} → ${does}`;
 }
 
@@ -212,7 +212,7 @@ function AutomationDetailLoaded({
     >
       {view.canEdit ? (
         <AutomationDeleteAction
-          consequence={automationDeleteConsequence(entity)}
+          consequence={automationDeleteConsequence(entity, sentenceContext.agentLabel)}
           hideTrigger
           isPending={state.isDeleting}
           key={`delete:${entity.id}`}

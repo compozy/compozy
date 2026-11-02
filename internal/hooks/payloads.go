@@ -9,6 +9,7 @@ import (
 
 var (
 	// ErrAutomationFireCancelled reports that a sync automation pre-fire hook canceled the dispatch.
+	ErrHeartbeatWakeCancelled  = errors.New("hooks: proactive heartbeat wake canceled")
 	ErrAutomationFireCancelled = errors.New("hooks: automation fire canceled")
 )
 

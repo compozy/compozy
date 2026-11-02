@@ -18,7 +18,7 @@ func TestHTTPAgentKernelRoutesMatchDocumentedSpecOperations(t *testing.T) {
 	t.Run("Should register every HTTP agent operation in the spec", func(t *testing.T) {
 		t.Parallel()
 
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
 
 		got := registeredHTTPAgentKernelRoutes(engine.Routes())
 		want := documentedHTTPAgentKernelRoutes()

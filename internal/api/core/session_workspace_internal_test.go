@@ -229,6 +229,7 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			session.ErrSessionArchived,
 			session.ErrSessionArchiveRequiresStopped,
 			store.ErrSessionArchived,
+			store.ErrSessionIsInstanceMain,
 		} {
 			if got := statusForSessionError(archiveErr); got != http.StatusConflict {
 				t.Fatalf("statusForSessionError(%v) = %d, want %d", archiveErr, got, http.StatusConflict)

@@ -57,6 +57,10 @@ export async function fetchAgentAggregate(
 
 export type AgentApiErrorKind = "digest_conflict" | "target_exists" | "generic";
 
+export function isAgentNotFound(error: unknown) {
+  return error instanceof AgentApiError && error.status === 404;
+}
+
 export class AgentApiError extends Error {
   status: number;
   readonly kind: AgentApiErrorKind;
@@ -170,8 +174,15 @@ export async function createAgent(
         defaultApiErrorMessage("Failed to create agent", response, error)
       );
     }
+    const message = defaultApiErrorMessage("Failed to create agent", response, error);
+    const missingDefault =
+      response.status === 400 &&
+      !params.agent.provider?.trim() &&
+      message.includes("agent provider is required;");
     throw new AgentApiError(
-      defaultApiErrorMessage("Failed to create agent", response, error),
+      missingDefault
+        ? "Couldn't create this agent. No default model is set. Choose a model and try again."
+        : message,
       response.status
     );
   }

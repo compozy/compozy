@@ -1,6 +1,10 @@
 import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
-import type { SessionInteractionRecord, SessionInteractionStatus } from "../types";
+import type {
+  SessionInteractionRecord,
+  SessionInteractionStatus,
+  SessionPendingInteraction,
+} from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
@@ -40,5 +44,28 @@ export async function fetchSessionInteractions(
     );
   }
   return requireResponseData(data, response, `Failed to fetch interactions for session "${id}"`)
+    .interactions;
+}
+
+/** A session's waiting asks and, for a main session, those of every session it started. */
+export async function fetchSessionPendingWithDescendants(
+  workspaceId: string,
+  id: string,
+  signal?: AbortSignal
+): Promise<SessionPendingInteraction[]> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions",
+    {
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { descendants: true },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to fetch requests for session "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to fetch requests for session "${id}"`)
     .interactions;
 }

@@ -7,11 +7,21 @@ import {
   fetchAgents,
 } from "../adapters/agent-api";
 import {
+  fetchAgentActivity,
+  fetchAgentInstanceCheckIns,
+  fetchAgentInstanceReports,
+  fetchAgentInstanceOccurrence,
+  fetchAgentInstances,
+  fetchAgentInstanceAway,
+  type AgentInstanceRef,
+} from "../adapters/agent-instance-api";
+import {
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
   fetchAgentHeartbeatStatus,
   type FetchAgentHeartbeatStatusParams,
 } from "../adapters/agent-heartbeat-api";
+import { fetchAgentMemory, fetchAgentMemoryHistory } from "../adapters/agent-memory-api";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
 import { agentKeys } from "./query-keys";
 import {
@@ -19,9 +29,158 @@ import {
   keepCatalogAcrossSearch,
   normalizeAgentCatalogFilter,
 } from "./agent-catalog-query";
-import type { AgentCatalogStableFilter } from "../types";
+import type { AgentCatalogStableFilter, AgentTeamItem } from "../types";
 
 const HEARTBEAT_STATUS_FRESHNESS_MS = 5_000;
+
+const CHECK_INS_SHOWN = 12;
+/** Every 5 minutes for a whole day fits. */
+const CHECK_INS_PER_DAY = 288;
+const OCCURRENCE_POLL_MS = 1_500;
+const GROUPED_CATALOG_PAGE = 100;
+
+/** Every instance a view sees, across scopes; `agent_instance.updated` keeps it live between reads. */
+export function agentInstancesOptions(view: string, profiles: readonly string[]) {
+  return queryOptions({
+    queryKey: agentKeys.instanceList(view, profiles),
+    queryFn: ({ signal }) => fetchAgentInstances(profiles, signal),
+    staleTime: 30_000,
+    retry: false,
+    enabled: profiles.length > 0,
+  });
+}
+
+/** One read per visit: the digest holds still until the operator leaves and it's marked seen. */
+export function agentInstanceAwayOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceAway(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceAway(ref, signal),
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+export function agentInstanceCheckInsOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceCheckIns(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_SHOWN, signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** All of today's check-ins for Check-ins' strip; the hover card keeps its short read. */
+export function agentInstanceDayCheckInsOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceDayCheckIns(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceCheckIns(ref, CHECK_INS_PER_DAY, signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** Polls a check started by Run it for real until the daemon says it finished. */
+export function agentInstanceOccurrenceOptions(ref: AgentInstanceRef, occurrence: string) {
+  return queryOptions({
+    queryKey: agentKeys.instanceOccurrence(ref.id, occurrence),
+    queryFn: ({ signal }) => fetchAgentInstanceOccurrence(ref, occurrence, signal),
+    retry: false,
+    refetchInterval: query =>
+      query.state.data?.state === "finished" || query.state.error ? false : OCCURRENCE_POLL_MS,
+  });
+}
+
+const REPORTS_SHOWN = 10;
+
+export function agentInstanceReportsOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceReports(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceReports(ref, REPORTS_SHOWN, signal),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** Every report that may not have reached the agent, however old: state is filtered server-side. */
+export function agentInstanceIndeterminateReportsOptions(ref: AgentInstanceRef) {
+  return queryOptions({
+    queryKey: agentKeys.instanceIndeterminateReports(ref.id),
+    queryFn: ({ signal }) => fetchAgentInstanceReports(ref, undefined, signal, "indeterminate"),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+async function fetchAgentTeam(workspace: string, profile: string, signal: AbortSignal) {
+  const agents: AgentTeamItem[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await fetchAgentCatalog(
+      {
+        group: "agent",
+        limit: GROUPED_CATALOG_PAGE,
+        profile,
+        ...(workspace ? { workspace } : {}),
+        ...(cursor ? { cursor } : {}),
+      },
+      signal
+    );
+    const rows = new Map(
+      (page.agents ?? []).map(row => [row.agent.definition_digest, row.sessions])
+    );
+    agents.push(
+      ...(page.items ?? []).map(item => {
+        const sessions = rows.get(item.definition_digest);
+        return sessions ? { ...item, sessions } : item;
+      })
+    );
+    cursor = page.page.has_more ? page.page.next_cursor : undefined;
+  } while (cursor);
+  return agents;
+}
+
+async function fetchStaysOnAgents(workspace: string, profile: string, signal: AbortSignal) {
+  const agents = await fetchAgentTeam(workspace, profile, signal);
+  return agents.filter(agent => agent.kind === "stays_on");
+}
+
+/** Every agent of a scope, one per definition, across pages; the page filters and counts them. */
+export function agentTeamOptions(workspace: string, profile = "default", enabled = true) {
+  return queryOptions({
+    queryKey: agentKeys.team(workspace, profile),
+    queryFn: ({ signal }) => fetchAgentTeam(workspace, profile, signal),
+    staleTime: 5_000,
+    enabled,
+  });
+}
+
+/** Activity rolls up by day, so a read stays good for a while. */
+export function agentActivityOptions(
+  name: string,
+  days: number,
+  workspace?: string | null,
+  profile = "default",
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: agentKeys.activity(name, days, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentActivity(name, { days, workspace, profile }, signal),
+    staleTime: 60_000,
+    retry: false,
+    enabled: enabled && !!name,
+  });
+}
+
+/** The stays-on agents a scope resolves; `""` reads the User scope. */
+export function staysOnAgentsOptions(workspace: string, profile = "default", enabled = true) {
+  return queryOptions({
+    queryKey: agentKeys.staysOnCatalog(workspace, profile),
+    queryFn: ({ signal }) => fetchStaysOnAgents(workspace, profile, signal),
+    staleTime: 5_000,
+    enabled,
+  });
+}
 
 export function agentCatalogOptions(workspace: string, filters: AgentCatalogStableFilter = {}) {
   const normalizedFilters = normalizeAgentCatalogFilter(filters);
@@ -99,6 +258,28 @@ export function agentSoulHistoryOptions(
   return queryOptions({
     queryKey: agentKeys.soulHistory(name, workspace, profile),
     queryFn: ({ signal }) => fetchAgentSoulHistory(name, workspace, signal, profile),
+    staleTime: 30_000,
+    enabled: !!name,
+  });
+}
+
+export function agentMemoryOptions(name: string, workspace?: string | null, profile = "default") {
+  return queryOptions({
+    queryKey: agentKeys.memory(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentMemory(name, workspace, signal, profile),
+    staleTime: 30_000,
+    enabled: !!name,
+  });
+}
+
+export function agentMemoryHistoryOptions(
+  name: string,
+  workspace?: string | null,
+  profile = "default"
+) {
+  return queryOptions({
+    queryKey: agentKeys.memoryHistory(name, workspace, profile),
+    queryFn: ({ signal }) => fetchAgentMemoryHistory(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });

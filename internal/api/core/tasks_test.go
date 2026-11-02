@@ -227,7 +227,7 @@ func TestBaseHandlersTaskExecutionProfileEndpoints(t *testing.T) {
 	}
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		tasks,
 		testutil.StubWorkspaceService{},
@@ -419,7 +419,7 @@ func TestBaseHandlersTaskRunReviewEndpoints(t *testing.T) {
 	}
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		tasks,
 		testutil.StubWorkspaceService{},
@@ -589,7 +589,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -721,7 +721,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -854,7 +854,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -930,7 +930,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -993,7 +993,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			workspaces,
@@ -1058,7 +1058,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			workspaces,
@@ -1122,7 +1122,7 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -1164,7 +1164,7 @@ func TestBaseHandlersTaskMutationOwners(t *testing.T) {
 		}
 		fixture := newHandlerFixtureWithTasks(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			tasks,
 			testutil.StubWorkspaceService{},
@@ -1224,7 +1224,7 @@ func TestBaseHandlersTaskMutationOwners(t *testing.T) {
 					return &run, nil
 				},
 			}
-			fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+			fixture := newHandlerFixtureWithTasks(t, &testutil.StubSessionManager{}, testutil.StubObserver{},
 				tasks, testutil.StubWorkspaceService{})
 			fixture.Handlers.Profiles = sessionProfileServiceStub{}
 			response := performRequest(t, fixture.Engine, http.MethodPost, tc.path+"?profile=marketing", []byte(`{}`))
@@ -1268,7 +1268,7 @@ func TestBaseHandlersTaskInspectOwners(t *testing.T) {
 					},
 				}, nil
 			}
-			fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+			fixture := newHandlerFixtureWithTasks(t, &testutil.StubSessionManager{}, testutil.StubObserver{},
 				&testutil.StubTaskManager{InspectTaskFn: inspect, InspectRunFn: inspect},
 				testutil.StubWorkspaceService{})
 			fixture.Handlers.Profiles = sessionProfileServiceStub{}
@@ -1678,7 +1678,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		tasks,
 		workspaces,
@@ -2192,7 +2192,7 @@ func TestBaseHandlersTaskActorResolverErrors(t *testing.T) {
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
@@ -2254,7 +2254,7 @@ func TestBaseHandlersTaskServiceUnavailable(t *testing.T) {
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},
@@ -2314,7 +2314,7 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{
 			ListTasksFn: func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error) {
@@ -2474,7 +2474,7 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 				)
 			}
 			fixture := newHandlerFixtureWithTasks(
-				t, testutil.StubSessionManager{}, testutil.StubObserver{},
+				t, &testutil.StubSessionManager{}, testutil.StubObserver{},
 				&testutil.StubTaskManager{
 					CompleteRunFn: func(_ context.Context, runID string, _ taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						return conflict(runID, actor)
@@ -2512,7 +2512,7 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		&testutil.StubTaskManager{},
 		testutil.StubWorkspaceService{},

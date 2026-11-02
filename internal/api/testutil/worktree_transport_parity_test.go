@@ -173,7 +173,7 @@ func newWorktreeParityHTTPRouter(t *testing.T, service core.WorktreeService) htt
 		httpapi.WithHost(cfg.HTTP.Host), httpapi.WithPort(cfg.HTTP.Port),
 		httpapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		httpapi.WithStartedAt(parityWorktreeTime()), httpapi.WithNow(parityWorktreeTime),
-		httpapi.WithSessionManager(testutil.StubSessionManager{}),
+		httpapi.WithSessionManager(&testutil.StubSessionManager{}),
 		httpapi.WithTaskService(&testutil.StubTaskManager{}), httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(parityWorkspaceService()), httpapi.WithWorktreeService(service),
 	); err != nil {
@@ -192,7 +192,7 @@ func newWorktreeParityUDSRouter(t *testing.T, service core.WorktreeService) http
 		udsapi.WithEngine(engine), udsapi.WithHomePaths(homePaths), udsapi.WithConfig(&cfg),
 		udsapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		udsapi.WithStartedAt(parityWorktreeTime()), udsapi.WithNow(parityWorktreeTime),
-		udsapi.WithSessionManager(testutil.StubSessionManager{}),
+		udsapi.WithSessionManager(&testutil.StubSessionManager{}),
 		udsapi.WithTaskService(&testutil.StubTaskManager{}), udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(parityWorkspaceService()), udsapi.WithWorktreeService(service),
 	); err != nil {

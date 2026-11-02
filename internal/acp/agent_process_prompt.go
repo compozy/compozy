@@ -88,6 +88,9 @@ func (p *AgentProcess) beginPromptState(
 ) (*activePromptState, error) {
 	p.promptMu.Lock()
 	defer p.promptMu.Unlock()
+	if p.triagePolicyErr != nil {
+		return nil, p.triagePolicyErr
+	}
 	if p.activePrompt != nil {
 		return nil, errors.New("acp: prompt already in progress")
 	}

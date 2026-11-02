@@ -33,7 +33,7 @@ import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
 import { LiveOsWinLayer } from "./os-win-layer";
-import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
+import { AgentCreateHostProvider, AgentCreateScreen } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
   ProfileLifecycleHost,
@@ -426,8 +426,11 @@ function DesktopShellScopedBody({
         scopeId={worktreeScopeId}
         worktreeDialogs={worktreeDialogs}
       />
-      <AgentCreateDialog
+      <AgentCreateScreen
+        instanceCapacity={model.agentCreate.instanceCapacity}
         draft={model.agentCreate.draft}
+        duplicateSourceName={model.agentCreate.duplicateSourceName}
+        entrySeed={model.agentCreate.entrySeed}
         hasActiveWorkspace={model.agentCreate.hasActiveWorkspace}
         isSubmitting={model.agentCreate.isSubmitting}
         modelCatalogError={model.agentCreate.modelCatalogError}
@@ -435,6 +438,7 @@ function DesktopShellScopedBody({
         modelCatalogRefreshing={model.agentCreate.modelCatalogRefreshing}
         onDraftChange={model.agentCreate.onDraftChange}
         onOpenChange={model.agentCreate.onOpenChange}
+        onOpenCreatedAgent={model.agentCreate.onOpenCreatedAgent}
         onOpenProviderSettings={model.agentCreate.onOpenProviderSettings}
         onRefreshCatalog={model.agentCreate.onRefreshCatalog}
         onSubmit={model.agentCreate.onSubmit}
@@ -443,9 +447,11 @@ function DesktopShellScopedBody({
         providersError={model.agentCreate.providersError}
         providersLoading={model.agentCreate.providersLoading}
         runtimeModels={model.agentCreate.runtimeModels}
+        startFailure={model.agentCreate.startFailure}
         submitError={model.agentCreate.submitError}
-        workspaceId={model.agentCreate.workspaceId}
+        takenNames={model.agentCreate.takenNames}
         workspaceName={model.agentCreate.workspaceName}
+        workspaces={model.agentCreate.workspaces}
       />
       {/* Profile lifecycle dialogs live at the shell so a flow started from the
           command palette does not depend on Settings being open. */}

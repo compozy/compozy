@@ -389,13 +389,13 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 			h := newOpenCodeInvocationManager(t, []compozyconfig.AgentDef{
 				openCodeInvocationAgent("You are a coding assistant."),
 			})
-			sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName:       "coder",
 				Provider:        "opencode",
 				Model:           opencodeInvocationTestModel,
 				ReasoningEffort: opencodeInvocationTestEffort,
 				Workspace:       h.workspaceID,
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -495,13 +495,13 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 			Prompt: "You are a coding assistant.",
 		}})
 
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "opencode",
 			Model:           opencodeInvocationTestModel,
 			ReasoningEffort: opencodeInvocationTestEffort,
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(explicit) error = %v", err)
 		}
@@ -539,10 +539,10 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 		rejectHarness := newOpenCodeInvocationManager(t, []compozyconfig.AgentDef{{
 			Name: "rejector", Provider: "opencode", Prompt: "You are a coding assistant.",
 		}})
-		rejected, err := rejectHarness.manager.Create(testutil.Context(t), CreateOpts{
+		rejected, err := rejectHarness.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "rejector",
 			Workspace: rejectHarness.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(reject harness) error = %v", err)
 		}
@@ -591,13 +591,13 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 		h := newOpenCodeInvocationManager(t, []compozyconfig.AgentDef{
 			openCodeInvocationAgent("You are a coding assistant."),
 		})
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "opencode",
 			Model:           opencodeInvocationTestModel,
 			ReasoningEffort: opencodeInvocationTestEffort,
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err == nil {
 			stopOpenCodeInvocationSession(t, h.manager, sess)
 			t.Fatal("Create(failing native) error = nil, want startup failure")
@@ -623,13 +623,13 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 		if err := os.Remove(filepath.Join(fx.dir, "acp-fail")); err != nil {
 			t.Fatalf("Remove(acp-fail) error = %v", err)
 		}
-		recovered, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		recovered, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "opencode",
 			Model:           opencodeInvocationTestModel,
 			ReasoningEffort: opencodeInvocationTestEffort,
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(recovered) error = %v", err)
 		}
@@ -660,13 +660,13 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 		h := newOpenCodeInvocationManager(t, []compozyconfig.AgentDef{
 			openCodeInvocationAgent("You are a coding assistant."),
 		})
-		sess, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		sess, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:       "coder",
 			Provider:        "opencode",
 			Model:           opencodeInvocationTestModel,
 			ReasoningEffort: opencodeInvocationTestEffort,
 			Workspace:       h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(npm) error = %v", err)
 		}

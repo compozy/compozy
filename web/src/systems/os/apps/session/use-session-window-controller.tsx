@@ -16,12 +16,14 @@ import {
   useSessionGoalHeader,
   useSessionInspectorState,
   useSessionPromptRuntimeContext,
+  sessionSuccessorId,
   useSessionTopbarSlot,
   useSessionTransportState,
   useSessionWorktreeBinding,
   useSessionContext,
   useSessionUsageTurns,
 } from "@/systems/session";
+import { useAgentInstances } from "@/systems/agent";
 import type { WorktreePayload } from "@/systems/workspace";
 
 function toInspectorUsage(
@@ -125,6 +127,8 @@ export function useSessionWindowController(input: {
     queuePrompt: controls.handleQueuePrompt,
   });
 
+  const instances = useAgentInstances();
+
   useSessionTopbarSlot({
     session,
     pullRequestExit: pullRequest.pullRequestExit,
@@ -172,6 +176,8 @@ export function useSessionWindowController(input: {
       void sessionCommands.refetch();
     },
     worktreeBinding,
+    onSendPrompt: pullRequest.onSendPrompt,
+    successorId: sessionSuccessorId(session, instances),
     /** Dialogs and progress of an exit action started from the PR chip. */
     pullRequestExitSurface: pullRequest.exitSurface,
     promptRuntimeSnapshot,

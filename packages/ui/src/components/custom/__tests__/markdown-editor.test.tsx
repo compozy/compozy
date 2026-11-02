@@ -93,4 +93,12 @@ describe("MarkdownEditor", () => {
     await user.click(screen.getByRole("button", { name: "Reset" }));
     expect(box).toHaveTextContent("");
   });
+
+  it("Should drop the short field's scroll bound in the tall height", async () => {
+    render(<Harness height="tall" initial="a page of instructions" />);
+    const box = await screen.findByRole("textbox", { name: "Note" });
+    const scroller = box.closest("[data-height]");
+    expect(scroller).toHaveAttribute("data-height", "tall");
+    expect(scroller).not.toHaveClass("max-h-60");
+  });
 });

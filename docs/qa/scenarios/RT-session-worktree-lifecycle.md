@@ -63,3 +63,9 @@ retain their existing contracts. New worktree creation must reach ready before a
 session can bind. Targeted runtime evidence is recorded in [the binding report](../reports/2026-10-28-issue-992-session-binding.md);
 current-head browser/CI results and review dispositions are recorded in [PR #1002](https://github.com/compozy/compozy/pull/1002).
 Historical passes do not validate the added path.
+
+2026-11-01 (always-on-agent D-22) QA impact: bind and unbind a stopped ordinary
+session while the held-permission work-signal source is installed. Both operations
+must preserve the stopped state and must not launch a provider. The owning case is
+`TestManagerIntegrationWorktreeBindingLifecycle/Should_bind_stopped_sessions_and_leave_a_removed_checkout`.
+Focused integration passed with `CGO_ENABLED=1 go test -race -tags=integration ./internal/session -run TestManagerIntegrationWorktreeBindingLifecycle/Should_bind_stopped -count=1` (6.794s), with `COMPOZY_*` unset and an isolated build cache. This verifies stopped-session binding with real SQLite and worktrees; the broader scenario verdict is unchanged.

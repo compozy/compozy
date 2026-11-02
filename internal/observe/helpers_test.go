@@ -162,7 +162,7 @@ func TestHealthFallsBackToRegistryWithoutSessionSource(t *testing.T) {
 		{ID: "sess-orphaned", AgentName: "coder", WorkspaceID: h.workspaceID, State: "orphaned", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now},
 	} {
 		info.ProfileID = store.DefaultProfileID
-		if err := h.observer.registry.RegisterSession(testutil.Context(t), info); err != nil {
+		if err := h.observer.registry.RegisterSession(testutil.Context(t), &(info)); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}

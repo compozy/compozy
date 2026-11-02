@@ -80,6 +80,11 @@ func processRecordContext(parent context.Context, timeout time.Duration) (contex
 }
 
 func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
+	var policyErr error
+	opts, policyErr = constrainTriageStart(opts)
+	if policyErr != nil {
+		return StartOpts{}, policyErr
+	}
 	if err := opts.validateBase(); err != nil {
 		return StartOpts{}, err
 	}

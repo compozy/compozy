@@ -21,6 +21,7 @@ func scanHeartbeatSnapshot(scanner rowScanner) (heartbeat.Snapshot, error) {
 	if err := scanner.Scan(
 		&snapshot.ID,
 		&snapshot.WorkspaceID,
+		&snapshot.ProfileID,
 		&snapshot.AgentName,
 		&snapshot.SourcePath,
 		&snapshot.SchemaVersion,
@@ -62,6 +63,7 @@ func scanHeartbeatRevision(scanner rowScanner) (heartbeat.Revision, error) {
 	if err := scanner.Scan(
 		&revision.ID,
 		&revision.WorkspaceID,
+		&revision.ProfileID,
 		&revision.AgentName,
 		&revision.SourcePath,
 		&operation,
@@ -212,6 +214,7 @@ func scanHeartbeatWakeEvent(scanner rowScanner) (heartbeat.WakeEvent, error) {
 		&source,
 		&result,
 		&reason,
+		&event.Detail,
 		&syntheticPromptID,
 		&createdRaw,
 		&expiresRaw,

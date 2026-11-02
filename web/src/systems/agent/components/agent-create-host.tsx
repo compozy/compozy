@@ -9,7 +9,7 @@ import type { AgentPayload } from "@/systems/agent/types";
 export type { AgentCreateHostValue };
 
 export interface AgentCreateHostProviderProps {
-  openDialog: () => void;
+  openDialog: AgentCreateHostValue["openDialog"];
   openForDuplicate: (agent: AgentPayload) => void;
   children: ReactNode;
 }

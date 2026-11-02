@@ -39,6 +39,7 @@ func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 		normalized.WorkspaceID,
 		normalized.AgentName,
 		normalized.Digest,
+		normalized.ProfileID,
 	)
 	if err != nil {
 		return soul.Snapshot{}, err
@@ -48,7 +49,8 @@ func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 	}
 
 	affected, err := g.queries.InsertSoulSnapshot(ctx, sqlcgen.InsertSoulSnapshotParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID, AgentName: normalized.AgentName,
+		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
+		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
 		SourcePath: normalized.SourcePath, Digest: normalized.Digest, ProfileJson: string(normalized.ProfileJSON),
 		Body: normalized.Body, Truncated: int64(soulBoolToInt(normalized.Truncated)),
 		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
@@ -62,6 +64,7 @@ func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 			normalized.WorkspaceID,
 			normalized.AgentName,
 			normalized.Digest,
+			normalized.ProfileID,
 		)
 		if err != nil {
 			return soul.Snapshot{}, err
@@ -104,14 +107,19 @@ func (g *SoulRepo) FindSoulSnapshotByDigest(
 	workspaceID string,
 	agentName string,
 	digest string,
+	profileID string,
 ) (soul.Snapshot, bool, error) {
 	if err := g.checkReady(ctx, "find soul snapshot by digest"); err != nil {
 		return soul.Snapshot{}, false, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" && workspaceID != "" {
+		profileID = store.DefaultProfileID
+	}
 	agentName = strings.TrimSpace(agentName)
 	digest = strings.TrimSpace(digest)
-	if workspaceID == "" || agentName == "" || digest == "" {
+	if (workspaceID == "" && profileID == "") || agentName == "" || digest == "" {
 		return soul.Snapshot{}, false, fmt.Errorf(
 			"%w: workspace id, agent name, and digest are required",
 			soul.ErrInvalidSnapshot,
@@ -119,7 +127,7 @@ func (g *SoulRepo) FindSoulSnapshotByDigest(
 	}
 
 	row, err := g.queries.GetSoulSnapshotByDigest(ctx, sqlcgen.GetSoulSnapshotByDigestParams{
-		WorkspaceID: workspaceID, AgentName: agentName, Digest: digest,
+		WorkspaceID: workspaceID, ProfileID: profileID, AgentName: agentName, Digest: digest,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Snapshot{}, false, nil
@@ -144,13 +152,21 @@ func (g *SoulRepo) ListSoulSnapshots(
 	}
 
 	// dynamic-sql: optional workspace/agent/digest filters and the caller limit change the statement shape.
-	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
+	sqlQuery := `SELECT id, workspace_id, profile_id, agent_name, source_path, digest,
+		profile_json, body, truncated, created_at
 		FROM agent_soul_snapshots`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("digest", query.Digest),
 	)
+	if strings.TrimSpace(query.ProfileID) != "" {
+		where = append(where, "profile_id = ?")
+		args = append(args, strings.TrimSpace(query.ProfileID))
+		if strings.TrimSpace(query.WorkspaceID) == "" {
+			where = append(where, "workspace_id = ''")
+		}
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY created_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -201,7 +217,8 @@ func (g *SoulRepo) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 	}
 
 	err := g.queries.InsertSoulRevision(ctx, sqlcgen.InsertSoulRevisionParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID, AgentName: normalized.AgentName,
+		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
+		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
 		SourcePath: normalized.SourcePath, Action: string(normalized.Action),
 		PreviousDigest: normalized.PreviousDigest, NewDigest: normalized.NewDigest, Body: normalized.Body,
 		DiagnosticsJson: string(normalized.DiagnosticsJSON), ActorKind: normalized.ActorKind,
@@ -247,7 +264,7 @@ func (g *SoulRepo) ListSoulRevisions(
 	}
 
 	// dynamic-sql: optional workspace/agent/source/action filters and the caller limit change the statement shape.
-	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
+	sqlQuery := `SELECT id, workspace_id, profile_id, agent_name, source_path, action, previous_digest, new_digest,
 			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		FROM agent_soul_revisions`
 	where, args := store.BuildClauses(
@@ -256,6 +273,13 @@ func (g *SoulRepo) ListSoulRevisions(
 		store.StringClause("source_path", query.SourcePath),
 		store.StringClause("action", string(query.Action)),
 	)
+	if strings.TrimSpace(query.ProfileID) != "" {
+		where = append(where, "profile_id = ?")
+		args = append(args, strings.TrimSpace(query.ProfileID))
+		if strings.TrimSpace(query.WorkspaceID) == "" {
+			where = append(where, "workspace_id = ''")
+		}
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += " ORDER BY created_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -297,7 +321,8 @@ func (g *SoulRepo) FindSoulRevisionForRollback(
 	}
 
 	row, err := g.queries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID), AgentName: strings.TrimSpace(query.AgentName),
+		ProfileID: authoringProfileID(query.ProfileID), WorkspaceID: strings.TrimSpace(query.WorkspaceID),
+		AgentName:  strings.TrimSpace(query.AgentName),
 		SourcePath: strings.TrimSpace(query.SourcePath),
 		ID:         strings.TrimSpace(query.RevisionID),
 	})
@@ -351,6 +376,7 @@ func scanSoulSnapshot(scanner rowScanner) (soul.Snapshot, error) {
 	if err := scanner.Scan(
 		&snapshot.ID,
 		&snapshot.WorkspaceID,
+		&snapshot.ProfileID,
 		&snapshot.AgentName,
 		&snapshot.SourcePath,
 		&snapshot.Digest,
@@ -384,6 +410,7 @@ func scanSoulRevision(scanner rowScanner) (soul.Revision, error) {
 	if err := scanner.Scan(
 		&revision.ID,
 		&revision.WorkspaceID,
+		&revision.ProfileID,
 		&revision.AgentName,
 		&revision.SourcePath,
 		&action,

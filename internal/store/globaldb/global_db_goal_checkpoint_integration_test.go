@@ -446,7 +446,7 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(originSessionID, "ws-goal-pause-before-checkpoint", registeredAt),
+			new(goalSessionInfoForTest(originSessionID, "ws-goal-pause-before-checkpoint", registeredAt)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-pause-before-checkpoint",
 				PolicySpecDigest:   "policy-pause-before-checkpoint",

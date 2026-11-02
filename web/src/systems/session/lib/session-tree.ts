@@ -11,6 +11,8 @@ export type SessionTreeAction = "archive" | "delete";
 /** Each target's child sessions, recursively, as the daemon reports them. */
 export type SessionTrees = ReadonlyMap<string, readonly SessionPayload[]>;
 
+export class SessionTreeReadError extends Error {}
+
 /** The child sessions a confirmation offers to include, and the answer so far. */
 export interface SessionChildrenChoice {
   count: number;
@@ -118,7 +120,11 @@ export async function readSessionChoiceTargets(
   const current = await readCurrentSessions(queryClient, sessions);
   if (action === "stop") return { current, trees: new Map() as SessionTrees };
   const { trees, errors } = await readSessionTrees(queryClient, current.sessions);
-  if (sessions.length === 1 && errors.size > 0) throw errors.values().next().value;
+  if (sessions.length === 1 && errors.size > 0) {
+    throw new SessionTreeReadError("Couldn't read child sessions.", {
+      cause: errors.values().next().value,
+    });
+  }
   return {
     current: {
       sessions: current.sessions.filter(session => !errors.has(session.id)),
@@ -151,7 +157,7 @@ export function sessionChildrenChoice(
   onIncludedChange: (included: boolean) => void,
   read: { pending: boolean; onRetry?: () => void } = { pending: false }
 ): SessionChildrenChoice | undefined {
-  if (scope.members.length === 0) return undefined;
+  if (scope.members.length === 0 && !read.pending && !read.onRetry) return undefined;
   return {
     count: scope.members.length,
     included,

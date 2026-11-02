@@ -34,6 +34,12 @@ describe("thinking state", () => {
     expect(assistantMessageHasRenderableContent(content)).toBe(true);
   });
 
+  it("Should mount a report without counting it as the agent's reply", () => {
+    const content = [{ type: "data-compozy-report", data: { report_id: "arpt-1" } }];
+    expect(assistantMessageHasContent(content)).toBe(false);
+    expect(assistantMessageHasRenderableContent(content)).toBe(true);
+  });
+
   it("Should hold the thinking frame back inside the flicker guard, then show it", () => {
     const base = { running: true, hasContent: false, failed: false, sentAtMs: sentAt };
     expect(deriveThinkingState({ ...base, nowMs: sentAt + 50 })).toBe("pending");

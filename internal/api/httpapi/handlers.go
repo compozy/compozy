@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
+
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -24,6 +26,7 @@ const (
 )
 
 type handlerConfig struct {
+	agentInstances        *core.AgentInstanceAPI
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService
@@ -71,6 +74,7 @@ type handlerConfig struct {
 	coordinatorRole       core.CoordinatorRoleResolver
 	roles                 core.RolesStatusProvider
 	soulAuthoring         core.SoulAuthoringService
+	agentMemory           *agentmemory.Store
 	soulHistoryPurger     core.SoulHistoryPurger
 	soulRefresher         core.SoulRefresher
 	heartbeatAuthor       core.HeartbeatAuthoringService
@@ -201,11 +205,13 @@ func coreHandlerConfig(cfg *handlerConfig, boundHost string) *core.BaseHandlerCo
 func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 	return &core.BaseHandlerConfig{
 		SoulAuthoring:          cfg.soulAuthoring,
+		AgentMemory:            cfg.agentMemory,
 		SoulHistoryPurger:      cfg.soulHistoryPurger,
 		SoulRefresher:          cfg.soulRefresher,
 		HeartbeatAuthoring:     cfg.heartbeatAuthor,
 		HeartbeatHistoryPurger: cfg.heartbeatPurger,
 		HeartbeatStatus:        cfg.heartbeatStatus,
+		AgentInstances:         cfg.agentInstances,
 		HeartbeatWake:          cfg.heartbeatWake,
 		HeartbeatWakeEvents:    cfg.wakeEvents,
 		Sessions:               cfg.sessions,

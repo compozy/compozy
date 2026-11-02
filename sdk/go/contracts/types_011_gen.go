@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+type InputAttachmentMetadata struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	MIME  string `json:"mime"`
+	Bytes int64  `json:"bytes"`
+	Kind  string `json:"kind"`
+}
+
+type InputMentionKind string
+
+const (
+	InputMentionKindFile    InputMentionKind = "file"
+	InputMentionKindFolder  InputMentionKind = "folder"
+	InputMentionKindSession InputMentionKind = "session"
+)
+
+type InputMentionMetadata struct {
+	Kind   InputMentionKind `json:"kind"`
+	Token  string           `json:"token"`
+	Target string           `json:"target"`
+	Label  string           `json:"label"`
+	Start  int              `json:"start"`
+	End    int              `json:"end"`
+}
+
 type InputPreSubmitPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -341,44 +366,4 @@ type LoopProvenance struct {
 	Generation *int               `json:"generation,omitempty"`
 	NodeID     string             `json:"node_id,omitempty"`
 	ItemIndex  *int               `json:"item_index,omitempty"`
-}
-
-type LoopProvenanceRole string
-
-const (
-	LoopProvenanceRoleCoordinator LoopProvenanceRole = "coordinator"
-	LoopProvenanceRoleCell        LoopProvenanceRole = "cell"
-)
-
-type LoopStartedPayload struct {
-	Event           HookEvent       `json:"event"`
-	Timestamp       time.Time       `json:"timestamp"`
-	ProfileID       string          `json:"profile_id,omitempty"`
-	LoopRunID       string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	LoopName        string          `json:"loop_name,omitempty"`
-	Generation      int             `json:"generation,omitempty"`
-	TaskID          string          `json:"task_id,omitempty"`
-	RunID           string          `json:"run_id,omitempty"`
-	RunKind         string          `json:"run_kind,omitempty"`
-	NodeID          string          `json:"node_id,omitempty"`
-	WorkflowID      string          `json:"workflow_id,omitempty"`
-	AgentName       string          `json:"agent_name,omitempty"`
-	SessionID       string          `json:"session_id,omitempty"`
-	ActorKind       string          `json:"actor_kind,omitempty"`
-	ActorID         string          `json:"actor_id,omitempty"`
-	OriginKind      string          `json:"origin_kind,omitempty"`
-	OriginRef       string          `json:"origin_ref,omitempty"`
-	Status          string          `json:"status,omitempty"`
-	Cause           string          `json:"cause,omitempty"`
-	ReasonCode      string          `json:"reason_code,omitempty"`
-	Details         json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopTarget struct {
-	WorkspaceID  string            `json:"workspace_id"`
-	LoopName     string            `json:"loop_name"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
 }

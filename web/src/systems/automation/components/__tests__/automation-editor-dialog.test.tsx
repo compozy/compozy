@@ -51,6 +51,7 @@ import {
   type AutomationEditorSection,
   type AutomationFormDraft,
 } from "../../lib/automation-form-draft";
+import { humanizeAgentSlug } from "@/systems/agent";
 
 const WORKSPACES = [
   { id: "ws_test", name: "checkout-api" },
@@ -198,7 +199,7 @@ describe("AutomationEditorDialog", () => {
     });
 
     expect(sentence()).toHaveTextContent(
-      `Every day at 09:00 UTC, ask ${AGENT} to summarize yesterday.`
+      `Every day at 09:00 UTC, ask ${humanizeAgentSlug(AGENT)} to summarize yesterday.`
     );
     expect(status()).toHaveTextContent("Ready");
     expect(submit()).toBeEnabled();
@@ -275,7 +276,7 @@ describe("AutomationEditorDialog", () => {
     render(<EditorHarness draft={readyDraft()} />);
 
     expect(sentence()).toHaveTextContent(
-      `Every day at 09:00 America/Sao_Paulo, ask ${AGENT} to summarize yesterday's sessions.`
+      `Every day at 09:00 America/Sao_Paulo, ask ${humanizeAgentSlug(AGENT)} to summarize yesterday's sessions.`
     );
     fireEvent.click(screen.getByRole("button", { name: "Weekdays 9am" }));
     expect(readout()).toHaveTextContent("Every weekday at 09:00 America/Sao_Paulo");

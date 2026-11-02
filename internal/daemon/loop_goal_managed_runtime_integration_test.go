@@ -115,9 +115,9 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if err != nil || queued.Status != store.SessionPromptResultStatusQueued || queued.QueuePosition != 1 {
 			t.Fatalf("queue admission = %#v, %v", queued, err)
 		}
-		target, err := fixture.manager.Create(ctx, session.CreateOpts{
+		target, err := fixture.manager.Create(ctx, new(session.CreateOpts{
 			Workspace: string(fixture.run.WorkspaceID), AgentName: fixture.agentName,
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1964,8 +1964,10 @@ type failFirstEnsureCreatedManager struct {
 
 func (m *failFirstEnsureCreatedManager) EnsureCreated(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (session.EnsureCreatedResult, error) {
+	opts := *optsInput
+
 	if m.failed.CompareAndSwap(false, true) {
 		if m.beforeFailure != nil {
 			if err := m.beforeFailure(ctx); err != nil {
@@ -1978,14 +1980,16 @@ func (m *failFirstEnsureCreatedManager) EnsureCreated(
 			Err:    errors.New("injected known-false creation failure"),
 		}
 	}
-	return m.Manager.EnsureCreated(ctx, opts)
+	return m.Manager.EnsureCreated(ctx, &(opts))
 }
 
 func (m *delayedEnsureCreatedManager) EnsureCreated(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (session.EnsureCreatedResult, error) {
-	result, err := m.Manager.EnsureCreated(ctx, opts)
+	opts := *optsInput
+
+	result, err := m.Manager.EnsureCreated(ctx, &(opts))
 	close(m.materialized)
 	select {
 	case <-m.release:
@@ -2215,13 +2219,13 @@ func (f *loopGoalManagedRuntimeFixture) createOriginSession(
 	sessionID := "sess-goal-origin-" + suffix
 	opts.DesiredSessionID = sessionID
 
-	identity, err := bindingCreationIdentity(profile, opts, sessionID)
+	identity, err := bindingCreationIdentity(profile, &(opts), sessionID)
 	if err != nil {
 		t.Fatalf("bindingCreationIdentity(origin) error = %v", err)
 	}
 	opts.CreationProfile = cloneStoreCreationProfile(profile)
 	opts.CreationIdentity = cloneStoreCreationIdentity(identity)
-	if _, err := f.manager.EnsureCreated(ctx, opts); err != nil {
+	if _, err := f.manager.EnsureCreated(ctx, &(opts)); err != nil {
 		t.Fatalf("EnsureCreated(origin) error = %v", err)
 	}
 	return sessionID, identity

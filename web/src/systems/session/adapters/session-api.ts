@@ -55,6 +55,7 @@ export {
 } from "./session-clarification-api";
 export {
   fetchSessionInteractions,
+  fetchSessionPendingWithDescendants,
   type FetchSessionInteractionsOptions,
 } from "./session-interactions-api";
 export {

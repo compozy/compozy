@@ -845,7 +845,7 @@ func TestToolApprovalHandlersMintAndConsumeSingleUseTokens(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName: "api-core-test",
 			Profiles:      sessionProfileServiceStub{},
-			Sessions:      testutil.StubSessionManager{},
+			Sessions:      &testutil.StubSessionManager{},
 			Observer:      testutil.StubObserver{},
 			Tasks:         &testutil.StubTaskManager{},
 			Workspaces:    testutil.StubWorkspaceService{},
@@ -1009,7 +1009,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
-			Sessions:           testutil.StubSessionManager{},
+			Sessions:           &testutil.StubSessionManager{},
 			Observer:           testutil.StubObserver{},
 			Tasks:              &testutil.StubTaskManager{},
 			Workspaces:         testutil.StubWorkspaceService{},
@@ -1058,7 +1058,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 		homePaths, cfg := testutil.NewHomeConfig(t)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
-			Sessions:           testutil.StubSessionManager{},
+			Sessions:           &testutil.StubSessionManager{},
 			Observer:           testutil.StubObserver{},
 			Tasks:              &testutil.StubTaskManager{},
 			Workspaces:         testutil.StubWorkspaceService{},
@@ -1132,7 +1132,7 @@ func TestToolHandlersPropagateScopeDefaultsAndSanitizeErrors(t *testing.T) {
 				homePaths, cfg := testutil.NewHomeConfig(t)
 				handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 					TransportName:      "api-core-test",
-					Sessions:           testutil.StubSessionManager{},
+					Sessions:           &testutil.StubSessionManager{},
 					Observer:           testutil.StubObserver{},
 					Tasks:              &testutil.StubTaskManager{},
 					Workspaces:         testutil.StubWorkspaceService{},

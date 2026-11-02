@@ -11,8 +11,8 @@ import { EmptyDesktopPreview } from "./_empty-desktop-preview";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 
 const DOCK_DEFS = [
-  { id: "sessions", name: "Sessions", icon: "sessions" },
   { id: "dashboard", name: "Dashboard", icon: "dashboard" },
+  { id: "sessions", name: "Sessions", icon: "sessions" },
   { id: "terminal", name: "Terminal", icon: "terminal" },
   { id: "agents", name: "Agents", icon: "agents" },
   { id: "tasks", name: "Tasks", icon: "tasks" },

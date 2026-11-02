@@ -25,7 +25,7 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 	}
 	activeByID := make(map[string]*Info)
 	for _, info := range m.List() {
-		if info != nil && info.WorkspaceID == workspaceID {
+		if info != nil && info.Type != SessionTypeTriage && info.WorkspaceID == workspaceID {
 			activeByID[info.ID] = info
 		}
 	}
@@ -38,15 +38,22 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 	}
 	ids := make([]string, 0, len(stored))
 	rows := make(sessionInventory, len(stored))
-	for _, info := range stored {
+	for index := range stored {
+		if stored[index].SessionType == string(SessionTypeTriage) {
+			continue
+		}
+		info := stored[index]
 		ids = append(ids, info.ID)
-		rows[info.ID] = info
+		rows[info.ID] = &info
 	}
 	infos, err := m.mergePersistedSessionInfos(ctx, ids, activeByID, rows)
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(infos, func(info *Info) bool { return info.WorkspaceID != workspaceID }), nil
+	return slices.DeleteFunc(
+		infos,
+		func(info *Info) bool { return info.Type == SessionTypeTriage || info.WorkspaceID != workspaceID },
+	), nil
 }
 
 // WorkspaceResolver supplies runtime snapshots and inexpensive persisted registrations.

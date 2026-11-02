@@ -19,6 +19,12 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		kind     ValueKind
 		redacted bool
 	}{
+		{name: "Should allow rotation threshold", path: "agents.stays_on.rotation_threshold", kind: ConfigValueFloat},
+		{name: "Should allow instance limit", path: "agents.stays_on.max_active_instances", kind: ConfigValueInt},
+		{name: "Should allow proposal limit", path: "agents.stays_on.max_proposals", kind: ConfigValueInt},
+		{name: "Should allow triage timeout", path: "agents.stays_on.triage_timeout", kind: ConfigValueDuration},
+		{name: "Should allow maximum check interval", path: "agents.heartbeat.max_interval", kind: ConfigValueDuration},
+		{name: "Should allow triage concurrency", path: "agents.heartbeat.max_concurrent_triage", kind: ConfigValueInt},
 		{name: "Should reject agent mutation of Claude Keychain consent",
 			path: "provider_usage.providers.claude.keychain_access", denial: ConfigPathForbidden},
 		{name: "Should allow provider usage enablement",

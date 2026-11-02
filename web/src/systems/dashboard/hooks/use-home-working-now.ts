@@ -2,7 +2,8 @@ import type { HomeScope } from "../lib/home-scope";
 import { homeWorkingNowSessionFilters } from "../lib/home-working-now-query";
 import type { HomeRunCardModel, HomeWorkingNowModel, HomeWorkingNowStatus } from "../types";
 import { elapsedSecondsSince } from "./use-elapsed-ticker";
-import { useSessions } from "@/systems/session";
+import { useProfileReadScope } from "@/systems/profiles";
+import { useSessions, type SessionPayload } from "@/systems/session";
 import { useTaskDashboard } from "@/systems/tasks";
 import { ownerDataScope, windowBindingValue, workspaceBadgeIdentity } from "@/systems/workspace";
 
@@ -17,6 +18,7 @@ export function useHomeWorkingNow(
   enabled: boolean,
   workspaceNames: ReadonlyMap<string, string> = NO_NAMES
 ): HomeWorkingNowModel {
+  const profileScope = useProfileReadScope();
   const projectOf =
     scope.dataScope.kind === "all"
       ? (workspaceId: string | undefined) => ({
@@ -34,27 +36,13 @@ export function useHomeWorkingNow(
 
   const sessionsAtMs = sessionsQuery.dataUpdatedAt;
   const dashboardAtMs = dashboardQuery.dataUpdatedAt;
-  const sessionsAtSeconds = Math.floor(sessionsAtMs / 1000);
   const cards: HomeRunCardModel[] = [];
 
   const sessions = sessionsQuery.data ?? [];
   const sessionIds = new Set(sessions.map(session => session.id));
   for (const session of sessions) {
-    const activity = session.activity;
     cards.push({
-      key: `session:${session.id}`,
-      kind: "session",
-      agentName: session.agent_name,
-      title: session.name?.trim() ? session.name : session.agent_name,
-      subtitle: activity?.current_tool?.trim()
-        ? `Running ${activity.current_tool}`
-        : "Working on the current turn",
-      elapsedBaseSeconds: elapsedSecondsSince(
-        sessionsAtSeconds,
-        activity?.turn_started_at ?? session.created_at ?? ""
-      ),
-      baseAtMs: sessionsAtMs,
-      sessionLink: { agentName: session.agent_name, sessionId: session.id },
+      ...workingSessionCard(session, sessionsAtMs),
       ...projectOf(session.workspace_id),
     });
   }
@@ -68,6 +56,11 @@ export function useHomeWorkingNow(
       key: `run:${run.run_id}`,
       kind: "task_run",
       agentName: run.task_owner?.ref ?? "",
+      agentScope: {
+        workspace: run.workspace_id || null,
+        profile: profileScope.destination,
+        enabled: !profileScope.aggregate,
+      },
       title: run.task_title,
       subtitle: `Run ${run.run_status}`,
       elapsedBaseSeconds: Math.max(0, Math.floor(run.age_ms / 1000)),
@@ -119,4 +112,24 @@ function firstErrorMessage(...errors: unknown[]): string | null {
     }
   }
   return null;
+}
+
+function workingSessionCard(session: SessionPayload, sessionsAtMs: number): HomeRunCardModel {
+  const activity = session.activity;
+  return {
+    key: `session:${session.id}`,
+    kind: "session",
+    agentName: session.agent_name,
+    agentScope: { workspace: session.workspace_id || null, profile: session.profile_name },
+    title: session.name?.trim() ? session.name : session.agent_name,
+    subtitle: activity?.current_tool?.trim()
+      ? `Running ${activity.current_tool}`
+      : "Working on the current turn",
+    elapsedBaseSeconds: elapsedSecondsSince(
+      Math.floor(sessionsAtMs / 1000),
+      activity?.turn_started_at ?? session.created_at ?? ""
+    ),
+    baseAtMs: sessionsAtMs,
+    sessionLink: { agentName: session.agent_name, sessionId: session.id },
+  };
 }

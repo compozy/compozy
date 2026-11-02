@@ -5,7 +5,6 @@ import type { ComponentPropsWithoutRef } from "react";
 import {
   Button,
   cn,
-  OwnerAvatar,
   PropertyRow,
   PropertyRowSkeleton,
   SkeletonRegion,
@@ -14,13 +13,7 @@ import {
   Time,
 } from "@compozy/ui";
 
-import {
-  computeElapsed,
-  ownerAvatarKindFor,
-  taskOwnerLabel,
-  taskRunStatusLabel,
-  taskRunStateGlyph,
-} from "../lib/task-formatters";
+import { computeElapsed, taskRunStatusLabel, taskRunStateGlyph } from "../lib/task-formatters";
 import {
   taskExecutionProfileSummary,
   taskPropertiesRunSummary,
@@ -30,6 +23,8 @@ import { TaskLoopProvenance } from "./task-loop-provenance";
 import { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./task-rail-editors";
 import { TaskRailSection as RailSection } from "./task-rail-section";
 import { TASK_RAIL_CLASS, TASK_RAIL_FOOTER_CLASS } from "./task-surface-classes";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
+import { TaskOwnerMark, TaskOwnerName } from "./task-owner-mark";
 
 export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div"> {
   detail: TaskDetailView;
@@ -69,8 +64,7 @@ export function TaskPropertiesRail({
 }: TaskPropertiesRailProps) {
   const record = detail.task;
   const owner = record.owner ?? null;
-  const ownerName = owner ? taskOwnerLabel(owner) : "Unassigned";
-  const { worker, model } = taskExecutionProfileSummary(profile);
+  const { worker, model } = taskExecutionProfileSummary(profile, humanizeAgentSlug);
   const { attemptsLabel, lastFailedRun, stuckRun } = taskPropertiesRunSummary(detail, runs);
 
   return (
@@ -99,13 +93,10 @@ export function TaskPropertiesRail({
         <PropertyRow label="Owner">
           {owner ? (
             <>
-              <OwnerAvatar
-                name={ownerName}
-                ownerId={owner.ref ?? ownerName}
-                ownerKind={ownerAvatarKindFor(owner.kind)}
-                size="sm"
-              />
-              <span className="truncate">{ownerName}</span>
+              <TaskOwnerMark owner={owner} />
+              <span className="truncate">
+                <TaskOwnerName owner={owner} />
+              </span>
             </>
           ) : (
             <span className="text-muted-foreground">Unassigned</span>
@@ -269,13 +260,10 @@ function TaskRunHistorySections({
           </PropertyRow>
           {stuckRun.claimed_by?.ref ? (
             <PropertyRow label="Worked on by">
-              <OwnerAvatar
-                name={stuckRun.claimed_by.ref}
-                ownerId={stuckRun.claimed_by.ref}
-                ownerKind={ownerAvatarKindFor(stuckRun.claimed_by.kind)}
-                size="sm"
-              />
-              <span className="truncate">{stuckRun.claimed_by.ref}</span>
+              <TaskOwnerMark owner={stuckRun.claimed_by} />
+              <span className="truncate">
+                <TaskOwnerName owner={stuckRun.claimed_by} />
+              </span>
             </PropertyRow>
           ) : null}
         </RailSection>

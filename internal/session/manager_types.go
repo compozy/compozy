@@ -23,6 +23,8 @@ import (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
+	// InstanceID is supplied only by the daemon's instance service.
+	InstanceID       string
 	Origin           workspaceaccess.Origin
 	Scope            workspacepkg.ScopeKind
 	DesiredSessionID string
@@ -138,6 +140,7 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	instanceCeiling            InstanceCeilingReader
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
 	restartInputsHeld          sync.Map

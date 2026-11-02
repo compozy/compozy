@@ -4,7 +4,7 @@ import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 
-/** Why the rows below may be stale or flat: the stream, the catalog, or the folder list. */
+/** What the list can't currently vouch for: the stream, the catalog, and the folders. */
 export function SessionListStatus({
   disconnected,
   view,

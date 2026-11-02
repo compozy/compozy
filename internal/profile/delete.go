@@ -57,6 +57,7 @@ func (m *Manager) Delete(
 				{Seq: 0, Action: stepRemoveProfile, PathOld: m.profileDir(profile.Name)},
 				{Seq: 1, Action: stepRemoveDesktopPartitions},
 				{Seq: 2, Action: stepRemoveUserJournal},
+				{Seq: 3, Action: stepRemoveAgentMemory},
 			},
 		); err != nil {
 			return err
@@ -119,6 +120,7 @@ func deleteProfileOwnedRows(
 		label     string
 		statement string
 	}{
+		{label: "archived agent instances", statement: `DELETE FROM agent_instances WHERE profile_id = ? AND archived_at IS NOT NULL`},
 		{label: "command palette usage", statement: `DELETE FROM cmd_palette_usage WHERE profile_lens_id = ?`},
 		{label: "command palette query hits", statement: `DELETE FROM cmd_palette_query_hits WHERE profile_lens_id = ?`},
 		{label: "command palette pins", statement: `DELETE FROM cmd_palette_pins WHERE profile_lens_id = ?`},

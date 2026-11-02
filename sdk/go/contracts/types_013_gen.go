@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+type ModelsListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	SourceID     string `json:"source_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
+}
+
+type ModelsRefreshParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+	SourceID   string `json:"source_id,omitempty"`
+	Force      bool   `json:"force,omitempty"`
+	RequestID  string `json:"request_id,omitempty"`
+}
+
+type ModelsStatusParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
 type ObserveHealth struct {
 	Status             string                  `json:"status"`
 	UptimeSeconds      int64                   `json:"uptime_seconds"`
@@ -62,6 +80,8 @@ type PayloadBase struct {
 }
 
 type PendingInteractionPayload struct {
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	SessionID         string     `json:"session_id"`
 	InteractionID     string     `json:"interaction_id"`
 	Kind              string     `json:"kind"`
 	ProviderRequestID string     `json:"provider_request_id"`
@@ -218,15 +238,3 @@ type PermissionToolCall struct {
 	Status    string         `json:"status,omitempty"`
 	Locations []ToolLocation `json:"locations,omitempty"`
 }
-
-type PersistenceHealth struct {
-	Status             string `json:"status"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
-}
-
-type PickFilesEffect struct {
-	Directories bool `json:"directories,omitempty"`
-}
-
-type Priority string

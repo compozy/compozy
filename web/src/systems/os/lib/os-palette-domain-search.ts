@@ -24,6 +24,7 @@ import type { CmdPaletteRankSignals } from "./cmd-palette-types";
 import type { OsAppId, OsWindowRoute } from "./os-types";
 import { rankCandidates } from "./ranking/rank";
 import type { RankingCandidate } from "./ranking/types";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 export interface OsPaletteDomainRow {
   readonly key: string;
@@ -265,6 +266,7 @@ export function paletteAutomationViews(
 ): AutomationView[] {
   const sentence = {
     timeZone: ctx.timeZone,
+    agentLabel: humanizeAgentSlug,
     workspaceName: (id: string) =>
       ctx.names.get(id) ?? ctx.projects.find(project => project.id === id)?.name,
   };

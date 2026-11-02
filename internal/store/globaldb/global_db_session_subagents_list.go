@@ -157,7 +157,7 @@ func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[st
 		case attention > 0:
 			v.MostUrgent = "attention"
 		case failed > 0:
-			v.MostUrgent = "failed"
+			v.MostUrgent = loopNodeOutputFailed
 		case live+resumed > 0:
 			v.MostUrgent = "running"
 		}

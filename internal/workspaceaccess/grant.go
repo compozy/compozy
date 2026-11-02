@@ -9,6 +9,7 @@ const Unrestricted = "unrestricted"
 const ActorApp ActorKind = "app"
 
 type Origin struct {
+	ID      string
 	Kind    ActorKind
 	Ceiling string
 }

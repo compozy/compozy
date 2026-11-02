@@ -174,7 +174,7 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 }
 
 func isPublicSessionCatalogInfo(info *Info) bool {
-	if info == nil {
+	if info == nil || info.Type == SessionTypeTriage {
 		return false
 	}
 	lineage := info.Lineage

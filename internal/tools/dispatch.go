@@ -11,6 +11,7 @@ type dispatchTarget struct {
 	descriptor Descriptor
 	handle     Handle
 	view       ToolView
+	evaluator  *EffectivePolicyEvaluator
 }
 
 func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
@@ -25,7 +26,7 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	if err := req.ToolID.Validate(); err != nil {
 		return ToolResult{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
-	target, err := r.resolveDispatchTarget(ctx, scope, req.ToolID)
+	target, err := r.resolveDispatchTarget(ctx, scope, req)
 	if contextError := contextErr(ctx, req.ToolID); contextError != nil {
 		err = contextError
 	}
@@ -91,6 +92,17 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	}
 	if err := contextErr(ctx, target.descriptor.ID); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
+	}
+	// Hooks may change dry-run or checks-off into a mutating operation.
+	if target.evaluator != nil {
+		decision, err := target.evaluator.evaluateCall(target.descriptor, patchedReq.Input)
+		if err != nil {
+			return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
+		}
+		target.view.Decision = applyAvailabilityDecision(decision, target.view.Availability)
+		if err := r.ensureDispatchTargetCallable(ctx, target, patchedReq, started); err != nil {
+			return ToolResult{}, err
+		}
 	}
 	if err := r.requestApproval(ctx, scope, target, &patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
@@ -203,8 +215,9 @@ func validateHookCallRequestIdentity(original CallRequest, patched CallRequest) 
 func (r *RuntimeRegistry) resolveDispatchTarget(
 	ctx context.Context,
 	scope Scope,
-	id ToolID,
+	req CallRequest,
 ) (dispatchTarget, error) {
+	id := req.ToolID
 	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return dispatchTarget{}, err
@@ -224,7 +237,13 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 		return dispatchTarget{}, err
 	}
 	handle, availability := r.resolveHandleForDispatch(ctx, scope, entry)
-	decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
+	effective, isEffective := evaluator.(*EffectivePolicyEvaluator)
+	var decision EffectiveToolDecision
+	if isEffective && effective != nil {
+		decision, err = effective.evaluateCall(entry.descriptor, req.Input)
+	} else {
+		decision, err = evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
+	}
 	if err != nil {
 		return dispatchTarget{}, err
 	}
@@ -234,7 +253,12 @@ func (r *RuntimeRegistry) resolveDispatchTarget(
 		Availability: availability,
 		Decision:     decision,
 	}
-	target := dispatchTarget{descriptor: cloneDescriptor(entry.descriptor), handle: handle, view: view}
+	target := dispatchTarget{
+		descriptor: cloneDescriptor(entry.descriptor),
+		handle:     handle,
+		view:       view,
+		evaluator:  effective,
+	}
 	if !decision.Callable || isNilInterface(handle) {
 		return target, nil
 	}

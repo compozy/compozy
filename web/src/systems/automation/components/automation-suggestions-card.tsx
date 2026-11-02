@@ -16,6 +16,7 @@ import { describeFireLimit, formatPromptPreview } from "../lib/automation-format
 import { describeSchedule } from "../lib/automation-sentence";
 import { projectAutomationTarget } from "../lib/automation-target";
 import type { AutomationSuggestion } from "../types";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export type AutomationSuggestionPendingAction = "accept" | "dismiss";
 
@@ -152,13 +153,14 @@ function AutomationSuggestionActionButton({
 function suggestionFacts(
   suggestion: AutomationSuggestion,
   schedule: string,
-  target: ReturnType<typeof projectAutomationTarget>
+  target: ReturnType<typeof projectAutomationTarget>,
+  agentLabel: (name: string) => string
 ): string {
   const payload = suggestion.payload;
   const targetLabel =
     target.kind === "loop"
       ? `loop ${target.loopName || "not selected"}`
-      : `agent ${target.agentName || "unassigned"}`;
+      : `agent ${target.agentName ? agentLabel(target.agentName) : "unassigned"}`;
   return [
     schedule,
     targetLabel,
@@ -201,81 +203,107 @@ export function AutomationSuggestionsCard({
   return (
     <SuggestionsShell className={className} count={suggestions.length}>
       <ul aria-label="Pending automation suggestions">
-        {suggestions.map(suggestion => {
-          const pendingAction = pendingActions[suggestion.id];
-          const actionError = actionErrors[suggestion.id];
-          const payload = suggestion.payload;
-          const schedule = describeSchedule(payload.schedule, { timeZone });
-          const target = projectAutomationTarget(payload);
-
-          return (
-            <CatalogEmptyDisclosureRow
-              busy={Boolean(pendingAction)}
-              actions={
-                <>
-                  <AutomationSuggestionActionButton
-                    disabled={Boolean(pendingAction)}
-                    isPending={pendingAction === "accept"}
-                    onClick={() => onAccept(suggestion.id)}
-                    size="sm"
-                    type="button"
-                    variant="neutral"
-                  >
-                    Create automation
-                  </AutomationSuggestionActionButton>
-                  <AutomationSuggestionActionButton
-                    disabled={Boolean(pendingAction)}
-                    isPending={pendingAction === "dismiss"}
-                    onClick={() => onDismiss(suggestion.id)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Dismiss
-                  </AutomationSuggestionActionButton>
-                </>
-              }
-              description={formatPromptPreview(payload.prompt)}
-              detail={
-                <>
-                  <div className="rounded-lg bg-sunken px-3 py-2.5">
-                    <p className="text-form-label leading-relaxed text-fg">{payload.prompt}</p>
-                  </div>
-                  <p className="font-mono text-mono-id text-subtle tabular-nums">
-                    {suggestionFacts(suggestion, schedule, target)}
-                  </p>
-                </>
-              }
-              error={
-                actionError ? (
-                  <p className="text-form-label text-destructive" role="alert">
-                    {actionError}
-                  </p>
-                ) : null
-              }
-              icon={
-                target.kind === "loop" ? (
-                  <RefreshCcw className="size-3.5" />
-                ) : (
-                  <Clock3 className="size-3.5" />
-                )
-              }
-              data-testid={`automation-suggestion-${suggestion.id}`}
-              key={suggestion.id}
-              pill={
-                <span className="flex min-w-0 items-center gap-2">
-                  {projectBadge?.(suggestion)}
-                  <Pill mono size="sm" tone="neutral">
-                    {schedule}
-                  </Pill>
-                </span>
-              }
-              title={payload.name}
-              tone="neutral"
-            />
-          );
-        })}
+        {suggestions.map(suggestion => (
+          <AutomationSuggestionRow
+            key={suggestion.id}
+            suggestion={suggestion}
+            pendingAction={pendingActions[suggestion.id]}
+            actionError={actionErrors[suggestion.id]}
+            onAccept={onAccept}
+            onDismiss={onDismiss}
+            projectBadge={projectBadge}
+            timeZone={timeZone}
+          />
+        ))}
       </ul>
     </SuggestionsShell>
+  );
+}
+
+function AutomationSuggestionRow({
+  suggestion,
+  pendingAction,
+  actionError,
+  onAccept,
+  onDismiss,
+  projectBadge,
+  timeZone,
+}: Pick<AutomationSuggestionsCardProps, "onAccept" | "onDismiss" | "projectBadge" | "timeZone"> & {
+  suggestion: AutomationSuggestion;
+  pendingAction?: AutomationSuggestionPendingAction;
+  actionError?: string;
+}) {
+  const identityOf = useAgentIdentityResolverView({
+    workspace: suggestion.workspace_id || null,
+    profile: suggestion.payload.profile_name,
+  });
+  const payload = suggestion.payload;
+  const schedule = describeSchedule(payload.schedule, { timeZone });
+  const target = projectAutomationTarget(payload);
+
+  return (
+    <CatalogEmptyDisclosureRow
+      busy={Boolean(pendingAction)}
+      actions={
+        <>
+          <AutomationSuggestionActionButton
+            disabled={Boolean(pendingAction)}
+            isPending={pendingAction === "accept"}
+            onClick={() => onAccept(suggestion.id)}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            Create automation
+          </AutomationSuggestionActionButton>
+          <AutomationSuggestionActionButton
+            disabled={Boolean(pendingAction)}
+            isPending={pendingAction === "dismiss"}
+            onClick={() => onDismiss(suggestion.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Dismiss
+          </AutomationSuggestionActionButton>
+        </>
+      }
+      description={formatPromptPreview(payload.prompt)}
+      detail={
+        <>
+          <div className="rounded-lg bg-sunken px-3 py-2.5">
+            <p className="text-form-label leading-relaxed text-fg">{payload.prompt}</p>
+          </div>
+          <p className="font-mono text-mono-id text-subtle tabular-nums">
+            {suggestionFacts(suggestion, schedule, target, name => identityOf(name).label)}
+          </p>
+        </>
+      }
+      error={
+        actionError ? (
+          <p className="text-form-label text-destructive" role="alert">
+            {actionError}
+          </p>
+        ) : null
+      }
+      icon={
+        target.kind === "loop" ? (
+          <RefreshCcw className="size-3.5" />
+        ) : (
+          <Clock3 className="size-3.5" />
+        )
+      }
+      data-testid={`automation-suggestion-${suggestion.id}`}
+      pill={
+        <span className="flex min-w-0 items-center gap-2">
+          {projectBadge?.(suggestion)}
+          <Pill mono size="sm" tone="neutral">
+            {schedule}
+          </Pill>
+        </span>
+      }
+      title={payload.name}
+      tone="neutral"
+    />
   );
 }

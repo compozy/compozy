@@ -94,6 +94,9 @@ func clearSessionInputWithTrace(
 	if affected != 1 {
 		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotQueued, entry.ID)
 	}
+	if err := queries.ReleasePromptReports(ctx, entry.PromptAdmissionID); err != nil {
+		return err
+	}
 	if err := queries.InsertSessionInputClearTrace(ctx, sqlcgen.InsertSessionInputClearTraceParams{
 		SessionID: req.SessionID, EntryID: entry.ID, TurnID: req.TurnID,
 		ActorKind: req.ActorKind, ActorID: req.ActorID, QueueGeneration: entry.SessionGeneration, CreatedAt: now,

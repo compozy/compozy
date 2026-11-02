@@ -925,11 +925,11 @@ func bindNativeExtensionIntegrationSession(t *testing.T, deps *daemonNativeTools
 	}
 	created, err := manager.Create(
 		t.Context(),
-		session.CreateOpts{
+		new(session.CreateOpts{
 			AgentName: resolved.Agents[0].Name,
 			Workspace: workspaceID,
 			ProfileID: store.DefaultProfileID,
-		},
+		}),
 	)
 	if err != nil {
 		t.Fatal(err)

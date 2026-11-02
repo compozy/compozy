@@ -417,16 +417,16 @@ const TASK_OWNER_KIND_LABELS: Record<TaskOwnerKind, string> = {
   pool: "Pool",
 };
 
-export function taskOwnerKindLabel(kind?: TaskOwnerKind | null): string {
+export function taskOwnerKindLabel(kind?: TaskOwnerKind | (string & {}) | null): string {
   if (!kind) {
     return "Unassigned";
   }
 
-  return TASK_OWNER_KIND_LABELS[kind] ?? kind;
+  return TASK_OWNER_KIND_LABELS[kind as TaskOwnerKind] ?? kind;
 }
 
 export function taskOwnerLabel(
-  owner?: Pick<NonNullable<TaskListItem["owner"]>, "kind" | "ref"> | null
+  owner?: { kind: TaskOwnerKind | (string & {}); ref?: string } | null
 ): string {
   if (!owner) {
     return "Unassigned";

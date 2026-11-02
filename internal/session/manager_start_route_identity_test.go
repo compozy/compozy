@@ -49,10 +49,10 @@ func TestAcceptedRouteIdentityIgnoresRuntimeAdapterRewrite(t *testing.T) {
 			}
 			h.resolver.upsert(&resolved)
 
-			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder",
 				Workspace: h.workspaceID,
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -92,9 +92,9 @@ func TestAgentPreStartHookProviderRouting(t *testing.T) {
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 		cleanupTestManager(t, h.manager)
-		created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}

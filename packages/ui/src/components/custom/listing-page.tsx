@@ -21,7 +21,8 @@ function ListingPage({ banner, bodyClassName, className, children, ...props }: L
     >
       {banner ? <div data-slot="listing-page-banner">{banner}</div> : null}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <PageContent density="listing" className={bodyClassName}>
+        {/* A shrinkable child stops at the scroller's height, and its bottom padding with it. */}
+        <PageContent density="listing" className={cn("shrink-0", bodyClassName)}>
           {children}
         </PageContent>
       </div>

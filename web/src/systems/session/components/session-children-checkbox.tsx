@@ -19,19 +19,19 @@ export function SessionChildrenCheckbox({
   disabled = false,
 }: SessionChildrenCheckboxProps) {
   const id = `session-children-${action}`;
-  const retry = choice.included ? choice.onRetryRead : undefined;
+  const retry = choice.onRetryRead;
   return (
     <>
       <Field orientation="horizontal">
         <Checkbox
           id={id}
           checked={choice.included}
-          disabled={disabled}
+          disabled={disabled || choice.pending}
           data-testid="session-children-include"
           onCheckedChange={checked => choice.onIncludedChange(checked === true)}
         />
         <FieldLabel htmlFor={id}>
-          Also {action} {childSessionCountLabel(choice.count)}
+          Also {action} {choice.pending ? "child sessions" : childSessionCountLabel(choice.count)}
         </FieldLabel>
       </Field>
       {retry ? (

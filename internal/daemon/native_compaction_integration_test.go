@@ -321,7 +321,7 @@ func TestDaemonMaintenanceCompactionAfterRuntimeReplacement(t *testing.T) {
 			resolved.Agents[0].Prompt = "Exercise maintenance startup isolation."
 			manager := newBoundedRebuildManager(t, home, deps, resolved, daemon)
 			opts := session.CreateOpts{AgentName: "compaction-claude", Workspace: resolved.ID}
-			active, err := manager.Create(t.Context(), opts)
+			active, err := manager.Create(t.Context(), &(opts))
 			if err != nil {
 				t.Fatal(err)
 			}

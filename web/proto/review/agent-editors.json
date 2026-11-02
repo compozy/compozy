@@ -1,0 +1,79 @@
+{
+    "version": 3,
+    "key": "agent-editors",
+    "sequence": 1,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "agent-editors-1",
+            "slug": "agent-editors",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:10:52.507Z",
+            "updatedAt": "2026-11-01T04:43:56.688Z",
+            "resolvedAt": "2026-11-01T04:43:56.688Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "memory",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "ul",
+                "testId": null,
+                "tag": "ul",
+                "text": "Preview deploys need make preview. The normal deploy skips the staging data. Forgets this on Dec 1 Learned in reloaddev…",
+                "source": "src/drafts/agent-editors/memory-editor.tsx:126:19",
+                "sourceChain": [
+                    "src/drafts/agent-editors/memory-editor.tsx:126:19",
+                    "src/drafts/agent-editors/memory-editor.tsx:73:11",
+                    "src/drafts/agent-editors/memory-editor.tsx:72:9",
+                    "src/drafts/agent-editors/memory-editor.tsx:50:7",
+                    "src/drafts/stays-on-agents-shared/agent-page.tsx:108:9",
+                    "src/drafts/stays-on-agents-shared/agent-page.tsx:107:7",
+                    "src/systems/os/components/os-window-frame.tsx:92:5",
+                    "src/systems/os/components/os-window-frame.tsx:184:9"
+                ],
+                "rect": {
+                    "x": 252.5,
+                    "y": 259,
+                    "width": 612,
+                    "height": 555.375
+                },
+                "rectNormalized": {
+                    "x": 0.18087392550143266,
+                    "y": 0.37373737373737376,
+                    "width": 0.4383954154727794,
+                    "height": 0.8014069264069265
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "e756843e-a375-40fb-8b60-e1a420d5b780",
+                    "at": "2026-11-01T03:10:52.520Z",
+                    "editedAt": null,
+                    "body": "dava pra pensar em algo mais visual aqui, sei lá, como se fosse sticky notes, fazer algo mais trabalhado mesmo para dar a sensação de memórias ao invés de apenas cards simples",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "6db7d470-8dd0-4ff5-ac5e-b7778a6d45a1",
+                    "at": "2026-11-01T04:43:56.686Z",
+                    "editedAt": null,
+                    "body": "Memories are now sticky notes on a dotted board, with tape, a folded corner and a tint for notes you wrote. Checked state memory at 1396x693 in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

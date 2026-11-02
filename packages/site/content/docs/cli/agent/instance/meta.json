@@ -1,0 +1,21 @@
+{
+    "title": "Instance",
+    "pages": [
+        "index",
+        "adopt",
+        "archive",
+        "away",
+        "check",
+        "check-ins",
+        "create",
+        "ensure-main",
+        "list",
+        "mark-seen",
+        "occurrence",
+        "pause",
+        "reports",
+        "resume",
+        "show",
+        "checks"
+    ]
+}

@@ -32,6 +32,7 @@ const needsInputSession = {
   name: "Deploy docs preview",
   // Two decisions waiting: the tab shows the count beside its label.
   pending_interactions: ["a", "b"].map(key => ({
+    session_id: "sess-1",
     interaction_id: `int-docs-${key}`,
     kind: "permission",
     provider_request_id: `req-docs-${key}`,

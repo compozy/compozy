@@ -4,6 +4,7 @@ import type {
   CompozyPermissionData,
   AgentEventPayload,
   SessionCompactionItemData,
+  SessionReportData,
   PermissionDecision,
   PermissionRequest,
   ToolArtifactRef,
@@ -89,6 +90,19 @@ export function messageHasCompactionPart(content: unknown): boolean {
   );
 }
 
+/** True when a message carries a stays-on agent's report. */
+export function messageHasReportPart(content: unknown): boolean {
+  return (
+    Array.isArray(content) &&
+    content.some(
+      part =>
+        isRecord(part) &&
+        (part.type === "data-compozy-report" ||
+          (part.type === "data" && part.name === "compozy-report"))
+    )
+  );
+}
+
 function isOptionalString(value: unknown): boolean {
   return value === undefined || typeof value === "string";
 }
@@ -104,6 +118,16 @@ export function isCompactionItemData(value: unknown): value is SessionCompaction
     isOptionalString(value.summary) &&
     isOptionalString(value.error) &&
     isOptionalString(value.ended_at)
+  );
+}
+
+export function isSessionReportData(value: unknown): value is SessionReportData {
+  return (
+    isRecord(value) &&
+    typeof value.report_id === "string" &&
+    typeof value.instance_id === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.created_at === "string"
   );
 }
 

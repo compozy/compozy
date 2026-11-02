@@ -58,6 +58,15 @@ function createWrapper(queryClient: QueryClient) {
 
 function makeAgent(overrides: Partial<AgentPayload> = {}): AgentPayload {
   return {
+    label: "Coder",
+    kind: "on_demand",
+    resolved_appearance: {
+      version: 1,
+      avatar: "generated",
+      seed: "coder",
+      generation: 1,
+      color: "#7c5cff",
+    },
     name: "coder",
     provider: "claude",
     prompt: "Ship carefully.",
@@ -273,12 +282,30 @@ describe("use-agent-mutations", () => {
     const activeViewKey = agentKeys.detail("fraud-ops-agent", "ws_alpha");
     const globalNullKey = agentKeys.detail("fraud-ops-agent", null);
     const staleView = makeAgent({
+      label: "Fraud Ops Agent",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "fraud-ops-agent",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "fraud-ops-agent",
       origin: "global",
       prompt: "stale",
       definition_digest: "d1",
     });
     const updated = makeAgent({
+      label: "Fraud Ops Agent",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "fraud-ops-agent",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "fraud-ops-agent",
       origin: "global",
       prompt: "Updated global",
@@ -352,6 +379,15 @@ describe("use-agent-mutations", () => {
     });
     const viewKey = agentKeys.detail("fraud-ops-agent", "ws_alpha");
     const serverTruth = makeAgent({
+      label: "Fraud Ops Agent",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "fraud-ops-agent",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "fraud-ops-agent",
       origin: "global",
       provider: "claude",
@@ -427,7 +463,19 @@ describe("use-agent-mutations", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const copy = makeAgent({ name: "coder-copy", definition_digest: "d3" });
+    const copy = makeAgent({
+      label: "Coder Copy",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "coder-copy",
+        generation: 1,
+        color: "#7c5cff",
+      },
+      name: "coder-copy",
+      definition_digest: "d3",
+    });
     mockDuplicateAgent.mockResolvedValue(copy);
 
     const { result } = renderHook(() => useDuplicateAgent(), {

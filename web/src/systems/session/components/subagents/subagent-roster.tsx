@@ -78,6 +78,7 @@ function RosterRowLabel({ subagent, branch, settled }: RosterRowLabelProps) {
   return (
     <>
       <SubagentAvatar
+        agent={subagent.runtime.agent}
         provider={subagent.runtime.provider}
         size="sm"
         surface="rail"

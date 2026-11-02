@@ -54,7 +54,8 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		return nil, err
 	}
 	result := make([]session.WorkSignal, 0)
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		// A session continued or forked from this one is not its child and keeps no work.
 		if store.HierarchyParentSessionID(row.Lineage) != id {
 			continue
@@ -131,7 +132,8 @@ func (s sessionWorkSources) leases(ctx context.Context, id string) ([]session.Wo
 		return nil, err
 	}
 	result := make([]session.WorkSignal, 0)
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		switch row.Status {
 		case taskpkg.TaskRunStatusClaimed, taskpkg.TaskRunStatusStarting, taskpkg.TaskRunStatusRunning:
 			if row.LeaseUntil.IsZero() {
@@ -219,7 +221,8 @@ func (s sessionWorkSources) waits(ctx context.Context, id string) ([]session.Wor
 		return nil, err
 	}
 	result := make([]session.WorkSignal, 0)
-	for _, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		for _, wait := range row.Waits {
 			if wait.ClaimState != looppkg.WaitClaimWaiting && wait.ClaimState != looppkg.WaitClaimClaimed {
 				continue

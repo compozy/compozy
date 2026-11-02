@@ -37,6 +37,7 @@ export interface AutomationFormProps {
   onSubmit: () => void;
   /** The profile a creation lands in while the aggregate is on (ADR-005). */
   profileDestination?: string | null;
+  profile?: string;
   section?: AutomationEditorSection;
   submitError?: string | null;
   submitErrorField?: "name" | null;
@@ -60,6 +61,7 @@ function splitSubmitError(
 export function AutomationForm(props: AutomationFormProps) {
   const { draft, isPending, mode, section } = props;
   const form = useAutomationForm({
+    profile: props.profile,
     activeWorkspaceId: props.activeWorkspaceId,
     draft,
     isPending,

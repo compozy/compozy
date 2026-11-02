@@ -21,6 +21,7 @@ import type { OsWindowFrameModel } from "../lib/group-projection";
 import type { OsWindow } from "../lib/os-types";
 import { OsTrafficLights, type OsTrafficLightAction } from "./os-traffic-lights";
 import { OsWindowTab } from "./os-window-tab";
+import { OS_WINDOW_DECK_SLOT_CLASS, OS_WINDOW_DECK_STRIP_CLASS } from "./os-window-deck-classes";
 
 function InsertionCaret() {
   return (
@@ -137,7 +138,8 @@ export function OsWindowDeck({
       data-slot="os-window-deck"
       data-testid={`os-window-deck-${frame.id}`}
       className={cn(
-        "flex h-deck shrink-0 cursor-grab items-end bg-sunken pr-1 shadow-[inset_0_-1px_0_var(--color-line)] select-none active:cursor-grabbing",
+        OS_WINDOW_DECK_STRIP_CLASS,
+        "cursor-grab active:cursor-grabbing",
         dragHandleClassName
       )}
     >
@@ -161,9 +163,7 @@ export function OsWindowDeck({
                 className={cn(
                   // Hairline separator on the slot's right edge; it hides at the
                   // strip's end, on the hovered and active tabs, and before them.
-                  "relative flex after:absolute after:inset-y-2.25 after:right-0 after:w-px after:bg-line",
-                  "last-of-type:after:opacity-0 hover:after:opacity-0 data-active:after:opacity-0",
-                  "has-[+[data-deck-slot]:hover]:after:opacity-0 has-[+[data-active]]:after:opacity-0",
+                  OS_WINDOW_DECK_SLOT_CLASS,
                   win.pinned ? "min-w-0 shrink-0" : "w-deck-tab-max min-w-deck-tab",
                   deck.tabDrag?.windowId === member && "opacity-60"
                 )}
