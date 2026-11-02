@@ -701,7 +701,7 @@ func TestCoordinatorRunnerShouldFailRemovedPinnedTool(t *testing.T) {
 			t.Fatal(err)
 		}
 		run := Run{
-			ReattemptStrategy: ReattemptHalt,
+			ReattemptStrategy: ReattemptFailedOnly,
 			Origin:            &RunOrigin{Kind: RunOriginCatalog},
 			ID:                "removed-run",
 			WorkspaceID:       "ws",
@@ -716,11 +716,12 @@ func TestCoordinatorRunnerShouldFailRemovedPinnedTool(t *testing.T) {
 				1: {{Generation: 1, NodeID: "removed", Status: generationOutputRunning, TaskRunID: "removed-step"}},
 			},
 		}
+		workers := map[string]task.Run{coordinator.ID: coordinator}
 		runner := newCoordinatorRunnerForTestWithResolvedDefinition(
 			t,
 			run,
 			coordinator,
-			nil,
+			workers,
 			outputs,
 			resolved,
 			WithCoordinatorActionRegistry(actions),
@@ -743,10 +744,23 @@ func TestCoordinatorRunnerShouldFailRemovedPinnedTool(t *testing.T) {
 		if !errors.Is(err, ErrActionUnknownKind) || !strings.Contains(err.Error(), toolID) {
 			t.Fatalf("removed tool error = %v", err)
 		}
-		outputs.outputs[1][0].Status = generationOutputFailed
-		outputs.outputs[1][0].OutputRef = err.Error()
+		failureMetadata, marshalErr := json.Marshal(
+			map[string]any{
+				"failure": NewActionFailure(string(ReasonCodeUnknownActionKind), err.Error(), "Restore the tool"),
+			},
+		)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		workers["removed-step"] = task.Run{
+			ID:       "removed-step",
+			Status:   task.TaskRunStatusFailed,
+			Error:    err.Error(),
+			Metadata: failureMetadata,
+		}
 		plan, err := runner.Run(t.Context(), task.RunID(coordinator.ID))
-		if err != nil || plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) {
+		if err != nil || plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) ||
+			plan.NextCoordinator != nil {
 			t.Fatalf("failed run plan = %+v, %v", plan, err)
 		}
 		healthy := Run{
