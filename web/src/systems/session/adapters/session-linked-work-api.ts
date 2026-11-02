@@ -13,6 +13,11 @@ export function isRepositoryMismatch(error: unknown): boolean {
   return error instanceof SessionApiError && error.code === "session_link_repository_mismatch";
 }
 
+/** The pull request's head lives in a fork, whose status this repository can't report. */
+export function isForkUnsupported(error: unknown): boolean {
+  return error instanceof SessionApiError && error.code === "session_link_fork_unsupported";
+}
+
 export type SessionLinkCandidateKind = "pull_requests" | "branches";
 
 export interface SessionLinkCandidateQuery {

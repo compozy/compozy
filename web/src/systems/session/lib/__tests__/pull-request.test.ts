@@ -22,6 +22,7 @@ import {
 import {
   groupLinks,
   leadLink,
+  linkForkTitle,
   linkStatus,
   linkOriginLabel,
   linkSourceLabel,
@@ -410,6 +411,11 @@ describe("session linked work", () => {
     expect(linkOriginLabel(rolled)).toBe("From Login redirect fix");
     expect(linkSourceLabel({ ...rolled, provenance: "agent" }, "Claude")).toBeNull();
     expect(linkOriginLabel(SESSION_LINK_SETS.rolledUp[1]!)).toBeNull();
+  });
+
+  it("Should name every refused fork in one sentence", () => {
+    expect(linkForkTitle([212])).toBe("#212 comes from a fork");
+    expect(linkForkTitle([212, 214])).toBe("#212, #214 come from forks");
   });
 
   it("Should say who added an item only for the exceptions", () => {

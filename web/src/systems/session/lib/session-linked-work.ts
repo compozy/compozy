@@ -272,6 +272,12 @@ export function linkFailureMessage(failures: readonly SessionLinkFailure[]): str
   return `Couldn't link ${names.join(", ")}${reason ? `: ${reason}` : "."}`;
 }
 
+/** Refused forks in one sentence, so a selection reads as one refusal. */
+export function linkForkTitle(numbers: readonly number[]): string {
+  const names = numbers.map(number => `#${number}`).join(", ");
+  return numbers.length === 1 ? `${names} comes from a fork` : `${names} come from forks`;
+}
+
 /**
  * What the picker marks as already linked: both identities of the session's direct items. A
  * rolled-up item stays pickable, because a direct link is a different statement about the session.

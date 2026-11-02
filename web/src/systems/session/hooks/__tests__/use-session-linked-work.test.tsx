@@ -1,12 +1,12 @@
 // Suite: session linked work data flow
 // Invariant: unlinking is immediate and undone through the add path, a failed write restores the
 // API envelope, the picker searches and pages on the server, naming a refused repository, an
-// unknown number and an unavailable forge as their own states, and a multi-link confirm runs at
-// bounded concurrency, keeping and naming only what failed.
+// unknown number, a fork's pull request and an unavailable forge as their own states, and a
+// multi-link confirm runs at bounded concurrency, keeping and naming only what failed.
 // Boundary IN: useSessionLinkedWork, useSessionLinkDialogModel and TanStack Query.
 // Boundary OUT: the adapters, mocked at the network seam.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +19,7 @@ import {
   removeSessionWorkLink,
   searchSessionLinkCandidates,
 } from "../../adapters/session-linked-work-api";
+import { SessionLinkDialogHost } from "../../components/session-linked-work/session-link-dialog-host";
 import { sessionKeys } from "../../lib/query-keys";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import {
@@ -70,6 +71,15 @@ function dialog() {
         workspaceId: WORKSPACE,
         workspaceName: "compozy",
       }),
+    { wrapper }
+  );
+}
+
+function openDialog() {
+  const { wrapper } = harness();
+  sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
+  return render(
+    <SessionLinkDialogHost sessionId={session.id} workspaceId={WORKSPACE} workspaceName="compozy" />,
     { wrapper }
   );
 }
@@ -278,6 +288,28 @@ describe("useSessionLinkDialogModel", () => {
       })
     );
     expect(result.current.offline).toBe(false);
+  });
+
+  it("Should refuse a fork's pull request by name and let the rest of the selection through", async () => {
+    candidates();
+    vi.mocked(addSessionWorkLink).mockImplementation(async (_workspace, _session, request) => {
+      if (request.pr_number === 963) {
+        throw new SessionApiError("fork", 400, session.id, {
+          code: "session_link_fork_unsupported",
+        });
+      }
+      return { items };
+    });
+    openDialog();
+    fireEvent.click(await screen.findByRole("option", { name: /monthly usage report/ }));
+    fireEvent.click(screen.getByRole("option", { name: /login redirect on Safari/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Link 2" }));
+    expect(await screen.findByText("#963 comes from a fork")).toBeInTheDocument();
+    expect(screen.getByText("Pull requests from forks can't be linked yet.")).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't link/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link" })).toBeDisabled();
+    expect(addSessionWorkLink).toHaveBeenCalledTimes(2);
+    expect(sessionLinkDialogStore.getSnapshot().context.sessionId).toBe(session.id);
   });
 
   it("Should link a selection at bounded concurrency and name what failed", async () => {

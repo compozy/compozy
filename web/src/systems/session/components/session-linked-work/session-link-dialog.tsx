@@ -28,6 +28,7 @@ import { repositoryShortName, type SessionLinkSearch } from "../../lib/session-l
 import {
   candidateIsLinked,
   candidateKey,
+  linkForkTitle,
   type SessionWorkCandidate,
 } from "../../lib/session-linked-work";
 
@@ -143,6 +144,8 @@ export interface SessionLinkDialogProps {
   offline: boolean;
   /** The forge's name for copy, from the repository's host. */
   forge: string;
+  /** Pull requests the last confirm was refused because they come from a fork. */
+  forks: readonly number[];
   /** The session project's short name for copy. */
   project: string;
   linked: ReadonlySet<string>;
@@ -164,6 +167,7 @@ export function SessionLinkDialog({
   loading,
   offline,
   forge,
+  forks,
   project,
   linked,
   selected,
@@ -203,6 +207,12 @@ export function SessionLinkDialog({
                 <AlertDescription>
                   You can still link a branch. Its pull request shows up once {forge} is back.
                 </AlertDescription>
+              </Alert>
+            ) : null}
+            {forks.length > 0 ? (
+              <Alert variant="destructive">
+                <AlertTitle>{linkForkTitle(forks)}</AlertTitle>
+                <AlertDescription>Pull requests from forks can't be linked yet.</AlertDescription>
               </Alert>
             ) : null}
             {error ? (

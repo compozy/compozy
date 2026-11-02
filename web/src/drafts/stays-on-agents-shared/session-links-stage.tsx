@@ -96,6 +96,7 @@ export interface LinkDialogPreset {
   query?: string;
   selected?: readonly number[];
   offline?: boolean;
+  forks?: readonly number[];
 }
 
 const REPOSITORY = SESSION_LINK_PULL_REQUESTS[0]!.repository;
@@ -134,6 +135,7 @@ function FixtureLinkDialog({
     <SessionLinkDialog
       error={null}
       forge={repositoryForgeName(REPOSITORY)}
+      forks={preset.forks ?? []}
       hasMore={false}
       linked={linkedCandidateKeys(items)}
       loading={false}

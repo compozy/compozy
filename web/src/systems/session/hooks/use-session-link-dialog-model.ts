@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
 
-import { isRepositoryMismatch } from "../adapters/session-linked-work-api";
+import { isForkUnsupported, isRepositoryMismatch } from "../adapters/session-linked-work-api";
 import type { SessionLinkDialogProps } from "../components/session-linked-work/session-link-dialog";
 import {
   parseSessionLinkInput,
@@ -99,6 +99,7 @@ export function useSessionLinkDialogModel({
 }: UseSessionLinkDialogModelInput): SessionLinkDialogProps {
   const [query, setQuery] = useState("");
   const [refused, setRefused] = useState(false);
+  const [forks, setForks] = useState<readonly number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const debounced = useDebouncedValue(query.trim());
@@ -125,15 +126,22 @@ export function useSessionLinkDialogModel({
         const outcome = outcomes[index];
         return outcome?.status === "rejected" ? [{ candidate, cause: outcome.reason }] : [];
       });
+      // A fork is refused however often it is retried, so it leaves the selection.
+      const retryable = failures.filter(({ cause }) => !isForkUnsupported(cause));
+      setForks(
+        failures.flatMap(({ candidate, cause }) =>
+          isForkUnsupported(cause) && candidate.pr_number ? [candidate.pr_number] : []
+        )
+      );
       // A pasted link has its own "another project" state; anything else must say so in words.
       const pastedLink = parseSessionLinkInput(query).kind === "link";
       setRefused(failures.some(({ cause }) => isRepositoryMismatch(cause)));
       setError(
         linkFailureMessage(
-          pastedLink ? failures.filter(({ cause }) => !isRepositoryMismatch(cause)) : failures
+          pastedLink ? retryable.filter(({ cause }) => !isRepositoryMismatch(cause)) : retryable
         )
       );
-      selection.keep(failures.map(({ candidate }) => candidate));
+      selection.keep(retryable.map(({ candidate }) => candidate));
       if (failures.length === 0) closeSessionLinkDialog();
     } finally {
       setPending(false);
@@ -143,6 +151,7 @@ export function useSessionLinkDialogModel({
   return {
     error,
     forge: repositoryForgeName(repository),
+    forks,
     hasMore: candidates.hasMore,
     linked: linkedCandidateKeys(items),
     loading: searching && pullRequests.length + branches.length === 0,
@@ -155,6 +164,7 @@ export function useSessionLinkDialogModel({
     onQueryChange: value => {
       setQuery(value);
       setRefused(false);
+      setForks([]);
       setError(null);
     },
     onToggle: selection.toggle,
