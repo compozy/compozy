@@ -64,7 +64,8 @@ func (h *BaseHandlers) projectedAgentForSkillScope(
 	if err != nil {
 		return nil, err
 	}
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		if compozyconfig.NormalizeAgentName(entry.Def.Name) == target {
 			candidate := compozyconfig.CloneAgentDef(entry.Def)
 			return &candidate, nil

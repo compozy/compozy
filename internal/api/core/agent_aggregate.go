@@ -215,7 +215,8 @@ func aggregateWorkspaceAgents(
 	available bool,
 ) []contract.AgentPayload {
 	agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
-	for _, entry := range resolved.Entries {
+	for i := range resolved.Entries {
+		entry := &resolved.Entries[i]
 		// Unavailable counts never prove zero sessions, so inherited rows stay listed then.
 		if workspace != "" && available && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
 			continue
@@ -252,7 +253,7 @@ func aggregateAgentPageStart(
 // a project row exists only for a definition authored in the project or one with project work
 // (AP Data Models "Agent rows", same rule as loop catalog rows).
 func inheritedUserAgentWithoutProjectWork(
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	userAgentNames map[string]struct{},
 	metrics map[string]session.AgentSessionMetrics,
 ) bool {

@@ -613,7 +613,9 @@ func TestUserSessionCreate(t *testing.T) {
 	t.Run("Should create a User session without resolving a registered workspace", func(t *testing.T) {
 		t.Parallel()
 		manager := &testutil.StubSessionManager{
-			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+			CreateAcceptedFn: func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := *optsInput
+
 				if opts.Session.Scope != workspacepkg.ScopeUser || opts.Session.Workspace != "" ||
 					opts.Session.WorkspacePath != "" {
 					t.Fatalf("opts=%+v", opts)

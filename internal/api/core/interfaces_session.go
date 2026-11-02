@@ -14,7 +14,7 @@ import (
 // ListAll may perform I/O to return the authoritative session set, so it accepts a context.
 type SessionManager interface {
 	ContextEvents(context.Context, string) (session.ContextEvents, error)
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	List() []*session.Info
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error)
@@ -72,13 +72,13 @@ type SessionManager interface {
 // SessionAcceptanceManager durably accepts user-created sessions without
 // waiting for provider startup.
 type SessionAcceptanceManager interface {
-	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
+	CreateAccepted(ctx context.Context, opts *session.CreateAcceptedOpts) (*session.Info, error)
 }
 
 // SessionWorktreeForkAcceptanceManager reserves the origin session while a
 // clean worktree-bound child is accepted.
 type SessionWorktreeForkAcceptanceManager interface {
-	CreateWorktreeForkAccepted(context.Context, string, session.CreateAcceptedOpts) (*session.Info, error)
+	CreateWorktreeForkAccepted(context.Context, string, *session.CreateAcceptedOpts) (*session.Info, error)
 }
 
 // SessionPageManager is the bounded public catalog capability implemented by

@@ -25,7 +25,7 @@ type projectedSkillAgentCatalog struct {
 	workspaceErr      error
 }
 
-func (c projectedSkillAgentCatalog) ListAgents(context.Context) ([]AgentCatalogEntry, error) {
+func (c *projectedSkillAgentCatalog) ListAgents(context.Context) ([]AgentCatalogEntry, error) {
 	if c.globalErr != nil {
 		return nil, c.globalErr
 	}
@@ -35,7 +35,7 @@ func (c projectedSkillAgentCatalog) ListAgents(context.Context) ([]AgentCatalogE
 	return []AgentCatalogEntry{c.globalEntry}, nil
 }
 
-func (c projectedSkillAgentCatalog) ListAgentsForWorkspace(
+func (c *projectedSkillAgentCatalog) ListAgentsForWorkspace(
 	_ context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]AgentCatalogEntry, error) {
@@ -54,7 +54,7 @@ func (c projectedSkillAgentCatalog) ListAgentsForWorkspace(
 	return []AgentCatalogEntry{c.globalEntry}, nil
 }
 
-func (c projectedSkillAgentCatalog) GetAgent(context.Context, string) (AgentCatalogEntry, error) {
+func (c *projectedSkillAgentCatalog) GetAgent(context.Context, string) (AgentCatalogEntry, error) {
 	return c.globalEntry, nil
 }
 
@@ -124,7 +124,7 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 			t.Parallel()
 			handlers := &BaseHandlers{
 				SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),
-				AgentCatalog:   tt.catalog,
+				AgentCatalog:   &tt.catalog,
 			}
 			request := httptest.NewRequestWithContext(
 				t.Context(), "GET", "/api/skills?for_agent=extension-agent", http.NoBody,
@@ -180,7 +180,7 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 				t.Parallel()
 				handlers := &BaseHandlers{
 					SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),
-					AgentCatalog:   tc.catalog,
+					AgentCatalog:   &tc.catalog,
 				}
 				request := httptest.NewRequestWithContext(
 					t.Context(), "GET", "/api/skills?for_agent=extension-agent", http.NoBody,
@@ -208,7 +208,7 @@ func TestResolveScopedSkillsUsesWorkspaceResolverAgentBeforeCatalog(t *testing.T
 	}
 	handlers := &BaseHandlers{
 		SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),
-		AgentCatalog: projectedSkillAgentCatalog{
+		AgentCatalog: &projectedSkillAgentCatalog{
 			globalEntry: globalAgent.entry,
 			profiles: map[string]AgentCatalogEntry{
 				"profile-work": globalAgent.entry,

@@ -340,7 +340,9 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			marketingSession.ProfileID = "profile-marketing"
 			return []*session.Info{defaultSession, marketingSession}, nil
 		},
-		CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
+		CreateAcceptedFn: func(_ context.Context, acceptedOptsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+			acceptedOpts := *acceptedOptsInput
+
 			createCalled.Store(true)
 			opts := acceptedOpts.Session
 			if opts.AgentName != "coder" ||
@@ -6015,7 +6017,9 @@ func TestCreateSessionLineageKind(t *testing.T) {
 	newFixture := func(t *testing.T, captured *atomic.Pointer[session.CreateOpts]) handlerFixture {
 		t.Helper()
 		manager := &testutil.StubSessionManager{
-			CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
+			CreateAcceptedFn: func(_ context.Context, acceptedOptsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				acceptedOpts := *acceptedOptsInput
+
 				opts := acceptedOpts.Session
 				captured.Store(&opts)
 				created := testutil.NewSessionInfo("sess-created")

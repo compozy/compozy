@@ -116,8 +116,8 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	codexConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
 	claudeConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}}
 
-	codexPayload := core.AgentPayloadFromEntryWithConfig(entry, &codexConfig)
-	claudePayload := core.AgentPayloadFromEntryWithConfig(entry, &claudeConfig)
+	codexPayload := core.AgentPayloadFromEntryWithConfig(&entry, &codexConfig)
+	claudePayload := core.AgentPayloadFromEntryWithConfig(&entry, &claudeConfig)
 	if codexPayload.EffectiveRuntime == nil || claudePayload.EffectiveRuntime == nil {
 		t.Fatal("EffectiveRuntime = nil, want projections for both workspaces")
 	}
@@ -130,9 +130,9 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
 	}
-	for name, payload := range map[string]contract.AgentPayload{
-		"codex":  codexPayload,
-		"claude": claudePayload,
+	for name, payload := range map[string]*contract.AgentPayload{
+		"codex":  &codexPayload,
+		"claude": &claudePayload,
 	} {
 		if payload.Speed != contract.SpeedFast || len(payload.ACPOptions) != 2 {
 			t.Fatalf("%s authored runtime defaults = speed %q options %#v", name, payload.Speed, payload.ACPOptions)
@@ -413,7 +413,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			},
 		}
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Authority: agentinstance.Authority{Callers: reader}}
-		req := httptest.NewRequest(http.MethodGet, "/agents/triage/memory", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/agents/triage/memory", http.NoBody)
 		req.Header.Set("X-Compozy-Session-ID", "global-caller")
 		req.Header.Set("X-Compozy-Agent", "triage")
 		response := httptest.NewRecorder()

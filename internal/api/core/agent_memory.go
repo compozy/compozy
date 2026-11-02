@@ -48,7 +48,8 @@ func (h *BaseHandlers) agentMemoryTarget(c *gin.Context) (agentmemory.Key, strin
 	if err != nil {
 		return agentmemory.Key{}, "", err
 	}
-	for _, entry := range entries.Entries {
+	for i := range entries.Entries {
+		entry := &entries.Entries[i]
 		if entry.Def.Name != name {
 			continue
 		}
@@ -222,7 +223,8 @@ func (h *BaseHandlers) agentMemoryCallerOrigin(
 	if err != nil {
 		return "", ref, err
 	}
-	for _, entry := range own.Entries {
+	for i := range own.Entries {
+		entry := &own.Entries[i]
 		if entry.Def.Name == name {
 			callerOrigin = entry.MemoryOrigin
 		}

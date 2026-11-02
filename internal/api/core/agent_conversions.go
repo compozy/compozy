@@ -10,7 +10,7 @@ import (
 
 // AgentPayloadFromDef converts an agent definition into the shared payload.
 func AgentPayloadFromDef(agent compozyconfig.AgentDef) contract.AgentPayload {
-	return AgentPayloadFromEntry(AgentCatalogEntry{
+	return AgentPayloadFromEntry(&AgentCatalogEntry{
 		Def:    agent,
 		Origin: contract.AgentOriginGlobal,
 	})
@@ -34,7 +34,7 @@ func AgentCatalogEntryFromDef(
 }
 
 // AgentPayloadFromEntry converts an origin-aware catalog entry into the shared payload.
-func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
+func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 	agent := entry.Def
 	shadows := make([]contract.AgentDefinitionShadowPayload, 0, len(agent.ShadowedDefinitions))
 	for _, shadow := range agent.ShadowedDefinitions {
@@ -116,7 +116,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 // AgentPayloadFromEntryWithConfig attaches a runtime projection resolved from
 // the requested workspace/global config without mutating authored fields.
 func AgentPayloadFromEntryWithConfig(
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	cfg *compozyconfig.Config,
 ) contract.AgentPayload {
 	payload := AgentPayloadFromEntry(entry)
@@ -185,7 +185,8 @@ func agentACPOptionsFromContract(
 // AgentPayloadsFromEntries converts origin-aware catalog entries into response payloads.
 func AgentPayloadsFromEntries(entries []AgentCatalogEntry) []contract.AgentPayload {
 	payloads := make([]contract.AgentPayload, 0, len(entries))
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		payloads = append(payloads, AgentPayloadFromEntry(entry))
 	}
 	return payloads

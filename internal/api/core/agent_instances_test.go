@@ -977,20 +977,21 @@ func TestAgentInstanceApprovalAdmission(t *testing.T) {
 				}
 				response := httptest.NewRecorder()
 				fixture.Engine.ServeHTTP(response, req)
-				if !allowed {
+				switch {
+				case !allowed:
 					var body contract.ErrorPayload
 					decodeJSON(t, response.Body.Bytes(), &body)
 					if response.Code != 403 || body.Code != "tool_approval_required" ||
 						!strings.Contains(body.Error, "compozy__agent_instance_"+operation) {
 						t.Fatalf("denial: %d %s", response.Code, response.Body.String())
 					}
-				} else if operation == "create" {
+				case operation == "create":
 					var body contract.ErrorPayload
 					decodeJSON(t, response.Body.Bytes(), &body)
 					if response.Code != 422 || body.Code != agentinstance.ErrNotStaysOn.Error() {
 						t.Fatalf("definition admission: %d %s", response.Code, response.Body.String())
 					}
-				} else if response.Code != 204 {
+				case response.Code != 204:
 					t.Fatalf("archive: %d %s", response.Code, response.Body.String())
 				}
 			}
@@ -1036,7 +1037,7 @@ func (i instanceAPIInputs) Start(ctx context.Context, req agentinstance.StartMai
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			SessionType:   "user",
 		}
-		_, err := i.db.RegisterInstanceSession(ctx, info, req.Instance.ID, nil)
+		_, err := i.db.RegisterInstanceSession(ctx, &(info), req.Instance.ID, nil)
 		return info.ID, err
 	}
 	return "", errors.New("unexpected session start")

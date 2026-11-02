@@ -23,7 +23,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 	t.Parallel()
 
 	manager := &testutil.StubSessionManager{
-		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, *session.CreateOpts) (*session.Session, error) {
 			return nil, os.ErrNotExist
 		},
 		StatusFn: func(context.Context, string) (*session.Info, error) {
