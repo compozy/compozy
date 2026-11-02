@@ -84,7 +84,11 @@ function pr(
   );
 }
 
-function branchOnly(branch: string, options: LinkOptions = {}): SessionLinkedWorkItem {
+/** Never rolled up: a child's work reaches the parent only once it has a pull request. */
+function branchOnly(
+  branch: string,
+  options: Omit<LinkOptions, "source"> = {}
+): SessionLinkedWorkItem {
   return link(branch, null, options);
 }
 
