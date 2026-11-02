@@ -36058,6 +36058,8 @@ export interface operations {
         skip_total?: boolean;
         /** @description Exclude stays-on main sessions from the page and its total */
         exclude_instance_main?: boolean;
+        /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
+        exclude_finished_automation?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -36358,6 +36360,8 @@ export interface operations {
       query?: {
         /** @description Exclude instance main sessions from board counts */
         exclude_instance_main?: boolean;
+        /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
+        exclude_finished_automation?: boolean;
         /** @description Workspace id or path */
         workspace_id?: string;
         /** @description Use the explicit all-workspaces aggregate */
@@ -50518,6 +50522,8 @@ export interface operations {
         skip_total?: boolean;
         /** @description Exclude stays-on main sessions from the page and its total */
         exclude_instance_main?: boolean;
+        /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
+        exclude_finished_automation?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */

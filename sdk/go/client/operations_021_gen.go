@@ -9,35 +9,55 @@ import (
 	"strings"
 )
 
+// ListSessionTools List session-callable registry tools
+func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionsParams carries the path, query, and header parameters.
 type ListSessionsParams struct {
-	WorkspaceID         *string   `url:"workspace_id"`
-	AllWorkspaces       *bool     `url:"all_workspaces"`
-	WorkspaceIds        *[]string `url:"workspace_ids"`
-	IncludeHealth       *bool     `url:"include_health"`
-	SkipTotal           *bool     `url:"skip_total"`
-	ExcludeInstanceMain *bool     `url:"exclude_instance_main"`
-	State               *string   `url:"state"`
-	Type                *string   `url:"type"`
-	Agent               *string   `url:"agent"`
-	Subagents           *string   `url:"subagents"`
-	Children            *string   `url:"children"`
-	Parent              *string   `url:"parent"`
-	Root                *string   `url:"root"`
-	Worktree            *string   `url:"worktree"`
-	Q                   *string   `url:"q"`
-	SearchFields        *string   `url:"search_fields"`
-	Resumable           *bool     `url:"resumable"`
-	Attention           *bool     `url:"attention"`
-	BoardColumn         *[]string `url:"board_column"`
-	Badge               *string   `url:"badge"`
-	Archive             *string   `url:"archive"`
-	Later               *string   `url:"later"`
-	Sort                *string   `url:"sort"`
-	Cursor              *string   `url:"cursor"`
-	Limit               *int      `url:"limit"`
-	Profile             *string   `url:"profile"`
-	AllProfiles         *bool     `url:"all_profiles"`
+	WorkspaceID               *string   `url:"workspace_id"`
+	AllWorkspaces             *bool     `url:"all_workspaces"`
+	WorkspaceIds              *[]string `url:"workspace_ids"`
+	IncludeHealth             *bool     `url:"include_health"`
+	SkipTotal                 *bool     `url:"skip_total"`
+	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
+	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	State                     *string   `url:"state"`
+	Type                      *string   `url:"type"`
+	Agent                     *string   `url:"agent"`
+	Subagents                 *string   `url:"subagents"`
+	Children                  *string   `url:"children"`
+	Parent                    *string   `url:"parent"`
+	Root                      *string   `url:"root"`
+	Worktree                  *string   `url:"worktree"`
+	Q                         *string   `url:"q"`
+	SearchFields              *string   `url:"search_fields"`
+	Resumable                 *bool     `url:"resumable"`
+	Attention                 *bool     `url:"attention"`
+	BoardColumn               *[]string `url:"board_column"`
+	Badge                     *string   `url:"badge"`
+	Archive                   *string   `url:"archive"`
+	Later                     *string   `url:"later"`
+	Sort                      *string   `url:"sort"`
+	Cursor                    *string   `url:"cursor"`
+	Limit                     *int      `url:"limit"`
+	Profile                   *string   `url:"profile"`
+	AllProfiles               *bool     `url:"all_profiles"`
 }
 
 // ListSessions List sessions
@@ -63,6 +83,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.ExcludeInstanceMain != nil {
 		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
+	}
+	if params.ExcludeFinishedAutomation != nil {
+		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
 	}
 	if params.State != nil {
 		query.Set("state", *params.State)
@@ -419,28 +442,4 @@ func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListTasksParams carries the path, query, and header parameters.
-type ListTasksParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	Status        *string   `url:"status"`
-	Priority      *string   `url:"priority"`
-	IncludeDrafts *bool     `url:"include_drafts"`
-	IncludeLoop   *bool     `url:"include_loop"`
-	LoopRunID     *string   `url:"loop_run_id"`
-	ApprovalState *string   `url:"approval_state"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	ParentTaskID  *string   `url:"parent_task_id"`
-	Worktree      *string   `url:"worktree"`
-	Query         *string   `url:"query"`
-	Sort          *string   `url:"sort"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

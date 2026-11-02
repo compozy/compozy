@@ -29,6 +29,9 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	if params.ExcludeInstanceMain != nil {
 		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
 	}
+	if params.ExcludeFinishedAutomation != nil {
+		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
+	}
 	if params.State != nil {
 		query.Set("state", *params.State)
 	}

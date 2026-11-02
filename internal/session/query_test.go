@@ -1216,6 +1216,74 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 	})
 }
 
+func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
+	t.Parallel()
+
+	base := ListQuery{
+		ReadScope:                 store.ReadScope{ProfileID: store.DefaultProfileID},
+		WorkspaceID:               "ws-1",
+		ExcludeFinishedAutomation: true,
+	}
+	tests := []struct {
+		name    string
+		mutate  func(*ListQuery)
+		exclude bool
+	}{
+		{name: "default list", mutate: func(*ListQuery) {}, exclude: true},
+		{name: "attention chip", mutate: func(q *ListQuery) { q.AttentionOnly = true }, exclude: true},
+		{name: "board column", mutate: func(q *ListQuery) { q.Columns = []string{"done"} }, exclude: true},
+		{name: "search", mutate: func(q *ListQuery) { q.Search = "weekly" }},
+		{name: "type", mutate: func(q *ListQuery) { q.SessionType = SessionTypeSystem }},
+		{name: "parent", mutate: func(q *ListQuery) { q.ParentSessionID = "sess-parent" }},
+		{name: "root", mutate: func(q *ListQuery) { q.RootSessionID = "sess-root" }},
+		{name: "archive", mutate: func(q *ListQuery) { q.Archive = ArchiveOnly }},
+		{name: "later", mutate: func(q *ListQuery) { q.Later = LaterOnly }},
+	}
+	for _, tt := range tests {
+		t.Run("Should scope the exclusion for "+tt.name, func(t *testing.T) {
+			t.Parallel()
+			query := base
+			tt.mutate(&query)
+			normalized, err := normalizeListQuery(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if normalized.ExcludeFinishedAutomation != tt.exclude {
+				t.Fatalf("exclude = %v, want %v", normalized.ExcludeFinishedAutomation, tt.exclude)
+			}
+		})
+	}
+
+	t.Run("Should keep facets on the default population while searching", func(t *testing.T) {
+		t.Parallel()
+		query := base
+		query.Search = "weekly"
+		normalized, err := normalizeCatalogFacetQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !normalized.ExcludeFinishedAutomation {
+			t.Fatal("facets lost the default population")
+		}
+	})
+
+	t.Run("Should bind the population to the cursor without breaking older cursors", func(t *testing.T) {
+		t.Parallel()
+		plain := ListQuery{WorkspaceID: "ws-1"}
+		older, err := sessionListFingerprintForQuery(plain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		excluded, err := sessionListFingerprintForQuery(base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if older == excluded {
+			t.Fatal("a cursor must not cross populations")
+		}
+	})
+}
+
 func TestSessionMatchesListQuery(t *testing.T) {
 	t.Parallel()
 

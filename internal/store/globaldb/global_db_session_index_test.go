@@ -118,6 +118,173 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should hide settled automation families from pages and every count", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "automation-catalog", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+		seed := func(id, root, lineage, state, failure string) {
+			t.Helper()
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, state, base)
+			info.SessionType = "system"
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET initiator_kind = 'automation', initiator_id = 'job-1',
+ root_session_id = NULLIF(?, ''), parent_session_id = NULLIF(?, ''), lineage_kind = ?,
+ origin_agent_name = CASE WHEN ? = 'fork' THEN 'coder' ELSE '' END,
+ spawn_depth = CASE WHEN ? = '' THEN 0 ELSE 1 END, failure_kind = NULLIF(?, '') WHERE id = ?`,
+				root, root, lineage, lineage, root, failure, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run := func(sessionID, status, taskID string) {
+			t.Helper()
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO automation_runs (id, job_id, session_id, task_id, status)
+ VALUES (?, 'job-1', ?, NULLIF(?, ''), ?)`, "run-"+sessionID, sessionID, taskID, status); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, hidden := range []struct{ id, status string }{
+			{"hidden-completed", "completed"},
+			{"hidden-canceled", "canceled"},
+			{"hidden-finishing", "running"},
+			{"hidden-parent", "completed"},
+			{"fork-source", "completed"},
+		} {
+			seed(hidden.id, "", "", globalDBSessionStateStopped, "")
+			run(hidden.id, hidden.status, "")
+		}
+		seed("hidden-child", "hidden-parent", "spawn", globalDBSessionStateStopped, "")
+		seed("visible-fork", "fork-source", "fork", globalDBSessionStateStopped, "")
+		seed("visible-failed", "", "", globalDBSessionStateStopped, "prompt_failure")
+		run("visible-failed", "failed", "")
+		seed("visible-failed-run", "", "", globalDBSessionStateStopped, "")
+		run("visible-failed-run", "failed", "")
+		seed("visible-running", "", "", globalDBSessionStateActive, "")
+		run("visible-running", "running", "")
+		seed("visible-waiting", "", "", globalDBSessionStateActive, "")
+		run("visible-waiting", "completed", "")
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET pending_clarify_count = 1 WHERE id = 'visible-waiting'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		seed("visible-prompted", "", "", globalDBSessionStateStopped, "")
+		run("visible-prompted", "completed", "")
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO session_prompt_admissions (id, workspace_id, session_id,
+ message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, turn_id, event_id,
+ created_at, updated_at, human_ingress)
+ VALUES ('admission', ?, 'visible-prompted', 'message', 'key', 'prompt', 'v1', 'fingerprint', 'completed',
+ 'turn', 'event', '2026-11-02T12:00:00Z', '2026-11-02T12:00:00Z', 1)`, workspaceID); err != nil {
+			t.Fatal(err)
+		}
+		seed("visible-parent", "", "", globalDBSessionStateActive, "")
+		run("visible-parent", "running", "")
+		seed("visible-child", "visible-parent", "spawn", globalDBSessionStateStopped, "")
+		seed("visible-failed-parent", "", "", globalDBSessionStateStopped, "")
+		run("visible-failed-parent", "completed", "")
+		seed("visible-failed-child", "visible-failed-parent", "spawn", globalDBSessionStateStopped, "prompt_failure")
+		seed("visible-task", "", "", globalDBSessionStateStopped, "")
+		run("visible-task", "delegated", "task-1")
+		seed("visible-loop", "", "", globalDBSessionStateStopped, "")
+		user := sessionInfoForWorkspaceStateIndexTest("visible-user", workspaceID, globalDBSessionStateStopped, base)
+		if err := db.RegisterSession(ctx, &(user)); err != nil {
+			t.Fatal(err)
+		}
+		const visible = 13
+
+		query := store.SessionCatalogPageQuery{
+			ReadScope:                 store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:               workspaceID,
+			Limit:                     5,
+			Sort:                      "recent",
+			ExcludeFinishedAutomation: true,
+		}
+		listed := make([]string, 0, visible)
+		for {
+			page, err := db.PageSessions(ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != visible {
+				t.Fatalf("total = %d, want %d", page.Total, visible)
+			}
+			listed = append(listed, sessionIDsFromInfos(page.Sessions)...)
+			if len(page.Sessions) < query.Limit {
+				break
+			}
+			last := page.Sessions[len(page.Sessions)-1]
+			query.After = &store.SessionCatalogPosition{
+				AttentionRank: store.SessionCatalogAttentionRankNone,
+				PrimaryAt:     last.UpdatedAt,
+				SecondaryAt:   last.CreatedAt,
+				CreatedAt:     last.CreatedAt,
+				ID:            last.ID,
+			}
+		}
+		if len(listed) != visible {
+			t.Fatalf("listed = %v", listed)
+		}
+		for _, id := range listed {
+			if !strings.HasPrefix(id, "visible-") {
+				t.Fatalf("%s leaked into the default page: %v", id, listed)
+			}
+		}
+		query.After = nil
+
+		board := query
+		board.Columns = []string{store.SessionBoardDone}
+		page, err := db.PageSessions(ctx, board)
+		if err != nil {
+			t.Fatal(err)
+		}
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != visible || facets.ByWorkspace[0].Facets.All != visible ||
+			facets.ByProfile[0].Facets.All != visible || facets.Facets.Board.Done != page.Total {
+			t.Fatalf("facets = %+v, board total = %d", facets, page.Total)
+		}
+
+		aggregate := query
+		aggregate.WorkspaceID = ""
+		page, err = db.PageSessions(ctx, aggregate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != visible {
+			t.Fatalf("All projects total = %d, want %d", page.Total, visible)
+		}
+
+		complete := query
+		complete.ExcludeFinishedAutomation = false
+		page, err = db.PageSessions(ctx, complete)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != visible+6 {
+			t.Fatalf("complete total = %d, want every session", page.Total)
+		}
+
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET parked_at = '2026-11-02T12:00:00Z' WHERE id = 'hidden-completed'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Later != 1 {
+			t.Fatalf("later = %d, want the shelf's parked run", facets.Later)
+		}
+	})
+
 	t.Parallel()
 
 	t.Run("Should hide persisted verdict-only judges while preserving actionable system sessions", func(t *testing.T) {

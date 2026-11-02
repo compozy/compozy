@@ -76,6 +76,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, err
 	}
 	query.Later = later
+	query.ExcludeFinishedAutomation = query.ExcludeFinishedAutomation && !explicitSessionLookup(query)
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
 	}
@@ -99,6 +100,14 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
 	}
 	return query, nil
+}
+
+// explicitSessionLookup reports a read that names what it wants, so it reaches
+// sessions the default list leaves out. Facets clear Search first and keep
+// counting the default population.
+func explicitSessionLookup(query ListQuery) bool {
+	return query.Search != "" || query.SessionType != "" || query.ParentSessionID != "" ||
+		query.RootSessionID != "" || query.Archive == ArchiveOnly || query.Later == LaterOnly
 }
 
 func normalizeListSearch(query *ListQuery) error {

@@ -5388,6 +5388,15 @@ func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
 	walk(baseline)
 }
 
+func finishedAutomationParameter() map[string]any {
+	return map[string]any{
+		"name":        "exclude_finished_automation",
+		"in":          "query",
+		"description": finishedAutomationParamDescription,
+		"schema":      map[string]any{"type": "boolean"},
+	}
+}
+
 func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
 
@@ -5400,6 +5409,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"description": "Exclude instance main sessions from board counts",
 				"schema":      map[string]any{"type": "boolean"},
 			},
+			finishedAutomationParameter(),
 		},
 		facets["parameters"].([]any)...)
 
@@ -5422,7 +5432,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 				"description": "Exclude stays-on main sessions from the page and its total",
 				"schema":      map[string]any{"type": "boolean"},
 			}
-			get["parameters"] = slices.Insert(parameters, index+1, any(addition))
+			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()))
 			break
 		}
 	}

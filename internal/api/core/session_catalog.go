@@ -135,7 +135,13 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
+	excludeFinishedAutomation, err := parseBoolQuery(c, "exclude_finished_automation")
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
 	query := session.ListQuery{
+		ExcludeFinishedAutomation: excludeFinishedAutomation,
+
 		Columns:         columns,
 		HideChildren:    hideChildren,
 		Subagents:       subagents,
