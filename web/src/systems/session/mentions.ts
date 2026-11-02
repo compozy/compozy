@@ -23,6 +23,11 @@ export {
   type SessionMentionSourceStatus,
 } from "./hooks/use-session-file-search";
 export {
+  SESSION_MENTION_AGENT_LIMIT,
+  useSessionMentionAgents,
+  type SessionMentionAgentsView,
+} from "./hooks/use-session-mention-agents";
+export {
   SESSION_MENTION_SESSION_LIMIT,
   useSessionMentionSessions,
   type SessionMentionSessionsView,

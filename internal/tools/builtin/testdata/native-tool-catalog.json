@@ -1,5 +1,18 @@
 [
   {
+    "tool_id": "compozy__agent_activity",
+    "native_name": "agent_activity",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__agent_create",
     "native_name": "agent_create",
     "toolsets": [
@@ -9,7 +22,20 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "68a1e6e8ceef2addd09bc95fa507007a53042742b37945f0a06a5138e4fd3bde",
+    "input_schema_digest": "0818ec275f07a759a25f2ae7e6de3458735b447688fe3928132eefa1842b0a1f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_draft_instructions",
+    "native_name": "agent_draft_instructions",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9904608624de860f076dce01757263163679980d2d46eeafea3a63e46bd52d49",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -39,6 +65,188 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__agent_instance_archive",
+    "native_name": "agent_instance_archive",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_away",
+    "native_name": "agent_instance_away",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_check",
+    "native_name": "agent_instance_check",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_check_ins",
+    "native_name": "agent_instance_check_ins",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_checks",
+    "native_name": "agent_instance_checks",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_create",
+    "native_name": "agent_instance_create",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_ensure_main",
+    "native_name": "agent_instance_ensure_main",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_get",
+    "native_name": "agent_instance_get",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_list",
+    "native_name": "agent_instance_list",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_mark_seen",
+    "native_name": "agent_instance_mark_seen",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_occurrence",
+    "native_name": "agent_instance_occurrence",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_pause",
+    "native_name": "agent_instance_pause",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_reports",
+    "native_name": "agent_instance_reports",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9f8270e2419a0665d74be8617ca80f6df6579b6c7795bbe2bb7e3a68e3068fc9",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_instance_resume",
+    "native_name": "agent_instance_resume",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e7ba35812e5a316a932b0d50601c3aa69a3d154e9a4e53dc43068a241740ac6c",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__agent_list",
     "native_name": "agent_list",
     "toolsets": [
@@ -51,6 +259,58 @@
     "open_world": false,
     "input_schema_digest": "58c4fc27cc26681826892f7b84b7de2dd1fa157c718a77fe650c85924b878c38",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__agent_memory_add",
+    "native_name": "agent_memory_add",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "bced810840df517a97ad5c47d60cf1c9ca11adba00d18845c640d2ab0cbf261b",
+    "output_schema_digest": "267fe4e9d894c7f8113ba5f4a77fcd6584ca6abe323f083f4b583b048cd021b2"
+  },
+  {
+    "tool_id": "compozy__agent_memory_remove",
+    "native_name": "agent_memory_remove",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c614a321230dd3022918b419e27e72c3fdc25ab64f8c31f8edd15dc9dd4c4d5a",
+    "output_schema_digest": "f52ed1d91efe7147fe1bc9908152c1db7cc190f29f0b7a3d486209a800ef1354"
+  },
+  {
+    "tool_id": "compozy__agent_memory_replace",
+    "native_name": "agent_memory_replace",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e6f4ef51b88acee292c95ca4ea8d01c28f1c8e8fd24a93e029e778351c0a426c",
+    "output_schema_digest": "f1b20460ee170ae0127943182b2f0a015b7de7eb0932c567f2b8f987070ad3a3"
+  },
+  {
+    "tool_id": "compozy__agent_memory_search",
+    "native_name": "agent_memory_search",
+    "toolsets": [
+      "compozy__authored_context"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e9aaa85040ff44004f8da92e33b7f07177c918e7c5ddac771ee6b588be80a690",
+    "output_schema_digest": "6dd78a37482fb38dafc6e01818a12a149376d9456fae0d630cb58717220e4b6d"
   },
   {
     "tool_id": "compozy__automation_jobs_create",
@@ -2135,6 +2395,19 @@
     "open_world": false,
     "input_schema_digest": "8d3442e06589a14f92423308d8691a87b12d700a75f598b118600ec224f6cc3e",
     "output_schema_digest": "b3ca0e20ca4da958e5278c1086f08bffb0af88a28f17f5c915285a146e86f39a"
+  },
+  {
+    "tool_id": "compozy__session_pending_interactions",
+    "native_name": "session_pending_interactions",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "c6d61e0131b4dd79719df4aede8a5aa40e4c57bdd039dec31df742b472e32d96",
+    "output_schema_digest": "ac13f0835f3550d996583addb4aa704f64927476de7a2584ac26ee36c2299f09"
   },
   {
     "tool_id": "compozy__session_processes_list",

@@ -67,7 +67,7 @@ describe("DashboardWindow", () => {
   it("Should mount the home dashboard body while connected", () => {
     connection.status = "connected";
     renderWindow();
-    expect(homeDashboardSpy).toHaveBeenCalledWith({ liveEnabled: true });
+    expect(homeDashboardSpy).toHaveBeenCalledWith(expect.objectContaining({ liveEnabled: true }));
     expect(screen.queryByTestId("home-error")).toBeNull();
   });
 
@@ -90,7 +90,7 @@ describe("DashboardWindow", () => {
 
     renderWindow();
 
-    expect(homeDashboardSpy).toHaveBeenCalledWith({ liveEnabled: true });
+    expect(homeDashboardSpy).toHaveBeenCalledWith(expect.objectContaining({ liveEnabled: true }));
   });
 
   it.each([
@@ -118,7 +118,7 @@ describe("DashboardWindow", () => {
 
     renderWindow();
 
-    expect(homeDashboardSpy).toHaveBeenCalledWith({ liveEnabled: false });
+    expect(homeDashboardSpy).toHaveBeenCalledWith(expect.objectContaining({ liveEnabled: false }));
   });
 
   it("Should render the disconnect surface when the daemon is unreachable", () => {

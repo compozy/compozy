@@ -131,6 +131,7 @@ const (
 
 // Snapshot is the immutable storage row for a resolved HEARTBEAT.md policy.
 type Snapshot struct {
+	ProfileID       string
 	ID              string
 	WorkspaceID     string
 	AgentName       string
@@ -162,6 +163,7 @@ type SnapshotEnvelope struct {
 
 // SnapshotListQuery filters persisted Heartbeat snapshot rows.
 type SnapshotListQuery struct {
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 	Digest      string
@@ -170,6 +172,7 @@ type SnapshotListQuery struct {
 
 // Revision is one append-only managed HEARTBEAT.md authoring history row.
 type Revision struct {
+	ProfileID      string
 	ID             string
 	WorkspaceID    string
 	AgentName      string
@@ -186,6 +189,7 @@ type Revision struct {
 
 // RevisionListQuery filters managed Heartbeat authoring revision history.
 type RevisionListQuery struct {
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 	SourcePath  string
@@ -196,6 +200,7 @@ type RevisionListQuery struct {
 
 // RollbackLookup selects the prior revision body used by managed rollback.
 type RollbackLookup struct {
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 	SourcePath  string

@@ -35,7 +35,7 @@ func TestLoopCreationProfile(t *testing.T) {
 		t.Parallel()
 
 		profile := profileFromPolicyResolution(
-			session.CreateOpts{ProfileID: "profile-marketing", CWD: "/workspace"},
+			new(session.CreateOpts{ProfileID: "profile-marketing", CWD: "/workspace"}),
 			&loopSessionPolicyResolution{
 				workspace: workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "workspace-1"}},
 				agent: compozyconfig.ResolvedAgent{
@@ -1385,8 +1385,10 @@ func (m *loopActionBinderSessionManager) Status(context.Context, string) (*sessi
 
 func (m *loopActionBinderSessionManager) Create(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (*session.Session, error) {
+	opts := *optsInput
+
 	m.mu.Lock()
 	m.createCalls = append(m.createCalls, opts)
 	createErr := m.createErr
@@ -1637,7 +1639,7 @@ type loopPromptResultSessionManager struct {
 	events []acp.AgentEvent
 }
 
-func (m loopPromptResultSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+func (m loopPromptResultSessionManager) Create(context.Context, *session.CreateOpts) (*session.Session, error) {
 	return nil, errors.New("unexpected Create call")
 }
 
@@ -2333,10 +2335,11 @@ func TestCreateOptionsFromProfileKeepsGrantCeiling(t *testing.T) {
 		t.Run("Should carry the persisted loop run ceiling "+ceiling+" into a pinned recreation", func(t *testing.T) {
 			t.Parallel()
 			opts := createOptionsFromProfile(
-				looppkg.ActionSessionBindRequest{GrantCeiling: ceiling},
+				looppkg.ActionSessionBindRequest{GrantCeiling: ceiling, LoopRunID: "run-origin"},
 				store.SessionCreationProfile{ProfileID: "profile-a", AgentName: "coder", WorkspaceID: "ws-a"},
 			)
-			if opts.Origin.Kind != workspaceaccess.ActorAutomation || opts.Origin.Ceiling != ceiling {
+			if opts.Origin.ID != "run-origin" || opts.Origin.Kind != workspaceaccess.ActorAutomation ||
+				opts.Origin.Ceiling != ceiling {
 				t.Fatalf("Origin = %#v, want automation origin with ceiling %q (USW BR-9)", opts.Origin, ceiling)
 			}
 		})

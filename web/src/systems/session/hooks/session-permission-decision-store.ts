@@ -11,6 +11,7 @@ interface SessionPermissionDecisionState {
   phase: PermissionDecisionPhase;
   requestId: number;
   permissionKey: string;
+  decision: PermissionDecision | null;
 }
 
 type SessionPermissionDecisionEventPayloadMap = {
@@ -27,7 +28,7 @@ type SessionPermissionDecisionEventPayloadMap = {
 };
 
 type SessionPermissionDecisionEmittedPayloadMap = {
-  resolutionAccepted: {};
+  resolutionAccepted: { decision: PermissionDecision };
 };
 
 interface PermissionDecisionInput {
@@ -49,13 +50,14 @@ export function createSessionPermissionDecisionLogic() {
     SessionPermissionDecisionEventPayloadMap,
     SessionPermissionDecisionEmittedPayloadMap
   >({
-    context: { phase: "idle", permissionKey: "", requestId: 0 },
+    context: { decision: null, phase: "idle", permissionKey: "", requestId: 0 },
     on: {
       decisionSubmitted: (context, event, enqueue) => {
         if (context.permissionKey === event.permissionKey && context.phase !== "idle") return;
         const requestId = context.requestId + 1;
         enqueueDecision(enqueue, event, requestId);
         return {
+          decision: event.decision,
           phase: "submitting",
           permissionKey: event.permissionKey,
           requestId,
@@ -63,7 +65,7 @@ export function createSessionPermissionDecisionLogic() {
       },
       decisionResolved: (context, event, enqueue) => {
         if (context.phase !== "submitting" || context.requestId !== event.requestId) return;
-        enqueue.emit.resolutionAccepted({});
+        if (context.decision) enqueue.emit.resolutionAccepted({ decision: context.decision });
         return { ...context, phase: "resolved" };
       },
       decisionFailed: (context, event, enqueue) => {

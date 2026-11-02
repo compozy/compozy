@@ -30,6 +30,7 @@ import {
   type SubagentOriginContextValue,
 } from "@/systems/session/contexts/session-subagents-context-value";
 import {
+  RelayedWaitingMarker,
   SessionDecisionDock,
   SessionTerminalQuoteSlot,
   SessionTransportFailureNotice,
@@ -213,6 +214,9 @@ export function SessionThread({
                     {/* End-of-transcript truth about the live view (S4): a stated history reset, or a dead stream with Try again. */}
                     <SessionTransportHistoryResetNotice />
                     <LoadedTransportFailureNotice />
+                    {workspaceId ? (
+                      <RelayedWaitingMarker sessionId={sessionId} workspaceId={workspaceId} />
+                    ) : null}
                     <SessionThreadStatusRow
                       session={statusSession}
                       stopCompletionNote={stopCompletionNote}

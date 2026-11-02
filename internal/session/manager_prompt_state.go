@@ -9,15 +9,17 @@ import (
 )
 
 type promptTurnDispatchState struct {
-	session     *Session
-	turnID      string
-	runID       string
-	generation  int64
-	turnSource  TurnSource
-	inputClass  string
-	userMessage string
-	messageSeq  int
-	turnEnded   bool
+	reportMessageIDs []string
+	reportBlock      string
+	session          *Session
+	turnID           string
+	runID            string
+	generation       int64
+	turnSource       TurnSource
+	inputClass       string
+	userMessage      string
+	messageSeq       int
+	turnEnded        bool
 	// stopReason is the provider stop reason of the turn's terminal done event.
 	stopReason  acp.PromptStopReason
 	openMessage *promptMessageDispatchState

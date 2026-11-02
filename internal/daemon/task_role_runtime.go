@@ -43,7 +43,7 @@ type taskRoleStore interface {
 }
 
 type taskRoleSessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)

@@ -12,6 +12,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionListCommand(deps))
 	cmd.AddCommand(newSessionSubagentsCommand(deps))
 	cmd.AddCommand(newSessionInteractionsCommand(deps))
+	cmd.AddCommand(newSessionPendingCommand(deps))
 	cmd.AddCommand(newSessionStopCommand(deps))
 	cmd.AddCommand(newSessionProcessesCommand(deps))
 	cmd.AddCommand(newSessionRenameCommand(deps))

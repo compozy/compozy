@@ -132,7 +132,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 func (m *Manager) initializeRuntime() error {
 	m.workSignals = NewWorkSignalRegistry(WorkSignalSource{
 		Kind: WorkSignalAgentProgress, Source: SignalSourceFunc(m.progressSignals),
-	})
+	}, WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(m.heldPermissionSignals)})
 	m.waitRegistry = newSessionWaitRegistry(m.newWaitID, m.now, m.newWaitAfterFunc)
 	if err := compozyconfig.EnsureHomeLayout(m.homePaths); err != nil {
 		return fmt.Errorf("session: ensure home layout: %w", err)

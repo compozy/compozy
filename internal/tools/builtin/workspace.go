@@ -11,6 +11,22 @@ const (
 )
 
 var workspaceTools = []toolspkg.Descriptor{
+	nativeDescriptor(
+		toolspkg.ToolIDAgentDraftInstructions,
+		"agent_draft_instructions",
+		"Draft Agent Instructions",
+		"Generate instruction text under read-only triage without saving an agent definition.",
+		`{"type":"object","required":["goal","runtime"],"properties":{"goal":{"type":"string","minLength":1},"runtime":{"type":"object","required":["provider"],"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string"},"reasoning_effort":{"type":"string"}},"additionalProperties":false}},"additionalProperties":false}`,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{
+			toolspkg.ToolsetIDWorkspace,
+		},
+		[]string{"agent", "draft"},
+		[]string{"fill with AI", "draft instructions"},
+	),
 	workspaceArchiveDescriptor(
 		toolspkg.ToolIDWorkspaceArchive,
 		"workspace_archive",
@@ -157,6 +173,10 @@ var agentCreateInputSchema = `{
 		"tools":{"type":"array","items":{"type":"string"}},
 		"toolsets":{"type":"array","items":{"type":"string"}},
 		"deny_tools":{"type":"array","items":{"type":"string"}},
+		"display_name":{"type":"string"},
+ "description":{"type":"string"},
+ "kind":{"type":"string","enum":["on_demand","stays_on"]},
+ "appearance":{"type":"object","additionalProperties":true},
 		"category_path":{"type":"array","items":{"type":"string"}},
 		"disabled_skills":{"type":"array","items":{"type":"string"}},
 		"fallback_chain":{"type":"array","items":` + agentFallbackRouteInputSchema + `}

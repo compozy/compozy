@@ -28,6 +28,7 @@ import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleTestIds } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const execFileAsync = promisify(execFile);
 const homeAgentAlpha = "home-agent-alpha";
@@ -100,7 +101,7 @@ test("operator sees truthful Home overview, navigation, artifacts, and transport
   await ensureProjectWorkspace(appPage, runtime);
   await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  const home = await ensureAppWindow(appPage, "Home", "dashboard");
+  const home = await ensureAppWindow(appPage, "Dashboard", "dashboard");
   const snapshot = await captureHomeSnapshot(runtime, workspace);
 
   await expect(home.getByTestId("home-body")).toBeVisible();
@@ -127,7 +128,9 @@ test("operator sees truthful Home overview, navigation, artifacts, and transport
     snapshot.catalog.agents.length
   );
   await expect(
-    home.locator('[data-slot="home-agent-row"]').filter({ hasText: homeAgentAlpha })
+    home
+      .locator('[data-slot="home-agent-row"]')
+      .filter({ hasText: humanizeAgentSlug(homeAgentAlpha) })
   ).toBeVisible();
   await expect(home.locator('[data-slot="home-pulse"]')).toBeVisible();
   await expect(home.locator('[data-slot="home-outcomes"]')).toBeVisible();
@@ -185,7 +188,7 @@ test("Home reports an overview failure without misreporting daemon connectivity"
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(workspaceShell(page));
-  const home = await ensureAppWindow(page, "Home", "dashboard");
+  const home = await ensureAppWindow(page, "Dashboard", "dashboard");
 
   await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
@@ -206,7 +209,7 @@ test("Home preserves its overview through health loss and recovers after a daemo
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await ensureProjectWorkspace(page, runtime);
   await completeOnboardingIfPrompted(workspaceShell(page));
-  const home = await ensureAppWindow(page, "Home", "dashboard");
+  const home = await ensureAppWindow(page, "Dashboard", "dashboard");
   await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected"
@@ -278,9 +281,9 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
 
   await completeOnboardingIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  let home = await ensureAppWindow(appPage, "Home", "dashboard");
+  let home = await ensureAppWindow(appPage, "Dashboard", "dashboard");
   await switchWorkspace(appPage, beta.id, beta.name);
-  home = await ensureAppWindow(appPage, "Home", "dashboard");
+  home = await ensureAppWindow(appPage, "Dashboard", "dashboard");
 
   await expect(home.locator('[data-slot="home-page-meta"]')).toContainText(`project ${beta.name}`);
   // An empty project gets the first-run state instead of an all-zero KPI strip.
@@ -290,7 +293,7 @@ test("Home scope follows the active workspace", async ({ appPage, runtime }) => 
   await expect(home.locator('[data-slot="home-kpi-strip"]')).toHaveCount(0);
 
   await setGlobalScope(appPage, true);
-  home = await ensureAppWindow(appPage, "Home", "dashboard");
+  home = await ensureAppWindow(appPage, "Dashboard", "dashboard");
   await expect(home.locator('[data-slot="home-page-meta"]')).not.toContainText("project");
   await expect(home.getByTestId("home-first-run")).toHaveCount(0);
   await expect
@@ -461,15 +464,15 @@ async function assertHomeNavigation(page: Page, home: Locator): Promise<void> {
   // destination owns focus before clicking a Dock control that can minimize.
   await expect(windowFrame(appWindow(page, "tasks"))).toHaveAttribute("data-focused", "");
 
-  const focusedHome = await openAppWindow(page, "Home", "dashboard");
+  const focusedHome = await openAppWindow(page, "Dashboard", "dashboard");
   await focusedHome
     .locator('[data-slot="home-agents"]')
-    .getByRole("link", { name: new RegExp(homeAgentAlpha) })
+    .getByRole("link", { name: new RegExp(humanizeAgentSlug(homeAgentAlpha)) })
     .click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/agents/${homeAgentAlpha}`);
   await expect(windowFrame(appWindow(page, "agents"))).toHaveAttribute("data-focused", "");
 
-  const returnedHome = await openAppWindow(page, "Home", "dashboard");
+  const returnedHome = await openAppWindow(page, "Dashboard", "dashboard");
   await expect(returnedHome.getByTestId("home-body")).toBeVisible();
 }
 
@@ -497,8 +500,8 @@ async function assertHomeViewportMatrix(
 }
 
 async function assertHomeFocus(page: Page): Promise<void> {
-  const homeLauncher = page.getByRole("button", { name: "Home", exact: true });
-  await expect(homeLauncher).toHaveAccessibleName("Home");
+  const homeLauncher = page.getByRole("button", { name: "Dashboard", exact: true });
+  await expect(homeLauncher).toHaveAccessibleName("Dashboard");
   await homeLauncher.focus();
   await expect(homeLauncher).toBeFocused();
 }

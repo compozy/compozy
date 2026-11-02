@@ -33,6 +33,7 @@ describe("agentCreateDialogLogic", () => {
     store.trigger.submissionSucceeded({
       agentName: "first",
       attempt: firstAttempt.attempt,
+      landing: "agent",
     });
 
     expect(store.getSnapshot().context).toMatchObject({

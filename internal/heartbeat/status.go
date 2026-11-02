@@ -25,6 +25,7 @@ type StatusStore interface {
 		workspaceID string,
 		agentName string,
 		digest string,
+		profileID string,
 	) (Snapshot, bool, error)
 	GetHeartbeatWakeState(
 		ctx context.Context,
@@ -237,7 +238,7 @@ func resolveStatusTarget(ctx context.Context, target AuthoringTarget) (resolvedA
 }
 
 func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarget, error) {
-	if target.Config == (compozyconfig.HeartbeatConfig{}) {
+	if target.Config.IsZero() {
 		target.Config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	normalized, err := normalizeAuthoringTarget(target)
@@ -281,6 +282,7 @@ func (s *ManagedHeartbeatStatusService) snapshotForPolicy(
 		target.workspaceID,
 		target.agentName,
 		policy.Digest,
+		target.profileID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("heartbeat: find status snapshot: %w", err)

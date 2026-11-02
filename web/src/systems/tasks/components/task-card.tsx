@@ -1,14 +1,12 @@
 import { Link } from "@tanstack/react-router";
 
-import { OwnerAvatar, Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { taskCardMetaModel } from "../lib/task-card-presentation";
 import {
   formatRelativeTime,
-  ownerAvatarKindFor,
   taskApprovalStateLabel,
   taskHasApprovalPending,
-  taskOwnerLabel,
   taskPriorityLabel,
   taskStateGlyph,
   taskStatusLabel,
@@ -20,6 +18,7 @@ import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 import { taskWindowBinding } from "../lib/task-detail-search";
+import { TaskOwnerMark, TaskOwnerName } from "./task-owner-mark";
 
 export interface TaskCardProps {
   task: TaskListItem;
@@ -144,20 +143,16 @@ function TaskWorkItemRow({
 
 /** The assignee as an avatar chip; the name rides in the tooltip and accessible label. */
 function TaskOwnerChip({ task }: { task: TaskListItem }) {
-  const ownerLabel = taskOwnerLabel(task.owner);
   return (
     <Tooltip>
       <TooltipTrigger
         render={<span className="inline-flex" data-testid={`task-card-owner-${task.id}`} />}
       >
-        <OwnerAvatar
-          name={ownerLabel}
-          ownerId={task.owner?.ref ?? task.owner?.kind ?? "unassigned"}
-          ownerKind={ownerAvatarKindFor(task.owner?.kind)}
-          size="sm"
-        />
+        <TaskOwnerMark owner={task.owner} />
       </TooltipTrigger>
-      <TooltipContent>{ownerLabel}</TooltipContent>
+      <TooltipContent>
+        <TaskOwnerName owner={task.owner} />
+      </TooltipContent>
     </Tooltip>
   );
 }

@@ -1,22 +1,11 @@
-import {
-  Pill,
-  StateGlyph,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  type StateGlyphState,
-  type TopbarSlotStore,
-  type TopbarSlotValue,
-} from "@compozy/ui";
-import { X } from "@compozy/ui/icons";
+import { StateGlyph, type StateGlyphState, type TopbarSlotStore } from "@compozy/ui";
 import * as React from "react";
-
-import { cn } from "@/lib/utils";
 
 import { useWindowMemberSlot } from "../hooks/use-window-member-slot";
 import { getOsAppDescriptor, osAppId, type OsAppDescriptor } from "../lib/app-catalog";
 import type { OsWindow } from "../lib/os-types";
 import { sessionTabState, type OsWindowTabState } from "./os-window-tab-state";
+import { OsWindowTabView } from "./os-window-tab-view";
 import {
   getSessionDisplayTitle,
   pendingInteractions,
@@ -81,7 +70,6 @@ export function OsWindowTab({
   const isNewTab = win.app === "new-tab";
   const sessionTitle = isSession && session ? getSessionDisplayTitle(session) : null;
   const label: React.ReactNode = sessionTitle ?? slot?.crumb ?? app.title;
-  const showLabel = !win.pinned;
 
   const closeTab = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -90,98 +78,28 @@ export function OsWindowTab({
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <div
-            data-slot="os-window-tab"
-            data-window-id={win.id}
-            data-active={active ? "" : undefined}
-            data-pinned={win.pinned ? "" : undefined}
-            data-testid={`os-window-tab-${win.id}`}
-            className={tabPlateClass(win.pinned, active)}
-          >
-            {active ? <OsWindowTabFeet /> : null}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={active}
-              data-slot="os-window-tab-activate"
-              className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 self-stretch rounded-[inherit] pl-3 text-left focus-visible:outline-none focus-visible:shadow-focus-inset"
-              onPointerDown={event => {
-                if (event.button === 0) onTabPointerDown?.(event);
-              }}
-              onClick={onActivate}
-              onAuxClick={event => {
-                if (event.button === 1 && !win.pinned) {
-                  event.preventDefault();
-                  onClose();
-                }
-              }}
-            >
-              <OsWindowTabGlyph
-                app={app}
-                isNewTab={isNewTab}
-                isSession={isSession}
-                session={session}
-              />
-              {showLabel ? (
-                <span className={cn("min-w-0 flex-1 truncate", isNewTab && "text-subtle")}>
-                  {label}
-                </span>
-              ) : null}
-              <Pill.Count
-                count={tabPendingCount(isSession, session)}
-                data-slot="os-window-tab-count"
-              />
-            </button>
-            {showLabel ? (
-              <OsWindowTabClose active={active} label={label} onClick={closeTab} />
-            ) : null}
-          </div>
-        }
-      />
-      <TooltipContent side="bottom">
-        <OsWindowTabTrail crumbs={slot?.crumbs} title={sessionTitle ?? label} />
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function tabPlateClass(pinned: boolean, active: boolean): string {
-  return cn(
-    "group/tab relative inline-flex h-deck-tab min-w-0 items-center gap-2 rounded-t-deck-tab text-body font-medium transition-colors duration-base select-none",
-    pinned ? "shrink-0 pr-3" : "flex-1 pr-1.75",
-    active
-      ? // The plate's side and top hairlines are inset so the feet meet them flush.
-        "z-1 bg-canvas text-fg shadow-[inset_1px_0_0_var(--color-line),inset_-1px_0_0_var(--color-line),inset_0_1px_0_var(--color-line)]"
-      : "text-muted-foreground hover:bg-rail-hover hover:text-fg"
+    <OsWindowTabView
+      active={active}
+      crumbs={slot?.crumbs}
+      glyph={
+        <OsWindowTabGlyph app={app} isNewTab={isNewTab} isSession={isSession} session={session} />
+      }
+      isNewTab={isNewTab}
+      label={label}
+      onActivate={onActivate}
+      onClose={closeTab}
+      onMiddleClose={onClose}
+      onTabPointerDown={onTabPointerDown}
+      pendingCount={tabPendingCount(isSession, session)}
+      pinned={win.pinned}
+      title={sessionTitle ?? label}
+      windowId={win.id}
+    />
   );
 }
 
 function tabPendingCount(isSession: boolean, session: SessionPayload | undefined): number {
   return isSession && session ? pendingInteractions(session).length : 0;
-}
-
-/** The tooltip's full trail: every drill-in crumb, then the tab's title. */
-function OsWindowTabTrail({
-  crumbs,
-  title,
-}: {
-  crumbs: TopbarSlotValue["crumbs"] | undefined;
-  title: React.ReactNode;
-}) {
-  return (
-    <span className="flex max-w-64 min-w-0 items-center gap-1">
-      {(crumbs ?? []).map(part => (
-        <React.Fragment key={part.id}>
-          <span className="truncate">{part.label}</span>
-          <span aria-hidden="true">/</span>
-        </React.Fragment>
-      ))}
-      <span className="truncate">{title}</span>
-    </span>
-  );
 }
 
 /**
@@ -207,64 +125,5 @@ function OsWindowTabGlyph({
   const AppIcon = app.icon;
   return (
     <AppIcon aria-hidden="true" className="size-3.5 shrink-0" data-slot="os-window-tab-icon" />
-  );
-}
-
-/**
- * Concave feet (DESIGN-NOTES round 3): a 10px box per side whose fully
- * rounded bottom corner (clamped to the box, so a 10px radius) draws the arc from the tab's side hairline into the strip's
- * bottom hairline, overlapping the tab edge by 1px; its canvas box-shadow
- * fills the plate side of the arc so there is no seam.
- */
-function OsWindowTabFeet() {
-  const foot =
-    "pointer-events-none absolute bottom-0 size-2.5 border-0 border-b border-solid border-line";
-  return (
-    <>
-      <span
-        aria-hidden="true"
-        data-slot="os-window-tab-foot"
-        className={cn(
-          foot,
-          "-left-2.25 rounded-br-full border-r shadow-[5px_5px_0_5px_var(--color-canvas)]"
-        )}
-      />
-      <span
-        aria-hidden="true"
-        data-slot="os-window-tab-foot"
-        className={cn(
-          foot,
-          "-right-2.25 rounded-bl-full border-l shadow-[-5px_5px_0_5px_var(--color-canvas)]"
-        )}
-      />
-    </>
-  );
-}
-
-function OsWindowTabClose({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: React.ReactNode;
-  onClick: (event: React.MouseEvent) => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={`Close ${typeof label === "string" ? label : "tab"}`}
-      data-slot="os-window-tab-close"
-      className={cn(
-        "grid size-deck-close shrink-0 place-items-center rounded-pill text-subtle opacity-0 transition-opacity duration-base",
-        "hover:bg-selected hover:text-fg focus-visible:opacity-100 focus-visible:shadow-focus-ring focus-visible:outline-none",
-        "group-hover/tab:opacity-100",
-        active && "opacity-100"
-      )}
-      onPointerDown={event => event.stopPropagation()}
-      onClick={onClick}
-    >
-      <X aria-hidden="true" className="size-3" />
-    </button>
   );
 }

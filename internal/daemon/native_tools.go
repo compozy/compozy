@@ -93,6 +93,7 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 					}
 					origin = workspaceaccess.Origin{
 						Kind:    workspaceaccess.ActorAgentSession,
+						ID:      info.ID,
 						Ceiling: info.EffectiveWorkspaceAccess,
 					}
 				}

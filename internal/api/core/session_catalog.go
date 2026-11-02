@@ -37,6 +37,19 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: paged session catalog is required"))
 		return
 	}
+	query.ExcludeInstanceMain, err = parseBoolQuery(c, "exclude_instance_main")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if query.ExcludeInstanceMain {
+		instances, err := h.instanceFacetRows(c, query)
+		if err != nil {
+			h.instanceError(c, err)
+			return
+		}
+		query.InstanceMainIDs = instanceMainIDs(instances)
+	}
 	page, err := pager.ListPage(c.Request.Context(), query)
 	if err != nil {
 		status := http.StatusInternalServerError

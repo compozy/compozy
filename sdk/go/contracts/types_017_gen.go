@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+type SessionInput struct {
+	SteerDelivery   SteerDeliveryMode              `json:"steer_delivery,omitempty"`
+	ID              string                         `json:"id"`
+	SessionID       string                         `json:"session_id"`
+	MessageID       string                         `json:"message_id,omitempty"`
+	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
+	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
+	Status          string                         `json:"status"`
+	Mode            PromptMode                     `json:"mode"`
+	Delivery        PromptDelivery                 `json:"delivery"`
+	Text            string                         `json:"text"`
+	QueueGeneration int64                          `json:"queue_generation"`
+	EnqueuedAt      time.Time                      `json:"enqueued_at"`
+	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+type SessionInputListResult struct {
+	Inputs []SessionInput `json:"inputs"`
+}
+
+type SessionInputPromoteParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	SessionID      string `json:"session_id"`
+	QueueEntryID   string `json:"queue_entry_id"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	ExpectedTurnID string `json:"expected_turn_id"`
+}
+
 type SessionInputReplaceParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 	SessionID      string `json:"session_id"`
@@ -291,51 +321,4 @@ type SessionPromptResult struct {
 type SessionQueueSummaryPayload struct {
 	Entries int `json:"entries"`
 	Cap     int `json:"cap"`
-}
-
-type SessionRuntimeClearParams struct {
-	WorkspaceID      string `json:"workspace_id"`
-	SessionID        string `json:"session_id"`
-	ExpectedRevision *int64 `json:"expected_revision"`
-}
-
-type SessionRuntimePayload struct {
-	Status            SessionRuntimeStatus           `json:"status"`
-	Transition        SessionRuntimeTransition       `json:"transition,omitempty"`
-	Failure           string                         `json:"failure,omitempty"`
-	Generation        int64                          `json:"generation,omitempty"`
-	Recovery          *SessionRuntimeRecoveryPayload `json:"recovery,omitempty"`
-	Selected          *PromptRuntimeSelectionPayload `json:"selected,omitempty"`
-	SelectionRevision int64                          `json:"selection_revision"`
-	Effective         *RuntimeSelectionPayload       `json:"effective,omitempty"`
-	Requested         *PromptRuntimeSelectionPayload `json:"requested,omitempty"`
-	LastKnown         *RuntimeSelectionPayload       `json:"last_known,omitempty"`
-	ACPSessionID      string                         `json:"acp_session_id,omitempty"`
-	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`
-}
-
-type SessionRuntimeRecoveryExhaustedPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	RunID          string    `json:"run_id"`
-	Attempt        int       `json:"attempt"`
-	MaxAttempts    int       `json:"max_attempts"`
-	Generation     int64     `json:"generation"`
-	FailureKind    string    `json:"failure_kind,omitempty"`
-	FailureDetail  string    `json:"failure_detail,omitempty"`
 }

@@ -18,6 +18,8 @@ const EMPTY_REMOVAL = {
   credential_overrides: 0,
   desktop_partitions: 0,
   event_summaries: 0,
+  agent_instances: 0,
+  agent_memory_files: 0,
   loops: 0,
   mcp_servers: 0,
   palette_pins: 0,

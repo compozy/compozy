@@ -9,6 +9,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 type hookSelector[P any] func(P) []*ResolvedHook
@@ -363,9 +365,16 @@ func denyReasonFromRawPatch(rawPatch json.RawMessage) string {
 	if len(bytes.TrimSpace(rawPatch)) == 0 {
 		return ""
 	}
-	var patch ControlPatch
+	var patch struct {
+		DenyReason string `json:"deny_reason"`
+		Cancel     bool   `json:"cancel"`
+		Reason     string `json:"reason"`
+	}
 	if err := json.Unmarshal(rawPatch, &patch); err != nil {
 		return ""
+	}
+	if patch.Cancel {
+		return diagnostics.RedactAndBound(patch.Reason, 300)
 	}
 	return strings.TrimSpace(patch.DenyReason)
 }

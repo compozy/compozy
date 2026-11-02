@@ -31,7 +31,9 @@ type WakeService interface {
 
 // WakeStore provides persisted Heartbeat policy, wake state, and wake audit rows.
 type WakeStore interface {
-	GetLatestValidHeartbeatSnapshot(ctx context.Context, workspaceID string, agentName string) (Snapshot, error)
+	GetLatestValidHeartbeatSnapshot(
+		ctx context.Context, workspaceID string, agentName string, profileID string,
+	) (Snapshot, error)
 	GetHeartbeatWakeState(
 		ctx context.Context,
 		workspaceID string,
@@ -50,6 +52,7 @@ type SyntheticWakePrompter interface {
 
 // WakeRequest identifies one advisory Heartbeat wake decision.
 type WakeRequest struct {
+	ProfileID            string
 	WorkspaceID          string
 	AgentName            string
 	SessionID            string

@@ -367,7 +367,7 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 		registration, err := h.registry.RegisterSessionWithCreationIdentity(
 			testutil.Context(t),
-			indexed,
+			&(indexed),
 			creationIdentity,
 		)
 		if err != nil {
@@ -468,7 +468,7 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		if _, err := h.registry.RegisterSessionWithCreationIdentity(ctx, info, creationIdentity); err != nil {
+		if _, err := h.registry.RegisterSessionWithCreationIdentity(ctx, &(info), creationIdentity); err != nil {
 			t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
 		}
 
@@ -535,7 +535,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 
 		h := newHarness(t)
 		now := h.now
-		if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
+		if err := h.observer.registry.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 			ID:            "sess-orphan",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "Orphan",
@@ -546,7 +546,7 @@ func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 			State:         "active",
 			CreatedAt:     now,
 			UpdatedAt:     now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 

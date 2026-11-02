@@ -405,10 +405,10 @@ func TestManagerDelete(t *testing.T) {
 			run: func(t *testing.T) {
 				h := newHarness(t)
 				parent := createSession(t, h)
-				child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 					AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 					ProvenanceParentSessionID: parent.ID,
-				})
+				}))
 				if err != nil {
 					t.Fatalf("Create(system child) error = %v", err)
 				}
@@ -1106,9 +1106,9 @@ func TestManagerDelete(t *testing.T) {
 				}
 				created := make(chan createResult, 1)
 				go func() {
-					session, createErr := h.manager.Create(ctx, CreateOpts{
+					session, createErr := h.manager.Create(ctx, new(CreateOpts{
 						AgentName: "coder", Workspace: h.workspaceID,
-					})
+					}))
 					created <- createResult{session: session, err: createErr}
 				}()
 				select {
@@ -1681,4 +1681,37 @@ func assertDeletedUserSessionCatalogTruth(
 			t.Fatalf("deleted catalog event missing for session %q", sessionID)
 		}
 	}
+}
+
+type instanceProtectedCatalog struct{ *recordingSessionCatalog }
+
+var _ instanceMainGuard = (*instanceProtectedCatalog)(nil)
+
+func (*instanceProtectedCatalog) GuardInstanceMain(context.Context, string) error {
+	return store.ErrSessionIsInstanceMain
+}
+
+func TestInstanceMainRuntimeGuard(t *testing.T) {
+	t.Run("Should refuse archive with stop and delete before stopping an instance main", func(t *testing.T) {
+		t.Parallel()
+		catalog := &instanceProtectedCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Delete(t.Context(), active.ID); !errors.Is(err, store.ErrSessionIsInstanceMain) {
+			t.Fatalf("delete: %v", err)
+		}
+		if _, err := h.manager.ArchiveWithStop(
+			t.Context(),
+			active.WorkspaceID,
+			active.ID,
+		); !errors.Is(
+			err,
+			store.ErrSessionIsInstanceMain,
+		) {
+			t.Fatalf("archive: %v", err)
+		}
+		if _, ok := h.manager.Get(active.ID); !ok {
+			t.Fatal("refused operation stopped the instance main")
+		}
+	})
 }

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
+
 	"github.com/compozy/compozy/internal/session"
 
 	core "github.com/compozy/compozy/internal/api/core"
@@ -103,12 +105,14 @@ type Server struct {
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
 	soulAuthoring         core.SoulAuthoringService
+	agentMemory           *agentmemory.Store
 	soulHistoryPurger     core.SoulHistoryPurger
 	soulRefresher         core.SoulRefresher
 	heartbeatAuthor       core.HeartbeatAuthoringService
 	heartbeatPurger       core.HeartbeatHistoryPurger
 	heartbeatStatus       core.HeartbeatStatusService
 	heartbeatWake         core.HeartbeatWakeService
+	agentInstances        *core.AgentInstanceAPI
 	sessionHealth         core.SessionHealthReader
 	wakeEvents            core.HeartbeatWakeEventReader
 	coordinatorRole       core.CoordinatorRoleResolver
@@ -358,4 +362,8 @@ func WithHeartbeatWakeEventReader(reader core.HeartbeatWakeEventReader) Option {
 	return func(server *Server) {
 		server.wakeEvents = reader
 	}
+}
+
+func WithAgentInstances(api *core.AgentInstanceAPI) Option {
+	return func(server *Server) { server.agentInstances = api }
 }

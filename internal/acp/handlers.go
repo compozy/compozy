@@ -207,7 +207,7 @@ func (p *AgentProcess) handleRequestPermission(
 	if !p.permissionRequestIsBound(request.SessionId) {
 		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 	}
-	return p.resolvePermissionRequest(ctx, request)
+	return p.resolvePermissionRequest(ctx, request, "provider")
 }
 
 // resolvePermissionRequest decides one permission request through the provider
@@ -215,7 +215,11 @@ func (p *AgentProcess) handleRequestPermission(
 func (p *AgentProcess) resolvePermissionRequest(
 	ctx context.Context,
 	request acpsdk.RequestPermissionRequest,
+	cancellationActor string,
 ) (acpsdk.RequestPermissionResponse, error) {
+	if p.executionPolicy == ExecutionPolicyTriage {
+		return p.triagePermission(request), nil
+	}
 	turnID := p.activeTurnID()
 	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)
@@ -261,34 +265,34 @@ func (p *AgentProcess) resolvePermissionRequest(
 	}
 	defer p.clearPendingPermission(requestID)
 	raw := buildPermissionEventRaw(requestID, decisionPending, request)
-	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw)
+	wait := p.permissionTimeoutOrDefault()
+	expiresAt := timeNowUTC().Add(wait)
+	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw, expiresAt)
 
-	timer := time.NewTimer(p.permissionTimeoutOrDefault())
+	timer := time.NewTimer(wait)
 	defer timer.Stop()
 
+	decision, actor := decisionCanceled, cancellationActor
 	select {
-	case resolvedDecision := <-pending.response:
-		outcome, appliedDecision := selectPermissionOutcome(request.Options, resolvedDecision)
-		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, pending.resolvedBy, raw,
-		)
-		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	case decision = <-pending.response:
+		actor = pending.resolvedBy
 	case <-timer.C:
-		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
-		raw = buildPermissionEventRaw(requestID, appliedDecision, request)
-		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "timeout", raw,
-		)
-		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+		decision, actor = p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
 	case <-p.permissionConnectionDone():
+		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	case <-ctx.Done():
+		if cancellationActor == "system" && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+			cancellationActor = "timeout"
+		}
+		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	}
-	raw = buildPermissionEventRaw(requestID, decisionCanceled, request)
-	p.emitPermissionEvent(
-		sessionID, turnID, requestID, title, toolCallID, resource, decisionCanceled, "system", raw,
-	)
-	return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
+	if appliedDecision == "" {
+		appliedDecision = decisionCanceled
+	}
+	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
+	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
+	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
 
 func permissionRequestDisplay(request acpsdk.RequestPermissionRequest) (string, string) {

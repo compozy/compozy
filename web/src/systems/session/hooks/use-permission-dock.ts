@@ -20,7 +20,7 @@ export interface UsePermissionDockOptions {
   permission: PermissionRequest;
   sessionId: string;
   workspaceId: string;
-  onResolved?: () => void;
+  onResolved?: (decision: PermissionDecision) => void;
   blockedDecisions?: readonly PermissionDecision[];
 }
 

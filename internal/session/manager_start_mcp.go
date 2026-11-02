@@ -16,6 +16,9 @@ func (m *Manager) sessionMCPServers(
 	resolved compozyconfig.ResolvedAgent,
 	agentDef compozyconfig.AgentDef,
 ) ([]compozyconfig.MCPServer, error) {
+	if spec.sessionType == SessionTypeTriage {
+		return nil, nil
+	}
 	required := sessionRequiresHostedMCP(spec, resolved)
 	if strings.EqualFold(spec.runtimeMode, RuntimeModeVerdictOnly) {
 		if required {

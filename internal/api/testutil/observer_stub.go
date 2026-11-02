@@ -12,11 +12,13 @@ import (
 )
 
 type StubObserver struct {
-	QueryEventsFn      func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
-	OnAgentEventFn     func(context.Context, string, acp.AgentEvent)
-	QueryHookCatalogFn func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
-	QueryHookRunsFn    func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
-	QueryHookEventsFn  func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
+	QueryPermissionDailyRollupsFn func(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error)
+	QueryPermissionEntriesFn      func(context.Context, store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error)
+	QueryEventsFn                 func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error)
+	OnAgentEventFn                func(context.Context, string, acp.AgentEvent)
+	QueryHookCatalogFn            func(context.Context, hookspkg.CatalogFilter) ([]hookspkg.CatalogEntry, error)
+	QueryHookRunsFn               func(context.Context, store.HookRunQuery) ([]hookspkg.HookRunRecord, error)
+	QueryHookEventsFn             func(context.Context, hookspkg.EventFilter) ([]hookspkg.EventDescriptor, error)
 
 	HealthFn             func(context.Context) (observe.Health, error)
 	QueryTokenStatsFn    func(context.Context, store.TokenStatsQuery) ([]store.TokenStats, error)
@@ -123,3 +125,23 @@ func (s StubObserver) QueryTokenStats(
 }
 
 var _ core.Observer = (*StubObserver)(nil)
+
+func (s StubObserver) QueryPermissionDailyRollups(
+	ctx context.Context,
+	q store.PermissionRollupQuery,
+) ([]store.PermissionDailyRollup, error) {
+	if s.QueryPermissionDailyRollupsFn != nil {
+		return s.QueryPermissionDailyRollupsFn(ctx, q)
+	}
+	return nil, nil
+}
+
+func (s StubObserver) QueryPermissionEntries(
+	ctx context.Context,
+	q store.PermissionEntriesQuery,
+) ([]store.PermissionLogEntry, error) {
+	if s.QueryPermissionEntriesFn != nil {
+		return s.QueryPermissionEntriesFn(ctx, q)
+	}
+	return nil, nil
+}

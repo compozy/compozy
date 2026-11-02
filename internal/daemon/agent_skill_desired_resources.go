@@ -31,7 +31,7 @@ type desiredSkillResource struct {
 }
 
 type indexedAgentSkillResources struct {
-	agents     map[string]desiredAgentResource
+	agents     map[string]*desiredAgentResource
 	souls      map[string]managedResourceValue[soul.ResourceSpec]
 	heartbeats map[string]managedResourceValue[heartbeat.ResourceSpec]
 	skills     map[string]desiredSkillResource
@@ -60,7 +60,7 @@ func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (indexedA
 
 func newIndexedAgentSkillResources() indexedAgentSkillResources {
 	return indexedAgentSkillResources{
-		agents:     make(map[string]desiredAgentResource),
+		agents:     make(map[string]*desiredAgentResource),
 		souls:      make(map[string]managedResourceValue[soul.ResourceSpec]),
 		heartbeats: make(map[string]managedResourceValue[heartbeat.ResourceSpec]),
 		skills:     make(map[string]desiredSkillResource),
@@ -92,14 +92,15 @@ func (s *agentSkillSourceSyncer) appendDesiredAgents(
 	agentIDsBySourceKey map[string]string,
 	items agentSkillDeclarations,
 ) error {
-	for _, item := range items.agents {
+	for i := range items.agents {
+		item := &items.agents[i]
 		spec, encoded, err := validateAndEncodeAgent(ctx, s.agentCodec, item.scope, item.spec)
 		if err != nil {
 			return err
 		}
 		spec.SourcePath = strings.TrimSpace(item.spec.SourcePath)
 		id := managedPublicationID(agentManagedIDPrefix, item.scope.Normalize(), item.sourceKey, encoded, item.owner)
-		desired.agents[id] = desiredAgentResource{
+		desired.agents[id] = &desiredAgentResource{
 			id: id, scope: item.scope.Normalize(), owner: item.owner, spec: spec, encoded: encoded,
 		}
 		agentIDsBySourceKey[scopedAgentSourceKey(item.scope, item.sourceKey)] = id
@@ -154,7 +155,7 @@ func (s *agentSkillSourceSyncer) appendDesiredMCPServers(
 	return nil
 }
 
-func (s *agentSkillSourceSyncer) stageAgentTransientSpecs(desired map[string]desiredAgentResource) {
+func (s *agentSkillSourceSyncer) stageAgentTransientSpecs(desired map[string]*desiredAgentResource) {
 	projector, ok := s.agentProjector.(*resourceCatalogProjector[compozyconfig.AgentDef])
 	if !ok || projector.catalog == nil {
 		return
@@ -168,7 +169,7 @@ func (s *agentSkillSourceSyncer) stageAgentTransientSpecs(desired map[string]des
 
 func (s *agentSkillSourceSyncer) syncAgents(
 	ctx context.Context,
-	desired map[string]desiredAgentResource,
+	desired map[string]*desiredAgentResource,
 ) (bool, error) {
 	source := s.actor.Source
 	current, err := s.raw.ListRaw(ctx, s.actor, resources.ResourceFilter{

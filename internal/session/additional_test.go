@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -44,10 +45,10 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 		}),
 	)
 
-	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err == nil {
 		t.Fatal("Create() error = nil, want non-nil")
 	}
@@ -114,7 +115,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID})
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatalf("Create(blank agent) error = %v", err)
 		}
@@ -143,7 +144,7 @@ func TestCreateErrorBranches(t *testing.T) {
 			}},
 		})
 		h.manager = newManagerWithHarness(t, h)
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID}); err == nil {
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{Workspace: h.workspaceID})); err == nil {
 			t.Fatal("Create(blank agent with empty defaults) error = nil, want non-nil")
 		}
 	})
@@ -152,10 +153,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t, WithSessionIDGenerator(func() (string, error) { return "", nil }))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); err == nil {
+		})); err == nil {
 			t.Fatal("Create(empty session id) error = nil, want non-nil")
 		}
 	})
@@ -167,10 +168,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		h := newHarness(t, WithSessionIDGenerator(func() (string, error) {
 			return "", entropyErr
 		}))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); !errors.Is(err, entropyErr) {
+		})); !errors.Is(err, entropyErr) {
 			t.Fatalf("Create() error = %v, want entropy failure", err)
 		}
 		if sessions := h.manager.List(); len(sessions) != 0 {
@@ -189,10 +190,10 @@ func TestCreateErrorBranches(t *testing.T) {
 				return nil, errors.New("open failed")
 			}),
 		)
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); err == nil {
+		})); err == nil {
 			t.Fatal("Create(store open failure) error = nil, want non-nil")
 		}
 	})
@@ -203,10 +204,10 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 
 	h := newHarness(t, WithPromptAssembler(nil))
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -278,10 +279,10 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 		}},
 	})
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -873,14 +874,14 @@ func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	if _, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "coder"}); err == nil {
+	if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{AgentName: "coder"})); err == nil {
 		t.Fatal("Create(blank workspace) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName:     "coder",
 		Workspace:     h.workspaceID,
 		WorkspacePath: h.workspace,
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("Create(workspace + workspacePath) error = nil, want non-nil")
 	}
 }
@@ -903,10 +904,10 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 	}
 	cleanupTestManager(t, manager)
 
-	if _, err := manager.Create(testutil.Context(t), CreateOpts{
+	if _, err := manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: "ws-missing",
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("Create(without resolver) error = nil, want non-nil")
 	}
 
@@ -1274,4 +1275,59 @@ func (*stubRecorder) MaxEventSequence(context.Context) (int64, error) {
 
 func (*stubRecorder) QueryEventMetadata(context.Context, store.EventQuery) ([]store.EventMetadata, error) {
 	return nil, nil
+}
+
+func TestInstanceMainPromptResume(t *testing.T) {
+	t.Run("Should resume the same stopped instance main on prompt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		db, err := openSessionTestGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+		if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: h.workspaceID, Name: h.workspaceName, RootDir: h.workspace,
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db))
+		cleanupTestManager(t, h.manager)
+		main := createSession(t, h)
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: h.workspaceID,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), main.ID); err != nil {
+			t.Fatal(err)
+		}
+		stream, err := h.manager.Prompt(t.Context(), main.ID, "Continue the existing conversation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		resumed, ok := h.manager.Get(main.ID)
+		if !ok || resumed.Info().State != StateActive {
+			t.Fatalf("main did not resume: %v", ok)
+		}
+		retained, err := db.Instances().Get(t.Context(), instance.ID)
+		if err != nil || retained.MainSessionID != main.ID {
+			t.Fatalf("main pointer changed: %#v, %v", retained, err)
+		}
+		h.driver.mu.Lock()
+		starts := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if starts != 2 {
+			t.Fatalf("provider starts=%d, want initial and resume", starts)
+		}
+	})
 }

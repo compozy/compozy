@@ -4026,7 +4026,7 @@ func registerManagerInputQueueSession(
 ) {
 	t.Helper()
 
-	if err := queueStore.RegisterSession(testutil.Context(t), store.SessionInfo{
+	if err := queueStore.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sess.ID,
 		Name:          "Input Queue",
@@ -4038,7 +4038,7 @@ func registerManagerInputQueueSession(
 		RuntimeStatus: store.SessionRuntimeReady,
 		CreatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 }
@@ -5872,9 +5872,9 @@ func TestManagerPromptMentions(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		writeMentionFixture(t, h.workspace, "root.txt", "pkg/main.go")
-		sess, err := h.manager.Create(t.Context(), CreateOpts{
+		sess, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName: "coder", Name: "pkg session", Workspace: h.workspaceID, CWD: "pkg",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -6360,13 +6360,13 @@ func newMentionHarness(t *testing.T, opts ...Option) (*harness, *globaldb.Global
 
 func registerMentionCatalogSession(t *testing.T, database *globaldb.GlobalDB, id string, workspaceID string) {
 	t.Helper()
-	if err := database.RegisterSession(t.Context(), store.SessionInfo{
+	if err := database.RegisterSession(t.Context(), new(store.SessionInfo{
 		ProfileID: store.DefaultProfileID, ID: id, Name: "Mention " + id, AgentName: "coder", Provider: "claude",
 		WorkspaceID: workspaceID, SessionType: string(SessionTypeUser), State: string(StateActive),
 		RuntimeStatus: store.SessionRuntimeReady,
 		CreatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%s) error = %v", id, err)
 	}
 }

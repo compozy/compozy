@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+type ExtensionCommandSpec struct {
+	Verb    string            `json:"verb"`
+	Summary string            `json:"summary"`
+	Example string            `json:"example,omitempty"`
+	Flags   map[string]string `json:"flags,omitempty"`
+}
+
+type ExtensionManifestSummary struct {
+	Name              string   `json:"name"`
+	Version           string   `json:"version"`
+	Description       string   `json:"description,omitempty"`
+	MinCompozyVersion string   `json:"min_compozy_version"`
+	Provides          []string `json:"provides"`
+	Permissions       []string `json:"permissions"`
+}
+
+type ExtensionProvideToolsResponse struct {
+	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
+}
+
 type ExtensionToolCallRequest struct {
 	ToolID           ToolID                       `json:"tool_id"`
 	Handler          string                       `json:"handler"`
@@ -191,21 +211,4 @@ type GridBody struct {
 type GridSection struct {
 	Title string     `json:"title,omitempty"`
 	Tiles []GridTile `json:"tiles"`
-}
-
-type GridTile struct {
-	ID       string            `json:"id"`
-	Title    string            `json:"title"`
-	Image    Image             `json:"image"`
-	Badge    *ViewBadge        `json:"badge,omitempty"`
-	Actions  []RowAction       `json:"actions,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-type HeartbeatActorKind string
-
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
 }

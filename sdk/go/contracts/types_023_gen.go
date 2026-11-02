@@ -7,6 +7,75 @@ import (
 	"time"
 )
 
+type TaskRunPostClaimPayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         *string   `json:"run_kind,omitempty"`
+	WakeID          string    `json:"wake_id,omitempty"`
+	OwnerKey        string    `json:"owner_key,omitempty"`
+	TargetSessionID string    `json:"target_session_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	OriginKind      string    `json:"origin_kind,omitempty"`
+	OriginRef       string    `json:"origin_ref,omitempty"`
+	TaskStatus      string    `json:"task_status,omitempty"`
+	RunStatus       string    `json:"run_status,omitempty"`
+	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string    `json:"soul_digest,omitempty"`
+	Attempt         int       `json:"attempt,omitempty"`
+	LeaseUntil      time.Time `json:"lease_until"`
+	ReleaseReason   string    `json:"release_reason,omitempty"`
+	Error           string    `json:"error,omitempty"`
+	ClaimedAt       time.Time `json:"claimed_at"`
+}
+
+type TaskRunPreClaimPatch struct {
+	Deny                    bool     `json:"deny,omitempty"`
+	DenyReason              string   `json:"deny_reason,omitempty"`
+	AddRequiredCapabilities []string `json:"add_required_capabilities,omitempty"`
+	PriorityMin             *int     `json:"priority_min,omitempty"`
+}
+
+type TaskRunPreClaimPayload struct {
+	Event           HookEvent            `json:"event"`
+	Timestamp       time.Time            `json:"timestamp"`
+	ProfileID       string               `json:"profile_id,omitempty"`
+	TaskID          string               `json:"task_id,omitempty"`
+	RunID           string               `json:"run_id,omitempty"`
+	RunKind         *string              `json:"run_kind,omitempty"`
+	WakeID          string               `json:"wake_id,omitempty"`
+	OwnerKey        string               `json:"owner_key,omitempty"`
+	TargetSessionID string               `json:"target_session_id,omitempty"`
+	LoopRunID       string               `json:"loop_run_id,omitempty"`
+	WorkspaceID     string               `json:"workspace_id,omitempty"`
+	WorkflowID      string               `json:"workflow_id,omitempty"`
+	AgentName       string               `json:"agent_name,omitempty"`
+	SessionID       string               `json:"session_id,omitempty"`
+	ActorKind       string               `json:"actor_kind,omitempty"`
+	ActorID         string               `json:"actor_id,omitempty"`
+	OriginKind      string               `json:"origin_kind,omitempty"`
+	OriginRef       string               `json:"origin_ref,omitempty"`
+	TaskStatus      string               `json:"task_status,omitempty"`
+	RunStatus       string               `json:"run_status,omitempty"`
+	SoulSnapshotID  string               `json:"soul_snapshot_id,omitempty"`
+	SoulDigest      string               `json:"soul_digest,omitempty"`
+	Attempt         int                  `json:"attempt,omitempty"`
+	LeaseUntil      time.Time            `json:"lease_until"`
+	ReleaseReason   string               `json:"release_reason,omitempty"`
+	Error           string               `json:"error,omitempty"`
+	Criteria        TaskRunClaimCriteria `json:"criteria"`
+	Denied          bool                 `json:"denied,omitempty"`
+	DenyReason      string               `json:"deny_reason,omitempty"`
+}
+
 type TaskRunReleasedPayload struct {
 	Event             HookEvent `json:"event"`
 	Timestamp         time.Time `json:"timestamp"`
@@ -261,44 +330,4 @@ type TaskUnblockedPayload struct {
 	Details        json.RawMessage `json:"details,omitempty"`
 	ClearedAt      time.Time       `json:"cleared_at,omitzero"`
 	ClearNote      string          `json:"clear_note,omitempty"`
-}
-
-type TaskUpdateParams struct {
-	ID                 string           `json:"id"`
-	Title              *string          `json:"title,omitempty"`
-	Description        *string          `json:"description,omitempty"`
-	Priority           *Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage `json:"metadata,omitempty"`
-	Owner              *Ownership       `json:"owner,omitempty"`
-	ClearOwner         bool             `json:"clear_owner,omitempty"`
-}
-
-type TasksParams struct {
-	AllWorkspaces bool          `json:"all_workspaces,omitzero"`
-	WorkspaceIDs  []string      `json:"workspace_ids,omitempty"`
-	Scope         CatalogScope  `json:"scope,omitempty"`
-	Workspace     string        `json:"workspace,omitempty"`
-	Status        Status        `json:"status,omitempty"`
-	Priority      Priority      `json:"priority,omitempty"`
-	IncludeDrafts bool          `json:"include_drafts,omitempty"`
-	IncludeLoop   bool          `json:"include_loop,omitempty"`
-	LoopRunID     string        `json:"loop_run_id,omitempty"`
-	ApprovalState ApprovalState `json:"approval_state,omitempty"`
-	OwnerKind     OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef      string        `json:"owner_ref,omitempty"`
-	ParentTaskID  string        `json:"parent_task_id,omitempty"`
-	Worktree      string        `json:"worktree,omitempty"`
-	Query         string        `json:"query,omitempty"`
-	Sort          CatalogSort   `json:"sort,omitempty"`
-	Cursor        string        `json:"cursor,omitempty"`
-	Limit         int           `json:"limit,omitempty"`
-}
-
-type TasksResponse struct {
-	Tasks  []TaskCatalogItemPayload `json:"tasks"`
-	Page   CountedCursorPagePayload `json:"page"`
-	Facets TaskCatalogFacetsPayload `json:"facets"`
 }

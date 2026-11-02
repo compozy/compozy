@@ -11,6 +11,7 @@ import {
   paletteGroupFollowClass,
   paletteRowClass,
 } from "../lib/palette-view-inset";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
 
 const GROUP_CLASS = `${paletteGroupClass} ${paletteGroupFollowClass}`;
 
@@ -72,7 +73,7 @@ export function OsPaletteEntitySections({
               )}
               <span className="min-w-0 truncate leading-none">{session.title}</span>
               <span className="ml-auto shrink-0 text-eyebrow text-subtle">
-                {session.agentName}
+                <AgentIdentityLabel name={session.agentName} />
                 {session.workspaceLabel ? ` · ${session.workspaceLabel}` : ""}
               </span>
             </CommandItem>

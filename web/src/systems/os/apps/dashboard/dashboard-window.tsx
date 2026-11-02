@@ -1,17 +1,31 @@
+import { useNavigate } from "@tanstack/react-router";
 import { Home, ServerOff } from "@compozy/ui/icons";
 
 import { ConnectionIndicator, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { OsNewSessionButton } from "../../components/os-new-session-button";
+import { useDesktop } from "../../hooks/use-desktop";
 
 import { useDashboardWindowModel } from "./hooks/use-dashboard-window-model";
-import { HomeDashboard } from "@/systems/dashboard";
+import { ActivityPage, HomeDashboard } from "@/systems/dashboard";
+
+const ACTIVITY_PATH = "/activity";
 
 /**
  * Thin shell for the home window: identity, the Live pill, and the one primary
  * action live in the window head; the body is the 7-zone home dashboard.
  */
 export function DashboardWindow({ windowId }: { windowId: string }) {
+  const onActivity = useDesktop(
+    state => state.windows[windowId]?.route?.pathname === ACTIVITY_PATH
+  );
+  const navigate = useNavigate();
+  if (onActivity) return <ActivityPage onBack={() => void navigate({ to: "/" })} />;
+  return <DashboardHome windowId={windowId} />;
+}
+
+function DashboardHome({ windowId }: { windowId: string }) {
+  const navigate = useNavigate();
   const { connectionStatus, hasActiveWorkspace, isCreating, liveEnabled, openForAgent } =
     useDashboardWindowModel(windowId);
 
@@ -41,5 +55,10 @@ export function DashboardWindow({ windowId }: { windowId: string }) {
     );
   }
 
-  return <HomeDashboard liveEnabled={liveEnabled} />;
+  return (
+    <HomeDashboard
+      liveEnabled={liveEnabled}
+      onOpenActivity={() => void navigate({ to: "/activity" })}
+    />
+  );
 }

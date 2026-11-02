@@ -27,6 +27,14 @@ type CreateAgentRequest struct {
 
 // CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
 type CreateAgentPayload struct {
+	DisplayName *string        `json:"display_name,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"`
+
+	Label              string         `json:"label,omitempty"`
+	ResolvedAppearance map[string]any `json:"resolved_appearance,omitempty"`
+
 	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
 	Name            string                              `json:"name"`
 	Provider        string                              `json:"provider,omitempty"`

@@ -1,3 +1,5 @@
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+
 import { SessionListProviderMark } from "../session-list/session-list-provider-mark";
 import type { SubagentView } from "./types";
 
@@ -10,8 +12,9 @@ export function SubagentRuntimeMeta({
   providerMark?: boolean;
 }) {
   const { agent, provider, model, reasoning_effort: effort } = subagent.runtime;
+  const identity = useAgentIdentityView(agent ?? "");
   const modelLabel = [model, effort].filter(Boolean).join(" · ");
-  const label = [provider, agent, modelLabel].filter(Boolean).join(" · ");
+  const label = [provider, identity.label, modelLabel].filter(Boolean).join(" · ");
   return (
     <span
       className="flex min-w-0 items-center gap-1 text-transcript-caption text-subtle"
@@ -32,7 +35,7 @@ export function SubagentRuntimeMeta({
       {agent ? (
         <span aria-hidden="true" className="min-w-0 shrink-[10000] truncate text-muted-foreground">
           {model || effort ? "· " : ""}
-          {agent}
+          {identity.label}
         </span>
       ) : null}
     </span>

@@ -22,14 +22,15 @@ func (r inspectReaderForTest) ListSessions(
 	query storepkg.SessionListQuery,
 ) ([]storepkg.SessionInfo, error) {
 	items := make([]storepkg.SessionInfo, 0, len(r.sessions))
-	for _, session := range r.sessions {
+	for i := range r.sessions {
+		session := &r.sessions[i]
 		if strings.TrimSpace(query.ID) != "" && session.ID != strings.TrimSpace(query.ID) {
 			continue
 		}
 		if strings.TrimSpace(query.WorkspaceID) != "" && session.WorkspaceID != strings.TrimSpace(query.WorkspaceID) {
 			continue
 		}
-		items = append(items, session)
+		items = append(items, *session)
 	}
 	if query.Limit > 0 && len(items) > query.Limit {
 		items = items[:query.Limit]

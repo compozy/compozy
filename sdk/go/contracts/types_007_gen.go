@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+type DescribePayload struct {
+	Name             string                           `json:"name"`
+	Version          string                           `json:"version"`
+	Description      string                           `json:"description,omitempty"`
+	Provides         []string                         `json:"provides"`
+	Permissions      []string                         `json:"permissions"`
+	RequiresEnv      []string                         `json:"requires_env,omitempty"`
+	Profiles         []DescribeProfile                `json:"profiles,omitempty"`
+	Resources        DescribeResources                `json:"resources"`
+	Subprocess       DescribeSubprocess               `json:"subprocess"`
+	Gateway          *DescribeGatewayRequirement      `json:"gateway,omitempty"`
+	Tools            []ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
+	HookEvents       []DescribeHookEvent              `json:"hook_events,omitempty"`
+	WatchSourceKinds []string                         `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews  []string                         `json:"cmd_palette_views,omitempty"`
+	CommandGroups    []ExtensionCommandGroupSpec      `json:"command_groups,omitempty"`
+	SDK              DescribeSDKInfo                  `json:"sdk"`
+}
+
+type DescribeProfile struct {
+	Name        string                      `json:"name"`
+	Color       string                      `json:"color,omitempty"`
+	Icon        string                      `json:"icon,omitempty"`
+	Emoji       string                      `json:"emoji,omitempty"`
+	Defaults    DescribeProfileDefaults     `json:"defaults,omitzero"`
+	Credentials []DescribeProfileCredential `json:"credentials,omitempty"`
+}
+
+type DescribeProfileCredential struct {
+	Provider string `json:"provider"`
+	Slot     string `json:"slot"`
+}
+
 type DescribeProfileDefaults struct {
 	Agent    string `json:"agent,omitempty"`
 	Provider string `json:"provider,omitempty"`
@@ -180,24 +213,4 @@ type ExtensionCommandGroupSpec struct {
 	Path    string `json:"path"`
 	Summary string `json:"summary"`
 	Profile string `json:"profile,omitempty"`
-}
-
-type ExtensionCommandSpec struct {
-	Verb    string            `json:"verb"`
-	Summary string            `json:"summary"`
-	Example string            `json:"example,omitempty"`
-	Flags   map[string]string `json:"flags,omitempty"`
-}
-
-type ExtensionManifestSummary struct {
-	Name              string   `json:"name"`
-	Version           string   `json:"version"`
-	Description       string   `json:"description,omitempty"`
-	MinCompozyVersion string   `json:"min_compozy_version"`
-	Provides          []string `json:"provides"`
-	Permissions       []string `json:"permissions"`
-}
-
-type ExtensionProvideToolsResponse struct {
-	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
 }

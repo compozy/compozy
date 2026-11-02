@@ -39,6 +39,8 @@ type SessionProviderExecutionState struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
+	InitiatorKind            string         `json:"initiator_kind,omitempty"`
+	InitiatorID              string         `json:"initiator_id,omitempty"`
 	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`
 	Name                     string         `json:"name,omitempty"`

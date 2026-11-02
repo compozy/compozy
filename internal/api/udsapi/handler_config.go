@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
+
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -16,6 +18,7 @@ import (
 )
 
 type handlerConfig struct {
+	agentInstances        *core.AgentInstanceAPI
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService
@@ -61,6 +64,7 @@ type handlerConfig struct {
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
 	soulAuthoring         core.SoulAuthoringService
+	agentMemory           *agentmemory.Store
 	soulHistoryPurger     core.SoulHistoryPurger
 	soulRefresher         core.SoulRefresher
 	heartbeatAuthor       core.HeartbeatAuthoringService

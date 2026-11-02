@@ -58,7 +58,7 @@ func (r *WorkSignalRegistry) hasExternalSources() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for kind := range r.sources {
-		if kind != WorkSignalAgentProgress {
+		if kind != WorkSignalAgentProgress && kind != WorkSignalHeldPermission {
 			return true
 		}
 	}

@@ -4,6 +4,19 @@ package contracts
 
 import "time"
 
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
+type SchedulerCatchUpPolicy string
+
+type SchedulerSkipReason string
+
 type Scope string
 
 type Section struct {
@@ -204,34 +217,4 @@ type SessionHealthUpdateAfterPayload struct {
 	LastActivityAt      time.Time `json:"last_activity_at"`
 	LastPresenceAt      time.Time `json:"last_presence_at"`
 	LastError           string    `json:"last_error,omitempty"`
-}
-
-type SessionInput struct {
-	SteerDelivery   SteerDeliveryMode              `json:"steer_delivery,omitempty"`
-	ID              string                         `json:"id"`
-	SessionID       string                         `json:"session_id"`
-	MessageID       string                         `json:"message_id,omitempty"`
-	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
-	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
-	Status          string                         `json:"status"`
-	Mode            PromptMode                     `json:"mode"`
-	Delivery        PromptDelivery                 `json:"delivery"`
-	Text            string                         `json:"text"`
-	QueueGeneration int64                          `json:"queue_generation"`
-	EnqueuedAt      time.Time                      `json:"enqueued_at"`
-	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
-}
-
-type SessionInputListResult struct {
-	Inputs []SessionInput `json:"inputs"`
-}
-
-type SessionInputPromoteParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
-	ExpectedTurnID string `json:"expected_turn_id"`
 }

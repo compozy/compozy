@@ -71,6 +71,7 @@ type DeletePlan struct {
 }
 
 type RemovalSummary struct {
+	AgentInstances, AgentMemoryFiles                                   int
 	Agents, Skills, Loops, MCPServers, ConfigKeys, CredentialOverrides int
 	DesktopPartitions                                                  int
 	PaletteUsage, PaletteQueryHits, PalettePins, TerminalApprovals     int

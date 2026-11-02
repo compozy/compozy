@@ -35,3 +35,7 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 QA impact 2026-10-07 (memory removal): the Knowledge create surface was removed with the Knowledge app, so the Knowledge legs of the dated walks above are historical; the other create surfaces are unchanged. The skip above still stands.
+
+QA impact 2026-11-01 (stays-on F1): New agent's footer now says what the primary will do. An On demand
+agent still follows the menubar, and the footer note there names that destination. A Stays on agent
+is defined at the user level and picks where it works on the same screen. Not walked.

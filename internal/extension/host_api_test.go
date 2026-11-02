@@ -181,11 +181,11 @@ func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
 
 		owned := env.createSession(t)
 		foreignWorkspace := env.addForeignWorkspace(t)
-		foreign, err := env.sessions.Create(testutil.Context(t), session.CreateOpts{
+		foreign, err := env.sessions.Create(testutil.Context(t), new(session.CreateOpts{
 			AgentName: "coder",
 			Workspace: foreignWorkspace.ID,
 			Type:      session.SessionTypeSystem,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("sessions.Create(foreign) error = %v", err)
 		}
@@ -442,7 +442,7 @@ func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) 
 			"workspace":"ws-alpha"
 		}`)
 
-		result, err := handler.handleSessionsCreate(testutil.Context(t), raw)
+		result, err := handler.handleSessionsCreate(withHostAPIExtensionName(testutil.Context(t), "ext-origin"), raw)
 		if err != nil {
 			t.Fatalf("handleSessionsCreate() error = %v", err)
 		}
@@ -453,6 +453,9 @@ func TestHostAPIHandlerSessionsCreateUsesDurableLogicalAcceptance(t *testing.T) 
 			t.Fatalf("CreateAccepted() calls = %#v, want one", sessions.acceptedCreateCalls)
 		}
 		accepted := sessions.acceptedCreateCalls[0]
+		if string(accepted.Session.Origin.Kind) != "extension" || accepted.Session.Origin.ID != "ext-origin" {
+			t.Fatalf("origin = %#v", accepted.Session.Origin)
+		}
 		if accepted.Session.AgentName != "coder" || accepted.Session.Workspace != "ws-alpha" {
 			t.Fatalf("CreateAccepted() Session = %#v", accepted.Session)
 		}
@@ -4889,7 +4892,7 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 		return nil, fmt.Errorf("%w: unsupported task scope %q", taskpkg.ErrValidation, spec.Task.Scope)
 	}
 
-	created, err := e.sessions.Create(ctx, opts)
+	created, err := e.sessions.Create(ctx, &(opts))
 	if err != nil {
 		return nil, fmt.Errorf("start task session: create session: %w", err)
 	}
@@ -5504,11 +5507,11 @@ func (e *hostAPITestEnv) addForeignWorkspace(t testing.TB) workspacepkg.Resolved
 func (e *hostAPITestEnv) createSession(t *testing.T) *session.Session {
 	t.Helper()
 
-	sess, err := e.sessions.Create(testutil.Context(t), session.CreateOpts{
+	sess, err := e.sessions.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName: "coder",
 		Workspace: e.workspace.ID,
 		Type:      session.SessionTypeSystem,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("sessions.Create() error = %v", err)
 	}
@@ -5618,14 +5621,17 @@ func (s *hostAPISessionSource) List() []*session.Info {
 }
 
 type recordingHostAPISessionManager struct {
+	infos               []*session.Info
 	createCalls         []session.CreateOpts
 	acceptedCreateCalls []session.CreateAcceptedOpts
 }
 
 func (m *recordingHostAPISessionManager) Create(
 	_ context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (*session.Session, error) {
+	opts := *optsInput
+
 	m.createCalls = append(m.createCalls, opts)
 	return &session.Session{
 		ID:          "sess-bridge",
@@ -5640,8 +5646,10 @@ func (m *recordingHostAPISessionManager) Create(
 
 func (m *recordingHostAPISessionManager) CreateAccepted(
 	_ context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	m.acceptedCreateCalls = append(m.acceptedCreateCalls, opts)
 	return &session.Info{
 		ID:        "sess-accepted",
@@ -5651,11 +5659,19 @@ func (m *recordingHostAPISessionManager) CreateAccepted(
 	}, nil
 }
 
-func (*recordingHostAPISessionManager) ListAll(context.Context) ([]*session.Info, error) {
+func (m *recordingHostAPISessionManager) ListAll(context.Context) ([]*session.Info, error) {
+	if m.infos != nil {
+		return m.infos, nil
+	}
 	return nil, errors.New("unexpected ListAll call")
 }
 
-func (*recordingHostAPISessionManager) Status(context.Context, string) (*session.Info, error) {
+func (m *recordingHostAPISessionManager) Status(_ context.Context, id string) (*session.Info, error) {
+	for _, info := range m.infos {
+		if info.ID == id {
+			return info, nil
+		}
+	}
 	return nil, errors.New("unexpected Status call")
 }
 
@@ -5932,7 +5948,7 @@ type promptSessionManagerStub struct {
 	listAllFn             func(context.Context) ([]*session.Info, error)
 }
 
-func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+func (s promptSessionManagerStub) Create(context.Context, *session.CreateOpts) (*session.Session, error) {
 	return nil, errors.New("unexpected create call")
 }
 
@@ -6147,4 +6163,51 @@ func (r *hostAPIFakeWorkspaceResolver) Get(ctx context.Context, ref string) (wor
 		return workspacepkg.Workspace{}, err
 	}
 	return workspacepkg.Workspace{ID: resolved.ID, Name: resolved.Name, RootDir: resolved.RootDir}, nil
+}
+
+func TestHostAPIHiddenTriage(t *testing.T) {
+	t.Run("Should hide triage from extension lists and reject by-id reads and writes", func(t *testing.T) {
+		t.Parallel()
+		env := newHostAPITestEnv(t)
+		env.grant(
+			"ext-triage",
+			[]string{"sessions/list", "sessions/status", "sessions/stop", "sessions/prompt"},
+			[]string{"session.read", "session.write"},
+		)
+		env.handler.sessions = &recordingHostAPISessionManager{infos: []*session.Info{
+			{
+				ID:          "hidden",
+				WorkspaceID: env.workspaceID,
+				ProfileID:   store.DefaultProfileID,
+				Type:        session.SessionTypeTriage,
+				State:       session.StateActive,
+			},
+			{
+				ID:          "visible",
+				WorkspaceID: env.workspaceID,
+				ProfileID:   store.DefaultProfileID,
+				Type:        session.SessionTypeUser,
+				State:       session.StateActive,
+			},
+		}}
+		result, err := env.call(t, "ext-triage", "sessions/list", map[string]string{"workspace": env.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var visible []hostAPISessionSummary
+		decodeResult(t, result, &visible)
+		if len(visible) != 1 || visible[0].ID != "visible" {
+			t.Fatalf("public list=%+v", visible)
+		}
+		for _, method := range []string{"sessions/status", "sessions/stop", "sessions/prompt"} {
+			params := map[string]string{"workspace_id": env.workspaceID, "session_id": "hidden"}
+			if method == "sessions/prompt" {
+				params["message"] = "Run work"
+				params["message_id"] = "msg-hidden"
+				params["idempotency_key"] = "hidden-key"
+			}
+			_, err := env.call(t, "ext-triage", method, params)
+			assertRPCErrorCode(t, err, HostAPINotFoundCode)
+		}
+	})
 }

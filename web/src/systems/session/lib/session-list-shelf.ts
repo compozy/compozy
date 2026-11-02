@@ -10,10 +10,12 @@ export type SessionListShelf = "active" | "archive" | "later";
 /** The catalog population a shelf reads; the daemon hides parked and archived rows by default. */
 export function sessionListShelfFilters(
   shelf: SessionListShelf
-): Pick<SessionListFilters, "archive" | "later"> {
-  if (shelf === "archive") return { archive: "only" };
-  if (shelf === "later") return { later: "only" };
-  return {};
+): Pick<SessionListFilters, "archive" | "exclude_instance_main" | "later"> {
+  // A stays-on agent's main session lives in its avatar, never in a row.
+  const population = { exclude_instance_main: true };
+  if (shelf === "archive") return { ...population, archive: "only" };
+  if (shelf === "later") return { ...population, later: "only" };
+  return population;
 }
 
 /** The noun an empty shelf names: "No sessions in Later yet." */

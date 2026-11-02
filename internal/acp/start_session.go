@@ -194,5 +194,9 @@ func (d *Driver) applySessionConfiguration(
 		)
 	}
 	d.logStartStage(normalized, process, "set_acp_options", startOutcomeSucceeded, stageStartedAt)
+	if process.executionPolicy == ExecutionPolicyTriage {
+		_, err := d.applySessionMode(ctx, process, normalized.Permissions)
+		return err
+	}
 	return nil
 }

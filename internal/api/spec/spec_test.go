@@ -891,9 +891,21 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				operation := operationFor(t, doc, "/api/sessions/catalog-stream", "GET")
 				stream := responseSchema(t, operation, 200, specContentTypeEventStream)
-				if len(stream.OneOf) != 3 {
-					t.Fatalf("session catalog SSE response oneOf = %#v, want three named payloads", stream.OneOf)
+				if len(stream.OneOf) != 4 {
+					t.Fatalf("session catalog SSE response oneOf = %#v, want four named payloads", stream.OneOf)
 				}
+				assertRequired(
+					t,
+					stream.OneOf[3].Value,
+					"id",
+					"label",
+					"provider",
+					"resolved_appearance",
+					"scope",
+					"activity",
+					"now",
+					"needs_attention",
+				)
 				catalog := stream.OneOf[0].Value
 				attention := stream.OneOf[1].Value
 				notification := stream.OneOf[2].Value
@@ -3221,6 +3233,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addAgentIdentitySchemas(t, baseline)
+		addInstanceReadSchemas(t, baseline)
+		addProfileRemovalInstanceCounts(t, baseline)
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
@@ -3816,6 +3831,20 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	}
 	attentionItem["properties"].(map[string]any)["workspace_id"] = map[string]any{"type": "string"}
 	attentionItem["required"] = append(attentionItem["required"].([]any), "workspace_id")
+	interactions := baseline["paths"].(map[string]any)["/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"].(map[string]any)["get"].(map[string]any)
+	interactions["parameters"] = slices.Insert(
+		interactions["parameters"].([]any),
+		2,
+		any(
+			map[string]any{
+				"name":        "descendants",
+				"in":          "query",
+				"description": "Include descendant sessions in the same workspace and profile",
+				"schema":      map[string]any{"type": "boolean"},
+			},
+		),
+	)
+	addStaysOnAdditiveSchemas(baseline)
 }
 
 // Match historical generic error fields, including payloads that embed them.
@@ -5063,4 +5092,361 @@ func addSessionProcessPolicyParameters(t *testing.T, baseline map[string]any) {
 			},
 		}, operation["parameters"].([]any)...)
 	}
+}
+
+func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	catalog := baseline["paths"].(map[string]any)["/api/agents/catalog"].(map[string]any)["get"].(map[string]any)
+	parameters := catalog["parameters"].([]any)
+	for i, raw := range parameters {
+		parameter := raw.(map[string]any)
+		if parameter["name"] == "q" {
+			parameter["description"] = "Case-insensitive agent name, label or category search"
+		}
+		if parameter["name"] == "name" {
+			catalog["parameters"] = slices.Insert[[]any, any](
+				parameters,
+				i,
+				map[string]any{
+					"name":        "group",
+					"in":          "query",
+					"description": "Group identical scoped definitions",
+					"schema":      map[string]any{"type": "string", "enum": []any{"agent"}},
+				},
+			)
+			break
+		}
+	}
+
+	var agentSchema map[string]any
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			props, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if props["category_path"] != nil && props["prompt"] != nil && props["provider"] != nil {
+				text := func() map[string]any { return map[string]any{"type": "string"} }
+				open := func() map[string]any {
+					return map[string]any{"type": "object", "additionalProperties": map[string]any{}}
+				}
+				props["display_name"] = text()
+				props["description"] = text()
+				props["kind"] = text()
+				props["appearance"] = open()
+				if props["definition_digest"] != nil {
+					props["package_owned"] = map[string]any{"type": "boolean"}
+					props["label"] = text()
+					props["resolved_appearance"] = open()
+					node["required"] = append(node["required"].([]any), "label", "resolved_appearance")
+					slices.SortFunc(
+						node["required"].([]any),
+						func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+					)
+					agentSchema = node
+				} else {
+					props["display_name"].(map[string]any)["nullable"] = true
+					props["description"].(map[string]any)["nullable"] = true
+					if props["name"] != nil {
+						props["display_name"].(map[string]any)["maxLength"] = float64(80)
+						props["description"].(map[string]any)["maxLength"] = float64(280)
+						props["kind"].(map[string]any)["enum"] = []any{"on_demand", "stays_on"}
+						props["label"] = text()
+						props["resolved_appearance"] = open()
+					}
+				}
+			}
+			if props["overrides"] != nil && props["name"] != nil && props["scope"] != nil {
+				props["kind"] = map[string]any{"type": "string", "enum": []any{"on_demand", "stays_on"}}
+			}
+			if props["agent"] != nil && props["sessions"] != nil {
+				props["scopes"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			}
+		}
+	}
+	walk(baseline)
+	if agentSchema == nil {
+		t.Fatal("approved agent identity addition: no agent schema")
+	}
+	var catalogs func(any)
+	catalogs = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				catalogs(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				catalogs(child)
+			}
+			props, ok := node["properties"].(map[string]any)
+			if !ok || props["agents"] == nil || props["sessions_available"] == nil {
+				return
+			}
+			props["next_cursor"] = map[string]any{"type": "string"}
+			node["required"] = append(node["required"].([]any), "next_cursor")
+			slices.SortFunc(
+				node["required"].([]any),
+				func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+			)
+			props["items"] = map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type":     "object",
+					"required": []any{"active", "agent", "definition_digest", "kind", "label", "name", "scopes"},
+					"properties": map[string]any{
+						"name": map[string]any{
+							"type": "string",
+						},
+						"label":             map[string]any{"type": "string"},
+						"kind":              map[string]any{"type": "string"},
+						"definition_digest": map[string]any{"type": "string"},
+						"scopes":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"active":            map[string]any{"type": "integer"},
+						"agent":             agentSchema,
+					},
+				},
+			}
+		}
+	}
+	catalogs(baseline)
+}
+
+func TestAgentMemoryOpenAPI(t *testing.T) {
+	t.Run("Should expose experimental memory operations on both transports", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, operation := range agentMemoryOperations() {
+			rendered := operationFor(t, doc, operation.Path, operation.Method)
+			if rendered.Extensions["x-stability"] != "experimental" {
+				t.Fatalf("missing stability for %s", operation.OperationID)
+			}
+			if !slices.Contains(operation.Transports, TransportHTTP) ||
+				!slices.Contains(operation.Transports, TransportUDS) {
+				t.Fatalf("missing transport for %s", operation.OperationID)
+			}
+			if operation.AppAccess != AppAccessDenied {
+				t.Fatalf("unexpected app authority for %s", operation.OperationID)
+			}
+		}
+		document := jsonResponseSchema(t, operationFor(t, doc, "/api/agents/{name}/memory", "GET"), 200)
+		assertRequired(t, document, "content", "digest", "budget")
+		budget := document.Properties["budget"].Value
+		assertRequired(t, budget, "lines", "max_lines", "bytes", "max_bytes")
+		search := jsonResponseSchema(t, operationFor(t, doc, "/api/agents/{name}/memory/search", "POST"), 200)
+		assertRequired(t, search, "results")
+	})
+}
+
+// addStaysOnAdditiveSchemas records the approved instance hooks and B4 approval relay contract.
+func addStaysOnAdditiveSchemas(value any) {
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			addStaysOnAdditiveSchemas(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			addStaysOnAdditiveSchemas(child)
+		}
+		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("session.pre_create")) {
+			for _, event := range []string{"agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted"} {
+				if values[0] == any("subagent.settled") || strings.HasPrefix(values[0].(string), "agent.instance.") {
+					values = slices.Insert(values, slices.Index(values, any("subagent.settled")), any(event))
+				} else {
+					values = insertReasonCode(values, event)
+				}
+			}
+			node["enum"] = values
+		}
+		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
+			node["enum"] = insertReasonCode(values, "held_permission")
+		}
+
+		props, ok := node["properties"].(map[string]any)
+		if ok && props["agent_name"] != nil && props["runtime"] != nil && props["board_column"] != nil {
+			props["instance_id"] = map[string]any{"type": "string"}
+		}
+		if ok && props["interaction_id"] != nil && props["provider_request_id"] != nil {
+			props["expires_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+			props["session_id"] = map[string]any{"type": "string"}
+			node["required"] = append(node["required"].([]any), "session_id")
+			slices.SortFunc(
+				node["required"].([]any),
+				func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+			)
+		}
+	}
+}
+
+func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
+	t.Helper()
+
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok || properties["palette_pins"] == nil {
+				return
+			}
+			names := []any{"agent_instances", "agent_memory_files"}
+			for _, name := range names {
+				properties[name.(string)] = map[string]any{"type": "integer"}
+			}
+			if required, ok := node["required"].([]any); ok {
+				node["required"] = append(names, required...)
+			}
+		}
+	}
+	walk(baseline)
+}
+
+func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+
+	facets := baseline["paths"].(map[string]any)["/api/sessions/facets"].(map[string]any)["get"].(map[string]any)
+	facets["parameters"] = append(
+		[]any{
+			map[string]any{
+				"name":        "exclude_instance_main",
+				"in":          "query",
+				"description": "Exclude instance main sessions from board counts",
+				"schema":      map[string]any{"type": "boolean"},
+			},
+		},
+		facets["parameters"].([]any)...)
+
+	for path, item := range baseline["paths"].(map[string]any) {
+		get, ok := item.(map[string]any)["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		parameters, ok := get["parameters"].([]any)
+		if !ok || !strings.HasSuffix(path, "/sessions") {
+			continue
+		}
+		for index, parameter := range parameters {
+			if parameter.(map[string]any)["name"] != "skip_total" {
+				continue
+			}
+			addition := map[string]any{
+				"name":        "exclude_instance_main",
+				"in":          "query",
+				"description": "Exclude stays-on main sessions from the page and its total",
+				"schema":      map[string]any{"type": "boolean"},
+			}
+			get["parameters"] = slices.Insert(parameters, index+1, any(addition))
+			break
+		}
+	}
+
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent_progress")) {
+				for _, addition := range []string{"active_monitor", "held_permission"} {
+					if !slices.Contains(values, any(addition)) {
+						values = append(values, addition)
+					}
+				}
+				node["enum"] = values
+			}
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("subagent.settled")) &&
+				!slices.Contains(values, any("agent.created")) &&
+				!slices.Contains(values, any("agent.instance.created")) {
+				node["enum"] = append(
+					[]any{
+						"agent.instance.created",
+						"agent.instance.paused",
+						"agent.instance.resumed",
+						"agent.instance.archived",
+						"agent.instance.adopted",
+					},
+					values...)
+			}
+			if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("agent.created")) &&
+				!slices.Contains(values, any("agent.instance.created")) {
+				values = append(
+					values,
+					"agent.instance.created",
+					"agent.instance.paused",
+					"agent.instance.resumed",
+					"agent.instance.archived",
+					"agent.instance.adopted",
+				)
+				slices.SortFunc(values, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+				node["enum"] = values
+			}
+			if props, ok := node["properties"].(map[string]any); ok && props["interaction_id"] != nil &&
+				props["provider_request_id"] != nil &&
+				props["session_id"] == nil {
+				props["expires_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+				props["session_id"] = map[string]any{"type": "string"}
+				node["required"] = append(node["required"].([]any), "session_id")
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
+			}
+			if props, ok := node["properties"].(map[string]any); ok && props["terminal_approvals"] != nil &&
+				props["board"] != nil &&
+				props["instances_needing_attention"] == nil {
+				props["instances_needing_attention"] = map[string]any{"type": "integer"}
+				node["required"] = append(node["required"].([]any), "instances_needing_attention")
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
+			}
+		}
+	}
+	walk(baseline)
+	props := map[string]any{}
+	required := []any{}
+	for _, name := range []string{"activity", "agent_name", "checks_enabled", "created", "created_at", "failure_streak", "fatigue_limit", "id", "label", "last_wake_at", "main_session_id", "needs_attention", "next_wake_at", "now", "pause_reason", "profile_id", "provider", "quiet_streak", "resolved_appearance", "scope", "state", "updated_at", "workspace_id"} {
+		props[name] = map[string]any{"type": "string"}
+		required = append(required, name)
+	}
+	props["created_at"] = map[string]any{"type": "string", "format": "date-time"}
+	props["updated_at"] = map[string]any{"type": "string", "format": "date-time"}
+	props["needs_attention"] = map[string]any{"type": "boolean"}
+	props["checks_enabled"] = map[string]any{"type": "boolean"}
+	props["created"] = map[string]any{"type": "boolean"}
+	props["failure_streak"] = map[string]any{"type": "integer", "format": "int64"}
+	props["quiet_streak"] = map[string]any{"type": "integer", "format": "int64"}
+	props["fatigue_limit"] = map[string]any{"type": "integer"}
+	props["resolved_appearance"] = map[string]any{"type": "object", "additionalProperties": map[string]any{}}
+	stream := baseline["paths"].(map[string]any)["/api/sessions/catalog-stream"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any)["content"].(map[string]any)["text/event-stream"].(map[string]any)["schema"].(map[string]any)
+	stream["oneOf"] = append(
+		stream["oneOf"].([]any),
+		map[string]any{"type": "object", "properties": props, "required": required},
+	)
 }

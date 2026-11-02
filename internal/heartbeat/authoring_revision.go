@@ -25,6 +25,7 @@ func (s *ManagedHeartbeatAuthoringService) appendRevision(
 	revision := Revision{
 		ID:             revisionID,
 		WorkspaceID:    target.workspaceID,
+		ProfileID:      target.profileID,
 		AgentName:      target.agentName,
 		SourcePath:     target.sourcePath,
 		Operation:      operation,

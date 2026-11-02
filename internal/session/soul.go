@@ -113,12 +113,13 @@ func (m *Manager) refreshSoulLocked(
 
 	snapshot, err := m.persistResolvedSoul(
 		durableCtx,
-		workspaceSnapshot.ID,
+		soulSnapshotWorkspaceID(&workspaceSnapshot, artifacts.Agent),
 		info.AgentName,
 		&resolved,
 		workspaceSnapshot.Config.Agents.Soul,
 		"session_refresh",
 		refreshedAt,
+		info.ProfileID,
 	)
 	if err != nil {
 		return SoulRefreshResult{}, err

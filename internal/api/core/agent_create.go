@@ -32,6 +32,9 @@ func CreateAgentFromRequest(
 	transportName string,
 	profileName string,
 ) (CreatedAgentDefinition, error) {
+	if err := compozyconfig.ValidateAgentAppearance(req.Agent.Appearance); err != nil {
+		return CreatedAgentDefinition{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+	}
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
 		return CreatedAgentDefinition{}, err
@@ -90,7 +93,13 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		disabledSkills = append([]string(nil), agent.Skills.Disabled...)
 	}
 	return compozyconfig.AgentDefinitionDraft{
-		Name:            agentName,
+		Name: agentName,
+		DisplayName: agentIdentityText(
+			agent.DisplayName,
+		),
+		Description:     agentIdentityText(agent.Description),
+		Kind:            agent.Kind,
+		Appearance:      compozyconfig.CloneAgentAppearance(agent.Appearance),
 		Provider:        agent.Provider,
 		Command:         agent.Command,
 		SessionEnv:      sessionEnvFromPayload(agent.SessionEnv),
@@ -231,4 +240,11 @@ func createAgentDefinitionTargetFor(
 			),
 		)
 	}
+}
+
+func agentIdentityText(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

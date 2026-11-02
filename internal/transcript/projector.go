@@ -113,7 +113,8 @@ func (p *Projector) completeActiveBoundary(
 	kind EntryKind,
 	boundarySequence int64,
 ) ([]string, error) {
-	if kind == EntryKindAssistant || strings.TrimSpace(p.state.ActiveEntryKey) == "" {
+	// A report lands beside a running turn without ending the assistant message it interrupts.
+	if kind == EntryKindAssistant || kind == EntryKindReport || strings.TrimSpace(p.state.ActiveEntryKey) == "" {
 		return nil, nil
 	}
 	identity, ok, err := p.resolveIdentity(ctx, p.state.ActiveEntryKey)
@@ -207,6 +208,9 @@ func (p *Projector) newIdentity(decoded *decodedStoredEvent, kind EntryKind) Ent
 	case EntryKindSystem:
 		logicalID = inputMessageID(decoded, UIRoleSystem)
 		baseID = logicalID
+	case EntryKindReport:
+		logicalID = strings.TrimSpace(decoded.stored.ID)
+		baseID = logicalID
 	case EntryKindMarker:
 		message := runtimeMarkerUIMessage(decoded)
 		logicalID = message.ID
@@ -298,6 +302,9 @@ func (p *Projector) resolveLatest(
 }
 
 func classifyProjectionEvent(decoded *decodedStoredEvent) EntryKind {
+	if decoded.stored.Type == ReportEventType {
+		return EntryKindReport
+	}
 	if transcriptMarkerText(decoded.parsed) != "" {
 		return EntryKindMarker
 	}

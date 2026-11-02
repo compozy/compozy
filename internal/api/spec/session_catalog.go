@@ -16,6 +16,7 @@ func sessionCatalogOperations() []OperationSpec {
 		sessionPromptCancelOperation(),
 		sessionPresenceOperation(),
 		sessionInteractionsOperation(),
+		sessionPendingInteractionsOperation(),
 		sessionAttentionSummaryOperation(),
 	}
 }
@@ -83,6 +84,7 @@ func sessionCatalogListOperation() OperationSpec {
 			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
 			boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
+			boolQueryParam("exclude_instance_main", "Exclude stays-on main sessions from the page and its total"),
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",
@@ -136,18 +138,7 @@ func sessionCatalogListOperation() OperationSpec {
 			queryParam("cursor", "Opaque next_cursor from the previous page", false),
 			intQueryParam("limit", "Sessions per page (1-100)"),
 		),
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SessionCatalogResponse{}},
-			{Status: 400, Description: "Invalid session list query or cursor", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      503,
-				Description: "Paged session catalog or workspace resolver is unavailable",
-				Body:        contract.ErrorPayload{},
-			},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
+		Responses: sessionCatalogListResponses(),
 	}
 }
 
@@ -178,6 +169,13 @@ func sessionPresenceOperation() OperationSpec {
 	}
 }
 
+func sessionPendingInteractionsOperation() OperationSpec {
+	operation := sessionInteractionsOperation()
+	operation.Path = "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions"
+	operation.OperationID = "listSessionPendingInteractions"
+	return operation
+}
+
 func sessionInteractionsOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
@@ -190,6 +188,7 @@ func sessionInteractionsOperation() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
+			boolQueryParam("descendants", "Include descendant sessions in the same workspace and profile"),
 			enumQueryParam(
 				"status",
 				"Filter by interaction status",
@@ -258,6 +257,7 @@ func sessionCatalogStreamOperation() OperationSpec {
 					responseBodyOf[contract.SessionCatalogEventPayload](),
 					responseBodyOf[contract.SessionAttentionEventPayload](),
 					responseBodyOf[contract.OperatorNotificationEventPayload](),
+					responseBodyOf[contract.AgentInstancePayload](),
 				),
 				ContentType: specContentTypeEventStream,
 			},
@@ -277,6 +277,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
+			boolQueryParam("exclude_instance_main", "Exclude instance main sessions from board counts"),
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),
@@ -320,5 +321,20 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			{Status: 503, Description: "Session catalog facets are unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
+	}
+}
+
+func sessionCatalogListResponses() []ResponseSpec {
+	return []ResponseSpec{
+		{Status: 200, Description: "OK", Body: contract.SessionCatalogResponse{}},
+		{Status: 400, Description: "Invalid session list query or cursor", Body: contract.ErrorPayload{}},
+		{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+		{Status: 410, Description: workspaceRootMissingDescription, Body: contract.ErrorPayload{}},
+		{
+			Status:      503,
+			Description: "Paged session catalog or workspace resolver is unavailable",
+			Body:        contract.ErrorPayload{},
+		},
+		{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 	}
 }

@@ -81,7 +81,9 @@ func normalizeCoreResolvedWorkspace(
 	return *resolved
 }
 
-func defaultCoreSessionManager(manager testutil.StubSessionManager) testutil.StubSessionManager {
+func defaultCoreSessionManager(input *testutil.StubSessionManager) *testutil.StubSessionManager {
+	snapshot := *input
+	manager := &snapshot
 	if manager.StatusFn != nil || manager.ListAllFn == nil {
 		return manager
 	}
@@ -102,7 +104,7 @@ func defaultCoreSessionManager(manager testutil.StubSessionManager) testutil.Stu
 
 func newHandlerFixture(
 	t *testing.T,
-	manager testutil.StubSessionManager,
+	manager *testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	workspaces testutil.StubWorkspaceService,
 ) handlerFixture {
@@ -118,7 +120,7 @@ func newHandlerFixture(
 
 func newHandlerFixtureWithAutomation(
 	t *testing.T,
-	manager testutil.StubSessionManager,
+	manager *testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	workspaces testutil.StubWorkspaceService,
@@ -135,7 +137,7 @@ func newHandlerFixtureWithAutomation(
 
 func newHandlerFixtureWithTasks(
 	t *testing.T,
-	manager testutil.StubSessionManager,
+	manager *testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	tasks *testutil.StubTaskManager,
 	workspaces testutil.StubWorkspaceService,
@@ -152,7 +154,7 @@ func newHandlerFixtureWithTasks(
 
 func newHandlerFixtureWithAutomationAndTasks(
 	t *testing.T,
-	manager testutil.StubSessionManager,
+	manager *testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	tasks *testutil.StubTaskManager,
@@ -170,7 +172,7 @@ func newHandlerFixtureWithAutomationAndTasks(
 
 func newHandlerFixtureWithRuntime(
 	t *testing.T,
-	manager testutil.StubSessionManager,
+	manager *testutil.StubSessionManager,
 	observer testutil.StubObserver,
 	automation testutil.StubAutomationManager,
 	tasks *testutil.StubTaskManager,
@@ -343,6 +345,8 @@ func newHandlerFixtureWithRuntime(
 	engine.GET("/task-reviews/:id", handlers.GetTaskRunReview)
 	engine.POST("/task-reviews/:id/verdict", handlers.SubmitTaskRunReviewVerdict)
 	engine.GET("/observe/overview", handlers.ObserveOverview)
+	engine.GET("/permissions/rollup", handlers.PermissionRollup)
+	engine.GET("/permissions", handlers.PermissionEntries)
 	engine.GET("/observe/tasks/dashboard", handlers.TaskDashboard)
 	engine.GET("/observe/tasks/inbox", handlers.TaskInbox)
 	engine.POST("/workspaces", handlers.CreateWorkspace)
@@ -369,12 +373,12 @@ func performRequest(t *testing.T, engine http.Handler, method, path string, body
 func testSessionManager(
 	workspaceID string,
 	sessionIDs ...string,
-) testutil.StubSessionManager {
+) *testutil.StubSessionManager {
 	allowed := make(map[string]struct{}, len(sessionIDs))
 	for _, id := range sessionIDs {
 		allowed[strings.TrimSpace(id)] = struct{}{}
 	}
-	return testutil.StubSessionManager{
+	return &testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			trimmedID := strings.TrimSpace(id)
 			if _, ok := allowed[trimmedID]; !ok {

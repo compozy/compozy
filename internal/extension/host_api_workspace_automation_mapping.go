@@ -37,7 +37,7 @@ func (h *HostAPIHandler) requireHostAPISessionWorkspace(
 		}
 		return nil, err
 	}
-	if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
+	if info == nil || info.Type == session.SessionTypeTriage || strings.TrimSpace(info.WorkspaceID) != workspaceID {
 		return nil, notFoundRPCError(
 			"session",
 			id,

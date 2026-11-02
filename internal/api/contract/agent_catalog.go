@@ -15,6 +15,7 @@ type AgentSessionMetricsPayload struct {
 // runtime session aggregate. Sessions is nil when the session authority is
 // temporarily unavailable.
 type AgentCatalogItemPayload struct {
+	Scopes   []string                    `json:"scopes,omitempty"`
 	Agent    AgentPayload                `json:"agent"`
 	Sessions *AgentSessionMetricsPayload `json:"sessions,omitzero"`
 }
@@ -31,9 +32,22 @@ type AgentCatalogFacetsPayload struct {
 
 // AgentCatalogResponse is one bounded Global or workspace agent fleet page.
 type AgentCatalogResponse struct {
-	Diagnostics       []DiagnosticItem          `json:"diagnostics,omitempty"`
-	Agents            []AgentCatalogItemPayload `json:"agents"`
-	Page              CountedCursorPagePayload  `json:"page"`
-	Facets            AgentCatalogFacetsPayload `json:"facets"`
-	SessionsAvailable bool                      `json:"sessions_available"`
+	Items             []GroupedAgentCatalogItemPayload `json:"items,omitempty"`
+	NextCursor        string                           `json:"next_cursor"`
+	Diagnostics       []DiagnosticItem                 `json:"diagnostics,omitempty"`
+	Agents            []AgentCatalogItemPayload        `json:"agents"`
+	Page              CountedCursorPagePayload         `json:"page"`
+	Facets            AgentCatalogFacetsPayload        `json:"facets"`
+	SessionsAvailable bool                             `json:"sessions_available"`
+}
+
+// GroupedAgentCatalogItemPayload is one identity shared by identical scoped definitions.
+type GroupedAgentCatalogItemPayload struct {
+	Name             string       `json:"name"`
+	Label            string       `json:"label"`
+	Kind             string       `json:"kind"`
+	DefinitionDigest string       `json:"definition_digest"`
+	Scopes           []string     `json:"scopes"`
+	Active           int          `json:"active"`
+	Agent            AgentPayload `json:"agent"`
 }

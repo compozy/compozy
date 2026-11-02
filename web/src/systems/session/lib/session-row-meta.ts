@@ -24,10 +24,13 @@ export interface RowMeta {
 
 export function rowMeta({
   session,
+  agentLabel,
   runtime,
   signal,
   orphanedSubagent,
 }: {
+  /** What the row calls the agent; `agent_name` stays its id. */
+  agentLabel?: string;
   session: SessionPayload;
   runtime: { label: string } | null;
   signal: ReturnType<typeof sessionBadgeSignal>;
@@ -46,7 +49,7 @@ export function rowMeta({
   const later = sessionLaterSpoken(sessionLaterDetails(session), formatAbsoluteTime);
   const spoken = [
     runtime?.label,
-    [session.agent_name, ...attention, ...notes].join(" · "),
+    [agentLabel ?? session.agent_name, ...attention, ...notes].join(" · "),
     later ? `· ${later}` : null,
   ]
     .filter(Boolean)

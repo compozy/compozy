@@ -40,10 +40,10 @@ const DOCK_ICON_GLYPHS = {
   ),
   dashboard: (props: GlyphProps) => (
     <DockGlyph {...props}>
-      <rect x="3" y="3" width="6" height="6" rx="1.6" />
-      <rect x="11" y="3" width="6" height="6" rx="1.6" />
-      <rect x="3" y="11" width="6" height="6" rx="1.6" />
-      <rect x="11" y="11" width="6" height="6" rx="1.6" />
+      <rect x="3" y="3" width="6" height="8" rx="1.6" />
+      <rect x="11" y="3" width="6" height="4" rx="1.6" />
+      <rect x="11" y="9" width="6" height="8" rx="1.6" />
+      <rect x="3" y="13" width="6" height="4" rx="1.6" />
     </DockGlyph>
   ),
   terminal: (props: GlyphProps) => (

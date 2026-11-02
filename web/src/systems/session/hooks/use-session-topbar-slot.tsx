@@ -1,10 +1,19 @@
-import { StateGlyph, useTopbarSlot } from "@compozy/ui";
+import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
+
+import {
+  agentAvatarAppearance,
+  agentInstanceAvatarState,
+  useAgentInstances,
+} from "@/systems/agent";
+import { PROFILE_SPRITE_URL } from "@/systems/profiles";
+import { WorkspaceBadge, useActiveWorkspace, workspaceBadgeIdentity } from "@/systems/workspace";
 
 import { SessionPullRequestChip } from "../components/session-pull-request-chip";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
+import { StaysOnAgentMenu } from "../components/stays-on/stays-on-agent-menu";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
@@ -103,12 +112,35 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { pullRequestExit, pullRequestRefresh, onSendPrompt } = input;
   const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
 
+  // A main session is the agent's own conversation, so the agent names it.
+  const instance = useAgentInstances().find(row => row.main_session_id === session.id);
+  const { registeredWorkspaces } = useActiveWorkspace();
+  const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
+
   useTopbarSlot({
-    glyph: <StateGlyph size="sm" state={glyphState} />,
+    leading: inWindow ? (
+      <WorkspaceBadge
+        identity={workspaceBadgeIdentity(session.workspace_id ?? "", workspaceNames)}
+        variant="chrome"
+      />
+    ) : undefined,
+    glyph: instance ? (
+      <AgentAvatar
+        appearance={agentAvatarAppearance(instance.resolved_appearance, instance.agent_name)}
+        label={instance.label}
+        quietIdle
+        size={20}
+        spriteUrl={PROFILE_SPRITE_URL}
+        state={agentInstanceAvatarState(instance)}
+      />
+    ) : (
+      <StateGlyph size="sm" state={glyphState} />
+    ),
     glyphPresentation: "state",
-    crumb: getSessionDisplayTitle(session),
+    crumb: instance?.label ?? getSessionDisplayTitle(session),
     status: (
       <span className="flex min-w-0 items-center gap-2">
+        {instance ? <Pill size="sm">Stays on</Pill> : null}
         <SessionPullRequestChip
           controllable={actions.lifecycleControllable}
           exitPlan={pullRequestExit?.plan}
@@ -148,6 +180,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
+        {instance ? <StaysOnAgentMenu instance={instance} /> : null}
         <SessionPrimaryAction
           key={session.id}
           {...input}

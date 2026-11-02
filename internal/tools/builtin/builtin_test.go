@@ -1237,6 +1237,28 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDAgentDraftInstructions, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDSessionPendingInteractions, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceArchive, risk: toolspkg.RiskMutating, destructive: true},
+		{id: toolspkg.ToolIDAgentInstanceCheck, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceChecks, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceOccurrence, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceCreate, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceEnsureMain, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstancePause, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceReports, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentActivity, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceGet, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceAway, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceCheckIns, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentInstanceSeen, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentInstanceResume, risk: toolspkg.RiskMutating},
+
+		{id: toolspkg.ToolIDAgentMemoryAdd, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentMemoryReplace, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentMemoryRemove, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentMemorySearch, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDProviderUsageList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDProviderUsageRefresh, risk: toolspkg.RiskMutating, openWorld: true},
 		{id: toolspkg.ToolIDSubagentCapabilities, risk: toolspkg.RiskRead, readOnly: true},
@@ -3114,8 +3136,23 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(authored_context) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDAgentActivity,
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
+			toolspkg.ToolIDAgentInstanceArchive,
+			toolspkg.ToolIDAgentInstanceAway,
+			toolspkg.ToolIDAgentInstanceCheck,
+			toolspkg.ToolIDAgentInstanceCheckIns,
+			toolspkg.ToolIDAgentInstanceChecks,
+			toolspkg.ToolIDAgentInstanceCreate,
+			toolspkg.ToolIDAgentInstanceEnsureMain,
+			toolspkg.ToolIDAgentInstanceGet,
+			toolspkg.ToolIDAgentInstanceList,
+			toolspkg.ToolIDAgentInstanceSeen,
+			toolspkg.ToolIDAgentInstanceOccurrence,
+			toolspkg.ToolIDAgentInstancePause,
+			toolspkg.ToolIDAgentInstanceReports,
+			toolspkg.ToolIDAgentInstanceResume,
 			toolspkg.ToolIDSessionHealth,
 		}; !slices.Equal(authoredContext, want) {
 			t.Fatalf("authored context expansion = %#v, want %#v", authoredContext, want)

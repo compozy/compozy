@@ -41,9 +41,16 @@ import { useSessionListGroups, type SessionListGroupsInput } from "../use-sessio
 import { SESSION_LIST_MANUAL_SORT_NOTE, useSessionListView } from "../use-session-list-view";
 import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
+// The instance row isn't under test here, and these suites count catalog reads.
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => ({ instances: [], capacity: {} }),
+}));
+
 function counts(all: number, working = 0, needsYou = 0) {
   return {
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all,
     needs_you: needsYou,
     working,
@@ -603,6 +610,7 @@ describe("useWorkspaceWorkingSessions", () => {
 
   const facets = (working: number) => ({
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all: working + 1,
     needs_you: 0,
     working,

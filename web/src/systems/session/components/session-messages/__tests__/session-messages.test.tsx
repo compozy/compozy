@@ -372,7 +372,7 @@ describe("SessionMessageCard", () => {
       { wrapper }
     );
     const card = screen.getByRole("article", { name: "Message from Refactor billing" });
-    expect(card.querySelector('[data-kind="claude"]')).not.toBeNull();
+    expect(card.querySelector('[data-slot="agent-avatar"]')).not.toBeNull();
     expect(within(card).getByText("From")).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "Refactor billing" })).toBeInTheDocument();
     expect(within(card).getByText("Steered")).toBeInTheDocument();

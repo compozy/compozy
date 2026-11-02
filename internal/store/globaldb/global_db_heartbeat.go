@@ -43,6 +43,7 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 		normalized.WorkspaceID,
 		normalized.AgentName,
 		normalized.Digest,
+		normalized.ProfileID,
 	)
 	if err != nil {
 		return heartbeat.Snapshot{}, err
@@ -52,7 +53,8 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 	}
 
 	affected, err := g.queries.InsertHeartbeatSnapshot(ctx, sqlcgen.InsertHeartbeatSnapshotParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID, AgentName: normalized.AgentName,
+		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
+		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
 		SourcePath: normalized.SourcePath, SchemaVersion: int64(normalized.SchemaVersion), Digest: normalized.Digest,
 		ConfigDigest: normalized.ConfigDigest, Body: normalized.Body,
 		FrontmatterJson: string(normalized.FrontmatterJSON), ResolvedJson: string(normalized.ResolvedJSON),
@@ -67,6 +69,7 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 			normalized.WorkspaceID,
 			normalized.AgentName,
 			normalized.Digest,
+			normalized.ProfileID,
 		)
 		if err != nil {
 			return heartbeat.Snapshot{}, err
@@ -113,14 +116,19 @@ func (g *HeartbeatRepo) FindHeartbeatSnapshotByDigest(
 	workspaceID string,
 	agentName string,
 	digest string,
+	profileID string,
 ) (heartbeat.Snapshot, bool, error) {
 	if err := g.checkReady(ctx, "find heartbeat snapshot by digest"); err != nil {
 		return heartbeat.Snapshot{}, false, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" && workspaceID != "" {
+		profileID = store.DefaultProfileID
+	}
 	agentName = strings.TrimSpace(agentName)
 	digest = strings.TrimSpace(digest)
-	if workspaceID == "" || agentName == "" || digest == "" {
+	if (workspaceID == "" && profileID == "") || agentName == "" || digest == "" {
 		return heartbeat.Snapshot{}, false, fmt.Errorf(
 			"%w: workspace id, agent name, and digest are required",
 			heartbeat.ErrInvalidSnapshot,
@@ -128,7 +136,7 @@ func (g *HeartbeatRepo) FindHeartbeatSnapshotByDigest(
 	}
 
 	row, err := g.queries.GetHeartbeatSnapshotByDigest(ctx, sqlcgen.GetHeartbeatSnapshotByDigestParams{
-		WorkspaceID: workspaceID, AgentName: agentName, Digest: digest,
+		WorkspaceID: workspaceID, ProfileID: profileID, AgentName: agentName, Digest: digest,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.Snapshot{}, false, nil
@@ -145,9 +153,11 @@ func (g *HeartbeatRepo) GetLatestValidHeartbeatSnapshot(
 	ctx context.Context,
 	workspaceID string,
 	agentName string,
+	profileID string,
 ) (heartbeat.Snapshot, error) {
 	revisions, err := g.ListHeartbeatRevisions(ctx, heartbeat.RevisionListQuery{
 		WorkspaceID: workspaceID,
+		ProfileID:   authoringProfileID(profileID),
 		AgentName:   agentName,
 		Limit:       1,
 	})
@@ -160,6 +170,7 @@ func (g *HeartbeatRepo) GetLatestValidHeartbeatSnapshot(
 
 	snapshots, err := g.ListHeartbeatSnapshots(ctx, heartbeat.SnapshotListQuery{
 		WorkspaceID: workspaceID,
+		ProfileID:   authoringProfileID(profileID),
 		AgentName:   agentName,
 	})
 	if err != nil {
@@ -210,6 +221,13 @@ func (g *HeartbeatRepo) currentSnapshotForRevision(
 			err,
 		)
 	}
+	if current.ProfileID != revision.Normalize().ProfileID {
+		return heartbeat.Snapshot{}, fmt.Errorf(
+			"store: heartbeat revision %q references another profile snapshot: %w",
+			revision.ID,
+			heartbeat.ErrInvalidRevision,
+		)
+	}
 	envelope, err := current.ResolvedEnvelope()
 	if err != nil {
 		return heartbeat.Snapshot{}, fmt.Errorf(
@@ -242,7 +260,7 @@ func (g *HeartbeatRepo) ListHeartbeatSnapshots(
 	}
 
 	// dynamic-sql: optional workspace/agent/digest filters and the caller limit change the statement shape.
-	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+	sqlQuery := `SELECT id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
 			body, frontmatter_json, resolved_json, diagnostics_json, created_at
 		FROM agent_heartbeat_snapshots`
 	where, args := store.BuildClauses(
@@ -250,6 +268,13 @@ func (g *HeartbeatRepo) ListHeartbeatSnapshots(
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("digest", query.Digest),
 	)
+	if strings.TrimSpace(query.ProfileID) != "" {
+		where = append(where, "profile_id = ?")
+		args = append(args, strings.TrimSpace(query.ProfileID))
+		if strings.TrimSpace(query.WorkspaceID) == "" {
+			where = append(where, "workspace_id = ''")
+		}
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -304,10 +329,10 @@ func (g *HeartbeatRepo) AppendHeartbeatRevision(
 
 	err := g.queries.InsertHeartbeatRevision(ctx, sqlcgen.InsertHeartbeatRevisionParams{
 		ID:          normalized.ID,
-		WorkspaceID: normalized.WorkspaceID,
-		AgentName:   normalized.AgentName,
-		SourcePath:  normalized.SourcePath,
-		Operation:   string(normalized.Operation),
+		WorkspaceID: normalized.WorkspaceID, ProfileID: normalized.ProfileID,
+		AgentName:  normalized.AgentName,
+		SourcePath: normalized.SourcePath,
+		Operation:  string(normalized.Operation),
 		PreviousDigest: nullableHeartbeatString(
 			normalized.PreviousDigest,
 		),
@@ -363,7 +388,7 @@ func (g *HeartbeatRepo) ListHeartbeatRevisions(
 	}
 
 	// dynamic-sql: optional workspace/agent/source/digest/operation filters and caller limit change the statement shape.
-	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+	sqlQuery := `SELECT id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
 			new_snapshot_id, body, actor_kind, actor_id, created_at
 		FROM agent_heartbeat_revisions`
 	where, args := store.BuildClauses(
@@ -373,6 +398,13 @@ func (g *HeartbeatRepo) ListHeartbeatRevisions(
 		store.StringClause("new_digest", query.NewDigest),
 		store.StringClause("operation", string(query.Operation)),
 	)
+	if strings.TrimSpace(query.ProfileID) != "" {
+		where = append(where, "profile_id = ?")
+		args = append(args, strings.TrimSpace(query.ProfileID))
+		if strings.TrimSpace(query.WorkspaceID) == "" {
+			where = append(where, "workspace_id = ''")
+		}
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
@@ -414,7 +446,8 @@ func (g *HeartbeatRepo) FindHeartbeatRevisionForRollback(
 	}
 
 	row, err := g.queries.GetHeartbeatRevisionForRollback(ctx, sqlcgen.GetHeartbeatRevisionForRollbackParams{
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID), AgentName: strings.TrimSpace(query.AgentName),
+		ProfileID: authoringProfileID(query.ProfileID), WorkspaceID: strings.TrimSpace(query.WorkspaceID),
+		AgentName:  strings.TrimSpace(query.AgentName),
 		SourcePath: strings.TrimSpace(query.SourcePath),
 		ID:         strings.TrimSpace(query.RevisionID),
 	})

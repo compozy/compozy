@@ -4,6 +4,197 @@
  */
 
 export interface paths {
+  "/api/agent-instances": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List agent instances */
+    get: operations["listAgentInstances"];
+    put?: never;
+    /** Create a stays-on agent instance */
+    post: operations["createAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/adopt": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Adopt a root session as an instance */
+    post: operations["adoptAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get an agent instance */
+    get: operations["getAgentInstance"];
+    put?: never;
+    post?: never;
+    /** Archive an agent instance */
+    delete: operations["archiveAgentInstance"];
+    options?: never;
+    head?: never;
+    /** Update instance checks */
+    patch: operations["updateAgentInstance"];
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/away": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the operator's instance away digest */
+    get: operations["getAgentInstanceAway"];
+    put?: never;
+    /** Mark the instance seen by the local operator */
+    post: operations["markAgentInstanceSeen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/check": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Check an agent instance */
+    post: operations["checkAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/check-ins": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List instance wake events */
+    get: operations["listAgentInstanceCheckIns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/ensure-main": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ensure the main session exists */
+    post: operations["ensureAgentInstanceMain"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/occurrences/{occurrence}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read an instance check occurrence */
+    get: operations["getAgentInstanceOccurrence"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause an agent instance */
+    post: operations["pauseAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/reports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List durable instance reports */
+    get: operations["listAgentInstanceReports"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-instances/{id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume an agent instance */
+    post: operations["resumeAgentInstance"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent/context": {
     parameters: {
       query?: never;
@@ -277,6 +468,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/draft-instructions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Draft agent instructions without saving a definition */
+    post: operations["draftAgentInstructions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}": {
     parameters: {
       query?: never;
@@ -291,6 +499,23 @@ export interface paths {
     post?: never;
     /** Durably delete one effective authored agent definition */
     delete: operations["deleteAgent"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read agent activity across authorized workspaces */
+    get: operations["getAgentActivity"];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -411,6 +636,111 @@ export interface paths {
     put?: never;
     /** Request one advisory Heartbeat wake for an eligible session */
     post: operations["wakeAgentHeartbeat"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/memory": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect agent memory (experimental) */
+    get: operations["getAgentMemory"];
+    /** Replace memory with a digest check (experimental) */
+    put: operations["putAgentMemory"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/memory/entries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Add a dated memory entry (experimental) */
+    post: operations["addAgentMemory"];
+    /** Remove matching memory entries (experimental) */
+    delete: operations["removeAgentMemory"];
+    options?: never;
+    head?: never;
+    /** Replace matching memory text (experimental) */
+    patch: operations["replaceAgentMemory"];
+    trace?: never;
+  };
+  "/api/agents/{name}/memory/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the last fifty memory revisions (experimental) */
+    get: operations["listAgentMemoryHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/memory/rollback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Restore a memory revision (experimental) */
+    post: operations["rollbackAgentMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/memory/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Search agent notes and accessible sessions (experimental) */
+    post: operations["searchAgentMemory"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/memory/validate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Validate proposed memory content (experimental) */
+    post: operations["validateAgentMemory"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1943,6 +2273,40 @@ export interface paths {
     };
     /** Get the running daemon's OpenAPI document */
     get: operations["getOpenAPIDocument"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/permissions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the newest permission decisions with their initiators */
+    get: operations["listPermissionEntries"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/permissions/rollup": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read daily permission totals by agent and decision */
+    get: operations["getPermissionRollup"];
     put?: never;
     post?: never;
     delete?: never;
@@ -5899,6 +6263,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pending session interactions */
+    get: operations["listSessionPendingInteractions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/presence": {
     parameters: {
       query?: never;
@@ -7193,6 +7574,25 @@ export interface components {
       url?: string;
       view?: string;
     };
+    ActivityCost: {
+      scope: string;
+      /** Format: int64 */
+      tokens: number;
+      /** Format: double */
+      usd_estimate: number;
+      workspace_id: string;
+    };
+    ActivityDay: {
+      day: string;
+      needed_you: number;
+      quiet: number;
+      told: number;
+    };
+    ActivityHour: {
+      events: number;
+      hour: number;
+      weekday: number;
+    };
     ActorIdentity: {
       /** @enum {string} */
       kind: "human" | "agent_session" | "automation" | "extension" | "daemon";
@@ -7215,6 +7615,11 @@ export interface components {
       id: string;
       value_id?: string;
     };
+    AgentActivityResponse: {
+      busy_by_hour: components["schemas"]["ActivityHour"][];
+      cost_by_project: components["schemas"]["ActivityCost"][];
+      reports_by_day: components["schemas"]["ActivityDay"][];
+    };
     AgentCapabilityPayload: {
       id: string;
       source?: string;
@@ -7232,12 +7637,15 @@ export interface components {
     };
     AgentCatalogItemPayload: {
       agent: components["schemas"]["AgentPayload"];
+      scopes?: string[];
       sessions?: components["schemas"]["AgentSessionMetricsPayload"] | null;
     };
     AgentCatalogResponse: {
       agents: components["schemas"]["AgentCatalogItemPayload"][];
       diagnostics?: components["schemas"]["DiagnosticItem"][];
       facets: components["schemas"]["AgentCatalogFacetsPayload"];
+      items?: components["schemas"]["GroupedAgentCatalogItemPayload"][];
+      next_cursor: string;
       page: components["schemas"]["CountedCursorPagePayload"];
       sessions_available: boolean;
     };
@@ -7276,6 +7684,11 @@ export interface components {
       message: string;
       path: string;
     };
+    AgentDraftRuntime: {
+      model?: string;
+      provider: string;
+      reasoning_effort?: string;
+    };
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       model?: string;
@@ -7313,6 +7726,122 @@ export interface components {
       provider: string;
       session_id: string;
     };
+    AgentInstanceAdoptRequest: {
+      agent: string;
+      session_id: string;
+    };
+    AgentInstanceAwayResponse: {
+      /** Format: date-time */
+      last_seen_at: string | null;
+      quiet_check_ins: number;
+      reports: components["schemas"]["AgentInstanceReportPayload"][];
+    };
+    AgentInstanceCheckDigest: {
+      diagnostics?: string[];
+      fingerprint: string;
+      item_keys: string[];
+    };
+    AgentInstanceCheckInPayload: {
+      /** Format: date-time */
+      created_at: string;
+      id: string;
+      reason: string;
+      result: string;
+    };
+    AgentInstanceCheckInsResponse: {
+      check_ins: components["schemas"]["AgentInstanceCheckInPayload"][];
+      next_cursor: string;
+    };
+    AgentInstanceCheckRequest: {
+      dry_run: boolean;
+    };
+    AgentInstanceCheckResponse: {
+      digest?: components["schemas"]["AgentInstanceCheckDigest"] | null;
+      gate?: string;
+      occurrence_id?: string;
+    };
+    AgentInstanceCreateRequest: {
+      agent: string;
+      workspace: string;
+    };
+    AgentInstanceListResponse: {
+      /** Format: int64 */
+      active_count: number;
+      instances: components["schemas"]["AgentInstancePayload"][];
+      max_active_instances: number;
+      next_cursor: string;
+    };
+    AgentInstanceOccurrenceResponse: {
+      reason?: string;
+      report_id?: string;
+      result?: string;
+      state: string;
+    };
+    AgentInstancePayload: {
+      activity: string;
+      agent_name: string;
+      checks_enabled: boolean;
+      created: boolean;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: int64 */
+      failure_streak: number;
+      fatigue_limit: number;
+      id: string;
+      label: string;
+      last_wake_at: string;
+      main_session_id: string;
+      needs_attention: boolean;
+      next_wake_at: string;
+      now: string;
+      pause_reason: string;
+      profile_id: string;
+      provider: string;
+      /** Format: int64 */
+      quiet_streak: number;
+      resolved_appearance: {
+        [key: string]: unknown;
+      };
+      scope: string;
+      state: string;
+      /** Format: date-time */
+      updated_at: string;
+      workspace_id: string;
+    };
+    AgentInstanceProposal: {
+      body: string;
+      item_keys: string[];
+      title: string;
+    };
+    AgentInstanceReportPayload: {
+      cause?: string;
+      /** Format: date-time */
+      created_at: string;
+      detail?: string;
+      expired_by?: string;
+      id: string;
+      kind: string;
+      proposals?: components["schemas"]["AgentInstanceProposal"][];
+      reason?: string;
+      session_id?: string;
+      since?: string;
+      state: string;
+      tool?: string;
+    };
+    AgentInstanceReportsResponse: {
+      next_cursor: string;
+      reports: components["schemas"]["AgentInstanceReportPayload"][];
+    };
+    AgentInstanceResponse: {
+      instance: components["schemas"]["AgentInstancePayload"];
+    };
+    AgentInstanceSeenResponse: {
+      /** Format: date-time */
+      last_seen_at: string;
+    };
+    AgentInstanceUpdateRequest: {
+      checks_enabled: boolean | null;
+    };
     AgentLimitsPayload: {
       can_spawn_children: boolean;
       context_section_limit: number;
@@ -7349,6 +7878,69 @@ export interface components {
     AgentMeResponse: {
       me: components["schemas"]["AgentMePayload"];
     };
+    AgentMemoryAddRequest: {
+      text: string;
+      until?: string;
+    };
+    AgentMemoryBudget: {
+      bytes: number;
+      lines: number;
+      max_bytes: number;
+      max_lines: number;
+    };
+    AgentMemoryDocument: {
+      budget: components["schemas"]["AgentMemoryBudget"];
+      content: string;
+      digest: string;
+    };
+    AgentMemoryHistoryResponse: {
+      revisions: components["schemas"]["AgentMemoryRevision"][];
+    };
+    AgentMemoryRemoveRequest: {
+      match: string;
+    };
+    AgentMemoryRemoveResponse: {
+      digest: string;
+      removed: number;
+    };
+    AgentMemoryReplaceRequest: {
+      match: string;
+      text: string;
+    };
+    AgentMemoryRevision: {
+      digest: string;
+      id: string;
+    };
+    AgentMemoryRollbackRequest: {
+      revision: string;
+    };
+    AgentMemorySearchRequest: {
+      include_sessions?: boolean;
+      query: string;
+    };
+    AgentMemorySearchResponse: {
+      results: components["schemas"]["AgentMemorySearchResult"][];
+    };
+    AgentMemorySearchResult: {
+      file?: string;
+      line?: number;
+      /** Format: double */
+      score?: number;
+      session_id?: string;
+      source: string;
+      text: string;
+    };
+    AgentMemoryValidateRequest: {
+      content: string;
+    };
+    AgentMemoryValidateResponse: {
+      diagnostics: string[];
+      valid: boolean;
+    };
+    AgentMemoryWriteRequest: {
+      content: string;
+      expected_digest: string;
+    };
     AgentNotifyRequest: {
       body?: string;
       title: string;
@@ -7360,23 +7952,34 @@ export interface components {
     };
     AgentPayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      appearance?: {
+        [key: string]: unknown;
+      };
       category_path?: string[];
       command?: string;
       definition_digest: string;
       deny_tools?: string[];
+      description?: string;
       diagnostics?: components["schemas"]["AgentDiagnosticPayload"][];
+      display_name?: string;
       effective_runtime?: components["schemas"]["AgentEffectiveRuntimePayload"] | null;
       fallback_chain?: components["schemas"]["RoleFallbackStatus"][];
+      kind?: string;
+      label: string;
       layer?: string;
       mcp_servers?: components["schemas"]["AgentMCPServerJSON"][];
       model?: string;
       name: string;
       /** @enum {string} */
       origin: "global" | "workspace";
+      package_owned?: boolean;
       permissions?: string;
       prompt: string;
       provider: string;
       reasoning_effort?: string;
+      resolved_appearance: {
+        [key: string]: unknown;
+      };
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -8451,10 +9054,18 @@ export interface components {
     };
     CreateAgentPayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      appearance?: {
+        [key: string]: unknown;
+      };
       category_path?: string[];
       command?: string;
       deny_tools?: string[];
+      description?: string | null;
+      display_name?: string | null;
       fallback_chain?: components["schemas"]["AgentFallbackRoutePayload"][];
+      /** @enum {string} */
+      kind?: "on_demand" | "stays_on";
+      label?: string;
       model?: string;
       name: string;
       /** @enum {string} */
@@ -8462,6 +9073,9 @@ export interface components {
       prompt: string;
       provider?: string;
       reasoning_effort?: string;
+      resolved_appearance?: {
+        [key: string]: unknown;
+      };
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -8726,6 +9340,13 @@ export interface components {
       };
       total: number;
     };
+    DraftAgentInstructionsRequest: {
+      goal: string;
+      runtime: components["schemas"]["AgentDraftRuntime"];
+    };
+    DraftAgentInstructionsResponse: {
+      instructions: string;
+    };
     DrainStatusResponse: {
       active_session_executions: number;
       active_task_claims: number;
@@ -8738,11 +9359,17 @@ export interface components {
     };
     DuplicateAgentOverrides: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
+      appearance?: {
+        [key: string]: unknown;
+      };
       category_path?: string[];
       clear_acp_options?: boolean;
       clear_speed?: boolean;
       command?: string;
       deny_tools?: string[];
+      description?: string | null;
+      display_name?: string | null;
+      kind?: string;
       model?: string;
       /** @enum {string} */
       permissions?: "deny-all" | "approve-reads" | "approve-all";
@@ -8760,6 +9387,8 @@ export interface components {
       workspace_access?: string;
     };
     DuplicateAgentRequest: {
+      /** @enum {string} */
+      kind?: "on_demand" | "stays_on";
       name: string;
       overrides?: components["schemas"]["DuplicateAgentOverrides"] | null;
       /** @enum {string} */
@@ -10024,6 +10653,15 @@ export interface components {
         [key: string]: string;
       };
       title: string;
+    };
+    GroupedAgentCatalogItemPayload: {
+      active: number;
+      agent: components["schemas"]["AgentPayload"];
+      definition_digest: string;
+      kind: string;
+      label: string;
+      name: string;
+      scopes: string[];
     };
     HeartbeatActorPayload: {
       /** @enum {string} */
@@ -12087,6 +12725,8 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       decisions?: string[];
+      /** Format: date-time */
+      expires_at?: string | null;
       interaction_id: string;
       kind: string;
       provider_request_id: string;
@@ -12094,10 +12734,40 @@ export interface components {
       /** Format: date-time */
       resolved_at?: string | null;
       resolved_by?: string;
+      session_id: string;
       status: string;
       title?: string;
       tool_id?: string;
       turn_id?: string;
+    };
+    PermissionDailyRollupPayload: {
+      agent_name: string;
+      /** Format: int64 */
+      count: number;
+      day: string;
+      decision: string;
+    };
+    PermissionEntriesResponse: {
+      entries: components["schemas"]["PermissionEntryPayload"][];
+    };
+    PermissionEntryPayload: {
+      action: string;
+      agent_name: string;
+      decision: string;
+      id: string;
+      initiator_id: string;
+      initiator_kind: string;
+      resource: string;
+      session_id: string;
+      /** Format: date-time */
+      timestamp: string;
+    };
+    PermissionRollupResponse: {
+      rollups: components["schemas"]["PermissionDailyRollupPayload"][];
+      /** Format: date-time */
+      since: string;
+      /** Format: date-time */
+      until: string;
     };
     PickFilesEffect: {
       directories?: boolean;
@@ -12169,6 +12839,8 @@ export interface components {
       plan_revision: string;
     };
     ProfileRemovalSummary: {
+      agent_instances: number;
+      agent_memory_files: number;
       agents: number;
       config_keys: number;
       credential_overrides: number;
@@ -13544,6 +14216,7 @@ export interface components {
       board: components["schemas"]["SessionBoardCountsPayload"];
       finished: number;
       idle: number;
+      instances_needing_attention: number;
       needs_you: number;
       terminal_approvals: number;
       working: number;
@@ -14124,6 +14797,7 @@ export interface components {
       folder_id?: string;
       health?: components["schemas"]["SessionHealthPayload"] | null;
       id: string;
+      instance_id?: string;
       later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
@@ -14901,6 +15575,11 @@ export interface components {
       };
       /** @enum {string} */
       event:
+        | "agent.instance.created"
+        | "agent.instance.paused"
+        | "agent.instance.resumed"
+        | "agent.instance.archived"
+        | "agent.instance.adopted"
         | "subagent.settled"
         | "session.pre_create"
         | "session.post_create"
@@ -16177,7 +16856,8 @@ export interface components {
         | "task_lease"
         | "scheduled_wait"
         | "awaiting_reply"
-        | "active_monitor";
+        | "active_monitor"
+        | "held_permission";
       ref?: string;
       state: string;
     };
@@ -19950,7 +20630,8 @@ export interface components {
         | "task_lease"
         | "scheduled_wait"
         | "awaiting_reply"
-        | "active_monitor";
+        | "active_monitor"
+        | "held_permission";
       ref?: string;
       /** Format: date-time */
       since: string;
@@ -20254,6 +20935,1392 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  listAgentInstances: {
+    parameters: {
+      query?: {
+        /** @description Workspace reference */
+        workspace?: string;
+        /** @description Include all workspaces */
+        all_workspaces?: string;
+        /** @description Agent name */
+        agent?: string;
+        /** @description Instance state */
+        state?: string;
+        /** @description Pagination cursor */
+        cursor?: string;
+        /** @description Page size */
+        limit?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceListResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  createAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstanceCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Existing instance */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  adoptAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstanceAdoptRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  archiveAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Archived */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  updateAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstanceUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentInstanceAway: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceAwayResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  markAgentInstanceSeen: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceSeenResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  checkAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentInstanceCheckRequest"];
+      };
+    };
+    responses: {
+      /** @description Gate or dry-run result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceCheckResponse"];
+        };
+      };
+      /** @description Check admitted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceCheckResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAgentInstanceCheckIns: {
+    parameters: {
+      query?: {
+        /** @description Pagination cursor */
+        cursor?: string;
+        /** @description Page size from 1 to 100; defaults to 50 */
+        limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Wake events, empty when instance wakes are unavailable */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceCheckInsResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  ensureAgentInstanceMain: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentInstanceOccurrence: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+        /** @description Occurrence ID */
+        occurrence: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Occurrence */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceOccurrenceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  pauseAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAgentInstanceReports: {
+    parameters: {
+      query?: {
+        /** @description Filter by pending, reserved, delivered, or indeterminate */
+        state?: string;
+        /** @description Pagination cursor */
+        cursor?: string;
+        /** @description Page size */
+        limit?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceReportsResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  resumeAgentInstance: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Instance ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getAgentContext: {
     parameters: {
       query?: never;
@@ -21474,9 +23541,11 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Repeatable project IDs or @user; requires all_workspaces=true */
         workspace_ids?: string[];
+        /** @description Group identical scoped definitions */
+        group?: "agent";
         /** @description Exact agent name */
         name?: string;
-        /** @description Case-insensitive agent name or category search */
+        /** @description Case-insensitive agent name, label or category search */
         q?: string;
         /** @description Exact category path joined by slash separators */
         category?: string;
@@ -21556,9 +23625,11 @@ export interface operations {
       query?: {
         /** @description Workspace id, name, or path; omit for Global definitions and cross-workspace session metrics */
         workspace?: string;
+        /** @description Group identical scoped definitions */
+        group?: "agent";
         /** @description Exact agent name */
         name?: string;
-        /** @description Case-insensitive agent name or category search */
+        /** @description Case-insensitive agent name, label or category search */
         q?: string;
         /** @description Exact category path joined by slash separators */
         category?: string;
@@ -21623,6 +23694,70 @@ export interface operations {
         };
       };
       /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  draftAgentInstructions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftAgentInstructionsRequest"];
+      };
+    };
+    responses: {
+      /** @description Draft instructions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DraftAgentInstructionsResponse"];
+        };
+      };
+      /** @description Invalid draft request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Provider does not support read-only triage */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Instruction drafting failed */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Instruction drafting unavailable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -21836,6 +23971,97 @@ export interface operations {
         };
       };
       /** @description Workspace resolver or definition sync unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentActivity: {
+    parameters: {
+      query?: {
+        /** @description Number of days, from 1 to 365; defaults to 30 */
+        days?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Scoped activity */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentActivityResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
       503: {
         headers: {
           [name: string]: unknown;
@@ -22576,6 +24802,941 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryDocument"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  putAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemoryWriteRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryDocument"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  addAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemoryAddRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryDocument"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemoryRemoveRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryRemoveResponse"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  replaceAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemoryReplaceRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryDocument"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAgentMemoryHistory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryHistoryResponse"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  rollbackAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemoryRollbackRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryDocument"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemorySearchRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemorySearchResponse"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  validateAgentMemory: {
+    parameters: {
+      query?: {
+        /** @description Workspace selecting the agent definition */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentMemoryValidateRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentMemoryValidateResponse"];
+        };
+      };
+      /** @description Invalid request or profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller identity is missing or stale */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Caller cannot access this agent memory */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent, workspace or revision not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_memory_conflict: reload the current digest */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory persistence failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Memory service unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -27323,6 +30484,11 @@ export interface operations {
         agent?: string;
         /** @description Hook event name */
         event?:
+          | "agent.instance.created"
+          | "agent.instance.paused"
+          | "agent.instance.resumed"
+          | "agent.instance.archived"
+          | "agent.instance.adopted"
           | "subagent.settled"
           | "session.pre_create"
           | "session.post_create"
@@ -29717,6 +32883,140 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listPermissionEntries: {
+    parameters: {
+      query?: {
+        /** @description UTC calendar days including today, 1 through 90 (default 30) */
+        days?: string;
+        /** @description Filter by agent name */
+        agent?: string;
+        /** @description Include only automation, daemon and extension initiators */
+        unattended?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PermissionEntriesResponse"];
+        };
+      };
+      /** @description Invalid query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getPermissionRollup: {
+    parameters: {
+      query?: {
+        /** @description UTC calendar days including today, 1 through 90 (default 30) */
+        days?: string;
+        /** @description Filter by agent name */
+        agent?: string;
+        /** @description Include only automation, daemon and extension initiators */
+        unattended?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PermissionRollupResponse"];
+        };
+      };
+      /** @description Invalid query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Observe service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -32698,6 +35998,8 @@ export interface operations {
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
         skip_total?: boolean;
+        /** @description Exclude stays-on main sessions from the page and its total */
+        exclude_instance_main?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -32969,7 +36271,8 @@ export interface operations {
           "text/event-stream":
             | components["schemas"]["SessionCatalogEventPayload"]
             | components["schemas"]["SessionAttentionEventPayload"]
-            | components["schemas"]["OperatorNotificationEventPayload"];
+            | components["schemas"]["OperatorNotificationEventPayload"]
+            | components["schemas"]["AgentInstancePayload"];
         };
       };
       /** @description Internal server error */
@@ -32995,6 +36298,8 @@ export interface operations {
   listSessionFacets: {
     parameters: {
       query?: {
+        /** @description Exclude instance main sessions from board counts */
+        exclude_instance_main?: boolean;
         /** @description Workspace id or path */
         workspace_id?: string;
         /** @description Use the explicit all-workspaces aggregate */
@@ -43381,6 +46686,11 @@ export interface operations {
         session: string;
         /** @description Hook event name */
         event?:
+          | "agent.instance.created"
+          | "agent.instance.paused"
+          | "agent.instance.resumed"
+          | "agent.instance.archived"
+          | "agent.instance.adopted"
           | "subagent.settled"
           | "session.pre_create"
           | "session.post_create"
@@ -47148,6 +50458,8 @@ export interface operations {
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
         skip_total?: boolean;
+        /** @description Exclude stays-on main sessions from the page and its total */
+        exclude_instance_main?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
@@ -48892,6 +52204,8 @@ export interface operations {
   listSessionInteractions: {
     parameters: {
       query?: {
+        /** @description Include descendant sessions in the same workspace and profile */
+        descendants?: boolean;
         /** @description Filter by interaction status */
         status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
       };
@@ -49391,6 +52705,81 @@ export interface operations {
         };
       };
       /** @description Session reparent unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionPendingInteractions: {
+    parameters: {
+      query?: {
+        /** @description Include descendant sessions in the same workspace and profile */
+        descendants?: boolean;
+        /** @description Filter by interaction status */
+        status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionInteractionsResponse"];
+        };
+      };
+      /** @description Invalid interaction status */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session attention is unavailable */
       503: {
         headers: {
           [name: string]: unknown;

@@ -35,8 +35,8 @@ func (g *SessionRepo) CreatePendingInteraction(
 		// dynamic-sql: this is the canonical side-table insert paired with its projection update below.
 		_, insertErr := exec.ExecContext(ctx, `INSERT INTO session_pending_interactions (
 interaction_id, session_id, kind, provider_request_id, turn_id, title, payload_json,
-status, created_at, resolution, resolved_by
-) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, '', '')`,
+status, created_at, expires_at, resolution, resolved_by
+) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, '', '')`,
 			normalized.InteractionID,
 			normalized.SessionID,
 			normalized.Kind,
@@ -45,6 +45,7 @@ status, created_at, resolution, resolved_by
 			normalized.Title,
 			string(payloadJSON),
 			store.FormatTimestamp(normalized.CreatedAt),
+			nullableAutomationTimestamp(normalized.ExpiresAt),
 		)
 		if insertErr != nil {
 			if isSQLiteUniqueConstraint(insertErr) || isSQLitePrimaryKeyConstraint(insertErr) {
@@ -120,6 +121,9 @@ func transitionPendingInteraction(
 		}, nil
 	}
 	if err := prepareOrphanResolutionInput(ctx, exec, interaction, normalized); err != nil {
+		return store.SessionAttentionCommit{}, err
+	}
+	if err := appendPendingInteractionReport(ctx, exec, interaction, normalized); err != nil {
 		return store.SessionAttentionCommit{}, err
 	}
 	if err := updatePendingInteraction(ctx, exec, normalized); err != nil {
@@ -213,6 +217,23 @@ func (g *SessionRepo) ListPendingInteractions(
 	sessionID string,
 	statuses []string,
 ) (interactions []store.PendingInteraction, err error) {
+	return g.listPendingInteractions(ctx, sessionID, statuses, false)
+}
+
+func (g *SessionRepo) ListDescendantPendingInteractions(
+	ctx context.Context,
+	sessionID string,
+	statuses []string,
+) ([]store.PendingInteraction, error) {
+	return g.listPendingInteractions(ctx, sessionID, statuses, true)
+}
+
+func (g *SessionRepo) listPendingInteractions(
+	ctx context.Context,
+	sessionID string,
+	statuses []string,
+	descendants bool,
+) (interactions []store.PendingInteraction, err error) {
 	if err := g.checkReady(ctx, "list pending interactions"); err != nil {
 		return nil, err
 	}
@@ -228,12 +249,19 @@ func (g *SessionRepo) ListPendingInteractions(
 	if err != nil {
 		return nil, fmt.Errorf("store: encode interaction statuses: %w", err)
 	}
-	const query = `SELECT interaction_id, session_id, kind, provider_request_id, turn_id,
-title, payload_json, status, created_at, resolved_at, resolution, resolved_by
+	const query = `WITH RECURSIVE selected_sessions(id) AS (
+ SELECT id FROM sessions WHERE id = ?
+ UNION
+ SELECT child.id FROM sessions child JOIN selected_sessions parent ON child.parent_session_id = parent.id
+ WHERE ? AND child.workspace_id = (SELECT workspace_id FROM sessions WHERE id = ?)
+ AND child.profile_id = (SELECT profile_id FROM sessions WHERE id = ?)
+)
+SELECT interaction_id, session_id, kind, provider_request_id, turn_id,
+title, payload_json, status, created_at, resolved_at, resolution, resolved_by, expires_at
 FROM session_pending_interactions
-WHERE session_id = ? AND status IN (SELECT CAST(value AS TEXT) FROM json_each(?))
+WHERE session_id IN (SELECT id FROM selected_sessions) AND status IN (SELECT CAST(value AS TEXT) FROM json_each(?))
 ORDER BY created_at ASC, interaction_id ASC`
-	rows, queryErr := g.db.QueryContext(ctx, query, target, string(encodedStatuses))
+	rows, queryErr := g.db.QueryContext(ctx, query, target, descendants, target, target, string(encodedStatuses))
 	if queryErr != nil {
 		return nil, fmt.Errorf("store: query pending interactions: %w", queryErr)
 	}

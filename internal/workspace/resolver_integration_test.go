@@ -268,7 +268,7 @@ func resolverIntegrationListPreservesMissingWorkspaceAcrossReopen(t *testing.T) 
 			UpdatedAt:     now,
 		},
 	} {
-		if err := db.RegisterSession(ctx, session); err != nil {
+		if err := db.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", session.ID, err)
 		}
 	}

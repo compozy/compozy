@@ -1,14 +1,14 @@
-import { Settings2 } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
 import {
   Button,
+  Disclosure,
   Field,
   FieldDescription,
   FieldError,
   FieldHeader,
   FieldLabel,
   FieldTitle,
-  FormSection,
   HelpTip,
   Input,
   RadioCard,
@@ -47,6 +47,7 @@ export interface AgentSettingsRuntimeSectionProps {
   modelCatalogError: string | null;
   onRefreshCatalog: () => void;
   onOpenProviderSettings: () => void;
+  children?: ReactNode;
 }
 
 const CLEARED_RUNTIME_OVERRIDE: Partial<AgentSettingsDraft> = {
@@ -162,7 +163,7 @@ function AgentSettingsCommandField({
       <FieldHeader>
         <FieldLabel htmlFor="agent-settings-command">Command</FieldLabel>
         <HelpTip label="About command">
-          The program CompozyOS starts for this agent's provider. Leave it empty to use the default.
+          The program CompozyOS starts for this agent. Leave it empty to use the default.
         </HelpTip>
       </FieldHeader>
       <Input
@@ -174,7 +175,7 @@ function AgentSettingsCommandField({
         readOnly={readOnly}
         aria-disabled={readOnly || undefined}
         onChange={event => onPatch({ command: event.target.value })}
-        placeholder="Leave blank to use the provider default"
+        placeholder="Leave blank to use the default"
       />
     </Field>
   );
@@ -228,15 +229,22 @@ function AgentSettingsPermissionsField({
   );
 }
 
+/** The model first, then whatever the host adds; the rest waits under Advanced. */
 export function AgentSettingsRuntimeSection({
   errors,
+  children,
   ...props
 }: AgentSettingsRuntimeSectionProps) {
   return (
-    <FormSection data-testid="agent-settings-runtime" icon={Settings2} title="Model">
+    <div className="flex flex-col gap-5" data-testid="agent-settings-runtime">
       <AgentSettingsModelField {...props} error={errors.provider} />
-      <AgentSettingsCommandField {...props} />
-      <AgentSettingsPermissionsField {...props} error={errors.permissions} />
-    </FormSection>
+      {children}
+      <Disclosure label="Advanced" size="md">
+        <div className="flex flex-col gap-5">
+          <AgentSettingsCommandField {...props} />
+          <AgentSettingsPermissionsField {...props} error={errors.permissions} />
+        </div>
+      </Disclosure>
+    </div>
   );
 }

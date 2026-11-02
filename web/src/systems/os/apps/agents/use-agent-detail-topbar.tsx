@@ -1,56 +1,33 @@
+import type { ReactNode } from "react";
+
 import { useTopbarSlot } from "@compozy/ui";
 
-import { agentStatusSlot } from "./agent-detail-view";
+import { AgentProfileOverflow, humanizeAgentSlug } from "@/systems/agent";
+
 import type { UseAgentDetailResult } from "./use-agent-detail";
-import {
-  AgentPageActions,
-  AgentPageOverflow,
-  AgentPageOverflowSkeleton,
-  AgentPageStatusPill,
-  AgentPageStatusSkeleton,
-} from "@/systems/agent";
 
 /**
- * Publishes the agent detail crumbs, status, and actions into the window topbar. The back arrow,
- * the name and New session come from the route, so they are there while the agent loads; the
- * overflow and the status follow the agent and its metrics, and hold their places until then.
+ * One location of the Agents window: `Agents / Orchestrator / Check-ins`. A topbar has
+ * one publisher, so a page that adds `actions` publishes alone and its loading shell
+ * passes `publish: false` once that page is mounted.
  */
-export function useAgentDetailTopbar(page: UseAgentDetailResult, name: string) {
-  const navigation = {
-    onBack: () => page.onBackToAgents(),
-    crumbs: [{ id: "agents", label: "Agents", onSelect: () => page.onBackToAgents() }],
-    crumb: <span data-testid="agent-detail-header-name">{name}</span>,
+export function useAgentDetailTopbar(
+  page: UseAgentDetailResult,
+  name: string,
+  leaf?: string,
+  { actions, publish = true }: { actions?: ReactNode; publish?: boolean } = {}
+) {
+  const label = page.agent?.label ?? humanizeAgentSlug(name);
+  const agents = { id: "agents", label: "Agents", onSelect: page.onBackToAgents };
+  const slot = {
+    onBack: leaf ? page.onBackToAgent : page.onBackToAgents,
+    crumbs: leaf ? [agents, { id: name, label, onSelect: page.onBackToAgent }] : [agents],
+    crumb: <span data-testid="agent-detail-header-name">{leaf ?? label}</span>,
+    overflow:
+      !leaf && page.agent ? (
+        <AgentProfileOverflow onDelete={page.onDelete} onDuplicate={page.onDuplicate} />
+      ) : undefined,
+    actions,
   };
-  // The status follows the metrics: a placeholder holds its place while they load, nothing when
-  // they are unavailable.
-  const statusSlot = agentStatusSlot(page);
-  const status =
-    statusSlot === "pill" ? (
-      <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
-    ) : statusSlot === "placeholder" ? (
-      <AgentPageStatusSkeleton />
-    ) : undefined;
-  const actions = (
-    <AgentPageActions
-      onNewSession={page.onNewSession}
-      isCreatingSession={page.isCreatingForAgent}
-      newSessionDisabled={page.newSessionDisabled}
-    />
-  );
-  const loaded = page.agent
-    ? {
-        ...navigation,
-        status,
-        actions,
-        overflow: (
-          <AgentPageOverflow
-            onDelete={page.onDelete}
-            onDuplicate={page.onDuplicate}
-            onEditSettings={() => page.onEditSettings()}
-          />
-        ),
-      }
-    : null;
-  const loading = { ...navigation, status, actions, overflow: <AgentPageOverflowSkeleton /> };
-  useTopbarSlot(loaded ?? (page.agentLoading ? loading : navigation));
+  useTopbarSlot(publish ? slot : null);
 }

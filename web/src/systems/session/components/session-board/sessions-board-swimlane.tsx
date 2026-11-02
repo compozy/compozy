@@ -1,10 +1,13 @@
-import { cn } from "@compozy/ui";
+import { StatusDot, cn } from "@compozy/ui";
 
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import { useSessionsBoardColumns, type SessionsBoardLane } from "../../hooks/use-sessions-board";
+import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import { sessionListGroupTarget } from "../../lib/session-list-groups";
 import { SessionListGroupIdentity } from "../session-list/session-list-group-header";
 import { SessionListGroupProjectMenu } from "../session-list/session-list-group-project-menu";
+import { StaysOnProjectRow } from "../stays-on/stays-on-signals";
 import {
   SessionsBoardColumnsRow,
   type SessionsBoardColumnsRowProps,
@@ -15,6 +18,9 @@ import {
   SESSIONS_BOARD_LANE_HEADER,
 } from "./sessions-board-frame";
 import { SessionsBoardSelectAll } from "./sessions-board-select-all";
+
+/** The board header has room for a full crew. */
+const BOARD_ROW_LIMIT = 12;
 
 function laneName(lane: SessionsBoardLane): string {
   return lane.group.badge?.name ?? lane.group.owner?.name ?? "Group";
@@ -34,9 +40,12 @@ export function SessionsBoardSwimlane({
 }) {
   const columns = useSessionsBoardColumns(lane.filters, true);
   const name = laneName(lane);
+  const waiting = lane.group.instancesNeedingAttention;
   const testId = `sessions-board-lane-${lane.group.key}`;
   // A project lane's header is a project surface: it takes focus so Shift+F10 reaches its menu.
   const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
+  const staysOnScope =
+    lane.group.kind === "project" ? sessionListGroupTarget(lane.group).workspaceId : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = columns.flatMap(column =>
     props.collapsedColumns[column.id] === true ? [] : column.sessions.map(session => session.id)
@@ -64,8 +73,28 @@ export function SessionsBoardSwimlane({
             <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
               {lane.group.total}
             </span>
+            {waiting > 0 ? (
+              <span
+                className="flex items-center gap-1.5 text-small-body text-muted-foreground"
+                data-testid={`${testId}-agents-waiting`}
+              >
+                <StatusDot size="sm" tone="brand" />
+                {waiting === 1 ? "1 agent needs you" : `${waiting} agents need you`}
+              </span>
+            ) : null}
           </header>
         </SessionListGroupProjectMenu>
+        {staysOnScope ? (
+          <StaysOnProjectRow
+            className="flex-1 pl-2"
+            currentSessionId={props.currentSessionId}
+            limit={BOARD_ROW_LIMIT}
+            name={name}
+            onOpenSession={session => props.onOpen(session as SessionBoardPayload)}
+            surface="ring-canvas"
+            workspaceId={staysOnScope}
+          />
+        ) : null}
       </div>
       <SessionsBoardColumnsRow
         {...props}

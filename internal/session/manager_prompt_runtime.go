@@ -456,7 +456,12 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	if err != nil {
 		return nil, err
 	}
-	if err := spec.materializeRootDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
+	if err := spec.materializeRootDelegationPolicy(
+		runtime.agentDef,
+		runtime.agent,
+		m.toolsetCatalog,
+		m.toolUniverse,
+	); err != nil {
 		return nil, fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
 	}
 	if err := acp.ValidateACPModePermissions(

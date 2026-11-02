@@ -48,10 +48,10 @@ func TestAgentPreStartHookOpenCodeLaunchOrigin(t *testing.T) {
 	}
 	createOpenCode := func(t *testing.T, h *harness) (*Session, error) {
 		t.Helper()
-		return h.manager.Create(testutil.Context(t), CreateOpts{
+		return h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "opencode-native",
 			Workspace: h.workspaceID,
-		})
+		}))
 	}
 	openCodeHookFixtureIn := func(t *testing.T, dir string, name string) {
 		t.Helper()
@@ -97,10 +97,10 @@ func TestAgentPreStartHookOpenCodeLaunchOrigin(t *testing.T) {
 			},
 		}
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -144,9 +144,9 @@ func TestAgentPreStartHookOpenCodeLaunchOrigin(t *testing.T) {
 			}
 		})
 		cleanupTestManager(t, h.manager)
-		created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "opencode-native", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}

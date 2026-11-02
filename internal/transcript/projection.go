@@ -88,6 +88,8 @@ func ProjectAssignedEntry(events []store.SessionEvent, identity EntryIdentity) (
 	switch identity.Kind {
 	case EntryKindCompaction:
 		return projectCompactionEntry(sorted, identity)
+	case EntryKindReport:
+		return projectReportEntry(sorted[0], identity), nil
 	case EntryKindUser:
 		message := inputUIMessage(decodeStoredEvent(sorted[0]), UIRoleUser)
 		return projectedInputEntry(message, identity), nil

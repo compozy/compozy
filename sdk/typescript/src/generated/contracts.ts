@@ -88,6 +88,11 @@ export interface AgentCrashedPatch {
 }
 
 export type HookEvent =
+  | "agent.instance.created"
+  | "agent.instance.paused"
+  | "agent.instance.resumed"
+  | "agent.instance.archived"
+  | "agent.instance.adopted"
   | "subagent.settled"
   | "session.pre_create"
   | "session.post_create"
@@ -340,6 +345,36 @@ export interface AgentHeartbeatWakeParams {
   source: HeartbeatWakeSource;
   dry_run?: boolean;
   idempotency_key?: string;
+}
+
+export interface AgentHeartbeatWakePatch {
+  reason?: string;
+  labels?: Record<string, string>;
+  cancel?: boolean;
+}
+
+export type AgentInstanceObservationPatch = Record<string, never>;
+
+export interface AgentInstancePayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  profile_id?: string;
+  session_id?: string;
+  session_name?: string;
+  session_type?: string;
+  agent_name?: string;
+  workspace_id?: string;
+  workspace?: string;
+  worktree_id?: string;
+  acp_session_id?: string;
+  state?: string;
+  soul_snapshot_id?: string;
+  soul_digest?: string;
+  created_at: ISODateTime;
+  updated_at: ISODateTime;
+  instance_id: string;
+  main_session_id?: string;
+  reason?: string;
 }
 
 export interface AgentLifecyclePatch {
@@ -2142,13 +2177,13 @@ export interface HookDecl {
 }
 
 export type HookEventFamily =
+  | "agent"
   | "subagent"
   | "session"
   | "input"
   | "prompt"
   | "event"
   | "automation"
-  | "agent"
   | "turn"
   | "message"
   | "tool"
@@ -3987,6 +4022,8 @@ export type Badge =
   | "waiting";
 
 export interface PendingInteractionPayload {
+  expires_at?: ISODateTime;
+  session_id: string;
   interaction_id: string;
   kind: string;
   provider_request_id: string;
@@ -6557,6 +6594,11 @@ export interface WorktreePreRemovePayload {
 }
 
 export interface HookPayloadByEvent {
+  "agent.instance.created": AgentInstancePayload;
+  "agent.instance.paused": AgentInstancePayload;
+  "agent.instance.resumed": AgentInstancePayload;
+  "agent.instance.archived": AgentInstancePayload;
+  "agent.instance.adopted": AgentInstancePayload;
   "subagent.settled": SubagentSettledPayload;
   "session.pre_create": SessionPreCreatePayload;
   "session.post_create": SessionPostCreatePayload;
@@ -6660,6 +6702,11 @@ export interface HookPayloadByEvent {
 }
 
 export interface HookPatchByEvent {
+  "agent.instance.created": AgentInstanceObservationPatch;
+  "agent.instance.paused": AgentInstanceObservationPatch;
+  "agent.instance.resumed": AgentInstanceObservationPatch;
+  "agent.instance.archived": AgentInstanceObservationPatch;
+  "agent.instance.adopted": AgentInstanceObservationPatch;
   "subagent.settled": SubagentObservationPatch;
   "session.pre_create": SessionCreatePatch;
   "session.post_create": SessionPostCreatePatch;
@@ -6688,7 +6735,7 @@ export interface HookPatchByEvent {
   "agent.soul.snapshot.resolved": AuthoredContextObservationPatch;
   "agent.soul.mutation.after": AuthoredContextObservationPatch;
   "agent.heartbeat.policy.resolved": AuthoredContextObservationPatch;
-  "agent.heartbeat.wake.before": AuthoredContextObservationPatch;
+  "agent.heartbeat.wake.before": AgentHeartbeatWakePatch;
   "agent.heartbeat.wake.after": AuthoredContextObservationPatch;
   "session.health.update.after": AuthoredContextObservationPatch;
   "turn.start": TurnStartPatch;

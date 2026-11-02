@@ -20,6 +20,10 @@ func DefaultSoulConfig() SoulConfig {
 // DefaultHeartbeatConfig returns built-in Agent Heartbeat wake-policy limits.
 func DefaultHeartbeatConfig() HeartbeatConfig {
 	return HeartbeatConfig{
+		MaxInterval:                  24 * time.Hour,
+		MaxConcurrentTriage:          2,
+		QuietBackoffCap:              4 * time.Hour,
+		FatigueLimit:                 10,
 		Enabled:                      true,
 		MaxBodyBytes:                 32768,
 		ContextProjectionBytes:       4096,
@@ -37,6 +41,18 @@ func DefaultHeartbeatConfig() HeartbeatConfig {
 
 // Validate ensures authored agent context settings are internally consistent.
 func (c AgentsConfig) Validate() error {
+	if c.StaysOn.ApprovalTimeout < time.Minute || c.StaysOn.ApprovalTimeout > 72*time.Hour {
+		return fmt.Errorf("agents.stays_on.approval_timeout must be between 1m and 72h")
+	}
+	if c.StaysOn.MaxProposals < 1 || c.StaysOn.MaxProposals > 20 || c.StaysOn.TriageTimeout <= 0 {
+		return fmt.Errorf("agents.stays_on requires positive triage limits and max_proposals between 1 and 20")
+	}
+	if !(c.StaysOn.RotationThreshold > 0 && c.StaysOn.RotationThreshold <= 1) {
+		return fmt.Errorf("agents.stays_on.rotation_threshold must be greater than zero and at most one")
+	}
+	if c.StaysOn.MaxActiveInstances <= 0 {
+		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
+	}
 	if err := c.Soul.Validate(); err != nil {
 		return err
 	}
@@ -75,6 +91,21 @@ func (c SoulConfig) Validate() error {
 
 // Validate ensures HEARTBEAT.md limits and timing bounds are internally consistent.
 func (c HeartbeatConfig) Validate() error {
+	if err := validateTriageModelNames(c.TriageModels); err != nil {
+		return err
+	}
+	if c.MaxConcurrentTriage < 1 {
+		return fmt.Errorf("agents.heartbeat.max_concurrent_triage must be positive")
+	}
+	if c.MaxInterval < c.QuietBackoffCap {
+		return fmt.Errorf("agents.heartbeat.max_interval must be at least quiet_backoff_cap")
+	}
+	if c.QuietBackoffCap <= 0 {
+		return fmt.Errorf("agents.heartbeat.quiet_backoff_cap must be positive")
+	}
+	if c.FatigueLimit < 1 {
+		return fmt.Errorf("agents.heartbeat.fatigue_limit must be positive")
+	}
 	const (
 		maxHeartbeatBodyBytes = int64(1 << 20)
 		minWakeEventRetention = time.Hour
@@ -346,5 +377,16 @@ func (c ObservabilityTranscriptConfig) Validate() error {
 		return fmt.Errorf("observability.transcripts.max_bytes_per_session must be positive: %d", c.MaxBytesPerSession)
 	}
 
+	return nil
+}
+
+func validateTriageModelNames(models map[string]string) error {
+	for provider, model := range models {
+		if strings.TrimSpace(provider) == "" || provider != strings.TrimSpace(provider) ||
+			strings.TrimSpace(model) == "" ||
+			model != strings.TrimSpace(model) {
+			return fmt.Errorf("agents.heartbeat.triage_models requires nonempty trimmed provider and model names")
+		}
+	}
 	return nil
 }

@@ -103,6 +103,7 @@ const (
 	EntryKindSystem     EntryKind = "system"
 	EntryKindMarker     EntryKind = "marker"
 	EntryKindCompaction EntryKind = "compaction"
+	EntryKindReport     EntryKind = "report"
 )
 
 // EntryIdentity is the stable metadata for one logical transcript segment.

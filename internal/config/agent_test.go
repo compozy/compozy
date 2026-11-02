@@ -1888,3 +1888,88 @@ func TestAgentWorkspaceAccess(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentIdentityContract(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve identity and future appearance through authored round trips", func(t *testing.T) {
+		t.Parallel()
+		a, err := ParseAgentDef(
+			[]byte(
+				"---\nname: triage-lead\ndisplay_name: '  Triage Lead  '\ndescription: Watches issues\nkind: stays_on\nappearance:\n  version: 99\n  unknown: [one, two]\n---\nYou triage.\n",
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Label() != "Triage Lead" || a.EffectiveKind() != AgentKindStaysOn {
+			t.Fatalf("identity: %#v", a)
+		}
+		resolved, err := a.ResolveAppearance()
+		if err == nil || resolved["seed"] != "triage-lead" {
+			t.Fatalf("fallback: %#v, %v", resolved, err)
+		}
+		_, round, err := RenderAgentDefinition(AgentDefinitionDraftFromDef(a))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !EqualAgentAppearance(a.Appearance, round.Appearance) {
+			t.Fatalf("appearance lost: %#v", round.Appearance)
+		}
+	})
+	t.Run("Should default old definitions without rewriting appearance", func(t *testing.T) {
+		t.Parallel()
+		a, err := ParseAgentDef([]byte("---\nname: code-reviewer\n---\nReview code.\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Label() != "Code Reviewer" || a.EffectiveKind() != AgentKindOnDemand || a.Appearance != nil {
+			t.Fatalf("defaults: %#v", a)
+		}
+		first, err := a.ResolveAppearance()
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err := a.ResolveAppearance()
+		if err != nil || !EqualAgentAppearance(first, second) {
+			t.Fatalf("unstable appearance: %v", err)
+		}
+	})
+	t.Run("Should reject invalid authored identity and appearance", func(t *testing.T) {
+		t.Parallel()
+		for _, a := range []AgentDef{{DisplayName: strings.Repeat("é", 81)}, {Description: strings.Repeat("é", 281)}, {Kind: "daemon"}} {
+			if a.ValidateIdentity() == nil {
+				t.Fatalf("accepted %#v", a)
+			}
+		}
+		for _, a := range []map[string]any{{"version": 1, "avatar": "icon", "icon": "not-a-lucide-icon", "color": "#123456"}, {"version": 1, "avatar": "emoji", "emoji": "🦊🦊", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "compass", "emoji": "🦊", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "compass", "color": "red"}} {
+			if ValidateAgentAppearance(a) == nil {
+				t.Fatalf("accepted %#v", a)
+			}
+		}
+		if err := ValidateAgentAppearance(
+			map[string]any{"version": 1, "avatar": "icon", "icon": "compass", "color": "#123456"},
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should refuse kind mutation without changing the file", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "AGENT.md")
+		_, err := CreateAgentDefFile(
+			path,
+			AgentDefinitionDraft{Name: "triage", Kind: AgentKindStaysOn, Prompt: "Triage."},
+			false,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = EditAgentDefFile(path, func(a *AgentDef) error { a.Kind = AgentKindOnDemand; return nil })
+		if !errors.Is(err, ErrAgentKindImmutable) {
+			t.Fatalf("mutation: %v", err)
+		}
+		a, err := LoadAgentDefFile(path)
+		if err != nil || a.EffectiveKind() != AgentKindStaysOn {
+			t.Fatalf("persisted: %#v %v", a, err)
+		}
+	})
+}

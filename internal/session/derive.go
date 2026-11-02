@@ -122,7 +122,7 @@ func (m *Manager) deriveSession(ctx context.Context, spec deriveSpec) (DeriveRes
 	if err != nil {
 		return DeriveResult{}, err
 	}
-	child, err := m.CreateAccepted(ctx, CreateAcceptedOpts{Session: prepared.createOpts})
+	child, err := m.CreateAccepted(ctx, new(CreateAcceptedOpts{Session: prepared.createOpts}))
 	if errors.Is(err, store.ErrSessionDerivationExists) {
 		release()
 		result, found, replayErr := m.replayDeriveReceipt(ctx, derivations, spec)

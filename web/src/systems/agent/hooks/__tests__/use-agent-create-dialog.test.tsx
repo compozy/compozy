@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockCreateAgent,
+  mockCreateInstance,
+  mockCapacity,
   mockDuplicateAgent,
   mockNavigate,
   mockSettingsProviders,
@@ -15,6 +17,8 @@ const {
   mockRefreshCatalog,
 } = vi.hoisted(() => ({
   mockCreateAgent: vi.fn(),
+  mockCreateInstance: vi.fn(),
+  mockCapacity: { current: { limit: 10, active: 0, reached: false } },
   mockDuplicateAgent: vi.fn(),
   mockNavigate: vi.fn(),
   mockSettingsProviders: {
@@ -80,7 +84,13 @@ vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
   providerNeedsAuth: () => false,
 }));
 
+vi.mock("../use-agent-instances", () => ({
+  useAgentInstanceCapacity: () => mockCapacity.current,
+  useCreateAgentInstance: () => ({ mutateAsync: mockCreateInstance }),
+}));
+
 vi.mock("../use-agents", () => ({
+  useAgents: () => ({ data: [] }),
   useCreateAgent: () => ({
     mutateAsync: mockCreateAgent,
     isPending: false,
@@ -140,6 +150,9 @@ describe("useAgentCreateDialog", () => {
   afterEach(() => act(() => resetProfileViews()));
   beforeEach(() => {
     resetProfileViews();
+    mockCapacity.current = { limit: 10, active: 0, reached: false };
+    mockCreateInstance.mockReset();
+    mockCreateInstance.mockResolvedValue({});
     mockCreateAgent.mockReset();
     mockCreateAgent.mockResolvedValue({
       name: "release-captain",
@@ -243,6 +256,14 @@ describe("useAgentCreateDialog", () => {
           workspace: "ws_alpha",
           agent: {
             name: "release-captain",
+            kind: "on_demand",
+            appearance: expect.objectContaining({
+              version: 1,
+              avatar: "generated",
+              seed: "release-captain",
+              generation: 1,
+              color: expect.stringMatching(/^#[0-9a-f]{6}$/i),
+            }),
             provider: "codex",
             prompt: "Own release readiness.",
             model: "gpt-5.4",
@@ -261,6 +282,109 @@ describe("useAgentCreateDialog", () => {
         params: { name: "release-captain" },
       });
       expect(result.current.open).toBe(false);
+    });
+  });
+
+  function fillStaysOn(
+    result: { current: ReturnType<typeof useAgentCreateDialog> },
+    place: string
+  ) {
+    act(() => {
+      result.current.openDialog({ place });
+    });
+    act(() => {
+      result.current.onDraftChange({
+        ...result.current.draft,
+        displayName: "Release Captain",
+        description: "Keeps the release moving",
+        prompt: "Own release readiness.",
+      });
+    });
+    act(() => {
+      result.current.onSubmit();
+    });
+  }
+
+  it("Should open on Stays on with the scope chosen from a picker's Create new", () => {
+    const { result } = renderAgentCreateDialog();
+
+    act(() => {
+      result.current.openDialog({ place: "ws_beta" });
+    });
+
+    expect(result.current.draft).toMatchObject({ kind: "stays_on", place: "ws_beta" });
+    // A Stays on definition lives at the user level, so any project can start it.
+    expect(result.current.draft.scope).toBe("global");
+  });
+
+  it("Should create at the user level, start the first instance and return to sessions", async () => {
+    const { result } = renderAgentCreateDialog();
+
+    fillStaysOn(result, "ws_alpha");
+
+    await waitFor(() => {
+      expect(mockCreateInstance).toHaveBeenCalledWith({
+        agent: "release-captain",
+        workspace: "ws_alpha",
+      });
+      expect(mockNavigate).toHaveBeenCalledWith({ to: "/sessions" });
+    });
+    expect(mockCreateAgent.mock.calls[0]?.[0].params).toMatchObject({
+      scope: "global",
+      agent: {
+        kind: "stays_on",
+        display_name: "Release Captain",
+        description: "Keeps the release moving",
+      },
+    });
+  });
+
+  it("Should create no instance for Decide later", async () => {
+    const { result } = renderAgentCreateDialog();
+
+    fillStaysOn(result, "later");
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "release-captain" },
+      });
+    });
+    expect(mockCreateInstance).not.toHaveBeenCalled();
+  });
+
+  it("Should create the agent unstarted at the limit", async () => {
+    mockCapacity.current = { limit: 10, active: 10, reached: true };
+    const { result } = renderAgentCreateDialog();
+
+    fillStaysOn(result, "ws_alpha");
+
+    await waitFor(() => expect(mockCreateAgent).toHaveBeenCalledOnce());
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
+    expect(mockCreateInstance).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the agent and report it when the first start fails", async () => {
+    mockCreateInstance.mockRejectedValue(new Error("This agent can't reach that workspace."));
+    const { result } = renderAgentCreateDialog();
+
+    fillStaysOn(result, "ws_alpha");
+
+    await waitFor(() =>
+      expect(result.current.startFailure).toBe("This agent can't reach that workspace.")
+    );
+    expect(result.current.open).toBe(true);
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.onOpenCreatedAgent();
+    });
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "release-captain" },
+      });
     });
   });
 
@@ -373,6 +497,15 @@ describe("useAgentCreateDialog", () => {
   it("Should openForDuplicate with prefilled draft and hard-reset on openDialog", () => {
     const { result } = renderAgentCreateDialog();
     const source = {
+      label: "Release Captain",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "release-captain",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "release-captain",
       provider: "codex",
       prompt: "Own release readiness.",
@@ -395,6 +528,7 @@ describe("useAgentCreateDialog", () => {
     expect(result.current.draft.prompt).toBe("Own release readiness.");
     expect(result.current.draft.tools).toEqual(["compozy__skill_view"]);
     expect(result.current.draft.categoryPath).toBe("Engineering/Release");
+    expect(result.current.entrySeed).toEqual(result.current.draft);
 
     act(() => {
       result.current.openDialog();
@@ -402,6 +536,7 @@ describe("useAgentCreateDialog", () => {
 
     expect(result.current.mode).toBe("create");
     expect(result.current.duplicateSourceName).toBeNull();
+    expect(result.current.entrySeed).toBeNull();
     expect(result.current.draft.name).toBe("");
     expect(result.current.draft.provider).toBe("");
     expect(result.current.draft.prompt).toBe("");
@@ -411,6 +546,15 @@ describe("useAgentCreateDialog", () => {
     setProfileView({ kind: "profile", profile: "open-design" });
     const { result } = renderAgentCreateDialog();
     const source = {
+      label: "Release Captain",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "release-captain",
+        generation: 1,
+        color: "#7c5cff",
+      },
       name: "release-captain",
       provider: "codex",
       prompt: "Own release readiness.",

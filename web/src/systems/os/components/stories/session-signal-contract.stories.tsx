@@ -54,6 +54,7 @@ function session(
 
 const PRECEDENCE = session("session-precedence", "waiting-for-auth", [
   {
+    session_id: "sess-1",
     interaction_id: "permission-1",
     kind: "permission",
     provider_request_id: "provider-permission-1",
@@ -64,6 +65,7 @@ const PRECEDENCE = session("session-precedence", "waiting-for-auth", [
     created_at: "2026-08-16T12:10:00Z",
   },
   {
+    session_id: "sess-1",
     interaction_id: "clarify-1",
     kind: "clarify",
     provider_request_id: "provider-clarify-1",

@@ -21,6 +21,7 @@ import { RailSection } from "./automation-rail-section";
 import { automationLocationLabel, type AutomationView } from "../../lib/automation-view";
 import type { AutomationJob, AutomationTrigger } from "../../types";
 import { ingressReachabilityCopy } from "@/systems/gateway";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 const SOURCE_COPY = {
   dynamic: "You created this",
@@ -46,7 +47,9 @@ function DetailsSection({
       <PropertyRow label="Starts">{starts}</PropertyRow>
       <PropertyRow label="Does">{automationDoesWord(view.does)}</PropertyRow>
       {view.does === "agent" && target.kind === "agent" ? (
-        <PropertyRow label="Agent">{target.agentName}</PropertyRow>
+        <PropertyRow label="Agent">
+          <AgentIdentityChip name={target.agentName} />
+        </PropertyRow>
       ) : null}
       {target.kind === "loop" ? (
         <>

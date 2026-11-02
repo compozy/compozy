@@ -184,6 +184,8 @@ func (m *Manager) executeStep(ctx context.Context, opID string, step lifecycleSt
 			return fmt.Errorf("profile: remove profile directory %q: %w", path, err)
 		}
 		return nil
+	case stepRemoveAgentMemory:
+		return m.removeAgentMemory(ctx, opID)
 	case stepRemoveUserJournal:
 		return m.removeUserJournal(ctx, opID)
 	case stepRemoveDesktopPartitions:

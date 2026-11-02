@@ -11,6 +11,10 @@ const (
 	descriptorKeywordCatalog     = "catalog"
 	descriptorKeywordClient      = "client"
 	descriptorKeywordStatus      = "status"
+	descriptorKeywordPause       = "pause"
+	descriptorKeywordResume      = "resume"
+	descriptorKeywordArchive     = "archive"
+	descriptorKeywordAgents      = "agents"
 	descriptorKeywordCreate      = "create"
 	descriptorKeywordDiagnostics = "diagnostics"
 	descriptorKeywordAudit       = "audit"
@@ -43,6 +47,8 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		sessionProcessDescriptors(),
 		sessionOrchestrationDescriptors(),
 		authoredContextDescriptors(),
+		agentInstanceDescriptors(),
+		agentMemoryDescriptors(),
 		workspaceDescriptors(),
 		profileDescriptors(),
 		vaultDescriptors(),

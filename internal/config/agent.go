@@ -19,6 +19,11 @@ var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
+	DisplayName string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
+	Description string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
+
 	WorkspaceAccess       string     `json:"workspace_access,omitempty" yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
 	SessionEnv            SessionEnv `json:"session_env,omitempty"      yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
 	Name                  string     `json:"name"                       yaml:"name"                       toml:"name"`
@@ -50,6 +55,11 @@ type AgentDefinitionRef struct {
 }
 
 type parsedAgentDef struct {
+	DisplayName string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
+	Description string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
+
 	WorkspaceAccess string                  `yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
 	SessionEnv      SessionEnv              `yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
 	Name            string                  `yaml:"name"                       toml:"name"`
@@ -305,8 +315,14 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 	}
 
 	agent := AgentDef{
-		SessionEnv:      MergeSessionEnv(nil, parsed.SessionEnv),
-		Name:            strings.TrimSpace(parsed.Name),
+		SessionEnv: MergeSessionEnv(nil, parsed.SessionEnv),
+		Name:       strings.TrimSpace(parsed.Name),
+		DisplayName: strings.TrimSpace(
+			parsed.DisplayName,
+		),
+		Description:     parsed.Description,
+		Kind:            parsed.Kind,
+		Appearance:      CloneAgentAppearance(parsed.Appearance),
 		Provider:        strings.TrimSpace(parsed.Provider),
 		Command:         strings.TrimSpace(parsed.Command),
 		Model:           strings.TrimSpace(parsed.Model),

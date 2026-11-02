@@ -15,6 +15,7 @@ import (
 
 // SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
 type SessionManagerDeps struct {
+	PermissionWaitResolver  acp.PermissionWaitResolver
 	HomePaths               compozyconfig.HomePaths
 	Logger                  *slog.Logger
 	Notifier                session.Notifier
@@ -61,10 +62,11 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 	reconciler := windowManagerSessionReconcilerDependency(state.windowManagers)
 	state.sessionWindowReconciler = reconciler
 	return SessionManagerDeps{
-		HomePaths:         d.homePaths,
-		Logger:            state.logger,
-		Notifier:          d.sessionNotifier(state),
-		SpawnWakeNotifier: state.sessionWakeBridge,
+		HomePaths:              d.homePaths,
+		PermissionWaitResolver: instancePermissionWaitResolver(state),
+		Logger:                 state.logger,
+		Notifier:               d.sessionNotifier(state),
+		SpawnWakeNotifier:      state.sessionWakeBridge,
 		Hooks: session.HookSet{
 			Session:         state.notifier,
 			RuntimeRecovery: state.notifier,

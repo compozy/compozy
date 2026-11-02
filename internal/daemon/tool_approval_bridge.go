@@ -40,12 +40,13 @@ type sessionPermissionRequester interface {
 }
 
 type toolApprovalBridge struct {
-	sessions  func() sessionPermissionRequester
-	timeout   time.Duration
-	approvals toolspkg.ApprovalTokenConsumer
-	grants    toolspkg.ApprovalGrantStore
-	logger    *slog.Logger
-	clock     clockwork.Clock
+	permissionWaitResolver acp.PermissionWaitResolver
+	sessions               func() sessionPermissionRequester
+	timeout                time.Duration
+	approvals              toolspkg.ApprovalTokenConsumer
+	grants                 toolspkg.ApprovalGrantStore
+	logger                 *slog.Logger
+	clock                  clockwork.Clock
 }
 
 var _ toolspkg.ApprovalBridge = (*toolApprovalBridge)(nil)
@@ -201,7 +202,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 	remember bool,
 ) (acp.RequestPermissionResponse, error) {
 	toolID := toolApprovalID(call, view)
-	timeout := b.requestTimeout(toolID)
+	timeout := b.sessionRequestTimeout(sessionID, toolID)
 	clock := b.clock
 	if clock == nil {
 		clock = clockwork.NewRealClock()

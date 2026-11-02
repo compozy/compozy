@@ -175,15 +175,8 @@ func (g *SessionRepo) replacePendingSessionInput(
 			}
 		}
 		queries := sqlcgen.New(exec)
-		nowRaw := store.FormatTimestamp(replacement.Now)
-		if cancelErr := queries.CancelSessionInput(ctx, sqlcgen.CancelSessionInputParams{
-			CanceledStatus: store.SessionInputQueueStatusCanceled,
-			Now:            nullableSessionTime(replacement.Now),
-			UpdatedAt:      nowRaw,
-			ID:             entryID,
-			SessionID:      target,
-		}); cancelErr != nil {
-			return fmt.Errorf("store: cancel replaced session input: %w", cancelErr)
+		if err := cancelReplacedSessionInput(ctx, queries, &existing, replacement.Now); err != nil {
+			return err
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, replacement)
 		if insertErr != nil {
@@ -277,6 +270,28 @@ func validateSessionInputMutation(
 	}
 	if existing.Status != store.SessionInputQueueStatusQueued {
 		return &store.SessionInputNotQueuedError{EntryID: existing.ID, Status: existing.Status, Text: text}
+	}
+	return nil
+}
+
+func cancelReplacedSessionInput(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	existing *store.SessionInputQueueEntry,
+	now time.Time,
+) error {
+	nowRaw := store.FormatTimestamp(now)
+	if cancelErr := queries.CancelSessionInput(ctx, sqlcgen.CancelSessionInputParams{
+		CanceledStatus: store.SessionInputQueueStatusCanceled,
+		Now:            nullableSessionTime(now),
+		UpdatedAt:      nowRaw,
+		ID:             existing.ID,
+		SessionID:      existing.SessionID,
+	}); cancelErr != nil {
+		return fmt.Errorf("store: cancel replaced session input: %w", cancelErr)
+	}
+	if err := queries.ReleasePromptReports(ctx, existing.PromptAdmissionID); err != nil {
+		return err
 	}
 	return nil
 }

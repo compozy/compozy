@@ -80,6 +80,7 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
+	ExecutionPolicy      string
 	AgentName            string
 	CompozySessionID     string
 	WorkspaceID          string

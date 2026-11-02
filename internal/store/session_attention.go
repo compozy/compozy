@@ -102,6 +102,7 @@ type PendingInteractionPayload struct {
 
 // PendingInteraction is one restart-durable operator decision request.
 type PendingInteraction struct {
+	ExpiresAt         *time.Time
 	InteractionID     string
 	SessionID         string
 	Kind              string
@@ -118,6 +119,9 @@ type PendingInteraction struct {
 
 // SanitizePendingInteraction applies the public redaction and size boundary to a canonical record.
 func SanitizePendingInteraction(interaction PendingInteraction) PendingInteraction {
+	if interaction.ExpiresAt != nil {
+		interaction.ExpiresAt = new(interaction.ExpiresAt.UTC())
+	}
 	content := PendingInteractionCreate{
 		InteractionID:     interaction.InteractionID,
 		SessionID:         interaction.SessionID,
@@ -153,6 +157,7 @@ func SanitizePendingInteraction(interaction PendingInteraction) PendingInteracti
 
 // PendingInteractionCreate records one new pending provider request.
 type PendingInteractionCreate struct {
+	ExpiresAt         *time.Time
 	InteractionID     string
 	SessionID         string
 	Kind              string

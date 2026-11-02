@@ -7,6 +7,7 @@ import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/s
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 // session-continue-fork: E2E-001 (continue via the web) and E2E-004 (a failed turn offers
 // Continue), written by task_04; E2E-002 (fork from here via the web), written by task_06.
@@ -170,7 +171,9 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
 
     const dialog = appPage.getByTestId("session-fork-dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByTestId("session-fork-agent")).toContainText(forkAgent);
+    await expect(dialog.getByTestId("session-fork-agent")).toContainText(
+      humanizeAgentSlug(forkAgent)
+    );
     await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
     // Nothing to choose: no fork-point field and no Open in choice.
     await expect(dialog.getByText("Fork point")).toHaveCount(0);
@@ -247,7 +250,9 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     const dialog = appPage.getByTestId("session-continue-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
-    await expect(dialog.getByTestId("session-continue-agent-select")).toContainText(targetAgent);
+    await expect(dialog.getByTestId("session-continue-agent-select")).toContainText(
+      humanizeAgentSlug(targetAgent)
+    );
     await expect(dialog.getByTestId("session-derive-placement-new-window")).toBeChecked();
     await browserArtifacts.captureScreenshot("continue-dialog", appPage);
 
@@ -271,9 +276,7 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
 
     const childWin = sessionWindow(appPage, child!.id);
     await expect(childWin).toBeVisible();
-    await expect(childWin.getByTestId("session-origin-pill")).toHaveText(
-      `Continued from ${sourceAgent}`
-    );
+    await expect(childWin.getByTestId("session-origin-pill")).toHaveText("Continued from Alpha");
     await expect(childWin.getByTestId("session-origin-divider")).toContainText("Continued from");
     await browserArtifacts.captureScreenshot("continue-child-window", appPage);
 
@@ -306,7 +309,9 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     await marker.getByTestId("provider-error-continue").click();
     const dialog = appPage.getByTestId("session-continue-dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByTestId("session-continue-source-note")).toContainText(handoffAgent);
+    await expect(dialog.getByTestId("session-continue-source-note")).toContainText(
+      humanizeAgentSlug(handoffAgent)
+    );
 
     // Nothing is created until Continue.
     const { sessions: afterSessions } = await runtime.requestJSON<{ sessions: SessionPayload[] }>(

@@ -32,7 +32,7 @@ func (g *WorkspaceRepo) StageWorkspaceDeletion(ctx context.Context, id string) e
 		if affected == 0 {
 			return fmt.Errorf("store: workspace %q: %w", workspaceID, compozyworkspace.ErrWorkspaceNotFound)
 		}
-		return deleteWorkspaceTx(ctx, queries, workspaceID)
+		return deleteWorkspaceTx(ctx, queries, workspaceID, store.FormatTimestamp(g.now()))
 	})
 }
 
@@ -97,7 +97,7 @@ func (g *WorkspaceRepo) CompleteWorkspaceDeletion(ctx context.Context, id string
 	return nil
 }
 
-func deleteWorkspaceTx(ctx context.Context, queries *sqlcgen.Queries, workspaceID string) error {
+func deleteWorkspaceTx(ctx context.Context, queries *sqlcgen.Queries, workspaceID, archivedAt string) error {
 	if err := ensureWorkspaceDeletionAllowed(ctx, queries, workspaceID); err != nil {
 		return err
 	}
@@ -106,6 +106,11 @@ func deleteWorkspaceTx(ctx context.Context, queries *sqlcgen.Queries, workspaceI
 	}
 	if err := deleteWorkspaceExtensionEnv(ctx, queries, workspaceID); err != nil {
 		return err
+	}
+	if err := queries.ArchiveWorkspaceAgentInstances(ctx, sqlcgen.ArchiveWorkspaceAgentInstancesParams{
+		WorkspaceID: workspaceID, ArchivedAt: store.SQLNullString(archivedAt), UpdatedAt: archivedAt,
+	}); err != nil {
+		return fmt.Errorf("store: archive instances for workspace %q: %w", workspaceID, err)
 	}
 	if err := queries.DeleteSessionsByWorkspace(ctx, workspaceID); err != nil {
 		return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", workspaceID, err)

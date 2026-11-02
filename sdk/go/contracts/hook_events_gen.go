@@ -5,6 +5,11 @@ package contracts
 type HookEvent string
 
 const (
+	HookEventAgentInstanceCreated            HookEvent = "agent.instance.created"
+	HookEventAgentInstancePaused             HookEvent = "agent.instance.paused"
+	HookEventAgentInstanceResumed            HookEvent = "agent.instance.resumed"
+	HookEventAgentInstanceArchived           HookEvent = "agent.instance.archived"
+	HookEventAgentInstanceAdopted            HookEvent = "agent.instance.adopted"
 	HookEventSubagentSettled                 HookEvent = "subagent.settled"
 	HookEventSessionPreCreate                HookEvent = "session.pre_create"
 	HookEventSessionPostCreate               HookEvent = "session.post_create"

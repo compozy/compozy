@@ -16,13 +16,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 }
 
 func (s *Server) handlerDependencies() handlerConfig {
-	return handlerConfig{
-		sessions:              s.sessions,
-		drainController:       s.drainController,
-		subagents:             s.subagents,
-		sessionMonitors:       s.sessionMonitors,
-		sessionProcesses:      s.sessionProcesses,
-		sessionCatalog:        s.sessionCatalog,
+	config := handlerConfig{
 		taskDesignations:      s.taskDesignations,
 		skillExposureStore:    s.skillExposureStore,
 		skillExposureEvents:   s.skillExposureEvents,
@@ -64,12 +58,14 @@ func (s *Server) handlerDependencies() handlerConfig {
 		coordinatorRole:       s.coordinatorRole,
 		roles:                 s.roles,
 		soulAuthoring:         s.soulAuthoring,
+		agentMemory:           s.agentMemory,
 		soulHistoryPurger:     s.soulHistoryPurger,
 		soulRefresher:         s.soulRefresher,
 		heartbeatAuthor:       s.heartbeatAuthor,
 		heartbeatPurger:       s.heartbeatPurger,
 		heartbeatStatus:       s.heartbeatStatus,
 		heartbeatWake:         s.heartbeatWake,
+		agentInstances:        s.agentInstances,
 		sessionHealth:         s.sessionHealth,
 		wakeEvents:            s.wakeEvents,
 		skillsRegistry:        s.skillsRegistry,
@@ -96,4 +92,15 @@ func (s *Server) handlerDependencies() handlerConfig {
 
 		onProviderAuthSuccess: s.onProviderAuthSuccess,
 	}
+	s.applySessionHandlerDependencies(&config)
+	return config
+}
+
+func (s *Server) applySessionHandlerDependencies(config *handlerConfig) {
+	config.sessions = s.sessions
+	config.drainController = s.drainController
+	config.subagents = s.subagents
+	config.sessionMonitors = s.sessionMonitors
+	config.sessionProcesses = s.sessionProcesses
+	config.sessionCatalog = s.sessionCatalog
 }

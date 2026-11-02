@@ -1,7 +1,12 @@
 import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
+import type { AgentAvatarAppearance } from "@compozy/ui";
+
 import { joinAgentCategorySegments } from "./agent-category";
 import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-runtime";
+import { agentCreateAppearance, agentCreateSlug, appearancePayload } from "./agent-create-identity";
+import { validateToolPatternList, validateToolsetList } from "./agent-create-tool-patterns";
+import { agentAvatarAppearance, GLOBAL_SCOPE } from "./agent-instance";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
 import {
   runtimeACPSelectionsEqual,
@@ -13,13 +18,31 @@ const agentNameMaxLength = 106;
 const agentNamePattern = /^[a-z][a-z0-9_-]{0,105}$/;
 const invalidAgentNameMessage = `Start with a lowercase letter, use only lowercase letters, numbers, hyphens, or underscores, and use at most ${agentNameMaxLength} characters.`;
 
+type AgentAppearanceInput = Parameters<typeof agentAvatarAppearance>[0];
+
 export type AgentCreateScope = CreateAgentParams["scope"];
 export type AgentCreatePermission = NonNullable<CreateAgentParams["agent"]["permissions"]>;
 export type AgentCreatePermissionChoice = "" | AgentCreatePermission;
 
+export { agentCreateAppearance, agentCreateSlug, agentSlugFor } from "./agent-create-identity";
+
+export type AgentCreateKind = "on_demand" | "stays_on";
+
+/** `Decide later`: the agent is created with no instance. A place is otherwise a scope selector. */
+export const AGENT_PLACE_LATER = "later";
+
 export interface AgentCreateDialogDraft {
   scope: AgentCreateScope;
+  /** The Name field: what every surface shows. */
+  displayName: string;
+  description: string;
+  /** The Short name field: empty derives the slug from `displayName`. */
   name: string;
+  /** `null` until someone picks: the face follows the slug. */
+  appearance: AgentAvatarAppearance | null;
+  kind: AgentCreateKind;
+  /** Where a Stays on agent starts: a workspace id, `@user`, or `later`. */
+  place: string;
   categoryPath: string;
   provider: string;
   model: string;
@@ -75,10 +98,18 @@ export type AgentCreateFieldKey =
   | "toolsets"
   | "denyTools";
 
-export function createDefaultAgentCreateDraft(hasActiveWorkspace: boolean): AgentCreateDialogDraft {
+export function createDefaultAgentCreateDraft(
+  hasActiveWorkspace: boolean,
+  activeWorkspaceId?: string | null
+): AgentCreateDialogDraft {
   return {
     scope: hasActiveWorkspace ? "workspace" : "global",
+    displayName: "",
+    description: "",
     name: "",
+    appearance: null,
+    kind: "on_demand",
+    place: activeWorkspaceId ?? GLOBAL_SCOPE,
     categoryPath: "",
     provider: "",
     model: "",
@@ -170,9 +201,11 @@ export function validateAgentCreateDraft(
   context: AgentCreateValidationContext
 ): AgentCreateValidation {
   const fields: AgentCreateValidation["fields"] = {};
-  const name = draft.name.trim();
-  if (name.length === 0) {
+  const name = agentCreateSlug(draft);
+  if (draft.displayName.trim().length === 0 && draft.name.trim().length === 0) {
     fields.name = "Enter an agent name.";
+  } else if (name.length === 0) {
+    fields.name = "Add at least one letter or number to the name.";
   } else if (!agentNamePattern.test(name)) {
     fields.name = invalidAgentNameMessage;
   }
@@ -234,7 +267,8 @@ export function validateAgentCreateDraft(
 export function buildCreateAgentParams(
   draft: AgentCreateDialogDraft,
   workspaceId: string | null | undefined,
-  context: AgentCreateValidationContext
+  context: AgentCreateValidationContext,
+  avatarColors: readonly string[] = []
 ): CreateAgentParams | null {
   const validation = validateAgentCreateDraft(draft, context);
   if (!validation.canSubmit) return null;
@@ -243,7 +277,9 @@ export function buildCreateAgentParams(
     return null;
   }
 
-  const name = draft.name.trim();
+  const name = agentCreateSlug(draft);
+  const displayName = draft.displayName.trim();
+  const description = draft.description.trim();
   const provider = draft.provider.trim();
   const prompt = draft.prompt.trim();
   const model = draft.model.trim();
@@ -264,6 +300,10 @@ export function buildCreateAgentParams(
     agent: {
       name,
       prompt,
+      kind: draft.kind,
+      appearance: appearancePayload(agentCreateAppearance(draft), avatarColors),
+      ...(displayName.length > 0 ? { display_name: displayName } : {}),
+      ...(description.length > 0 ? { description } : {}),
       ...(provider.length > 0 ? { provider } : {}),
       ...(command.length > 0 ? { command } : {}),
       ...(model.length > 0 ? { model } : {}),
@@ -308,7 +348,12 @@ export function buildDraftFromAgentPayload(
       : "";
   return {
     scope,
+    displayName: "",
+    description: agent.description ?? "",
     name: "",
+    appearance: agentAvatarAppearance(agent.appearance as AgentAppearanceInput, agent.name),
+    kind: agent.kind === "stays_on" ? "stays_on" : "on_demand",
+    place: AGENT_PLACE_LATER,
     categoryPath: joinAgentCategorySegments(agent.category_path ?? []),
     provider: agent.provider ?? "",
     model: agent.model ?? "",
@@ -330,6 +375,23 @@ function sameTokenList(left: readonly string[], right: readonly string[]): boole
   return left.every((value, index) => value === right[index]);
 }
 
+/** Whether two drafts hold the same answers in every field. */
+export function agentCreateDraftsEqual(
+  left: AgentCreateDialogDraft,
+  right: AgentCreateDialogDraft
+): boolean {
+  const { appearance, acpOptions, tools, toolsets, denyTools, disabledSkills, ...text } = left;
+  return (
+    (Object.keys(text) as (keyof typeof text)[]).every(field => text[field] === right[field]) &&
+    JSON.stringify(appearance) === JSON.stringify(right.appearance) &&
+    runtimeACPSelectionsEqual(acpOptions, right.acpOptions) &&
+    sameTokenList(tools, right.tools) &&
+    sameTokenList(toolsets, right.toolsets) &&
+    sameTokenList(denyTools, right.denyTools) &&
+    sameTokenList(disabledSkills, right.disabledSkills)
+  );
+}
+
 /**
  * Build POST /duplicate body: required target name + override diff against source.
  * Never returns a create payload.
@@ -347,7 +409,7 @@ export function buildDuplicateAgentParams(
     return null;
   }
 
-  const name = draft.name.trim();
+  const name = agentCreateSlug(draft);
   const provider = draft.provider.trim();
   const prompt = draft.prompt.trim();
   const model = draft.model.trim();
@@ -374,6 +436,10 @@ export function buildDuplicateAgentParams(
   const sourceSpeed = normalizeRuntimeSpeed(source.speed);
 
   const overrides: NonNullable<DuplicateAgentParams["overrides"]> = {};
+  const displayName = draft.displayName.trim();
+  const description = draft.description.trim();
+  if (displayName.length > 0) overrides.display_name = displayName;
+  if (description !== (source.description ?? "")) overrides.description = description;
   if (provider !== (source.provider ?? "")) overrides.provider = provider;
   if (prompt !== (source.prompt ?? "")) overrides.prompt = prompt;
   if (model !== (source.model ?? "")) overrides.model = model || undefined;
@@ -406,6 +472,7 @@ export function buildDuplicateAgentParams(
 
   return {
     name,
+    ...(draft.kind !== (source.kind ?? "on_demand") ? { kind: draft.kind } : {}),
     ...(scopeChanged || draft.scope === "workspace" ? { scope: draft.scope } : {}),
     ...(draft.scope === "workspace" ? { workspace: normalizedWorkspaceId } : {}),
     ...(hasOverrides ? { overrides } : {}),
@@ -422,48 +489,4 @@ function normalizeOrderedTokens(values: readonly string[]): string[] {
     normalized.push(trimmed);
   }
   return normalized;
-}
-
-function validateToolPatternList(values: readonly string[], label: string): string | null {
-  for (const value of values) {
-    const trimmed = value.trim();
-    if (trimmed.length === 0) return label + " entries cannot be blank.";
-    if (!isValidToolPattern(trimmed)) {
-      return (
-        label +
-        " entries must use canonical IDs such as compozy__skill_view or namespace wildcards such as compozy__task_*."
-      );
-    }
-  }
-  return null;
-}
-
-function validateToolsetList(values: readonly string[]): string | null {
-  for (const value of values) {
-    const trimmed = value.trim();
-    if (trimmed.length === 0) return "Toolset entries cannot be blank.";
-    if (!isValidCanonicalRef(trimmed) || trimmed.includes("*")) {
-      return "Toolset entries must use canonical IDs such as compozy__catalog.";
-    }
-  }
-  return null;
-}
-
-function isValidToolPattern(value: string): boolean {
-  if (value.includes("*")) {
-    if (value.split("*").length !== 2 || !value.endsWith("*")) return false;
-    const prefix = value.slice(0, -1);
-    if (prefix.length === 0 || (!prefix.endsWith("_") && !prefix.endsWith("__"))) {
-      return false;
-    }
-    return isValidCanonicalRef(prefix + "x");
-  }
-  return isValidCanonicalRef(value);
-}
-
-function isValidCanonicalRef(value: string): boolean {
-  if (!value.includes("__")) return false;
-  if (/\s/.test(value)) return false;
-  if (value.includes("/") || value.includes("\\")) return false;
-  return /^[A-Za-z0-9][A-Za-z0-9_.-]*__[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(value);
 }

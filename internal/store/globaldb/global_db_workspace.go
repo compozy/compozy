@@ -100,7 +100,7 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 	}
 
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
-		return deleteWorkspaceTx(ctx, sqlcgen.New(tx), trimmedID)
+		return deleteWorkspaceTx(ctx, sqlcgen.New(tx), trimmedID, store.FormatTimestamp(g.now()))
 	})
 }
 

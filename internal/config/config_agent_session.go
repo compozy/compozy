@@ -4,6 +4,7 @@ import "time"
 
 // AgentsConfig holds authored agent context settings.
 type AgentsConfig struct {
+	StaysOn   StaysOnConfig   `toml:"stays_on"`
 	Soul      SoulConfig      `toml:"soul"`
 	Heartbeat HeartbeatConfig `toml:"heartbeat"`
 }
@@ -19,18 +20,23 @@ const minSoulContextProjectionBytes int64 = 256
 
 // HeartbeatConfig controls optional HEARTBEAT.md wake-policy parsing and runtime bounds.
 type HeartbeatConfig struct {
-	Enabled                      bool          `toml:"enabled"`
-	MaxBodyBytes                 int64         `toml:"max_body_bytes"`
-	ContextProjectionBytes       int64         `toml:"context_projection_bytes"`
-	MinInterval                  time.Duration `toml:"min_interval"`
-	DefaultInterval              time.Duration `toml:"default_interval"`
-	WakeCooldown                 time.Duration `toml:"wake_cooldown"`
-	MaxWakesPerCycle             int           `toml:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool          `toml:"active_session_only"`
-	AllowActiveHoursPreferences  bool          `toml:"allow_active_hours_preferences"`
-	WakeEventRetention           time.Duration `toml:"wake_event_retention"`
-	SessionHealthStaleAfter      time.Duration `toml:"session_health_stale_after"`
-	SessionHealthHookMinInterval time.Duration `toml:"session_health_hook_min_interval"`
+	TriageModels                 map[string]string `toml:"triage_models"`
+	MaxInterval                  time.Duration     `toml:"max_interval"`
+	MaxConcurrentTriage          int               `toml:"max_concurrent_triage"`
+	QuietBackoffCap              time.Duration     `toml:"quiet_backoff_cap"`
+	FatigueLimit                 int               `toml:"fatigue_limit"`
+	Enabled                      bool              `toml:"enabled"`
+	MaxBodyBytes                 int64             `toml:"max_body_bytes"`
+	ContextProjectionBytes       int64             `toml:"context_projection_bytes"`
+	MinInterval                  time.Duration     `toml:"min_interval"`
+	DefaultInterval              time.Duration     `toml:"default_interval"`
+	WakeCooldown                 time.Duration     `toml:"wake_cooldown"`
+	MaxWakesPerCycle             int               `toml:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool              `toml:"active_session_only"`
+	AllowActiveHoursPreferences  bool              `toml:"allow_active_hours_preferences"`
+	WakeEventRetention           time.Duration     `toml:"wake_event_retention"`
+	SessionHealthStaleAfter      time.Duration     `toml:"session_health_stale_after"`
+	SessionHealthHookMinInterval time.Duration     `toml:"session_health_hook_min_interval"`
 }
 
 // LimitsConfig defines runtime safety bounds.
@@ -163,4 +169,24 @@ type ObservabilityTranscriptConfig struct {
 	Enabled            bool  `toml:"enabled"`
 	SegmentBytes       int   `toml:"segment_bytes"`
 	MaxBytesPerSession int64 `toml:"max_bytes_per_session"`
+}
+
+func (c HeartbeatConfig) IsZero() bool {
+	return len(c.TriageModels) == 0 &&
+		c.MaxInterval == 0 &&
+		c.MaxConcurrentTriage == 0 &&
+		c.QuietBackoffCap == 0 &&
+		c.FatigueLimit == 0 &&
+		!c.Enabled &&
+		c.MaxBodyBytes == 0 &&
+		c.ContextProjectionBytes == 0 &&
+		c.MinInterval == 0 &&
+		c.DefaultInterval == 0 &&
+		c.WakeCooldown == 0 &&
+		c.MaxWakesPerCycle == 0 &&
+		!c.ActiveSessionOnly &&
+		!c.AllowActiveHoursPreferences &&
+		c.WakeEventRetention == 0 &&
+		c.SessionHealthStaleAfter == 0 &&
+		c.SessionHealthHookMinInterval == 0
 }

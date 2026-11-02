@@ -8,7 +8,7 @@ import {
 } from "@/systems/session";
 
 import { createSessionCommandFormatter } from "../session-command-formatter";
-import { sessionMentionDirectives } from "../session-directive-registry";
+import { agentMentionDirectives, sessionMentionDirectives } from "../session-directive-registry";
 import {
   buildMentionMenuModel,
   detectMentionTrigger,
@@ -217,6 +217,59 @@ describe("buildMentionMenuModel", () => {
       { text: ".go", match: false },
     ]);
     expect(emphasizeMatch("main.go", "zz")).toEqual([{ text: "main.go", match: false }]);
+  });
+});
+
+// Invariant: an agent mention lists with its label and reaches the prompt as slug plus name, in a
+// form the daemon leaves as text. Owner: mention model; canonical suite: this file.
+describe("agent mentions", () => {
+  const agent = { name: "code_implementer", label: "Builder", resolved_appearance: null } as never;
+  const empty = {
+    query: "",
+    files: { entries: [], status: "ready" as const, truncated: false },
+    sessions: { sessions: [], status: "ready" as const },
+    recents: [],
+  };
+
+  it("Should list agents after the other groups, numbered after their rows", () => {
+    const model = buildMentionMenuModel({
+      ...empty,
+      files: { ...empty.files, entries: [{ path: "a.md", kind: "file" }] },
+      agents: { agents: [agent], status: "ready" },
+    });
+
+    expect(model.groups.map(group => group.id)).toEqual(["files", "sessions", "agents"]);
+    const row = model.groups[2]!.rows[0]!;
+    expect(row.flatIndex).toBe(1);
+    expect(row.item).toMatchObject({ id: "agent:code_implementer", label: "Builder" });
+  });
+
+  it("Should serialize slug and display name and read them back from sent text", () => {
+    const item = buildMentionMenuModel({
+      ...empty,
+      agents: { agents: [agent], status: "ready" },
+    }).items[0]!;
+    const token = mentionDirectiveFormatter.serialize(item);
+
+    expect(token).toBe("@agent:code_implementer (Builder)");
+    expect(parseMentionDirectiveId(item.id)).toEqual({
+      kind: "agent",
+      target: "code_implementer",
+    });
+    expect(agentMentionDirectives(`Ask ${token} first`)).toEqual([
+      {
+        kind: "agent",
+        token,
+        target: "code_implementer",
+        label: "Builder",
+        start: 4,
+        end: 4 + token.length,
+      },
+    ]);
+  });
+
+  it("Should leave an address that only looks like a mention as text", () => {
+    expect(agentMentionDirectives("mail me@agent:x (Y)")).toEqual([]);
   });
 });
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/compozy/compozy/internal/agentmemory"
+
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -56,6 +58,8 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
+	AgentInstances      func() *core.AgentInstanceAPI
+	AgentMemory         *agentmemory.Store
 	WorkspaceAccess     workspaceaccess.Policy
 	Subagents           func() sessionpkg.SubagentService
 	Logger              *slog.Logger

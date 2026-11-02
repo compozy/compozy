@@ -454,6 +454,20 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 	})
 }
 
+func TestHarnessContextResolverAcceptsTriageSession(t *testing.T) {
+	t.Parallel()
+	t.Run("Should treat a daemon-owned triage session as a system session", func(t *testing.T) {
+		t.Parallel()
+		sessionCtx, err := normalizeHarnessSessionContext(HarnessSessionInput{Type: session.SessionTypeTriage})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sessionCtx.SessionClass != SessionClassSystem {
+			t.Fatalf("class = %q", sessionCtx.SessionClass)
+		}
+	})
+}
+
 func TestHarnessContextResolverValidation(t *testing.T) {
 	t.Parallel()
 

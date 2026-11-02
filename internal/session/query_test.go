@@ -34,6 +34,29 @@ import (
 
 func TestManagerListForWorkspace(t *testing.T) {
 	t.Parallel()
+	t.Run("Should hide persisted and live triage sessions from workspace reads", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 2, 1)
+		db, ok := manager.sessionCatalog.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatal("expected SQLite catalog fixture")
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE sessions SET session_type='triage' WHERE id='sess-read-000'"); err != nil {
+			t.Fatal(err)
+		}
+		manager.sessions["live-triage"] = &Session{
+			ID:          "live-triage",
+			WorkspaceID: "ws-read-00",
+			Type:        SessionTypeTriage,
+			State:       StateActive,
+		}
+		infos, err := manager.ListForWorkspace(t.Context(), "ws-read-00")
+		if err != nil || len(infos) != 1 || infos[0].ID != "sess-read-001" {
+			t.Fatalf("public workspace sessions=%v, %v", infos, err)
+		}
+	})
+
 	t.Run("Should preserve workspace results without reading unrelated metadata", func(t *testing.T) {
 		t.Parallel()
 		manager := newWorkspaceSessionReadFixture(t, 32, 4)
@@ -147,7 +170,7 @@ func newWorkspaceSessionReadFixture(t testing.TB, count, workspaceCount int) *Ma
 			State: StateStopped, RuntimeStatus: store.SessionRuntimeReady, stopReason: store.StopCompleted,
 			CreatedAt: benchmarkSessionTime.Add(time.Duration(index) * time.Minute), UpdatedAt: benchmarkSessionTime,
 		}
-		if err := database.RegisterSession(ctx, sessionCatalogInfoFromRuntime(target.Info())); err != nil {
+		if err := database.RegisterSession(ctx, new(sessionCatalogInfoFromRuntime(target.Info()))); err != nil {
 			t.Fatal(err)
 		}
 		meta := target.Meta()
@@ -251,11 +274,11 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 		}
 	})
 
-	stopped, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	stopped, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "stopped",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(session stopped) error = %v", err)
 	}
@@ -307,6 +330,39 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should drop instance main sessions from the page and its total", func(t *testing.T) {
+		t.Parallel()
+		catalog := &multiPagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		ordinary, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, ordinary.ID) })
+		main, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, main.ID) })
+		stoppedAt := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+		catalog.durable = []store.SessionInfo{{
+			ID: "stopped-main", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
+			SessionType: "user", State: "stopped", CreatedAt: stoppedAt, UpdatedAt: stoppedAt,
+		}}
+		query := ListQuery{
+			ReadScope:           store.ReadScope{AllProfiles: true},
+			WorkspaceID:         h.workspaceID,
+			Limit:               MaxListLimit,
+			ExcludeInstanceMain: true,
+			InstanceMainIDs:     []string{main.ID, "stopped-main"},
+		}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != ordinary.ID {
+			t.Fatalf("catalog without mains = %#v, %v", page, err)
+		}
+	})
+
 	t.Run(
 		"Should hide verdict-only judges before counting and preserve actionable system sessions",
 		func(t *testing.T) {
@@ -319,7 +375,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				if kind == SessionTypeSystem {
 					opts.RuntimeMode = RuntimeModeVerdictOnly
 				}
-				created, err := h.manager.Create(ctx, opts)
+				created, err := h.manager.Create(ctx, &(opts))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -358,7 +414,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			}
 			actionable, err := h.manager.Create(
 				ctx,
-				CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem},
+				new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -392,7 +448,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			cleanupTestManager(t, h.manager)
 			active, err := h.manager.Create(
 				ctx,
-				CreateOpts{AgentName: "coder", Name: "Alpha", Workspace: h.workspaceID},
+				new(CreateOpts{AgentName: "coder", Name: "Alpha", Workspace: h.workspaceID}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -412,7 +468,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				info.Lineage = nil
 				info.CreatedAt = base.Add(fixture.offset)
 				info.UpdatedAt = base.Add(-time.Hour)
-				if err := catalog.RegisterSession(ctx, info); err != nil {
+				if err := catalog.RegisterSession(ctx, &(info)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -511,12 +567,12 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		h := newHarness(t, WithSessionCatalog(catalog))
 		ctx := testutil.Context(t)
 		const attachmentContents = "preserve-on-archive"
-		stopped, err := h.manager.Create(ctx, CreateOpts{
+		stopped, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder",
 			Name:      "archivable",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(stopped) error = %v", err)
 		}
@@ -677,19 +733,19 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 		h.resolver.upsert(&resolved)
 
-		onboarding, err := h.manager.Create(ctx, CreateOpts{
+		onboarding, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "onboarding",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(onboarding) error = %v", err)
 		}
-		user, err := h.manager.Create(ctx, CreateOpts{
+		user, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(user) error = %v", err)
 		}
@@ -747,12 +803,12 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 
 		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
 		h := newHarness(t, WithSessionCatalog(catalog))
-		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		active, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "catalog active",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(active) error = %v", err)
 		}
@@ -762,23 +818,23 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				t.Errorf("Stop(active cleanup) error = %v", stopErr)
 			}
 		})
-		stopped, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		stopped, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "catalog stopped",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(stopped) error = %v", err)
 		}
 		if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
 			t.Fatalf("Stop(stopped) error = %v", err)
 		}
-		internal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		internal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "catalog internal",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeSystem,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(internal) error = %v", err)
 		}
@@ -993,11 +1049,11 @@ func TestManagerAggregateSessionsByAgent(t *testing.T) {
 		clock := newSessionHealthTestClock(baseAt)
 		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
 		h := newHarness(t, WithNow(clock.Now), WithSessionCatalog(catalog))
-		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		active, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "live coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(active) error = %v", err)
 		}
@@ -2871,10 +2927,10 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 				t.Fatal(err)
 			}
 			now := time.Date(2026, 10, 4, 9, 35, 0, 0, time.UTC)
-			_, err = catalog.RegisterSessionWithCreationIdentity(t.Context(), store.SessionInfo{
+			_, err = catalog.RegisterSessionWithCreationIdentity(t.Context(), new(store.SessionInfo{
 				ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
 				State: string(StateStopped), RuntimeStatus: store.SessionRuntimeReady, CreatedAt: now, UpdatedAt: now,
-			}, store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: creation})
+			}), store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: creation})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2987,9 +3043,9 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 
 	t.Run("Should allow an accepted unbound session with no event database at boot", func(t *testing.T) {
 		h := newHarness(t)
-		accepted, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4174,13 +4230,16 @@ func TestManagerBoardCatalog(t *testing.T) {
 		registerManagerInputQueueWorkspace(t, catalog, h)
 		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
 		cleanupTestManager(t, h.manager)
-		parent, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID})
+		parent, err := h.manager.Create(
+			ctx,
+			new(CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		child, err := h.manager.Create(
 			ctx,
-			CreateOpts{
+			new(CreateOpts{
 				AgentName: "coder",
 				Name:      "Child",
 				Workspace: h.workspaceID,
@@ -4192,7 +4251,7 @@ func TestManagerBoardCatalog(t *testing.T) {
 					SpawnRole:       "worker",
 					TTLExpiresAt:    new(time.Now().Add(time.Hour)),
 				},
-			},
+			}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -4202,7 +4261,7 @@ func TestManagerBoardCatalog(t *testing.T) {
 		child.mu.Unlock()
 		durable := sessionCatalogInfoFromRuntime(child.Info())
 		durable.ID, durable.Name, durable.State = "durable-child", "Durable child", string(StateStopped)
-		if err := catalog.RegisterSession(ctx, durable); err != nil {
+		if err := catalog.RegisterSession(ctx, &(durable)); err != nil {
 			t.Fatal(err)
 		}
 		for _, id := range []string{parent.ID, durable.ID} {
@@ -4296,11 +4355,11 @@ func TestManagerBoardCatalog(t *testing.T) {
 			t.Fatalf("parent title lookup projected PRs: %v", snapshots.ids)
 		}
 		// A parent whose only child is waiting still carries its rollup.
-		solo, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Solo", Workspace: h.workspaceID})
+		solo, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Name: "Solo", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		soloChild, err := h.manager.Create(ctx, CreateOpts{
+		soloChild, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder",
 			Name:      "Solo child",
 			Workspace: h.workspaceID,
@@ -4312,7 +4371,7 @@ func TestManagerBoardCatalog(t *testing.T) {
 				SpawnRole:       "worker",
 				TTLExpiresAt:    new(time.Now().Add(time.Hour)),
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4342,11 +4401,14 @@ func TestManagerBoardCatalog(t *testing.T) {
 		registerManagerInputQueueWorkspace(t, catalog, h)
 		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
 		cleanupTestManager(t, h.manager)
-		parent, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID})
+		parent, err := h.manager.Create(
+			ctx,
+			new(CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		child, err := h.manager.Create(ctx, CreateOpts{
+		child, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder",
 			Name:      "Child",
 			Workspace: h.workspaceID,
@@ -4356,11 +4418,11 @@ func TestManagerBoardCatalog(t *testing.T) {
 				SpawnDepth:      1,
 				Kind:            store.LineageKindProvenance,
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		fork, err := h.manager.Create(ctx, CreateOpts{
+		fork, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder",
 			Name:      "Fork",
 			Workspace: h.workspaceID,
@@ -4371,7 +4433,7 @@ func TestManagerBoardCatalog(t *testing.T) {
 				Kind:            store.LineageKindFork,
 				OriginAgentName: "coder",
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -21,6 +21,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	shellquote "github.com/kballard/go-shellquote"
 
@@ -1963,10 +1964,10 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 		t.Fatalf("boot() error = %v", err)
 	}
 
-	sess, err := d.sessions.Create(testutil.Context(t), session.CreateOpts{
+	sess, err := d.sessions.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName:     "coder",
 		WorkspacePath: workspaceRoot,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -3125,7 +3126,7 @@ func seedDetachedHarnessSessionIndex(
 		if agentName == "" {
 			agentName = "daemon-test-agent"
 		}
-		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+		if err := db.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 			ProfileID:   info.ProfileID,
 			ID:          info.ID,
 			Name:        info.Name,
@@ -3137,7 +3138,7 @@ func seedDetachedHarnessSessionIndex(
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			CreatedAt:     time.Now().UTC(),
 			UpdatedAt:     time.Now().UTC(),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}
@@ -3797,4 +3798,151 @@ func TestBootArchivedWorkspaceIntegration(t *testing.T) {
 	if err != nil || retainedRun.Status != looppkg.StatusFailed {
 		t.Fatalf("recovered archived Loop = %#v, %v", retainedRun, err)
 	}
+}
+
+func TestBootRecoversInstanceReports(t *testing.T) {
+	t.Run("Should publish an orphaned report exactly once across daemon boots", func(t *testing.T) {
+		// integrationHomePaths sets the isolated daemon environment.
+		home := integrationHomePaths(t)
+		cfg := testConfig(t, home)
+		command := daemonSessionStopHelperCommand(t)
+		cfg.Defaults.Provider = acpmock.ProviderName
+		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationAgentDef(t, home, "coder", command)
+		d := newTestDaemon(t, home, &cfg)
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		main, err := d.sessions.Create(t.Context(), new(session.CreateOpts{AgentName: "coder", WorkspacePath: t.TempDir()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := main.Info()
+		if err := d.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		db, err := globaldb.OpenGlobalDB(t.Context(), home.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "occ:boot-recovery", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"persisted before crash"}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			d = newTestDaemon(t, home, &cfg)
+			if err := d.boot(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			events, err := d.sessions.Events(t.Context(), main.ID, store.EventQuery{Type: "session.report", Limit: 100})
+			if err != nil || len(events) != 1 || events[0].ID != "report:"+report.ID {
+				t.Fatalf("boot report events: %#v, %v", events, err)
+			}
+			rows, err := d.registry.(*globaldb.GlobalDB).InstanceReports().UnpublishedReports(t.Context(), "", 100)
+			if err != nil || len(rows) != 0 {
+				t.Fatalf("unpublished reports after boot: %#v, %v", rows, err)
+			}
+			if err := d.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
+func TestInstancePayloadIntegration(t *testing.T) {
+	t.Run("Should replace a stopped main attempt instead of republishing it", func(t *testing.T) {
+		home := integrationHomePaths(t)
+		cfg := testConfig(t, home)
+		command := daemonSessionStopHelperCommand(t)
+		cfg.Defaults.Provider = acpmock.ProviderName
+		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, command)
+		writeDaemonIntegrationAgentDef(t, home, "coder", command)
+		d := newTestDaemon(t, home, &cfg)
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		workspace := resolveDaemonWorkspace(t, d.workspaceResolver, t.TempDir())
+		db := d.registry.(*globaldb.GlobalDB)
+		ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{workspace.RootDir}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID, AgentName: "coder", PermissionCeiling: string(ceiling), CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		starter := instanceMainSessions{sessions: d.sessions.(*session.Manager), attempts: db.Instances()}
+		initial, err := d.sessions.Create(t.Context(), new(session.CreateOpts{InstanceID: instance.ID, ProfileID: instance.ProfileID, AgentName: "coder", Workspace: workspace.ID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := initial.ID
+		if err := starter.Stop(t.Context(), first); err != nil {
+			t.Fatal(err)
+		}
+		second, err := starter.Start(t.Context(), agentinstance.StartMainSession{Instance: instance})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first == second || second == "" {
+			t.Fatalf("replacement IDs = %q, %q", first, second)
+		}
+		old, err := d.sessions.Status(t.Context(), first)
+		if err != nil || old.ArchivedAt == nil {
+			t.Fatalf("predecessor was not archived: %+v, %v", old, err)
+		}
+	})
+
+	t.Run("Should retain instance identity when its workspace root is missing", func(t *testing.T) {
+		home := integrationHomePaths(t)
+		cfg := testConfig(t, home)
+		d := newTestDaemon(t, home, &cfg)
+		if err := d.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		root := filepath.Join(t.TempDir(), "missing-project")
+		workspace := resolveDaemonWorkspace(t, d.workspaceResolver, root)
+		if err := os.RemoveAll(root); err != nil {
+			t.Fatal(err)
+		}
+		definitions := instanceDefinitions{
+			workspaces: d.workspaceResolver.(*workspacepkg.Resolver), profiles: d.profiles,
+			sessions: d.sessions.(*session.Manager),
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		instance := agentinstance.Instance{ID: "missing-root-instance", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID, AgentName: "coder", State: "paused"}
+		payload, err := definitions.instancePayload(t.Context(), instance, db.Instances())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if payload.ID != instance.ID || payload.Scope != workspace.Name || payload.Label != "Coder" {
+			t.Fatalf("missing-root payload = %#v", payload)
+		}
+	})
 }

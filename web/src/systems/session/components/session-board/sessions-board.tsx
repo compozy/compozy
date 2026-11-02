@@ -2,6 +2,7 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import { useSessionBoardColumnFolds } from "../../hooks/use-session-window-view-state";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import { StaysOnListTop } from "../stays-on/stays-on-list-top";
 import { SessionBoardCard } from "./session-board-card";
 import { SessionBoardCardSlot } from "./session-board-card-slot";
 import { SessionsBoardSwimlane } from "./sessions-board-swimlane";
@@ -30,6 +31,15 @@ export function SessionsBoard(props: SessionsBoardProps) {
         {...props}
         collapsedColumns={folds.collapsed}
         onColumnCollapsedChange={folds.setCollapsed}
+        header={
+          <StaysOnListTop
+            currentSessionId={props.currentSessionId}
+            groupBy={props.board.groupBy}
+            onOpenSession={session => props.onOpen(session as SessionBoardPayload)}
+            surface="ring-canvas"
+            workspaceId={props.board.focusedWorkspaceId}
+          />
+        }
         renderLane={(lane, row) => (
           <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
         )}

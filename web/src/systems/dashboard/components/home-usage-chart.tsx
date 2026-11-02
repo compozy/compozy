@@ -9,6 +9,8 @@ import {
 import { formatHomeTokens } from "../lib/home-formatters";
 import { HomeProfileShare } from "./home-profile-share";
 import { HOME_USAGE_HEADLINE_CLASS } from "./home-zone-shape";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export interface HomeUsageChartProps {
   /** The aggregate read is on — the labeled per-profile breakdown belongs. */
@@ -123,11 +125,12 @@ const SHARE_RAMP = [
 ] as const;
 
 function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"] }) {
+  const identityOf = useAgentIdentityResolverView();
   if (share.length === 0) {
     return null;
   }
   const label = share
-    .map(entry => `${entry.agent_name} ${Math.round(entry.fraction * 100)}%`)
+    .map(entry => `${identityOf(entry.agent_name).label} ${Math.round(entry.fraction * 100)}%`)
     .join(", ");
 
   return (
@@ -162,7 +165,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
               className="size-2 rounded-xs"
               style={{ background: SHARE_RAMP[Math.min(index, SHARE_RAMP.length - 1)] }}
             />
-            {entry.agent_name}{" "}
+            <AgentIdentityChip name={entry.agent_name} />{" "}
             <span className="text-eyebrow tabular-nums text-subtle">
               {Math.round(entry.fraction * 100)}% · {formatHomeTokens(entry.tokens)}
             </span>

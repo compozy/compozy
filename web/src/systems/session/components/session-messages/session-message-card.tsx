@@ -62,7 +62,13 @@ export function SessionMessageCard({
       aria-busy={sender.pending || undefined}
       data-testid="session-message-card"
       data-delivery={delivery ?? undefined}
-      avatar={<SubagentAvatar provider={sessionPartyMark(sender)} surface="rail" />}
+      avatar={
+        <SubagentAvatar
+          agent={sender.agentName}
+          provider={sessionPartyMark(sender)}
+          surface="rail"
+        />
+      }
       header={
         <>
           <SessionMessagePartyLabel verb="From" party={sender} onOpen={onOpenSender} />

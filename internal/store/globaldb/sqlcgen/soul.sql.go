@@ -12,24 +12,31 @@ import (
 
 const deleteSoulAgentHistory = `-- name: DeleteSoulAgentHistory :exec
 DELETE FROM agent_soul_revisions
-WHERE workspace_id = ?1
-  AND agent_name = ?2
-  AND source_path = ?3
+WHERE profile_id = ?1
+  AND workspace_id = ?2
+  AND agent_name = ?3
+  AND source_path = ?4
 `
 
 type DeleteSoulAgentHistoryParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
 }
 
 func (q *Queries) DeleteSoulAgentHistory(ctx context.Context, arg DeleteSoulAgentHistoryParams) error {
-	_, err := q.db.ExecContext(ctx, deleteSoulAgentHistory, arg.WorkspaceID, arg.AgentName, arg.SourcePath)
+	_, err := q.db.ExecContext(ctx, deleteSoulAgentHistory,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SourcePath,
+	)
 	return err
 }
 
 const getSoulRevision = `-- name: GetSoulRevision :one
-SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, action, previous_digest, new_digest,
        body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 FROM agent_soul_revisions WHERE id = ?1
 `
@@ -40,6 +47,7 @@ func (q *Queries) GetSoulRevision(ctx context.Context, id string) (AgentSoulRevi
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.Action,
@@ -57,17 +65,19 @@ func (q *Queries) GetSoulRevision(ctx context.Context, id string) (AgentSoulRevi
 }
 
 const getSoulRevisionForRollback = `-- name: GetSoulRevisionForRollback :one
-SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, action, previous_digest, new_digest,
        body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 FROM agent_soul_revisions
-WHERE workspace_id = ?1
-  AND agent_name = ?2
-  AND source_path = ?3
-  AND id = ?4
+WHERE profile_id = ?1
+  AND workspace_id = ?2
+  AND agent_name = ?3
+  AND source_path = ?4
+  AND id = ?5
   AND action IN ('put', 'rollback')
 `
 
 type GetSoulRevisionForRollbackParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
@@ -76,6 +86,7 @@ type GetSoulRevisionForRollbackParams struct {
 
 func (q *Queries) GetSoulRevisionForRollback(ctx context.Context, arg GetSoulRevisionForRollbackParams) (AgentSoulRevision, error) {
 	row := q.db.QueryRowContext(ctx, getSoulRevisionForRollback,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.AgentName,
 		arg.SourcePath,
@@ -85,6 +96,7 @@ func (q *Queries) GetSoulRevisionForRollback(ctx context.Context, arg GetSoulRev
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.Action,
@@ -102,7 +114,7 @@ func (q *Queries) GetSoulRevisionForRollback(ctx context.Context, arg GetSoulRev
 }
 
 const getSoulSnapshot = `-- name: GetSoulSnapshot :one
-SELECT id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
+SELECT id, workspace_id, profile_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
 FROM agent_soul_snapshots WHERE id = ?1
 `
 
@@ -112,6 +124,7 @@ func (q *Queries) GetSoulSnapshot(ctx context.Context, id string) (AgentSoulSnap
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.Digest,
@@ -124,25 +137,33 @@ func (q *Queries) GetSoulSnapshot(ctx context.Context, id string) (AgentSoulSnap
 }
 
 const getSoulSnapshotByDigest = `-- name: GetSoulSnapshotByDigest :one
-SELECT id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
+SELECT id, workspace_id, profile_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
 FROM agent_soul_snapshots
-WHERE workspace_id = ?1
-  AND agent_name = ?2
-  AND digest = ?3
+WHERE profile_id = ?1
+  AND workspace_id = ?2
+  AND agent_name = ?3
+  AND digest = ?4
 `
 
 type GetSoulSnapshotByDigestParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	Digest      string `json:"digest"`
 }
 
 func (q *Queries) GetSoulSnapshotByDigest(ctx context.Context, arg GetSoulSnapshotByDigestParams) (AgentSoulSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, getSoulSnapshotByDigest, arg.WorkspaceID, arg.AgentName, arg.Digest)
+	row := q.db.QueryRowContext(ctx, getSoulSnapshotByDigest,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Digest,
+	)
 	var i AgentSoulSnapshot
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.Digest,
@@ -156,19 +177,20 @@ func (q *Queries) GetSoulSnapshotByDigest(ctx context.Context, arg GetSoulSnapsh
 
 const insertSoulRevision = `-- name: InsertSoulRevision :exec
 INSERT INTO agent_soul_revisions (
-  id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
+  id, workspace_id, profile_id, agent_name, source_path, action, previous_digest, new_digest,
   body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11,
-  ?12, ?13, ?14
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12,
+  ?13, ?14, ?15
 )
 `
 
 type InsertSoulRevisionParams struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
 	AgentName       string `json:"agent_name"`
 	SourcePath      string `json:"source_path"`
 	Action          string `json:"action"`
@@ -187,6 +209,7 @@ func (q *Queries) InsertSoulRevision(ctx context.Context, arg InsertSoulRevision
 	_, err := q.db.ExecContext(ctx, insertSoulRevision,
 		arg.ID,
 		arg.WorkspaceID,
+		arg.ProfileID,
 		arg.AgentName,
 		arg.SourcePath,
 		arg.Action,
@@ -205,17 +228,18 @@ func (q *Queries) InsertSoulRevision(ctx context.Context, arg InsertSoulRevision
 
 const insertSoulSnapshot = `-- name: InsertSoulSnapshot :execrows
 INSERT INTO agent_soul_snapshots (
-  id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
+  id, workspace_id, profile_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8, ?9
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9, ?10
 )
-ON CONFLICT(workspace_id, agent_name, digest) DO NOTHING
+ON CONFLICT(profile_id, workspace_id, agent_name, digest) DO NOTHING
 `
 
 type InsertSoulSnapshotParams struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
 	Digest      string `json:"digest"`
@@ -229,6 +253,7 @@ func (q *Queries) InsertSoulSnapshot(ctx context.Context, arg InsertSoulSnapshot
 	result, err := q.db.ExecContext(ctx, insertSoulSnapshot,
 		arg.ID,
 		arg.WorkspaceID,
+		arg.ProfileID,
 		arg.AgentName,
 		arg.SourcePath,
 		arg.Digest,

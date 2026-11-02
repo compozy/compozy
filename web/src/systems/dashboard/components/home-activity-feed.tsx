@@ -2,6 +2,7 @@ import { AlertTriangle, ChevronRight } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {
+  Button,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -18,11 +19,14 @@ import { homeActivityTone, isQuietActivityEvent } from "../lib/activity-classes"
 import type { HomeActivityEvent, HomeSurfaceStatus } from "../types";
 import { HOME_ACTIVITY_ROW_CLASS } from "./home-zone-shape";
 import { HomeActivityFeedSkeleton } from "./home-zone-skeletons";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
 
 export interface HomeActivityFeedProps {
   events: HomeActivityEvent[];
   status?: HomeSurfaceStatus;
   errorMessage?: string | null;
+  /** Opens the Activity page; absent where there is nowhere to go. */
+  onOpenAll?: () => void;
 }
 
 const LOUD_EVENT_LIMIT = 8;
@@ -83,7 +87,11 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
             : "min-w-0 truncate text-small-body font-medium text-fg-strong"
         }
       >
-        {event.agent_name ? <span className="font-medium">{event.agent_name}</span> : null}
+        {event.agent_name ? (
+          <span className="font-medium">
+            <AgentIdentityLabel name={event.agent_name} />
+          </span>
+        ) : null}
         {event.agent_name ? " · " : ""}
         <span className={quiet ? undefined : "font-normal text-muted-foreground"}>
           {eventTitle(event)}
@@ -105,6 +113,7 @@ export function HomeActivityFeed({
   events,
   status = "ready",
   errorMessage,
+  onOpenAll,
 }: HomeActivityFeedProps) {
   const { loud, quiet } = partitionActivity(events);
   const loudVisible = loud.slice(0, LOUD_EVENT_LIMIT);
@@ -131,6 +140,13 @@ export function HomeActivityFeed({
       className="flex min-h-full flex-col"
       data-slot="home-activity"
       label="Activity"
+      right={
+        onOpenAll ? (
+          <Button onClick={onOpenAll} size="sm" type="button" variant="ghost">
+            See everything
+          </Button>
+        ) : undefined
+      }
     >
       <Panel bodyClassName="flex flex-1 flex-col p-0" className="flex-1 overflow-hidden">
         {status === "error" ? (

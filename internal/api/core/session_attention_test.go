@@ -528,8 +528,8 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 	})
 }
 
-func attentionRouteSessionManager() testutil.StubSessionManager {
-	return testutil.StubSessionManager{
+func attentionRouteSessionManager() *testutil.StubSessionManager {
+	return &testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			switch id {
 			case "sess-attention":
@@ -819,5 +819,61 @@ func TestAttentionNotificationTaskPopulation(t *testing.T) {
 		if !reflect.DeepEqual(loopWorkspaces, []string{""}) {
 			t.Fatalf("loop reads = %v, want one aggregate read", loopWorkspaces)
 		}
+	})
+}
+
+func TestSessionInteractionDescendants(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the child identity when descendants are requested", func(t *testing.T) {
+		t.Parallel()
+		manager := attentionRouteSessionManager()
+		manager.Attention.DescendantPendingFn = func(_ context.Context, id string, statuses []string) ([]store.PendingInteraction, error) {
+			if id != "sess-attention" || len(statuses) != 1 || statuses[0] != "pending" {
+				t.Fatalf("query = %q/%v", id, statuses)
+			}
+			return []store.PendingInteraction{
+				{
+					InteractionID:     "child-interaction",
+					SessionID:         "child-session",
+					ProviderRequestID: "original-request",
+					Kind:              store.PendingInteractionKindPermission,
+					Status:            store.PendingInteractionStatusPending,
+				},
+			}, nil
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-1/sessions/sess-attention/interactions?descendants=true&status=pending",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
+		}
+		var payload contract.SessionInteractionsResponse
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if len(payload.Interactions) != 1 || payload.Interactions[0].SessionID != "child-session" ||
+			payload.Interactions[0].ProviderRequestID != "original-request" {
+			t.Fatalf("interactions = %#v", payload.Interactions)
+		}
+	})
+	t.Run("Should reject an invalid descendants parameter", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			attentionRouteSessionManager(),
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-1/sessions/sess-attention/interactions?descendants=invalid",
+			nil,
+		)
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "api: descendants must be a boolean")
 	})
 }

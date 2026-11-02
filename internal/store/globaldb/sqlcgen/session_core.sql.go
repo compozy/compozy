@@ -347,6 +347,7 @@ func (q *Queries) UpdateSessionWorktreeBinding(ctx context.Context, arg UpdateSe
 
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
+ initiator_kind, initiator_id,
  effective_workspace_access,
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
@@ -361,40 +362,41 @@ INSERT INTO sessions (
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
   created_at, updated_at
 ) SELECT
- ?1,
-  ?2, ?3, ?4, ?5, ?6, ?7,
-  ?8, ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16,
-  ?17, ?18, ?19,
-  ?20, ?21, ?22,
-  CASE WHEN ?23 = '' THEN 'global' ELSE 'workspace' END,
-  ?23,
-  ?24,
-  ?25, ?26, ?27,
-  ?28, ?29, ?30, ?31,
-  ?32, ?33, ?34, ?35,
-  ?36, ?37, ?38,
-  ?39, ?40, ?41, ?42, ?43, ?44,
-  ?45, ?46, ?47,
-  ?48, ?49, ?50,
-  ?51, ?52, ?53,
-  ?54, ?55, ?56,
-  ?57, ?58
-WHERE ?24 IS NULL
+ ?1, ?2,
+ ?3,
+  ?4, ?5, ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16,
+  ?17, ?18,
+  ?19, ?20, ?21,
+  ?22, ?23, ?24,
+  CASE WHEN ?25 = '' THEN 'global' ELSE 'workspace' END,
+  ?25,
+  ?26,
+  ?27, ?28, ?29,
+  ?30, ?31, ?32, ?33,
+  ?34, ?35, ?36, ?37,
+  ?38, ?39, ?40,
+  ?41, ?42, ?43, ?44, ?45, ?46,
+  ?47, ?48, ?49,
+  ?50, ?51, ?52,
+  ?53, ?54, ?55,
+  ?56, ?57, ?58,
+  ?59, ?60
+WHERE ?26 IS NULL
    OR EXISTS (
       SELECT 1
       FROM worktrees
-      WHERE worktrees.workspace_id = ?23
-        AND worktrees.id = ?24
+      WHERE worktrees.workspace_id = ?25
+        AND worktrees.id = ?26
         AND worktrees.state = 'ready'
    )
    OR EXISTS (
       SELECT 1
       FROM sessions AS existing_session
-      WHERE existing_session.id = ?3
-        AND existing_session.workspace_id = ?23
-        AND existing_session.worktree_id IS ?24
+      WHERE existing_session.id = ?5
+        AND existing_session.workspace_id = ?25
+        AND existing_session.worktree_id IS ?26
    )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -456,6 +458,8 @@ WHERE sessions.workspace_id = excluded.workspace_id
 `
 
 type UpsertSessionParams struct {
+	InitiatorKind            string         `json:"initiator_kind"`
+	InitiatorID              string         `json:"initiator_id"`
 	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ProfileID                string         `json:"profile_id"`
 	ID                       string         `json:"id"`
@@ -518,6 +522,8 @@ type UpsertSessionParams struct {
 
 func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertSession,
+		arg.InitiatorKind,
+		arg.InitiatorID,
 		arg.EffectiveWorkspaceAccess,
 		arg.ProfileID,
 		arg.ID,

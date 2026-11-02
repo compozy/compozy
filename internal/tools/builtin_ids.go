@@ -81,6 +81,8 @@ const (
 	ToolIDSessionInputCancel ToolID = "compozy__session_input_cancel"
 	// ToolIDSessionInputPromote atomically promotes queued input to steering.
 	ToolIDSessionInputPromote ToolID = "compozy__session_input_promote"
+	// ToolIDSessionPendingInteractions reads pending questions and approvals.
+	ToolIDSessionPendingInteractions ToolID = "compozy__session_pending_interactions"
 	// ToolIDSessionStatus reads one runtime session snapshot.
 	ToolIDSessionStatus ToolID = "compozy__session_status"
 	// ToolIDSessionHistory reads grouped turn history for one session.
@@ -160,7 +162,8 @@ const (
 	// ToolIDWorktreeRemove removes one worktree after safety evaluation.
 	ToolIDWorktreeRemove ToolID = "compozy__worktree_remove"
 	// ToolIDAgentCreate authors one AGENT.md definition at global or workspace scope.
-	ToolIDAgentCreate ToolID = "compozy__agent_create"
+	ToolIDAgentCreate            ToolID = "compozy__agent_create"
+	ToolIDAgentDraftInstructions ToolID = "compozy__agent_draft_instructions"
 	// ToolIDProviderModelsList lists the daemon provider model catalog.
 	ToolIDProviderModelsList ToolID = "compozy__provider_models_list"
 	// ToolIDProviderModelsRefresh refreshes one or more provider model catalog sources.
@@ -395,4 +398,11 @@ const (
 	ToolIDProviderUsageList    ToolID    = "compozy__provider_usage_list"
 	ToolIDProviderUsageRefresh ToolID    = "compozy__provider_usage_refresh"
 	ToolsetIDProviderUsage     ToolsetID = "compozy__provider_usage"
+)
+
+const (
+	ToolIDAgentMemoryAdd     ToolID = "compozy__agent_memory_add"
+	ToolIDAgentMemoryReplace ToolID = "compozy__agent_memory_replace"
+	ToolIDAgentMemoryRemove  ToolID = "compozy__agent_memory_remove"
+	ToolIDAgentMemorySearch  ToolID = "compozy__agent_memory_search"
 )

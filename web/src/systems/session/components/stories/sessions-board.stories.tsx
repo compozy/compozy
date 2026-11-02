@@ -280,6 +280,7 @@ function projectLane(workspaceId: string): SessionsBoardLane {
       total,
       working: laneSessions(workspaceId, "working").length,
       needsYou: laneSessions(workspaceId, "needs_you").length,
+      instancesNeedingAttention: 0,
       scope: { kind: "project", workspaceId },
       lens: { profile: "default" },
       pair: null,
@@ -303,6 +304,7 @@ const laneHandlers = [
     return HttpResponse.json({
       facets: {
         terminal_approvals: 0,
+        instances_needing_attention: 0,
         all,
         needs_you: board.needs_you,
         working: board.working,

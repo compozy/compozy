@@ -70,8 +70,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 				WithSessionInputQueueStore(admissions),
 			)
 			registerManagerInputQueueWorkspace(t, admissions, h)
-			target, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Name: "session",
-				Workspace: h.workspaceID, Permissions: tc.permissions})
+			target, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Name: "session",
+				Workspace: h.workspaceID, Permissions: tc.permissions}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -239,7 +239,7 @@ func TestResumeMonitorOwner(t *testing.T) {
 				t, WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
 			)
 			target, err := h.manager.Create(
-				t.Context(), CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID},
+				t.Context(), new(CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -313,7 +313,7 @@ func TestResumeMonitorOwnerChecksLiveOwnerBinding(t *testing.T) {
 	t.Run("Should refuse a live owner whose binding changed since the monitor was captured", func(t *testing.T) {
 		h := newHarness(t)
 		target, err := h.manager.Create(
-			t.Context(), CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID},
+			t.Context(), new(CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -759,9 +759,9 @@ func TestResumeRejectsMissingWorktreeWithoutMutatingMetadata(t *testing.T) {
 		}
 		resolver := &fakeSessionWorktreeResolver{id: "wt-resume", root: worktreeRoot}
 		h := newHarness(t, WithWorktreeResolver(resolver))
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-resume",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(bound) error = %v", err)
 		}
@@ -1193,10 +1193,10 @@ func TestResumeReplayFallback(t *testing.T) {
 		foreignWorkspace.Name = "foreign-workspace"
 		h.resolver.upsert(&foreignWorkspace)
 
-		foreignSession, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		foreignSession, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: "ws-foreign",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(foreign session) error = %v", err)
 		}
@@ -1421,9 +1421,9 @@ func TestResumeUpgradesPreFeatureLineageMetadata(t *testing.T) {
 
 			h := newHarness(t)
 			parent := createSession(t, h)
-			child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder", Name: "pre-feature", Workspace: h.workspaceID, Lineage: tt.lineage(parent.ID),
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create(child) error = %v", err)
 			}
@@ -1548,7 +1548,7 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 		route.SessionEnv = compozyconfig.SessionEnv{"ROLE_PATH": {Ref: "env:PATH", Required: true}}
 		workspace.Config.Roles.Coordinator.FallbackChain = []compozyconfig.RoleFallback{route}
 		h.resolver.upsert(&workspace)
-		created, err := h.manager.Create(t.Context(), CreateOpts{
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName: "reviewer",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeCoordinator,
@@ -1561,7 +1561,7 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 			Command:    route.Command,
 			SessionEnv: route.SessionEnv,
 			ChainOwner: ChainOwnerCaller,
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1590,7 +1590,7 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
 		created, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
 		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v", err)
@@ -1701,7 +1701,7 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 			refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
 			created, err := h.manager.Create(
 				testutil.Context(t),
-				CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+				new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
 			)
 			if err != nil {
 				t.Fatalf("Create(reviewer) error = %v", err)
@@ -1945,7 +1945,7 @@ func TestResumeReplayRefreshesMigratedRewindBaseline(t *testing.T) {
 			h := newHarness(t)
 			accepted, err := h.manager.CreateAccepted(
 				t.Context(),
-				CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}},
+				new(CreateAcceptedOpts{Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID}}),
 			)
 			if err != nil {
 				t.Fatal(err)

@@ -128,6 +128,7 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 
 func (t hostAPIAuthoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 	return soul.AuthoringTarget{
+		ProfileID:     t.profileID,
 		WorkspaceID:   t.workspaceID,
 		WorkspaceRoot: t.workspaceRoot,
 		AgentName:     t.agentName,

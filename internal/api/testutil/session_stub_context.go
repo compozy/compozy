@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
-func (s StubSessionManager) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
+func (s *StubSessionManager) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
 	if s.ContextEventsFn != nil {
 		return s.ContextEventsFn(ctx, id)
 	}
@@ -28,7 +28,7 @@ func (s StubSessionManager) ContextEvents(ctx context.Context, id string) (sessi
 	return result, err
 }
 
-func (s StubSessionManager) WorkingDir(ctx context.Context, id string) (string, error) {
+func (s *StubSessionManager) WorkingDir(ctx context.Context, id string) (string, error) {
 	if s.WorkingDirFn != nil {
 		return s.WorkingDirFn(ctx, id)
 	}

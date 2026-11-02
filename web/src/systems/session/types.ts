@@ -17,7 +17,10 @@ export type OperatorNotificationEventPayload = Extract<
   SessionCatalogStreamPayload,
   { notification_id: string }
 >;
-export type SessionsQuery = OperationQuery<"listSessions">;
+export type SessionsQuery = OperationQuery<"listSessions"> & {
+  /** `_dx.md`: hides stays-on main sessions from rows, cards and counts. */
+  exclude_instance_main?: boolean;
+};
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
 /** What opening a session from the list needs: a catalog row, or a subagent's child session. */
@@ -339,6 +342,14 @@ export interface CompozyPermissionData extends AgentEventPayload {
  * `in_progress | completed | failed | cancelled` or a vendor value passed through
  * verbatim; the item updates in place under the same `compaction_id`.
  */
+export interface SessionReportData {
+  report_id: string;
+  instance_id: string;
+  kind: string;
+  payload: unknown;
+  created_at: string;
+}
+
 export interface SessionCompactionItemData {
   kind: "compaction";
   compaction_id: string;
@@ -353,6 +364,7 @@ export interface SessionDataParts extends Record<string, unknown> {
   "compozy-event": AgentEventPayload;
   "compozy-permission": CompozyPermissionData;
   "compozy-compaction": SessionCompactionItemData;
+  "compozy-report": SessionReportData;
 }
 
 export type SessionMessage = AIUIMessage<unknown, SessionDataParts>;

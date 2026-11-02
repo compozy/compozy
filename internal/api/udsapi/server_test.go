@@ -44,7 +44,7 @@ func TestNewHonorsOptionsAndDefaults(t *testing.T) {
 			WithStartedAt(startedAt),
 			WithNow(now),
 			WithPollInterval(25*time.Millisecond),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -111,7 +111,7 @@ func TestNewRejectsOverlongSocketPath(t *testing.T) {
 			WithHomePaths(homePaths),
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -145,7 +145,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			name: "Should require a task service",
 			opts: []Option{
 				WithHomePaths(homePaths),
-				WithSessionManager(stubSessionManager{}),
+				WithSessionManager(&stubSessionManager{}),
 				WithObserver(stubObserver{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
@@ -155,7 +155,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			name: "Should require an observer",
 			opts: []Option{
 				WithHomePaths(homePaths),
-				WithSessionManager(stubSessionManager{}),
+				WithSessionManager(&stubSessionManager{}),
 				WithTaskService(&stubTaskManager{}),
 				WithWorkspaceResolver(stubWorkspaceService{}),
 			},
@@ -165,7 +165,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 			name: "Should require a workspace resolver",
 			opts: []Option{
 				WithHomePaths(homePaths),
-				WithSessionManager(stubSessionManager{}),
+				WithSessionManager(&stubSessionManager{}),
 				WithTaskService(&stubTaskManager{}),
 				WithObserver(stubObserver{}),
 			},
@@ -189,7 +189,7 @@ func TestNewRequiresSessionManagerTaskServiceObserverAndWorkspaceResolver(t *tes
 		if _, err := New(
 			WithHomePaths(homePaths),
 			WithSocketPath(shortSocketPath(t)),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -215,7 +215,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{
+			WithSessionManager(&stubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) { return nil, nil },
 			}),
 			WithTaskService(&stubTaskManager{}),
@@ -289,7 +289,7 @@ func TestServerStartRejectsNilContext(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),
@@ -326,7 +326,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{
+			WithSessionManager(&stubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) {
 					close(entered)
 					<-release
@@ -464,7 +464,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{
 				HealthFn: func(context.Context) (observe.Health, error) {
@@ -541,7 +541,7 @@ func TestServerStartRejectsRegularFileAtSocketPath(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),

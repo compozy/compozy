@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -38,11 +39,11 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 			workspace.Config = h.cfg
 			h.resolver.upsert(&workspace)
 
-			created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName:   "coder",
 				Workspace:   h.workspaceID,
 				Permissions: compozyconfig.PermissionModeApproveReads,
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -72,11 +73,11 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 		}
 		h.resolver.upsert(&workspace)
 
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:   "coder",
 			Workspace:   h.workspaceID,
 			Permissions: compozyconfig.PermissionModeApproveReads,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -101,13 +102,53 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should register an instance main before exposing the accepted session", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		db := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, db, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(db), WithEventLedger(db))
+		cleanupTestManager(t, h.manager)
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: "coder",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{
+			InstanceID: instance.ID, AgentName: "coder", Workspace: h.workspaceID,
+		}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		caller, err := db.Instances().InstanceCaller(t.Context(), created.ID)
+		if err != nil || caller.InstanceID != instance.ID {
+			t.Fatalf("instance binding: %#v, %v", caller, err)
+		}
+		status, statusErr := h.manager.Status(t.Context(), created.ID)
+		if statusErr != nil || status.InstanceID != instance.ID || created.InstanceID != instance.ID {
+			t.Fatalf("instance status: %#v, %v", status, statusErr)
+		}
+		rows, listErr := db.ListSessions(t.Context(), store.SessionListQuery{
+			ID:        created.ID,
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if listErr != nil || len(rows) != 1 || rows[0].InstanceID != instance.ID {
+			t.Fatalf("instance catalog: %#v, %v", rows, listErr)
+		}
+		if created.RuntimeStatus != RuntimeStatusUnbound || len(h.driver.startCalls) != 0 {
+			t.Fatalf("accepted main launched a provider: %#v", created)
+		}
+	})
+
 	t.Run("Should create an active unbound session without starting ACP", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -177,9 +218,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		h.resolver.upsert(&resolved)
 
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -223,12 +264,12 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 
 		h := newHarness(t)
 
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{
 				AgentName: "coder",
 				Workspace: h.workspaceID,
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -266,9 +307,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -335,9 +376,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		h.driver.startHook = func(_ acp.StartOpts, _ int) (*fakeProcess, error) {
 			return nil, startErr
 		}
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -501,7 +542,7 @@ func TestCreatePreallocatedSessionIdentity(t *testing.T) {
 			h := newHarness(t)
 			created, err := h.manager.Create(
 				t.Context(),
-				CreateOpts{AgentName: "coder", DesiredSessionID: tc.id, Workspace: h.workspaceID},
+				new(CreateOpts{AgentName: "coder", DesiredSessionID: tc.id, Workspace: h.workspaceID}),
 			)
 			if !tc.valid {
 				if !errors.Is(err, ErrValidation) {
@@ -585,7 +626,7 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 		created, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
 		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v", err)
@@ -659,7 +700,10 @@ func TestCreateFallbackChain(t *testing.T) {
 			fallbackSeatOne:  rateLimitRefusal(),
 			codexCommand:     rateLimitRefusal(),
 		})
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
 		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
 			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
 		}
@@ -720,7 +764,7 @@ func TestCreateFallbackChain(t *testing.T) {
 		refuseWithProcess(h, map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true}, stopErr)
 		created, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
 		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v, want the chain to continue past the cleanup failure", err)
@@ -761,7 +805,10 @@ func TestCreateFallbackChain(t *testing.T) {
 			map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true, codexCommand: true},
 			stopErr,
 		)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
 		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
 			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
 		}
@@ -784,9 +831,9 @@ func TestCreateFallbackChain(t *testing.T) {
 		t.Parallel()
 		h, db := newLedgerHarness(t)
 		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "reviewer", Workspace: h.workspaceID, ChainOwner: ChainOwnerCaller,
-		})
+		}))
 		if err == nil || StartAccepted(err) {
 			t.Fatalf("Create(ChainOwnerCaller) error = %v, want the refused primary", err)
 		}
@@ -821,14 +868,18 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 				}
 			}
 			h.resolver.upsert(&workspace)
+			tc.origin.ID = "origin-1"
 			created, err := h.manager.CreateAccepted(
 				t.Context(),
-				CreateAcceptedOpts{
+				new(CreateAcceptedOpts{
 					Session: CreateOpts{Origin: tc.origin, AgentName: "coder", Workspace: h.workspaceID},
-				},
+				}),
 			)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if created.InitiatorKind != string(tc.origin.Kind) || created.InitiatorID != "origin-1" {
+				t.Fatalf("initiator = %q/%q", created.InitiatorKind, created.InitiatorID)
 			}
 			if created.EffectiveWorkspaceAccess != tc.want {
 				t.Fatalf("grant=%q want %q", created.EffectiveWorkspaceAccess, tc.want)
@@ -845,9 +896,85 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			if resumed.Info().InitiatorKind != string(tc.origin.Kind) || resumed.Info().InitiatorID != "origin-1" {
+				t.Fatal("resume changed initiator")
+			}
 			if resumed.Info().EffectiveWorkspaceAccess != tc.want {
 				t.Fatalf("resumed grant=%q want %q", resumed.Info().EffectiveWorkspaceAccess, tc.want)
 			}
 		})
 	}
+}
+
+func TestSessionInitiatorInheritance(t *testing.T) {
+	t.Parallel()
+	t.Run("Should inherit the root initiator across child generations", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		parent, err := h.manager.Create(
+			t.Context(),
+			new(CreateOpts{
+				AgentName: "coder",
+				Workspace: h.workspaceID,
+				Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "automation-1"},
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootID := parent.ID
+		t.Cleanup(func() { reportSessionStop(t, h, rootID) })
+		for range 2 {
+			child, err := h.manager.Create(
+				t.Context(),
+				new(CreateOpts{
+					AgentName:                 "coder",
+					Workspace:                 h.workspaceID,
+					Type:                      SessionTypeSystem,
+					ProvenanceParentSessionID: parent.ID,
+					Origin:                    workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "daemon"},
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+			if child.Info().InitiatorKind != "automation" || child.Info().InitiatorID != "automation-1" {
+				t.Fatalf("child initiator = %#v", child.Info())
+			}
+			parent = child
+		}
+	})
+}
+
+func TestInstanceRotationAdmissionGuard(t *testing.T) {
+	t.Run("Should keep admission open after failed publication and close it after success", func(t *testing.T) {
+		t.Parallel()
+		target := &Session{State: StateActive}
+		refused := errors.New("CAS failed")
+		if err := target.publishInstanceRotation(func() error { return refused }); !errors.Is(err, refused) {
+			t.Fatal(err)
+		}
+		if target.rotationSuperseded {
+			t.Fatal("failed publication closed admission")
+		}
+		if err := target.publishInstanceRotation(func() error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+		target.mu.Lock()
+		_, err := target.beginExclusivePromptSetupLocked()
+		target.mu.Unlock()
+		if !errors.Is(err, store.ErrSessionSuperseded) {
+			t.Fatalf("prompt setup = %v", err)
+		}
+	})
+	t.Run("Should refuse publication while a turn is active", func(t *testing.T) {
+		t.Parallel()
+		target := &Session{State: StateActive, currentTurnID: "turn"}
+		called := false
+		err := target.publishInstanceRotation(func() error { called = true; return nil })
+		if !errors.Is(err, ErrPromptInProgress) || called {
+			t.Fatalf("publication = %v, called %v", err, called)
+		}
+	})
 }

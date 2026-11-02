@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -43,6 +44,9 @@ func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMes
 
 	result := make([]hostAPISessionSummary, 0, len(infos))
 	for _, info := range infos {
+		if info == nil || info.Type == session.SessionTypeTriage {
+			continue
+		}
 		info, err = h.hostAPISessionWithArchiveMetadata(ctx, info)
 		if err != nil {
 			return nil, err
@@ -121,6 +125,10 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	createOpts := session.CreateOpts{
+		Origin: workspaceaccess.Origin{
+			Kind: workspaceaccess.ActorExtension,
+			ID:   hostAPIExtensionNameFromContext(ctx),
+		},
 		AgentName: strings.TrimSpace(params.Agent),
 		Workspace: strings.TrimSpace(params.Workspace),
 		Type:      session.SessionTypeSystem,
@@ -129,7 +137,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	if !ok {
 		return nil, errors.New("extension: session manager does not support durable acceptance")
 	}
-	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: createOpts})
+	info, err := acceptance.CreateAccepted(ctx, new(session.CreateAcceptedOpts{Session: createOpts}))
 	if err != nil {
 		return nil, err
 	}

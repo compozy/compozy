@@ -16,6 +16,11 @@ import (
 )
 
 type agentCreateInput struct {
+	DisplayName *string        `json:"display_name,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	Kind        string         `json:"kind,omitempty"`
+	Appearance  map[string]any `json:"appearance,omitempty"`
+
 	SessionEnv      map[string]contract.SessionEnvBindingPayload `json:"session_env,omitempty"`
 	Scope           string                                       `json:"scope"`
 	Workspace       string                                       `json:"workspace,omitempty"`
@@ -98,7 +103,7 @@ func (n *daemonNativeTools) agentCreate(
 		entry.Origin = contract.AgentOriginWorkspace
 		entry.WorkspaceID = created.WorkspaceID
 	}
-	payload := core.AgentPayloadFromEntryWithConfig(entry, &created.RuntimeConfig)
+	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
 }
 
@@ -153,6 +158,10 @@ func (n *daemonNativeTools) agentCreateRequest(
 		Workspace: strings.TrimSpace(input.Workspace),
 		Agent: contract.CreateAgentPayload{
 			Name:            strings.TrimSpace(input.Name),
+			DisplayName:     input.DisplayName,
+			Description:     input.Description,
+			Kind:            input.Kind,
+			Appearance:      compozyconfig.CloneAgentAppearance(input.Appearance),
 			Provider:        strings.TrimSpace(input.Provider),
 			Command:         strings.TrimSpace(input.Command),
 			SessionEnv:      maps.Clone(input.SessionEnv),
@@ -226,6 +235,22 @@ func cloneNativeAgentFallbackChain(
 }
 
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {
+	for code, target := range map[string]error{
+		"agent_kind_invalid":         compozyconfig.ErrAgentKindInvalid,
+		"agent_display_name_invalid": compozyconfig.ErrAgentDisplayNameInvalid,
+		"agent_description_invalid":  compozyconfig.ErrAgentDescriptionInvalid,
+		"agent_appearance_invalid":   compozyconfig.ErrAgentAppearanceInvalid,
+	} {
+		if errors.Is(err, target) {
+			return toolspkg.NewToolError(
+				toolspkg.ErrorCode(code),
+				id,
+				err.Error(),
+				fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+				toolspkg.ReasonSchemaInvalid,
+			)
+		}
+	}
 	switch {
 	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
 		return nativeReservedAgentNameToolError(id, err)

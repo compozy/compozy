@@ -17,7 +17,8 @@ type cachedSessionMetadata struct {
 	meta store.SessionMeta
 }
 
-type sessionInventory map[string]store.SessionInfo
+// sessionInventory owns row snapshots while hydration borrows them without copying.
+type sessionInventory map[string]*store.SessionInfo
 
 var _ store.SessionCatalogOwnerReader = sessionInventory(nil)
 
@@ -25,7 +26,7 @@ func (rows sessionInventory) ListSessions(
 	_ context.Context, query store.SessionListQuery,
 ) ([]store.SessionInfo, error) {
 	if row, ok := rows[query.ID]; ok {
-		return []store.SessionInfo{row}, nil
+		return []store.SessionInfo{*row}, nil
 	}
 	return nil, nil
 }
@@ -41,8 +42,9 @@ func (m *Manager) readSessionInventory(ctx context.Context) (sessionInventory, e
 		return nil, fmt.Errorf("session: read inventory catalog: %w", err)
 	}
 	result := make(sessionInventory, len(rows))
-	for _, row := range rows {
-		result[row.ID] = row
+	for index := range rows {
+		row := rows[index]
+		result[row.ID] = &row
 	}
 	return result, nil
 }
@@ -125,6 +127,7 @@ func (m *Manager) inventorySessionInfo(
 	}
 	info := sessionInfoFromMeta(&meta)
 	if row, ok := rows[id]; ok {
+		info.InstanceID = row.InstanceID
 		info.TranscriptEpoch = row.TranscriptEpoch
 		if row.Attention != nil {
 			applyAttentionToInfo(info, *row.Attention)
@@ -175,11 +178,12 @@ func (m *Manager) ListLive(ctx context.Context) ([]*Info, error) {
 		if err != nil {
 			return nil, fmt.Errorf("session: read live catalog: %w", err)
 		}
-		for _, row := range stored {
+		for index := range stored {
+			row := stored[index]
 			if _, exists := rows[row.ID]; !exists {
 				ids = append(ids, row.ID)
 			}
-			rows[row.ID] = row
+			rows[row.ID] = &row
 		}
 	}
 	return m.mergePersistedSessionInfos(ctx, ids, activeByID, rows)

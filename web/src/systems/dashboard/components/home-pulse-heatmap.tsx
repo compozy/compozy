@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Panel, Section } from "@compozy/ui";
 
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
@@ -13,6 +15,10 @@ import {
 
 export interface HomePulseHeatmapProps {
   pulse: HomeOverview["pulse"];
+  /** The section title; a single agent's page names it for that agent. */
+  label?: string;
+  /** How the longest session names its agent; the page owns the identity read. */
+  renderAgent?: (name: string) => ReactNode;
 }
 
 function cellBackground(events: number, max: number): string | undefined {
@@ -28,7 +34,11 @@ function cellBackground(events: number, max: number): string | undefined {
  * neutral viz ink (magnitude only; no signal colors). Insights render only
  * when the daemon derived them — an empty window drops them entirely.
  */
-export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
+export function HomePulseHeatmap({
+  pulse,
+  label = "When agents were busy",
+  renderAgent = name => name,
+}: HomePulseHeatmapProps) {
   const byCell = new Map<string, HomePulseBucket>();
   let max = 0;
   for (const bucket of pulse.buckets) {
@@ -43,7 +53,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
   return (
     <Section
       data-slot="home-pulse"
-      label="When agents were busy"
+      label={label}
       right={<span className="text-eyebrow text-muted-foreground">Last 14 days</span>}
     >
       <Panel bodyClassName="p-0">
@@ -84,7 +94,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
                   {formatHomeDurationSeconds(pulse.longest_session.duration_seconds, "compact")}
                 </span>{" "}
                 <span className="text-eyebrow tabular-nums text-subtle">
-                  {pulse.longest_session.agent_name} · {pulse.longest_session.date}
+                  {renderAgent(pulse.longest_session.agent_name)} · {pulse.longest_session.date}
                 </span>
               </span>
             ) : null}

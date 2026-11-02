@@ -1,6 +1,6 @@
 import { Folder, SquareTerminal, TriangleAlert } from "@compozy/ui/icons";
 
-import { cn, MonoId } from "@compozy/ui";
+import { CodeBlock, cn, MonoId } from "@compozy/ui";
 
 import type { TerminalPermissionDetail } from "../lib/terminal-permission";
 
@@ -55,53 +55,49 @@ function TerminalExecApprovalDetail({
 }) {
   const danger = detail.risk === "irreversible";
   return (
-    <div className="flex items-start gap-2" data-testid="terminal-approval-detail">
+    <div className="flex min-w-0 flex-col gap-2" data-testid="terminal-approval-detail">
       {danger ? (
-        <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-destructive" />
-      ) : (
-        <SquareTerminal aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
-      )}
-      <div className="flex min-w-0 flex-col gap-1.5">
-        {danger ? (
-          <span
-            className="font-semibold text-destructive text-transcript-meta"
-            data-testid="terminal-approval-irreversible"
-          >
-            This can&apos;t be undone
-          </span>
-        ) : null}
-        <div
-          className={cn(
-            "rounded-xs px-2.5 py-2 font-mono leading-normal break-all whitespace-pre-wrap text-fg text-transcript-meta",
-            danger ? "bg-destructive-tint shadow-destructive-inset" : "bg-chat-fill-code"
-          )}
-          data-testid="terminal-approval-command"
+        <span
+          className="flex items-center gap-1.5 font-semibold text-destructive text-transcript-meta"
+          data-testid="terminal-approval-irreversible"
         >
-          {detail.command}
-        </div>
-        {detail.cwd || detail.terminalId ? (
-          <span className="flex items-center gap-1.25 font-mono text-eyebrow text-subtle">
-            {detail.cwd ? (
-              <>
-                <Folder aria-hidden="true" className="size-3" />
-                {detail.cwd}
-              </>
-            ) : null}
-            {detail.terminalId ? (
-              <MonoId
-                className={detail.cwd ? "ml-1.5" : undefined}
-                size="sm"
-                value={detail.terminalId}
-              />
-            ) : null}
-          </span>
-        ) : null}
-        {detail.risk === "unclassifiable" ? (
-          <p className="text-eyebrow text-faint" data-testid="terminal-approval-unclassifiable">
-            Couldn&apos;t be classified, so it always asks.
-          </p>
-        ) : null}
-      </div>
+          <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+          This can&apos;t be undone
+        </span>
+      ) : null}
+      <CodeBlock
+        caption=""
+        className={cn(danger && "border-transparent bg-destructive-tint shadow-destructive-inset")}
+        code={detail.command}
+        copyLabel="Copy command"
+        data-testid="terminal-approval-command"
+        density="compact"
+        language="bash"
+        showPrompt
+        wrapLines
+      />
+      {detail.cwd || detail.terminalId ? (
+        <span className="flex items-center gap-1.25 font-mono text-eyebrow text-subtle">
+          {detail.cwd ? (
+            <>
+              <Folder aria-hidden="true" className="size-3" />
+              {detail.cwd}
+            </>
+          ) : null}
+          {detail.terminalId ? (
+            <MonoId
+              className={detail.cwd ? "ml-1.5" : undefined}
+              size="sm"
+              value={detail.terminalId}
+            />
+          ) : null}
+        </span>
+      ) : null}
+      {detail.risk === "unclassifiable" ? (
+        <p className="text-eyebrow text-faint" data-testid="terminal-approval-unclassifiable">
+          Couldn&apos;t be classified, so it always asks.
+        </p>
+      ) : null}
     </div>
   );
 }

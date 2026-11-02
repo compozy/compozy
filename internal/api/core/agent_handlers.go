@@ -106,9 +106,9 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 	entry := h.agentCatalogEntryFromDef(agent, workspaceID)
-	h.logAgentMutation("create", entry, startedAt, time.Since(syncStartedAt))
+	h.logAgentMutation("create", &entry, startedAt, time.Since(syncStartedAt))
 	c.JSON(http.StatusCreated, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(entry, &runtimeConfig),
+		Agent: AgentPayloadFromEntryWithConfig(&entry, &runtimeConfig),
 	})
 }
 
@@ -141,7 +141,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 			h.respondError(c, statusForAgentWorkspaceError(err), err)
 			return
 		}
-		h.respondAgentWithEnvironment(c, entry, &cfg)
+		h.respondAgentWithEnvironment(c, &entry, &cfg)
 		return
 	}
 	cfg, err := h.activeConfig(c.Request.Context())
@@ -164,7 +164,8 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 			return
 		}
 		target := strings.TrimSpace(c.Param("name"))
-		for _, entry := range entries {
+		for i := range entries {
+			entry := &entries[i]
 			if strings.TrimSpace(entry.Def.Name) == target {
 				h.respondAgentWithEnvironment(c, entry, &cfg)
 				return
@@ -182,7 +183,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		if strings.TrimSpace(agent.Name) != strings.TrimSpace(c.Param("name")) {
 			continue
 		}
-		h.respondAgentWithEnvironment(c, h.agentCatalogEntryFromDef(agent, ""), &cfg)
+		h.respondAgentWithEnvironment(c, new(h.agentCatalogEntryFromDef(agent, "")), &cfg)
 		return
 	}
 	h.respondError(c, http.StatusNotFound, os.ErrNotExist)

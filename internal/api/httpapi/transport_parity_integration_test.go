@@ -1061,7 +1061,7 @@ func TestHTTPInstallPortableManifestContract(t *testing.T) {
 func TestHTTPTransportTaskSurfaceMatchesDocumentedSpecOperations(t *testing.T) {
 	t.Parallel()
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
 	got := apitest.RoutesFromEngine(engine.Routes(), isDocumentedHTTPTaskRoute)
 	want := apitest.DocumentedRoutesForTransport(apispec.TransportHTTP, isDocumentedHTTPTaskRoute)
 
@@ -1074,7 +1074,7 @@ func TestHTTPTransportProfileSurfaceMatchesDocumentedSpecOperations(t *testing.T
 	t.Parallel()
 	t.Run("Should match the documented profile surface", func(t *testing.T) {
 		t.Parallel()
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)))
 		got := apitest.ProfileRoutesFromEngine(engine.Routes())
 		want := apitest.DocumentedProfileRoutesForTransport(apispec.TransportHTTP)
 		if !slices.Equal(got, want) {

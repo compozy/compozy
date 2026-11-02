@@ -160,8 +160,8 @@ func AppTokenPayload(token gateway.AppToken) contract.AppTokenPayload {
 // token is a non-human principal with no grant ceiling; anything else is the operator.
 func requestOperatorOrigin(c *gin.Context) workspaceaccess.Origin {
 	if c != nil && c.Request != nil {
-		if _, ok := AppTokenFromContext(c.Request.Context()); ok {
-			return workspaceaccess.Origin{Kind: workspaceaccess.ActorApp}
+		if token, ok := AppTokenFromContext(c.Request.Context()); ok {
+			return workspaceaccess.Origin{Kind: workspaceaccess.ActorApp, ID: token.Session.ID}
 		}
 	}
 	return workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}

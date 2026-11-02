@@ -24,11 +24,11 @@ func TestManagerSoulSessionSnapshots(t *testing.T) {
 		h := newHarness(t, WithSoulSnapshotStore(newFakeSoulSnapshotStore()))
 		writeSessionSoul(t, h.workspace, "coder", invalidSessionSoul())
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "invalid soul",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if !errors.Is(err, soul.ErrInvalid) {
 			t.Fatalf("Create() error = %v, want %v", err, soul.ErrInvalid)
 		}

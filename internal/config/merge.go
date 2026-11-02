@@ -42,6 +42,7 @@ type defaultsOverlay struct {
 }
 
 type agentsOverlay struct {
+	StaysOn   staysOnOverlay   `toml:"stays_on"`
 	Soul      soulOverlay      `toml:"soul"`
 	Heartbeat heartbeatOverlay `toml:"heartbeat"`
 }
@@ -53,18 +54,23 @@ type soulOverlay struct {
 }
 
 type heartbeatOverlay struct {
-	Enabled                      *bool          `toml:"enabled"`
-	MaxBodyBytes                 *int64         `toml:"max_body_bytes"`
-	ContextProjectionBytes       *int64         `toml:"context_projection_bytes"`
-	MinInterval                  *time.Duration `toml:"min_interval"`
-	DefaultInterval              *time.Duration `toml:"default_interval"`
-	WakeCooldown                 *time.Duration `toml:"wake_cooldown"`
-	MaxWakesPerCycle             *int           `toml:"max_wakes_per_cycle"`
-	ActiveSessionOnly            *bool          `toml:"active_session_only"`
-	AllowActiveHoursPreferences  *bool          `toml:"allow_active_hours_preferences"`
-	WakeEventRetention           *time.Duration `toml:"wake_event_retention"`
-	SessionHealthStaleAfter      *time.Duration `toml:"session_health_stale_after"`
-	SessionHealthHookMinInterval *time.Duration `toml:"session_health_hook_min_interval"`
+	TriageModels                 map[string]string `toml:"triage_models"`
+	MaxInterval                  *time.Duration    `toml:"max_interval"`
+	MaxConcurrentTriage          *int              `toml:"max_concurrent_triage"`
+	QuietBackoffCap              *time.Duration    `toml:"quiet_backoff_cap"`
+	FatigueLimit                 *int              `toml:"fatigue_limit"`
+	Enabled                      *bool             `toml:"enabled"`
+	MaxBodyBytes                 *int64            `toml:"max_body_bytes"`
+	ContextProjectionBytes       *int64            `toml:"context_projection_bytes"`
+	MinInterval                  *time.Duration    `toml:"min_interval"`
+	DefaultInterval              *time.Duration    `toml:"default_interval"`
+	WakeCooldown                 *time.Duration    `toml:"wake_cooldown"`
+	MaxWakesPerCycle             *int              `toml:"max_wakes_per_cycle"`
+	ActiveSessionOnly            *bool             `toml:"active_session_only"`
+	AllowActiveHoursPreferences  *bool             `toml:"allow_active_hours_preferences"`
+	WakeEventRetention           *time.Duration    `toml:"wake_event_retention"`
+	SessionHealthStaleAfter      *time.Duration    `toml:"session_health_stale_after"`
+	SessionHealthHookMinInterval *time.Duration    `toml:"session_health_hook_min_interval"`
 }
 
 type limitsOverlay struct {

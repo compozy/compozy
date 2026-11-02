@@ -2556,8 +2556,10 @@ func newManagerSessionStub(plans ...sessionAttemptPlan) *managerSessionStub {
 	}
 }
 
-func (s *managerSessionStub) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
-	created, err := s.creator.Create(ctx, opts)
+func (s *managerSessionStub) Create(ctx context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
+	created, err := s.creator.Create(ctx, &(opts))
 	if err != nil {
 		return nil, err
 	}

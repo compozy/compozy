@@ -31,11 +31,32 @@ func (c *daemonClient) ListSessionInteractions(
 	sessionID string,
 	statuses []string,
 ) (SessionInteractionsRecord, error) {
-	path, err := c.sessionScopedPath(ctx, sessionID, "/interactions")
+	return c.listSessionInteractions(ctx, sessionID, statuses, false, "/interactions")
+}
+
+func (c *daemonClient) ListSessionPendingInteractions(
+	ctx context.Context,
+	sessionID string,
+	descendants bool,
+) (SessionInteractionsRecord, error) {
+	return c.listSessionInteractions(ctx, sessionID, nil, descendants, "/pending-interactions")
+}
+
+func (c *daemonClient) listSessionInteractions(
+	ctx context.Context,
+	sessionID string,
+	statuses []string,
+	descendants bool,
+	suffix string,
+) (SessionInteractionsRecord, error) {
+	path, err := c.sessionScopedPath(ctx, sessionID, suffix)
 	if err != nil {
 		return SessionInteractionsRecord{}, err
 	}
 	values := make(url.Values)
+	if descendants {
+		values.Set("descendants", "true")
+	}
 	for _, status := range statuses {
 		if trimmed := strings.TrimSpace(status); trimmed != "" {
 			values.Add("status", trimmed)

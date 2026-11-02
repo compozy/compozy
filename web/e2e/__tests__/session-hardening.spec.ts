@@ -680,7 +680,6 @@ test("operator sees the daemon-generated session title and the file-mutation ver
   await appPage.goto(runtime.url(`/agents/${autoTitleAgent}`), {
     waitUntil: "domcontentloaded",
   });
-  await appPage.getByTestId("agent-tab-sessions").click();
   const sessionLink = appPage.getByTestId(`agent-session-link-${session.id}`);
   await expect(sessionLink).toContainText("Checkout Retry Fencing");
   await expect(sessionLink).not.toContainText("New session");

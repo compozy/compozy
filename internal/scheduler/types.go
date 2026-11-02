@@ -184,6 +184,7 @@ type RunSnapshot struct {
 
 // SessionSnapshot is the scheduler's rebuildable view of one live session.
 type SessionSnapshot struct {
+	ProfileID       string
 	ID              string
 	AgentName       string
 	WorkspaceID     string
@@ -366,4 +367,9 @@ func WithStarvationThresholds(thresholds StarvationThresholds) Option {
 		s.starveThresholds = thresholds.normalize()
 		s.starvationAge = s.starveThresholds.MinQueuedAge
 	}
+}
+
+// WithProactiveChecks runs the instance check owner once per scheduler cycle.
+func WithProactiveChecks(tick func(context.Context) error) Option {
+	return func(s *Scheduler) { s.proactiveChecks = tick }
 }

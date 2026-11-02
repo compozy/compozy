@@ -7,6 +7,7 @@ import {
   createAuthoredFileEditorLogic,
   shouldAdoptAuthoredFileSource,
 } from "../agent-authored-file-editor-store";
+import { createEditorDocumentStore, type EditorSnapshot } from "../agent-editor-document-store";
 import {
   createAgentSettingsEditorLogic,
   shouldAdoptAgentSettingsSource,
@@ -72,6 +73,62 @@ const heartbeatPayload = (
     },
   },
   ...overrides,
+});
+
+const editorSnapshot = (digest: string, text: string): EditorSnapshot<{ text: string }> => ({
+  digest,
+  source: text,
+  form: { text },
+  block: null,
+});
+
+describe("agent editor document store", () => {
+  it("Should adopt the saved file when nothing changed during the save", () => {
+    const store = createEditorDocumentStore(editorSnapshot("digest-a", "first"));
+    const submitted = { form: { text: "second" }, raw: null };
+    store.trigger.formChanged({ form: submitted.form });
+    store.trigger.saveStarted();
+
+    const written = editorSnapshot("digest-b", "second");
+    store.trigger.saved({ snapshot: written, submitted });
+
+    const context = store.getSnapshot().context;
+    expect(context.baseline).toBe(written);
+    expect(context.form).toBe(written.form);
+    expect(context.raw).toBeNull();
+    expect(context.phase).toBe("idle");
+  });
+
+  it("Should keep form edits typed while a save ran, against the new baseline", () => {
+    const store = createEditorDocumentStore(editorSnapshot("digest-a", "first"));
+    const submitted = { form: { text: "second" }, raw: null };
+    store.trigger.formChanged({ form: submitted.form });
+    store.trigger.saveStarted();
+    store.trigger.formChanged({ form: { text: "third" } });
+
+    store.trigger.saved({ snapshot: editorSnapshot("digest-b", "second"), submitted });
+
+    const context = store.getSnapshot().context;
+    expect(context.form).toEqual({ text: "third" });
+    expect(context.baseline.digest).toBe("digest-b");
+    expect(context.phase).toBe("idle");
+  });
+
+  it("Should keep raw edits typed while a save ran", () => {
+    const store = createEditorDocumentStore(editorSnapshot("digest-a", "first"));
+    const submitted = { form: store.getSnapshot().context.form, raw: "second" };
+    store.trigger.rawChanged({ raw: submitted.raw });
+    store.trigger.saveStarted();
+    store.trigger.rawChanged({ raw: "third" });
+
+    const written = editorSnapshot("digest-b", "second");
+    store.trigger.saved({ snapshot: written, submitted });
+
+    const context = store.getSnapshot().context;
+    expect(context.raw).toBe("third");
+    expect(context.form).toBe(written.form);
+    expect(context.baseline.digest).toBe("digest-b");
+  });
 });
 
 describe("agent editor store logic", () => {

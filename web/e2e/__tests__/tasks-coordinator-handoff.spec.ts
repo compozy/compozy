@@ -19,6 +19,7 @@ import {
 import { seedBrowserTasksOperatorFlow } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 /**
  * Manual operator control and coordinator-handoff bookends for the Tasks UI. These cases verify:
@@ -241,7 +242,9 @@ test("starting a manual session is unaffected by task autonomy labels", async ({
   await agentsUI.agentPageNewSession.click();
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
-  await expect(appPage.getByTestId("session-create-agent-select")).toContainText(handoffAgentName);
+  await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
+    humanizeAgentSlug(handoffAgentName)
+  );
 
   const createResponsePromise = appPage.waitForResponse(response => {
     return (

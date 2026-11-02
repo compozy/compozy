@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useAgentInstances } from "@/systems/agent";
 import { useProfiles, type ProfileOwner, type ProfileScopeParams } from "@/systems/profiles";
 import { breadthQuery, sessionCatalogBreadthParams, type DataScope } from "@/systems/workspace";
 
@@ -9,6 +10,7 @@ import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-l
 import {
   profileSessionGroups,
   projectSessionGroups,
+  withInstanceProjectGroups,
   type SessionListGroupSpec,
 } from "../lib/session-list-groups";
 import {
@@ -69,20 +71,45 @@ export function useSessionListGroups({
   });
   const byProfile = grouped && groupBy === "profile";
   const profiles = useProfiles(byProfile);
-  const groups =
-    !grouped || scope === null
-      ? []
-      : groupBy === "project"
-        ? projectSessionGroups(facets.data, { workspaces, lens })
-        : profileSessionGroups(profiles.data ? facets.data : undefined, {
-            profiles: profileOwners(profiles.data),
-            scope,
-          });
+  const instances = useAgentInstances();
+  const groups = resolveGroups(grouped, {
+    groupBy,
+    scope,
+    lens,
+    workspaces,
+    facets: facets.data,
+    // A project whose only resident is an agent still gets its group.
+    residents: shelf === "active" && !search ? instances.map(i => i.workspace_id) : [],
+    profiles: profiles.data,
+  });
   return {
     groups,
     loading: grouped && (facets.isLoading || (byProfile && profiles.isLoading)),
     error: groupsFailure(grouped, facets, byProfile ? profiles : null),
   };
+}
+
+function resolveGroups(
+  grouped: boolean,
+  input: Pick<SessionListGroupsInput, "groupBy" | "scope" | "lens" | "workspaces"> & {
+    facets: Parameters<typeof projectSessionGroups>[0] & Parameters<typeof profileSessionGroups>[0];
+    residents: readonly string[];
+    profiles: ReturnType<typeof useProfiles>["data"];
+  }
+): SessionListGroupSpec[] {
+  const { groupBy, scope, lens, workspaces, facets, residents, profiles } = input;
+  if (!grouped || scope === null) return [];
+  if (groupBy === "project") {
+    return withInstanceProjectGroups(
+      projectSessionGroups(facets, { workspaces, lens }),
+      residents,
+      { workspaces, lens, ready: facets !== undefined }
+    );
+  }
+  return profileSessionGroups(profiles ? facets : undefined, {
+    profiles: profileOwners(profiles),
+    scope,
+  });
 }
 
 /**

@@ -800,6 +800,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		ttl := now.Add(time.Hour)
 		payload := core.SessionPayloadFromInfo(&session.Info{
 			ID:                "sess-1",
+			InstanceID:        "ainst-1",
 			Name:              "demo",
 			AgentName:         "coder",
 			Provider:          "fake",
@@ -856,7 +857,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["agent_name"] != "coder" ||
+		if got["instance_id"] != "ainst-1" || got["agent_name"] != "coder" ||
 			got["workspace_id"] != "ws_alpha" ||
 			got["workspace_path"] != "/workspace" {
 			t.Fatalf("session JSON = %#v", got)

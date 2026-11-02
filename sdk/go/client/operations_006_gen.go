@@ -4,10 +4,112 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// DeliverGlobalWebhookParams carries the path, query, and header parameters.
+type DeliverGlobalWebhookParams struct {
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
+// DeliverGlobalWebhook Deliver one global automation webhook
+func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
+	path := "/api/webhooks/global/{endpoint}"
+	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
+	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
+	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WebhookDeliveryResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
+type DeliverWorkspaceWebhookParams struct {
+	WorkspaceID               string  `url:"workspace_id"`
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
+// DeliverWorkspaceWebhook Deliver one workspace-scoped automation webhook
+func (c *Client) DeliverWorkspaceWebhook(ctx context.Context, params DeliverWorkspaceWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
+	path := "/api/webhooks/workspaces/{workspace_id}/{endpoint}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
+	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
+	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WebhookDeliveryResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DevExtensionParams carries the path, query, and header parameters.
+type DevExtensionParams struct {
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// DevExtension Link an immutable extension generation to the resolved workspace
+func (c *Client) DevExtension(ctx context.Context, params DevExtensionParams, body DevLinkExtensionRequest) (*ExtensionResponse, error) {
+	path := "/api/extensions/dev"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DiffLoopRunParams carries the path, query, and header parameters.
+type DiffLoopRunParams struct {
+	WorkspaceID       string  `url:"workspace_id"`
+	RunID             string  `url:"run_id"`
+	Generation        *int    `url:"generation"`
+	AgainstGeneration *int    `url:"against_generation"`
+	AgainstRun        *string `url:"against_run"`
+	Profile           *string `url:"profile"`
+	AllProfiles       *bool   `url:"all_profiles"`
+}
 
 // DiffLoopRun Compare Loop generations or runs
 func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*LoopDiffResponse, error) {
@@ -238,6 +340,28 @@ func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadT
 	return &out, nil
 }
 
+// DraftAgentInstructionsParams carries the path, query, and header parameters.
+type DraftAgentInstructionsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// DraftAgentInstructions Draft agent instructions without saving a definition
+func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
+	path := "/api/agents/draft-instructions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DraftAgentInstructionsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DrainDaemon Stop admitting new work
 func (c *Client) DrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
 	path := "/api/drain"
@@ -304,140 +428,4 @@ type EnableSkillParams struct {
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
 	ForAgent  *string `url:"for_agent"`
-}
-
-// EnableSkill Enable one skill
-func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
-	path := "/api/skills/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnqueueTaskRunParams carries the path, query, and header parameters.
-type EnqueueTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// EnqueueTaskRun Enqueue one task run
-func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExchangeSettingsMCPAuthParams carries the path, query, and header parameters.
-type ExchangeSettingsMCPAuthParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-}
-
-// ExchangeSettingsMCPAuth Complete daemon-mediated OAuth for one MCP server
-func (c *Client) ExchangeSettingsMCPAuth(ctx context.Context, params ExchangeSettingsMCPAuthParams, body SettingsMCPAuthExchangeRequest) (*SettingsMCPAuthStatusPayload, error) {
-	path := "/api/settings/mcp-servers/{name}/auth/exchange"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPAuthStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExecTerminalParams carries the path, query, and header parameters.
-type ExecTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ExecTerminal Execute one supervised workspace command
-func (c *Client) ExecTerminal(ctx context.Context, params ExecTerminalParams, body TerminalExecRequest) (*TerminalExecResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/exec"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalExecResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExecuteWindowManagerCommandParams carries the path, query, and header parameters.
-type ExecuteWindowManagerCommandParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ExecuteWindowManagerCommand Execute one semantic window-manager command
-func (c *Client) ExecuteWindowManagerCommand(ctx context.Context, params ExecuteWindowManagerCommandParams, body WindowManagerCommandRequest) (*WindowManagerResult, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/commands"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerResult
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExportWindowManagerLayoutParams carries the path, query, and header parameters.
-type ExportWindowManagerLayoutParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

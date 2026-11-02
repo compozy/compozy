@@ -712,6 +712,67 @@ func TestNotificationMessageKeepsUntrustedOutputInsideItsBlock(t *testing.T) {
 	})
 }
 
+func TestSessionRotation(t *testing.T) {
+	t.Run("Should refuse publication while a monitor owns a live wake", func(t *testing.T) {
+		t.Parallel()
+		service := newTestService(t, nil, &recordingWaker{})
+		if _, err := service.Create(t.Context(), timerSpec("main")); err != nil {
+			t.Fatal(err)
+		}
+		called := false
+		err := service.RetireSession("main", func() error { called = true; return nil })
+		if !errors.Is(err, ErrSessionHasMonitors) || called {
+			t.Fatalf("publication = %v, called %v", err, called)
+		}
+	})
+	t.Run("Should reject new monitors only after successful publication", func(t *testing.T) {
+		t.Parallel()
+		service := newTestService(t, nil, &recordingWaker{})
+		refused := errors.New("publication failed")
+		if err := service.RetireSession("main", func() error { return refused }); !errors.Is(err, refused) {
+			t.Fatal(err)
+		}
+		item, err := service.Create(t.Context(), timerSpec("main"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Cancel("main", item.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.RetireSession("main", func() error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Create(t.Context(), timerSpec("main")); !errors.Is(err, ErrSessionGone) {
+			t.Fatalf("retired create = %v", err)
+		}
+	})
+}
+
+func TestSessionRotationConcurrentCreate(t *testing.T) {
+	t.Run("Should reject a monitor creation racing successful publication", func(t *testing.T) {
+		t.Parallel()
+		service := newTestService(t, nil, &recordingWaker{})
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		started := make(chan struct{})
+		published := make(chan error, 1)
+		created := make(chan error, 1)
+		go func() {
+			published <- service.RetireSession("main", func() error { close(entered); <-release; return nil })
+		}()
+		<-entered
+		go func() { close(started); _, err := service.Create(t.Context(), timerSpec("main")); created <- err }()
+		<-started
+		close(release)
+		if err := <-published; err != nil {
+			t.Fatal(err)
+		}
+		if err := <-created; !errors.Is(err, ErrSessionGone) {
+			t.Fatalf("concurrent create = %v", err)
+		}
+	})
+}
+
 type memoryStore struct {
 	mu      sync.Mutex
 	records map[string]Record

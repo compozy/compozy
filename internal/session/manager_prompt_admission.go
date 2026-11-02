@@ -125,6 +125,7 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		// park or a return; only delivery becomes a queued input.
 		admissionReq.Mode = string(BusyInputModeQueue)
 	}
+	admissionReq.DirectDispatch = !parked && !target.session.IsPrompting()
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
@@ -135,6 +136,10 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		replayed.TargetInLater = parked && replayed.Status == store.SessionPromptResultStatusQueued
 		return *replayed, nil
 	}
+	if err := m.checkPromptAdmissionSuperseded(ctx, preparation.request.target); err != nil {
+		return SendPromptResult{}, err
+	}
+
 	if !found {
 		if err := m.canonicalizeAdmissionPromptAttachments(
 			ctx,
@@ -204,12 +209,17 @@ func (m *Manager) submitAdmittedDirectPrompt(
 	if replayed != nil {
 		return *replayed, nil
 	}
-	defer func() { m.replyWatchSendResult(ctx, admission, sendErr) }()
+	committed := false
+	defer func() {
+		if sendErr != nil && !committed {
+			sendErr = errors.Join(sendErr, m.releaseUndispatchedReports(ctx, admission))
+		}
+		m.replyWatchSendResult(ctx, admission, sendErr)
+	}()
 	req, err = bindPromptAdmissionRequest(req, admission)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	committed := false
 	req.commitDispatch = func(dispatchCtx context.Context) error {
 		if err := m.commitPromptAdmissionDispatch(dispatchCtx, admission); err != nil {
 			return err
@@ -411,78 +421,11 @@ func (m *Manager) interruptAdmittedPrompt(
 	return result, nil
 }
 
-func (m *Manager) submitAdmittedGoalPrompt(
-	ctx context.Context,
-	session *Session,
-	preparation sendPromptPreparation,
-	opts SendPromptOpts,
-	admissionReq store.SessionPromptAdmissionRequest,
-) (SendPromptResult, error) {
-	admission, replayed, err := m.claimPromptAdmission(ctx, admissionReq)
-	if err != nil {
-		return SendPromptResult{}, err
+func (m *Manager) checkPromptAdmissionSuperseded(ctx context.Context, sessionID string) error {
+	if reader, ok := m.promptAdmissionStore.(interface {
+		CheckSessionSuperseded(context.Context, string) error
+	}); ok {
+		return reader.CheckSessionSuperseded(ctx, sessionID)
 	}
-	if replayed != nil {
-		return *replayed, nil
-	}
-	preparation.request, err = bindPromptAdmissionRequest(preparation.request, admission)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
-	if session != nil {
-		if err := m.preflightAdmittedPromptAttachments(
-			ctx,
-			session,
-			preparation.request.runtime,
-			preparation.request.attachments,
-		); err != nil {
-			return SendPromptResult{}, err
-		}
-	}
-	if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
-		return SendPromptResult{}, err
-	}
-	rejectIfBusy, goalResult, err := m.applyGoalCommand(ctx, &preparation.request, opts)
-	if err != nil {
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-	}
-	if goalResult != nil {
-		goalResult.Mode = preparation.mode
-		goalResult.MessageID = admission.MessageID
-		goalResult.IdempotencyKey = admission.IdempotencyKey
-		return m.completePromptAdmission(ctx, admission, *goalResult)
-	}
-	// Control-only Goal commands must not implicitly resume a stopped session.
-	// Only a command that dispatches a prompt (Draft) needs a live runtime.
-	if session == nil {
-		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
-		if err != nil {
-			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-		}
-		if err := m.preflightAdmittedPromptAttachments(ctx, session,
-			preparation.request.runtime, preparation.request.attachments); err != nil {
-			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-		}
-	}
-	preparation.rejectIfBusy = rejectIfBusy
-	result, err := m.submitPreparedPrompt(ctx, session, preparation)
-	if err != nil {
-		return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
-	}
-	result.MessageID = admission.MessageID
-	result.IdempotencyKey = admission.IdempotencyKey
-	return m.completePromptAdmission(ctx, admission, result)
-}
-
-func (m *Manager) commitPromptAdmissionDispatch(
-	ctx context.Context,
-	admission store.SessionPromptAdmission,
-) error {
-	return m.promptAdmissionStore.CommitSessionPromptDispatch(
-		ctx,
-		admission.WorkspaceID,
-		admission.SessionID,
-		admission.IdempotencyKey,
-		m.now(),
-	)
+	return nil
 }

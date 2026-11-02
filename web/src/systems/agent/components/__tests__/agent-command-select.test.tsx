@@ -28,8 +28,23 @@ describe("AgentCommandSelect", () => {
       </UIProvider>
     );
     const trigger = screen.getByTestId("trigger");
-    expect(trigger).toHaveTextContent("writer");
+    expect(trigger).toHaveTextContent("Writer");
     expect(trigger).toHaveTextContent("claude");
+  });
+
+  it("Should keep the agent's name and provider apart for screen readers", () => {
+    render(
+      <UIProvider>
+        <AgentCommandSelect
+          agents={[makeAgent({ name: "writer", provider: "claude" })]}
+          onChange={vi.fn()}
+          triggerTestId="trigger"
+          value="writer"
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("trigger")).toHaveTextContent("Writer · claude");
   });
 
   it("Should display the formatted category label in the trigger when an agent has category_path", () => {
@@ -67,7 +82,7 @@ describe("AgentCommandSelect", () => {
       </UIProvider>
     );
     const trigger = screen.getByTestId("trigger");
-    expect(trigger).toHaveTextContent("product-launch-manager-agent");
+    expect(trigger).toHaveTextContent("Product Launch Manager Agent");
     expect(trigger).toHaveTextContent("claude");
     expect(screen.queryByTestId("agent-command-select-trigger-category")).not.toBeInTheDocument();
 
@@ -245,7 +260,7 @@ describe("AgentCommandSelect loading", () => {
     const { rerender } = render(select({ agents: [], value: "writer", loading: true }));
 
     const trigger = screen.getByTestId("trigger");
-    expect(trigger).toHaveTextContent("writer");
+    expect(trigger).toHaveTextContent("Writer");
     expect(trigger).not.toHaveTextContent("Not available");
     expect(trigger.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
 

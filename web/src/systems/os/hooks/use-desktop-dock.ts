@@ -2,7 +2,7 @@ import { shallowEqual } from "@xstate/store";
 import { useCallback } from "react";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
-import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
+import { dockStripDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import { notifyUser } from "@/lib/user-feedback";
 import {
   launchInPlacement,
@@ -76,7 +76,6 @@ export function useDesktopDock(
   }, shallowEqual);
 
   const sessionApp = OS_APP_DESCRIPTORS.session;
-  const sessionState = windowStates[sessionApp.id];
   // Intent timers retain this callback: only a changed destination or scope should cancel them.
   const handlePreload = useCallback(
     (id: string) => {
@@ -98,34 +97,21 @@ export function useDesktopDock(
     [commandsAvailable, launchCatalog.ready, launchCatalog.sessions, manager, onPreload]
   );
   // The rail keeps catalog order without group seams (shell-rail v2).
-  const entries: OsDockItemData[] = [
-    {
-      id: sessionApp.id,
-      name: "Sessions",
-      icon: dockIconForApp(sessionApp),
-      running: sessionState === "open" || sessionState === "focused",
-      active: sessionState === "focused",
-      minimized: sessionState === "minimized",
-      badge: dockBadgeFor(sessionApp, badges),
-    },
-    ...dockAppDescriptors()
-      .flat()
-      .map(app => {
-        const state = windowStates[app.id];
-        return {
-          id: app.id,
-          name: app.title,
-          icon: dockIconForApp(app),
-          running:
-            app.id === "terminal" && terminalLive !== undefined
-              ? terminalLive
-              : state === "open" || state === "focused",
-          active: state === "focused",
-          minimized: state === "minimized",
-          badge: dockBadgeFor(app, badges),
-        };
-      }),
-  ];
+  const entries: OsDockItemData[] = dockStripDescriptors().map(app => {
+    const state = windowStates[app.id];
+    return {
+      id: app.id,
+      name: app.id === sessionApp.id ? "Sessions" : app.title,
+      icon: dockIconForApp(app),
+      running:
+        app.id === "terminal" && terminalLive !== undefined
+          ? terminalLive
+          : state === "open" || state === "focused",
+      active: state === "focused",
+      minimized: state === "minimized",
+      badge: dockBadgeFor(app, badges),
+    };
+  });
 
   // Sessions launches its picker window: the latest session already has its
   // one home (plain click jumps there), so a new placement starts from the list.

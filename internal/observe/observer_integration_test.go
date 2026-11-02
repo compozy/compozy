@@ -105,3 +105,72 @@ func TestObserverIntegrationFullFlow(t *testing.T) {
 		t.Fatalf("permissions[0].Decision = %q, want allow", permissions[0].Decision)
 	}
 }
+
+func TestObserverIntegrationUnattendedPermissions(t *testing.T) {
+	t.Parallel()
+	t.Run("Should distinguish timed out approvals from operator refusals in activity", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := newSession("sess-timeout", session.StateActive, h.workspace, h.now)
+		sess.InitiatorKind, sess.InitiatorID = "daemon", "heartbeat"
+		h.observeSessionCreated(t, sess)
+		for _, actor := range []string{"timeout", "human"} {
+			h.observer.OnAgentEvent(t.Context(), sess.ID, acp.AgentEvent{Type: "permission", TurnID: "turn-" + actor, Timestamp: h.now, Action: "session/request_permission", Resource: h.workspace, Decision: "reject-once"}.WithResolvedBy(actor))
+		}
+		rows, err := h.observer.QueryPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: sess.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts := map[string]int{}
+		for _, row := range rows {
+			counts[row.Decision]++
+		}
+		if len(rows) != 2 || counts["expired"] != 1 || counts["reject-once"] != 1 {
+			t.Fatalf("permissions=%+v", rows)
+		}
+		rollups, err := h.observer.QueryPermissionDailyRollups(t.Context(), store.PermissionRollupQuery{ReadScope: store.ReadScope{AllProfiles: true}, Unattended: true, Since: h.now.Add(-time.Hour), Until: h.now.Add(time.Hour)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rollups) != 2 {
+			t.Fatalf("rollups=%+v", rollups)
+		}
+		for _, row := range rollups {
+			if row.Count != 1 || (row.Decision != "expired" && row.Decision != "reject-once") {
+				t.Fatalf("rollup=%+v", row)
+			}
+		}
+	})
+	t.Run("Should return only unattended initiators through observe", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		for _, kind := range []string{"", "human", "app", "agent_session", "automation", "daemon", "extension"} {
+			sess := newSession("sess-origin-"+kind, session.StateActive, h.workspace, h.now)
+			sess.InitiatorKind, sess.InitiatorID = kind, "origin-"+kind
+			h.observeSessionCreated(t, sess)
+			h.observer.OnAgentEvent(t.Context(), sess.ID, acp.AgentEvent{
+				Type: "permission", TurnID: "turn-origin", Timestamp: h.now, Action: "session/request_permission", Resource: h.workspace, Decision: "allow",
+			})
+		}
+		rows, err := h.observer.QueryPermissionLog(t.Context(), store.PermissionLogQuery{Unattended: true, Limit: 3})
+		if err != nil || len(rows) != 3 {
+			t.Fatalf("unattended permissions = %#v, %v", rows, err)
+		}
+		rollups, err := h.observer.QueryPermissionDailyRollups(t.Context(), store.PermissionRollupQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Unattended: true,
+			Since: h.now.Add(-time.Hour), Until: h.now.Add(time.Hour),
+		})
+		if err != nil || len(rollups) != 1 || rollups[0].Count != 3 {
+			t.Fatalf("unattended daily rollups = %#v, %v", rollups, err)
+		}
+		seen := make(map[string]bool)
+		for _, row := range rows {
+			seen[row.InitiatorKind] = true
+		}
+		for _, kind := range []string{"automation", "daemon", "extension"} {
+			if !seen[kind] {
+				t.Fatalf("missing %s initiator: %#v", kind, rows)
+			}
+		}
+	})
+}

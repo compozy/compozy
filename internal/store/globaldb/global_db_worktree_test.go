@@ -40,7 +40,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			CreatedAt:     at,
 			UpdatedAt:     at,
 		}
-		if err := db.RegisterSession(ctx, info); err != nil {
+		if err := db.RegisterSession(ctx, &(info)); err != nil {
 			t.Fatal(err)
 		}
 		if err := db.Worktrees.SetState(ctx, ws, item.ID, worktreepkg.StateMissing, at); err != nil {
@@ -818,7 +818,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 				RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, WorktreeID: item.ID,
 				State: "active", CreatedAt: now, UpdatedAt: now,
 			}
-			if err := globalDB.RegisterSession(ctx, bound); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(bound)); err != nil {
 				t.Fatalf("RegisterSession(bound) error = %v", err)
 			}
 			if err := globalDB.Worktrees.SetState(
@@ -829,13 +829,13 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 
 			bound.State = "stopped"
 			bound.UpdatedAt = now.Add(2 * time.Minute)
-			if err := globalDB.RegisterSession(ctx, bound); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(bound)); err != nil {
 				t.Fatalf("RegisterSession(existing bound update) error = %v", err)
 			}
 			newBinding := bound
 			newBinding.ID = "session-after-removal"
 			newBinding.State = "active"
-			if err := globalDB.RegisterSession(ctx, newBinding); !errors.Is(err, worktreepkg.ErrNotReady) {
+			if err := globalDB.RegisterSession(ctx, &(newBinding)); !errors.Is(err, worktreepkg.ErrNotReady) {
 				t.Fatalf("RegisterSession(new binding) error = %v, want %v", err, worktreepkg.ErrNotReady)
 			}
 			rows, err := globalDB.ListSessions(ctx, store.SessionListQuery{
@@ -868,7 +868,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		original := store.SessionInfo{ID: "session-binding", ProfileID: store.DefaultProfileID,
 			AgentName: "coder", Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
 			WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now}
-		if err := db.RegisterSession(ctx, original); err != nil {
+		if err := db.RegisterSession(ctx, &(original)); err != nil {
 			t.Fatal(err)
 		}
 		update := store.SessionWorktreeBindingUpdate{SessionID: original.ID, WorkspaceID: workspaceID,
@@ -876,7 +876,7 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if err := db.UpdateSessionWorktreeBinding(ctx, update); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.RegisterSession(ctx, original); err == nil {
+		if err := db.RegisterSession(ctx, &(original)); err == nil {
 			t.Fatal("ordinary registration silently unbound session")
 		}
 		if err := db.UpdateSessionWorktreeBinding(ctx, update); !errors.Is(err, store.ErrSessionWorktreeConflict) {

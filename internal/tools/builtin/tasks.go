@@ -51,7 +51,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, "create"},
+		[]string{tasksTasksKey, descriptorKeywordCreate},
 		[]string{"create task", "new task"},
 	),
 	nativeDescriptor(
@@ -65,7 +65,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, "create", "children"},
+		[]string{tasksTasksKey, descriptorKeywordCreate, "children"},
 		[]string{"create child task", "task lineage"},
 	),
 	nativeDescriptor(

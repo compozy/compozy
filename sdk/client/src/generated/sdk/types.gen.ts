@@ -48,6 +48,26 @@ export type Action = {
   view?: string;
 };
 
+export type ActivityCost = {
+  scope: string;
+  tokens: number;
+  usd_estimate: number;
+  workspace_id: string;
+};
+
+export type ActivityDay = {
+  day: string;
+  needed_you: number;
+  quiet: number;
+  told: number;
+};
+
+export type ActivityHour = {
+  events: number;
+  hour: number;
+  weekday: number;
+};
+
 export type ActorIdentity = {
   kind: "human" | "agent_session" | "automation" | "extension" | "daemon";
   ref: string;
@@ -73,6 +93,12 @@ export type AgentACPOptionSelection = {
   value_id?: string;
 };
 
+export type AgentActivityResponse = {
+  busy_by_hour: Array<ActivityHour>;
+  cost_by_project: Array<ActivityCost>;
+  reports_by_day: Array<ActivityDay>;
+};
+
 export type AgentCapabilityPayload = {
   id: string;
   source?: string;
@@ -93,6 +119,7 @@ export type AgentCatalogFacetsPayload = {
 
 export type AgentCatalogItemPayload = {
   agent: AgentPayload;
+  scopes?: Array<string>;
   sessions?: AgentSessionMetricsPayload | null;
 };
 
@@ -100,6 +127,8 @@ export type AgentCatalogResponse = {
   agents: Array<AgentCatalogItemPayload>;
   diagnostics?: Array<DiagnosticItem>;
   facets: AgentCatalogFacetsPayload;
+  items?: Array<GroupedAgentCatalogItemPayload>;
+  next_cursor: string;
   page: CountedCursorPagePayload;
   sessions_available: boolean;
 };
@@ -145,6 +174,12 @@ export type AgentDiagnosticPayload = {
   path: string;
 };
 
+export type AgentDraftRuntime = {
+  model?: string;
+  provider: string;
+  reasoning_effort?: string;
+};
+
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   model?: string;
@@ -182,6 +217,130 @@ export type AgentIdentityPayload = {
   model?: string;
   provider: string;
   session_id: string;
+};
+
+export type AgentInstanceAdoptRequest = {
+  agent: string;
+  session_id: string;
+};
+
+export type AgentInstanceAwayResponse = {
+  last_seen_at: string | null;
+  quiet_check_ins: number;
+  reports: Array<AgentInstanceReportPayload>;
+};
+
+export type AgentInstanceCheckDigest = {
+  diagnostics?: Array<string>;
+  fingerprint: string;
+  item_keys: Array<string>;
+};
+
+export type AgentInstanceCheckInPayload = {
+  created_at: string;
+  id: string;
+  reason: string;
+  result: string;
+};
+
+export type AgentInstanceCheckInsResponse = {
+  check_ins: Array<AgentInstanceCheckInPayload>;
+  next_cursor: string;
+};
+
+export type AgentInstanceCheckRequest = {
+  dry_run: boolean;
+};
+
+export type AgentInstanceCheckResponse = {
+  digest?: AgentInstanceCheckDigest | null;
+  gate?: string;
+  occurrence_id?: string;
+};
+
+export type AgentInstanceCreateRequest = {
+  agent: string;
+  workspace: string;
+};
+
+export type AgentInstanceListResponse = {
+  active_count: number;
+  instances: Array<AgentInstancePayload>;
+  max_active_instances: number;
+  next_cursor: string;
+};
+
+export type AgentInstanceOccurrenceResponse = {
+  reason?: string;
+  report_id?: string;
+  result?: string;
+  state: string;
+};
+
+export type AgentInstancePayload = {
+  activity: string;
+  agent_name: string;
+  checks_enabled: boolean;
+  created: boolean;
+  created_at: string;
+  failure_streak: number;
+  fatigue_limit: number;
+  id: string;
+  label: string;
+  last_wake_at: string;
+  main_session_id: string;
+  needs_attention: boolean;
+  next_wake_at: string;
+  now: string;
+  pause_reason: string;
+  profile_id: string;
+  provider: string;
+  quiet_streak: number;
+  resolved_appearance: {
+    [key: string]: unknown;
+  };
+  scope: string;
+  state: string;
+  updated_at: string;
+  workspace_id: string;
+};
+
+export type AgentInstanceProposal = {
+  body: string;
+  item_keys: Array<string>;
+  title: string;
+};
+
+export type AgentInstanceReportPayload = {
+  cause?: string;
+  created_at: string;
+  detail?: string;
+  expired_by?: string;
+  id: string;
+  kind: string;
+  proposals?: Array<AgentInstanceProposal>;
+  reason?: string;
+  session_id?: string;
+  since?: string;
+  state: string;
+  tool?: string;
+};
+
+export type AgentInstanceReportsResponse = {
+  next_cursor: string;
+  reports: Array<AgentInstanceReportPayload>;
+};
+
+export type AgentInstanceResponse = {
+  instance: AgentInstancePayload;
+};
+
+export type AgentInstanceSeenResponse = {
+  last_seen_at: string;
+};
+
+export type AgentInstanceUpdateRequest = {
+  checks_enabled: boolean | null;
 };
 
 export type AgentLimitsPayload = {
@@ -224,6 +383,83 @@ export type AgentMeResponse = {
   me: AgentMePayload;
 };
 
+export type AgentMemoryAddRequest = {
+  text: string;
+  until?: string;
+};
+
+export type AgentMemoryBudget = {
+  bytes: number;
+  lines: number;
+  max_bytes: number;
+  max_lines: number;
+};
+
+export type AgentMemoryDocument = {
+  budget: AgentMemoryBudget;
+  content: string;
+  digest: string;
+};
+
+export type AgentMemoryHistoryResponse = {
+  revisions: Array<AgentMemoryRevision>;
+};
+
+export type AgentMemoryRemoveRequest = {
+  match: string;
+};
+
+export type AgentMemoryRemoveResponse = {
+  digest: string;
+  removed: number;
+};
+
+export type AgentMemoryReplaceRequest = {
+  match: string;
+  text: string;
+};
+
+export type AgentMemoryRevision = {
+  digest: string;
+  id: string;
+};
+
+export type AgentMemoryRollbackRequest = {
+  revision: string;
+};
+
+export type AgentMemorySearchRequest = {
+  include_sessions?: boolean;
+  query: string;
+};
+
+export type AgentMemorySearchResponse = {
+  results: Array<AgentMemorySearchResult>;
+};
+
+export type AgentMemorySearchResult = {
+  file?: string;
+  line?: number;
+  score?: number;
+  session_id?: string;
+  source: string;
+  text: string;
+};
+
+export type AgentMemoryValidateRequest = {
+  content: string;
+};
+
+export type AgentMemoryValidateResponse = {
+  diagnostics: Array<string>;
+  valid: boolean;
+};
+
+export type AgentMemoryWriteRequest = {
+  content: string;
+  expected_digest: string;
+};
+
 export type AgentNotifyRequest = {
   body?: string;
   title: string;
@@ -236,22 +472,33 @@ export type AgentNotifyResponse = {
 
 export type AgentPayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
   category_path?: Array<string>;
   command?: string;
   definition_digest: string;
   deny_tools?: Array<string>;
+  description?: string;
   diagnostics?: Array<AgentDiagnosticPayload>;
+  display_name?: string;
   effective_runtime?: AgentEffectiveRuntimePayload | null;
   fallback_chain?: Array<RoleFallbackStatus>;
+  kind?: string;
+  label: string;
   layer?: string;
   mcp_servers?: Array<AgentMCPServerJSON>;
   model?: string;
   name: string;
   origin: "global" | "workspace";
+  package_owned?: boolean;
   permissions?: string;
   prompt: string;
   provider: string;
   reasoning_effort?: string;
+  resolved_appearance: {
+    [key: string]: unknown;
+  };
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -1311,16 +1558,26 @@ export type CountedCursorPagePayload = {
 
 export type CreateAgentPayload = {
   acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
   category_path?: Array<string>;
   command?: string;
   deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
   fallback_chain?: Array<AgentFallbackRoutePayload>;
+  kind?: "on_demand" | "stays_on";
+  label?: string;
   model?: string;
   name: string;
   permissions?: "deny-all" | "approve-reads" | "approve-all";
   prompt: string;
   provider?: string;
   reasoning_effort?: string;
+  resolved_appearance?: {
+    [key: string]: unknown;
+  };
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -1598,6 +1855,15 @@ export type DoctorSummaryPayload = {
   total: number;
 };
 
+export type DraftAgentInstructionsRequest = {
+  goal: string;
+  runtime: AgentDraftRuntime;
+};
+
+export type DraftAgentInstructionsResponse = {
+  instructions: string;
+};
+
 export type DrainStatusResponse = {
   active_session_executions: number;
   active_task_claims: number;
@@ -1610,11 +1876,17 @@ export type DrainStatusResponse = {
 
 export type DuplicateAgentOverrides = {
   acp_options?: Array<AgentACPOptionSelection>;
+  appearance?: {
+    [key: string]: unknown;
+  };
   category_path?: Array<string>;
   clear_acp_options?: boolean;
   clear_speed?: boolean;
   command?: string;
   deny_tools?: Array<string>;
+  description?: string | null;
+  display_name?: string | null;
+  kind?: string;
   model?: string;
   permissions?: "deny-all" | "approve-reads" | "approve-all";
   prompt?: string;
@@ -1631,6 +1903,7 @@ export type DuplicateAgentOverrides = {
 };
 
 export type DuplicateAgentRequest = {
+  kind?: "on_demand" | "stays_on";
   name: string;
   overrides?: DuplicateAgentOverrides | null;
   scope?: "workspace" | "global";
@@ -2879,6 +3152,16 @@ export type GridTile = {
     [key: string]: string;
   };
   title: string;
+};
+
+export type GroupedAgentCatalogItemPayload = {
+  active: number;
+  agent: AgentPayload;
+  definition_digest: string;
+  kind: string;
+  label: string;
+  name: string;
+  scopes: Array<string>;
 };
 
 export type HeartbeatActorPayload = {
@@ -4847,16 +5130,47 @@ export type PendingInteractionPayload = {
   choices?: Array<string>;
   created_at: string;
   decisions?: Array<string>;
+  expires_at?: string | null;
   interaction_id: string;
   kind: string;
   provider_request_id: string;
   resolution?: string;
   resolved_at?: string | null;
   resolved_by?: string;
+  session_id: string;
   status: string;
   title?: string;
   tool_id?: string;
   turn_id?: string;
+};
+
+export type PermissionDailyRollupPayload = {
+  agent_name: string;
+  count: number;
+  day: string;
+  decision: string;
+};
+
+export type PermissionEntriesResponse = {
+  entries: Array<PermissionEntryPayload>;
+};
+
+export type PermissionEntryPayload = {
+  action: string;
+  agent_name: string;
+  decision: string;
+  id: string;
+  initiator_id: string;
+  initiator_kind: string;
+  resource: string;
+  session_id: string;
+  timestamp: string;
+};
+
+export type PermissionRollupResponse = {
+  rollups: Array<PermissionDailyRollupPayload>;
+  since: string;
+  until: string;
 };
 
 export type PickFilesEffect = {
@@ -4938,6 +5252,8 @@ export type ProfilePlanRequest = {
 };
 
 export type ProfileRemovalSummary = {
+  agent_instances: number;
+  agent_memory_files: number;
   agents: number;
   config_keys: number;
   credential_overrides: number;
@@ -6242,6 +6558,7 @@ export type SessionCatalogFacetsPayload = {
   board: SessionBoardCountsPayload;
   finished: number;
   idle: number;
+  instances_needing_attention: number;
   needs_you: number;
   terminal_approvals: number;
   working: number;
@@ -6804,6 +7121,7 @@ export type SessionPayload = {
   folder_id?: string;
   health?: SessionHealthPayload | null;
   id: string;
+  instance_id?: string;
   later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
@@ -7560,6 +7878,11 @@ export type SettingsHookDeclarationPayload = {
     [key: string]: string;
   };
   event:
+    | "agent.instance.created"
+    | "agent.instance.paused"
+    | "agent.instance.resumed"
+    | "agent.instance.archived"
+    | "agent.instance.adopted"
     | "subagent.settled"
     | "session.pre_create"
     | "session.post_create"
@@ -8817,7 +9140,8 @@ export type SignalSourceState = {
     | "task_lease"
     | "scheduled_wait"
     | "awaiting_reply"
-    | "active_monitor";
+    | "active_monitor"
+    | "held_permission";
   ref?: string;
   state: string;
 };
@@ -11916,7 +12240,8 @@ export type WorkSignal = {
     | "task_lease"
     | "scheduled_wait"
     | "awaiting_reply"
-    | "active_monitor";
+    | "active_monitor"
+    | "held_permission";
   ref?: string;
   since: string;
 };
@@ -12306,6 +12631,965 @@ export type ValueWritable =
   | {
       vault_ref: string;
     };
+
+export type ListAgentInstancesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Workspace reference
+     */
+    workspace?: string;
+    /**
+     * Include all workspaces
+     */
+    all_workspaces?: string;
+    /**
+     * Agent name
+     */
+    agent?: string;
+    /**
+     * Instance state
+     */
+    state?: string;
+    /**
+     * Pagination cursor
+     */
+    cursor?: string;
+    /**
+     * Page size
+     */
+    limit?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances";
+};
+
+export type ListAgentInstancesErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentInstancesError = ListAgentInstancesErrors[keyof ListAgentInstancesErrors];
+
+export type ListAgentInstancesResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceListResponse;
+};
+
+export type ListAgentInstancesResponse =
+  ListAgentInstancesResponses[keyof ListAgentInstancesResponses];
+
+export type CreateAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceCreateRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances";
+};
+
+export type CreateAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type CreateAgentInstanceError = CreateAgentInstanceErrors[keyof CreateAgentInstanceErrors];
+
+export type CreateAgentInstanceResponses = {
+  /**
+   * Existing instance
+   */
+  200: AgentInstanceResponse;
+  /**
+   * Created
+   */
+  201: AgentInstanceResponse;
+};
+
+export type CreateAgentInstanceResponse =
+  CreateAgentInstanceResponses[keyof CreateAgentInstanceResponses];
+
+export type AdoptAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceAdoptRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/adopt";
+};
+
+export type AdoptAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type AdoptAgentInstanceError = AdoptAgentInstanceErrors[keyof AdoptAgentInstanceErrors];
+
+export type AdoptAgentInstanceResponses = {
+  /**
+   * Created
+   */
+  201: AgentInstanceResponse;
+};
+
+export type AdoptAgentInstanceResponse =
+  AdoptAgentInstanceResponses[keyof AdoptAgentInstanceResponses];
+
+export type ArchiveAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}";
+};
+
+export type ArchiveAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ArchiveAgentInstanceError =
+  ArchiveAgentInstanceErrors[keyof ArchiveAgentInstanceErrors];
+
+export type ArchiveAgentInstanceResponses = {
+  /**
+   * Archived
+   */
+  204: void;
+};
+
+export type ArchiveAgentInstanceResponse =
+  ArchiveAgentInstanceResponses[keyof ArchiveAgentInstanceResponses];
+
+export type GetAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}";
+};
+
+export type GetAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentInstanceError = GetAgentInstanceErrors[keyof GetAgentInstanceErrors];
+
+export type GetAgentInstanceResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type GetAgentInstanceResponse = GetAgentInstanceResponses[keyof GetAgentInstanceResponses];
+
+export type UpdateAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceUpdateRequest;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}";
+};
+
+export type UpdateAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type UpdateAgentInstanceError = UpdateAgentInstanceErrors[keyof UpdateAgentInstanceErrors];
+
+export type UpdateAgentInstanceResponses = {
+  /**
+   * Updated
+   */
+  200: AgentInstanceResponse;
+};
+
+export type UpdateAgentInstanceResponse =
+  UpdateAgentInstanceResponses[keyof UpdateAgentInstanceResponses];
+
+export type GetAgentInstanceAwayData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/away";
+};
+
+export type GetAgentInstanceAwayErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentInstanceAwayError =
+  GetAgentInstanceAwayErrors[keyof GetAgentInstanceAwayErrors];
+
+export type GetAgentInstanceAwayResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceAwayResponse;
+};
+
+export type GetAgentInstanceAwayResponse =
+  GetAgentInstanceAwayResponses[keyof GetAgentInstanceAwayResponses];
+
+export type MarkAgentInstanceSeenData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/away";
+};
+
+export type MarkAgentInstanceSeenErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type MarkAgentInstanceSeenError =
+  MarkAgentInstanceSeenErrors[keyof MarkAgentInstanceSeenErrors];
+
+export type MarkAgentInstanceSeenResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceSeenResponse;
+};
+
+export type MarkAgentInstanceSeenResponse =
+  MarkAgentInstanceSeenResponses[keyof MarkAgentInstanceSeenResponses];
+
+export type CheckAgentInstanceData = {
+  /**
+   * JSON request body
+   */
+  body: AgentInstanceCheckRequest;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/check";
+};
+
+export type CheckAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type CheckAgentInstanceError = CheckAgentInstanceErrors[keyof CheckAgentInstanceErrors];
+
+export type CheckAgentInstanceResponses = {
+  /**
+   * Gate or dry-run result
+   */
+  200: AgentInstanceCheckResponse;
+  /**
+   * Check admitted
+   */
+  202: AgentInstanceCheckResponse;
+};
+
+export type CheckAgentInstanceResponse =
+  CheckAgentInstanceResponses[keyof CheckAgentInstanceResponses];
+
+export type ListAgentInstanceCheckInsData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Pagination cursor
+     */
+    cursor?: string;
+    /**
+     * Page size from 1 to 100; defaults to 50
+     */
+    limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/check-ins";
+};
+
+export type ListAgentInstanceCheckInsErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentInstanceCheckInsError =
+  ListAgentInstanceCheckInsErrors[keyof ListAgentInstanceCheckInsErrors];
+
+export type ListAgentInstanceCheckInsResponses = {
+  /**
+   * Wake events, empty when instance wakes are unavailable
+   */
+  200: AgentInstanceCheckInsResponse;
+};
+
+export type ListAgentInstanceCheckInsResponse =
+  ListAgentInstanceCheckInsResponses[keyof ListAgentInstanceCheckInsResponses];
+
+export type EnsureAgentInstanceMainData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/ensure-main";
+};
+
+export type EnsureAgentInstanceMainErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type EnsureAgentInstanceMainError =
+  EnsureAgentInstanceMainErrors[keyof EnsureAgentInstanceMainErrors];
+
+export type EnsureAgentInstanceMainResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type EnsureAgentInstanceMainResponse =
+  EnsureAgentInstanceMainResponses[keyof EnsureAgentInstanceMainResponses];
+
+export type GetAgentInstanceOccurrenceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+    /**
+     * Occurrence ID
+     */
+    occurrence: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/occurrences/{occurrence}";
+};
+
+export type GetAgentInstanceOccurrenceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentInstanceOccurrenceError =
+  GetAgentInstanceOccurrenceErrors[keyof GetAgentInstanceOccurrenceErrors];
+
+export type GetAgentInstanceOccurrenceResponses = {
+  /**
+   * Occurrence
+   */
+  200: AgentInstanceOccurrenceResponse;
+};
+
+export type GetAgentInstanceOccurrenceResponse =
+  GetAgentInstanceOccurrenceResponses[keyof GetAgentInstanceOccurrenceResponses];
+
+export type PauseAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/pause";
+};
+
+export type PauseAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type PauseAgentInstanceError = PauseAgentInstanceErrors[keyof PauseAgentInstanceErrors];
+
+export type PauseAgentInstanceResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type PauseAgentInstanceResponse =
+  PauseAgentInstanceResponses[keyof PauseAgentInstanceResponses];
+
+export type ListAgentInstanceReportsData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Filter by pending, reserved, delivered, or indeterminate
+     */
+    state?: string;
+    /**
+     * Pagination cursor
+     */
+    cursor?: string;
+    /**
+     * Page size
+     */
+    limit?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/reports";
+};
+
+export type ListAgentInstanceReportsErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentInstanceReportsError =
+  ListAgentInstanceReportsErrors[keyof ListAgentInstanceReportsErrors];
+
+export type ListAgentInstanceReportsResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceReportsResponse;
+};
+
+export type ListAgentInstanceReportsResponse =
+  ListAgentInstanceReportsResponses[keyof ListAgentInstanceReportsResponses];
+
+export type ResumeAgentInstanceData = {
+  body?: never;
+  path: {
+    /**
+     * Instance ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-instances/{id}/resume";
+};
+
+export type ResumeAgentInstanceErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ResumeAgentInstanceError = ResumeAgentInstanceErrors[keyof ResumeAgentInstanceErrors];
+
+export type ResumeAgentInstanceResponses = {
+  /**
+   * OK
+   */
+  200: AgentInstanceResponse;
+};
+
+export type ResumeAgentInstanceResponse =
+  ResumeAgentInstanceResponses[keyof ResumeAgentInstanceResponses];
 
 export type GetAgentContextData = {
   body?: never;
@@ -13194,11 +14478,15 @@ export type ListAgentsAggregateData = {
      */
     workspace_ids?: Array<string>;
     /**
+     * Group identical scoped definitions
+     */
+    group?: "agent";
+    /**
      * Exact agent name
      */
     name?: string;
     /**
-     * Case-insensitive agent name or category search
+     * Case-insensitive agent name, label or category search
      */
     q?: string;
     /**
@@ -13269,11 +14557,15 @@ export type ListAgentCatalogData = {
      */
     workspace?: string;
     /**
+     * Group identical scoped definitions
+     */
+    group?: "agent";
+    /**
      * Exact agent name
      */
     name?: string;
     /**
-     * Case-insensitive agent name or category search
+     * Case-insensitive agent name, label or category search
      */
     q?: string;
     /**
@@ -13333,6 +14625,53 @@ export type ListAgentCatalogResponses = {
 };
 
 export type ListAgentCatalogResponse = ListAgentCatalogResponses[keyof ListAgentCatalogResponses];
+
+export type DraftAgentInstructionsData = {
+  /**
+   * JSON request body
+   */
+  body: DraftAgentInstructionsRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/draft-instructions";
+};
+
+export type DraftAgentInstructionsErrors = {
+  /**
+   * Invalid draft request
+   */
+  400: ErrorPayload;
+  /**
+   * Provider does not support read-only triage
+   */
+  422: ErrorPayload;
+  /**
+   * Instruction drafting failed
+   */
+  502: ErrorPayload;
+  /**
+   * Instruction drafting unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DraftAgentInstructionsError =
+  DraftAgentInstructionsErrors[keyof DraftAgentInstructionsErrors];
+
+export type DraftAgentInstructionsResponses = {
+  /**
+   * Draft instructions
+   */
+  200: DraftAgentInstructionsResponse;
+};
+
+export type DraftAgentInstructionsResponse2 =
+  DraftAgentInstructionsResponses[keyof DraftAgentInstructionsResponses];
 
 export type DeleteAgentData = {
   body?: never;
@@ -13493,6 +14832,69 @@ export type UpdateAgentResponses = {
 };
 
 export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses];
+
+export type GetAgentActivityData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Number of days, from 1 to 365; defaults to 30
+     */
+    days?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/activity";
+};
+
+export type GetAgentActivityErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentActivityError = GetAgentActivityErrors[keyof GetAgentActivityErrors];
+
+export type GetAgentActivityResponses = {
+  /**
+   * Scoped activity
+   */
+  200: AgentActivityResponse;
+};
+
+export type GetAgentActivityResponse = GetAgentActivityResponses[keyof GetAgentActivityResponses];
 
 export type DuplicateAgentData = {
   /**
@@ -14039,6 +15441,637 @@ export type WakeAgentHeartbeatResponses = {
 
 export type WakeAgentHeartbeatResponse =
   WakeAgentHeartbeatResponses[keyof WakeAgentHeartbeatResponses];
+
+export type GetAgentMemoryData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory";
+};
+
+export type GetAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentMemoryError = GetAgentMemoryErrors[keyof GetAgentMemoryErrors];
+
+export type GetAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type GetAgentMemoryResponse = GetAgentMemoryResponses[keyof GetAgentMemoryResponses];
+
+export type PutAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryWriteRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory";
+};
+
+export type PutAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PutAgentMemoryError = PutAgentMemoryErrors[keyof PutAgentMemoryErrors];
+
+export type PutAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type PutAgentMemoryResponse = PutAgentMemoryResponses[keyof PutAgentMemoryResponses];
+
+export type RemoveAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryRemoveRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/entries";
+};
+
+export type RemoveAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveAgentMemoryError = RemoveAgentMemoryErrors[keyof RemoveAgentMemoryErrors];
+
+export type RemoveAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryRemoveResponse;
+};
+
+export type RemoveAgentMemoryResponse =
+  RemoveAgentMemoryResponses[keyof RemoveAgentMemoryResponses];
+
+export type ReplaceAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryReplaceRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/entries";
+};
+
+export type ReplaceAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ReplaceAgentMemoryError = ReplaceAgentMemoryErrors[keyof ReplaceAgentMemoryErrors];
+
+export type ReplaceAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type ReplaceAgentMemoryResponse =
+  ReplaceAgentMemoryResponses[keyof ReplaceAgentMemoryResponses];
+
+export type AddAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryAddRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/entries";
+};
+
+export type AddAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AddAgentMemoryError = AddAgentMemoryErrors[keyof AddAgentMemoryErrors];
+
+export type AddAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type AddAgentMemoryResponse = AddAgentMemoryResponses[keyof AddAgentMemoryResponses];
+
+export type ListAgentMemoryHistoryData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/history";
+};
+
+export type ListAgentMemoryHistoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentMemoryHistoryError =
+  ListAgentMemoryHistoryErrors[keyof ListAgentMemoryHistoryErrors];
+
+export type ListAgentMemoryHistoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryHistoryResponse;
+};
+
+export type ListAgentMemoryHistoryResponse =
+  ListAgentMemoryHistoryResponses[keyof ListAgentMemoryHistoryResponses];
+
+export type RollbackAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryRollbackRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/rollback";
+};
+
+export type RollbackAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RollbackAgentMemoryError = RollbackAgentMemoryErrors[keyof RollbackAgentMemoryErrors];
+
+export type RollbackAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryDocument;
+};
+
+export type RollbackAgentMemoryResponse =
+  RollbackAgentMemoryResponses[keyof RollbackAgentMemoryResponses];
+
+export type SearchAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemorySearchRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/search";
+};
+
+export type SearchAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type SearchAgentMemoryError = SearchAgentMemoryErrors[keyof SearchAgentMemoryErrors];
+
+export type SearchAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemorySearchResponse;
+};
+
+export type SearchAgentMemoryResponse =
+  SearchAgentMemoryResponses[keyof SearchAgentMemoryResponses];
+
+export type ValidateAgentMemoryData = {
+  /**
+   * JSON request body
+   */
+  body: AgentMemoryValidateRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace selecting the agent definition
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/memory/validate";
+};
+
+export type ValidateAgentMemoryErrors = {
+  /**
+   * Invalid request or profile selection
+   */
+  400: ErrorPayload;
+  /**
+   * Caller identity is missing or stale
+   */
+  401: ErrorPayload;
+  /**
+   * Caller cannot access this agent memory
+   */
+  403: ErrorPayload;
+  /**
+   * Agent, workspace or revision not found
+   */
+  404: ErrorPayload;
+  /**
+   * agent_memory_conflict: reload the current digest
+   */
+  409: ErrorPayload;
+  /**
+   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   */
+  422: ErrorPayload;
+  /**
+   * Memory persistence failed
+   */
+  500: ErrorPayload;
+  /**
+   * Memory service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ValidateAgentMemoryError = ValidateAgentMemoryErrors[keyof ValidateAgentMemoryErrors];
+
+export type ValidateAgentMemoryResponses = {
+  /**
+   * OK
+   */
+  200: AgentMemoryValidateResponse;
+};
+
+export type ValidateAgentMemoryResponse =
+  ValidateAgentMemoryResponses[keyof ValidateAgentMemoryResponses];
 
 export type DeleteAgentSoulData = {
   /**
@@ -17769,6 +19802,11 @@ export type GetHookCatalogData = {
      * Hook event name
      */
     event?:
+      | "agent.instance.created"
+      | "agent.instance.paused"
+      | "agent.instance.resumed"
+      | "agent.instance.archived"
+      | "agent.instance.adopted"
       | "subagent.settled"
       | "session.pre_create"
       | "session.post_create"
@@ -19716,6 +21754,125 @@ export type GetOpenAPIDocumentResponses = {
    */
   200: unknown;
 };
+
+export type ListPermissionEntriesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * UTC calendar days including today, 1 through 90 (default 30)
+     */
+    days?: string;
+    /**
+     * Filter by agent name
+     */
+    agent?: string;
+    /**
+     * Include only automation, daemon and extension initiators
+     */
+    unattended?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/permissions";
+};
+
+export type ListPermissionEntriesErrors = {
+  /**
+   * Invalid query
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Observe service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListPermissionEntriesError =
+  ListPermissionEntriesErrors[keyof ListPermissionEntriesErrors];
+
+export type ListPermissionEntriesResponses = {
+  /**
+   * OK
+   */
+  200: PermissionEntriesResponse;
+};
+
+export type ListPermissionEntriesResponse =
+  ListPermissionEntriesResponses[keyof ListPermissionEntriesResponses];
+
+export type GetPermissionRollupData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * UTC calendar days including today, 1 through 90 (default 30)
+     */
+    days?: string;
+    /**
+     * Filter by agent name
+     */
+    agent?: string;
+    /**
+     * Include only automation, daemon and extension initiators
+     */
+    unattended?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/permissions/rollup";
+};
+
+export type GetPermissionRollupErrors = {
+  /**
+   * Invalid query
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Observe service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type GetPermissionRollupError = GetPermissionRollupErrors[keyof GetPermissionRollupErrors];
+
+export type GetPermissionRollupResponses = {
+  /**
+   * OK
+   */
+  200: PermissionRollupResponse;
+};
+
+export type GetPermissionRollupResponse =
+  GetPermissionRollupResponses[keyof GetPermissionRollupResponses];
 
 export type ListProcessesData = {
   body?: never;
@@ -21796,6 +23953,10 @@ export type ListSessionsData = {
      */
     skip_total?: boolean;
     /**
+     * Exclude stays-on main sessions from the page and its total
+     */
+    exclude_instance_main?: boolean;
+    /**
      * Filter by exact session state
      */
     state?: "starting" | "active" | "stopping" | "stopped";
@@ -22005,6 +24166,10 @@ export type ListSessionFacetsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Exclude instance main sessions from board counts
+     */
+    exclude_instance_main?: boolean;
     /**
      * Workspace id or path
      */
@@ -29911,6 +32076,11 @@ export type GetHookRunsData = {
      * Hook event name
      */
     event?:
+      | "agent.instance.created"
+      | "agent.instance.paused"
+      | "agent.instance.resumed"
+      | "agent.instance.archived"
+      | "agent.instance.adopted"
       | "subagent.settled"
       | "session.pre_create"
       | "session.post_create"
@@ -32855,6 +35025,10 @@ export type ListWorkspaceSessionsData = {
      */
     skip_total?: boolean;
     /**
+     * Exclude stays-on main sessions from the page and its total
+     */
+    exclude_instance_main?: boolean;
+    /**
      * Filter by exact session state
      */
     state?: "starting" | "active" | "stopping" | "stopped";
@@ -34301,6 +36475,10 @@ export type ListSessionInteractionsData = {
   };
   query?: {
     /**
+     * Include descendant sessions in the same workspace and profile
+     */
+    descendants?: boolean;
+    /**
      * Filter by interaction status
      */
     status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
@@ -34687,6 +36865,67 @@ export type SetSessionParentResponses = {
 };
 
 export type SetSessionParentResponse = SetSessionParentResponses[keyof SetSessionParentResponses];
+
+export type ListSessionPendingInteractionsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Include descendant sessions in the same workspace and profile
+     */
+    descendants?: boolean;
+    /**
+     * Filter by interaction status
+     */
+    status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions";
+};
+
+export type ListSessionPendingInteractionsErrors = {
+  /**
+   * Invalid interaction status
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session attention is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionPendingInteractionsError =
+  ListSessionPendingInteractionsErrors[keyof ListSessionPendingInteractionsErrors];
+
+export type ListSessionPendingInteractionsResponses = {
+  /**
+   * OK
+   */
+  200: SessionInteractionsResponse;
+};
+
+export type ListSessionPendingInteractionsResponse =
+  ListSessionPendingInteractionsResponses[keyof ListSessionPendingInteractionsResponses];
 
 export type UpdateSessionPresenceData = {
   /**

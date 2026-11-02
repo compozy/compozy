@@ -1,0 +1,77 @@
+{
+    "version": 3,
+    "key": "agent-avatar",
+    "sequence": 1,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "agent-avatar-1",
+            "slug": "agent-avatar",
+            "status": "resolved",
+            "createdAt": "2026-11-01T01:31:35.614Z",
+            "updatedAt": "2026-11-01T02:50:25.988Z",
+            "resolvedAt": "2026-11-01T01:35:45.986Z",
+            "context": {
+                "commit": "6da3b271d0872555eed9298d2084b83057118949",
+                "state": "needs-you",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section > div",
+                "testId": null,
+                "tag": "div",
+                "text": "Triage Lead · 24 Triage Lead · 32 Triage Lead · 56 Release Captain · 24 Release Captain · 32 Release Captain · 56 🦊 Sc…",
+                "source": "src/drafts/agent-avatar/index.proto.tsx:55:7",
+                "sourceChain": [
+                    "src/drafts/agent-avatar/index.proto.tsx:55:7",
+                    "src/drafts/agent-avatar/index.proto.tsx:53:5",
+                    "src/drafts/agent-avatar/index.proto.tsx:164:5",
+                    "src/drafts/agent-avatar/index.proto.tsx:288:14",
+                    "src/drafts/agent-avatar/index.proto.tsx:311:7",
+                    "src/drafts/agent-avatar/index.proto.tsx:310:5"
+                ],
+                "rect": {
+                    "x": 32,
+                    "y": 62,
+                    "width": 1332,
+                    "height": 132
+                },
+                "rectNormalized": {
+                    "x": 0.022922636103151862,
+                    "y": 0.08946608946608947,
+                    "width": 0.9541547277936963,
+                    "height": 0.19047619047619047
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "091427cc-d1b7-4fa8-a6c0-7344bfedc5fc",
+                    "at": "2026-11-01T01:31:35.629Z",
+                    "editedAt": null,
+                    "body": "o needs you aqui pode ser só um triangulozinho amarelo pequeno ao invés desse circulo com os cantinhos rounded",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "adcff47b-b9fc-432d-bfc8-fcdcf29fa844",
+                    "at": "2026-11-01T01:35:45.981Z",
+                    "editedAt": "2026-11-01T02:50:25.988Z",
+                    "body": "Troquei o círculo por um triângulo âmbar pequeno de cantos arredondados no AgentAvatar (stays-on-agents-shared/agent-avatar.tsx), no mesmo canto do ponto de estado. A mudança vale para lista, sidebar, Kanban e relatórios. Conferi needs-you em dark e light, 16 a 56 px. O _uiux.md e a US-004/US-029 ainda dizem accent ring e precisam ser atualizados.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

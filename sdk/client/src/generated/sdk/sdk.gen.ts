@@ -16,6 +16,9 @@ import type {
   AcknowledgeAttentionNotificationsData,
   AcknowledgeAttentionNotificationsErrors,
   AcknowledgeAttentionNotificationsResponses,
+  AddAgentMemoryData,
+  AddAgentMemoryErrors,
+  AddAgentMemoryResponses,
   AddMarketplaceSourceData,
   AddMarketplaceSourceErrors,
   AddMarketplaceSourceResponses,
@@ -25,6 +28,9 @@ import type {
   AdmitCmdPaletteViewSessionEventData,
   AdmitCmdPaletteViewSessionEventErrors,
   AdmitCmdPaletteViewSessionEventResponses,
+  AdoptAgentInstanceData,
+  AdoptAgentInstanceErrors,
+  AdoptAgentInstanceResponses,
   AdoptWorktreeData,
   AdoptWorktreeErrors,
   AdoptWorktreeResponses,
@@ -49,6 +55,9 @@ import type {
   ApproveTaskData,
   ApproveTaskErrors,
   ApproveTaskResponses,
+  ArchiveAgentInstanceData,
+  ArchiveAgentInstanceErrors,
+  ArchiveAgentInstanceResponses,
   ArchiveProfileData,
   ArchiveProfileErrors,
   ArchiveProfileResponses,
@@ -124,6 +133,9 @@ import type {
   CancelWorktreeExitActionData,
   CancelWorktreeExitActionErrors,
   CancelWorktreeExitActionResponses,
+  CheckAgentInstanceData,
+  CheckAgentInstanceErrors,
+  CheckAgentInstanceResponses,
   CheckSettingsUpdateData,
   CheckSettingsUpdateErrors,
   CheckSettingsUpdateResponses,
@@ -171,6 +183,9 @@ import type {
   ControlTerminalRecordingResponses,
   CreateAgentData,
   CreateAgentErrors,
+  CreateAgentInstanceData,
+  CreateAgentInstanceErrors,
+  CreateAgentInstanceResponses,
   CreateAgentResponses,
   CreateAppTokenData,
   CreateAppTokenErrors,
@@ -325,6 +340,9 @@ import type {
   DownloadTerminalRecordingData,
   DownloadTerminalRecordingErrors,
   DownloadTerminalRecordingResponses,
+  DraftAgentInstructionsData,
+  DraftAgentInstructionsErrors,
+  DraftAgentInstructionsResponses,
   DrainDaemonData,
   DrainDaemonErrors,
   DrainDaemonResponses,
@@ -343,6 +361,9 @@ import type {
   EnqueueTaskRunData,
   EnqueueTaskRunErrors,
   EnqueueTaskRunResponses,
+  EnsureAgentInstanceMainData,
+  EnsureAgentInstanceMainErrors,
+  EnsureAgentInstanceMainResponses,
   ExchangeSettingsMCPAuthData,
   ExchangeSettingsMCPAuthErrors,
   ExchangeSettingsMCPAuthResponses,
@@ -382,6 +403,9 @@ import type {
   ForkSessionToWorktreeData,
   ForkSessionToWorktreeErrors,
   ForkSessionToWorktreeResponses,
+  GetAgentActivityData,
+  GetAgentActivityErrors,
+  GetAgentActivityResponses,
   GetAgentContextData,
   GetAgentContextErrors,
   GetAgentContextResponses,
@@ -399,8 +423,20 @@ import type {
   GetAgentHeartbeatStatusData,
   GetAgentHeartbeatStatusErrors,
   GetAgentHeartbeatStatusResponses,
+  GetAgentInstanceAwayData,
+  GetAgentInstanceAwayErrors,
+  GetAgentInstanceAwayResponses,
+  GetAgentInstanceData,
+  GetAgentInstanceErrors,
+  GetAgentInstanceOccurrenceData,
+  GetAgentInstanceOccurrenceErrors,
+  GetAgentInstanceOccurrenceResponses,
+  GetAgentInstanceResponses,
   GetAgentMeData,
   GetAgentMeErrors,
+  GetAgentMemoryData,
+  GetAgentMemoryErrors,
+  GetAgentMemoryResponses,
   GetAgentMeResponses,
   GetAgentResponses,
   GetAgentSoulData,
@@ -511,6 +547,9 @@ import type {
   GetPendingToolApprovalData,
   GetPendingToolApprovalErrors,
   GetPendingToolApprovalResponses,
+  GetPermissionRollupData,
+  GetPermissionRollupErrors,
+  GetPermissionRollupResponses,
   GetProfileData,
   GetProfileErrors,
   GetProfileResponses,
@@ -738,6 +777,18 @@ import type {
   ListAgentHeartbeatHistoryData,
   ListAgentHeartbeatHistoryErrors,
   ListAgentHeartbeatHistoryResponses,
+  ListAgentInstanceCheckInsData,
+  ListAgentInstanceCheckInsErrors,
+  ListAgentInstanceCheckInsResponses,
+  ListAgentInstanceReportsData,
+  ListAgentInstanceReportsErrors,
+  ListAgentInstanceReportsResponses,
+  ListAgentInstancesData,
+  ListAgentInstancesErrors,
+  ListAgentInstancesResponses,
+  ListAgentMemoryHistoryData,
+  ListAgentMemoryHistoryErrors,
+  ListAgentMemoryHistoryResponses,
   ListAgentsAggregateData,
   ListAgentsAggregateErrors,
   ListAgentsAggregateResponses,
@@ -834,6 +885,9 @@ import type {
   ListOpenAIModelsData,
   ListOpenAIModelsErrors,
   ListOpenAIModelsResponses,
+  ListPermissionEntriesData,
+  ListPermissionEntriesErrors,
+  ListPermissionEntriesResponses,
   ListProcessesData,
   ListProcessesErrors,
   ListProcessesResponses,
@@ -885,6 +939,9 @@ import type {
   ListSessionMonitorsData,
   ListSessionMonitorsErrors,
   ListSessionMonitorsResponses,
+  ListSessionPendingInteractionsData,
+  ListSessionPendingInteractionsErrors,
+  ListSessionPendingInteractionsResponses,
   ListSessionProcessesData,
   ListSessionProcessesErrors,
   ListSessionProcessesResponses,
@@ -969,6 +1026,9 @@ import type {
   LogoutSettingsMCPAuthData,
   LogoutSettingsMCPAuthErrors,
   LogoutSettingsMCPAuthResponses,
+  MarkAgentInstanceSeenData,
+  MarkAgentInstanceSeenErrors,
+  MarkAgentInstanceSeenResponses,
   MarkTaskReadData,
   MarkTaskReadErrors,
   MarkTaskReadResponses,
@@ -1002,6 +1062,9 @@ import type {
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
+  PauseAgentInstanceData,
+  PauseAgentInstanceErrors,
+  PauseAgentInstanceResponses,
   PauseLoopNodeData,
   PauseLoopNodeErrors,
   PauseLoopNodeResponses,
@@ -1053,6 +1116,9 @@ import type {
   PutAgentHeartbeatData,
   PutAgentHeartbeatErrors,
   PutAgentHeartbeatResponses,
+  PutAgentMemoryData,
+  PutAgentMemoryErrors,
+  PutAgentMemoryResponses,
   PutAgentSoulData,
   PutAgentSoulErrors,
   PutAgentSoulResponses,
@@ -1155,6 +1221,9 @@ import type {
   ReloadSettingsData,
   ReloadSettingsErrors,
   ReloadSettingsResponses,
+  RemoveAgentMemoryData,
+  RemoveAgentMemoryErrors,
+  RemoveAgentMemoryResponses,
   RemoveDiscoveredWorktreeData,
   RemoveDiscoveredWorktreeErrors,
   RemoveDiscoveredWorktreeResponses,
@@ -1200,6 +1269,9 @@ import type {
   RepairSessionData,
   RepairSessionErrors,
   RepairSessionResponses,
+  ReplaceAgentMemoryData,
+  ReplaceAgentMemoryErrors,
+  ReplaceAgentMemoryResponses,
   ReplaceSessionInputData,
   ReplaceSessionInputErrors,
   ReplaceSessionInputResponses,
@@ -1230,6 +1302,9 @@ import type {
   RespondLoopRequestData,
   RespondLoopRequestErrors,
   RespondLoopRequestResponses,
+  ResumeAgentInstanceData,
+  ResumeAgentInstanceErrors,
+  ResumeAgentInstanceResponses,
   ResumeLoopNodeData,
   ResumeLoopNodeErrors,
   ResumeLoopNodeResponses,
@@ -1266,6 +1341,9 @@ import type {
   RollbackAgentHeartbeatData,
   RollbackAgentHeartbeatErrors,
   RollbackAgentHeartbeatResponses,
+  RollbackAgentMemoryData,
+  RollbackAgentMemoryErrors,
+  RollbackAgentMemoryResponses,
   RollbackAgentSoulData,
   RollbackAgentSoulErrors,
   RollbackAgentSoulResponses,
@@ -1275,6 +1353,9 @@ import type {
   RunWorktreeExitActionData,
   RunWorktreeExitActionErrors,
   RunWorktreeExitActionResponses,
+  SearchAgentMemoryData,
+  SearchAgentMemoryErrors,
+  SearchAgentMemoryResponses,
   SearchGlobalSessionTranscriptData,
   SearchGlobalSessionTranscriptErrors,
   SearchGlobalSessionTranscriptResponses,
@@ -1379,6 +1460,9 @@ import type {
   UnregisterWindowManagerClientResponses,
   UpdateAgentData,
   UpdateAgentErrors,
+  UpdateAgentInstanceData,
+  UpdateAgentInstanceErrors,
+  UpdateAgentInstanceResponses,
   UpdateAgentResponses,
   UpdateAppTokenData,
   UpdateAppTokenErrors,
@@ -1458,6 +1542,9 @@ import type {
   ValidateAgentHeartbeatData,
   ValidateAgentHeartbeatErrors,
   ValidateAgentHeartbeatResponses,
+  ValidateAgentMemoryData,
+  ValidateAgentMemoryErrors,
+  ValidateAgentMemoryResponses,
   ValidateAgentSoulData,
   ValidateAgentSoulErrors,
   ValidateAgentSoulResponses,
@@ -1519,6 +1606,1071 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class agents extends HeyApiClient {
+  /**
+   * List agent instances
+   */
+  public listAgentInstances<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentInstancesData, ThrowOnError>
+  ): RequestResult<ListAgentInstancesResponses, ListAgentInstancesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAgentInstancesResponses,
+      ListAgentInstancesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a stays-on agent instance
+   */
+  public createAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<CreateAgentInstanceData, ThrowOnError>
+  ): RequestResult<CreateAgentInstanceResponses, CreateAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateAgentInstanceResponses,
+      CreateAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Adopt a root session as an instance
+   */
+  public adoptAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<AdoptAgentInstanceData, ThrowOnError>
+  ): RequestResult<AdoptAgentInstanceResponses, AdoptAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AdoptAgentInstanceResponses,
+      AdoptAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/adopt",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Archive an agent instance
+   */
+  public archiveAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveAgentInstanceData, ThrowOnError>
+  ): RequestResult<
+    ArchiveAgentInstanceResponses,
+    ArchiveAgentInstanceErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      ArchiveAgentInstanceResponses,
+      ArchiveAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Get an agent instance
+   */
+  public getAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentInstanceData, ThrowOnError>
+  ): RequestResult<GetAgentInstanceResponses, GetAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentInstanceResponses,
+      GetAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update instance checks
+   */
+  public updateAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<UpdateAgentInstanceData, ThrowOnError>
+  ): RequestResult<UpdateAgentInstanceResponses, UpdateAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      UpdateAgentInstanceResponses,
+      UpdateAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the operator's instance away digest
+   */
+  public getAgentInstanceAway<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentInstanceAwayData, ThrowOnError>
+  ): RequestResult<
+    GetAgentInstanceAwayResponses,
+    GetAgentInstanceAwayErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentInstanceAwayResponses,
+      GetAgentInstanceAwayErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/away",
+      ...options,
+    });
+  }
+
+  /**
+   * Mark the instance seen by the local operator
+   */
+  public markAgentInstanceSeen<ThrowOnError extends boolean = true>(
+    options: Options<MarkAgentInstanceSeenData, ThrowOnError>
+  ): RequestResult<
+    MarkAgentInstanceSeenResponses,
+    MarkAgentInstanceSeenErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      MarkAgentInstanceSeenResponses,
+      MarkAgentInstanceSeenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/away",
+      ...options,
+    });
+  }
+
+  /**
+   * Check an agent instance
+   */
+  public checkAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<CheckAgentInstanceData, ThrowOnError>
+  ): RequestResult<CheckAgentInstanceResponses, CheckAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CheckAgentInstanceResponses,
+      CheckAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/check",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List instance wake events
+   */
+  public listAgentInstanceCheckIns<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentInstanceCheckInsData, ThrowOnError>
+  ): RequestResult<
+    ListAgentInstanceCheckInsResponses,
+    ListAgentInstanceCheckInsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentInstanceCheckInsResponses,
+      ListAgentInstanceCheckInsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/check-ins",
+      ...options,
+    });
+  }
+
+  /**
+   * Ensure the main session exists
+   */
+  public ensureAgentInstanceMain<ThrowOnError extends boolean = true>(
+    options: Options<EnsureAgentInstanceMainData, ThrowOnError>
+  ): RequestResult<
+    EnsureAgentInstanceMainResponses,
+    EnsureAgentInstanceMainErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      EnsureAgentInstanceMainResponses,
+      EnsureAgentInstanceMainErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/ensure-main",
+      ...options,
+    });
+  }
+
+  /**
+   * Read an instance check occurrence
+   */
+  public getAgentInstanceOccurrence<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentInstanceOccurrenceData, ThrowOnError>
+  ): RequestResult<
+    GetAgentInstanceOccurrenceResponses,
+    GetAgentInstanceOccurrenceErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentInstanceOccurrenceResponses,
+      GetAgentInstanceOccurrenceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/occurrences/{occurrence}",
+      ...options,
+    });
+  }
+
+  /**
+   * Pause an agent instance
+   */
+  public pauseAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<PauseAgentInstanceData, ThrowOnError>
+  ): RequestResult<PauseAgentInstanceResponses, PauseAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PauseAgentInstanceResponses,
+      PauseAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/pause",
+      ...options,
+    });
+  }
+
+  /**
+   * List durable instance reports
+   */
+  public listAgentInstanceReports<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentInstanceReportsData, ThrowOnError>
+  ): RequestResult<
+    ListAgentInstanceReportsResponses,
+    ListAgentInstanceReportsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentInstanceReportsResponses,
+      ListAgentInstanceReportsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/reports",
+      ...options,
+    });
+  }
+
+  /**
+   * Resume an agent instance
+   */
+  public resumeAgentInstance<ThrowOnError extends boolean = true>(
+    options: Options<ResumeAgentInstanceData, ThrowOnError>
+  ): RequestResult<ResumeAgentInstanceResponses, ResumeAgentInstanceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ResumeAgentInstanceResponses,
+      ResumeAgentInstanceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-instances/{id}/resume",
+      ...options,
+    });
+  }
+
+  /**
+   * List all readable agent definitions, optionally resolved for a workspace
+   */
+  public listAgents<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentsData, ThrowOnError>
+  ): RequestResult<ListAgentsResponses, ListAgentsErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAgentsResponses,
+      ListAgentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a global or workspace-local AGENT.md definition
+   */
+  public createAgent<ThrowOnError extends boolean = true>(
+    options: Options<CreateAgentData, ThrowOnError>
+  ): RequestResult<CreateAgentResponses, CreateAgentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateAgentResponses,
+      CreateAgentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List a filtered agent fleet with exact session metrics
+   */
+  public listAgentsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentsAggregateData, ThrowOnError>
+  ): RequestResult<ListAgentsAggregateResponses, ListAgentsAggregateErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAgentsAggregateResponses,
+      ListAgentsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/aggregate",
+      ...options,
+    });
+  }
+
+  /**
+   * List a filtered agent fleet with exact session metrics
+   */
+  public listAgentCatalog<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentCatalogData, ThrowOnError>
+  ): RequestResult<ListAgentCatalogResponses, ListAgentCatalogErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAgentCatalogResponses,
+      ListAgentCatalogErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/catalog",
+      ...options,
+    });
+  }
+
+  /**
+   * Draft agent instructions without saving a definition
+   */
+  public draftAgentInstructions<ThrowOnError extends boolean = true>(
+    options: Options<DraftAgentInstructionsData, ThrowOnError>
+  ): RequestResult<
+    DraftAgentInstructionsResponses,
+    DraftAgentInstructionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      DraftAgentInstructionsResponses,
+      DraftAgentInstructionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/draft-instructions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Durably delete one effective authored agent definition
+   */
+  public deleteAgent<ThrowOnError extends boolean = true>(
+    options: Options<DeleteAgentData, ThrowOnError>
+  ): RequestResult<DeleteAgentResponses, DeleteAgentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteAgentResponses,
+      DeleteAgentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}",
+      ...options,
+    });
+  }
+
+  /**
+   * Get one agent definition by name, optionally resolved for a workspace
+   */
+  public getAgent<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentData, ThrowOnError>
+  ): RequestResult<GetAgentResponses, GetAgentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentResponses,
+      GetAgentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace one effective AGENT.md definition with digest CAS
+   */
+  public updateAgent<ThrowOnError extends boolean = true>(
+    options: Options<UpdateAgentData, ThrowOnError>
+  ): RequestResult<UpdateAgentResponses, UpdateAgentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      UpdateAgentResponses,
+      UpdateAgentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read agent activity across authorized workspaces
+   */
+  public getAgentActivity<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentActivityData, ThrowOnError>
+  ): RequestResult<GetAgentActivityResponses, GetAgentActivityErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentActivityResponses,
+      GetAgentActivityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/activity",
+      ...options,
+    });
+  }
+
+  /**
+   * Duplicate one effective authored agent definition server-side
+   */
+  public duplicateAgent<ThrowOnError extends boolean = true>(
+    options: Options<DuplicateAgentData, ThrowOnError>
+  ): RequestResult<DuplicateAgentResponses, DuplicateAgentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      DuplicateAgentResponses,
+      DuplicateAgentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/duplicate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete HEARTBEAT.md through managed authoring
+   */
+  public deleteAgentHeartbeat<ThrowOnError extends boolean = true>(
+    options: Options<DeleteAgentHeartbeatData, ThrowOnError>
+  ): RequestResult<
+    DeleteAgentHeartbeatResponses,
+    DeleteAgentHeartbeatErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteAgentHeartbeatResponses,
+      DeleteAgentHeartbeatErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Inspect the resolved Heartbeat policy for an agent definition
+   */
+  public getAgentHeartbeat<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentHeartbeatData, ThrowOnError>
+  ): RequestResult<GetAgentHeartbeatResponses, GetAgentHeartbeatErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentHeartbeatResponses,
+      GetAgentHeartbeatErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat",
+      ...options,
+    });
+  }
+
+  /**
+   * Create or replace HEARTBEAT.md through managed authoring
+   */
+  public putAgentHeartbeat<ThrowOnError extends boolean = true>(
+    options: Options<PutAgentHeartbeatData, ThrowOnError>
+  ): RequestResult<PutAgentHeartbeatResponses, PutAgentHeartbeatErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutAgentHeartbeatResponses,
+      PutAgentHeartbeatErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List managed HEARTBEAT.md authoring revisions
+   */
+  public listAgentHeartbeatHistory<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentHeartbeatHistoryData, ThrowOnError>
+  ): RequestResult<
+    ListAgentHeartbeatHistoryResponses,
+    ListAgentHeartbeatHistoryErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentHeartbeatHistoryResponses,
+      ListAgentHeartbeatHistoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/history",
+      ...options,
+    });
+  }
+
+  /**
+   * Rollback HEARTBEAT.md through managed authoring
+   */
+  public rollbackAgentHeartbeat<ThrowOnError extends boolean = true>(
+    options: Options<RollbackAgentHeartbeatData, ThrowOnError>
+  ): RequestResult<
+    RollbackAgentHeartbeatResponses,
+    RollbackAgentHeartbeatErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RollbackAgentHeartbeatResponses,
+      RollbackAgentHeartbeatErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/rollback",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read Heartbeat policy status, wake state, and optional session health
+   */
+  public getAgentHeartbeatStatus<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentHeartbeatStatusData, ThrowOnError>
+  ): RequestResult<
+    GetAgentHeartbeatStatusResponses,
+    GetAgentHeartbeatStatusErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentHeartbeatStatusResponses,
+      GetAgentHeartbeatStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Validate a proposed HEARTBEAT.md body
+   */
+  public validateAgentHeartbeat<ThrowOnError extends boolean = true>(
+    options: Options<ValidateAgentHeartbeatData, ThrowOnError>
+  ): RequestResult<
+    ValidateAgentHeartbeatResponses,
+    ValidateAgentHeartbeatErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ValidateAgentHeartbeatResponses,
+      ValidateAgentHeartbeatErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Request one advisory Heartbeat wake for an eligible session
+   */
+  public wakeAgentHeartbeat<ThrowOnError extends boolean = true>(
+    options: Options<WakeAgentHeartbeatData, ThrowOnError>
+  ): RequestResult<WakeAgentHeartbeatResponses, WakeAgentHeartbeatErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      WakeAgentHeartbeatResponses,
+      WakeAgentHeartbeatErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/wake",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Inspect agent memory (experimental)
+   *
+   * @stability experimental
+   */
+  public getAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentMemoryData, ThrowOnError>
+  ): RequestResult<GetAgentMemoryResponses, GetAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentMemoryResponses,
+      GetAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace memory with a digest check (experimental)
+   *
+   * @stability experimental
+   */
+  public putAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<PutAgentMemoryData, ThrowOnError>
+  ): RequestResult<PutAgentMemoryResponses, PutAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutAgentMemoryResponses,
+      PutAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove matching memory entries (experimental)
+   *
+   * @stability experimental
+   */
+  public removeAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<RemoveAgentMemoryData, ThrowOnError>
+  ): RequestResult<RemoveAgentMemoryResponses, RemoveAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveAgentMemoryResponses,
+      RemoveAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/entries",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Replace matching memory text (experimental)
+   *
+   * @stability experimental
+   */
+  public replaceAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<ReplaceAgentMemoryData, ThrowOnError>
+  ): RequestResult<ReplaceAgentMemoryResponses, ReplaceAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      ReplaceAgentMemoryResponses,
+      ReplaceAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/entries",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Add a dated memory entry (experimental)
+   *
+   * @stability experimental
+   */
+  public addAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<AddAgentMemoryData, ThrowOnError>
+  ): RequestResult<AddAgentMemoryResponses, AddAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AddAgentMemoryResponses,
+      AddAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/entries",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List the last fifty memory revisions (experimental)
+   *
+   * @stability experimental
+   */
+  public listAgentMemoryHistory<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentMemoryHistoryData, ThrowOnError>
+  ): RequestResult<
+    ListAgentMemoryHistoryResponses,
+    ListAgentMemoryHistoryErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentMemoryHistoryResponses,
+      ListAgentMemoryHistoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/history",
+      ...options,
+    });
+  }
+
+  /**
+   * Restore a memory revision (experimental)
+   *
+   * @stability experimental
+   */
+  public rollbackAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<RollbackAgentMemoryData, ThrowOnError>
+  ): RequestResult<RollbackAgentMemoryResponses, RollbackAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RollbackAgentMemoryResponses,
+      RollbackAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/rollback",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Search agent notes and accessible sessions (experimental)
+   *
+   * @stability experimental
+   */
+  public searchAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<SearchAgentMemoryData, ThrowOnError>
+  ): RequestResult<SearchAgentMemoryResponses, SearchAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      SearchAgentMemoryResponses,
+      SearchAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/search",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Validate proposed memory content (experimental)
+   *
+   * @stability experimental
+   */
+  public validateAgentMemory<ThrowOnError extends boolean = true>(
+    options: Options<ValidateAgentMemoryData, ThrowOnError>
+  ): RequestResult<ValidateAgentMemoryResponses, ValidateAgentMemoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ValidateAgentMemoryResponses,
+      ValidateAgentMemoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/memory/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete SOUL.md through managed authoring
+   */
+  public deleteAgentSoul<ThrowOnError extends boolean = true>(
+    options: Options<DeleteAgentSoulData, ThrowOnError>
+  ): RequestResult<DeleteAgentSoulResponses, DeleteAgentSoulErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteAgentSoulResponses,
+      DeleteAgentSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/soul",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Inspect the resolved Soul read model for an agent definition
+   */
+  public getAgentDefinitionSoul<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentDefinitionSoulData, ThrowOnError>
+  ): RequestResult<
+    GetAgentDefinitionSoulResponses,
+    GetAgentDefinitionSoulErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentDefinitionSoulResponses,
+      GetAgentDefinitionSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/soul",
+      ...options,
+    });
+  }
+
+  /**
+   * Create or replace SOUL.md through managed authoring
+   */
+  public putAgentSoul<ThrowOnError extends boolean = true>(
+    options: Options<PutAgentSoulData, ThrowOnError>
+  ): RequestResult<PutAgentSoulResponses, PutAgentSoulErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutAgentSoulResponses,
+      PutAgentSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/soul",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List managed SOUL.md authoring revisions
+   */
+  public listAgentSoulHistory<ThrowOnError extends boolean = true>(
+    options: Options<ListAgentSoulHistoryData, ThrowOnError>
+  ): RequestResult<
+    ListAgentSoulHistoryResponses,
+    ListAgentSoulHistoryErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListAgentSoulHistoryResponses,
+      ListAgentSoulHistoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/soul/history",
+      ...options,
+    });
+  }
+
+  /**
+   * Rollback SOUL.md through managed authoring
+   */
+  public rollbackAgentSoul<ThrowOnError extends boolean = true>(
+    options: Options<RollbackAgentSoulData, ThrowOnError>
+  ): RequestResult<RollbackAgentSoulResponses, RollbackAgentSoulErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RollbackAgentSoulResponses,
+      RollbackAgentSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/soul/rollback",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Validate a proposed Soul body for an agent definition
+   */
+  public validateAgentDefinitionSoul<ThrowOnError extends boolean = true>(
+    options: Options<ValidateAgentDefinitionSoulData, ThrowOnError>
+  ): RequestResult<
+    ValidateAgentDefinitionSoulResponses,
+    ValidateAgentDefinitionSoulErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ValidateAgentDefinitionSoulResponses,
+      ValidateAgentDefinitionSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/soul/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
   }
 }
 
@@ -1800,492 +2952,6 @@ export class agent extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agent/tasks/{run_id}/start",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-}
-
-export class agents extends HeyApiClient {
-  /**
-   * List all readable agent definitions, optionally resolved for a workspace
-   */
-  public listAgents<ThrowOnError extends boolean = true>(
-    options?: Options<ListAgentsData, ThrowOnError>
-  ): RequestResult<ListAgentsResponses, ListAgentsErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListAgentsResponses,
-      ListAgentsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents",
-      ...options,
-    });
-  }
-
-  /**
-   * Create a global or workspace-local AGENT.md definition
-   */
-  public createAgent<ThrowOnError extends boolean = true>(
-    options: Options<CreateAgentData, ThrowOnError>
-  ): RequestResult<CreateAgentResponses, CreateAgentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CreateAgentResponses,
-      CreateAgentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * List a filtered agent fleet with exact session metrics
-   */
-  public listAgentsAggregate<ThrowOnError extends boolean = true>(
-    options?: Options<ListAgentsAggregateData, ThrowOnError>
-  ): RequestResult<ListAgentsAggregateResponses, ListAgentsAggregateErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListAgentsAggregateResponses,
-      ListAgentsAggregateErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/aggregate",
-      ...options,
-    });
-  }
-
-  /**
-   * List a filtered agent fleet with exact session metrics
-   */
-  public listAgentCatalog<ThrowOnError extends boolean = true>(
-    options?: Options<ListAgentCatalogData, ThrowOnError>
-  ): RequestResult<ListAgentCatalogResponses, ListAgentCatalogErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListAgentCatalogResponses,
-      ListAgentCatalogErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/catalog",
-      ...options,
-    });
-  }
-
-  /**
-   * Durably delete one effective authored agent definition
-   */
-  public deleteAgent<ThrowOnError extends boolean = true>(
-    options: Options<DeleteAgentData, ThrowOnError>
-  ): RequestResult<DeleteAgentResponses, DeleteAgentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      DeleteAgentResponses,
-      DeleteAgentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}",
-      ...options,
-    });
-  }
-
-  /**
-   * Get one agent definition by name, optionally resolved for a workspace
-   */
-  public getAgent<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentData, ThrowOnError>
-  ): RequestResult<GetAgentResponses, GetAgentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetAgentResponses,
-      GetAgentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}",
-      ...options,
-    });
-  }
-
-  /**
-   * Replace one effective AGENT.md definition with digest CAS
-   */
-  public updateAgent<ThrowOnError extends boolean = true>(
-    options: Options<UpdateAgentData, ThrowOnError>
-  ): RequestResult<UpdateAgentResponses, UpdateAgentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      UpdateAgentResponses,
-      UpdateAgentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Duplicate one effective authored agent definition server-side
-   */
-  public duplicateAgent<ThrowOnError extends boolean = true>(
-    options: Options<DuplicateAgentData, ThrowOnError>
-  ): RequestResult<DuplicateAgentResponses, DuplicateAgentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      DuplicateAgentResponses,
-      DuplicateAgentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/duplicate",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Delete HEARTBEAT.md through managed authoring
-   */
-  public deleteAgentHeartbeat<ThrowOnError extends boolean = true>(
-    options: Options<DeleteAgentHeartbeatData, ThrowOnError>
-  ): RequestResult<
-    DeleteAgentHeartbeatResponses,
-    DeleteAgentHeartbeatErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      DeleteAgentHeartbeatResponses,
-      DeleteAgentHeartbeatErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Inspect the resolved Heartbeat policy for an agent definition
-   */
-  public getAgentHeartbeat<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentHeartbeatData, ThrowOnError>
-  ): RequestResult<GetAgentHeartbeatResponses, GetAgentHeartbeatErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetAgentHeartbeatResponses,
-      GetAgentHeartbeatErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat",
-      ...options,
-    });
-  }
-
-  /**
-   * Create or replace HEARTBEAT.md through managed authoring
-   */
-  public putAgentHeartbeat<ThrowOnError extends boolean = true>(
-    options: Options<PutAgentHeartbeatData, ThrowOnError>
-  ): RequestResult<PutAgentHeartbeatResponses, PutAgentHeartbeatErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      PutAgentHeartbeatResponses,
-      PutAgentHeartbeatErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * List managed HEARTBEAT.md authoring revisions
-   */
-  public listAgentHeartbeatHistory<ThrowOnError extends boolean = true>(
-    options: Options<ListAgentHeartbeatHistoryData, ThrowOnError>
-  ): RequestResult<
-    ListAgentHeartbeatHistoryResponses,
-    ListAgentHeartbeatHistoryErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListAgentHeartbeatHistoryResponses,
-      ListAgentHeartbeatHistoryErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat/history",
-      ...options,
-    });
-  }
-
-  /**
-   * Rollback HEARTBEAT.md through managed authoring
-   */
-  public rollbackAgentHeartbeat<ThrowOnError extends boolean = true>(
-    options: Options<RollbackAgentHeartbeatData, ThrowOnError>
-  ): RequestResult<
-    RollbackAgentHeartbeatResponses,
-    RollbackAgentHeartbeatErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      RollbackAgentHeartbeatResponses,
-      RollbackAgentHeartbeatErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat/rollback",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read Heartbeat policy status, wake state, and optional session health
-   */
-  public getAgentHeartbeatStatus<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentHeartbeatStatusData, ThrowOnError>
-  ): RequestResult<
-    GetAgentHeartbeatStatusResponses,
-    GetAgentHeartbeatStatusErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetAgentHeartbeatStatusResponses,
-      GetAgentHeartbeatStatusErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat/status",
-      ...options,
-    });
-  }
-
-  /**
-   * Validate a proposed HEARTBEAT.md body
-   */
-  public validateAgentHeartbeat<ThrowOnError extends boolean = true>(
-    options: Options<ValidateAgentHeartbeatData, ThrowOnError>
-  ): RequestResult<
-    ValidateAgentHeartbeatResponses,
-    ValidateAgentHeartbeatErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      ValidateAgentHeartbeatResponses,
-      ValidateAgentHeartbeatErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat/validate",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Request one advisory Heartbeat wake for an eligible session
-   */
-  public wakeAgentHeartbeat<ThrowOnError extends boolean = true>(
-    options: Options<WakeAgentHeartbeatData, ThrowOnError>
-  ): RequestResult<WakeAgentHeartbeatResponses, WakeAgentHeartbeatErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      WakeAgentHeartbeatResponses,
-      WakeAgentHeartbeatErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/heartbeat/wake",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Delete SOUL.md through managed authoring
-   */
-  public deleteAgentSoul<ThrowOnError extends boolean = true>(
-    options: Options<DeleteAgentSoulData, ThrowOnError>
-  ): RequestResult<DeleteAgentSoulResponses, DeleteAgentSoulErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      DeleteAgentSoulResponses,
-      DeleteAgentSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/soul",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Inspect the resolved Soul read model for an agent definition
-   */
-  public getAgentDefinitionSoul<ThrowOnError extends boolean = true>(
-    options: Options<GetAgentDefinitionSoulData, ThrowOnError>
-  ): RequestResult<
-    GetAgentDefinitionSoulResponses,
-    GetAgentDefinitionSoulErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetAgentDefinitionSoulResponses,
-      GetAgentDefinitionSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/soul",
-      ...options,
-    });
-  }
-
-  /**
-   * Create or replace SOUL.md through managed authoring
-   */
-  public putAgentSoul<ThrowOnError extends boolean = true>(
-    options: Options<PutAgentSoulData, ThrowOnError>
-  ): RequestResult<PutAgentSoulResponses, PutAgentSoulErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      PutAgentSoulResponses,
-      PutAgentSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/soul",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * List managed SOUL.md authoring revisions
-   */
-  public listAgentSoulHistory<ThrowOnError extends boolean = true>(
-    options: Options<ListAgentSoulHistoryData, ThrowOnError>
-  ): RequestResult<
-    ListAgentSoulHistoryResponses,
-    ListAgentSoulHistoryErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListAgentSoulHistoryResponses,
-      ListAgentSoulHistoryErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/soul/history",
-      ...options,
-    });
-  }
-
-  /**
-   * Rollback SOUL.md through managed authoring
-   */
-  public rollbackAgentSoul<ThrowOnError extends boolean = true>(
-    options: Options<RollbackAgentSoulData, ThrowOnError>
-  ): RequestResult<RollbackAgentSoulResponses, RollbackAgentSoulErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RollbackAgentSoulResponses,
-      RollbackAgentSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/soul/rollback",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Validate a proposed Soul body for an agent definition
-   */
-  public validateAgentDefinitionSoul<ThrowOnError extends boolean = true>(
-    options: Options<ValidateAgentDefinitionSoulData, ThrowOnError>
-  ): RequestResult<
-    ValidateAgentDefinitionSoulResponses,
-    ValidateAgentDefinitionSoulErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      ValidateAgentDefinitionSoulResponses,
-      ValidateAgentDefinitionSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/agents/{name}/soul/validate",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -6705,6 +7371,47 @@ export class observe extends HeyApiClient {
       ...options,
     });
   }
+
+  /**
+   * List the newest permission decisions with their initiators
+   */
+  public listPermissionEntries<ThrowOnError extends boolean = true>(
+    options?: Options<ListPermissionEntriesData, ThrowOnError>
+  ): RequestResult<
+    ListPermissionEntriesResponses,
+    ListPermissionEntriesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListPermissionEntriesResponses,
+      ListPermissionEntriesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/permissions",
+      ...options,
+    });
+  }
+
+  /**
+   * Read daily permission totals by agent and decision
+   */
+  public getPermissionRollup<ThrowOnError extends boolean = true>(
+    options?: Options<GetPermissionRollupData, ThrowOnError>
+  ): RequestResult<GetPermissionRollupResponses, GetPermissionRollupErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetPermissionRollupResponses,
+      GetPermissionRollupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/permissions/rollup",
+      ...options,
+    });
+  }
 }
 
 export class onboarding extends HeyApiClient {
@@ -7865,6 +8572,29 @@ export class sessions extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * List pending session interactions
+   */
+  public listSessionPendingInteractions<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionPendingInteractionsData, ThrowOnError>
+  ): RequestResult<
+    ListSessionPendingInteractionsResponses,
+    ListSessionPendingInteractionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionPendingInteractionsResponses,
+      ListSessionPendingInteractionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions",
+      ...options,
     });
   }
 
@@ -12197,14 +12927,14 @@ export class Compozy extends HeyApiClient {
     Compozy.__registry.set(this, args?.key);
   }
 
-  private _agent?: agent;
-  get agent(): agent {
-    return (this._agent ??= new agent({ client: this.client }));
-  }
-
   private _agents?: agents;
   get agents(): agents {
     return (this._agents ??= new agents({ client: this.client }));
+  }
+
+  private _agent?: agent;
+  get agent(): agent {
+    return (this._agent ??= new agent({ client: this.client }));
   }
 
   private _appTokens?: appTokens;

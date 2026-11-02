@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "@compozy/ui/icons";
 
-import { cn, OwnerAvatar, StateGlyph, type StateGlyphState, Time } from "@compozy/ui";
+import { cn, StateGlyph, type StateGlyphState, Time } from "@compozy/ui";
 
-import { ownerAvatarKindFor, taskOwnerLabel } from "../lib/task-formatters";
 import type { TaskChildSummary } from "../types";
+import { TaskOwnerMark, TaskOwnerName } from "./task-owner-mark";
 
 export type TaskLinkedRowState = "done" | "active" | "todo";
 
@@ -44,7 +44,6 @@ export function TaskLinkedRow({
   lastActivityAt,
   testId,
 }: TaskLinkedRowProps) {
-  const ownerName = owner ? taskOwnerLabel(owner) : null;
   return (
     <Link
       className={cn(
@@ -70,15 +69,12 @@ export function TaskLinkedRow({
           title
         )}
       </span>
-      {ownerName && owner ? (
+      {owner ? (
         <span className="inline-flex min-w-0 items-center gap-1.5 text-form-label text-muted-foreground">
-          <OwnerAvatar
-            name={ownerName}
-            ownerId={owner.ref ?? ownerName}
-            ownerKind={ownerAvatarKindFor(owner.kind)}
-            size="sm"
-          />
-          <span className="hidden truncate sm:inline">{ownerName}</span>
+          <TaskOwnerMark owner={owner} />
+          <span className="hidden truncate sm:inline">
+            <TaskOwnerName owner={owner} />
+          </span>
         </span>
       ) : (
         <span aria-hidden="true" />

@@ -44,3 +44,26 @@ func observeOverviewQueryValues(query ObserveOverviewQuery) url.Values {
 	}
 	return values
 }
+
+type PermissionRollupQuery struct {
+	Days       int
+	Agent      string
+	Unattended bool
+}
+
+func (c *daemonClient) PermissionRollup(
+	ctx context.Context,
+	query PermissionRollupQuery,
+) (contract.PermissionRollupResponse, error) {
+	values := url.Values{}
+	values.Set("days", strconv.Itoa(query.Days))
+	values.Set("unattended", strconv.FormatBool(query.Unattended))
+	if agent := strings.TrimSpace(query.Agent); agent != "" {
+		values.Set("agent", agent)
+	}
+	var response contract.PermissionRollupResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/permissions/rollup", values, nil, &response); err != nil {
+		return contract.PermissionRollupResponse{}, err
+	}
+	return response, nil
+}

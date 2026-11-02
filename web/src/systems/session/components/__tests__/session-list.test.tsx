@@ -61,6 +61,14 @@ import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { formatLaterReturn } from "../../lib/session-later";
 import { SessionSidebar } from "../session-sidebar";
+import { agentKeys } from "@/systems/agent";
+import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
+
+// The instance row isn't under test here, and these suites count catalog reads.
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => ({ instances: [], capacity: {} }),
+}));
 
 // Dynamic JavaScript acquisition is an I/O boundary; these tests exercise the real query cache.
 vi.mock("@/systems/os/lib/app-registry", async importOriginal => ({
@@ -186,6 +194,7 @@ function renderList(
     sessionActions: actions,
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryDefaults(agentKeys.lists(), { initialData: [], staleTime: Infinity });
   seedRuntimeCatalog(queryClient);
   // The rail's branch flags, held the way the sidebar store holds them: opening the
   // subagent list folds the children, and a fold closes both.
@@ -218,7 +227,9 @@ function renderList(
   }
   const tree = (node: React.ReactNode) => (
     <QueryClientProvider client={queryClient}>
-      <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+      <AgentIdentityProvider>
+        <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+      </AgentIdentityProvider>
     </QueryClientProvider>
   );
   const rendered = render(tree(<BranchHost {...props} />));
@@ -231,6 +242,34 @@ function renderList(
       rendered.rerender(tree(<BranchHost {...props} sessions={nextSessions} view={nextView} />)),
   };
 }
+
+// Invariant: a row speaks of its agent by label with its face; a deleted agent falls back to the
+// humanized slug. Owner: SessionList row; canonical suite: this file.
+describe("SessionList agent identity", () => {
+  const session = { ...sessions[0]!, agent_name: "code_implementer" };
+
+  it("Should render the catalog's label and avatar on the row", async () => {
+    const { queryClient } = renderList({ sessions: [session] });
+    act(() => {
+      queryClient.setQueryData(agentKeys.list(session.workspace_id, session.profile_name), [
+        { name: "code_implementer", label: "Builder", resolved_appearance: null },
+      ]);
+    });
+
+    expect(await screen.findByText("Builder")).toBeInTheDocument();
+    expect(screen.getByTestId(`session-agent-mark-${session.id}`)).toHaveAttribute(
+      "data-slot",
+      "agent-avatar"
+    );
+  });
+
+  it("Should render a deleted agent's humanized slug", () => {
+    renderList({ sessions: [session] });
+
+    expect(screen.getByText("Code Implementer")).toBeInTheDocument();
+    expect(screen.queryByText("code_implementer")).not.toBeInTheDocument();
+  });
+});
 
 // Invariant: catalog intent warms one scoped session head before selection, without crossing a
 // workspace/profile boundary or rereading retained history. Owner: SessionList entry + Query cache.
@@ -844,6 +883,7 @@ describe("SessionList subagents", () => {
 
   it("Should not report first-page loading when the branch query is disabled", () => {
     const queryClient = new QueryClient();
+    queryClient.setQueryDefaults(agentKeys.lists(), { initialData: [], staleTime: Infinity });
     const { result } = renderHook(() => useSessionSubagentBranch("", "unscoped", 0), {
       wrapper: ({ children }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -1507,7 +1547,7 @@ describe("SessionList provider marks", () => {
       "unknown"
     );
     expect(rowButton("unbound")).toHaveAccessibleName(
-      /Session unbound\s*Runtime not selected frontend-engineer-agent/
+      /Session unbound\s*Runtime not selected Frontend Engineer Agent/
     );
   });
 
@@ -1532,7 +1572,7 @@ describe("SessionList provider marks", () => {
         "data-kind",
         "codex"
       );
-      expect(rowButton(state)).toHaveAccessibleName(/Codex · GPT-6\.1 Sol frontend-engineer-agent/);
+      expect(rowButton(state)).toHaveAccessibleName(/Codex · GPT-6\.1 Sol Frontend Engineer Agent/);
     }
   );
 
@@ -1594,7 +1634,7 @@ describe("SessionList provider marks", () => {
 
     expect(screen.getByTestId("session-provider-mark-same")).toHaveAttribute("data-kind", "codex");
     expect(rowButton("same")).toHaveAccessibleName(
-      /Session same\s*Codex · GPT-6\.1 Sol frontend-engineer-agent/
+      /Session same\s*Codex · GPT-6\.1 Sol Frontend Engineer Agent/
     );
     expect(screen.getByTestId("session-provider-mark-other")).toHaveAttribute(
       "data-kind",
@@ -2412,6 +2452,7 @@ describe("SessionList breadth and Group by", () => {
     }) as SessionPayload;
   const facet = (all: number, needsYou = 0) => ({
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all,
     working: 0,
     needs_you: needsYou,

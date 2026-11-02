@@ -16,6 +16,7 @@ import { describeFireLimit, formatPromptPreview } from "../lib/automation-format
 import { describeSchedule } from "../lib/automation-sentence";
 import { projectAutomationTarget } from "../lib/automation-target";
 import type { AutomationSuggestion } from "../types";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export type AutomationSuggestionPendingAction = "accept" | "dismiss";
 
@@ -152,13 +153,14 @@ function AutomationSuggestionActionButton({
 function suggestionFacts(
   suggestion: AutomationSuggestion,
   schedule: string,
-  target: ReturnType<typeof projectAutomationTarget>
+  target: ReturnType<typeof projectAutomationTarget>,
+  agentLabel: (name: string) => string
 ): string {
   const payload = suggestion.payload;
   const targetLabel =
     target.kind === "loop"
       ? `loop ${target.loopName || "not selected"}`
-      : `agent ${target.agentName || "unassigned"}`;
+      : `agent ${target.agentName ? agentLabel(target.agentName) : "unassigned"}`;
   return [
     schedule,
     targetLabel,
@@ -180,6 +182,7 @@ export function AutomationSuggestionsCard({
   suggestions,
   timeZone,
 }: AutomationSuggestionsCardProps) {
+  const identityOf = useAgentIdentityResolverView();
   if (isLoading && suggestions.length === 0) {
     return <AutomationSuggestionsLoading className={className} />;
   }
@@ -242,7 +245,7 @@ export function AutomationSuggestionsCard({
                     <p className="text-form-label leading-relaxed text-fg">{payload.prompt}</p>
                   </div>
                   <p className="font-mono text-mono-id text-subtle tabular-nums">
-                    {suggestionFacts(suggestion, schedule, target)}
+                    {suggestionFacts(suggestion, schedule, target, name => identityOf(name).label)}
                   </p>
                 </>
               }

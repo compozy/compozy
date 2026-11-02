@@ -217,6 +217,7 @@ describe("OS attention sections", () => {
       badge: "waiting-for-input",
       pending_interactions: [
         {
+          session_id: "sess-1",
           interaction_id: "int-1",
           kind: "clarify",
           provider_request_id: "clr-1",

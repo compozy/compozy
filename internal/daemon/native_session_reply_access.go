@@ -39,7 +39,8 @@ func nativeSessionReplyTarget(
 	if err != nil {
 		return nil, err
 	}
-	if info == nil || info.ProfileID != scope.ProfileID || scope.ProfileID == "" {
+	if info == nil || info.Type == session.SessionTypeTriage || info.ProfileID != scope.ProfileID ||
+		scope.ProfileID == "" {
 		return nil, nil
 	}
 	return info, nil

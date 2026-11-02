@@ -78,7 +78,7 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 	created, err := forkAcceptance.CreateWorktreeForkAccepted(
 		c.Request.Context(),
 		origin.ID,
-		session.CreateAcceptedOpts{
+		new(session.CreateAcceptedOpts{
 			Session: session.CreateOpts{
 				ProfileID: origin.ProfileID,
 				AgentName: origin.AgentName,
@@ -87,7 +87,7 @@ func (h *BaseHandlers) ForkSessionToWorktree(c *gin.Context) {
 				Type:      session.SessionTypeUser,
 				Lineage:   &store.SessionLineage{ParentSessionID: origin.ID},
 			},
-		},
+		}),
 	)
 	if err != nil {
 		if errors.Is(err, session.ErrPromptInProgress) {

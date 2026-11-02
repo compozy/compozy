@@ -69,3 +69,8 @@ user-only or count probes. A per-window worktree filter remains outside route in
 The existing route-preloading and agent-session deep-link suites own scope/cache parity;
 targeted real-daemon rendering is recorded in
 `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
+
+QA impact 2026-11-01 (stays-on F2): the fleet, the four tabs and the settings modal are gone, replaced
+by the team list and the agent's home. See `ET-web-agents-team-profile`; old `?tab=` and
+`settings?section=` links land on the matching panel or page. Status remains untested; no QA replay
+ran for this scenario.

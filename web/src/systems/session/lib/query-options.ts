@@ -284,6 +284,7 @@ function isTerminalInputReadError(error: unknown): boolean {
   );
 }
 
+export { sessionRelayedInteractionsOptions } from "./session-relayed-query-options";
 export { sessionTranscriptOptions } from "./session-transcript-options";
 
 // Navigation reads (S8/S9) sit under the detail key: mutation invalidation

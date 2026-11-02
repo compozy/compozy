@@ -57,6 +57,98 @@ func reportHeartbeatTestMainError(format string, args ...any) {
 func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve disabled collectors through save reload and snapshot rollback", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		body := "---\nversion: 1\nenabled: true\ncontext:\n  include: []\n---\nCheck pending work.\n"
+		created, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: fixture.target, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot, found, err := fixture.db.FindHeartbeatSnapshotByDigest(
+			fixture.ctx, fixture.workspaceID, "coder", created.Policy.Digest, "",
+		)
+		if err != nil || !found {
+			t.Fatalf("reload snapshot: found=%v error=%v", found, err)
+		}
+		envelope, err := snapshot.ResolvedEnvelope()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Preferences.Context.Include == nil || len(envelope.Preferences.Context.Include) != 0 {
+			t.Fatalf("reloaded include=%#v", envelope.Preferences.Context.Include)
+		}
+		second, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target, Body: "Check other work.", ExpectedDigest: created.Policy.Digest,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rolledBack, err := fixture.authoring.Rollback(fixture.ctx, heartbeat.RollbackRequest{
+			Target: fixture.target, TargetDigest: created.Policy.Digest, ExpectedDigest: second.Policy.Digest,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		include := rolledBack.Policy.Preferences.Context.Include
+		if include == nil || len(include) != 0 {
+			t.Fatalf("rollback include=%#v", include)
+		}
+		digest, err := heartbeat.CollectDigest(heartbeat.CollectorScope{MainSessionID: "main"},
+			heartbeat.CollectorFacts{Monitors: []heartbeat.MonitorFact{{ID: "fired", SessionID: "main", Fired: true}}},
+			include, rolledBack.Policy.Digest, rolledBack.Policy.GuidanceMarkdown)
+		if err != nil || len(digest.Items) != 0 {
+			t.Fatalf("disabled collectors: digest=%+v error=%v", digest, err)
+		}
+	})
+
+	t.Run("Should keep user scoped snapshots and history separate across profiles", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		first := fixture.target
+		first.WorkspaceID = ""
+		first.ProfileID = "profile-authoring-first"
+		second := first
+		second.ProfileID = "profile-authoring-second"
+		second.WorkspaceRoot = t.TempDir()
+		second.AgentPath = writeHeartbeatAgentDefinition(t, second.WorkspaceRoot, "coder")
+		body := validHeartbeatBody("Separate profiles", "Separate profile history.")
+		one, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: first, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		two, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: second, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if one.Snapshot.ID == two.Snapshot.ID || one.Snapshot.ProfileID != first.ProfileID ||
+			two.Snapshot.ProfileID != second.ProfileID {
+			t.Fatalf("profile snapshots collided: %#v %#v", one.Snapshot, two.Snapshot)
+		}
+		for _, target := range []heartbeat.AuthoringTarget{first, second} {
+			history, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: target})
+			if err != nil || len(history.Revisions) != 1 || history.Revisions[0].ProfileID != target.ProfileID {
+				t.Fatalf("profile history: %#v %v", history, err)
+			}
+		}
+		if err := fixture.authoring.PurgeAgentHistory(
+			fixture.ctx,
+			heartbeat.WorkspaceRef{ProfileID: first.ProfileID},
+			"coder",
+			first.AgentPath,
+		); err != nil {
+			t.Fatal(err)
+		}
+		empty, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: first})
+		if err != nil || len(empty.Revisions) != 0 {
+			t.Fatalf("purged history: %#v %v", empty, err)
+		}
+		kept, err := fixture.authoring.History(fixture.ctx, heartbeat.HistoryRequest{Target: second})
+		if err != nil || len(kept.Revisions) != 1 || kept.Revisions[0].ID != two.Revision.ID {
+			t.Fatalf("other profile history: %#v %v", kept, err)
+		}
+	})
+
 	t.Run("Should reject nil authoring store", func(t *testing.T) {
 		t.Parallel()
 
@@ -75,6 +167,7 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 			"",
 			"coder",
 			"agents/coder/HEARTBEAT.md",
+			"",
 		); err == nil || !strings.Contains(err.Error(), "requires workspace id, agent name, and source path") {
 			t.Fatalf("DeleteHeartbeatAgentHistory(empty workspace) error = %v", err)
 		}
@@ -140,9 +233,9 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 				wantError: "store is required",
 			},
 			{
-				name: "missing workspace", service: fixture.authoring, ctx: fixture.ctx,
+				name: "missing workspace and profile", service: fixture.authoring, ctx: fixture.ctx,
 				agentName: "coder", sourcePath: fixture.agentPath,
-				wantError: "workspace id is required",
+				wantError: "workspace id or profile id is required",
 			},
 			{
 				name: "missing agent", service: fixture.authoring, ctx: fixture.ctx,
@@ -633,7 +726,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 		}); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
+		if err := fixture.db.RegisterSession(fixture.ctx, new(compozystore.SessionInfo{
 			ID:            "sess-delete",
 			AgentName:     "coder",
 			Provider:      "claude",
@@ -643,7 +736,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			State:         string(heartbeat.SessionHealthStateIdle),
 			CreatedAt:     fixture.now,
 			UpdatedAt:     fixture.now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(sess-delete) error = %v", err)
 		}
 
@@ -872,6 +965,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			firstFixture.workspaceID,
 			"coder",
 			second.Policy.Digest,
+			"",
 		)
 		if err != nil {
 			t.Fatalf("FindHeartbeatSnapshotByDigest(reopen) error = %v", err)
@@ -1043,7 +1137,7 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 			CreatedAt:     fixture.now,
 			UpdatedAt:     fixture.now,
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, session); err != nil {
+		if err := fixture.db.RegisterSession(fixture.ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		healthBefore, err := fixture.db.UpsertSessionHealth(
@@ -1825,7 +1919,7 @@ func deterministicHeartbeatIDGenerator() func(prefix string) (string, error) {
 func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, sessionID string) {
 	t.Helper()
 
-	if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
+	if err := fixture.db.RegisterSession(fixture.ctx, new(compozystore.SessionInfo{
 		ID:            sessionID,
 		AgentName:     "coder",
 		Provider:      "claude",
@@ -1835,7 +1929,7 @@ func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, ses
 		State:         "active",
 		CreatedAt:     fixture.now,
 		UpdatedAt:     fixture.now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}
 }

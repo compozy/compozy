@@ -689,6 +689,7 @@ describe("bounded session catalog", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: {
         terminal_approvals: 0,
+        instances_needing_attention: 0,
         all: 201,
         needs_you: 1,
         working: 0,
@@ -757,6 +758,7 @@ describe("bounded session catalog", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: {
         terminal_approvals: 0,
+        instances_needing_attention: 0,
         all: 201,
         needs_you: 0,
         working: 0,
@@ -855,6 +857,7 @@ describe("sessions board read failures", () => {
   const FACETS = {
     facets: {
       terminal_approvals: 0,
+      instances_needing_attention: 0,
       all: 300,
       needs_you: 0,
       working: 0,
@@ -957,6 +960,7 @@ describe("sessions board read failures", () => {
 describe("sessions board order and swimlanes", () => {
   const facet = (all: number) => ({
     terminal_approvals: 0,
+    instances_needing_attention: 0,
     all,
     needs_you: 0,
     working: all,

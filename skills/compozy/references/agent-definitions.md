@@ -58,7 +58,7 @@ Do not use categories or slash strings for hierarchy. They are not runtime seman
 ## Unrestricted Workspace Access
 
 `workspace_access: unrestricted` lets sessions of one agent read and act on every workspace, the
-User scope, and every profile, the way the operator does. It exists for always-on agents that live in
+User scope, and every profile, the way the operator does. It exists for stays-on agents that live in
 the operator's home. It is the only grant vocabulary in CompozyOS (User Scope Work ADR-003, which
 supersedes cross-workspace ADR-007 §1 for this one field); there is no grants table, config section,
 or grant-management tool.
@@ -218,6 +218,12 @@ The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:
 
 ## Authored Context and Profiles
 
+SOUL.md and HEARTBEAT.md authoring follows the effective definition's scope. A User-scope agent
+needs no project placement: What it does and Check-ins can open from All projects. Revisions and
+snapshots belong to the selected profile and agent, including when the agent runs in a project;
+other profiles cannot reuse its history, rollback targets, or snapshots. A missing HEARTBEAT.md
+reads as all day with all five context sources.
+
 Select the intended Profile for named-agent SOUL.md and HEARTBEAT.md operations. The CLI's global
 `--profile` selector is forwarded by its common transport; the corresponding HTTP read, validate,
 write, delete, history, rollback, status, and wake routes accept the optional `profile` query.
@@ -231,6 +237,23 @@ extension SOUL.md and HEARTBEAT.md sources remain protected from writes.
 A `SOUL.md` that still carries the retired memory-policy frontmatter key from an earlier release stays
 valid: any value is accepted and ignored. `compozy agent soul validate` reports no diagnostic, the key is
 never rendered into a session, and CompozyOS does not rewrite the file.
+
+## Hidden Triage
+
+Hidden triage requires a confirmed read-only provider mode. Claude and OpenCode
+use the verified `plan` mode; Codex advertises `read-only`. Mode choices may arrive
+through ACP `configOptions` without a legacy modes list. The daemon confirms a
+config-option selection before prompting. Other providers' `plan` modes are not
+accepted by name alone; unsupported modes fail with `triage_unsupported`.
+
+## Stays-On Agent Memory
+
+Stays-on agent memory is partitioned by profile, definition origin, and agent name.
+Agent-authenticated memory routes and native memory tools require a daemon-resolved
+instance lineage for that agent; a manually started session with the same name is
+not sufficient. Operator memory routes retain their explicit target selection.
+Entries record the source workspace name, or `Global`. Document and history digests
+use `sha256:<hex>`; pass the complete digest back when making a digest-checked edit.
 
 ## Setup Workflow
 
@@ -256,3 +279,18 @@ Claude's default `claude auth status` JSON is supported directly: only a valid
 native login. Invalid or missing verdicts remain unknown and error classifications
 retain precedence. Structured status output retains only the verdict, excluding
 account and organization details from probe responses and diagnostics.
+
+## Identity and kind
+
+Create supports `display_name` (80 characters), `description` (280), `kind` (`on_demand` by default or `stays_on`),
+and an open `appearance` object. `compozy__agent_create` accepts these fields; agent reads include `label`,
+`kind`, authored `appearance`, and `resolved_appearance`. The label falls back to the humanized slug.
+A generated appearance uses `{version:1, avatar:"generated", seed:<slug>, generation:1, color:"#7c5cff"}`.
+Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color.
+Unsupported saved appearance falls back with a diagnostic and survives unrelated edits.
+
+Kind is fixed at creation. Use `compozy agent duplicate <source> <name> --kind on_demand` to choose another kind.
+Changing it through update returns `agent_kind_immutable`. PUT preserves omitted identity fields and ignores
+`label` and `resolved_appearance`. `GET /api/agents/catalog?group=agent` groups identical slug and digest
+across authorized scopes, with `items`, `scopes`, `active`, and `next_cursor`; label search uses `q`.
+Extension AGENT.md files use the same keys; installing an extension never creates an instance.

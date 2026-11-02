@@ -18,6 +18,7 @@ import { useAutomationRowActions } from "./use-automation-row-actions";
 import { useAutomationLists } from "./use-automation-lists";
 import { useAutomationsEditor } from "./use-automations-editor";
 import { automationUnavailableMessage, useAutomationPageBase } from "./use-automation-page-base";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export type { AutomationPartialFailure, AutomationStartCounts } from "./automation-listing-state";
 
@@ -81,6 +82,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   });
   const { jobsQuery, triggersQuery, showJobs, showTriggers, loadedTriggers } = lists;
 
+  const identityOf = useAgentIdentityResolverView();
   const workspaceNames = new Map(page.workspaces.map(option => [option.id, option.name]));
   // All projects: every row names its project (User for automations without one).
   const allProjects = page.dataScope?.kind === "all";
@@ -88,6 +90,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     toAutomationView(entity, {
       timeZone: page.timeZone,
       workspaceName: id => workspaceNames.get(id),
+      agentLabel: name => identityOf(name).label,
       ...(profile.aggregate ? { ownerOf: profile.ownerOf } : {}),
       ...(allProjects
         ? { projectOf: item => workspaceBadgeIdentity(item.workspace_id, workspaceNames) }

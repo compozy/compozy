@@ -8,14 +8,24 @@ import {
   type LucideIcon,
 } from "@compozy/ui/icons";
 
+import type { ReactNode } from "react";
+
 import { Icon, Skeleton, SkeletonText, Time } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { AgentMark } from "@/systems/agent/components/agent-mark";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 import { SessionBadgeGlyph } from "@/systems/session";
 
 import { LOOP_STORY_ICONS } from "@/systems/loops";
 
 import type { OsAttentionRow } from "../lib/attention-model";
+
+interface AgentReasonProps {
+  agentName: string;
+  reason: string;
+  workspaceId?: string;
+}
 
 function loopIcon(state: "waiting" | "attention"): LucideIcon {
   return state === "waiting" ? LOOP_STORY_ICONS.waiting : LOOP_STORY_ICONS.attention;
@@ -61,16 +71,41 @@ function RowMark({ row }: { row: OsAttentionRow }) {
   }
 }
 
-function rowReason(row: OsAttentionRow): string {
+/** The agent leads the reason, with its face; the row's mark keeps saying what's wrong. */
+function AgentReason({ agentName, reason, workspaceId }: AgentReasonProps) {
+  const { appearance, label } = useAgentIdentityView(agentName, { workspace: workspaceId });
+  return (
+    <>
+      {agentName ? (
+        <AgentMark
+          aria-hidden="true"
+          appearance={appearance}
+          className="mr-1 align-[-2px]"
+          label={label}
+          quietIdle
+          size={14}
+          state="unknown"
+        />
+      ) : null}
+      {label ? `${label} — ${reason}` : reason}
+    </>
+  );
+}
+
+function rowReason(row: OsAttentionRow): ReactNode {
   switch (row.kind) {
     case "session":
-      return `${row.agentName} — ${row.reason}`;
+      return (
+        <AgentReason agentName={row.agentName} reason={row.reason} workspaceId={row.workspaceId} />
+      );
     case "task":
       return row.reason ?? "task approval";
     case "loop-request":
       return `${row.loopName} — ${row.requestKind}`;
     case "terminal-input":
-      return `${row.agentName} — ${row.reason}`;
+      return (
+        <AgentReason agentName={row.agentName} reason={row.reason} workspaceId={row.workspaceId} />
+      );
     case "loop-node":
       return row.state;
   }

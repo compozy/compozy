@@ -1,6 +1,8 @@
 package session
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -10,6 +12,8 @@ import (
 func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 	attention := info.AttentionSnapshot()
 	return &Info{
+		InstanceID:    info.InstanceID,
+		InitiatorKind: info.InitiatorKind, InitiatorID: info.InitiatorID,
 		VerdictOnly:              info.VerdictOnly,
 		ID:                       strings.TrimSpace(info.ID),
 		ProfileID:                strings.TrimSpace(info.ProfileID),
@@ -61,4 +65,22 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}
+}
+
+func (m *Manager) populateInstanceMetadata(ctx context.Context, info *Info) error {
+	if m.sessionCatalog == nil {
+		return nil
+	}
+	rows, err := m.sessionCatalog.ListSessions(ctx, store.SessionListQuery{
+		ID:        info.ID,
+		ReadScope: store.ReadScope{AllProfiles: true},
+		Archive:   store.SessionArchiveInclude,
+	})
+	if err != nil {
+		return fmt.Errorf("session: read instance binding: %w", err)
+	}
+	if len(rows) > 0 {
+		info.InstanceID = rows[0].InstanceID
+	}
+	return nil
 }

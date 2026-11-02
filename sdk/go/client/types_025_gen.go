@@ -7,6 +7,374 @@ import (
 	"time"
 )
 
+// TaskRunSessionPayload is a daemon API value.
+type TaskRunSessionPayload struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// TaskRunStatus is a daemon API value.
+type TaskRunStatus string
+
+// TaskRunSummaryPayload is a daemon API value.
+type TaskRunSummaryPayload struct {
+	ID                   string                 `json:"id"`
+	TaskID               string                 `json:"task_id"`
+	Status               TaskRunStatus          `json:"status"`
+	Attempt              int                    `json:"attempt"`
+	RecoveryCount        int                    `json:"recovery_count"`
+	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
+	FailureKind          string                 `json:"failure_kind,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	WorktreeID           string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time             `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time             `json:"heartbeat_at,omitempty"`
+	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
+	Designation          *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt             time.Time              `json:"queued_at"`
+	ClaimedAt            *time.Time             `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time             `json:"started_at,omitempty"`
+	EndedAt              *time.Time             `json:"ended_at,omitempty"`
+	Error                string                 `json:"error,omitempty"`
+}
+
+// TaskRunTotalPayload is a daemon API value.
+type TaskRunTotalPayload struct {
+	Status     string `json:"status"`
+	OriginKind string `json:"origin_kind"`
+	Count      int    `json:"count"`
+}
+
+// TaskRunsResponse is a daemon API value.
+type TaskRunsResponse struct {
+	Runs []TaskRunPayload `json:"runs"`
+}
+
+// TaskScope is a daemon API value.
+type TaskScope string
+
+// TaskStatus is a daemon API value.
+type TaskStatus string
+
+// TaskStatusTotalPayload is a daemon API value.
+type TaskStatusTotalPayload struct {
+	Scope  string `json:"scope"`
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+}
+
+// TaskStreamEventPayload is a daemon API value.
+type TaskStreamEventPayload struct {
+	Sequence int64                   `json:"sequence"`
+	Type     string                  `json:"type"`
+	Timeline TaskTimelineItemPayload `json:"timeline"`
+}
+
+// TaskSummaryPayload is a daemon API value.
+type TaskSummaryPayload struct {
+	ID                   string                           `json:"id"`
+	ProfileID            string                           `json:"profile_id"`
+	ProfileName          string                           `json:"profile_name"`
+	ProfileColor         string                           `json:"profile_color,omitempty"`
+	ProfileIcon          string                           `json:"profile_icon,omitempty"`
+	Identifier           string                           `json:"identifier,omitempty"`
+	Scope                TaskScope                        `json:"scope"`
+	WorkspaceID          string                           `json:"workspace_id,omitempty"`
+	ParentTaskID         string                           `json:"parent_task_id,omitempty"`
+	Title                string                           `json:"title"`
+	Priority             Priority                         `json:"priority,omitempty"`
+	MaxAttempts          int                              `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                             `json:"auto_enqueue_on_ready,omitempty"`
+	Status               TaskStatus                       `json:"status"`
+	ApprovalPolicy       ApprovalPolicy                   `json:"approval_policy,omitempty"`
+	ApprovalState        ApprovalState                    `json:"approval_state,omitempty"`
+	Draft                bool                             `json:"draft,omitempty"`
+	Owner                *Ownership                       `json:"owner,omitempty"`
+	CurrentRunID         string                           `json:"current_run_id,omitempty"`
+	LatestEventSeq       int64                            `json:"latest_event_seq"`
+	Paused               bool                             `json:"paused,omitempty"`
+	PausedBy             string                           `json:"paused_by,omitempty"`
+	PausedAt             *time.Time                       `json:"paused_at,omitempty"`
+	PausedReason         string                           `json:"paused_reason,omitempty"`
+	EffectivePaused      bool                             `json:"effective_paused,omitempty"`
+	PausedByTaskID       string                           `json:"paused_by_task_id,omitempty"`
+	BlockedReasons       []BlockedReason                  `json:"blocked_reasons,omitempty"`
+	NeedsAttention       bool                             `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string                           `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time                       `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *ActorIdentity                   `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool                             `json:"wake_creator"`
+	CreatedBy            ActorIdentity                    `json:"created_by"`
+	Origin               Origin                           `json:"origin"`
+	CreatedAt            time.Time                        `json:"created_at"`
+	UpdatedAt            time.Time                        `json:"updated_at"`
+	ClosedAt             *time.Time                       `json:"closed_at,omitempty"`
+	ChildCount           int                              `json:"child_count,omitempty"`
+	DependencyCount      int                              `json:"dependency_count,omitempty"`
+	Dependencies         []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
+	ActiveRun            *TaskRunSummaryPayload           `json:"active_run,omitempty"`
+	LastActivityAt       *time.Time                       `json:"last_activity_at,omitempty"`
+}
+
+// TaskTimelineItemPayload is a daemon API value.
+type TaskTimelineItemPayload struct {
+	Sequence  int64                  `json:"sequence"`
+	EventID   string                 `json:"event_id"`
+	Task      TaskReferencePayload   `json:"task"`
+	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
+	EventType string                 `json:"event_type"`
+	Reason    string                 `json:"reason,omitempty"`
+	Actor     ActorIdentity          `json:"actor"`
+	Origin    Origin                 `json:"origin"`
+	Payload   json.RawMessage        `json:"payload,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+}
+
+// TaskTimelineResponse is a daemon API value.
+type TaskTimelineResponse struct {
+	Timeline []TaskTimelineItemPayload `json:"timeline"`
+}
+
+// TaskTreeNodePayload is a daemon API value.
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
+// TaskTreePayload is a daemon API value.
+type TaskTreePayload struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
+}
+
+// TaskTreeResponse is a daemon API value.
+type TaskTreeResponse struct {
+	Tree TaskTreePayload `json:"tree"`
+}
+
+// TaskTriageStatePayload is a daemon API value.
+type TaskTriageStatePayload struct {
+	TaskID             string        `json:"task_id"`
+	Actor              ActorIdentity `json:"actor"`
+	Read               bool          `json:"read"`
+	Archived           bool          `json:"archived"`
+	Dismissed          bool          `json:"dismissed"`
+	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+// TaskTriageStateResponse is a daemon API value.
+type TaskTriageStateResponse struct {
+	Triage TaskTriageStatePayload `json:"triage"`
+}
+
+// TasksResponse is a daemon API value.
+type TasksResponse struct {
+	Tasks  []TaskCatalogItemPayload `json:"tasks"`
+	Page   CountedCursorPagePayload `json:"page"`
+	Facets TaskCatalogFacetsPayload `json:"facets"`
+}
+
+// TerminalActorKind is a daemon API value.
+type TerminalActorKind string
+
+// TerminalAnswerInputRequest is a daemon API value.
+type TerminalAnswerInputRequest struct {
+	Input string `json:"input"`
+}
+
+// TerminalApprovalCountPayload is a daemon API value.
+type TerminalApprovalCountPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+	Count       int    `json:"count"`
+}
+
+// TerminalAttachMode is a daemon API value.
+type TerminalAttachMode string
+
+// TerminalAttachTicketRequest is a daemon API value.
+type TerminalAttachTicketRequest struct {
+	Mode     TerminalAttachMode `json:"mode"`
+	ClientID string             `json:"client_id,omitempty"`
+}
+
+// TerminalAttachTicketResponse is a daemon API value.
+type TerminalAttachTicketResponse struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// TerminalCapabilitiesPayload is a daemon API value.
+type TerminalCapabilitiesPayload struct {
+	Interactive bool `json:"interactive"`
+}
+
+// TerminalCatalogSnapshot is a daemon API value.
+type TerminalCatalogSnapshot struct {
+	Terminals []TerminalInfoPayload `json:"terminals"`
+}
+
+// TerminalCloseRequest is a daemon API value.
+type TerminalCloseRequest struct {
+	Signal TerminalSignal `json:"signal"`
+}
+
+// TerminalCommandActorPayload is a daemon API value.
+type TerminalCommandActorPayload struct {
+	Kind TerminalActorKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+// TerminalCommandApproval is a daemon API value.
+type TerminalCommandApproval string
+
+// TerminalCommandDetection is a daemon API value.
+type TerminalCommandDetection string
+
+// TerminalCommandRowPayload is a daemon API value.
+type TerminalCommandRowPayload struct {
+	ID          string                      `json:"command_id"`
+	TerminalID  *TerminalID                 `json:"terminal_id"`
+	ProfileID   string                      `json:"profile_id"`
+	ProfileName string                      `json:"profile_name"`
+	Actor       TerminalCommandActorPayload `json:"actor"`
+	Command     string                      `json:"command"`
+	ArgvDigest  *string                     `json:"argv_digest,omitzero"`
+	Cwd         string                      `json:"cwd"`
+	StartedAt   time.Time                   `json:"started_at"`
+	DurationMs  *int64                      `json:"duration_ms"`
+	ExitCode    *int                        `json:"exit_code"`
+	ExitSignal  *TerminalSignal             `json:"signal"`
+	ExitCause   TerminalExitCause           `json:"exit_cause"`
+	DetectedBy  TerminalCommandDetection    `json:"detected_by"`
+	Approval    TerminalCommandApproval     `json:"approval"`
+	OutputBytes int64                       `json:"output_bytes"`
+	Truncated   bool                        `json:"truncated"`
+	RecordingID *string                     `json:"recording,omitzero"`
+}
+
+// TerminalCreateRequest is a daemon API value.
+type TerminalCreateRequest struct {
+	Worktree string `json:"worktree,omitempty"`
+	Cwd      string `json:"cwd,omitempty"`
+	Shell    string `json:"shell,omitempty"`
+	Cols     uint16 `json:"cols,omitzero"`
+	Rows     uint16 `json:"rows,omitzero"`
+	Title    string `json:"title,omitempty"`
+	ClientID string `json:"client_id,omitempty"`
+}
+
+// TerminalDeliveredResponse is a daemon API value.
+type TerminalDeliveredResponse struct {
+	Delivered bool `json:"delivered"`
+}
+
+// TerminalExecRequest is a daemon API value.
+type TerminalExecRequest struct {
+	Command string              `json:"command"`
+	Args    []string            `json:"args,omitempty"`
+	Cwd     string              `json:"cwd,omitempty"`
+	Env     map[string]string   `json:"env,omitempty"`
+	YieldMs int                 `json:"yield_ms,omitzero"`
+	Visible bool                `json:"visible,omitzero"`
+	Output  TerminalOutputShape `json:"output,omitzero"`
+}
+
+// TerminalExecResponse is a daemon API value.
+type TerminalExecResponse struct {
+	ExitCode     *int                  `json:"exit_code"`
+	Signal       *TerminalSignal       `json:"signal"`
+	Output       string                `json:"output"`
+	Truncated    bool                  `json:"truncated"`
+	Untrusted    bool                  `json:"untrusted"`
+	Spill        *TerminalSpillPayload `json:"spill,omitzero"`
+	DurationMs   int64                 `json:"duration_ms"`
+	CommandID    string                `json:"command_id"`
+	StillRunning bool                  `json:"still_running,omitzero"`
+	TerminalID   *TerminalID           `json:"terminal_id"`
+}
+
+// TerminalExitCause is a daemon API value.
+type TerminalExitCause string
+
+// TerminalExitPayload is a daemon API value.
+type TerminalExitPayload struct {
+	Cause  TerminalExitCause `json:"cause"`
+	Code   *int              `json:"code,omitzero"`
+	Signal *TerminalSignal   `json:"signal,omitzero"`
+	At     time.Time         `json:"at"`
+}
+
+// TerminalExitResponse is a daemon API value.
+type TerminalExitResponse struct {
+	Exit *TerminalExitPayload `json:"exit"`
+}
+
+// TerminalID is a daemon API value.
+type TerminalID string
+
+// TerminalInfoPayload is a daemon API value.
+type TerminalInfoPayload struct {
+	ID           TerminalID                  `json:"id"`
+	WorkspaceID  string                      `json:"workspace_id"`
+	ProfileID    string                      `json:"profile_id"`
+	ProfileName  string                      `json:"profile_name"`
+	Title        string                      `json:"title"`
+	Shell        string                      `json:"shell"`
+	Cwd          string                      `json:"cwd"`
+	Mode         TerminalMode                `json:"mode"`
+	State        TerminalState               `json:"state"`
+	Viewers      int                         `json:"viewers"`
+	BoundRun     *TerminalRunPayload         `json:"bound_run"`
+	Capabilities TerminalCapabilitiesPayload `json:"capabilities"`
+	CreatedAt    time.Time                   `json:"created_at"`
+	Exit         *TerminalExitPayload        `json:"exit,omitzero"`
+}
+
+// TerminalInputActorPayload is a daemon API value.
+type TerminalInputActorPayload struct {
+	Kind TerminalActorKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+// TerminalInputAnswerResponse is a daemon API value.
+type TerminalInputAnswerResponse struct {
+	DeliveredBytes int  `json:"delivered_bytes"`
+	Redacted       bool `json:"redacted"`
+}
+
+// TerminalInputRejectOutcome is a daemon API value.
+type TerminalInputRejectOutcome string
+
+// TerminalInputRejectResponse is a daemon API value.
+type TerminalInputRejectResponse struct {
+	Outcome TerminalInputRejectOutcome `json:"outcome"`
+}
+
+// TerminalInputRequestsResponse is a daemon API value.
+type TerminalInputRequestsResponse struct {
+	Pending  []TerminalPendingInputRequest  `json:"pending"`
+	Resolved []TerminalResolvedInputRequest `json:"resolved"`
+}
+
+// TerminalInputResolutionOutcome is a daemon API value.
+type TerminalInputResolutionOutcome string
+
 // TerminalJournalResponse is a daemon API value.
 type TerminalJournalResponse struct {
 	Entries []TerminalCommandRowPayload `json:"entries"`
@@ -80,367 +448,3 @@ type TerminalRecordingResponse struct {
 
 // TerminalRecordingState is a daemon API value.
 type TerminalRecordingState string
-
-// TerminalRejectInputRequest is a daemon API value.
-type TerminalRejectInputRequest struct {
-	Reason string `json:"reason"`
-}
-
-// TerminalResolvedInputRequest is a daemon API value.
-type TerminalResolvedInputRequest struct {
-	ID          string                         `json:"id"`
-	TerminalID  TerminalID                     `json:"terminal_id"`
-	WorkspaceID string                         `json:"workspace_id,omitempty"`
-	ProfileID   string                         `json:"profile_id"`
-	ProfileName string                         `json:"profile_name"`
-	Requester   TerminalInputActorPayload      `json:"requester"`
-	Outcome     TerminalInputResolutionOutcome `json:"outcome"`
-	ResolvedBy  TerminalInputActorPayload      `json:"resolved_by"`
-	Reason      string                         `json:"reason,omitempty"`
-	Redacted    bool                           `json:"redacted"`
-	Length      int                            `json:"length"`
-	RequestedAt time.Time                      `json:"requested_at"`
-	ResolvedAt  time.Time                      `json:"resolved_at"`
-}
-
-// TerminalResponse is a daemon API value.
-type TerminalResponse struct {
-	Terminal TerminalInfoPayload `json:"terminal"`
-}
-
-// TerminalRunPayload is a daemon API value.
-type TerminalRunPayload struct {
-	SessionID  string `json:"session_id"`
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
-}
-
-// TerminalSequence is a daemon API value.
-type TerminalSequence string
-
-// TerminalSignal is a daemon API value.
-type TerminalSignal string
-
-// TerminalSignalRequest is a daemon API value.
-type TerminalSignalRequest struct {
-	Signal TerminalSignal `json:"signal"`
-}
-
-// TerminalSpillPayload is a daemon API value.
-type TerminalSpillPayload struct {
-	ArtifactID string `json:"artifact_id"`
-	Bytes      int64  `json:"bytes"`
-}
-
-// TerminalState is a daemon API value.
-type TerminalState string
-
-// TerminalWaitRequest is a daemon API value.
-type TerminalWaitRequest struct {
-	Until     string `json:"until"`
-	Pattern   string `json:"pattern,omitempty"`
-	TimeoutMs int    `json:"timeout_ms,omitzero"`
-}
-
-// TerminalWaitResponse is a daemon API value.
-type TerminalWaitResponse struct {
-	Reason    string `json:"reason"`
-	ExitCode  *int   `json:"exit_code,omitzero"`
-	Screen    string `json:"screen"`
-	Untrusted bool   `json:"untrusted"`
-}
-
-// TerminateProcessesRequest is a daemon API value.
-type TerminateProcessesRequest struct {
-	Targets []SessionProcessTarget `json:"targets"`
-}
-
-// TerminateSessionProcessesRequest is a daemon API value.
-type TerminateSessionProcessesRequest struct {
-	Targets      []SessionProcessTarget `json:"targets,omitempty"`
-	All          bool                   `json:"all,omitempty"`
-	IncludeTools bool                   `json:"include_tools,omitempty"`
-}
-
-// TerminateSessionProcessesResponse is a daemon API value.
-type TerminateSessionProcessesResponse struct {
-	Supported bool                   `json:"supported"`
-	Results   []SessionProcessResult `json:"results"`
-}
-
-// ThresholdKind is a daemon API value.
-type ThresholdKind string
-
-// TimelineEntry is a daemon API value.
-type TimelineEntry struct {
-	Seq        int64        `json:"seq"`
-	FirstSeq   int64        `json:"first_seq,omitzero"`
-	Kind       RunEventKind `json:"kind"`
-	Generation int64        `json:"generation,omitzero"`
-	NodeID     NodeID       `json:"node_id,omitempty"`
-	Attempt    int          `json:"attempt,omitzero"`
-	Title      string       `json:"title"`
-	At         time.Time    `json:"at"`
-}
-
-// TimelineItem is a daemon API value.
-type TimelineItem struct {
-	Sequence  int64           `json:"sequence"`
-	EventID   string          `json:"event_id"`
-	Task      Reference       `json:"task"`
-	Run       *RunSummary     `json:"run,omitzero"`
-	EventType string          `json:"event_type"`
-	Reason    string          `json:"reason,omitempty"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
-}
-
-// TimelinePage is a daemon API value.
-type TimelinePage struct {
-	RunID      RunID           `json:"run_id"`
-	HeadSeq    int64           `json:"head_seq"`
-	Entries    []TimelineEntry `json:"entries"`
-	NextCursor string          `json:"next_cursor,omitempty"`
-}
-
-// ToastEffect is a daemon API value.
-type ToastEffect struct {
-	Tone    string `json:"tone"`
-	Message string `json:"message"`
-}
-
-// TokenUsagePayload is a daemon API value.
-type TokenUsagePayload struct {
-	Meta             map[string]any `json:"meta,omitempty"`
-	Sequence         *int64         `json:"sequence,omitzero"`
-	TurnID           string         `json:"turn_id,omitempty"`
-	InputTokens      *int64         `json:"input_tokens,omitzero"`
-	OutputTokens     *int64         `json:"output_tokens,omitzero"`
-	TotalTokens      *int64         `json:"total_tokens,omitzero"`
-	ThoughtTokens    *int64         `json:"thought_tokens,omitzero"`
-	CacheReadTokens  *int64         `json:"cache_read_tokens,omitzero"`
-	CacheWriteTokens *int64         `json:"cache_write_tokens,omitzero"`
-	ContextUsed      *int64         `json:"context_used,omitzero"`
-	ContextSize      *int64         `json:"context_size,omitzero"`
-	CostAmount       *float64       `json:"cost_amount,omitzero"`
-	CostCurrency     *string        `json:"cost_currency,omitzero"`
-	Timestamp        time.Time      `json:"timestamp"`
-}
-
-// ToolApprovalGrantListResponse is a daemon API value.
-type ToolApprovalGrantListResponse struct {
-	Grants []ToolApprovalGrantPayload `json:"grants"`
-	Total  int                        `json:"total"`
-}
-
-// ToolApprovalGrantPayload is a daemon API value.
-type ToolApprovalGrantPayload struct {
-	ID              string                `json:"id"`
-	ProfileID       string                `json:"profile_id"`
-	ProfileName     string                `json:"profile_name"`
-	ProfileColor    string                `json:"profile_color"`
-	ProfileIcon     string                `json:"profile_icon,omitempty"`
-	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
-	ProfileArchived bool                  `json:"profile_archived"`
-	WorkspaceID     string                `json:"workspace_id"`
-	AgentName       string                `json:"agent_name,omitempty"`
-	ToolID          ToolID                `json:"tool_id"`
-	InputDigest     string                `json:"input_digest,omitempty"`
-	Decision        ApprovalGrantDecision `json:"decision"`
-	CreatedAt       time.Time             `json:"created_at"`
-	LastUsedAt      time.Time             `json:"last_used_at"`
-}
-
-// ToolApprovalGrantResponse is a daemon API value.
-type ToolApprovalGrantResponse struct {
-	Grant ToolApprovalGrantPayload `json:"grant"`
-}
-
-// ToolApprovalGrantSetRequest is a daemon API value.
-type ToolApprovalGrantSetRequest struct {
-	ToolID    ToolID                       `json:"tool_id"`
-	Decision  ApprovalGrantDecision        `json:"decision"`
-	Scope     ApprovalGrantManagementScope `json:"scope"`
-	AgentName string                       `json:"agent_name,omitempty"`
-}
-
-// ToolApprovalPayload is a daemon API value.
-type ToolApprovalPayload struct {
-	ApprovalToken string    `json:"approval_token"`
-	ExpiresAt     time.Time `json:"expires_at"`
-	ToolID        ToolID    `json:"tool_id"`
-	InputDigest   string    `json:"input_digest"`
-}
-
-// ToolApprovalRequest is a daemon API value.
-type ToolApprovalRequest struct {
-	SessionID   string          `json:"session_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	AgentName   string          `json:"agent_name,omitempty"`
-	Input       json.RawMessage `json:"input,omitempty"`
-	InputDigest string          `json:"input_digest,omitempty"`
-}
-
-// ToolApprovalResponse is a daemon API value.
-type ToolApprovalResponse struct {
-	Approval ToolApprovalPayload `json:"approval"`
-}
-
-// ToolApprovalStatusResponse is a daemon API value.
-type ToolApprovalStatusResponse struct {
-	ApprovalStatus  ApprovalOutcome         `json:"approval_status"`
-	ExecutionStatus ApprovalExecutionStatus `json:"execution_status,omitempty"`
-	Result          json.RawMessage         `json:"result,omitempty"`
-	Error           json.RawMessage         `json:"error,omitempty"`
-	ExpiresAt       *time.Time              `json:"expires_at,omitempty"`
-}
-
-// ToolArtifactPageResponse is a daemon API value.
-type ToolArtifactPageResponse struct {
-	Artifact   ArtifactRef `json:"artifact"`
-	Offset     int64       `json:"offset"`
-	Bytes      int64       `json:"bytes"`
-	TotalBytes int64       `json:"total_bytes"`
-	DataBase64 string      `json:"data_base64"`
-	NextOffset int64       `json:"next_offset"`
-	EOF        bool        `json:"eof"`
-}
-
-// ToolAvailabilityPayload is a daemon API value.
-type ToolAvailabilityPayload struct {
-	Registered  bool         `json:"registered"`
-	Enabled     bool         `json:"enabled"`
-	Available   bool         `json:"available"`
-	Authorized  bool         `json:"authorized"`
-	Executable  bool         `json:"executable"`
-	Conflicted  bool         `json:"conflicted"`
-	ReasonCodes []ReasonCode `json:"reason_codes,omitempty"`
-}
-
-// ToolBackendRefPayload is a daemon API value.
-type ToolBackendRefPayload struct {
-	Kind                 BackendKind `json:"kind"`
-	ExtensionID          string      `json:"extension_id,omitempty"`
-	Handler              string      `json:"handler,omitempty"`
-	MCPServer            string      `json:"mcp_server,omitempty"`
-	MCPTool              string      `json:"mcp_tool,omitempty"`
-	NativeName           string      `json:"native_name,omitempty"`
-	RequiresCapabilities []string    `json:"requires_capabilities,omitempty"`
-}
-
-// ToolCallEventKind is a daemon API value.
-type ToolCallEventKind string
-
-// ToolCallEventPayload is a daemon API value.
-type ToolCallEventPayload struct {
-	Kind                 ToolCallEventKind `json:"kind"`
-	ToolID               ToolID            `json:"tool_id"`
-	DisplayTitle         string            `json:"display_title,omitempty"`
-	SourceKind           SourceKind        `json:"source_kind,omitempty"`
-	SourceOwner          string            `json:"source_owner,omitempty"`
-	WorkspaceID          string            `json:"workspace_id,omitempty"`
-	SessionID            string            `json:"session_id,omitempty"`
-	AgentName            string            `json:"agent_name,omitempty"`
-	Risk                 RiskClass         `json:"risk,omitempty"`
-	ReadOnly             bool              `json:"read_only"`
-	Destructive          bool              `json:"destructive"`
-	OpenWorld            bool              `json:"open_world"`
-	ApprovalMode         string            `json:"approval_mode,omitempty"`
-	Decision             string            `json:"decision,omitempty"`
-	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
-	DurationMS           int64             `json:"duration_ms,omitzero"`
-	ResultBytes          int64             `json:"result_bytes,omitzero"`
-	Truncated            bool              `json:"truncated"`
-	CorrelationID        string            `json:"correlation_id,omitempty"`
-	ErrorCode            ErrorCode         `json:"error_code,omitempty"`
-	InputDigest          string            `json:"input_digest,omitempty"`
-	RedactedInputFields  []string          `json:"redacted_input_fields,omitempty"`
-	ResultDigest         string            `json:"result_digest,omitempty"`
-	ResultRedactionPaths []string          `json:"result_redaction_paths,omitempty"`
-}
-
-// ToolContent is a daemon API value.
-type ToolContent struct {
-	Type     string                     `json:"type"`
-	Text     string                     `json:"text,omitempty"`
-	Data     json.RawMessage            `json:"data,omitempty"`
-	MIMEType string                     `json:"mime_type,omitempty"`
-	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ToolDescriptorPayload is a daemon API value.
-type ToolDescriptorPayload struct {
-	ToolID              ToolID                `json:"tool_id"`
-	Backend             ToolBackendRefPayload `json:"backend"`
-	DisplayTitle        string                `json:"display_title,omitempty"`
-	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
-	Preview             string                `json:"preview,omitempty"`
-	Description         string                `json:"description"`
-	InputSchema         json.RawMessage       `json:"input_schema"`
-	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
-	InputSchemaDigest   string                `json:"input_schema_digest"`
-	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
-	Source              ToolSourceRefPayload  `json:"source"`
-	Visibility          Visibility            `json:"visibility"`
-	Risk                RiskClass             `json:"risk"`
-	ReadOnly            bool                  `json:"read_only"`
-	Destructive         bool                  `json:"destructive"`
-	OpenWorld           bool                  `json:"open_world"`
-	RequiresInteraction bool                  `json:"requires_interaction"`
-	ConcurrencySafe     bool                  `json:"concurrency_safe"`
-	MaxResultBytes      int64                 `json:"max_result_bytes,omitzero"`
-	Toolsets            []ToolsetID           `json:"toolsets,omitempty"`
-	Tags                []string              `json:"tags,omitempty"`
-	SearchHints         []string              `json:"search_hints,omitempty"`
-}
-
-// ToolErrorPayload is a daemon API value.
-type ToolErrorPayload struct {
-	Code          ErrorCode                  `json:"code"`
-	Message       string                     `json:"message"`
-	ToolID        ToolID                     `json:"tool_id,omitempty"`
-	ReasonCodes   []ReasonCode               `json:"reason_codes,omitempty"`
-	Layer         string                     `json:"layer,omitempty"`
-	Details       map[string]json.RawMessage `json:"details,omitempty"`
-	PartialResult *ToolResult                `json:"partial_result,omitzero"`
-}
-
-// ToolErrorResponse is a daemon API value.
-type ToolErrorResponse struct {
-	Error ToolErrorPayload `json:"error"`
-}
-
-// ToolID is a daemon API value.
-type ToolID string
-
-// ToolInvokeRequest is a daemon API value.
-type ToolInvokeRequest struct {
-	SessionID            string          `json:"session_id,omitempty"`
-	WorkspaceID          string          `json:"workspace_id,omitempty"`
-	AgentName            string          `json:"agent_name,omitempty"`
-	ToolCallID           string          `json:"tool_call_id,omitempty"`
-	TurnID               string          `json:"turn_id,omitempty"`
-	CorrelationID        string          `json:"correlation_id,omitempty"`
-	Input                json.RawMessage `json:"input"`
-	SensitiveInputFields []string        `json:"sensitive_input_fields,omitempty"`
-	ApprovalToken        string          `json:"approval_token,omitempty"`
-}
-
-// ToolInvokeResponse is a daemon API value.
-type ToolInvokeResponse struct {
-	ToolID     ToolID                 `json:"tool_id"`
-	Status     string                 `json:"status"`
-	Result     ToolResult             `json:"result"`
-	Truncated  bool                   `json:"truncated"`
-	DurationMS int64                  `json:"duration_ms"`
-	Events     []ToolCallEventPayload `json:"events"`
-}
-
-// ToolPayload is a daemon API value.
-type ToolPayload struct {
-	Descriptor   ToolDescriptorPayload     `json:"descriptor"`
-	Availability ToolAvailabilityPayload   `json:"availability"`
-	Decision     ToolPolicyDecisionPayload `json:"decision"`
-}

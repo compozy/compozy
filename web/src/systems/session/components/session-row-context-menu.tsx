@@ -13,7 +13,7 @@ import {
   ContextMenuTrigger,
 } from "@compozy/ui";
 
-import { openContextMenuFromKeyboard } from "@/systems/os";
+import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keyboard";
 
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
 import { useSessionRowMenuItems } from "../hooks/use-session-row-menu-items";

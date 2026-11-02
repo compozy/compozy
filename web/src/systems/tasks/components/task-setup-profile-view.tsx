@@ -6,6 +6,7 @@ import type { WorktreePayload } from "@/systems/workspace";
 
 import type { TaskExecutionProfile } from "../types";
 import { TaskWorktreePolicyReadRow } from "./task-worktree-policy-read-row";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
 
 function SetupGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -108,7 +109,9 @@ export function TaskSetupProfileView({
         </SetupRow>
         {worker.agent_name ? (
           <SetupRow label="Agent">
-            <Pill tone="neutral">{worker.agent_name}</Pill>
+            <Pill tone="neutral">
+              <AgentIdentityLabel name={worker.agent_name} />
+            </Pill>
           </SetupRow>
         ) : null}
         {workerRuntime ? (
@@ -125,7 +128,9 @@ export function TaskSetupProfileView({
         </SetupRow>
         {coordinator.agent_name ? (
           <SetupRow label="Agent">
-            <Pill tone="neutral">{coordinator.agent_name}</Pill>
+            <Pill tone="neutral">
+              <AgentIdentityLabel name={coordinator.agent_name} />
+            </Pill>
           </SetupRow>
         ) : null}
         {coordinatorRuntime ? (
@@ -147,7 +152,9 @@ export function TaskSetupProfileView({
           <>
             {review.agent_name ? (
               <SetupRow label="Agent">
-                <Pill tone="neutral">{review.agent_name}</Pill>
+                <Pill tone="neutral">
+                  <AgentIdentityLabel name={review.agent_name} />
+                </Pill>
               </SetupRow>
             ) : null}
             {reviewRuntime ? (

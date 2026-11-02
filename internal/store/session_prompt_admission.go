@@ -30,6 +30,7 @@ const (
 )
 
 var (
+	ErrSessionSuperseded                  = errors.New("session_superseded")
 	ErrSessionPromptAdmissionInProgress   = errors.New("store: session prompt admission is in progress")
 	ErrSessionPromptIdempotencyConflict   = errors.New("store: session prompt idempotency conflict")
 	ErrSessionPromptMessageConflict       = errors.New("store: session prompt message identity conflict")
@@ -86,6 +87,9 @@ type SessionPromptAdmission struct {
 
 // SessionPromptAdmissionRequest carries immutable command identity and request material.
 type SessionPromptAdmissionRequest struct {
+	// DirectDispatch marks a prompt admitted against an idle session: its turn starts
+	// directly, so a steer busy-mode default never applies and it carries reports.
+	DirectDispatch           bool
 	ID                       string
 	WorkspaceID              string
 	SessionID                string

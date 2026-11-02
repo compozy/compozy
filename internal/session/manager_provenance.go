@@ -14,7 +14,7 @@ func (m *Manager) normalizeCreateOptsLineage(
 	sessionID string,
 	sessionType Type,
 	workspaceID string,
-	opts CreateOpts,
+	opts *CreateOpts,
 ) (*store.SessionLineage, error) {
 	return m.normalizeCreateLineage(
 		ctx, sessionID, sessionType, workspaceID, opts.Lineage, opts.ProvenanceParentSessionID,
@@ -36,7 +36,8 @@ func (m *Manager) prepareInternalSystemProvenance(
 	if lineage != nil {
 		return nil, false, fmt.Errorf("%w: internal system provenance cannot be combined with lineage", ErrValidation)
 	}
-	if normalizeSessionType(sessionType) != SessionTypeSystem {
+	if normalizeSessionType(sessionType) != SessionTypeSystem &&
+		normalizeSessionType(sessionType) != SessionTypeTriage {
 		return nil, false, fmt.Errorf("%w: internal provenance requires a system session", ErrValidation)
 	}
 
@@ -148,14 +149,20 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		return nil
 	}
 	if spec.sessionType == SessionTypeUser {
-		lineage, err := m.prepareProvenanceLineage(ctx, spec.sessionType, spec.workspace.ID, spec.lineage)
+		input := spec.lineage
+		if spec.instancePermissionCeiling != nil {
+			// The daemon reapplies its computed ceiling after validating caller provenance.
+			input = store.CloneSessionLineage(input)
+			input.PermissionPolicy = store.SessionPermissionPolicy{}
+		}
+		lineage, err := m.prepareProvenanceLineage(ctx, spec.sessionType, spec.workspace.ID, input)
 		if err != nil {
 			return err
 		}
 		spec.lineage = lineage
 		return store.ValidateSessionLineage(spec.sessionID, lineage)
 	}
-	if spec.sessionType == SessionTypeSystem {
+	if spec.sessionType == SessionTypeSystem || spec.sessionType == SessionTypeTriage {
 		lineage, _, err := m.prepareInternalSystemProvenance(
 			ctx, spec.sessionID, spec.sessionType, spec.workspace.ID, nil, spec.lineage.ParentSessionID,
 		)

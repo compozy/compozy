@@ -36,7 +36,7 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config:   compozyconfig.DefaultWithHome(homePaths),
 			Observer: apitestutil.StubObserver{},
-			Sessions: apitestutil.StubSessionManager{},
+			Sessions: &apitestutil.StubSessionManager{},
 			Extensions: extensionServiceStub{listFn: func(context.Context) ([]contract.ExtensionPayload, error) {
 				return []contract.ExtensionPayload{
 					{

@@ -1,4 +1,6 @@
-import { Field, FieldLabel, OwnerAvatar } from "@compozy/ui";
+import { Field, FieldLabel } from "@compozy/ui";
+
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 export interface SessionForkAgentFieldProps {
   agentName: string;
@@ -16,8 +18,7 @@ export function SessionForkAgentField({ agentName, provider }: SessionForkAgentF
         data-testid="session-fork-agent"
         role="group"
       >
-        <OwnerAvatar name={agentName} ownerId={agentName} ownerKind="agent" size="sm" />
-        <span className="truncate">{agentName}</span>
+        <AgentIdentityChip name={agentName} size={20} />
         {provider ? (
           <>
             <span aria-hidden="true" className="text-subtle">

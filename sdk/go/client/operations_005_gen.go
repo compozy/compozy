@@ -4,10 +4,123 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strings"
 )
+
+// DeleteAutomationJob Delete one automation job
+func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomationJobParams) error {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteAutomationTriggerParams carries the path, query, and header parameters.
+type DeleteAutomationTriggerParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteAutomationTrigger Delete one automation trigger
+func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutomationTriggerParams) error {
+	path := "/api/automation/triggers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteExtensionSecretParams carries the path, query, and header parameters.
+type DeleteExtensionSecretParams struct {
+	Name      string  `url:"name"`
+	EnvName   string  `url:"env_name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// DeleteExtensionSecret Remove one extension environment secret binding
+func (c *Client) DeleteExtensionSecret(ctx context.Context, params DeleteExtensionSecretParams) error {
+	path := "/api/extensions/{name}/secrets/{env_name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{env_name}", url.PathEscape(params.EnvName))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteLoopParams carries the path, query, and header parameters.
+type DeleteLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
+// DeleteLoop Delete one writable Loop definition
+func (c *Client) DeleteLoop(ctx context.Context, params DeleteLoopParams) error {
+	path := "/api/workspaces/{workspace_id}/loops/{name}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteLoopInputDefaultParams carries the path, query, and header parameters.
+type DeleteLoopInputDefaultParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+	Key         string `url:"key"`
+	Scope       string `url:"scope"`
+}
+
+// DeleteLoopInputDefault Delete one scoped Loop input default
+func (c *Client) DeleteLoopInputDefault(ctx context.Context, params DeleteLoopInputDefaultParams) (*DeleteLoopInputDefaultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DeleteLoopInputDefaultResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteProfileParams carries the path, query, and header parameters.
+type DeleteProfileParams struct {
+	Name         string `url:"name"`
+	PlanRevision string `url:"plan_revision"`
+}
 
 // DeleteProfile Delete a profile
 func (c *Client) DeleteProfile(ctx context.Context, params DeleteProfileParams) (*DeleteProfileResponse, error) {
@@ -333,105 +446,4 @@ func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DeliverGlobalWebhookParams carries the path, query, and header parameters.
-type DeliverGlobalWebhookParams struct {
-	Endpoint                  string  `url:"endpoint"`
-	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
-	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
-	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
-	Profile                   *string `url:"profile"`
-}
-
-// DeliverGlobalWebhook Deliver one global automation webhook
-func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
-	path := "/api/webhooks/global/{endpoint}"
-	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
-	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
-	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WebhookDeliveryResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
-type DeliverWorkspaceWebhookParams struct {
-	WorkspaceID               string  `url:"workspace_id"`
-	Endpoint                  string  `url:"endpoint"`
-	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
-	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
-	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
-	Profile                   *string `url:"profile"`
-}
-
-// DeliverWorkspaceWebhook Deliver one workspace-scoped automation webhook
-func (c *Client) DeliverWorkspaceWebhook(ctx context.Context, params DeliverWorkspaceWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
-	path := "/api/webhooks/workspaces/{workspace_id}/{endpoint}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
-	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
-	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WebhookDeliveryResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DevExtensionParams carries the path, query, and header parameters.
-type DevExtensionParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// DevExtension Link an immutable extension generation to the resolved workspace
-func (c *Client) DevExtension(ctx context.Context, params DevExtensionParams, body DevLinkExtensionRequest) (*ExtensionResponse, error) {
-	path := "/api/extensions/dev"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DiffLoopRunParams carries the path, query, and header parameters.
-type DiffLoopRunParams struct {
-	WorkspaceID       string  `url:"workspace_id"`
-	RunID             string  `url:"run_id"`
-	Generation        *int    `url:"generation"`
-	AgainstGeneration *int    `url:"against_generation"`
-	AgainstRun        *string `url:"against_run"`
-	Profile           *string `url:"profile"`
-	AllProfiles       *bool   `url:"all_profiles"`
 }

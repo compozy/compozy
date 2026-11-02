@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
-func (s StubSessionManager) Archive(
+func (s *StubSessionManager) Archive(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
@@ -17,7 +17,7 @@ func (s StubSessionManager) Archive(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) ArchiveWithStop(
+func (s *StubSessionManager) ArchiveWithStop(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
@@ -28,7 +28,7 @@ func (s StubSessionManager) ArchiveWithStop(
 	return nil, session.ErrSessionNotFound
 }
 
-func (s StubSessionManager) Unarchive(
+func (s *StubSessionManager) Unarchive(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,

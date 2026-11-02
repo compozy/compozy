@@ -21,7 +21,7 @@ func sessionProcessDescriptors() []toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "processes"},
+		[]string{sessionsSessionsKey, "processes"},
 		[]string{"left running", "background processes", "list ports"},
 	)
 	list.OutputSchema = json.RawMessage(sessionProcessesOutputSchema)
@@ -41,7 +41,7 @@ func sessionProcessDescriptors() []toolspkg.Descriptor {
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "processes"},
+		[]string{sessionsSessionsKey, "processes"},
 		[]string{"terminate processes", "stop dev server", "clean up background"},
 	)
 	terminate.OutputSchema = json.RawMessage(sessionProcessesTerminateOutputSchema)

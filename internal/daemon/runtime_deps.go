@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
+
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -24,6 +26,7 @@ import (
 
 // RuntimeDeps captures the composition-root dependencies available to server factories.
 type RuntimeDeps struct {
+	AgentInstances      *core.AgentInstanceAPI
 	Subagents           session.SubagentService
 	SessionMonitors     core.SessionMonitorService
 	SessionProcesses    core.SessionProcessService
@@ -67,6 +70,7 @@ type RuntimeDeps struct {
 	MarketplaceCatalog  core.MarketplaceCatalogService
 	AgentContext        *situation.Service
 	SoulAuthoring       core.SoulAuthoringService
+	AgentMemory         *agentmemory.Store
 	SoulHistoryPurger   core.SoulHistoryPurger
 	SoulRefresher       core.SoulRefresher
 	HeartbeatAuthor     core.HeartbeatAuthoringService

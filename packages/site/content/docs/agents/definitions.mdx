@@ -434,3 +434,42 @@ agent-scoped tombstone list.
 - [Spawning](/docs/agents/spawning) follows the ACP subprocess startup path.
 - [Session Lifecycle](/docs/sessions/lifecycle) explains the durable session that wraps each
   spawned agent.
+
+## Identity and kind
+
+Agent identity is optional frontmatter. Existing files remain valid without being rewritten:
+
+```yaml
+name: triage
+display_name: Triage Lead
+description: Watches issues and proposes the next step
+kind: stays_on
+appearance:
+  version: 1
+  avatar: generated
+  seed: triage
+  generation: 1
+  color: "#7c5cff"
+```
+
+`kind` defaults to `on_demand` and is fixed at creation. Duplicate an agent to choose another kind.
+Declaring `stays_on` in an extension does not start a session or create an instance.
+Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
+the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
+or `emoji` (one emoji), with a `#rrggbb` color. Omitted appearance resolves from the slug at read time.
+Unknown appearance versions and subkeys remain in the file; unsupported appearance resolves to the default with a diagnostic.
+
+```sh
+compozy agent create triage --kind stays_on --display-name "Triage Lead" --prompt "Keep issues moving."
+compozy agent duplicate triage triage-lite --kind on_demand
+```
+
+Creation and update accept `--display-name`, `--description`, and `--appearance-avatar`,
+`--appearance-seed`, `--appearance-generation`, `--appearance-color`, `--appearance-icon`,
+`--appearance-emoji`. Update requires the current `--expected-digest`.
+
+Agent reads expose `label`, `kind`, authored `appearance`, and `resolved_appearance`.
+PUT preserves omitted identity fields and ignores read-only label and resolved appearance.
+Changing kind returns HTTP 409 `agent_kind_immutable`. Catalog search includes labels;
+`GET /api/agents/catalog?group=agent` groups identical slug-and-digest definitions across authorized scopes.
+Older daemon versions may reject these new frontmatter keys; keep a backup before downgrading.

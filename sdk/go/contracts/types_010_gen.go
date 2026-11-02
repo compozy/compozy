@@ -4,6 +4,31 @@ package contracts
 
 import "time"
 
+type HeartbeatWakeEventPayload struct {
+	ID                string              `json:"id"`
+	WorkspaceID       string              `json:"workspace_id,omitempty"`
+	AgentName         string              `json:"agent_name,omitempty"`
+	SessionID         string              `json:"session_id,omitempty"`
+	PolicySnapshotID  string              `json:"policy_snapshot_id,omitempty"`
+	Source            HeartbeatWakeSource `json:"source"`
+	Result            HeartbeatWakeResult `json:"result"`
+	Reason            HeartbeatWakeReason `json:"reason"`
+	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
+	CreatedAt         time.Time           `json:"created_at"`
+	ExpiresAt         time.Time           `json:"expires_at"`
+}
+
+type HeartbeatWakeReason string
+
+type HeartbeatWakeRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
+	AgentName      string              `json:"agent_name"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitempty"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
+}
+
 type HeartbeatWakeResponse struct {
 	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }
@@ -139,29 +164,4 @@ type InitializeRuntime struct {
 
 type InitializeSupports struct {
 	HealthCheck bool `json:"health_check"`
-}
-
-type InputAttachmentMetadata struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	MIME  string `json:"mime"`
-	Bytes int64  `json:"bytes"`
-	Kind  string `json:"kind"`
-}
-
-type InputMentionKind string
-
-const (
-	InputMentionKindFile    InputMentionKind = "file"
-	InputMentionKindFolder  InputMentionKind = "folder"
-	InputMentionKindSession InputMentionKind = "session"
-)
-
-type InputMentionMetadata struct {
-	Kind   InputMentionKind `json:"kind"`
-	Token  string           `json:"token"`
-	Target string           `json:"target"`
-	Label  string           `json:"label"`
-	Start  int              `json:"start"`
-	End    int              `json:"end"`
 }

@@ -2,17 +2,20 @@ import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import { useProfileReadScope } from "@/systems/profiles";
-
-import { useCreateAgent, useDuplicateAgent } from "./use-agents";
-import { agentCreateDialogLogic } from "./agent-create-dialog-logic";
+import { useAgents } from "./use-agents";
+import { useAgentInstanceCapacity } from "./use-agent-instances";
 import {
-  buildCreateAgentParams,
+  agentCreateDialogLogic,
+  errorMessage,
+  type AgentCreateDialogStore,
+  type AgentCreateFlow,
+} from "./agent-create-dialog-logic";
+import { useAgentCreateSubmit } from "./use-agent-create-submit";
+import type { AgentInstanceCapacity } from "../lib/agent-instance";
+import {
   buildDraftFromAgentPayload,
-  buildDuplicateAgentParams,
   createDefaultAgentCreateDraft,
   updateAgentCreateScope,
-  validateAgentCreateDraft,
   type AgentCreateDialogDraft,
 } from "../lib/agent-create-draft";
 import type { AgentPayload } from "../types";
@@ -20,6 +23,7 @@ import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/m
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
 import {
+  useWorkspaces,
   workspaceProviderToOption,
   type SessionProviderOption,
   type WorkspacePayload,
@@ -49,23 +53,75 @@ export interface AgentCreateDialogState {
   workspaceName: string | null;
   mode: "create" | "duplicate";
   duplicateSourceName: string | null;
+  /** The draft a duplicate opened with; closing asks only once it changes. */
+  entrySeed: AgentCreateDialogDraft | null;
+  /** Slugs this scope already holds, so a conflict shows before submit. */
+  takenNames: ReadonlySet<string>;
+  /** Every project, for Where it works. */
+  workspaces: readonly WorkspacePayload[];
+  instanceCapacity: AgentInstanceCapacity;
+  /** The agent was created but couldn't start: the screen reports it instead of closing. */
+  startFailure: string | null;
+}
+
+export interface AgentCreateOpenOptions {
+  /** Opens on Stays on with this place chosen: a workspace id or `@user`. */
+  place?: string;
 }
 
 export interface AgentCreateDialogApi extends AgentCreateDialogState {
-  openDialog: () => void;
+  openDialog: (options?: AgentCreateOpenOptions) => void;
   openForDuplicate: (agent: AgentPayload) => void;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
   onOpenChange: (open: boolean) => void;
   onRefreshCatalog: () => void;
   onOpenProviderSettings: () => void;
   onSubmit: () => void;
+  onOpenCreatedAgent: () => void;
 }
 
-function describeError(fallback: string, error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return fallback;
+const NO_NAMES: ReadonlySet<string> = new Set();
+
+/** What the flow's status says about the screen, whatever the draft holds. */
+function describeAgentCreateFlow(flow: AgentCreateFlow) {
+  const open =
+    flow.status === "editing" ||
+    flow.status === "failed" ||
+    flow.status === "submitting" ||
+    flow.status === "start-failed";
+  const duplicateSource =
+    flow.status !== "closed" && flow.kind === "duplicate" ? flow.source : null;
+  return {
+    open,
+    duplicateSource,
+    mode: duplicateSource ? ("duplicate" as const) : ("create" as const),
+    submitError: flow.status === "failed" ? flow.error : null,
+    startFailure: flow.status === "start-failed" ? flow.error : null,
+    isSubmitting: flow.status === "submitting",
+  };
+}
+
+/** Leaves the dialog for the created agent's landing once the flow asks for it. */
+function useAgentCreateNavigation(
+  dialogStore: AgentCreateDialogStore,
+  flow: AgentCreateFlow,
+  activeWorkspace: WorkspacePayload | undefined
+) {
+  const navigate = useNavigate();
+  const navigationTarget = flow.status === "navigation-pending" ? flow : null;
+
+  useEffect(() => {
+    if (!navigationTarget) return;
+    const { agentName, attempt, landing } = navigationTarget;
+    dialogStore.trigger.navigationRequested({
+      attempt,
+      draft: createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id),
+      execute: async () => {
+        if (landing === "sessions") await navigate({ to: "/sessions" });
+        else await navigate({ to: "/agents/$name", params: { name: agentName } });
+      },
+    });
+  }, [activeWorkspace, dialogStore, navigate, navigationTarget]);
 }
 
 export function useAgentCreateDialog({
@@ -75,55 +131,51 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
-  const { destination } = useProfileReadScope();
-  const { mutateAsync: createAgent } = useCreateAgent();
-  const { mutateAsync: duplicateAgent } = useDuplicateAgent();
+  const instanceCapacity = useAgentInstanceCapacity();
+  const workspaces = useWorkspaces();
   const dialogStore = useStore(agentCreateDialogLogic, {
-    initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace)),
+    initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id),
   });
   const flow = useSelector(dialogStore, snapshot => snapshot.context);
+  const { open, duplicateSource, ...flowView } = describeAgentCreateFlow(flow);
 
-  const { draft, providerOptions, providersLoading, providersError } = useAgentCreateProviders(
-    flow.draft,
-    { activeWorkspace, workspaceProviders, workspaceProvidersError, workspaceProvidersLoading }
-  );
+  const { resolveDraft, providerOptions, providersLoading, providersError } =
+    useAgentCreateProviders(flow.draft, {
+      activeWorkspace,
+      workspaceProviders,
+      workspaceProvidersError,
+      workspaceProvidersLoading,
+    });
+  const draft = resolveDraft(flow.draft);
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
     id: option.id,
     needsAuth: option.needs_auth,
   }));
-  const open =
-    flow.status === "editing" || flow.status === "failed" || flow.status === "submitting";
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
-  const runtimeModels = catalog.models;
+  const definitions = useAgents(activeWorkspace?.id, { enabled: open });
+  const takenNames = definitions.data ? new Set(definitions.data.map(a => a.name)) : NO_NAMES;
 
-  const validationContext = {
-    hasActiveWorkspace: Boolean(activeWorkspace),
+  const defaultDraft = () =>
+    createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id);
+
+  useAgentCreateNavigation(dialogStore, flow, activeWorkspace);
+  const onSubmit = useAgentCreateSubmit({
+    activeWorkspaceId: activeWorkspace?.id,
+    dialogStore,
+    draft,
+    flow,
+    instanceCapacity,
     providerOptions,
     providersError,
     providersLoading,
-  };
+  });
 
-  const defaultDraft = () => createDefaultAgentCreateDraft(Boolean(activeWorkspace));
-  const navigationTarget = flow.status === "navigation-pending" ? flow : null;
-
-  useEffect(() => {
-    if (!navigationTarget) return;
-    const { agentName, attempt } = navigationTarget;
-    dialogStore.trigger.navigationRequested({
-      attempt,
-      draft: createDefaultAgentCreateDraft(Boolean(activeWorkspace)),
-      execute: async () => {
-        await navigate({
-          to: "/agents/$name",
-          params: { name: agentName },
-        });
-      },
+  const openDialog = (options: AgentCreateOpenOptions = {}) => {
+    const draft = defaultDraft();
+    dialogStore.trigger.createOpened({
+      draft: options.place ? { ...draft, kind: "stays_on", place: options.place } : draft,
     });
-  }, [activeWorkspace, dialogStore, navigate, navigationTarget]);
-
-  const openDialog = () => {
-    dialogStore.trigger.createOpened({ draft: defaultDraft() });
   };
 
   const openForDuplicate = (agent: AgentPayload) => {
@@ -147,86 +199,41 @@ export function useAgentCreateDialog({
     dialogStore.trigger.draftChanged({ draft: nextDraft });
   };
 
-  const onRefreshCatalog = catalog.refresh;
-
   const onOpenProviderSettings = () => {
     dialogStore.trigger.dialogDismissed({ draft: defaultDraft() });
     void navigate({ to: "/settings/providers" });
   };
 
-  const onSubmit = () => {
-    if (flow.status !== "editing" && flow.status !== "failed") {
-      return;
-    }
-    let execute: () => Promise<AgentPayload>;
-    let failureMessage: string;
-    if (flow.kind === "duplicate") {
-      const request = buildDuplicateAgentParams(
-        flow.source,
-        draft,
-        activeWorkspace?.id,
-        validationContext
-      );
-      if (!request) {
-        const validation = validateAgentCreateDraft(draft, validationContext);
-        const message =
-          Object.values(validation.fields).find(field => field && field.length > 0) ??
-          "Fix the highlighted fields before duplicating an agent.";
-        dialogStore.trigger.submissionRejected({ error: message });
-        return;
-      }
-      execute = () =>
-        duplicateAgent({
-          sourceName: flow.source.name,
-          params: request,
-          profile: destination,
-        });
-      failureMessage = "Failed to duplicate agent.";
-    } else {
-      const request = buildCreateAgentParams(draft, activeWorkspace?.id, validationContext);
-      if (!request) {
-        const validation = validateAgentCreateDraft(draft, validationContext);
-        const message =
-          Object.values(validation.fields).find(field => field && field.length > 0) ??
-          "Fix the highlighted fields before creating an agent.";
-        dialogStore.trigger.submissionRejected({ error: message });
-        return;
-      }
-      execute = () => createAgent({ params: request, profile: destination });
-      failureMessage = "Failed to create agent.";
-    }
-
-    dialogStore.trigger.submissionRequested({
-      execute,
-      failureMessage,
-    });
-  };
-
   return {
+    ...flowView,
     open,
     draft,
     providerOptions,
     providersLoading,
     providersError,
-    runtimeModels,
+    runtimeModels: catalog.models,
     modelCatalogLoading: catalog.loading,
     modelCatalogRefreshing: catalog.refreshing,
     modelCatalogError: catalog.error,
-    submitError: flow.status === "failed" ? flow.error : null,
-    isSubmitting: flow.status === "submitting",
+    takenNames,
+    workspaces: workspaces.data ?? [],
+    instanceCapacity,
     hasActiveWorkspace: Boolean(activeWorkspace),
     workspaceId: activeWorkspace?.id ?? null,
     workspaceName: activeWorkspace?.name ?? null,
-    mode: flow.status === "closed" ? "create" : flow.kind,
-    duplicateSourceName:
-      flow.status !== "closed" && flow.kind === "duplicate" ? flow.source.name : null,
+    duplicateSourceName: duplicateSource?.name ?? null,
+    // Resolved like the draft, so a provider this scope lacks doesn't read as an edit.
+    entrySeed: duplicateSource
+      ? resolveDraft(buildDraftFromAgentPayload(duplicateSource, Boolean(activeWorkspace)))
+      : null,
     openDialog,
     openForDuplicate,
     onDraftChange,
     onOpenChange,
-    onRefreshCatalog,
+    onRefreshCatalog: catalog.refresh,
     onOpenProviderSettings,
     onSubmit,
+    onOpenCreatedAgent: () => dialogStore.trigger.startFailureAcknowledged({}),
   };
 }
 
@@ -247,29 +254,31 @@ function useAgentCreateProviders(
   const workspaceProviderOptions: RuntimeProviderOption[] =
     workspaceProviders.map(workspaceProviderToOption);
 
-  // The menubar owns scope: the draft never freezes it, both flip directions included.
-  const scopedDraft: AgentCreateDialogDraft = updateAgentCreateScope(
-    storedDraft,
-    activeWorkspace ? "workspace" : "global"
-  );
-  const sourceProviders =
-    scopedDraft.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
-  const draft: AgentCreateDialogDraft =
-    scopedDraft.provider.length > 0 &&
-    !sourceProviders.some(provider => provider.name === scopedDraft.provider)
-      ? { ...scopedDraft, provider: "", model: "", reasoningEffort: "" as const }
-      : scopedDraft;
+  /** The menubar owns an On demand agent's scope; a Stays on agent lives at the user level. */
+  const resolveDraft = (stored: AgentCreateDialogDraft): AgentCreateDialogDraft => {
+    const scoped = updateAgentCreateScope(
+      stored,
+      activeWorkspace && stored.kind === "on_demand" ? "workspace" : "global"
+    );
+    const sourceProviders =
+      scoped.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
+    const providerKnown = sourceProviders.some(provider => provider.name === scoped.provider);
+    return scoped.provider.length > 0 && !providerKnown
+      ? { ...scoped, provider: "", model: "", reasoningEffort: "" as const }
+      : scoped;
+  };
+  const { scope } = resolveDraft(storedDraft);
   const providerOptions: RuntimeProviderOption[] =
-    draft.scope === "workspace" ? workspaceProviderOptions : globalProviders;
+    scope === "workspace" ? workspaceProviderOptions : globalProviders;
 
   const providersLoading =
-    draft.scope === "workspace" ? workspaceProvidersLoading : settingsProviders.isLoading;
+    scope === "workspace" ? workspaceProvidersLoading : settingsProviders.isLoading;
   const providersError =
-    draft.scope === "workspace"
+    scope === "workspace"
       ? workspaceProvidersError
       : settingsProviders.error
-        ? describeError("Unable to load global provider settings.", settingsProviders.error)
+        ? errorMessage(settingsProviders.error, "Unable to load global provider settings.")
         : null;
 
-  return { draft, providerOptions, providersLoading, providersError };
+  return { resolveDraft, providerOptions, providersLoading, providersError };
 }

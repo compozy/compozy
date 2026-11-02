@@ -16,14 +16,18 @@ import (
 )
 
 type sessionStartSpec struct {
-	origin                   workspaceaccess.Origin
-	effectiveWorkspaceAccess string
-	sessionID                string
-	profileID                string
-	sessionName              string
-	agentName                string
-	provider                 string
-	commandFingerprint       string
+	initiatorKind             string
+	initiatorID               string
+	instancePermissionCeiling *store.SessionPermissionPolicy
+	instanceID                string
+	origin                    workspaceaccess.Origin
+	effectiveWorkspaceAccess  string
+	sessionID                 string
+	profileID                 string
+	sessionName               string
+	agentName                 string
+	provider                  string
+	commandFingerprint        string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
 	sessionEnv compozyconfig.SessionEnv
@@ -56,6 +60,7 @@ type sessionStartSpec struct {
 	runtimeMode              string
 	sessionType              Type
 	lineage                  *store.SessionLineage
+	preserveDelegationPolicy bool
 	allowedToolsOverride     []string
 	deniedToolsOverride      []string
 	creationProfile          *store.SessionCreationProfile
@@ -106,7 +111,7 @@ func normalizeRuntimeSpeed(
 }
 
 func normalizeCreateRuntimeOptions(
-	opts CreateOpts,
+	opts *CreateOpts,
 ) (speedpkg.Speed, []acp.SessionConfigOptionSelection, error) {
 	requestedSpeed, err := normalizeRuntimeSpeed(opts.Speed, "")
 	if err != nil {

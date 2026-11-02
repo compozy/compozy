@@ -25,12 +25,39 @@ func (m *Manager) resolveSessionStartRuntime(
 	if spec.startAction == sessionStartActionResume && spec.acceptedRoute != nil {
 		m.applyResumeRouteAffinity(ctx, spec, agentDef)
 	}
-	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
+	runtimeConfig := spec.workspace.Config
+	if spec.sessionType == SessionTypeTriage {
+		runtimeConfig.Permissions.ProviderFullAccess = false
+		runtimeConfig.Permissions.Mode = compozyconfig.PermissionModeApproveReads
+		spec.permissions = compozyconfig.PermissionModeApproveReads
+		agentDef = compozyconfig.CloneAgentDef(agentDef)
+		agentDef.Permissions = string(compozyconfig.PermissionModeApproveReads)
+	}
+	resolved, err := runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
 		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort, Command: spec.command,
 		SessionEnv: spec.sessionEnv,
 	})
 	if err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
+	}
+	if spec.sessionType == SessionTypeTriage {
+		provider := resolved.RuntimeProvider
+		if provider == "" {
+			provider = resolved.Provider
+		}
+		if model := runtimeConfig.Agents.Heartbeat.TriageModels[provider]; model != "" {
+			spec.model, spec.provider = model, resolved.Provider
+			resolved, err = runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
+				Provider:   spec.provider,
+				Model:      spec.model,
+				Reasoning:  spec.reasoningEffort,
+				Command:    spec.command,
+				SessionEnv: spec.sessionEnv,
+			})
+			if err != nil {
+				return sessionStartRuntime{}, fmt.Errorf("session: resolve triage model: %w", err)
+			}
+		}
 	}
 	resolved, err = m.resolveSpawnProviderCommand(ctx, spec, agentDef, resolved, map[string]bool{spec.sessionID: true})
 	if err != nil {
@@ -56,6 +83,9 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	if err := spec.applyDeniedToolsOverride(&resolved); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: apply denied tools for %q: %w", spec.sessionID, err)
+	}
+	if err := m.applyInstanceCeiling(ctx, spec, &resolved); err != nil {
+		return sessionStartRuntime{}, err
 	}
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{

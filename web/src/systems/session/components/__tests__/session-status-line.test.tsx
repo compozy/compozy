@@ -45,7 +45,7 @@ describe("SessionStatusLine", () => {
     );
 
     const pill = screen.getByTestId("session-origin-pill");
-    expect(pill).toHaveTextContent("Continued from claude");
+    expect(pill).toHaveTextContent("Continued from Claude");
     expect(pill).toHaveAttribute("data-link", "true");
     fireEvent.click(pill);
     expect(onOpenSource).toHaveBeenCalledExactlyOnceWith(child.lineage?.parent_session_id);
@@ -63,7 +63,7 @@ describe("SessionStatusLine", () => {
     );
 
     const pill = screen.getByTestId("session-origin-pill");
-    expect(pill).toHaveTextContent("Continued from claude");
+    expect(pill).toHaveTextContent("Continued from Claude");
     expect(pill).toHaveAttribute("data-link", "false");
     expect(pill.tagName).toBe("SPAN");
     fireEvent.click(pill);

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"sync"
 
 	burnttoml "github.com/BurntSushi/toml"
@@ -223,6 +224,7 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 }
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {
+	o.StaysOn.Apply(&dst.StaysOn)
 	o.Soul.Apply(&dst.Soul)
 	o.Heartbeat.Apply(&dst.Heartbeat)
 }
@@ -240,6 +242,21 @@ func (o soulOverlay) Apply(dst *SoulConfig) {
 }
 
 func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
+	if o.TriageModels != nil {
+		dst.TriageModels = maps.Clone(o.TriageModels)
+	}
+	if o.MaxInterval != nil {
+		dst.MaxInterval = *o.MaxInterval
+	}
+	if o.MaxConcurrentTriage != nil {
+		dst.MaxConcurrentTriage = *o.MaxConcurrentTriage
+	}
+	if o.QuietBackoffCap != nil {
+		dst.QuietBackoffCap = *o.QuietBackoffCap
+	}
+	if o.FatigueLimit != nil {
+		dst.FatigueLimit = *o.FatigueLimit
+	}
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
 	}

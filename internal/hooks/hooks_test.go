@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestNewHooksCreatesEmptyStartedRegistry(t *testing.T) {
@@ -2085,6 +2086,77 @@ func TestDispatchCompactionObservationPatches(t *testing.T) {
 				if !strings.Contains(record.Error, "unknown field") {
 					t.Fatalf("record = %#v", record)
 				}
+			}
+		})
+	}
+}
+
+func TestHeartbeatWakeCancellation(t *testing.T) {
+	for _, tc := range []struct {
+		name, source, reason string
+		dryRun, denied       bool
+	}{
+		{name: "Should veto timer checks", source: "timer", denied: true},
+		{name: "Should veto explicit checks", source: "instance_check", denied: true},
+		{name: "Should redact cancellation reasons", source: "timer", denied: true, reason: "maintenance claim_token=compozy_claim_hook_secret"},
+		{name: "Should bound multibyte cancellation reasons", source: "timer", denied: true, reason: strings.Repeat("界", 400)},
+		{name: "Should ignore cancellation for scheduler wakes", source: "scheduler"},
+		{name: "Should ignore cancellation for manual wakes", source: "manual"},
+		{name: "Should ignore cancellation for harness wakes", source: "harness_reentry"},
+		{name: "Should ignore cancellation for dry runs", source: "timer", dryRun: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reason := tc.reason
+			if reason == "" {
+				reason = " maintenance_window "
+			}
+			hooks := newTestHooks(
+				t,
+				WithNativeDeclarations(
+					[]HookDecl{
+						{
+							Name:         "veto",
+							Event:        HookAgentHeartbeatWakeBefore,
+							Mode:         HookModeSync,
+							ExecutorKind: HookExecutorNative,
+						},
+					},
+				),
+				WithExecutorResolver(
+					testExecutorResolver(
+						map[string]Executor{
+							"veto": NewTypedNativeExecutor(
+								func(context.Context, RegisteredHook, AgentHeartbeatWakeBeforePayload) (AgentHeartbeatWakePatch, error) {
+									return AgentHeartbeatWakePatch{Cancel: true, Reason: reason}, nil
+								},
+							),
+						},
+					),
+				),
+			)
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			_, err := hooks.DispatchAgentHeartbeatWakeBefore(
+				t.Context(),
+				AgentHeartbeatWakeBeforePayload{Source: tc.source, DryRun: tc.dryRun},
+			)
+			if errors.Is(err, ErrHeartbeatWakeCancelled) != tc.denied {
+				t.Fatalf("denied=%v error=%v", tc.denied, err)
+			}
+			if tc.denied {
+				denied, ok := errors.AsType[*DeniedError](err)
+				if !ok || denied.HookName != "veto" || len(denied.Reason) > 300 || !utf8.ValidString(denied.Reason) ||
+					strings.Contains(denied.Reason, "compozy_claim_hook_secret") {
+					t.Fatalf("denial=%+v error=%v", denied, err)
+				}
+				if tc.reason == "" && denied.Reason != "maintenance_window" {
+					t.Fatalf("denial=%+v error=%v", denied, err)
+				}
+			}
+			if !tc.denied && err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

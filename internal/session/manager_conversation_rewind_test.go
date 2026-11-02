@@ -230,9 +230,9 @@ func TestConversationRewindLineageRule(t *testing.T) {
 		lineage *store.SessionLineage,
 	) (*Session, string, transcript.Page) {
 		t.Helper()
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Name: "lineage rewind", Workspace: h.workspaceID, Lineage: lineage,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(lineage %#v) error = %v", lineage, err)
 		}

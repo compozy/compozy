@@ -1595,3 +1595,55 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		}
 	})
 }
+
+func TestSupervisionHeldPermission(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep an unattended permission active and remove its signal after resolution", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = time.Second, time.Second
+		h := newHarness(t, WithNow(func() time.Time { return now }), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		installAbsentWorkSources(h.manager)
+		h.manager.SetWorkSignalSources(
+			WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)},
+		)
+		markTurnInFlight(target)
+		target.mu.Lock()
+		target.PendingInteractions = []store.PendingInteraction{
+			{
+				InteractionID: "held",
+				Kind:          store.PendingInteractionKindPermission,
+				Status:        store.PendingInteractionStatusPending,
+				CreatedAt:     now,
+			},
+		}
+		target.mu.Unlock()
+		now = now.Add(11 * time.Hour)
+		if err := h.manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		info := target.Info()
+		if info.State != StateActive || info.Supervision.QuietWarning != nil ||
+			!slices.ContainsFunc(
+				info.Supervision.WorkSignals,
+				func(signal WorkSignal) bool { return signal.Kind == WorkSignalHeldPermission && signal.Ref == "held" },
+			) {
+			t.Fatalf("held supervision = %#v", info.Supervision)
+		}
+		target.mu.Lock()
+		target.PendingInteractions = nil
+		target.mu.Unlock()
+		if err := h.manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		if slices.ContainsFunc(
+			target.Info().Supervision.WorkSignals,
+			func(signal WorkSignal) bool { return signal.Kind == WorkSignalHeldPermission },
+		) {
+			t.Fatal("resolved permission retained a work signal")
+		}
+	})
+}

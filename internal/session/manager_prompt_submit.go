@@ -219,6 +219,10 @@ func (m *Manager) submitPromptInReservedSlot(
 		}
 	}()
 	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
+	turnState.reportMessageIDs = []string{req.messageID}
+	for _, input := range dispatchInput.batched {
+		turnState.reportMessageIDs = append(turnState.reportMessageIDs, input.request.messageID)
+	}
 	recoveryRequest := m.newDispatchPromptRequest(ctx, session, &req, dispatchMessage, dispatchInput, attachments,
 		activity)
 	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)

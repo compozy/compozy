@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Generates the Lucide icon-slug allowlist embedded by internal/profile.
+// Generates the Lucide icon-slug allowlist embedded by internal/config.
 //
 // The web picker offers the full Lucide catalog and renders profile icons from
 // the lucide-static sprite; the daemon must refuse any slug that sprite cannot
@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 const root = process.cwd();
 const args = new Set(process.argv.slice(2));
-const outputPath = join(root, "internal/profile/lucide_icons.gen.txt");
+const outputPath = join(root, "internal/config/lucide_icons.gen.txt");
 
 const resolve = createRequire(join(root, "web/package.json")).resolve;
 const tags = JSON.parse(readFileSync(resolve("lucide-static/tags.json"), "utf8"));
@@ -25,7 +25,7 @@ if (args.has("--write")) {
 }
 if (next === current) process.exit(0);
 process.stdout.write(
-  "internal/profile/lucide_icons.gen.txt is out of sync with lucide-static.\n" +
+  "internal/config/lucide_icons.gen.txt is out of sync with lucide-static.\n" +
     "Run make codegen or scripts/sync-lucide-icons.mjs --write.\n" +
     describeDrift(current, next)
 );

@@ -15,12 +15,13 @@ import (
 
 // Scheduler owns one mechanical sweep/notify loop.
 type Scheduler struct {
-	tasks      TaskSource
-	sessions   SessionSource
-	waker      Waker
-	pauseStore PauseStore
-	escalator  EscalationActor
-	starvation StarvationStore
+	tasks           TaskSource
+	sessions        SessionSource
+	waker           Waker
+	proactiveChecks func(context.Context) error
+	pauseStore      PauseStore
+	escalator       EscalationActor
+	starvation      StarvationStore
 
 	logger           *slog.Logger
 	clock            clockwork.Clock
@@ -270,6 +271,12 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 	now := s.clock.Now().UTC()
 	result := CycleResult{}
 	errs := s.sweepExpiredLeases(ctx, now, &result)
+	if s.proactiveChecks != nil {
+		if err := s.proactiveChecks(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("scheduler: proactive checks: %w", err))
+		}
+	}
+
 	errs = append(errs, s.sweepExpiredTaskBlocks(ctx, now, &result)...)
 	if backstop, ok := s.tasks.(LoopCoordinatorBackstop); ok {
 		count, err := backstop.RunLoopCoordinatorBackstop(ctx, now, s.actor)

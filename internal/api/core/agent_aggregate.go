@@ -16,8 +16,9 @@ import (
 )
 
 type aggregateAgentPosition struct {
-	Name        string
-	WorkspaceID string
+	DefinitionDigest string `json:"DefinitionDigest,omitempty"`
+	Name             string
+	WorkspaceID      string
 }
 
 func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
@@ -25,6 +26,10 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 	if !ok {
 		return
 	}
+	h.listAgentAggregate(c, breadth)
+}
+
+func (h *BaseHandlers) listAgentAggregate(c *gin.Context, breadth WorkspaceBreadth) {
 	query, err := parseAgentCatalogQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -81,24 +86,43 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 			}
 		}
 		metrics, available := h.agentCatalogSessionMetrics(c, scope, agentMetricsWorkspace(workspace))
-		agents := aggregateWorkspaceAgents(workspace, &resolved, userAgentNames, metrics, available)
+		agents := aggregateWorkspaceAgents(
+			workspace,
+			&resolved,
+			userAgentNames,
+			metrics,
+			available && query.Group != agentCatalogGroupKey,
+		)
 		response.SessionsAvailable = response.SessionsAvailable && available
 		query.Limit = len(agents) + 1
-		page, buildErr := buildAgentCatalogResponse(query, workspace, agents, metrics, available)
+		page, buildErr := buildAgentCatalogResponse(
+			agentCatalogWorkspaceQuery(query),
+			workspace,
+			agents,
+			metrics,
+			available,
+		)
 		if buildErr != nil {
 			h.respondError(c, http.StatusInternalServerError, buildErr)
 			return
 		}
-		response.Agents = append(response.Agents, page.Agents...)
-		response.Facets.Total += page.Facets.Total
-		response.Facets.Active += page.Facets.Active
-		response.Facets.Idle += page.Facets.Idle
-		response.Facets.Categories = append(response.Facets.Categories, page.Facets.Categories...)
+		mergeAgentCatalogPage(&response, page)
 	}
-	if err := paging.finish(&response); err != nil {
+	h.finishAggregateAgentResponse(c, &response, query, paging)
+}
+
+func (h *BaseHandlers) finishAggregateAgentResponse(
+	c *gin.Context,
+	response *contract.AgentCatalogResponse,
+	query agentCatalogQuery,
+	paging aggregateAgentPaging,
+) {
+	groupAgentCatalogResponse(response, query)
+	if err := paging.finish(response); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	projectGroupedAgentCatalog(response, query)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -153,10 +177,7 @@ func (p aggregateAgentPaging) finish(response *contract.AgentCatalogResponse) er
 	slices.Sort(response.Facets.Categories)
 	response.Facets.Categories = slices.Compact(response.Facets.Categories)
 	slices.SortFunc(response.Agents, func(a, b contract.AgentCatalogItemPayload) int {
-		return cmp.Or(
-			compareAgentCatalogNames(a.Agent.Name, b.Agent.Name),
-			cmp.Compare(a.Agent.WorkspaceID, b.Agent.WorkspaceID),
-		)
+		return compareAggregateAgentPositions(aggregateAgentRowPosition(&a), aggregateAgentRowPosition(&b))
 	})
 	response.Page.Total = len(response.Agents)
 	start := aggregateAgentPageStart(response.Agents, p.cursor, p.after)
@@ -166,12 +187,12 @@ func (p aggregateAgentPaging) finish(response *contract.AgentCatalogResponse) er
 	if !response.Page.HasMore {
 		return nil
 	}
-	last := response.Agents[len(response.Agents)-1].Agent
+	last := aggregateAgentRowPosition(&response.Agents[len(response.Agents)-1])
 	cursor, err := listcursor.Encode(
 		1,
 		"agents_aggregate",
 		p.fingerprint,
-		aggregateAgentPosition{last.Name, last.WorkspaceID},
+		last,
 	)
 	response.Page.NextCursor = cursor
 	return err
@@ -194,7 +215,8 @@ func aggregateWorkspaceAgents(
 	available bool,
 ) []contract.AgentPayload {
 	agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
-	for _, entry := range resolved.Entries {
+	for i := range resolved.Entries {
+		entry := &resolved.Entries[i]
 		// Unavailable counts never prove zero sessions, so inherited rows stay listed then.
 		if workspace != "" && available && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
 			continue
@@ -219,10 +241,7 @@ func aggregateAgentPageStart(
 		return 0
 	}
 	for i := range agents {
-		if cmp.Or(
-			compareAgentCatalogNames(agents[i].Agent.Name, after.Name),
-			cmp.Compare(agents[i].Agent.WorkspaceID, after.WorkspaceID),
-		) > 0 {
+		if compareAggregateAgentPositions(aggregateAgentRowPosition(&agents[i]), after) > 0 {
 			return i
 		}
 	}
@@ -234,7 +253,7 @@ func aggregateAgentPageStart(
 // a project row exists only for a definition authored in the project or one with project work
 // (AP Data Models "Agent rows", same rule as loop catalog rows).
 func inheritedUserAgentWithoutProjectWork(
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	userAgentNames map[string]struct{},
 	metrics map[string]session.AgentSessionMetrics,
 ) bool {
@@ -250,8 +269,31 @@ func inheritedUserAgentWithoutProjectWork(
 
 func aggregateUserAgentNames(entries []AgentCatalogEntry) map[string]struct{} {
 	names := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		names[entry.Def.Name] = struct{}{}
+	for index := range entries {
+		names[entries[index].Def.Name] = struct{}{}
 	}
 	return names
+}
+
+func aggregateAgentRowPosition(row *contract.AgentCatalogItemPayload) aggregateAgentPosition {
+	if len(row.Scopes) > 0 {
+		return aggregateAgentPosition{Name: row.Agent.Name, DefinitionDigest: row.Agent.DefinitionDigest}
+	}
+	return aggregateAgentPosition{Name: row.Agent.Name, WorkspaceID: row.Agent.WorkspaceID}
+}
+
+func compareAggregateAgentPositions(a, b aggregateAgentPosition) int {
+	return cmp.Or(
+		compareAgentCatalogNames(a.Name, b.Name),
+		cmp.Compare(a.DefinitionDigest, b.DefinitionDigest),
+		cmp.Compare(a.WorkspaceID, b.WorkspaceID),
+	)
+}
+
+func mergeAgentCatalogPage(response *contract.AgentCatalogResponse, page contract.AgentCatalogResponse) {
+	response.Agents = append(response.Agents, page.Agents...)
+	response.Facets.Total += page.Facets.Total
+	response.Facets.Active += page.Facets.Active
+	response.Facets.Idle += page.Facets.Idle
+	response.Facets.Categories = append(response.Facets.Categories, page.Facets.Categories...)
 }

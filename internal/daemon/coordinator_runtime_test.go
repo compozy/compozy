@@ -883,8 +883,10 @@ type coordinatorFallbackSessions struct {
 
 func (s *coordinatorFallbackSessions) Create(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (*session.Session, error) {
+	opts := *optsInput
+
 	s.mu.Lock()
 	s.attempts = append(s.attempts, opts)
 	attempt := len(s.attempts)
@@ -892,7 +894,7 @@ func (s *coordinatorFallbackSessions) Create(
 	if attempt == 1 {
 		return nil, s.primaryErr
 	}
-	return s.coordinatorRuntimeSessions.Create(ctx, opts)
+	return s.coordinatorRuntimeSessions.Create(ctx, &(opts))
 }
 
 func (s *coordinatorFallbackSessions) snapshotAttempts() []session.CreateOpts {
@@ -912,7 +914,12 @@ type coordinatorRuntimeStopCall struct {
 	detail string
 }
 
-func (s *coordinatorRuntimeSessions) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (s *coordinatorRuntimeSessions) Create(
+	ctx context.Context,
+	optsInput *session.CreateOpts,
+) (*session.Session, error) {
+	opts := *optsInput
+
 	s.mu.Lock()
 	createStarted := s.createStarted
 	createRelease := s.createRelease

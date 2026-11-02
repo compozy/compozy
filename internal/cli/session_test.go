@@ -5530,3 +5530,49 @@ func (*unsupportedProcessClient) TerminateSessionProcesses(
 ) (contract.TerminateSessionProcessesResponse, error) {
 	return contract.TerminateSessionProcessesResponse{Supported: false, Results: []contract.SessionProcessResult{}}, nil
 }
+
+func TestSessionPendingDescendants(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward descendants and preserve the original session identity", func(t *testing.T) {
+		t.Parallel()
+		expiresAt := fixedTestNow.Add(12 * time.Hour)
+		want := SessionInteractionsRecord{
+			Interactions: []contract.PendingInteractionPayload{
+				{SessionID: "child", InteractionID: "interaction", ProviderRequestID: "request", ExpiresAt: &expiresAt},
+			},
+		}
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{
+				listSessionPendingInteractionsFn: func(_ context.Context, id string, descendants bool) (SessionInteractionsRecord, error) {
+					if id != "parent" || !descendants {
+						t.Fatalf("query = %q/%v", id, descendants)
+					}
+					return want, nil
+				},
+			},
+		)
+		stdout, _, err := executeRootCommand(t, deps, "session", "pending", "parent", "--descendants", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got SessionInteractionsRecord
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("pending = %#v", got)
+		}
+		bundle := sessionInteractionsBundle(want)
+		human, err := bundle.human()
+		if err != nil || !strings.Contains(human, "child") ||
+			!strings.Contains(human, expiresAt.UTC().Format(time.RFC3339)) {
+			t.Fatalf("pending human = %q, %v", human, err)
+		}
+		toon, err := bundle.toon()
+		if err != nil || !strings.Contains(toon, "child") ||
+			!strings.Contains(toon, expiresAt.UTC().Format(time.RFC3339)) {
+			t.Fatalf("pending toon = %q, %v", toon, err)
+		}
+	})
+}

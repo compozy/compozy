@@ -111,7 +111,7 @@ describe("SessionContinueDialog", () => {
     expect(screen.queryByTestId("session-continue-route-select")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-continue-submit")).toBeEnabled();
     expect(screen.getByTestId("session-continue-source-note")).toHaveTextContent(
-      "From Refactor flaky manager tests · claude"
+      "From Refactor flaky manager tests · Claude"
     );
   });
 

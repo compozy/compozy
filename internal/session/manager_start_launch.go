@@ -32,9 +32,17 @@ func (m *Manager) prepareSessionLaunch(
 		return acp.StartOpts{}, startupFailure("session provider startup failed", err)
 	}
 	preHookCommand := strings.TrimSpace(startOpts.Command)
+	preHookOpts := startOpts
+	preHookOpts.MCPServers = slices.Clone(startOpts.MCPServers)
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
+	}
+	if spec.sessionType == SessionTypeTriage && startOpts.Command != preHookCommand {
+		return acp.StartOpts{}, acp.ErrTriageUnsupported
+	}
+	if err := validateInstanceLaunch(spec, preHookOpts, startOpts); err != nil {
+		return acp.StartOpts{}, err
 	}
 	launchAgent := runtime.agent
 	if strings.TrimSpace(startOpts.Command) != preHookCommand {
@@ -51,6 +59,12 @@ func (m *Manager) prepareSessionLaunch(
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
+	if spec.sessionType == SessionTypeTriage {
+		startOpts.ExecutionPolicy = acp.ExecutionPolicyTriage
+		startOpts.Permissions = compozyconfig.PermissionModeApproveReads
+		startOpts.MCPServers = nil
+		startOpts.ActivateMCPServers = nil
+	}
 
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {

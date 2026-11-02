@@ -1,196 +1,269 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
-import type { ListingViewMode } from "@compozy/ui";
+import type { Filter, ListingViewMode } from "@compozy/ui";
 
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
-  type AgentFleetRowModel,
-  type AgentsFleetSearch,
+  AGENT_PLACE_LATER,
+  GLOBAL_SCOPE,
+  agentTeamOptions,
+  buildAgentTeam,
+  buildAgentTeamFilterFields,
   hasActiveAgentFleetFilters,
-  projectAgentFleetRows,
-  useAgentAggregate,
-  useAgentCatalog,
+  matchesAgentFilters,
+  matchesAgentFocus,
   useAgentCreateHost,
+  useAgentInstanceActions,
+  useAgentInstanceCapacity,
+  useAgentInstances,
+  type AgentAddPlaceActions,
+  type AgentInstanceCapacity,
+  type AgentTeamFocus,
+  type AgentTeamMember,
+  type AgentsFleetSearch,
 } from "@/systems/agent";
 import { useProfileReadScope } from "@/systems/profiles";
-import { useSessionCreateActions, useSessionCreateHasActiveWorkspace } from "@/systems/session";
+import {
+  useSessionCreateActions,
+  useSessionCreateHasActiveWorkspace,
+  useSignedOutProviders,
+} from "@/systems/session";
 import {
   focusedWorkspaceSelector,
   ownerDataScope,
   useActiveWorkspace,
-  useProjectFilter,
   useWindowDataWorkspace,
-  workspaceBadgeIdentity,
 } from "@/systems/workspace";
 import { useOpenTarget } from "../../hooks/use-open-target";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
+const FOCUS_ITEMS: readonly { value: AgentTeamFocus; label: string }[] = [
+  { value: "all", label: "Everyone" },
+  { value: "needs-you", label: "Needs you" },
+  { value: "working", label: "Working" },
+  { value: "paused", label: "Paused" },
+];
+
+const CHIP_FIELDS = ["project", "model", "owner"] as const;
+
+function searchChips(search: AgentsFleetSearch): Filter<string>[] {
+  return CHIP_FIELDS.flatMap(field => {
+    const value = search[field];
+    return value
+      ? [{ id: `agent-team-filter-${field}`, field, operator: "is", values: [value] }]
+      : [];
+  });
+}
+
+function chipValue(chips: readonly Filter<string>[], field: string) {
+  return chips.find(chip => chip.field === field)?.values[0];
+}
+
+function useTeamMembers(enabled: boolean) {
+  const { workspaces } = useActiveWorkspace();
+  const { destination } = useProfileReadScope();
+  const dataScope = useWindowDataWorkspace();
+  // All projects reads every project's definitions; a focused window reads its own.
+  const scope = dataScope?.kind === "all" ? "" : focusedWorkspaceSelector(dataScope);
+  const team = useQuery(agentTeamOptions(scope, destination, enabled));
+  const instances = useAgentInstances();
+  const inWindow =
+    dataScope?.kind === "project"
+      ? instances.filter(
+          instance => instance.workspace_id === dataScope.workspaceId || !instance.workspace_id
+        )
+      : instances;
+  const members = buildAgentTeam({
+    items: team.data ?? [],
+    instances: inWindow,
+    workspaces,
+  });
+  return { team, members };
+}
+
+function useAddPlaceActions(capacity: AgentInstanceCapacity): AgentAddPlaceActions {
+  const navigate = useNavigate();
+  const { workspaces } = useActiveWorkspace();
+  const actions = useAgentInstanceActions();
+  const signedOut = useSignedOutProviders();
+  return {
+    places: [{ id: GLOBAL_SCOPE, name: "Global" }, ...workspaces],
+    capacity,
+    signedOut,
+    onAdd: (agent, place) => actions.add({ agent, workspace: place }),
+    onSignIn: () => void navigate({ to: "/settings/providers" }),
+  };
+}
+
+/** All profiles reads definitions for the acting profile only (configuration resolves per profile). */
+function useTeamDefinitionsProfile() {
+  const profile = useProfileReadScope();
+  return profile.aggregate ? profile.destination : null;
+}
+
+function fleetSearchFacets(search: AgentsFleetSearch) {
+  const focus: AgentTeamFocus = search.focus ?? "all";
+  const view: ListingViewMode = search.view ?? "cards";
+  return { chips: searchChips(search), focus, view };
+}
+
+function fleetListingState({
+  isLoading,
+  isError,
+  total,
+  shown,
+  unfiltered,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  total: number;
+  shown: number;
+  unfiltered: boolean;
+}) {
+  const settled = !isLoading && !isError;
+  const isFirstRunEmpty = settled && total === 0 && unfiltered;
+  return {
+    isLoading,
+    isFirstRunEmpty,
+    isFilteredEmpty: settled && shown === 0 && !isFirstRunEmpty,
+    showFacets: !isLoading && !isFirstRunEmpty && !(isError && total === 0),
+  };
+}
+
+function useOpenTeamMember(allProjects: boolean) {
+  const openItem = useOpenTarget();
+  const navigate = useNavigate({ from: "/agents" });
+  return (member: AgentTeamMember) => {
+    const route = { pathname: `/agents/${encodeURIComponent(member.name)}`, search: {} };
+    if (allProjects) {
+      // All projects: an agent opens in place, its window bound to the agent's project.
+      openItem({ app: "agents", binding: ownerDataScope(member.agent?.workspace_id), route });
+      return;
+    }
+    void navigate({ to: "/agents/$name", params: { name: member.name } });
+  };
+}
+
+function useOpenAgentCreate() {
+  const { openDialog } = useAgentCreateHost();
+  return (options?: { staysOn?: boolean }) =>
+    openDialog(options?.staysOn ? { place: AGENT_PLACE_LATER } : undefined);
+}
+
+function focusItemsFor(members: readonly AgentTeamMember[]) {
+  return FOCUS_ITEMS.flatMap(item => {
+    if (item.value === "all") return [item];
+    const count = members.filter(member => matchesAgentFocus(member, item.value)).length;
+    return count > 0 ? [{ ...item, badge: count }] : [];
+  });
+}
+
+function providerOptionsOf(members: readonly AgentTeamMember[]) {
+  return [...new Set(members.flatMap(member => member.provider ?? []))].map(id => ({
+    id,
+    name: id.charAt(0).toUpperCase() + id.slice(1),
+  }));
+}
+
+const withChips = (next: readonly Filter<string>[]) => (current: AgentsFleetSearch) => ({
+  ...current,
+  project: chipValue(next, "project"),
+  model: chipValue(next, "model"),
+  owner: chipValue(next, "owner"),
+});
+
+const withFocus = (next: AgentTeamFocus) => (current: AgentsFleetSearch) => ({
+  ...current,
+  focus: next === "all" ? undefined : next,
+});
+
+const withView = (next: ListingViewMode) => (current: AgentsFleetSearch) => ({
+  ...current,
+  view: next === "cards" ? undefined : next,
+});
+
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const { pending, workspaces } = useActiveWorkspace();
-  const profile = useProfileReadScope();
-  const openItem = useOpenTarget();
-  // The window's scope: a project's agents, User's (`@user`), or under All
-  // projects every project's agents plus User's, one row per (project, name).
+  const definitionsFor = useTeamDefinitionsProfile();
   const dataScope = useWindowDataWorkspace();
-  const allProjects = dataScope?.kind === "all";
-  const workspaceId = focusedWorkspaceSelector(dataScope);
-  const projectFilter = useProjectFilter(dataScope, workspaces);
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const navigate = useNavigate({ from: "/agents" });
-  const { openDialog } = useAgentCreateHost();
+  const onOpen = useOpenTeamMember(dataScope?.kind === "all");
+  const openCreate = useOpenAgentCreate();
   const { openForAgent } = useSessionCreateActions();
   const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
   const searchInputRef = useListingSearchShortcut(liveDataEnabled);
-  const routeQuery = search.q ?? "";
   const updateSearch = (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {
     void navigate({ search: current => updater(current), to: "/agents" });
   };
   const queryInput = useDebouncedInput({
     delayMs: SEARCH_DEBOUNCE_MS,
-    externalValue: routeQuery,
+    externalValue: search.q ?? "",
     onCommit: nextQuery =>
       updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
   });
 
-  const agentsEnabled = liveDataEnabled && !pending && dataScope !== null;
-  const filters = { q: search.q, category: search.category, status: search.status, limit: 50 };
-  const projectCatalog = useAgentCatalog(workspaceId, filters, {
-    enabled: agentsEnabled && !allProjects,
+  const { team, members } = useTeamMembers(liveDataEnabled && !pending && dataScope !== null);
+  const capacity = useAgentInstanceCapacity();
+  const add = useAddPlaceActions(capacity);
+  const { chips, focus, view } = fleetSearchFacets(search);
+
+  const matched = members.filter(member =>
+    matchesAgentFilters(member, queryInput.draftValue, chips, workspaces)
+  );
+  const shown = matched.filter(member => matchesAgentFocus(member, focus));
+  const focusItems = focusItemsFor(members);
+  const providers = providerOptionsOf(members);
+
+  const unfiltered = !hasActiveAgentFleetFilters(search) && queryInput.draftValue === "";
+  const listing = fleetListingState({
+    isLoading: pending || team.isPending,
+    isError: team.isError,
+    total: members.length,
+    shown: shown.length,
+    unfiltered,
   });
-  const aggregateCatalog = useAgentAggregate(projectFilter.values, filters, {
-    enabled: agentsEnabled && allProjects,
-  });
-  const catalogQuery = allProjects ? aggregateCatalog : projectCatalog;
-  const agents = catalogQuery.agents.map(item => item.agent);
-  const sessionsPartial = catalogQuery.isSuccess && !catalogQuery.sessionsAvailable;
-  const view: ListingViewMode = search.view ?? "rows";
-
-  const setFilters = (next: Pick<AgentsFleetSearch, "category" | "status">) => {
-    updateSearch(current => ({ ...current, category: next.category, status: next.status }));
-  };
-
-  const setView = (nextView: ListingViewMode) => {
-    updateSearch(current => ({
-      ...current,
-      view: nextView === "rows" ? undefined : nextView,
-    }));
-  };
-
-  const clearFilters = () => {
-    queryInput.reset("");
-    projectFilter.setValues([]);
-    updateSearch(current => ({
-      view: current.view,
-    }));
-  };
-
-  const openNewSession = (agentName: string) => {
-    openForAgent(agentName);
-  };
-
-  const workspaceNames = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
-  const rows = projectAgentFleetRows({
-    items: catalogQuery.agents,
-    sessionsAvailable: catalogQuery.sessionsAvailable,
-    ...(allProjects
-      ? { projectOf: agent => workspaceBadgeIdentity(agent.workspace_id, workspaceNames) }
-      : {}),
-  });
-  // All projects: an agent opens in place, its window bound to the agent's project.
-  const openAgent = (row: AgentFleetRowModel) =>
-    openItem({
-      app: "agents",
-      binding: ownerDataScope(row.agent.workspace_id),
-      route: { pathname: `/agents/${encodeURIComponent(row.agent.name)}`, search: {} },
-    });
-
-  const { isLoading, isFirstRunEmpty, isFilteredEmpty, showFacets, showViewToggle } =
-    projectFleetVisibility(catalogQuery, pending, search, projectFilter.values.length > 0);
 
   return {
-    workspaceId,
-    catalogQuery,
-    agents,
-    fleetTotal: catalogQuery.total,
-    rows,
-    categoryOptions: catalogQuery.facets?.categories ?? [],
-    search,
+    members: shown,
+    total: members.length,
+    view,
+    chips,
+    focus,
+    focusItems,
+    fields: buildAgentTeamFilterFields(workspaces, providers),
     draftQuery: queryInput.draftValue,
     searchInputRef,
-    view,
+    unfiltered,
+    capacity,
+    ...listing,
+    agentsError: team.error,
+    definitionsFor,
     setDraftQuery: queryInput.setDraftValue,
-    setFilters,
-    setView,
-    clearFilters,
-    openCreate: openDialog,
-    openNewSession,
-    newSessionDisabled: !hasActiveWorkspace,
-    isLoading,
-    isFirstRunEmpty,
-    isFilteredEmpty,
-    sessionsPartial,
-    // The rows of the previous search have a cursor of their own; the next page is the new search's.
-    hasMore: catalogQuery.hasNextPage && !catalogQuery.isPlaceholderData,
-    isLoadingMore: catalogQuery.isFetchingNextPage,
-    loadMore: () => {
-      void catalogQuery.fetchNextPage();
+    setChips: (next: readonly Filter<string>[]) => updateSearch(withChips(next)),
+    setFocus: (next: AgentTeamFocus) => updateSearch(withFocus(next)),
+    setView: (next: ListingViewMode) => updateSearch(withView(next)),
+    clearFilters: () => {
+      queryInput.reset("");
+      updateSearch(current => ({ view: current.view }));
     },
-    openAgent: allProjects ? openAgent : undefined,
-    projectField: projectFilter.field,
-    projectFilter: projectFilter.values,
-    setProjectFilter: projectFilter.setValues,
-    /** All profiles reads definitions for the acting profile only (configuration resolves per profile). */
-    definitionsFor: profile.aggregate ? profile.destination : null,
-    showFacets,
-    showViewToggle,
-    agentsError: catalogQuery.error,
+    openCreate,
+    actions: {
+      add,
+      newSessionDisabled: !hasActiveWorkspace,
+      onNewSession: (name: string) => openForAgent(name),
+      onOpen,
+    },
     retryAgents: () => {
-      void catalogQuery.refetch();
+      void team.refetch();
     },
   };
 }
 
-/** What the fleet's visibility reads of a catalog query; both catalog hooks satisfy it. */
-interface FleetCatalogState {
-  agents: readonly unknown[];
-  facets?: { total: number };
-  isError: boolean;
-  isPending: boolean;
-  isPlaceholderData: boolean;
-  total: number;
-}
-
-function projectFleetVisibility(
-  catalogQuery: FleetCatalogState,
-  pending: boolean,
-  search: AgentsFleetSearch,
-  projectFilterActive: boolean
-) {
-  const filtersActive = hasActiveAgentFleetFilters(search) || projectFilterActive;
-  // No answer yet, however it is pending: still fetching, or idle until the window may read. A
-  // placeholder keeps the previous search's rows on screen, but with none it is no answer.
-  const isLoading =
-    pending ||
-    catalogQuery.isPending ||
-    (catalogQuery.isPlaceholderData && catalogQuery.agents.length === 0);
-  const overallTotal = catalogQuery.facets?.total ?? 0;
-  const isFirstRunEmpty =
-    !isLoading && !catalogQuery.isError && overallTotal === 0 && !filtersActive;
-  const isFilteredEmpty =
-    !isLoading && !catalogQuery.isError && catalogQuery.total === 0 && filtersActive;
-  const showFacets =
-    !isLoading && !isFirstRunEmpty && !(catalogQuery.isError && catalogQuery.agents.length === 0);
-  // View toggle is independent of facets: available while loading/ready, hidden only when
-  // there is no list surface (first-run empty or fatal empty error).
-  const showViewToggle =
-    !isFirstRunEmpty && !(catalogQuery.isError && catalogQuery.agents.length === 0);
-
-  return { isLoading, isFirstRunEmpty, isFilteredEmpty, showFacets, showViewToggle };
-}
-
-export { projectFleetVisibility, useAgentsFleetPage };
+export { useAgentsFleetPage };
 export type { AgentsFleetSearch };

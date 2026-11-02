@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -85,7 +87,7 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 	t.Run("Should deliver one prioritized wake across providers", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		ctx := t.Context()
-		parent, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		parent, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -318,7 +320,7 @@ agent = "designer"
 		})
 		d.agentCatalog.Replace(d.agentCatalog.Revision()+1, records)
 		for _, profileID := range []string{profile.ID, store.DefaultProfileID} {
-			parent, err := manager.Create(t.Context(), session.CreateOpts{Workspace: workspace, ProfileID: profileID})
+			parent, err := manager.Create(t.Context(), new(session.CreateOpts{Workspace: workspace, ProfileID: profileID}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -773,7 +775,7 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
 	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		parent, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -807,7 +809,7 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 	})
 	t.Run("Should persist native work without child sessions", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		parent, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -854,7 +856,7 @@ func TestSubagentSteerDaemonIntegration(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonIntegration(t, outcome)
 			parent, err := manager.Create(
 				t.Context(),
-				session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+				new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -1011,9 +1013,14 @@ func startSubagentIntegrationParent(
 	t *testing.T,
 	manager *session.Manager,
 	workspace string,
+	policies ...store.SessionPermissionPolicy,
 ) (*session.Session, session.SubagentCaller) {
 	t.Helper()
-	parent, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	opts := session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}
+	if len(policies) > 0 {
+		opts.Lineage = &store.SessionLineage{PermissionPolicy: policies[0]}
+	}
+	parent, err := manager.Create(t.Context(), &(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1044,7 +1051,19 @@ func startSubagentIntegrationParent(
 func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 	t.Run("Should wait through child approval", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		_, caller := startSubagentIntegrationParent(t, manager, workspace)
+		ws, err := d.registry.GetWorkspace(t.Context(), workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+		ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{parent.Info().Workspace}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
 		type result struct {
 			row session.Subagent
 			err error
@@ -1076,21 +1095,62 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 			t.Fatalf("wait returned before approval: %+v", got)
 		default:
 		}
-		interactions, err := manager.PendingInteractions(
+		interactions, err := manager.DescendantPendingInteractions(
 			t.Context(),
-			*row.ChildSessionID,
+			parent.ID,
 			[]string{store.PendingInteractionStatusPending},
 		)
 		if err != nil || len(interactions) != 1 {
 			t.Fatal(interactions, err)
 		}
-		if _, err := manager.ApprovePermission(
-			t.Context(),
-			*row.ChildSessionID,
-			acp.ApproveRequest{TurnID: interactions[0].TurnID, Decision: "allow-once"},
-		); err != nil {
+		if interactions[0].SessionID != *row.ChildSessionID || interactions[0].ExpiresAt == nil || interactions[0].ExpiresAt.Sub(interactions[0].CreatedAt) <= 600*time.Second {
+			t.Fatalf("instance pending deadline: %#v", interactions[0])
+		}
+		nativeDone := make(chan error, 1)
+		bridge := newToolApprovalBridge(func() sessionPermissionRequester { return manager }, time.Minute, nil, nil, nil)
+		bridge.permissionWaitResolver = instancePermissionWaitResolver(&bootState{registry: d.registry, cfg: d.config})
+		view := toolApprovalTestView()
+		call := toolApprovalTestCall(view.Descriptor.ID, workspace)
+		call.SessionID, call.ToolCallID = *row.ChildSessionID, "b4-native"
+		go func() {
+			nativeDone <- bridge.RequestToolApproval(t.Context(), toolspkg.Scope{SessionID: *row.ChildSessionID, WorkspaceID: workspace}, &call, &view)
+		}()
+		waitForRuntimeCondition(t, "provider and native approvals", 10*time.Second, func() bool {
+			rows, err := manager.DescendantPendingInteractions(t.Context(), parent.ID, []string{store.PendingInteractionStatusPending})
+			return err == nil && len(rows) == 2
+		})
+		scope := toolspkg.Scope{SessionID: parent.ID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, ProfileID: parent.Info().ProfileID}
+		nativeResult, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: jsonv1.RawMessage(fmt.Sprintf(`{"workspace":%q,"session_id":%q,"descendants":true}`, workspace, parent.ID))})
+		if err != nil {
 			t.Fatal(err)
 		}
+		var pending compozycontract.SessionInteractionsResponse
+		if err := json.Unmarshal(nativeResult.Structured, &pending); err != nil {
+			t.Fatal(err)
+		}
+		if len(pending.Interactions) != 2 || pending.Interactions[0].SessionID != *row.ChildSessionID {
+			t.Fatalf("native pending = %#v", pending)
+		}
+		for _, interaction := range pending.Interactions {
+			if interaction.ProviderRequestID == interactions[0].ProviderRequestID {
+				continue
+			}
+			if interaction.SessionID != *row.ChildSessionID || interaction.ExpiresAt == nil || interaction.ExpiresAt.Sub(interaction.CreatedAt) <= 600*time.Second {
+				t.Fatalf("native deadline = %#v", interaction)
+			}
+			_, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionApprove, Input: jsonv1.RawMessage(fmt.Sprintf(`{"session_id":%q,"request_id":%q,"decision":"allow-once"}`, interaction.SessionID, interaction.ProviderRequestID))})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := <-nativeDone; err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionApprove, Input: jsonv1.RawMessage(fmt.Sprintf(`{"session_id":%q,"request_id":%q,"decision":"allow-once"}`, *row.ChildSessionID, interactions[0].ProviderRequestID))})
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		select {
 		case got := <-done:
 			if got.err != nil || got.row.Status != "completed" || got.row.Result == nil ||
@@ -1866,9 +1926,10 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 }
 
 type subagentCrashCheckpoint struct {
-	Home      compozyconfig.HomePaths
-	Workspace string
-	Row       session.Subagent
+	InstanceID string
+	Home       compozyconfig.HomePaths
+	Workspace  string
+	Row        session.Subagent
 }
 
 func runSubagentCrashProcess(t *testing.T, handoff string) {
@@ -2403,14 +2464,14 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 		t.Run("Should reconcile real target edge "+action+" IT-008 IT-009 IT-010", func(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonIntegration(t)
 			ctx := t.Context()
-			sender, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+			sender, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := manager.Stop(ctx, sender.ID); err != nil {
 				t.Fatal(err)
 			}
-			target, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+			target, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2522,11 +2583,11 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 		t.Parallel()
 		d, manager, workspace := newSubagentDaemonIntegration(t)
 		ctx := t.Context()
-		sender, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		sender, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		target, err := manager.Create(ctx, session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		target, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3345,7 +3406,7 @@ func TestSessionMessageOriginDaemonIntegration(t *testing.T) {
 				},
 			)
 			writeSessionOriginFixture(t, fixturePath, fixture)
-			target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3401,7 +3462,7 @@ func TestSessionMessageOriginDaemonIntegration(t *testing.T) {
 			writeSessionOriginFixture(t, fixturePath, fixture)
 			sender, err := m.Create(
 				t.Context(),
-				session.CreateOpts{AgentName: "subagent-test", Workspace: ws, Name: "Origin sender"},
+				new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws, Name: "Origin sender"}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -3534,7 +3595,7 @@ func TestSessionMessageOriginSteerChainIntegration(t *testing.T) {
 		t.Helper()
 		peers := make([]*session.Session, count)
 		for i := range peers {
-			peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			peer, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3715,11 +3776,11 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 	for _, mode := range []string{"direct", "queue", "steer", "interrupt", "busy sender"} {
 		t.Run("Should automatically reply through "+mode, func(t *testing.T) {
 			d, m, ws := newSubagentDaemonIntegration(t, "injected")
-			sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
-			target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+			target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -3875,7 +3936,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		if err := json.Unmarshal(raw, &fixture); err != nil {
 			t.Fatal(err)
 		}
-		target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3922,7 +3983,7 @@ func TestReplyWatchNativeChainIntegration(t *testing.T) {
 		})
 		fixture.Agents[0].Turns = append(turns, fixture.Agents[0].Turns...)
 		writeSessionOriginFixture(t, path, fixture)
-		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4063,11 +4124,11 @@ func TestReplyWatchCrashIntegration(t *testing.T) {
 func runReplyWatchCrashChild(t *testing.T, manifest string) {
 	t.Helper()
 	d, m, ws := newSubagentDaemonIntegration(t)
-	sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+	sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+	target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4139,7 +4200,7 @@ func TestSessionMessageOriginResponseBeforeReceiptIntegration(t *testing.T) {
 			}, "injected")
 			var peers [3]*session.Session
 			for i := range peers {
-				peer, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+				peer, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -4314,11 +4375,11 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 			cfg.Session.Supervision.StopGrace = 2 * time.Second
 			cfg.Session.Supervision.IdleReleaseAfter = 2 * time.Second
 		}, "injected")
-		sender, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		sender, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
-		target, err := m.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: ws})
+		target, err := m.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: ws}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4401,7 +4462,7 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 	t.Run("Should fail only the stranded dispatching lease on restart", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		target, err := manager.Create(t.Context(), session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		target, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4445,4 +4506,333 @@ func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 			t.Fatalf("waiting = %q, %v; want queued input untouched by the sweep", waiting.Status, err)
 		}
 	})
+}
+
+func TestInstanceNativeCreateJourney(t *testing.T) {
+	t.Run("Should retain a narrower childs ceiling through native creation and context replacement", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = []byte(strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1))
+			if err := os.WriteFile(path, body, 0600); err != nil {
+				t.Fatal(err)
+			}
+		})
+		ws, err := d.registry.GetWorkspace(t.Context(), workspace)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+		allowed := []string{toolspkg.ToolIDAgentInstanceCreate.String(), toolspkg.ToolIDSessionStatus.String()}
+		child, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Instance creator", Mode: "async", Narrowing: &session.SubagentPermissionNarrowing{Tools: allowed}, PermissionMode: compozyconfig.PermissionModeApproveReads})
+		if err != nil || child.ChildSessionID == nil {
+			t.Fatalf("child: %#v %v", child, err)
+		}
+		waitForRuntimeCondition(t, "child ready to create an instance", 15*time.Second, func() bool { current, ok := manager.Get(*child.ChildSessionID); return ok && current.IsPrompting() })
+		childInfo, err := manager.Status(t.Context(), *child.ChildSessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(parent.Info().Lineage.PermissionPolicy.Tools) <= len(childInfo.Lineage.PermissionPolicy.Tools) {
+			t.Fatal("child is not narrower than root")
+		}
+		result, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{SessionID: childInfo.ID, WorkspaceID: workspace, ProfileID: childInfo.ProfileID, AgentName: childInfo.AgentName}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "create-instance"})
+		if err != nil {
+			t.Fatalf("native create: %#v; workspace=%s profile=%s childWorkspace=%s", err, workspace, childInfo.ProfileID, childInfo.WorkspaceID)
+		}
+		var response compozycontract.AgentInstanceResponse
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		id := response.Instance.MainSessionID
+		if id == "" {
+			t.Fatalf("missing main: %s", result.Structured)
+		}
+		waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
+			info, err := manager.Status(t.Context(), id)
+			return err == nil && info.State == session.StateActive
+		})
+		info, err := manager.Status(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.ValidatePermissionSubset(childInfo.Lineage.PermissionPolicy, info.Lineage.PermissionPolicy); err != nil {
+			t.Fatal(err)
+		}
+		if info.EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+			t.Fatal("instance bypasses approvals")
+		}
+		persistedCaller, callerErr := d.registry.(*globaldb.GlobalDB).Instances().InstanceCaller(t.Context(), id)
+		if callerErr != nil {
+			t.Fatal(callerErr)
+		}
+		if !reflect.DeepEqual(info.Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) || !reflect.DeepEqual(persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
+			t.Fatalf("instance lost child ceiling: runtime=%#v stored=%#v child=%#v", info.Lineage.PermissionPolicy, persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy)
+		}
+		initialEvents, err := manager.Prompt(t.Context(), id, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range initialEvents {
+			if event.Type == acp.EventTypeError || event.ToolError() {
+				t.Fatalf("initial prompt failed: %#v", event)
+			}
+		}
+		cleared, err := manager.ClearConversation(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "replacement main active", 15*time.Second, func() bool {
+			info, err := manager.Status(t.Context(), id)
+			return err == nil && (info.State == session.StateActive || info.Failure != nil)
+		})
+		replacement, err := manager.Status(t.Context(), id)
+		if err != nil || replacement.State != session.StateActive {
+			t.Fatalf("replacement failed: %#v %v", replacement, err)
+		}
+		if err := session.ValidatePermissionSubset(childInfo.Lineage.PermissionPolicy, cleared.Info().Lineage.PermissionPolicy); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(cleared.Info().Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
+			t.Fatal("replacement changed child ceiling")
+		}
+		if cleared.Info().EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+			t.Fatal("replacement bypasses approvals")
+		}
+		events, err := manager.Prompt(t.Context(), id, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range events {
+			if event.Type == acp.EventTypeError || event.ToolError() {
+				t.Fatalf("replacement prompt failed: %#v", event)
+			}
+		}
+		retained, err := d.registry.(*globaldb.GlobalDB).Instances().Get(t.Context(), response.Instance.ID)
+		if err != nil || retained.MainSessionID != id {
+			t.Fatalf("instance after prompt: %#v %v", retained, err)
+		}
+	})
+}
+
+// IT-019/IT-020: full boot preserves expiry and reports interrupted decisions once.
+func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashCheckpoint) {
+	t.Helper()
+	db := d.registry.(*globaldb.GlobalDB)
+	rows, err := db.ListPendingInteractions(t.Context(), *checkpoint.Row.ChildSessionID, []string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, row := range rows {
+		switch row.InteractionID {
+		case "b4-expired":
+			if row.Status != store.PendingInteractionStatusTimedOut || row.Resolution != "reject_once" {
+				t.Fatalf("expiry = %#v", row)
+			}
+		case "b4-pending":
+			if row.Status != store.PendingInteractionStatusCanceled || row.Resolution != "failed-by-restart" {
+				t.Fatalf("restart = %#v", row)
+			}
+		default:
+			continue
+		}
+		found[row.InteractionID] = true
+		result, err := d.sessions.ApprovePermission(t.Context(), row.SessionID, acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"})
+		if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved || result.ResolvedDecision != row.Resolution {
+			t.Fatalf("late approval = %#v, %v; want existing terminal decision %s", result, err, row.Resolution)
+		}
+	}
+	if len(found) != 2 {
+		t.Fatalf("recovered interactions = %#v", rows)
+	}
+	reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: checkpoint.InstanceID, Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := map[string]int{}
+	for _, report := range reports {
+		counts[report.Kind]++
+	}
+	if counts["approval_expired"] != 1 || counts["interrupted"] != 1 {
+		t.Fatalf("recovery reports = %#v", reports)
+	}
+}
+
+// IT-019/IT-020: instance approvals recover through full daemon startup.
+func TestInstanceApprovalCrashRestartDaemonIntegration(t *testing.T) {
+	if handoff := os.Getenv("COMPOZY_B4_DAEMON_CRASH_HANDOFF"); handoff != "" {
+		runInstanceApprovalCrashProcess(t, handoff)
+		return
+	}
+	t.Run("Should recover approval reports exactly once across daemon restarts", func(t *testing.T) {
+		driver := acpmock.RequireDriver(t)
+		// Own every helper-created temporary directory, including TestMain's seed.
+		root, err := os.MkdirTemp("/tmp", "sa-crash-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(root); err != nil {
+				t.Error(err)
+			}
+		})
+		handoff := filepath.Join(root, "handoff.json")
+		output, err := os.Create(filepath.Join(root, "daemon.log"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := output.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		cmd := exec.CommandContext(
+			t.Context(),
+			os.Args[0],
+			"-test.run=^TestInstanceApprovalCrashRestartDaemonIntegration$",
+			"-test.timeout=2m",
+		)
+		cmd.Env = append(os.Environ(), "TMPDIR="+root, "HOME="+root,
+			"CODEX_HOME="+filepath.Join(root, ".codex"), "COMPOZY_B4_DAEMON_CRASH_HANDOFF="+handoff,
+			"COMPOZY_TEST_ACPMOCK_DRIVER_BIN="+driver)
+		cmd.Stdout, cmd.Stderr = output, output
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		waited := false
+		t.Cleanup(func() {
+			if !waited {
+				if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+					t.Error(err)
+				}
+				<-done
+			}
+		})
+		waitForRuntimeCondition(t, "daemon child mid turn", 30*time.Second, func() bool {
+			select {
+			case err := <-done:
+				waited = true
+				logs, readErr := os.ReadFile(output.Name())
+				t.Fatalf("helper exited before checkpoint: %v (%v)\n%s", err, readErr, logs)
+			default:
+			}
+			_, err := os.Stat(handoff)
+			return err == nil
+		})
+		data, err := os.ReadFile(handoff)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var checkpoint subagentCrashCheckpoint
+		if err := json.Unmarshal(data, &checkpoint); err != nil {
+			t.Fatal(err)
+		}
+		if err := cmd.Process.Kill(); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err == nil {
+			t.Fatal("daemon helper was not killed")
+		}
+		waited = true
+		cfg, err := compozyconfig.LoadGlobalConfig(checkpoint.Home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Automation.Enabled = false
+		cfg.Roles.AutoTitle.Enabled = false
+		cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+		cfg.ProviderUsage.Enabled = false
+		restarted := reopenSubagentIntegrationDaemon(t, checkpoint.Home, &cfg)
+		assertB4CrashRecovery(t, restarted, checkpoint)
+		requestDaemonIntegrationRestart(t, restarted)
+		if err := restarted.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+		restarted = reopenSubagentIntegrationDaemon(t, checkpoint.Home, &cfg)
+		assertB4CrashRecovery(t, restarted, checkpoint)
+
+	})
+}
+
+func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
+	t.Helper()
+	// This journey owns mock ACP processes only. Persist discovery opt-outs so
+	// profile reloads cannot start installed provider CLIs during the crash walk.
+	d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+		cfg.ProviderUsage.Enabled = false
+		for name, provider := range compozyconfig.BuiltinProviders() {
+			provider.Models.Discovery.Enabled = new(false)
+			cfg.Providers[name] = provider
+		}
+	})
+	ws, err := d.registry.GetWorkspace(t.Context(), workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+	ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{parent.Info().Workspace}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
+		Caller: caller, Task: "hold parent", Title: "Crash mid child turn",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Error != nil {
+		t.Fatalf("delegation failed: %s", *row.Error)
+	}
+	if row.ChildSessionID == nil {
+		t.Fatalf("delegation did not create a child: status=%s", row.Status)
+	}
+	child, ok := manager.Get(*row.ChildSessionID)
+	if !ok {
+		t.Fatal("missing child")
+	}
+	waitForRuntimeCondition(t, "persisted child turn", 10*time.Second, func() bool {
+		events, err := manager.Events(t.Context(), child.ID, store.EventQuery{Limit: 100})
+		if err != nil || !child.IsPrompting() || child.CurrentTurnID() == "" {
+			return false
+		}
+		for _, event := range events {
+			if event.Type == acp.EventTypeThought {
+				return true
+			}
+		}
+		return false
+	})
+	// Persist both sides of the crash boundary while a real child turn is running.
+	db := d.registry.(*globaldb.GlobalDB)
+	now := time.Now().UTC()
+	for _, id := range []string{"b4-expired", "b4-pending"} {
+		_, err := db.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{InteractionID: id, SessionID: child.ID, Kind: store.PendingInteractionKindPermission, ProviderRequestID: id, TurnID: child.CurrentTurnID(), CreatedAt: now, ExpiresAt: new(now.Add(time.Hour))})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.TransitionPendingInteraction(t.Context(), store.PendingInteractionTransition{InteractionID: "b4-expired", Status: store.PendingInteractionStatusTimedOut, At: now, Resolution: "reject_once", ResolvedBy: "timeout"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(subagentCrashCheckpoint{InstanceID: instance.ID, Home: d.homePaths, Workspace: workspace, Row: row})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(handoff+".tmp", data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(handoff+".tmp", handoff); err != nil {
+		t.Fatal(err)
+	}
+	<-t.Context().Done()
 }

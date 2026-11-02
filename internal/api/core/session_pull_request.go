@@ -21,7 +21,7 @@ func (h *BaseHandlers) RefreshSessionPullRequest(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	if info == nil || !scope.Matches(info.ProfileID) {
+	if info == nil || info.Type == session.SessionTypeTriage || !scope.Matches(info.ProfileID) {
 		c.JSON(http.StatusNotFound, contract.ErrorPayload{Code: "session_not_found", Error: "session not found"})
 		return
 	}

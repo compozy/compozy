@@ -2,6 +2,8 @@ package hooks
 
 import (
 	"context"
+	"encoding/json/v2"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -723,5 +725,80 @@ func assertSessionContext(t *testing.T, got SessionContext, want SessionContext)
 	}
 	if got.SoulSnapshotID != want.SoulSnapshotID || got.SoulDigest != want.SoulDigest {
 		t.Fatalf("SessionSoulContext = %#v, want %#v", got.SessionSoulContext, want.SessionSoulContext)
+	}
+}
+
+func TestInstanceHookDispatch(t *testing.T) {
+	for _, event := range []HookEvent{HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed, HookAgentInstanceArchived, HookAgentInstanceAdopted} {
+		t.Run("Should deliver an immutable payload for "+string(event), func(t *testing.T) {
+			t.Parallel()
+			seen := make(chan []byte, 1)
+			runtime := newTestHooks(
+				t,
+				WithNativeDeclarations(
+					[]HookDecl{
+						{
+							Name:         "instance-observer",
+							Event:        event,
+							Mode:         HookModeAsync,
+							ExecutorKind: HookExecutorNative,
+						},
+					},
+				),
+				WithExecutorResolver(
+					testExecutorResolver(
+						map[string]Executor{
+							"instance-observer": NewNativeExecutor(
+								func(_ context.Context, _ RegisteredHook, payload []byte) ([]byte, error) {
+									seen <- append([]byte(nil), payload...)
+									return []byte(`{"state":"archived"}`), nil
+								},
+							),
+						},
+					),
+				),
+			)
+			if err := runtime.Rebuild(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			payload := AgentInstancePayload{
+				Event:         event,
+				Timestamp:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				ProfileID:     "default",
+				WorkspaceID:   "workspace",
+				AgentName:     "coder",
+				SessionID:     "main",
+				State:         "paused",
+				InstanceID:    "instance",
+				MainSessionID: "main",
+				Reason:        "manual",
+			}
+			got, err := runtime.DispatchAgentInstance(t.Context(), payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, payload) {
+				t.Fatalf("dispatch mutated payload: %#v", got)
+			}
+			select {
+			case raw := <-seen:
+				var wire map[string]any
+				if err := json.Unmarshal(raw, &wire); err != nil {
+					t.Fatal(err)
+				}
+				if wire["reason"] != "manual" || wire["pause_reason"] != nil {
+					t.Fatalf("instance hook wire payload: %s", raw)
+				}
+				var delivered AgentInstancePayload
+				if err := json.Unmarshal(raw, &delivered); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(delivered, payload) {
+					t.Fatalf("executor payload: %#v", delivered)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("instance executor did not receive payload")
+			}
+		})
 	}
 }

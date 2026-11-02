@@ -4,7 +4,11 @@
 // thinking frame entirely so the row never flickers (US-023.EC-1); a failure
 // before any content converts the pending reply into its error state.
 
-import { isAgentEventPayload, messageHasCompactionPart } from "./message-parts";
+import {
+  isAgentEventPayload,
+  messageHasCompactionPart,
+  messageHasReportPart,
+} from "./message-parts";
 import {
   isSessionErrorEvent,
   isQueueRemovalMarker,
@@ -99,7 +103,7 @@ export function assistantMessageHasContent(content: unknown): boolean {
  */
 export function assistantMessageHasRenderableContent(content: unknown): boolean {
   if (assistantMessageHasContent(content)) return true;
-  if (messageHasCompactionPart(content)) return true;
+  if (messageHasCompactionPart(content) || messageHasReportPart(content)) return true;
   return (
     Array.isArray(content) &&
     content.some(part => {

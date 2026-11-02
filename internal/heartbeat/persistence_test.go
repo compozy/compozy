@@ -35,7 +35,7 @@ Read current context and avoid duplicate prompts.
 		}
 
 		createdAt := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
-		snapshot, err := SnapshotFromResolved("hb-snapshot", "ws-heartbeat", "coder", &resolved, createdAt)
+		snapshot, err := SnapshotFromResolved("hb-snapshot", "ws-heartbeat", "coder", &resolved, createdAt, "")
 		if err != nil {
 			t.Fatalf("SnapshotFromResolved() error = %v", err)
 		}

@@ -21,6 +21,7 @@ export {
 export type {
   Action,
   ActorIdentity,
+  AgentInstancePayload,
   Chip,
   ClientOptions,
   CmdPaletteCatalogChangedEvent,

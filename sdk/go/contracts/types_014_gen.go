@@ -4,6 +4,18 @@ package contracts
 
 import "time"
 
+type PersistenceHealth struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+}
+
+type PickFilesEffect struct {
+	Directories bool `json:"directories,omitempty"`
+}
+
+type Priority string
+
 type ProbeResult struct {
 	AgentName  string    `json:"agent_name,omitempty"`
 	Provider   string    `json:"provider,omitempty"`
@@ -142,15 +154,3 @@ type ResolutionReason string
 type ResolutionStatus string
 
 type ResolvedWorktreeMode string
-
-type ResourceGetParams struct {
-	Kind ResourceKind `json:"kind"`
-	ID   string       `json:"id"`
-}
-
-type ResourceKind string
-
-type ResourceOwner struct {
-	Kind ResourceOwnerKind `json:"kind"`
-	ID   string            `json:"id"`
-}

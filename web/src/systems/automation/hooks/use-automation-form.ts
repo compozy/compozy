@@ -58,6 +58,7 @@ import {
   type LoopTargetDraft,
   useLoopTargetCatalog,
 } from "@/systems/loops";
+import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 type JobTask = NonNullable<AutomationFormDraft["task"]>;
 type JobOwnerKind = NonNullable<JobTask["owner"]>["kind"];
@@ -158,6 +159,7 @@ export function useAutomationForm({
   const workspaceName = (id: string) => resolvedWorkspaces.find(item => item.id === id)?.name;
 
   const timeZone = useAutomationTimeZone();
+  const identityOf = useAgentIdentityResolverView();
   const does = automationFormDoes(draft);
   const isWebhook = draft.start === "webhook";
   const { effectiveScope, loopCatalog, loopTarget, loopWorkspaceId } = useFormLoopTarget(
@@ -169,6 +171,7 @@ export function useAutomationForm({
   const sentence = describeAutomation(automationFormSentenceDraft(draft, { daysCleared }), {
     timeZone,
     workspaceName,
+    agentLabel: name => identityOf(name).label,
   });
   const ready =
     !automationSentenceIsIncomplete(sentence) &&

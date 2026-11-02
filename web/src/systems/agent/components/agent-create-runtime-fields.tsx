@@ -3,11 +3,11 @@ import type { ComponentProps } from "react";
 import {
   Button,
   cn,
+  Eyebrow,
   Field,
   FieldDescription,
   FieldError,
   FieldHeader,
-  FieldLabel,
   HelpTip,
 } from "@compozy/ui";
 
@@ -35,11 +35,11 @@ export interface AgentCreateRuntimeFieldsProps extends ComponentProps<"div"> {
 }
 
 /**
- * Simple tier: the runtime selector.
+ * The side panel's Model: the runtime selector.
  *
- * Catalog state stays visible rather than moving into the help tip: a Simple
- * view that hides catalog truth would let someone submit against a stale or
- * failed catalog without knowing it.
+ * Catalog state stays visible rather than moving into the help tip: a panel
+ * that hides catalog truth would let someone submit against a stale or failed
+ * catalog without knowing it.
  */
 export function AgentCreateRuntimeFields({
   draft,
@@ -71,9 +71,7 @@ export function AgentCreateRuntimeFields({
     >
       <Field data-invalid={Boolean(errors.provider || errors.reasoningEffort)}>
         <FieldHeader className="w-full">
-          <FieldLabel htmlFor="agent-create-runtime-trigger" id="agent-create-runtime-label">
-            Model
-          </FieldLabel>
+          <Eyebrow id="agent-create-runtime-label">Model</Eyebrow>
           <HelpTip label="About model">
             Provider, model, Reasoning, Fast, and advanced options come from the live catalog. Leave
             them unchanged to use the project defaults.
@@ -102,11 +100,12 @@ export function AgentCreateRuntimeFields({
         </FieldHeader>
         {draft.provider.trim().length === 0 ? (
           <FieldDescription data-testid="agent-create-runtime-inherited">
-            The project's default model will be used.
+            Choose a provider, or leave blank to use a configured default.
           </FieldDescription>
         ) : null}
         <RuntimeSelector
           ariaLabelledby="agent-create-runtime-label"
+          className="w-full justify-start bg-card shadow-card [&>svg:last-child]:ml-auto"
           disabled={providersLoading || providerOptions.length === 0}
           loading={modelCatalogLoading}
           models={runtimeModels}

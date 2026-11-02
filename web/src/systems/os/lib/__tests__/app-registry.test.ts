@@ -221,7 +221,7 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
     search: { view: "cards" },
     strip: true,
   },
-  { app: "dashboard", label: "Home", pathname: "/" },
+  { app: "dashboard", label: "Dashboard", pathname: "/" },
   { app: "new-tab", label: "an empty tab", pathname: "/new-tab" },
   { app: "terminal", label: "a project's terminal", pathname: "/terminal" },
   { app: "terminal", label: "a project's terminal by id", pathname: "/terminal/term-1" },

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/soul"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -97,9 +97,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	}
 	syncDuration := time.Since(syncStartedAt)
 	entry := h.agentCatalogEntryFromDef(agent, resolved.OperationWorkspace)
-	h.logAgentMutation("update", entry, startedAt, syncDuration)
+	h.logAgentMutation("update", &entry, startedAt, syncDuration)
 	c.JSON(http.StatusOK, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(entry, &resolved.Config),
+		Agent: AgentPayloadFromEntryWithConfig(&entry, &resolved.Config),
 	})
 }
 
@@ -153,6 +153,9 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		)
 		return
 	}
+	if !h.allowAgentDefinitionDeletion(c, profileScope.ProfileID, resolved.OperationWorkspace, name) {
+		return
+	}
 	unshadowGlobal := h.globalAgentTwinExists(name, resolved.Entry.Def.SourcePath)
 	agentsRoot, err := h.agentDefinitionAgentsRoot(&resolved)
 	if err != nil {
@@ -161,6 +164,10 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 	}
 	if err := h.purgeAgentDefinitionHistory(c.Request.Context(), &resolved); err != nil {
 		h.logAgentMutationFailure("delete", resolved.Entry.Def.SourcePath, startedAt, 0, err)
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	if err := h.retireAgentDefinitionMemory(&resolved, profileScope.ProfileID, name, startedAt); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -189,7 +196,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 	if resolved.Entry.Origin == contract.AgentOriginWorkspace && unshadowGlobal {
 		response.UnshadowedOrigin = contract.AgentOriginGlobal
 	}
-	h.logAgentDeleteMutation(resolved.Entry, startedAt, syncDuration, response.UnshadowedOrigin != "")
+	h.logAgentDeleteMutation(&resolved.Entry, startedAt, syncDuration, response.UnshadowedOrigin != "")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -257,9 +264,9 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 	}
 	syncDuration := time.Since(syncStartedAt)
 	entry := AgentCatalogEntry{Def: agent, Origin: target.Origin, WorkspaceID: target.WorkspaceID}
-	h.logAgentMutation("duplicate", entry, startedAt, syncDuration)
+	h.logAgentMutation("duplicate", &entry, startedAt, syncDuration)
 	c.JSON(http.StatusCreated, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(entry, &target.Config),
+		Agent: AgentPayloadFromEntryWithConfig(&entry, &target.Config),
 	})
 }
 
@@ -275,70 +282,29 @@ func updateAgentDraft(
 	if err != nil {
 		return compozyconfig.AgentDefinitionDraft{}, err
 	}
+	if payload.DisplayName == nil {
+		draft.DisplayName = currentDraft.DisplayName
+	}
+	if payload.Description == nil {
+		draft.Description = currentDraft.Description
+	}
+	if payload.Kind == "" {
+		draft.Kind = currentDraft.Kind
+	}
+	if (compozyconfig.AgentDef{Kind: draft.Kind}).EffectiveKind() != current.EffectiveKind() {
+		return compozyconfig.AgentDefinitionDraft{}, compozyconfig.ErrAgentKindImmutable
+	}
+	if payload.Appearance == nil {
+		draft.Appearance = currentDraft.Appearance
+	}
+	// Structural comparison permits unchanged future appearance blocks to round-trip.
+	if !compozyconfig.EqualAgentAppearance(draft.Appearance, currentDraft.Appearance) {
+		if err := compozyconfig.ValidateAgentAppearance(draft.Appearance); err != nil {
+			return compozyconfig.AgentDefinitionDraft{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+		}
+	}
 	draft.MCPServers = currentDraft.MCPServers
 	draft.Hooks = currentDraft.Hooks
-	return draft, nil
-}
-
-func duplicateAgentDraft(
-	source compozyconfig.AgentDef,
-	req contract.DuplicateAgentRequest,
-) (compozyconfig.AgentDefinitionDraft, error) {
-	draft, err := authoredAgentDraftFromDef(source)
-	if err != nil {
-		return compozyconfig.AgentDefinitionDraft{}, err
-	}
-	draft.Name = compozyconfig.NormalizeAgentName(req.Name)
-	if req.Overrides == nil {
-		return draft, nil
-	}
-	overrides := req.Overrides
-	if overrides.SessionEnv != nil {
-		draft.SessionEnv = sessionEnvFromPayload(overrides.SessionEnv)
-	}
-	if overrides.Provider != "" {
-		draft.Provider = overrides.Provider
-	}
-	if overrides.Command != "" {
-		draft.Command = overrides.Command
-	}
-	if overrides.Model != "" {
-		draft.Model = overrides.Model
-	}
-	if overrides.ReasoningEffort != "" {
-		draft.ReasoningEffort = string(overrides.ReasoningEffort)
-	}
-	if overrides.ClearSpeed {
-		draft.Speed = ""
-	} else if overrides.Speed != "" {
-		draft.Speed = overrides.Speed
-	}
-	if overrides.ClearACPOptions {
-		draft.ACPOptions = nil
-	} else if len(overrides.ACPOptions) > 0 {
-		draft.ACPOptions = agentACPOptionsFromContract(overrides.ACPOptions)
-	}
-	if len(overrides.Tools) > 0 {
-		draft.Tools = append([]string(nil), overrides.Tools...)
-	}
-	if len(overrides.Toolsets) > 0 {
-		draft.Toolsets = append([]string(nil), overrides.Toolsets...)
-	}
-	if len(overrides.DenyTools) > 0 {
-		draft.DenyTools = append([]string(nil), overrides.DenyTools...)
-	}
-	if overrides.Permissions != "" {
-		draft.Permissions = string(overrides.Permissions)
-	}
-	if len(overrides.CategoryPath) > 0 {
-		draft.CategoryPath = append([]string(nil), overrides.CategoryPath...)
-	}
-	if overrides.Skills != nil {
-		draft.Skills.Disabled = append([]string(nil), overrides.Skills.Disabled...)
-	}
-	if overrides.Prompt != "" {
-		draft.Prompt = overrides.Prompt
-	}
 	return draft, nil
 }
 
@@ -367,7 +333,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	resolved *resolvedAgentDefinition,
 ) error {
 	workspaceID := strings.TrimSpace(resolved.OperationWorkspace)
-	if workspaceID == "" {
+	if workspaceID == "" && resolved.ProfileID == "" {
 		return nil
 	}
 	if h.SoulHistoryPurger == nil || h.HeartbeatHistoryPurger == nil {
@@ -377,7 +343,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	sourcePath := resolved.Entry.Def.SourcePath
 	if err := h.SoulHistoryPurger.PurgeAgentHistory(
 		ctx,
-		soul.WorkspaceRef{WorkspaceID: workspaceID},
+		soul.WorkspaceRef{WorkspaceID: workspaceID, ProfileID: resolved.ProfileID},
 		name,
 		sourcePath,
 	); err != nil {
@@ -385,7 +351,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 	}
 	if err := h.HeartbeatHistoryPurger.PurgeAgentHistory(
 		ctx,
-		heartbeat.WorkspaceRef{WorkspaceID: workspaceID},
+		heartbeat.WorkspaceRef{WorkspaceID: workspaceID, ProfileID: resolved.ProfileID},
 		name,
 		sourcePath,
 	); err != nil {
@@ -396,7 +362,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 
 func (h *BaseHandlers) logAgentMutation(
 	operation string,
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	startedAt time.Time,
 	syncDuration time.Duration,
 ) {
@@ -413,7 +379,7 @@ func (h *BaseHandlers) logAgentMutation(
 }
 
 func (h *BaseHandlers) logAgentDeleteMutation(
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	startedAt time.Time,
 	syncDuration time.Duration,
 	unshadowed bool,
@@ -449,24 +415,23 @@ func (h *BaseHandlers) logAgentMutationFailure(
 	)
 }
 
-func statusForAgentDefinitionError(err error) int {
-	switch {
-	case errors.Is(err, compozyconfig.ErrAgentNameReserved):
-		return http.StatusUnprocessableEntity
-	case errors.Is(err, errAgentDefinitionInvalid),
-		errors.Is(err, errCreateAgentRequestInvalid),
-		errors.Is(err, compozyconfig.ErrInvalidAgentDefinition):
-		return http.StatusBadRequest
-	case errors.Is(err, errAgentDefinitionConflict),
-		errors.Is(err, compozyconfig.ErrAgentDefinitionExists):
-		return http.StatusConflict
-	case errors.Is(err, compozyconfig.ErrAgentDefinitionNotFound),
-		errors.Is(err, workspacepkg.ErrAgentNotAvailable),
-		errors.Is(err, os.ErrNotExist):
-		return http.StatusNotFound
-	case errors.Is(err, errAgentDefinitionSyncUnavailable):
-		return http.StatusServiceUnavailable
-	default:
-		return StatusForWorkspaceError(err)
+func (h *BaseHandlers) retireAgentDefinitionMemory(
+	resolved *resolvedAgentDefinition,
+	profileID, name string,
+	at time.Time,
+) error {
+	if h.AgentMemory == nil {
+		return nil
 	}
+	origin := resolved.Entry.MemoryOrigin
+	if origin == "" {
+		origin = "user"
+		if resolved.Entry.Origin == contract.AgentOriginWorkspace {
+			origin = "workspace-" + resolved.OperationWorkspace
+		}
+	}
+	if err := h.AgentMemory.Retire(agentmemory.Key{ProfileID: profileID, Origin: origin, Agent: name}, at); err != nil {
+		return fmt.Errorf("api: retire agent memory: %w", err)
+	}
+	return nil
 }

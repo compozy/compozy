@@ -91,7 +91,7 @@ export const SESSION_BADGE_SIGNAL = {
     tone: "brand",
     speaks: true,
     label: "waiting-for-auth",
-    displayLabel: "Needs sign-in",
+    displayLabel: "Needs your approval",
     attention: "needs-you",
   },
   failed: {

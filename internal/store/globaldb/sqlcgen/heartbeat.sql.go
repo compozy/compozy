@@ -12,24 +12,30 @@ import (
 
 const deleteHeartbeatAgentHistory = `-- name: DeleteHeartbeatAgentHistory :exec
 DELETE FROM agent_heartbeat_revisions
-WHERE workspace_id = ?1
-  AND agent_name = ?2
-  AND source_path = ?3
+WHERE profile_id = ?1 AND workspace_id = ?2
+  AND agent_name = ?3
+  AND source_path = ?4
 `
 
 type DeleteHeartbeatAgentHistoryParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
 }
 
 func (q *Queries) DeleteHeartbeatAgentHistory(ctx context.Context, arg DeleteHeartbeatAgentHistoryParams) error {
-	_, err := q.db.ExecContext(ctx, deleteHeartbeatAgentHistory, arg.WorkspaceID, arg.AgentName, arg.SourcePath)
+	_, err := q.db.ExecContext(ctx, deleteHeartbeatAgentHistory,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.SourcePath,
+	)
 	return err
 }
 
 const getHeartbeatRevision = `-- name: GetHeartbeatRevision :one
-SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
        new_snapshot_id, body, actor_kind, actor_id, created_at
 FROM agent_heartbeat_revisions WHERE id = ?1
 `
@@ -40,6 +46,7 @@ func (q *Queries) GetHeartbeatRevision(ctx context.Context, id string) (AgentHea
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.Operation,
@@ -55,17 +62,19 @@ func (q *Queries) GetHeartbeatRevision(ctx context.Context, id string) (AgentHea
 }
 
 const getHeartbeatRevisionForRollback = `-- name: GetHeartbeatRevisionForRollback :one
-SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
        new_snapshot_id, body, actor_kind, actor_id, created_at
 FROM agent_heartbeat_revisions
-WHERE workspace_id = ?1
-  AND agent_name = ?2
-  AND source_path = ?3
-  AND id = ?4
+WHERE profile_id = ?1
+  AND workspace_id = ?2
+  AND agent_name = ?3
+  AND source_path = ?4
+  AND id = ?5
   AND operation IN ('write', 'delete', 'rollback')
 `
 
 type GetHeartbeatRevisionForRollbackParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
@@ -74,6 +83,7 @@ type GetHeartbeatRevisionForRollbackParams struct {
 
 func (q *Queries) GetHeartbeatRevisionForRollback(ctx context.Context, arg GetHeartbeatRevisionForRollbackParams) (AgentHeartbeatRevision, error) {
 	row := q.db.QueryRowContext(ctx, getHeartbeatRevisionForRollback,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.AgentName,
 		arg.SourcePath,
@@ -83,6 +93,7 @@ func (q *Queries) GetHeartbeatRevisionForRollback(ctx context.Context, arg GetHe
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.Operation,
@@ -98,7 +109,7 @@ func (q *Queries) GetHeartbeatRevisionForRollback(ctx context.Context, arg GetHe
 }
 
 const getHeartbeatSnapshot = `-- name: GetHeartbeatSnapshot :one
-SELECT id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
        body, frontmatter_json, resolved_json, diagnostics_json, created_at
 FROM agent_heartbeat_snapshots WHERE id = ?1
 `
@@ -109,6 +120,7 @@ func (q *Queries) GetHeartbeatSnapshot(ctx context.Context, id string) (AgentHea
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.SchemaVersion,
@@ -124,26 +136,34 @@ func (q *Queries) GetHeartbeatSnapshot(ctx context.Context, id string) (AgentHea
 }
 
 const getHeartbeatSnapshotByDigest = `-- name: GetHeartbeatSnapshotByDigest :one
-SELECT id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+SELECT id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
        body, frontmatter_json, resolved_json, diagnostics_json, created_at
 FROM agent_heartbeat_snapshots
-WHERE workspace_id = ?1
-  AND agent_name = ?2
-  AND digest = ?3
+WHERE profile_id = ?1
+  AND workspace_id = ?2
+  AND agent_name = ?3
+  AND digest = ?4
 `
 
 type GetHeartbeatSnapshotByDigestParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	AgentName   string `json:"agent_name"`
 	Digest      string `json:"digest"`
 }
 
 func (q *Queries) GetHeartbeatSnapshotByDigest(ctx context.Context, arg GetHeartbeatSnapshotByDigestParams) (AgentHeartbeatSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, getHeartbeatSnapshotByDigest, arg.WorkspaceID, arg.AgentName, arg.Digest)
+	row := q.db.QueryRowContext(ctx, getHeartbeatSnapshotByDigest,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.AgentName,
+		arg.Digest,
+	)
 	var i AgentHeartbeatSnapshot
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
+		&i.ProfileID,
 		&i.AgentName,
 		&i.SourcePath,
 		&i.SchemaVersion,
@@ -160,7 +180,7 @@ func (q *Queries) GetHeartbeatSnapshotByDigest(ctx context.Context, arg GetHeart
 
 const getHeartbeatWakeEvent = `-- name: GetHeartbeatWakeEvent :one
 SELECT id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
-       synthetic_prompt_id, created_at, expires_at
+       detail, denied_calls, occurrence_id, instance_id, synthetic_prompt_id, created_at, expires_at
 FROM agent_heartbeat_wake_events WHERE id = ?1
 `
 
@@ -176,6 +196,10 @@ func (q *Queries) GetHeartbeatWakeEvent(ctx context.Context, id string) (AgentHe
 		&i.Source,
 		&i.Result,
 		&i.Reason,
+		&i.Detail,
+		&i.DeniedCalls,
+		&i.OccurrenceID,
+		&i.InstanceID,
 		&i.SyntheticPromptID,
 		&i.CreatedAt,
 		&i.ExpiresAt,
@@ -257,19 +281,20 @@ func (q *Queries) HasExpiredHeartbeatWakeEvents(ctx context.Context, cutoff stri
 
 const insertHeartbeatRevision = `-- name: InsertHeartbeatRevision :exec
 INSERT INTO agent_heartbeat_revisions (
-  id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
+  id, workspace_id, profile_id, agent_name, source_path, operation, previous_digest, new_digest,
   new_snapshot_id, body, actor_kind, actor_id, created_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7,
-  ?8, ?9, ?10,
-  ?11, ?12
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10, ?11,
+  ?12, ?13
 )
 `
 
 type InsertHeartbeatRevisionParams struct {
 	ID             string         `json:"id"`
 	WorkspaceID    string         `json:"workspace_id"`
+	ProfileID      string         `json:"profile_id"`
 	AgentName      string         `json:"agent_name"`
 	SourcePath     string         `json:"source_path"`
 	Operation      string         `json:"operation"`
@@ -286,6 +311,7 @@ func (q *Queries) InsertHeartbeatRevision(ctx context.Context, arg InsertHeartbe
 	_, err := q.db.ExecContext(ctx, insertHeartbeatRevision,
 		arg.ID,
 		arg.WorkspaceID,
+		arg.ProfileID,
 		arg.AgentName,
 		arg.SourcePath,
 		arg.Operation,
@@ -302,19 +328,20 @@ func (q *Queries) InsertHeartbeatRevision(ctx context.Context, arg InsertHeartbe
 
 const insertHeartbeatSnapshot = `-- name: InsertHeartbeatSnapshot :execrows
 INSERT INTO agent_heartbeat_snapshots (
-  id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
+  id, workspace_id, profile_id, agent_name, source_path, schema_version, digest, config_digest,
   body, frontmatter_json, resolved_json, diagnostics_json, created_at
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13
 )
-ON CONFLICT(workspace_id, agent_name, digest) DO NOTHING
+ON CONFLICT(profile_id, workspace_id, agent_name, digest) DO NOTHING
 `
 
 type InsertHeartbeatSnapshotParams struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
 	AgentName       string `json:"agent_name"`
 	SourcePath      string `json:"source_path"`
 	SchemaVersion   int64  `json:"schema_version"`
@@ -331,6 +358,7 @@ func (q *Queries) InsertHeartbeatSnapshot(ctx context.Context, arg InsertHeartbe
 	result, err := q.db.ExecContext(ctx, insertHeartbeatSnapshot,
 		arg.ID,
 		arg.WorkspaceID,
+		arg.ProfileID,
 		arg.AgentName,
 		arg.SourcePath,
 		arg.SchemaVersion,

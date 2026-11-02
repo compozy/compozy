@@ -1,6 +1,7 @@
 CREATE TABLE agent_heartbeat_revisions (
 			id TEXT PRIMARY KEY,
 			workspace_id TEXT NOT NULL,
+            profile_id TEXT NOT NULL DEFAULT '00000000000000000000000000',
 			agent_name TEXT NOT NULL,
 			source_path TEXT NOT NULL,
 			operation TEXT NOT NULL CHECK (operation IN ('write', 'delete', 'rollback')),
@@ -16,6 +17,7 @@ CREATE TABLE agent_heartbeat_revisions (
 CREATE TABLE agent_heartbeat_snapshots (
 			id TEXT PRIMARY KEY,
 			workspace_id TEXT NOT NULL,
+            profile_id TEXT NOT NULL DEFAULT '00000000000000000000000000',
 			agent_name TEXT NOT NULL,
 			source_path TEXT NOT NULL,
 			schema_version INTEGER NOT NULL DEFAULT 1,
@@ -26,7 +28,7 @@ CREATE TABLE agent_heartbeat_snapshots (
 			resolved_json TEXT NOT NULL,
 			diagnostics_json TEXT NOT NULL,
 			created_at TEXT NOT NULL,
-			UNIQUE (workspace_id, agent_name, digest)
+			UNIQUE (profile_id, workspace_id, agent_name, digest)
 		);
 
 CREATE TABLE agent_heartbeat_wake_events (
@@ -35,9 +37,9 @@ CREATE TABLE agent_heartbeat_wake_events (
 			agent_name TEXT NOT NULL,
 			session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
 			policy_snapshot_id TEXT REFERENCES agent_heartbeat_snapshots(id) ON DELETE SET NULL,
-			source TEXT NOT NULL CHECK (source IN ('scheduler', 'manual', 'harness_reentry')),
+			source TEXT NOT NULL CHECK (source IN ('scheduler', 'manual', 'harness_reentry', 'timer', 'instance_check')),
 			result TEXT NOT NULL CHECK (
-				result IN ('sent', 'skipped', 'coalesced', 'rate_limited', 'failed')
+				result IN ('sent', 'skipped', 'coalesced', 'rate_limited', 'failed', 'quiet', 'cancelled', 'reported')
 			),
 			reason TEXT NOT NULL CHECK (
 				reason IN (
@@ -55,9 +57,29 @@ CREATE TABLE agent_heartbeat_wake_events (
 					'session_prompt_active',
 					'session_prompt_active_race',
 					'synthetic_prompt_failed',
-					'wake_coalesced'
+					'wake_coalesced',
+					'quiet',
+					'reported',
+					'cancelled',
+					'digest_empty',
+					'digest_unchanged',
+					'policy_disabled',
+					'definition_not_stays_on',
+					'definition_missing',
+					'no_slot',
+					'hook_cancelled',
+					'duplicate_suppressed',
+					'triage_unsupported',
+					'triage_output_invalid',
+					'triage_timeout',
+					'triage_interrupted',
+					'triage_failed'
 				)
 			),
+			detail TEXT NOT NULL DEFAULT '',
+			denied_calls INTEGER NOT NULL DEFAULT 0 CHECK (denied_calls >= 0),
+			occurrence_id TEXT NOT NULL DEFAULT '',
+ instance_id TEXT NOT NULL DEFAULT '',
 			synthetic_prompt_id TEXT,
 			created_at TEXT NOT NULL,
 			expires_at TEXT NOT NULL
@@ -98,10 +120,10 @@ CREATE TABLE agent_heartbeat_wake_state (
 		);
 
 CREATE INDEX idx_agent_heartbeat_revisions_agent_created
-			ON agent_heartbeat_revisions(workspace_id, agent_name, created_at DESC, id DESC);
+			ON agent_heartbeat_revisions(profile_id, workspace_id, agent_name, created_at DESC, id DESC);
 
 CREATE INDEX idx_agent_heartbeat_snapshots_agent_created
-			ON agent_heartbeat_snapshots(workspace_id, agent_name, created_at DESC, id DESC);
+			ON agent_heartbeat_snapshots(profile_id, workspace_id, agent_name, created_at DESC, id DESC);
 
 CREATE INDEX idx_agent_heartbeat_wake_events_agent_created
 			ON agent_heartbeat_wake_events(workspace_id, agent_name, created_at DESC, id DESC);

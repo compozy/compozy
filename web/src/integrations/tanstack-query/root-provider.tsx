@@ -1,5 +1,7 @@
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 
+import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
+
 export function Provider({
   children,
   queryClient,
@@ -7,5 +9,9 @@ export function Provider({
   children: React.ReactNode;
   queryClient: QueryClient;
 }) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AgentIdentityProvider>{children}</AgentIdentityProvider>
+    </QueryClientProvider>
+  );
 }

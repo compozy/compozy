@@ -61,11 +61,11 @@ export function sessionSkillInvocationDirectives(
 
 /** A daemon-verified `@` mention at its UTF-16 offsets in the authored text. */
 export interface SessionMentionDirective {
-  kind: "file" | "folder" | "session";
+  kind: "file" | "folder" | "session" | "agent";
   token: string;
-  /** Relative path (folders end in `/`) or session id. */
+  /** Relative path (folders end in `/`), session id, or agent slug. */
   target: string;
-  /** File/folder name or the session title recorded at send time. */
+  /** File/folder name, the session title recorded at send time, or the agent label. */
   label: string;
   start: number;
   end: number;
@@ -89,6 +89,23 @@ function mentionFrom(value: unknown): SessionMentionDirective | null {
   }
   const recorded = typeof label === "string" ? label.trim() : "";
   return { kind, token, target, label: recorded || target, start, end };
+}
+
+const AGENT_MENTION_RE = /(?<=^|\s)@agent:([A-Za-z0-9][\w.-]*) \(([^()\n]+)\)/gu;
+
+/**
+ * Agent mentions in sent text. The daemon verifies no agent token, so the chip comes from the
+ * serialized form the composer wrote; typed text that matches it reads as the same reference.
+ */
+export function agentMentionDirectives(text: string): readonly SessionMentionDirective[] {
+  return Array.from(text.matchAll(AGENT_MENTION_RE), match => ({
+    kind: "agent" as const,
+    token: match[0],
+    target: match[1]!,
+    label: match[2]!,
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
 }
 
 /**

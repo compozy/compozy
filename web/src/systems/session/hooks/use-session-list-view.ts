@@ -6,6 +6,7 @@ import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "
 import {
   useActiveWorkspace,
   workspaceBadgeIdentity,
+  workspaceSelectorOrAll,
   type DataScope,
   type WorkspaceBadgeIdentity,
 } from "@/systems/workspace";
@@ -90,6 +91,9 @@ export interface SessionListViewModel {
    * the empty state; the create target is deliberately not used there.
    */
   scopeLabel: string | null;
+  /** The list's one concrete scope: a workspace id or `@user`; `null` under All projects. */
+  focusedWorkspaceId: string | null;
+  focusedScopeName: string;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
   /** Resolves a row's project badge; present only under All projects (BR-10). */
@@ -211,24 +215,21 @@ export function useSessionListView(
     options.pending === true
   );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
-  const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
-  const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
-  const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
-  useEffect(() => {
-    if (resolvedProfile) {
-      sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
-    }
-  }, [resolvedProfile, fallbackLens, foldLens]);
+  const foldLens = useSessionListFoldLens(scope, profile, groupBy);
   const groupId = (key: string) => sessionListGroupCollapseId(foldLens, key);
   const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
+  const collapsedGroupKeys = groups.flatMap(group =>
+    collapsedGroupIds.has(groupId(group.key)) ? [group.key] : []
+  );
   // A group with no pair of its own splits along the other axis into pairs,
   // so only a flat aggregate leaves manual order and folders with no owner.
   const manualBlocked = flat && pair === null;
   const flatLayout = flat && pair !== null;
 
   return {
-    layout: flatLayout ? folders.layout : undefined,
-    layoutError: flatLayout ? folders.loadError : arranged.loadError,
+    ...(flatLayout
+      ? { layout: folders.layout, layoutError: folders.loadError }
+      : { layout: undefined, layoutError: arranged.loadError }),
     projectFolders: arranged.projectFolders,
     worktreeId: options.worktreeId,
     catalog: awaiting.catalog,
@@ -251,7 +252,7 @@ export function useSessionListView(
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
     collapsedGroupKeys: new Set([
-      ...groups.flatMap(group => (collapsedGroupIds.has(groupId(group.key)) ? [group.key] : [])),
+      ...collapsedGroupKeys,
       // A collapsed project folder hides its projects: navigation skips them too.
       ...hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.collapsedFolderIds),
     ]),
@@ -259,11 +260,41 @@ export function useSessionListView(
     groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
+    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    focusedScopeName: focusedScopeName(scope, workspaces),
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
     totals,
   };
+}
+
+/**
+ * The lens fold state persists under. It settles on the profile's immutable id once the profile
+ * list resolves, carrying folds kept under the name that stood in for it.
+ */
+function useSessionListFoldLens(
+  scope: DataScope | null,
+  profile: ReturnType<typeof useProfileReadScope>,
+  groupBy: SessionListGroupBy
+) {
+  const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
+  const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
+  const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
+  useEffect(() => {
+    if (resolvedProfile) {
+      sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
+    }
+  }, [resolvedProfile, fallbackLens, foldLens]);
+  return foldLens;
+}
+
+function focusedScopeName(
+  scope: DataScope | null,
+  workspaces: readonly { id: string; name: string }[]
+) {
+  if (scope?.kind !== "project") return "Global";
+  return workspaces.find(workspace => workspace.id === scope.workspaceId)?.name ?? "this project";
 }
 
 function hiddenProjectGroupKeys(

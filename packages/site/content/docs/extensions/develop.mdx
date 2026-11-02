@@ -509,10 +509,15 @@ requesting mutation rights.
 
 Authored context also fires observation hooks — `agent.soul.snapshot.resolved`,
 `agent.soul.mutation.after`, `agent.heartbeat.policy.resolved`, `agent.heartbeat.wake.before` (the
-only sync-eligible one; it may deny but cannot mint a token), `agent.heartbeat.wake.after`, and
+only sync-eligible one; `cancel: true` vetoes `timer` and `instance_check` wakes,
+while legacy wake sources ignore cancellation), `agent.heartbeat.wake.after`, and
 `session.health.update.after`. Their payloads carry compact provenance — snapshot ids, digests,
 redacted actor and origin — and never raw `SOUL.md`/`HEARTBEAT.md` bodies, raw claim tokens, or full
 prompt transcripts.
+
+For proactive wake cancellation, hooks may return `{"cancel":true,"reason":"maintenance_window"}`.
+The persisted wake event keeps `hook_cancelled` as its reason and records the supplied text in
+`detail`, redacted and bounded to 300 bytes. An omitted reason still cancels the check.
 
 Agents can reach the same managed services through three native tools:
 

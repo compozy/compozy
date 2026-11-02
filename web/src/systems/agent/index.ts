@@ -1,5 +1,8 @@
 // Types
 export type {
+  AgentInstanceAway,
+  AgentInstanceReport,
+  AgentInstanceReportKind,
   AgentAggregateFilter,
   AgentCatalogFilter,
   AgentCatalogItem,
@@ -8,6 +11,10 @@ export type {
   AgentHeartbeatHistoryResponse,
   AgentHeartbeatPayload,
   AgentHeartbeatStatusPayload,
+  AgentGroupedCatalogItem,
+  AgentInstanceCheckIn,
+  AgentInstancePayload,
+  AgentInstanceWirePayload,
   AgentMCPServer,
   AgentPayload,
   AgentResponse,
@@ -38,9 +45,17 @@ export type {
   WakeAgentHeartbeatResponse,
 } from "./types";
 
+// Editors
+export { AgentCheckInsEditor } from "./components/agent-editors/agent-check-ins-editor";
+export { AgentMemoryEditor } from "./components/agent-editors/agent-memory-editor";
+export { AgentStartingInstructions } from "./components/agent-editors/agent-starting-instructions";
+export { AgentWhatItDoesEditor } from "./components/agent-editors/agent-what-it-does-editor";
+
 // Adapters
+export { AgentInstanceApiError } from "./adapters/agent-instance-api";
 export {
   AgentApiError,
+  isAgentNotFound,
   AgentDigestConflictError,
   AgentTargetExistsError,
   createAgent,
@@ -116,11 +131,6 @@ export {
   type AgentCreateValidationContext,
 } from "./lib/agent-create-draft";
 export {
-  deriveAgentFleetSignals,
-  type AgentFleetSignals,
-  type AgentFleetStatus,
-} from "./lib/fleet-signals";
-export {
   getAgentSessionStatus,
   type AgentSessionStatus,
   type AgentSessionStatusKind,
@@ -141,31 +151,32 @@ export {
 } from "./lib/agent-category";
 export {
   hasActiveAgentFleetFilters,
-  parseAgentFleetCategoryFilter,
-  parseAgentFleetStatusFilter,
   validateAgentsFleetSearch,
   type AgentsFleetSearch,
 } from "./lib/agent-fleet-search";
 export {
   filterAgentSessionsByStatus,
-  resolveAgentDetailSearch,
   validateAgentDetailSearch,
-  AGENT_DETAIL_TABS,
-  AGENT_INSTRUCTION_FILES,
   AGENT_SESSION_FILTERS,
   type AgentDetailSearch,
-  type AgentDetailTab,
-  type AgentInstructionFile,
   type AgentSessionFilter,
-  type ResolvedAgentDetailSearch,
 } from "./lib/agent-detail-search";
 export {
+  agentSettingsDestination,
+  agentTabDestination,
   resolveAgentSettingsSearch,
   validateAgentSettingsSearch,
   AGENT_SETTINGS_SECTIONS,
+  type AgentLegacyDestination,
   type AgentSettingsSearch,
   type AgentSettingsSection,
 } from "./lib/agent-settings-search";
+export {
+  AGENT_EDITOR_PAGES,
+  AGENT_PROFILE_PANELS,
+  type AgentEditorPage,
+  type AgentProfilePanel,
+} from "./lib/agent-profile";
 export {
   buildSettingsDraftFromAgent,
   buildUpdateAgentParams,
@@ -181,22 +192,22 @@ export {
   formatAbsentOverride,
 } from "./lib/agent-absent-value";
 export {
-  formatAgentFleetAriaLabel,
-  formatAgentFleetCardCategory,
-  formatAgentFleetMeta,
-  formatAgentOriginLabel,
-  formatCategoryMetaSegment,
-  projectAgentFleetRows,
-  type AgentFleetRowModel,
-  type AgentFleetSessionSignals,
-} from "./lib/agent-fleet-projection";
-export {
-  agentFleetFiltersToChips,
-  agentFleetChipsToFilters,
-  buildAgentFleetFilterFields,
-  type AgentFleetFilterFieldKey,
-  type AgentFleetFilterValues,
-} from "./lib/agent-fleet-filters";
+  agentNowLine,
+  agentOverallState,
+  agentPlaceFromInstance,
+  agentsByAttention,
+  buildAgentTeam,
+  buildAgentTeamFilterFields,
+  matchesAgentFilters,
+  matchesAgentFocus,
+  agentPausePlain,
+  agentPauseShort,
+  type AgentTeamFocus,
+  type AgentTeamMember,
+  type AgentTeamPlace,
+} from "./lib/agent-team";
+export { AGENT_PLACE_LATER } from "./lib/agent-create-draft";
+export { formatAgentOwner, isAgentReadOnly } from "./lib/agent-ownership";
 
 // Hooks
 export {
@@ -254,70 +265,9 @@ export { useAgentDeleteFlow, type UseAgentDeleteFlowResult } from "./hooks/use-a
 export { AgentIcon } from "./components/agent-icon";
 export { providerIconMap } from "./components/provider-icon-map";
 export {
-  AgentPageActions,
-  AgentPageOverflow,
-  AgentPageOverflowSkeleton,
-  AgentPageStatusPill,
-  AgentPageStatusSkeleton,
-  type AgentPageActionsProps,
-  type AgentPageOverflowProps,
-  type AgentPageStatusPillProps,
-} from "./components/agent-page-header";
-export {
-  AgentDetailHeader,
-  AgentDetailHeaderSkeleton,
-  type AgentDetailHeaderProps,
-} from "./components/agent-detail-header";
-export {
-  AgentRuntimeControl,
-  type AgentRuntimeControlProps,
-} from "./components/agent-runtime-control";
-export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
-export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
-export { formatAgentRuntimeDuration } from "./lib/format-agent-runtime-duration";
-export {
   AgentDiagnosticsBanner,
   type AgentDiagnosticsBannerProps,
 } from "./components/agent-diagnostics-banner";
-export {
-  AgentMcpServersPanel,
-  type AgentMcpServersPanelProps,
-} from "./components/agent-mcp-servers-panel";
-export {
-  AgentOverviewSkeleton,
-  AgentOverviewTab,
-  type AgentOverviewTabProps,
-} from "./components/agent-overview-tab";
-export {
-  AgentConfigurationSkeleton,
-  AgentConfigurationTab,
-  type AgentConfigurationTabProps,
-} from "./components/agent-configuration-tab";
-export { AgentSessionsTab, type AgentSessionsTabProps } from "./components/agent-sessions-tab";
-export { AgentSessionsTabSkeleton } from "./components/agent-sessions-tab-skeleton";
-export {
-  AgentInstructionsTab,
-  type AgentInstructionsTabProps,
-  type AgentInstructionsTabViewModel,
-} from "./components/agent-instructions-tab";
-export {
-  AgentInstructionsPlaceholder,
-  AgentInstructionsSkeleton,
-} from "./components/agent-instructions-skeleton";
-export {
-  useAgentInstructionsTab,
-  type UseAgentInstructionsTabArgs,
-} from "./hooks/use-agent-instructions-tab";
-export {
-  AgentAuthoredFileEditor,
-  type AgentAuthoredFileEditorProps,
-} from "./components/agent-authored-file-editor";
-export { AgentHeartbeatOps, type AgentHeartbeatOpsProps } from "./components/agent-heartbeat-ops";
-export {
-  AgentSettingsPanels,
-  AgentSettingsPanelsSkeleton,
-  type AgentSettingsPanelsProps,
-} from "./components/agent-settings-panels";
 export {
   AgentCommandSelect,
   type AgentCommandSelectProps,
@@ -326,7 +276,24 @@ export {
   AgentCommandMultiSelect,
   type AgentCommandMultiSelectProps,
 } from "./components/agent-command-multi-select";
-export { AgentCreateDialog, type AgentCreateDialogProps } from "./components/agent-create-dialog";
+export { AgentProfileOverflow } from "./components/agent-profile/agent-profile-overflow";
+export { AgentProfileHome } from "./components/agent-profile/agent-profile-home";
+export { AgentWhereItWorks, AgentAddPlace } from "./components/agent-profile/agent-where-it-works";
+export { useAgentProfile, type UseAgentProfile } from "./hooks/use-agent-profile";
+export { AgentCreateScreen, type AgentCreateScreenProps } from "./components/agent-create-screen";
+export { AgentMark } from "./components/agent-mark";
+export {
+  AgentIdentityChip,
+  AgentIdentityLabel,
+  AgentIdentityMark,
+} from "./components/agent-identity-mark";
+export {
+  AgentPicker,
+  AgentScopePicker,
+  type AgentPickerProps,
+  type AgentPlaceOption,
+  type AgentScopePickerProps,
+} from "./components/agent-add-pickers";
 export { TokenListField, type TokenListFieldProps } from "./components/token-list-field";
 export {
   AgentCreateHostProvider,
@@ -334,12 +301,63 @@ export {
   type AgentCreateHostValue,
 } from "./components/agent-create-host";
 export { useAgentCreateHost } from "./hooks/use-agent-create-host";
-export { AgentFleetRow, type AgentFleetRowProps } from "./components/agent-fleet-row";
-export { AgentFleetCard, type AgentFleetCardProps } from "./components/agent-fleet-card";
 export {
   AgentFleetNewSessionButton,
   type AgentFleetNewSessionButtonProps,
 } from "./components/agent-fleet-new-session-button";
-export { AgentFleetToolbar, type AgentFleetToolbarProps } from "./components/agent-fleet-toolbar";
-export { AgentFleetList, type AgentFleetListProps } from "./components/agent-fleet-list";
+export {
+  AgentTeamPage,
+  type AgentTeamPageProps,
+  type AgentTeamStatus,
+} from "./components/agent-team/agent-team-page";
+export {
+  AgentTeamToolbar,
+  type AgentTeamToolbarProps,
+} from "./components/agent-team/agent-team-toolbar";
+export type { AgentAddPlaceActions } from "./components/agent-team/agent-team-parts";
+export { AgentFleetSkeleton } from "./components/agent-fleet-skeleton";
 export { useAgentWindowScope } from "./hooks/use-agent-window-scope";
+export {
+  useAgentIdentityResolverView,
+  useAgentIdentityView,
+} from "./hooks/use-agent-identity-view";
+export type { AgentIdentityScope } from "./lib/agent-identity-context";
+export { AgentIdentityProvider } from "./components/agent-identity-provider";
+export {
+  agentIdentityOf,
+  humanizeAgentSlug,
+  resolveAgentIdentity,
+  type AgentIdentity,
+} from "./lib/agent-identity";
+export {
+  applyAgentInstanceUpdate,
+  invalidateAgentInstances,
+  useAgentInstanceActions,
+  useAgentInstanceCapacity,
+  useAgentInstances,
+  useCreateAgentInstance,
+  useStaysOnAgents,
+} from "./hooks/use-agent-instances";
+export {
+  agentPauseCopy,
+  GLOBAL_SCOPE,
+  agentAvatarAppearance,
+  agentInstanceAvatarState,
+  agentInstanceBinding,
+  agentInstanceCapacity,
+  type AgentInstanceCapacity,
+  agentInstanceResumeBlocked,
+  agentInstancesByUrgency,
+  agentScopeLabel,
+} from "./lib/agent-instance";
+export { agentTeamOptions } from "./lib/query-options";
+export { formatRelativeClock } from "./lib/agent-time";
+export { useAgentMemorySummary } from "./hooks/use-agent-memory";
+export { agentFromOrphanInstance } from "./lib/agent-instance-wire";
+export {
+  agentInstanceAwayOptions,
+  agentInstanceCheckInsOptions,
+  agentInstanceIndeterminateReportsOptions,
+  agentInstanceReportsOptions,
+} from "./lib/query-options";
+export { markAgentInstanceSeen, type AgentInstanceRef } from "./adapters/agent-instance-api";

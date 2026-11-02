@@ -100,6 +100,7 @@ type Service struct {
 	pending     map[string]*entry
 	retryKick   chan struct{}
 	stopped     bool
+	retired     map[string]struct{}
 	sessions    map[string]map[string]*entry
 	occupied    int
 	perTerminal map[string]int
@@ -256,6 +257,9 @@ func (s *Service) reuse(spec Spec) (Monitor, bool) {
 func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now time.Time) (Monitor, error) {
 	if s.stopped {
 		return Monitor{}, ErrStopped
+	}
+	if _, retired := s.retired[item.state.SessionID]; retired {
+		return Monitor{}, ErrSessionGone
 	}
 	s.sweepLocked(now)
 	if existing := s.identicalLocked(item); existing != nil {

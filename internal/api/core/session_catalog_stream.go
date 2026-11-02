@@ -22,6 +22,10 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 	if !h.requireOperatorOrGrantedAgent(c, "session catalog stream") {
 		return
 	}
+	actor, ok := h.instanceActor(c)
+	if !ok {
+		return
+	}
 	subscriber, ok := h.Sessions.(SessionCatalogEventSubscriber)
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog stream is required"))
@@ -63,7 +67,7 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 		return
 	}
 
-	h.streamSessionCatalogEvents(c, writer, events, owners)
+	h.streamSessionCatalogEvents(c, writer, events, owners, actor)
 }
 
 func (h *BaseHandlers) streamSessionCatalogEvents(
@@ -71,6 +75,7 @@ func (h *BaseHandlers) streamSessionCatalogEvents(
 	writer FlushWriter,
 	events <-chan session.CatalogEvent,
 	owners map[string]profileOwnerIdentity,
+	actor workspaceaccess.ActorRef,
 ) {
 	for {
 		select {
@@ -100,6 +105,13 @@ func (h *BaseHandlers) streamSessionCatalogEvents(
 				return
 			}
 			event.ProfileName = owner.Name
+			if err := h.writeInstanceCatalogEvent(c, writer, event, actor); err != nil {
+				h.logSSEWriteFailure("agent_instance.updated", err)
+				return
+			}
+			if event.InstanceID != "" {
+				continue
+			}
 			name, data := sessionCatalogSSEMessage(event)
 			if err := WriteSSE(writer, SSEMessage{
 				ID:   strconv.FormatInt(event.Sequence, 10),

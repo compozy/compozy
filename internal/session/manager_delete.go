@@ -36,6 +36,9 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 		return err
 	}
 	defer unlockConversation()
+	if err := m.guardInstanceMain(ctx, target); err != nil {
+		return err
+	}
 
 	// Stop settlement and its subagent/Goal callbacks can acquire lifecycleMu.
 	// Keep them outside the global staging lock. The conversation operation

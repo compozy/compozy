@@ -91,7 +91,7 @@ type reviewRouterTaskStore interface {
 }
 
 type reviewRouterSessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }

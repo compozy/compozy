@@ -12,6 +12,7 @@ import {
 
 import { attentionOrderKey } from "../lib/attention-order";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 export interface OsPaletteSessionRowProps {
   /**
@@ -50,7 +51,13 @@ export function OsPaletteSessionRow({ session, owner, workspaceLabel }: OsPalett
           >
             {signal.displayLabel}
           </span>
-          {agentName === "" ? null : <span className="truncate">{agentName}</span>}
+          {agentName === "" ? null : (
+            <AgentIdentityChip
+              agentScope={{ workspace: session.workspace_id }}
+              name={agentName}
+              size={14}
+            />
+          )}
           {workspaceLabel === undefined ? null : (
             <span className="shrink-0 font-mono text-eyebrow text-faint">{workspaceLabel}</span>
           )}

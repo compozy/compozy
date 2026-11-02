@@ -28,6 +28,8 @@ export interface SessionsBoardViewProps {
   /** Folded columns by id: one fold covers the column in every swimlane. */
   collapsedColumns: SessionsBoardRow["collapsedColumns"];
   onColumnCollapsedChange: SessionsBoardRow["onColumnCollapsedChange"];
+  /** Above the columns or lanes: the board's stays-on row. */
+  header?: ReactNode;
   /** One swimlane per Group-by group; each lane reads its own columns. */
   renderLane?: (
     lane: NonNullable<SessionsBoardModel["lanes"]>[number],
@@ -47,6 +49,7 @@ export function SessionsBoardView({
   actions,
   collapsedColumns,
   onColumnCollapsedChange,
+  header,
   renderLane,
 }: SessionsBoardViewProps) {
   const row: SessionsBoardRow = {
@@ -60,6 +63,7 @@ export function SessionsBoardView({
   return (
     <div className={SESSIONS_BOARD_FRAME} data-testid="sessions-board">
       <div className={SESSIONS_BOARD_SCROLLER}>
+        {header}
         {board.lanes === null ? (
           <SessionsBoardColumnsRow
             {...row}

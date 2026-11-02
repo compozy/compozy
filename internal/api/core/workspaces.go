@@ -199,16 +199,21 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 				return nil, err
 			}
 		}
-		for _, entry := range catalogAgents {
+		for i := range catalogAgents {
+			entry := &catalogAgents[i]
 			agent := entry.Def
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
 				continue
 			}
-			if _, exists := merged[name]; exists {
+			if existing, exists := merged[name]; exists {
+				// The workspace scan owns the definition; only the catalog knows who owns it.
+				existing.MemoryOrigin = entry.MemoryOrigin
+				existing.PackageOwned = entry.PackageOwned
+				merged[name] = existing
 				continue
 			}
-			merged[name] = entry
+			merged[name] = *entry
 		}
 	}
 

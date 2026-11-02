@@ -143,6 +143,9 @@ func (m *Manager) setSessionArchivedWithResumeGuard(
 		return archiveStore.SetSessionArchived(ctx, workspaceID, sessionID, false)
 	}
 
+	if err := m.guardInstanceMain(ctx, sessionID); err != nil {
+		return store.SessionInfo{}, err
+	}
 	m.resumeLifecycle.mu.Lock()
 	defer m.resumeLifecycle.mu.Unlock()
 	if m.resumeLifecycle.runs[sessionID] != nil {

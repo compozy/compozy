@@ -36,6 +36,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 		target.agentName,
 		&resolved,
 		now,
+		target.profileID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -85,6 +86,7 @@ func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
 		target.agentName,
 		&resolved,
 		now,
+		target.profileID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -136,6 +138,7 @@ func (s *ManagedHeartbeatAuthoringService) rollbackTarget(
 	if revisionID != "" {
 		selected, err := s.store.FindHeartbeatRevisionForRollback(ctx, RollbackLookup{
 			WorkspaceID: target.workspaceID,
+			ProfileID:   target.profileID,
 			AgentName:   target.agentName,
 			SourcePath:  target.sourcePath,
 			RevisionID:  revisionID,
@@ -156,7 +159,9 @@ func (s *ManagedHeartbeatAuthoringService) rollbackTarget(
 	if targetDigest == "" {
 		return rollbackTarget{}, revisionMissingError(target.sourcePath, ErrRevisionNotFound)
 	}
-	snapshot, ok, err := s.store.FindHeartbeatSnapshotByDigest(ctx, target.workspaceID, target.agentName, targetDigest)
+	snapshot, ok, err := s.store.FindHeartbeatSnapshotByDigest(
+		ctx, target.workspaceID, target.agentName, targetDigest, target.profileID,
+	)
 	if err != nil {
 		return rollbackTarget{}, fmt.Errorf("heartbeat: find rollback snapshot: %w", err)
 	}
@@ -166,6 +171,7 @@ func (s *ManagedHeartbeatAuthoringService) rollbackTarget(
 	if snapshot.SourcePath != target.sourcePath {
 		revisions, err := s.store.ListHeartbeatRevisions(ctx, RevisionListQuery{
 			WorkspaceID: target.workspaceID,
+			ProfileID:   target.profileID,
 			AgentName:   target.agentName,
 			SourcePath:  target.sourcePath,
 			NewDigest:   targetDigest,
@@ -228,7 +234,7 @@ func heartbeatFrontmatterForRollback(front Frontmatter) map[string]any {
 	if len(preferences) > 0 {
 		payload["preferences"] = preferences
 	}
-	if len(front.Context.Include) > 0 {
+	if front.Context.Include != nil {
 		payload["context"] = map[string]any{"include": slices.Clone(front.Context.Include)}
 	}
 	return payload

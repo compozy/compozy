@@ -42,12 +42,16 @@ func (r *taskRoleRuntime) startRoleSession(
 	if err != nil {
 		return nil, err
 	}
-	return r.createRoleSession(ctx, opts)
+	return r.createRoleSession(ctx, &(opts))
 }
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
-		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: activation.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      activation.TaskID,
+			Ceiling: activation.GrantCeiling,
+		},
 		ProfileID: activation.ProfileID,
 		AgentName: activation.AgentName,
 		Provider:  activation.Provider,
@@ -80,9 +84,11 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 
 func (r *taskRoleRuntime) createRoleSession(
 	ctx context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (*session.Info, error) {
-	created, err := r.sessions.Create(ctx, opts)
+	opts := *optsInput
+
+	created, err := r.sessions.Create(ctx, &(opts))
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create task role session: %w", err)
 	}
@@ -239,7 +245,7 @@ func (r *taskRoleRuntime) startStarvationSession(
 			MaxActivePerWorkspace: defaultStarvationMaxActivePerWorkspace,
 		},
 	}
-	return r.createRoleSession(ctx, opts)
+	return r.createRoleSession(ctx, &(opts))
 }
 
 func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) bool {

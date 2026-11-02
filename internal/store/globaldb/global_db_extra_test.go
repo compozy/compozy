@@ -106,7 +106,10 @@ func TestGlobalDBGuardClauses(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	if err := globalDB.RegisterSession(nilGlobalContext(), SessionInfo{ProfileID: store.DefaultProfileID}); err == nil {
+	if err := globalDB.RegisterSession(
+		nilGlobalContext(),
+		new(SessionInfo{ProfileID: store.DefaultProfileID}),
+	); err == nil {
 		t.Fatal("RegisterSession(nil ctx) error = nil, want non-nil")
 	}
 	if _, err := globalDB.ListSessions(nilGlobalContext(), SessionListQuery{
@@ -184,17 +187,17 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		"filtered-workspace",
 		filepath.Join(t.TempDir(), "filtered-workspace"),
 	)
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-defaults",
 		AgentName:     "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		WorkspaceID:   workspaceID,
 		State:         "active",
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(defaults) error = %v", err)
 	}
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-reviewer",
 		AgentName:     "reviewer",
@@ -203,7 +206,7 @@ func TestGlobalDBDefaultsAndFilteredListings(t *testing.T) {
 		State:         "active",
 		CreatedAt:     base.Add(-time.Hour),
 		UpdatedAt:     base.Add(-time.Hour),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(reviewer) error = %v", err)
 	}
 
@@ -333,7 +336,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		"harness-observe-workspace",
 		filepath.Join(t.TempDir(), "harness-observe-workspace"),
 	)
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-harness",
 		AgentName:     "coder",
@@ -342,7 +345,7 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		State:         "active",
 		CreatedAt:     base,
 		UpdatedAt:     base,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 

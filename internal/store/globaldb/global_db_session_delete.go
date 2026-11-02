@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -22,6 +23,13 @@ func (g *SessionRepo) DeleteSession(ctx context.Context, sessionID string) error
 	deletedAt := g.now()
 	return g.withImmediateTransaction(ctx, "delete session", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
+		main, err := queries.IsInstanceMainSession(ctx, sql.NullString{String: target, Valid: true})
+		if err != nil {
+			return err
+		}
+		if main {
+			return store.ErrSessionIsInstanceMain
+		}
 		affected, err := queries.DeleteSession(ctx, target)
 		if err != nil {
 			return fmt.Errorf("store: delete session %q: %w", target, err)

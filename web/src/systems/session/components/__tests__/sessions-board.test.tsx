@@ -28,12 +28,15 @@
 // outside it retargets; selected cards survive a column move and drop out once gone;
 // a folded column keeps them as hidden; the Archive bar's cards join only while it is open;
 // a toggle re-renders only the cards it changes.
+import type { AgentInstancePayload } from "@/systems/agent";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { projectSessionGroup } from "../../lib/session-list-groups";
 import { workspaceBadgeIdentity, workspacesListOptions } from "@/systems/workspace";
 
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
@@ -48,6 +51,15 @@ import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-l
 import { SessionsBoard } from "../session-board/sessions-board";
 import { SessionsBoardSelection } from "../session-board/sessions-board-selection";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
+import * as agentApi from "@/systems/agent/adapters/agent-api";
+import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
+
+const mockInstances = vi.hoisted(() => vi.fn(async () => [] as AgentInstancePayload[]));
+
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => ({ instances: await mockInstances(), capacity: {} }),
+}));
 
 vi.mock("../../hooks/use-session-row-runtime-label", async importOriginal => {
   const actual = await importOriginal<typeof import("../../hooks/use-session-row-runtime-label")>();
@@ -111,6 +123,7 @@ function board(
       ...columns[id],
     })),
     lanes: null,
+    focusedWorkspaceId: null,
     lanesLoading: false,
     groupBy: "none",
     groupByOptions: ["none"],
@@ -124,7 +137,9 @@ function board(
 function boardWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <AgentIdentityProvider>{children}</AgentIdentityProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -154,6 +169,32 @@ function lifecycleActions(): SessionLifecycleActionHandlers {
 afterEach(() => resetSessionBoardColumnFolds());
 
 describe("SessionsBoard", () => {
+  // Invariant: a card names its agent by label with its face, and every card shares one catalog read.
+  it("Should show each card's agent label and avatar from one catalog read", async () => {
+    const fetchAgents = vi
+      .spyOn(agentApi, "fetchAgents")
+      .mockResolvedValue([
+        { name: "code_implementer", label: "Builder", resolved_appearance: null } as never,
+      ]);
+    renderBoard(
+      board({
+        working: {
+          sessions: [card("one", { agent_name: "code_implementer" })],
+          count: 1,
+        },
+        done: { sessions: [card("two", { agent_name: "code_implementer" })], count: 1 },
+      })
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Builder")).toHaveLength(2));
+    expect(screen.getByTestId("session-agent-mark-one")).toHaveAttribute(
+      "data-slot",
+      "agent-avatar"
+    );
+    expect(fetchAgents).toHaveBeenCalledTimes(1);
+    fetchAgents.mockRestore();
+  });
+
   it("Should name each column region with its facet count", () => {
     renderBoard(board({ working: { count: 9 }, done: { count: 1 } }));
     expect(screen.getByRole("region", { name: "Working, 9 sessions" })).toBeInTheDocument();
@@ -422,6 +463,68 @@ describe("SessionsBoard", () => {
   });
 });
 
+describe("SessionsBoard stays-on agents", () => {
+  const global = agentInstanceFixture({
+    id: "ainst-global",
+    label: "Release Captain",
+    workspace_id: "",
+    scope: "@user",
+    main_session_id: "sess-main-global",
+  });
+  const needsYou = agentInstanceFixture({ needs_attention: true });
+
+  afterEach(() => mockInstances.mockResolvedValue([]));
+
+  it("Should show no row with no instances", async () => {
+    renderBoard(board());
+
+    await screen.findByTestId("sessions-board");
+    expect(screen.queryByTestId("stays-on-row")).toBeNull();
+  });
+
+  it("Should sit the row above the columns, with the triangle on whoever needs you", async () => {
+    mockInstances.mockResolvedValue([global, needsYou]);
+    renderBoard({ ...board(), focusedWorkspaceId: "ws-compozy" });
+
+    expect(await screen.findByRole("img", { name: /Triage Lead.*Needs you/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Release Captain, Global/ })).toBeInTheDocument();
+  });
+
+  it("Should open a main session from the row, never a card", async () => {
+    const onOpen = vi.fn();
+    mockInstances.mockResolvedValue([global]);
+    renderBoard({ ...board(), focusedWorkspaceId: "@user" }, onOpen);
+
+    fireEvent.click(await screen.findByTestId("stays-on-seat-ainst-global"));
+
+    await waitFor(() =>
+      expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "sess-main-global" }))
+    );
+  });
+});
+
+describe("SessionsBoard agents needing you", () => {
+  it("Should say so in the lane header from the served facet", () => {
+    const group = projectSessionGroup(
+      "ws-alpha",
+      { all: 1, working: 1, needs_you: 0, instances_needing_attention: 2 },
+      {
+        workspaces: [{ id: "ws-alpha", name: "Alpha" }],
+        lens: { profile: "default" },
+      }
+    );
+    renderBoard({
+      ...board(),
+      columns: [],
+      lanes: [{ group, filters: { workspace_id: "ws-alpha", sort: "created" as const } }],
+    });
+
+    expect(
+      screen.getByTestId("sessions-board-lane-project:ws-alpha-agents-waiting")
+    ).toHaveTextContent("2 agents need you");
+  });
+});
+
 describe("SessionsBoard card actions", () => {
   it("Should open the session list's verbs from a card's context menu", async () => {
     const user = userEvent.setup();
@@ -494,6 +597,7 @@ describe("SessionsBoard swimlanes", () => {
       total,
       working: total,
       needsYou: 0,
+      instancesNeedingAttention: 0,
       scope: { kind: "project" as const, workspaceId },
       lens: { profile: "default" },
       pair: null,
@@ -512,6 +616,7 @@ describe("SessionsBoard swimlanes", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: {
         terminal_approvals: 0,
+        instances_needing_attention: 0,
         all: 1,
         needs_you: 0,
         working: 1,
@@ -531,6 +636,7 @@ describe("SessionsBoard swimlanes", () => {
     });
 
     const alpha = screen.getByRole("region", { name: "Alpha" });
+    expect(screen.queryByTestId("sessions-board-lane-project:ws-alpha-agents-waiting")).toBeNull();
     expect(screen.getByRole("region", { name: "Beta" })).toBeInTheDocument();
     expect(await within(alpha).findByTestId("session-board-card-alpha-1")).toBeInTheDocument();
     // The lane header names the project; its cards do not repeat it.
@@ -577,7 +683,9 @@ describe("SessionsBoard swimlanes", () => {
         />,
         {
           wrapper: ({ children }: { children: ReactNode }) => (
-            <QueryClientProvider client={client}>{children}</QueryClientProvider>
+            <QueryClientProvider client={client}>
+              <AgentIdentityProvider>{children}</AgentIdentityProvider>
+            </QueryClientProvider>
           ),
         }
       );

@@ -8,6 +8,7 @@ import { useSessionDecisionMessages } from "../hooks/use-session-transcript-thre
 import { derivePendingPermissions } from "../lib/pending-permissions";
 import { ClarificationDock } from "./clarification-dock";
 import { PermissionDock } from "./permission-dock";
+import { RelayedApprovalDock } from "./stays-on/reports/relayed-approvals";
 
 export interface SessionDecisionDockProps {
   enabled?: boolean;
@@ -78,7 +79,8 @@ export function SessionDecisionDock({
 
   const total = pendingClarifications.length;
   if (total === 0) {
-    return null;
+    // This session's own asks lead; only then do asks from the sessions it started dock.
+    return <RelayedApprovalDock sessionId={sessionId} workspaceId={workspaceId} />;
   }
   const countLabel = total > 1 ? `1/${total}` : null;
 
