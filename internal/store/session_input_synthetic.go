@@ -21,6 +21,16 @@ type SessionInputSyntheticPrompt struct {
 	// CoalescedMessageIDs lists the wakes merged behind the row's own message id. It is the admission
 	// ledger for those wakes, so a replayed wake finds its row across a restart.
 	CoalescedMessageIDs []string `json:"coalesced_message_ids,omitempty"`
+	// Coalesce is the merge request for this admission only; it never persists.
+	Coalesce *SessionInputCoalesce `json:"-"`
+}
+
+// CoalesceBounds returns the merge request of a synthetic wake, or nil.
+func (r SessionInputQueueInsert) CoalesceBounds() *SessionInputCoalesce {
+	if r.SyntheticPrompt == nil {
+		return nil
+	}
+	return r.SyntheticPrompt.Coalesce
 }
 
 // SessionInputCoalesce asks the store to merge a synthetic wake into the session's open row of the same
@@ -54,6 +64,7 @@ func (p *SessionInputSyntheticPrompt) Clone() *SessionInputSyntheticPrompt {
 
 		CoalesceKey:         p.CoalesceKey,
 		CoalescedMessageIDs: slices.Clone(p.CoalescedMessageIDs),
+		Coalesce:            p.Coalesce,
 	}
 }
 
@@ -68,7 +79,8 @@ func (r SessionInputQueueInsert) validateSyntheticPrompt() error {
 		!json.Valid(r.SyntheticPrompt.Metadata) || string(r.SyntheticPrompt.Metadata) == "null" {
 		return errors.New("store: synthetic input requires queued delivery, turn id, run id, and valid metadata")
 	}
-	if r.Coalesce != nil && (r.SyntheticPrompt.CoalesceKey == "" || r.MessageID == "" || r.Coalesce.MaxMembers <= 0) {
+	if r.CoalesceBounds() != nil &&
+		(r.SyntheticPrompt.CoalesceKey == "" || r.MessageID == "" || r.SyntheticPrompt.Coalesce.MaxMembers <= 0) {
 		return errors.New("store: coalesced input requires a coalesce key, message id, and member bound")
 	}
 	return nil

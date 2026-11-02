@@ -2890,6 +2890,18 @@ func TestManagerSyncRetiredLoopTargets(t *testing.T) {
 					if err != nil || stats.JobsSynced != 1 || stats.TriggersSynced != 1 {
 						t.Fatalf("sync = %+v, %v", stats, err)
 					}
+					// Resource storage projects rows through the resource layer, outside this harness.
+					if !useResources {
+						savedJob, err := manager.GetJob(t.Context(), job.ID)
+						if err != nil || savedJob.LoopTarget == nil || savedJob.LoopTarget.LoopName != "retained" {
+							t.Fatalf("saved job = %+v, %v", savedJob, err)
+						}
+						savedTrigger, err := manager.GetTrigger(t.Context(), trigger.ID)
+						if err != nil || savedTrigger.LoopTarget == nil ||
+							savedTrigger.LoopTarget.LoopName != "retained" {
+							t.Fatalf("saved trigger = %+v, %v", savedTrigger, err)
+						}
+					}
 					if _, err := manager.CreateJob(t.Context(), job); !errors.Is(err, unavailable) {
 						t.Fatalf("dynamic job = %v", err)
 					}

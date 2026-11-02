@@ -347,5 +347,8 @@ describe("allowed receipt inside a work group", () => {
     const receipt = screen.getByTestId("permission-allowed-receipt");
     expect(receipt.closest("[data-part-index]")).toHaveAttribute("data-part-index", "7");
     expect(screen.getAllByTestId("permission-allowed-receipt")).toHaveLength(1);
+    const [ownStep, nextStep] = document.querySelectorAll(".session-rail-step");
+    expect(ownStep).toContainElement(receipt);
+    expect(nextStep).not.toContainElement(receipt);
   });
 });

@@ -41,11 +41,7 @@ func (m *Manager) SubagentPermissionLimit(
 	if err != nil || ceiling == nil {
 		return inherited, err
 	}
-	runtime := managerSubagentRuntime{m: m}
-	target, err := runtime.Resolve(ctx, parent, requested)
-	if err != nil {
-		return SubagentPermissionLimit{}, err
-	}
+	// Only the child's definition sets its level, so this skips the provider probes Resolve runs.
 	workspace, err := m.resolveResumeWorkspace(
 		ctx,
 		&store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID},
@@ -53,11 +49,16 @@ func (m *Manager) SubagentPermissionLimit(
 	if err != nil {
 		return SubagentPermissionLimit{}, err
 	}
+	agent, provider := subagentRequestedIdentity(parent, requested)
 	resolved, err := resolveWorkspaceSessionAgentForType(
-		target.Agent, target.Provider, SessionTypeSpawned, &workspace, m.agentResolver,
+		agent,
+		provider,
+		SessionTypeSpawned,
+		&workspace,
+		m.agentResolver,
 	)
 	if err != nil {
-		return SubagentPermissionLimit{}, err
+		return SubagentPermissionLimit{}, subagentResolveError(agent, err)
 	}
 	return SubagentPermissionLimit{Mode: m.startPermissions(resolved.Permissions), ChildOwnsLevel: true}, nil
 }
@@ -79,13 +80,7 @@ func (r managerSubagentRuntime) Resolve(
 		return SubagentTarget{}, err
 	}
 	inherited := subagentInherited(parent)
-	agent, provider := requested.Agent, requested.Provider
-	if agent == "" {
-		agent = inherited.Agent
-	}
-	if provider == "" {
-		provider = inherited.Provider
-	}
+	agent, provider := subagentRequestedIdentity(parent, requested)
 	resolved, err := resolveWorkspaceSessionAgentForType(
 		agent,
 		provider,
@@ -94,18 +89,7 @@ func (r managerSubagentRuntime) Resolve(
 		r.m.agentResolver,
 	)
 	if err != nil {
-		if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
-			return SubagentTarget{}, &SubagentError{
-				Code:    "agent_not_found",
-				Message: fmt.Sprintf("Agent %s not found.", agent),
-				Err:     ErrSubagentTargetUnavailable,
-			}
-		}
-		return SubagentTarget{}, &SubagentError{
-			Code:    subagentProviderUnavailable,
-			Message: err.Error(),
-			Err:     ErrSubagentTargetUnavailable,
-		}
+		return SubagentTarget{}, subagentResolveError(agent, err)
 	}
 	option, err := r.providerOption(ctx, &workspace.Config, provider)
 	if err != nil {
@@ -133,6 +117,34 @@ func (r managerSubagentRuntime) Resolve(
 		return SubagentTarget{}, err
 	}
 	return target, nil
+}
+
+// subagentRequestedIdentity fills an omitted agent or provider from the parent.
+func subagentRequestedIdentity(parent *Info, requested SubagentTarget) (agent, provider string) {
+	inherited := subagentInherited(parent)
+	agent, provider = requested.Agent, requested.Provider
+	if agent == "" {
+		agent = inherited.Agent
+	}
+	if provider == "" {
+		provider = inherited.Provider
+	}
+	return agent, provider
+}
+
+func subagentResolveError(agent string, err error) error {
+	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		return &SubagentError{
+			Code:    "agent_not_found",
+			Message: fmt.Sprintf("Agent %s not found.", agent),
+			Err:     ErrSubagentTargetUnavailable,
+		}
+	}
+	return &SubagentError{
+		Code:    subagentProviderUnavailable,
+		Message: err.Error(),
+		Err:     ErrSubagentTargetUnavailable,
+	}
 }
 
 // Capabilities describes provider and agent targets available in the parent session's profile.

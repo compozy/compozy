@@ -3866,9 +3866,10 @@ func TestGlobalDBSessionInputCoalescedWakes(t *testing.T) {
 			ID: "inq-" + id, SessionID: sessionID, MessageID: "monitor:" + id, Priority: 1,
 			OwnerKind: store.SessionInputOwnerSynthetic, Text: text, TurnID: "turn-" + id,
 			Mode: store.SessionInputQueueModeQueue, Delivery: store.SessionInputDeliveryAfterTurn,
-			QueueCap: 1, Now: now, Coalesce: &bound,
+			QueueCap: 1, Now: now,
 			SyntheticPrompt: &store.SessionInputSyntheticPrompt{
 				RunID: "run-" + id, Metadata: []byte(`{"kind":"monitor"}`), CoalesceKey: "monitor",
+				Coalesce: &bound,
 			},
 		}
 	}
@@ -3953,7 +3954,7 @@ func TestGlobalDBSessionInputCoalescedWakes(t *testing.T) {
 		db := openTestGlobalDB(t)
 		sessionID := registerInputQueueSession(t, db)
 		legacy := wake(sessionID, "old", "outcome old", bound)
-		legacy.Coalesce, legacy.SyntheticPrompt.CoalesceKey = nil, ""
+		legacy.SyntheticPrompt.Coalesce, legacy.SyntheticPrompt.CoalesceKey = nil, ""
 		old := mustWake(t, db, legacy)
 		merged := mustWake(t, db, wake(sessionID, "new", "outcome new", bound))
 		if merged.ID == old.ID {

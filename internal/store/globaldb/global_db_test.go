@@ -7540,6 +7540,13 @@ func TestGlobalAgentSnapshotProfileMigrationConvergesUniqueKeyShapes(t *testing.
  VALUES ('soul-2', '', '01K00000000000000000000091', 'general', '/other/SOUL.md', 'digest-1', '2026-10-02T00:00:00Z')`); err != nil {
 				t.Fatalf("same digest under another profile must be allowed: %v", err)
 			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_heartbeat_snapshots
+ (id, workspace_id, profile_id, agent_name, source_path, digest, config_digest, body, frontmatter_json, resolved_json,
+  diagnostics_json, created_at)
+ VALUES ('beat-2', '', '01K00000000000000000000091', 'general', '/other/HEARTBEAT.md', 'digest-1', 'config-1', 'body',
+  '{}', '{}', '[]', '2026-10-02T00:00:00Z')`); err != nil {
+				t.Fatalf("same heartbeat digest under another profile must be allowed: %v", err)
+			}
 			assertGlobalMigrationIntegrity(ctx, t, db)
 		})
 	}

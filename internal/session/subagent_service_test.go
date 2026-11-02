@@ -148,7 +148,14 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 		info := &Info{EffectivePermissions: "approve-reads"}
 		req := subagentTestRequest()
 		req.PermissionMode = compozyconfig.PermissionModeApproveAll
-		if _, _, err := subagentPermissions(info, req, callerSubagentLimit(info)); !errors.Is(err, ErrSpawnPermissionDenied) {
+		if _, _, err := subagentPermissions(
+			info,
+			req,
+			callerSubagentLimit(info),
+		); !errors.Is(
+			err,
+			ErrSpawnPermissionDenied,
+		) {
 			t.Fatal(err)
 		}
 		req.PermissionMode = "inherit"
@@ -235,6 +242,21 @@ func TestSubagentDelegate(t *testing.T) {
 		req.Task = "different"
 		if _, err := s.Delegate(t.Context(), req); !errors.Is(err, ErrSubagentInvalidRequest) {
 			t.Fatal(err)
+		}
+	})
+	t.Run("Should replay a saved delegation after its target became unavailable", func(t *testing.T) {
+		t.Parallel()
+		s, _, runtime := newSubagentTestService(t)
+		req := subagentTestRequest()
+		first := requireSubagent(t, s, req)
+		runtime.permissionLimitErr = &SubagentError{Code: "agent_not_found", Err: ErrSubagentTargetUnavailable}
+		second := requireSubagent(t, s, req)
+		if first.ID != second.ID || len(runtime.spawned) != 1 {
+			t.Fatal(first, second)
+		}
+		req.IdempotencyKey = "new-work"
+		if _, err := s.Delegate(t.Context(), req); !errors.Is(err, ErrSubagentTargetUnavailable) {
+			t.Fatalf("Delegate(new work) error = %v, want the target error", err)
 		}
 	})
 	t.Run("Should retain failed reservation on spawn error UT-059", func(t *testing.T) {

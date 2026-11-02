@@ -11073,6 +11073,9 @@ func TestWorkLogOpenAfterReplacement(t *testing.T) {
 				t.Fatal(err)
 			}
 			if mode == "outside symlink" {
+				if runtime.GOOS == "windows" {
+					t.Skip("symlink creation requires elevated privileges on Windows")
+				}
 				outside := filepath.Join(t.TempDir(), "private.md")
 				if err := os.WriteFile(outside, []byte("private"), 0600); err != nil {
 					t.Fatal(err)

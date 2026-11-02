@@ -55,7 +55,7 @@ func (g *SessionRepo) EnqueueSessionInput(
 				return lookupErr
 			}
 		}
-		if normalized.Coalesce != nil {
+		if normalized.CoalesceBounds() != nil {
 			merged, ok, mergeErr := coalesceSessionInput(ctx, exec, normalized)
 			if mergeErr != nil || ok {
 				entry = merged

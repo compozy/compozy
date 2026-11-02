@@ -156,7 +156,6 @@ type SessionInputQueueInsert struct {
 	Priority          int
 	OwnerKind         string
 	SyntheticPrompt   *SessionInputSyntheticPrompt
-	Coalesce          *SessionInputCoalesce
 	ID                string
 	SessionID         string
 	PromptAdmissionID string

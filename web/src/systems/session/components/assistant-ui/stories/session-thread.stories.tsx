@@ -23,11 +23,13 @@ import {
   wideProseTranscript,
 } from "./session-thread-story-transcripts";
 import {
+  largeTranscriptEntries,
+  largeTranscriptPage,
+} from "./session-thread-story-large-transcript";
+import {
   completedGroupTranscript,
   giantPayloadTranscript,
   interruptedOpenTranscript,
-  largeTranscriptEntries,
-  largeTranscriptPage,
   liveToolTranscript,
   parallelToolsTranscript,
   partialFailureTranscript,

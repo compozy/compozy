@@ -37,14 +37,15 @@ func coalesceSessionInput(
 		return store.SessionInputQueueEntry{}, false, err
 	}
 	members := open.SyntheticPrompt.CoalescedWakes()
-	if members >= req.Coalesce.MaxMembers {
+	if members >= req.SyntheticPrompt.Coalesce.MaxMembers {
 		return store.SessionInputQueueEntry{}, false, &store.SessionInputQueueFullError{
-			SessionID: req.SessionID, Cap: req.Coalesce.MaxMembers, Count: members,
+			SessionID: req.SessionID, Cap: req.SyntheticPrompt.Coalesce.MaxMembers, Count: members,
 		}
 	}
 	text := req.Text
-	if len(open.Text)+len(text) > req.Coalesce.MaxFullBytes && req.Coalesce.CompactText != "" {
-		text = req.Coalesce.CompactText
+	if len(open.Text)+len(text) > req.SyntheticPrompt.Coalesce.MaxFullBytes &&
+		req.SyntheticPrompt.Coalesce.CompactText != "" {
+		text = req.SyntheticPrompt.Coalesce.CompactText
 	}
 	prompt := open.SyntheticPrompt.Clone()
 	prompt.CoalescedMessageIDs = append(prompt.CoalescedMessageIDs, req.MessageID)

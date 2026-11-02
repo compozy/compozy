@@ -193,24 +193,25 @@ type ResolvedAgent struct {
 	Model              string
 	ReasoningEffort    string
 	*AgentRuntimeDefaults
-	Tools       []string
-	Toolsets    []string
-	DenyTools   []string
-	Permissions string
+	Tools           []string
+	Toolsets        []string
+	DenyTools       []string
+	Permissions     string
+	Harness         ProviderHarness
+	RuntimeProvider string
+	Transport       string
+	BaseURL         string
+	AuthMode        ProviderAuthMode
+	EnvPolicy       ProviderEnvPolicy
+	HomePolicy      ProviderHomePolicy
+	NoneSecurity    ProviderNoneSecurity
+	AuthStatusCmd   string
+	AuthLoginCmd    string
+	AuthACPMethod   string
+	SessionMCP      bool
 	// PermissionsConfigured reports that the definition set Permissions; false means settings supplied it.
+	// It sits beside SessionMCP so the struct stays under the hugeParam threshold.
 	PermissionsConfigured bool
-	Harness               ProviderHarness
-	RuntimeProvider       string
-	Transport             string
-	BaseURL               string
-	AuthMode              ProviderAuthMode
-	EnvPolicy             ProviderEnvPolicy
-	HomePolicy            ProviderHomePolicy
-	NoneSecurity          ProviderNoneSecurity
-	AuthStatusCmd         string
-	AuthLoginCmd          string
-	AuthACPMethod         string
-	SessionMCP            bool
 	CredentialSlots       []ProviderCredentialSlot
 	MCPServers            []MCPServer
 	Reasoning             ProviderReasoningConfig

@@ -33,7 +33,8 @@ func (s *Scheduler) reconcileSchedulerState(
 	}
 	if loadErr == nil {
 		state = s.mergeSchedulerState(existing, job, plan, now, defaultPolicy)
-		if state.ScheduleHash != existing.ScheduleHash {
+		// A deferred job returns below without another save, so a refreshed policy persists here too.
+		if state.ScheduleHash != existing.ScheduleHash || state.CatchUpPolicy != existing.CatchUpPolicy {
 			state, err = s.store.SaveSchedulerState(ctx, state)
 			if err != nil {
 				return SchedulerState{}, err

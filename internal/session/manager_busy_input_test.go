@@ -5729,7 +5729,12 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 			}
 		}
 		for _, id := range []string{"monitor:mon-a", "monitor:mon-b"} {
-			if admitted, err := f.db.SyntheticSessionInputAdmitted(t.Context(), f.sess.ID, id); err != nil || !admitted {
+			if admitted, err := f.db.SyntheticSessionInputAdmitted(
+				t.Context(),
+				f.sess.ID,
+				id,
+			); err != nil ||
+				!admitted {
 				t.Fatalf("%s admitted = %v, %v; want the ledger to hold it after injection", id, admitted, err)
 			}
 		}

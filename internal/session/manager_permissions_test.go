@@ -126,11 +126,13 @@ func setHarnessAgentLevel(h *harness, mode compozyconfig.PermissionMode) {
 		}
 		return updated
 	}
-	for ref, resolved := range h.resolver.byRef {
+	for ref := range h.resolver.byRef {
+		resolved := h.resolver.byRef[ref]
 		resolved.Agents = setLevel(resolved.Agents)
 		h.resolver.byRef[ref] = resolved
 	}
-	for path, resolved := range h.resolver.byPath {
+	for path := range h.resolver.byPath {
+		resolved := h.resolver.byPath[path]
 		resolved.Agents = setLevel(resolved.Agents)
 		h.resolver.byPath[path] = resolved
 	}
@@ -139,11 +141,13 @@ func setHarnessAgentLevel(h *harness, mode compozyconfig.PermissionMode) {
 func setHarnessPermissionMode(h *harness, mode compozyconfig.PermissionMode) {
 	h.resolver.mu.Lock()
 	defer h.resolver.mu.Unlock()
-	for ref, resolved := range h.resolver.byRef {
+	for ref := range h.resolver.byRef {
+		resolved := h.resolver.byRef[ref]
 		resolved.Config.Permissions.Mode = mode
 		h.resolver.byRef[ref] = resolved
 	}
-	for path, resolved := range h.resolver.byPath {
+	for path := range h.resolver.byPath {
+		resolved := h.resolver.byPath[path]
 		resolved.Config.Permissions.Mode = mode
 		h.resolver.byPath[path] = resolved
 	}
@@ -161,9 +165,16 @@ func TestInstancePermissionMode(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		settings  compozyconfig.PermissionMode
+		agent     compozyconfig.PermissionMode
 		requested compozyconfig.PermissionMode
 		want      compozyconfig.PermissionMode
 	}{
+		{
+			name:     "Should run a child at its own level below broader settings",
+			settings: compozyconfig.PermissionModeApproveAll,
+			agent:    compozyconfig.PermissionModeDenyAll,
+			want:     compozyconfig.PermissionModeDenyAll,
+		},
 		{
 			name:     "Should resolve a child without a level from settings, not the parent",
 			settings: compozyconfig.PermissionModeApproveAll,
@@ -195,6 +206,9 @@ func TestInstancePermissionMode(t *testing.T) {
 			t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
 			policy := store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}
 			h.manager.SetInstanceCeilingReader(parentCeiling(parent.ID, policy))
+			if tc.agent != "" {
+				setHarnessAgentLevel(h, tc.agent)
+			}
 			child, err := h.manager.Create(t.Context(), new(CreateOpts{
 				AgentName:   "coder",
 				Workspace:   h.workspaceID,
@@ -212,7 +226,10 @@ func TestInstancePermissionMode(t *testing.T) {
 			if got := child.Info().EffectivePermissions; got != string(tc.want) {
 				t.Fatalf("child permissions = %s, want %s", got, tc.want)
 			}
-			if got := child.Info().Lineage.PermissionPolicy.WorkspacePaths; !reflect.DeepEqual(got, policy.WorkspacePaths) {
+			if got := child.Info().Lineage.PermissionPolicy.WorkspacePaths; !reflect.DeepEqual(
+				got,
+				policy.WorkspacePaths,
+			) {
 				t.Fatalf("child workspace ceiling = %v, want %v", got, policy.WorkspacePaths)
 			}
 			if got := child.Info().Lineage.PermissionPolicy.Tools; len(got) != 0 {
@@ -301,27 +318,33 @@ func TestInstancePermissionMode(t *testing.T) {
 		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
 		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
 	} {
-		t.Run("Should cap a main session with no level under "+string(tc.settings)+" settings UT-089", func(t *testing.T) {
-			t.Parallel()
-			h := newHarness(t)
-			setHarnessPermissionMode(h, tc.settings)
-			h.manager.SetInstanceCeilingReader(
-				func(context.Context, string, string) (*InstanceCeiling, error) {
-					return &InstanceCeiling{
-						Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
-						Main:   true,
-					}, nil
-				},
-			)
-			created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
-			if got := created.Info().EffectivePermissions; got != string(tc.want) {
-				t.Fatalf("main permissions = %s, want %s", got, tc.want)
-			}
-		})
+		t.Run(
+			"Should cap a main session with no level under "+string(tc.settings)+" settings UT-089",
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				setHarnessPermissionMode(h, tc.settings)
+				h.manager.SetInstanceCeilingReader(
+					func(context.Context, string, string) (*InstanceCeiling, error) {
+						return &InstanceCeiling{
+							Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+							Main:   true,
+						}, nil
+					},
+				)
+				created, err := h.manager.Create(
+					t.Context(),
+					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+				if got := created.Info().EffectivePermissions; got != string(tc.want) {
+					t.Fatalf("main permissions = %s, want %s", got, tc.want)
+				}
+			},
+		)
 	}
 
 	t.Run("Should restore the configured level of a main session persisted below it", func(t *testing.T) {

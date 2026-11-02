@@ -209,7 +209,8 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 		}
 		mon := records[0].Monitor
 		if mon.Kind != monitor.KindTerminal || mon.TerminalID != "term-1" || mon.ExitCode == nil || *mon.ExitCode != 3 ||
-			records[0].OwnerBinding != "binding" || records[0].Version != 4 || mon.FireCount != 0 ||
+			records[0].OwnerBinding != "binding" || records[0].Version != 4 ||
+			mon.FireCount != 0 ||
 			mon.Branch != "" {
 			t.Fatalf("migrated monitor = %+v", records[0])
 		}
@@ -377,7 +378,8 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			t.Fatal(err)
 		}
 		index := slices.IndexFunc(records, func(r monitor.Record) bool { return r.Monitor.ID == watch.Monitor.ID })
-		if index < 0 || !reflect.DeepEqual(records[index].Monitor, fired.Monitor) || records[index].RepoKey != watch.RepoKey ||
+		if index < 0 || !reflect.DeepEqual(records[index].Monitor, fired.Monitor) ||
+			records[index].RepoKey != watch.RepoKey ||
 			records[index].Cursor != fired.Cursor {
 			t.Fatalf("LoadMonitors() = %+v, want %+v", records, fired)
 		}

@@ -24,6 +24,11 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 		logger.Warn("work_log: resolve workspace", "error", err)
 		return nil, false
 	}
+	validatedRoot, err := os.Stat(resolvedRoot)
+	if err != nil {
+		logger.Warn("work_log: stat workspace", "error", err)
+		return nil, false
+	}
 	path, err := realpathDeepestExistingPath(filepath.Join(resolvedRoot, ".compozy", "work-log.md"))
 	if err != nil {
 		logger.Warn("work_log: resolve path", "error", err)
@@ -51,6 +56,12 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 			logger.Warn("work_log: close workspace", "error", err)
 		}
 	}()
+	// OpenRoot follows a symlink swapped in after validation, so the opened directory must be the validated one.
+	openedRoot, err := workspace.Stat(".")
+	if err != nil || !os.SameFile(validatedRoot, openedRoot) {
+		logger.Warn("work_log: path outside workspace", "error", err)
+		return nil, false
+	}
 	file, err := openWorkspaceWorkLogFile(workspace)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false

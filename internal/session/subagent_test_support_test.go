@@ -441,6 +441,7 @@ func (d *memorySubagents) ListOrphanSubagentSessions(context.Context) ([]string,
 
 type subagentTestRuntime struct {
 	permissionLimit                 *SubagentPermissionLimit
+	permissionLimitErr              error
 	stopDescendants                 func(context.Context, string) error
 	inputStatuses                   map[string]string
 	errorResume                     error
@@ -482,6 +483,9 @@ func (r *subagentTestRuntime) Resolve(_ context.Context, info *Info, target Suba
 func (r *subagentTestRuntime) PermissionLimit(
 	_ context.Context, info *Info, _ SubagentTarget,
 ) (SubagentPermissionLimit, error) {
+	if r.permissionLimitErr != nil {
+		return SubagentPermissionLimit{}, r.permissionLimitErr
+	}
 	if r.permissionLimit != nil {
 		return *r.permissionLimit, nil
 	}

@@ -23,6 +23,24 @@ func (s *subagentService) PermissionLimit(
 	return s.runtime.PermissionLimit(ctx, parent, target)
 }
 
+func (s *subagentService) delegationPermissions(
+	ctx context.Context,
+	parent *Info,
+	req SubagentRequest,
+) (compozyconfig.PermissionMode, store.SessionPermissionPolicy, error) {
+	limit, err := s.runtime.PermissionLimit(ctx, parent, req.Target)
+	if err != nil {
+		return "", store.SessionPermissionPolicy{}, err
+	}
+	mode, policy, err := subagentPermissions(parent, req, limit)
+	if err != nil {
+		return "", store.SessionPermissionPolicy{}, &SubagentError{
+			Code: "permission_escalation_denied", Message: err.Error(), Err: err,
+		}
+	}
+	return mode, policy, nil
+}
+
 func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Subagent, error) {
 	req, err := normalizeSubagentRequest(req)
 	if err != nil {
@@ -31,14 +49,6 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	snap, err := s.caller(ctx, req.Caller)
 	if err != nil {
 		return Subagent{}, err
-	}
-	limit, err := s.runtime.PermissionLimit(ctx, snap.Info, req.Target)
-	if err != nil {
-		return Subagent{}, err
-	}
-	mode, policy, err := subagentPermissions(snap.Info, req, limit)
-	if err != nil {
-		return Subagent{}, &SubagentError{Code: "permission_escalation_denied", Message: err.Error(), Err: err}
 	}
 	fingerprint, err := subagentFingerprint(req)
 	if err != nil {
@@ -57,6 +67,12 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if !errors.Is(lookupErr, store.ErrSubagentNotFound) {
 		unlock()
 		return Subagent{}, lookupErr
+	}
+	// A saved delegation replayed above outlives its target, so only new work resolves permissions.
+	mode, policy, err := s.delegationPermissions(ctx, snap.Info, req)
+	if err != nil {
+		unlock()
+		return Subagent{}, err
 	}
 	target, err := s.runtime.Resolve(ctx, snap.Info, req.Target)
 	if err != nil {

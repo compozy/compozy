@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -30,7 +31,12 @@ func (n *daemonNativeTools) validateSubagentPermissions(ctx context.Context, req
 	}
 	limit := session.SubagentPermissionLimit{Mode: config.PermissionMode(parent.EffectivePermissions)}
 	if svc := n.subagentService(); svc != nil {
-		if limit, err = svc.PermissionLimit(ctx, parent, req.Target); err != nil {
+		limit, err = svc.PermissionLimit(ctx, parent, req.Target)
+		if errors.Is(err, session.ErrSubagentTargetUnavailable) {
+			// Delegate owns this verdict: a retry replays its saved result, new work gets the target error.
+			return nil
+		}
+		if err != nil {
 			return err
 		}
 	}

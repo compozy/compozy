@@ -30,7 +30,7 @@ Read `_run.md` before writing it. If another owner is named, use `session_status
 - S2 | sess-b2 | worktree s2 | source 8e22f70 | integrating
 ```
 
-On restart read integration history with `git log --grep "Spec-Slice:"`: commits win over the checkpoint. Recover already-integrated slices even if the source worktree was removed. Reconcile intent with source and integration heads before retrying; never squash a slice twice. After takeover re-register monitors for running children; lineage stays with the previous conductor.
+On restart read integration history with `git log --grep "Spec-Slice: <spec>/"`, which skips slices from an earlier spec already on the branch: commits win over the checkpoint. Recover already-integrated slices even if the source worktree was removed. Reconcile intent with source and integration heads before retrying; never squash a slice twice. After takeover re-register monitors for running children; lineage stays with the previous conductor.
 
 ## Dispatch and integrate
 
@@ -40,7 +40,7 @@ Create children with `session_create`, not subagents. Select runtime from projec
 
 Children end their turn with a report; they never message the parent. On a monitor wake read `session_history`, inspect evidence and send back incomplete work with `session_prompt`. Do not answer reports in their message chain. An idle child is not proof of completion. If the hop limit rejects a send-back, create a fresh session on the same worktree with a complete brief and monitor it. Reuse a running child rather than duplicate it.
 
-Inspect each finished diff, head, tests and acceptance evidence. Return incomplete work for repair. Before squashing write the integration intent and exact source head in `_run.md`. Squash into integration with a commit trailer `Spec-Slice: <id>`; resolve conflicts there, preserving unrelated work and regenerating generated files with their owner. Only after the commit exists record the integrated head and state. Never use destructive Git without authorization.
+Inspect each finished diff, head, tests and acceptance evidence. Return incomplete work for repair. Before squashing write the integration intent and exact source head in `_run.md`. Squash into integration with a commit trailer `Spec-Slice: <spec>/<id>`; resolve conflicts there, preserving unrelated work and regenerating generated files with their owner. Only after the commit exists record the integrated head and state. Never use destructive Git without authorization.
 
 ## Review and deliver
 

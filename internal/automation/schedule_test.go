@@ -689,6 +689,18 @@ func TestSchedulerRefreshesRecoveredLoopCatchUpPolicy(t *testing.T) {
 		if err != nil || stored.CatchUpPolicy != policy {
 			t.Fatalf("stored=%+v err=%v", stored, err)
 		}
+		stored.DeferredUntil = new(now.Add(time.Hour))
+		if _, err := storage.SaveSchedulerState(t.Context(), stored); err != nil {
+			t.Fatal(err)
+		}
+		policy = SchedulerCatchUpPolicySkipMissed
+		if _, err := scheduler.Update(t.Context(), job); err != nil {
+			t.Fatal(err)
+		}
+		deferred, err := storage.GetSchedulerState(t.Context(), job.ID)
+		if err != nil || deferred.CatchUpPolicy != policy || deferred.DeferredUntil == nil {
+			t.Fatalf("deferred=%+v err=%v", deferred, err)
+		}
 	})
 }
 

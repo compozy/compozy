@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -214,6 +215,9 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 			if err == nil || errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
 				t.Fatalf("validation error = %v", err)
 			}
+			if !want {
+				requireLintFailure(t, err, "", "")
+			}
 			_, err = starter.DefaultLoopCatchUpPolicy(
 				t.Context(),
 				automationpkg.LoopCatchUpPolicyRequest{
@@ -226,6 +230,9 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 			if err == nil || errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
 				t.Fatalf("policy error = %v", err)
 			}
+			if !want {
+				requireLintFailure(t, err, "", "")
+			}
 		})
 	}
 	for _, code := range []string{looppkg.CodeReviewRespondSchemaRequired, looppkg.CodeResultContractInvalid} {
@@ -236,12 +243,11 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 					Message: `action ToolID "ext__spec_cycle__import_tasks" is not resolvable`},
 				{NodeID: "independent", Code: code, Message: "result_contract requires a declared output schema"},
 			}}
-			if got := classifyRetiredLoopTarget(
-				err,
-			); got == nil ||
-				errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
+			got := classifyRetiredLoopTarget(err)
+			if got == nil || errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
 				t.Fatal("independent schema error accepted")
 			}
+			requireLintFailure(t, got, "independent", code)
 		})
 	}
 	t.Run("Should keep unrelated malformed definitions strict", func(t *testing.T) {
@@ -255,8 +261,24 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 				{Code: looppkg.CodeCycle},
 			},
 		}
-		if got := classifyRetiredLoopTarget(err); got == nil || errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
+		got := classifyRetiredLoopTarget(err)
+		if got == nil || errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
 			t.Fatal("malformed definition accepted")
 		}
+		requireLintFailure(t, got, "", looppkg.CodeCycle)
 	})
+}
+
+// requireLintFailure proves a negative classification kept the original lint failure.
+func requireLintFailure(t *testing.T, err error, nodeID, code string) {
+	t.Helper()
+	var lint *looppkg.LintFailedError
+	if !errors.As(err, &lint) {
+		t.Fatalf("error = %v, want the original lint failure", err)
+	}
+	if code != "" && !slices.ContainsFunc(lint.Errors, func(entry looppkg.LintError) bool {
+		return string(entry.NodeID) == nodeID && entry.Code == code
+	}) {
+		t.Fatalf("lint errors = %+v, want node %q code %q", lint.Errors, nodeID, code)
+	}
 }
