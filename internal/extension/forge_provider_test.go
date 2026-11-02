@@ -56,6 +56,12 @@ func TestManagerForgeProvider(t *testing.T) {
 				State: "failing", FailedNames: make([]string, extensioncontract.MaxForgeFailedNames+1),
 			}},
 			{Reviews: &extensioncontract.ForgeReviews{UnresolvedThreads: -1}},
+			{Reviews: &extensioncontract.ForgeReviews{UnresolvedThreads: 2}},
+			{Reviews: &extensioncontract.ForgeReviews{Threads: []extensioncontract.ForgeReviewThread{{}}, UnresolvedThreads: 1}},
+			{Reviews: &extensioncontract.ForgeReviews{
+				Threads: make([]extensioncontract.ForgeReviewThread, extensioncontract.MaxForgeThreads+1), UnresolvedThreads: 200, Truncated: true,
+			}},
+			{ReviewsUnavailable: true, Reviews: &extensioncontract.ForgeReviews{}},
 			{Reviews: &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{{State: "approved"}}}},
 			{Reviews: &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{{ID: "r", State: "pending"}}}},
 			{Reviews: &extensioncontract.ForgeReviews{Items: make([]extensioncontract.ForgeReview, extensioncontract.MaxForgeReviews+1)}},
@@ -70,7 +76,11 @@ func TestManagerForgeProvider(t *testing.T) {
 			Items: []extensioncontract.ForgeReview{
 				{ID: "r1", State: extensioncontract.ForgeReviewChangesRequested},
 			},
+			Threads: []extensioncontract.ForgeReviewThread{
+				{ID: "t1", Commit: "head-a"},
+			},
 			UnresolvedThreads: 2,
+			Truncated:         true,
 		}
 		if err := validateForgeStatusResponse(reviewed); err != nil {
 			t.Fatalf("rejected review activity: %v", err)

@@ -27,6 +27,9 @@ type ForgeReviews = contracts.ForgeReviews
 // ForgeReview is one submitted review, without its body.
 type ForgeReview = contracts.ForgeReview
 
+// ForgeReviewThread is one unresolved thread and the commit it was opened on.
+type ForgeReviewThread = contracts.ForgeReviewThread
+
 // ForgePRCreateRequest asks a provider to create or find one pull request.
 type ForgePRCreateRequest = contracts.ForgePRCreateRequest
 

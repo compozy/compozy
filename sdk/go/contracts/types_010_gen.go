@@ -4,6 +4,12 @@ package contracts
 
 import "time"
 
+type HeartbeatTimeWindowPayload struct {
+	Timezone string `json:"timezone"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+}
+
 type HeartbeatValidateRequest struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
@@ -159,15 +165,4 @@ type InitializeRequest struct {
 	Capabilities             InitializeCapabilities `json:"capabilities"`
 	Methods                  InitializeMethods      `json:"methods"`
 	Runtime                  InitializeRuntime      `json:"runtime"`
-}
-
-type InitializeResponse struct {
-	ProtocolVersion      string                  `json:"protocol_version"`
-	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
-	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
-	ImplementedMethods   []string                `json:"implemented_methods"`
-	SupportedHookEvents  []string                `json:"supported_hook_events"`
-	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
-	Supports             InitializeSupports      `json:"supports"`
 }

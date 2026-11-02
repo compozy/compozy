@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type RunStatus string
+
 type RuntimeSelectionPayload struct {
 	Provider        string                    `json:"provider"`
 	Model           string                    `json:"model,omitempty"`
@@ -198,5 +200,3 @@ type SessionHealthPayload struct {
 type SessionHealthResponse struct {
 	Health SessionHealthPayload `json:"health"`
 }
-
-type SessionHealthState string

@@ -23,6 +23,7 @@ const (
 const (
 	MaxForgeFailedNames = 64
 	MaxForgeReviews     = 100
+	MaxForgeThreads     = 100
 )
 
 type ForgeCapabilitiesRequest struct {
@@ -71,34 +72,47 @@ type ForgeReview struct {
 	Commit      string     `json:"commit,omitempty"`
 }
 
+// ForgeReviewThread is one unresolved review thread. Commit is the commit the thread was opened on, which
+// stays fixed when the head moves; empty means the provider cannot tell.
+type ForgeReviewThread struct {
+	ID     string `json:"id"`
+	Commit string `json:"commit,omitempty"`
+}
+
 // ForgeReviews is optional review activity. A provider that omits it still
 // serves checks; consumers report reviews as not observable.
 type ForgeReviews struct {
-	Items             []ForgeReview `json:"items"`
-	UnresolvedThreads int           `json:"unresolved_threads"`
+	Items []ForgeReview `json:"items"`
+	// Threads lists unresolved threads, newest last. UnresolvedThreads is their total, which may exceed
+	// this list only when Truncated is set.
+	Threads           []ForgeReviewThread `json:"threads,omitempty"`
+	UnresolvedThreads int                 `json:"unresolved_threads"`
 	// Truncated reports that the provider stopped before reading every review or thread.
 	Truncated bool `json:"truncated,omitempty"`
 }
 
 type ForgeStatusResponse struct {
-	Checks         *ForgeChecks  `json:"checks,omitempty"`
-	Reviews        *ForgeReviews `json:"reviews,omitempty"`
-	ReviewDecision string        `json:"review_decision,omitempty"`
-	Mergeable      string        `json:"mergeable,omitempty"`
-	UpdatedAt      *time.Time    `json:"updated_at,omitempty"`
-	Selection      string        `json:"selection,omitempty"`
-	RetryAfter     *time.Time    `json:"retry_after,omitempty"`
-	Provider       string        `json:"provider"`
-	PRNumber       *int          `json:"pr_number,omitempty"`
-	PRState        *string       `json:"pr_state,omitempty"`
-	PRURL          string        `json:"pr_url,omitempty"`
-	Head           string        `json:"head,omitempty"`
-	Base           string        `json:"base,omitempty"`
-	HeadSHA        string        `json:"head_sha,omitempty"`
-	Draft          *bool         `json:"draft,omitempty"`
-	Merged         *bool         `json:"merged,omitempty"`
-	FetchedAt      time.Time     `json:"fetched_at"`
-	Cause          string        `json:"cause,omitempty"`
+	Checks  *ForgeChecks  `json:"checks,omitempty"`
+	Reviews *ForgeReviews `json:"reviews,omitempty"`
+	// ReviewsUnavailable reports a provider that serves reviews but failed to read them this time. It is
+	// distinct from omitting Reviews, which means the provider cannot observe them at all.
+	ReviewsUnavailable bool       `json:"reviews_unavailable,omitempty"`
+	ReviewDecision     string     `json:"review_decision,omitempty"`
+	Mergeable          string     `json:"mergeable,omitempty"`
+	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
+	Selection          string     `json:"selection,omitempty"`
+	RetryAfter         *time.Time `json:"retry_after,omitempty"`
+	Provider           string     `json:"provider"`
+	PRNumber           *int       `json:"pr_number,omitempty"`
+	PRState            *string    `json:"pr_state,omitempty"`
+	PRURL              string     `json:"pr_url,omitempty"`
+	Head               string     `json:"head,omitempty"`
+	Base               string     `json:"base,omitempty"`
+	HeadSHA            string     `json:"head_sha,omitempty"`
+	Draft              *bool      `json:"draft,omitempty"`
+	Merged             *bool      `json:"merged,omitempty"`
+	FetchedAt          time.Time  `json:"fetched_at"`
+	Cause              string     `json:"cause,omitempty"`
 }
 
 type ForgePRCreateRequest struct {

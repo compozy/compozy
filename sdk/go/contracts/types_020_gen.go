@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type StuckTaskRun struct {
+	TaskID     string        `json:"task_id"`
+	RunID      string        `json:"run_id"`
+	Status     TaskRunStatus `json:"status"`
+	OriginKind OriginKind    `json:"origin_kind"`
+	SessionID  string        `json:"session_id,omitempty"`
+	AgeMillis  int64         `json:"age_ms"`
+}
+
 type SubagentObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -307,14 +316,4 @@ type TaskDashboardFailedCardPayload struct {
 	FailedRuns   int    `json:"failed_runs"`
 	ForcedStops  int    `json:"forced_stops"`
 	HealthStatus string `json:"health_status"`
-}
-
-type TaskDashboardFreshnessPayload struct {
-	ObservedAt       time.Time `json:"observed_at"`
-	LatestActivityAt time.Time `json:"latest_activity_at"`
-	AgeMilli         int64     `json:"age_ms"`
-	StaleAfterMilli  int64     `json:"stale_after_ms"`
-	HasLiveWork      bool      `json:"has_live_work"`
-	Status           string    `json:"status"`
-	Stale            bool      `json:"stale"`
 }

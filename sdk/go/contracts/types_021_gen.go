@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskDashboardFreshnessPayload struct {
+	ObservedAt       time.Time `json:"observed_at"`
+	LatestActivityAt time.Time `json:"latest_activity_at"`
+	AgeMilli         int64     `json:"age_ms"`
+	StaleAfterMilli  int64     `json:"stale_after_ms"`
+	HasLiveWork      bool      `json:"has_live_work"`
+	Status           string    `json:"status"`
+	Stale            bool      `json:"stale"`
+}
+
 type TaskDashboardHealthPayload struct {
 	Status           string `json:"status"`
 	StuckRuns        int    `json:"stuck_runs"`
@@ -213,10 +223,4 @@ type TaskInboxTaskPayload struct {
 	Scope          TaskScope  `json:"scope"`
 	WorkspaceID    string     `json:"workspace_id,omitempty"`
 	LatestEventSeq int64      `json:"latest_event_seq"`
-}
-
-type TaskLatencyMetricPayload struct {
-	Samples       int   `json:"samples"`
-	AverageMillis int64 `json:"average_ms"`
-	MaximumMillis int64 `json:"maximum_ms"`
 }

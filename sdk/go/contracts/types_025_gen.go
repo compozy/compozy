@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ToolLocation struct {
+	Path      string `json:"path,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+}
+
 type ToolPostCallPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -303,11 +309,4 @@ type ViewOpenRequest struct {
 	Workspace   WorkspaceID    `json:"workspace"`
 	Client      ClientID       `json:"client"`
 	Args        map[string]any `json:"args,omitempty"`
-}
-
-type ViewPatch struct {
-	ViewID string    `json:"view_id"`
-	From   string    `json:"from"`
-	To     string    `json:"to"`
-	Ops    []PatchOp `json:"ops"`
 }

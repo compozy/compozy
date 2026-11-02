@@ -1831,8 +1831,14 @@ export interface ForgeReview {
   commit?: string;
 }
 
+export interface ForgeReviewThread {
+  id: string;
+  commit?: string;
+}
+
 export interface ForgeReviews {
   items: ForgeReview[];
+  threads?: ForgeReviewThread[];
   unresolved_threads: number;
   truncated?: boolean;
 }
@@ -1840,6 +1846,7 @@ export interface ForgeReviews {
 export interface ForgeStatusResponse {
   checks?: ForgeChecks;
   reviews?: ForgeReviews;
+  reviews_unavailable?: boolean;
   review_decision?: string;
   mergeable?: string;
   updated_at?: ISODateTime;

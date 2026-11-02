@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type ResolutionReason string
+
 type ResolutionStatus string
 
 type ResolvedWorktreeMode string
@@ -151,5 +153,3 @@ type RunDesignationSummary struct {
 	Index int    `json:"index"`
 	Brief string `json:"brief,omitempty"`
 }
-
-type RunStatus string

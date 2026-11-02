@@ -134,6 +134,7 @@ export type {
   ForgePRCreateRequest,
   ForgePRCreateResponse,
   ForgeReview,
+  ForgeReviewThread,
   ForgeReviews,
   ForgeStatusRequest,
   ForgeStatusResponse,

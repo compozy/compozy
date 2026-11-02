@@ -4,6 +4,13 @@ package contracts
 
 import "time"
 
+type ViewPatch struct {
+	ViewID string    `json:"view_id"`
+	From   string    `json:"from"`
+	To     string    `json:"to"`
+	Ops    []PatchOp `json:"ops"`
+}
+
 type ViewPayload struct {
 	View     string      `json:"view"`
 	Chrome   *ViewChrome `json:"chrome,omitempty"`

@@ -4,6 +4,19 @@ package contracts
 
 import "time"
 
+type GatewayIngressPayload struct {
+	SubjectKind                 string     `json:"subject_kind"`
+	SubjectID                   string     `json:"subject_id"`
+	ScopeKind                   string     `json:"scope_kind"`
+	WorkspaceID                 string     `json:"workspace_id,omitempty"`
+	URL                         string     `json:"url,omitempty"`
+	Reachability                string     `json:"reachability"`
+	EndpointGeneration          uint64     `json:"endpoint_generation"`
+	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
+	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
+	EnablePath                  string     `json:"enable_path,omitempty"`
+}
+
 type GridBody struct {
 	Sections []GridSection `json:"sections"`
 }
@@ -193,10 +206,4 @@ type HeartbeatStatusResponse struct {
 	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
 	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
 	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
-}
-
-type HeartbeatTimeWindowPayload struct {
-	Timezone string `json:"timezone"`
-	Start    string `json:"start"`
-	End      string `json:"end"`
 }

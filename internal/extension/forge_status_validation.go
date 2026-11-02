@@ -37,6 +37,9 @@ func validateForgeStatusFacts(value extensioncontract.ForgeStatusResponse) error
 			return errors.New("invalid check counts or failed names")
 		}
 	}
+	if value.ReviewsUnavailable && value.Reviews != nil {
+		return errors.New("reviews_unavailable contradicts reported reviews")
+	}
 	return validateForgeReviews(value.Reviews)
 }
 
@@ -44,8 +47,16 @@ func validateForgeReviews(reviews *extensioncontract.ForgeReviews) error {
 	if reviews == nil {
 		return nil
 	}
-	if reviews.UnresolvedThreads < 0 || len(reviews.Items) > extensioncontract.MaxForgeReviews {
+	if len(reviews.Items) > extensioncontract.MaxForgeReviews ||
+		len(reviews.Threads) > extensioncontract.MaxForgeThreads ||
+		reviews.UnresolvedThreads < len(reviews.Threads) ||
+		(reviews.UnresolvedThreads > len(reviews.Threads) && !reviews.Truncated) {
 		return errors.New("invalid review counts")
+	}
+	for i := range reviews.Threads {
+		if reviews.Threads[i].ID == "" {
+			return errors.New("invalid review thread id")
+		}
 	}
 	states := []string{
 		extensioncontract.ForgeReviewApproved, extensioncontract.ForgeReviewChangesRequested,

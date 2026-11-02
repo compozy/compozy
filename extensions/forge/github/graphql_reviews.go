@@ -10,8 +10,9 @@ import (
 )
 
 // reviewsQuery reads the newest submitted reviews and pages unresolved threads. Review bodies stay out
-// of it on purpose: the agent reads them itself.
-const reviewsQuery = `query($owner:String!,$name:String!,$number:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviews(last:100){nodes{id state submittedAt author{__typename login} commit{oid}} pageInfo{hasPreviousPage}} reviewThreads(first:100,after:$after){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}`
+// of it on purpose: the agent reads them itself. A thread's commit comes from originalCommit, because a
+// comment's commit follows the head while its line is unchanged.
+const reviewsQuery = `query($owner:String!,$name:String!,$number:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviews(last:100){nodes{id state submittedAt author{__typename login} commit{oid}} pageInfo{hasPreviousPage}} reviewThreads(first:100,after:$after){nodes{id isResolved comments(first:1){nodes{originalCommit{oid}}}} pageInfo{hasNextPage endCursor}}}}}`
 
 // maxReviewThreadPages bounds thread paging; a longer PR reports a truncated count.
 const maxReviewThreadPages = 3
@@ -33,7 +34,15 @@ type graphReviewActivity struct {
 		PageInfo struct{ HasPreviousPage bool }
 	}
 	ReviewThreads struct {
-		Nodes    []struct{ IsResolved bool }
+		Nodes []struct {
+			ID         string
+			IsResolved bool
+			Comments   struct {
+				Nodes []struct {
+					OriginalCommit *struct{ OID string }
+				}
+			}
+		}
 		PageInfo struct {
 			HasNextPage bool
 			EndCursor   string
@@ -50,9 +59,9 @@ func (p *Provider) readGraphReviews(
 	reviews := &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{}}
 	var cursor *string
 	for page := range maxReviewThreadPages {
-		result, err := p.graphRequest(ctx, token, reviewsQuery, map[string]any{
-			"owner": repo.owner, "name": repo.name, "number": number, graphAfterVariable: cursor,
-		})
+		variables := graphPageVariables(repo, cursor)
+		variables["number"] = number
+		result, err := p.graphRequest(ctx, token, reviewsQuery, variables)
 		if err != nil {
 			return nil, err
 		}
@@ -64,19 +73,38 @@ func (p *Provider) readGraphReviews(
 			reviews.Items = graphReviewItems(activity)
 			reviews.Truncated = activity.Reviews.PageInfo.HasPreviousPage
 		}
-		for _, thread := range activity.ReviewThreads.Nodes {
-			if !thread.IsResolved {
-				reviews.UnresolvedThreads++
-			}
-		}
+		appendGraphThreads(reviews, activity)
 		info := activity.ReviewThreads.PageInfo
 		if !info.HasNextPage || info.EndCursor == "" {
-			return reviews, nil
+			return boundGraphThreads(reviews), nil
 		}
 		cursor = &info.EndCursor
 	}
 	reviews.Truncated = true
-	return reviews, nil
+	return boundGraphThreads(reviews), nil
+}
+
+func appendGraphThreads(reviews *extensioncontract.ForgeReviews, activity *graphReviewActivity) {
+	for i := range activity.ReviewThreads.Nodes {
+		node := &activity.ReviewThreads.Nodes[i]
+		if node.IsResolved || node.ID == "" {
+			continue
+		}
+		thread := extensioncontract.ForgeReviewThread{ID: node.ID}
+		if comments := node.Comments.Nodes; len(comments) > 0 && comments[0].OriginalCommit != nil {
+			thread.Commit = comments[0].OriginalCommit.OID
+		}
+		reviews.Threads = append(reviews.Threads, thread)
+		reviews.UnresolvedThreads++
+	}
+}
+
+// boundGraphThreads keeps the newest threads, which are the ones a watcher has not seen yet.
+func boundGraphThreads(reviews *extensioncontract.ForgeReviews) *extensioncontract.ForgeReviews {
+	if extra := len(reviews.Threads) - extensioncontract.MaxForgeThreads; extra > 0 {
+		reviews.Threads, reviews.Truncated = reviews.Threads[extra:], true
+	}
+	return reviews
 }
 
 func graphReviewItems(activity *graphReviewActivity) []extensioncontract.ForgeReview {

@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type TaskTreeParams struct {
+	ID string `json:"id"`
+}
+
 type TaskTriageStatePayload struct {
 	TaskID             string        `json:"task_id"`
 	Actor              ActorIdentity `json:"actor"`
@@ -320,9 +324,3 @@ type ToolContent struct {
 }
 
 type ToolID string
-
-type ToolLocation struct {
-	Path      string `json:"path,omitempty"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
-}

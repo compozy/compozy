@@ -149,10 +149,16 @@ type ForgeReview struct {
 	Commit      string     `json:"commit,omitempty"`
 }
 
+type ForgeReviewThread struct {
+	ID     string `json:"id"`
+	Commit string `json:"commit,omitempty"`
+}
+
 type ForgeReviews struct {
-	Items             []ForgeReview `json:"items"`
-	UnresolvedThreads int           `json:"unresolved_threads"`
-	Truncated         bool          `json:"truncated,omitempty"`
+	Items             []ForgeReview       `json:"items"`
+	Threads           []ForgeReviewThread `json:"threads,omitempty"`
+	UnresolvedThreads int                 `json:"unresolved_threads"`
+	Truncated         bool                `json:"truncated,omitempty"`
 }
 
 type ForgeStatusRequest struct {
@@ -163,24 +169,25 @@ type ForgeStatusRequest struct {
 }
 
 type ForgeStatusResponse struct {
-	Checks         *ForgeChecks  `json:"checks,omitempty"`
-	Reviews        *ForgeReviews `json:"reviews,omitempty"`
-	ReviewDecision string        `json:"review_decision,omitempty"`
-	Mergeable      string        `json:"mergeable,omitempty"`
-	UpdatedAt      *time.Time    `json:"updated_at,omitempty"`
-	Selection      string        `json:"selection,omitempty"`
-	RetryAfter     *time.Time    `json:"retry_after,omitempty"`
-	Provider       string        `json:"provider"`
-	PRNumber       *int          `json:"pr_number,omitempty"`
-	PRState        *string       `json:"pr_state,omitempty"`
-	PRURL          string        `json:"pr_url,omitempty"`
-	Head           string        `json:"head,omitempty"`
-	Base           string        `json:"base,omitempty"`
-	HeadSHA        string        `json:"head_sha,omitempty"`
-	Draft          *bool         `json:"draft,omitempty"`
-	Merged         *bool         `json:"merged,omitempty"`
-	FetchedAt      time.Time     `json:"fetched_at"`
-	Cause          string        `json:"cause,omitempty"`
+	Checks             *ForgeChecks  `json:"checks,omitempty"`
+	Reviews            *ForgeReviews `json:"reviews,omitempty"`
+	ReviewsUnavailable bool          `json:"reviews_unavailable,omitempty"`
+	ReviewDecision     string        `json:"review_decision,omitempty"`
+	Mergeable          string        `json:"mergeable,omitempty"`
+	UpdatedAt          *time.Time    `json:"updated_at,omitempty"`
+	Selection          string        `json:"selection,omitempty"`
+	RetryAfter         *time.Time    `json:"retry_after,omitempty"`
+	Provider           string        `json:"provider"`
+	PRNumber           *int          `json:"pr_number,omitempty"`
+	PRState            *string       `json:"pr_state,omitempty"`
+	PRURL              string        `json:"pr_url,omitempty"`
+	Head               string        `json:"head,omitempty"`
+	Base               string        `json:"base,omitempty"`
+	HeadSHA            string        `json:"head_sha,omitempty"`
+	Draft              *bool         `json:"draft,omitempty"`
+	Merged             *bool         `json:"merged,omitempty"`
+	FetchedAt          time.Time     `json:"fetched_at"`
+	Cause              string        `json:"cause,omitempty"`
 }
 
 type FormBody struct {
@@ -205,17 +212,4 @@ type FormField struct {
 	EventCount  int64             `json:"event_count,omitempty"`
 	Requires    map[string]string `json:"requires,omitempty"`
 	Fallback    string            `json:"fallback,omitempty"`
-}
-
-type GatewayIngressPayload struct {
-	SubjectKind                 string     `json:"subject_kind"`
-	SubjectID                   string     `json:"subject_id"`
-	ScopeKind                   string     `json:"scope_kind"`
-	WorkspaceID                 string     `json:"workspace_id,omitempty"`
-	URL                         string     `json:"url,omitempty"`
-	Reachability                string     `json:"reachability"`
-	EndpointGeneration          uint64     `json:"endpoint_generation"`
-	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
-	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
-	EnablePath                  string     `json:"enable_path,omitempty"`
 }

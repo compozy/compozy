@@ -13,7 +13,6 @@ import (
 
 const graphFactsNone = "none"
 const graphChecksUnknown = "unknown"
-const graphAfterVariable = "after"
 const graphCheckCancelled = "CANCELLED" //nolint:misspell // GitHub's GraphQL enum spelling.
 
 const pullQuery = `query($owner:String!,$name:String!,$branch:String!,$states:[PullRequestState!]!,$after:String){
@@ -81,6 +80,24 @@ type graphResponse struct {
 	Errors []struct{ Type string }
 }
 
+// errGraphUnsupported reports a query GitHub refused for good: the token or server cannot serve it, so
+// retrying would change nothing. Every other GraphQL error may be transient.
+var errGraphUnsupported = errors.New("github forge: GraphQL query unsupported")
+
+// A schema validation error, such as a field an older server lacks, carries no type.
+func graphErrorMeansUnsupported(kind string) bool {
+	switch kind {
+	case "", "FORBIDDEN", "NOT_FOUND", "INSUFFICIENT_SCOPES":
+		return true
+	default:
+		return false
+	}
+}
+
+func graphPageVariables(repo repository, cursor *string) map[string]any {
+	return map[string]any{"owner": repo.owner, "name": repo.name, "after": cursor}
+}
+
 func (p *Provider) graphRequest(
 	ctx context.Context,
 	token, query string,
@@ -99,6 +116,7 @@ func (p *Provider) graphRequest(
 		return result, err
 	}
 	if len(result.Errors) > 0 {
+		unsupported := true
 		for _, e := range result.Errors {
 			if e.Type == "RATE_LIMITED" {
 				failure := &githubAPIError{
@@ -110,6 +128,10 @@ func (p *Provider) graphRequest(
 				}
 				return result, failure
 			}
+			unsupported = unsupported && graphErrorMeansUnsupported(e.Type)
+		}
+		if unsupported {
+			return result, errGraphUnsupported
 		}
 		return result, errors.New("github forge: GraphQL observation failed")
 	}
@@ -161,15 +183,25 @@ func (p *Provider) graphStatus(
 		return response, nil
 	}
 	reviews, err := p.readGraphReviews(ctx, repo, pull.Number, token)
-	if err != nil {
+	switch {
+	case err == nil:
+		response.Reviews = reviews
+	case githubErrorCause(err) != "":
 		// Reviews are optional, but a limit or credential failure applies to the whole read.
-		if githubErrorCause(err) != "" {
-			return response, err
-		}
-		return response, nil
+		return response, err
+	case !graphReviewsUnsupported(err):
+		// Checks stay good, and a transient failure must not read as a forge without reviews.
+		response.ReviewsUnavailable = true
 	}
-	response.Reviews = reviews
 	return response, nil
+}
+
+func graphReviewsUnsupported(err error) bool {
+	if errors.Is(err, errGraphUnsupported) {
+		return true
+	}
+	apiErr, ok := errors.AsType[*githubAPIError](err)
+	return ok && (apiErr.status == http.StatusNotFound || apiErr.status == http.StatusNotImplemented)
 }
 
 // readGraphChecks pages the head's check contexts only as far as naming its failures needs.
@@ -181,9 +213,9 @@ func (p *Provider) readGraphChecks(
 	var checks *extensioncontract.ForgeChecks
 	var cursor *string
 	for range maxCheckPages {
-		result, err := p.graphRequest(ctx, token, checksQuery, map[string]any{
-			"owner": repo.owner, "name": repo.name, "oid": head, graphAfterVariable: cursor,
-		})
+		variables := graphPageVariables(repo, cursor)
+		variables["oid"] = head
+		result, err := p.graphRequest(ctx, token, checksQuery, variables)
 		if err != nil {
 			return nil, err
 		}
@@ -218,9 +250,9 @@ func (p *Provider) selectGraphPull(
 	for _, states := range [][]string{{"OPEN"}, {"MERGED", "CLOSED"}} {
 		var cursor *string
 		for range 2 {
-			result, err := p.graphRequest(ctx, token, pullQuery, map[string]any{
-				"owner": repo.owner, "name": repo.name, "branch": branch, "states": states, graphAfterVariable: cursor,
-			})
+			variables := graphPageVariables(repo, cursor)
+			variables["branch"], variables["states"] = branch, states
+			result, err := p.graphRequest(ctx, token, pullQuery, variables)
 			if err != nil {
 				return nil, false, err
 			}

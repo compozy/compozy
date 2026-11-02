@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+type LoopNodeTerminalPayload struct {
+	Event           HookEvent       `json:"event"`
+	Timestamp       time.Time       `json:"timestamp"`
+	ProfileID       string          `json:"profile_id,omitempty"`
+	LoopRunID       string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	LoopName        string          `json:"loop_name,omitempty"`
+	Generation      int             `json:"generation,omitempty"`
+	TaskID          string          `json:"task_id,omitempty"`
+	RunID           string          `json:"run_id,omitempty"`
+	RunKind         string          `json:"run_kind,omitempty"`
+	NodeID          string          `json:"node_id,omitempty"`
+	WorkflowID      string          `json:"workflow_id,omitempty"`
+	AgentName       string          `json:"agent_name,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	ActorKind       string          `json:"actor_kind,omitempty"`
+	ActorID         string          `json:"actor_id,omitempty"`
+	OriginKind      string          `json:"origin_kind,omitempty"`
+	OriginRef       string          `json:"origin_ref,omitempty"`
+	TaskStatus      string          `json:"task_status,omitempty"`
+	RunStatus       string          `json:"run_status,omitempty"`
+	FailureClass    string          `json:"failure_class,omitempty"`
+	Disposition     string          `json:"disposition,omitempty"`
+	Attempt         int             `json:"attempt,omitempty"`
+	Target          string          `json:"target,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	Details         json.RawMessage `json:"details,omitempty"`
+}
+
 type LoopObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -289,13 +319,4 @@ type ModelSourceOptionSelection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`
 	BoolValue *bool  `json:"bool_value,omitempty"`
-}
-
-type ModelSourceOptionValue struct {
-	ValueID     string `json:"value_id"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
-	Order       int    `json:"order,omitempty"`
 }
