@@ -16,6 +16,7 @@ import { pullRequestChipModel, pullRequestPill } from "../pull-request-signal";
 import {
   parseSessionLinkInput,
   repositoryForgeName,
+  sessionLinkExactMatch,
   sessionLinkSearch,
 } from "../session-link-input";
 import {
@@ -497,6 +498,18 @@ describe("session linked work", () => {
       expect(
         sessionLinkSearch({ ...search, query: "https://github.com/acme/billing/pull/212" })
       ).toEqual({ kind: "other-project", repository: "github.com/acme/billing", number: 212 });
+    });
+
+    it("Should only tick a pasted link's pull request in that link's repository", () => {
+      const same = "https://github.com/COMPOZY/compozy/pull/963";
+      expect(sessionLinkExactMatch(same, SESSION_LINK_PULL_REQUESTS)?.pr_number).toBe(963);
+      expect(
+        sessionLinkExactMatch(
+          "https://github.com/acme/billing/pull/963",
+          SESSION_LINK_PULL_REQUESTS
+        )
+      ).toBeNull();
+      expect(sessionLinkExactMatch("#963", SESSION_LINK_PULL_REQUESTS)?.pr_number).toBe(963);
     });
 
     it("Should treat the daemon's refusal as another project's", () => {

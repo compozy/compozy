@@ -230,6 +230,15 @@ describe("useSessionLinkDialogModel", () => {
     expect(result.current.selected).toHaveLength(0);
   });
 
+  it("Should leave nothing selected by another project's link to the same number", async () => {
+    candidates();
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.onQueryChange("https://github.com/acme/billing/pull/963"));
+    await waitFor(() => expect(result.current.search.kind).toBe("other-project"));
+    expect(result.current.selected).toEqual([]);
+  });
+
   it("Should say another project owns the link when the daemon refuses it", async () => {
     candidates([]);
     vi.mocked(fetchSessionLinkedWork).mockResolvedValue({ items: [] });

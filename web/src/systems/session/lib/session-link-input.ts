@@ -71,11 +71,16 @@ interface SessionLinkSearchInput {
   refused: boolean;
 }
 
+/** A number names one pull request; a link also names its repository, so only that one counts. */
 function exactSearch(
   pullRequests: readonly SessionWorkCandidate[],
-  number: number
+  input: Exclude<SessionLinkInput, { kind: "text" }>
 ): SessionWorkCandidate[] {
-  return pullRequests.filter(candidate => candidate.pr_number === number);
+  return pullRequests.filter(
+    candidate =>
+      candidate.pr_number === input.number &&
+      (input.kind === "number" || sameRepository(candidate.repository, input.repository))
+  );
 }
 
 /** A pasted link wins over text search: it either names one pull request or it doesn't. */
@@ -98,7 +103,7 @@ export function sessionLinkSearch({
   const matches =
     input.kind === "text"
       ? { pullRequests: [...pullRequests], branches: withoutPullRequests(branches, pullRequests) }
-      : { pullRequests: exactSearch(pullRequests, input.number), branches: [] };
+      : { pullRequests: exactSearch(pullRequests, input), branches: [] };
   if (matches.pullRequests.length + matches.branches.length > 0 || text === "" || searching) {
     return { kind: "results", ...matches };
   }
@@ -120,5 +125,5 @@ export function sessionLinkExactMatch(
   pullRequests: readonly SessionWorkCandidate[]
 ): SessionWorkCandidate | null {
   const input = parseSessionLinkInput(query);
-  return input.kind === "text" ? null : (exactSearch(pullRequests, input.number)[0] ?? null);
+  return input.kind === "text" ? null : (exactSearch(pullRequests, input)[0] ?? null);
 }
