@@ -5210,8 +5210,9 @@ func TestWorkLogCollectorIntegration(t *testing.T) {
 }
 
 func TestRemovedResourceUpgradeIntegration(t *testing.T) {
-	for _, retained := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should boot with saved references and retained loop %t", retained), func(t *testing.T) {
+	for _, shape := range []string{"missing", "action", "reviewed output", "result contract"} {
+		retained := shape != "missing"
+		t.Run("Should boot with saved references and "+shape, func(t *testing.T) {
 			t.Parallel()
 			d, m, ws := newSubagentDaemonConfigured(
 				t,
@@ -5343,7 +5344,10 @@ func TestRemovedResourceUpgradeIntegration(t *testing.T) {
 				definition := strings.ReplaceAll(
 					testLoopYAML("removed-delivery", "Retired dependency"),
 					"kind: transform",
-					"kind: ext__spec_cycle__import_tasks",
+					"kind: ext__spec_cycle__import_tasks"+map[string]string{
+						"reviewed output": "\n      review: {decisions: [respond]}",
+						"result contract": "\n      result_contract: {failure_field: passed}",
+					}[shape],
 				)
 				definition = strings.ReplaceAll(definition, "required: true", "required: false")
 				definition = strings.ReplaceAll(definition, "kind: cli", "kind: schedule\n  - kind: trigger")

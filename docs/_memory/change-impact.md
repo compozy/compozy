@@ -5090,3 +5090,10 @@ Owner: `spec-cycle-simplify` B2; contract: `_spec.md`, `_dx.md`, ADR-001 through
 - Web/site impact: F1 owns bundled catalog lists and site docs. I2 owns workspace skill removal, release notes, migration guidance and QA scenarios. QA-001/002 exercise prompt behavior after integration; this slice checks parsed resource contracts and real catalog publication.
 
 Owning suites: `extensions/spec-cycle/embed_test.go` (UT-008, UT-009, UT-012), `cmd/compozy-catalog/main_test.go` (UT-013), daemon extension-provider/schema suites and bundled publication/boot-rebuild integration suites. Full gates and live journeys remain integration/CI responsibilities.
+
+B2 repair round 2 (ASTRA-002): saved automation loading also defers missing-output-schema
+errors on the same retired-tool node (review respond and result contracts). Other nodes and
+independently malformed contracts remain strict. No wire, config, hook, SDK, Web, or official
+skill contract changes; persisted definitions and workspace files remain untouched. IT-005
+coverage extends the existing starter and daemon reopen suites; QA-004's
+`RT-upgrade-spec-cycle-hard-cut` includes these saved shapes and the malformed control.

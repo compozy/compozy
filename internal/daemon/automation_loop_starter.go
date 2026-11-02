@@ -256,21 +256,32 @@ func classifyRetiredLoopTarget(err error) error {
 	if !ok || len(failure.Errors) == 0 {
 		return err
 	}
+	retiredNodes := make(map[loopdsl.NodeID]bool)
 	for _, diagnostic := range failure.Errors {
 		if diagnostic.Code != looppkg.CodeUnknownActionKind {
-			return err
+			continue
 		}
-		retired := false
 		for _, id := range []string{
 			"ext__spec_cycle__import_tasks",
 			"ext__spec_cycle__write_review_artifacts",
 			"ext__spec_cycle__finalize_review_round",
 		} {
 			if strings.Contains(diagnostic.Message, fmt.Sprintf("action ToolID %q ", id)) {
-				retired = true
+				retiredNodes[diagnostic.NodeID] = true
 			}
 		}
-		if !retired {
+	}
+	for _, diagnostic := range failure.Errors {
+		if !retiredNodes[diagnostic.NodeID] {
+			return err
+		}
+		switch diagnostic.Code {
+		case looppkg.CodeUnknownActionKind, looppkg.CodeReviewRespondSchemaRequired:
+		case looppkg.CodeResultContractInvalid:
+			if diagnostic.Message != "result_contract requires a declared output schema" {
+				return err
+			}
+		default:
 			return err
 		}
 	}

@@ -21,7 +21,9 @@ Spec QA-004, covering US-006, US-007 and US-010.AC-2.
 Prepare the home with v0.4.8 itself: a session on `review_fixer`, an automation job and a trigger aimed
 at `implement-tasks`, a stored `loop_configure` override for that Loop, a stays-on instance of a removed
 agent, an active Loop run, an installed Batuta, a same-name workspace Loop, and `.compozy/tasks` content
-with `task_*.md`, `reviews-NNN/` and `memory/`. Hash the task files first.
+with `task_*.md`, `reviews-NNN/` and `memory/`. Include saved scheduled and triggered custom Loops
+whose retired tool node uses `review: {decisions: [respond]}` or
+`result_contract: {failure_field: passed}`. Hash the task files first.
 
 Upgrade without any manual step and confirm:
 
@@ -34,3 +36,6 @@ Upgrade without any manual step and confirm:
 7. The stays-on instance pauses as `definition_missing`.
 8. Batuta still loads, and only `batuta-deliver` fails when run.
 9. Task file hashes are unchanged.
+
+In a separate copy, add a malformed contract with no `failure_field` to a saved custom Loop.
+Validation must reject that independent error rather than treating it as a removed dependency.
