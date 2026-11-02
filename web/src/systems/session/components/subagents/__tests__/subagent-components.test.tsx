@@ -549,7 +549,8 @@ describe("SubagentComposerControl (issue #766)", () => {
     await screen.findByText("Transcript");
     const finished = {
       ...row!,
-      child_session_id: "sess-child",
+      child_session_id: null,
+      origin: "provider_native" as const,
       status: "completed" as const,
       error: "Row failure",
     };

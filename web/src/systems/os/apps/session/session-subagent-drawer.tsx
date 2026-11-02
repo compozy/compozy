@@ -41,7 +41,7 @@ function SubagentTranscript({
   if (!childId)
     return (
       <p role="status" className="p-4 text-small-body text-muted-foreground">
-        {subagent.error ||
+        {(!embedded && subagent.error) ||
           (subagent.status === "queued" || subagent.status === "running"
             ? "Waiting for the subagent session to start."
             : "No session was created for this subagent.")}

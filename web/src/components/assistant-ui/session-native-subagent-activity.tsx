@@ -53,7 +53,7 @@ export function SessionNativeSubagentActivity({
                 <SessionMessageText text={prompt} authored />
               </section>
             ) : null}
-            <NativeOutcome subagent={subagent} />
+            <NativeOutcome embedded={embedded} subagent={subagent} />
             <NativeActivityRows
               transcript={transcript}
               rows={rows}
@@ -102,14 +102,14 @@ function descendsFrom(
   return false;
 }
 
-function NativeOutcome({ subagent }: { subagent: SubagentView }) {
+function NativeOutcome({ subagent, embedded }: { subagent: SubagentView; embedded: boolean }) {
   return (
     <>
       {subagent.result ? <SessionMessageText text={subagent.result} /> : null}
       {subagent.result_truncated ? (
         <p className="text-small-body text-muted-foreground">Result was truncated.</p>
       ) : null}
-      {subagent.error ? (
+      {subagent.error && !embedded ? (
         <p role="alert" className="text-small-body text-destructive">
           {subagent.error}
         </p>
