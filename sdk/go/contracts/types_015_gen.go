@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+type ReasoningSource string
+
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
+type ReplyWatchPayload struct {
+	ID              string    `json:"id"`
+	TargetSessionID string    `json:"target_session_id"`
+	MessageID       string    `json:"message_id"`
+	State           string    `json:"state"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type Resolution struct {
+	Requested Speed            `json:"requested"`
+	Status    ResolutionStatus `json:"status"`
+	Reason    ResolutionReason `json:"reason,omitempty"`
+}
+
 type ResolutionReason string
 
 type ResolutionStatus string
@@ -96,60 +118,3 @@ type RetryConfig struct {
 type RetryStrategy string
 
 type RiskClass string
-
-type Row struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Subtitle    string            `json:"subtitle,omitempty"`
-	Icon        string            `json:"icon,omitempty"`
-	Badge       *ViewBadge        `json:"badge,omitempty"`
-	Keywords    []string          `json:"keywords,omitempty"`
-	Accessories []string          `json:"accessories,omitempty"`
-	Detail      *DetailBody       `json:"detail,omitempty"`
-	Actions     []RowAction       `json:"actions,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
-}
-
-type RowAction struct {
-	Title        string            `json:"title"`
-	Icon         string            `json:"icon,omitempty"`
-	Section      string            `json:"section,omitempty"`
-	Primary      bool              `json:"primary,omitempty"`
-	Destructive  bool              `json:"destructive,omitempty"`
-	Confirmation *Confirmation     `json:"confirmation,omitempty"`
-	Shortcut     string            `json:"shortcut,omitempty"`
-	Action       *Action           `json:"action,omitempty"`
-	Handler      string            `json:"handler,omitempty"`
-	SubmitForm   bool              `json:"submit_form,omitempty"`
-	Requires     map[string]string `json:"requires,omitempty"`
-	Fallback     string            `json:"fallback,omitempty"`
-}
-
-type Run struct {
-	WorkspaceID     *string        `json:"workspace_id,omitempty"`
-	Attribution     string         `json:"attribution"`
-	ID              string         `json:"id"`
-	ProfileID       string         `json:"profile_id,omitempty"`
-	JobID           string         `json:"job_id,omitempty"`
-	TriggerID       string         `json:"trigger_id,omitempty"`
-	SessionID       string         `json:"session_id,omitempty"`
-	TaskID          string         `json:"task_id,omitempty"`
-	TaskRunID       string         `json:"task_run_id,omitempty"`
-	LoopRunID       string         `json:"loop_run_id,omitempty"`
-	FireID          string         `json:"fire_id,omitempty"`
-	Status          RunStatus      `json:"status"`
-	Attempt         int            `json:"attempt"`
-	ScheduledAt     *time.Time     `json:"scheduled_at,omitempty"`
-	StartedAt       *time.Time     `json:"started_at,omitempty"`
-	EndedAt         *time.Time     `json:"ended_at,omitempty"`
-	Error           string         `json:"error,omitempty"`
-	DeliveryError   string         `json:"delivery_error,omitempty"`
-	DeliveryErrorAt *time.Time     `json:"delivery_error_at,omitempty"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
-}
-
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
-}

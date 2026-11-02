@@ -4,6 +4,43 @@ package contracts
 
 import "time"
 
+type ViewCloseRequest struct {
+	ViewSession string      `json:"view_session"`
+	ProfileLens ProfileLens `json:"profile_lens"`
+	Reason      string      `json:"reason,omitempty"`
+}
+
+type ViewEvent struct {
+	ViewSession  string        `json:"view_session"`
+	Handler      string        `json:"handler"`
+	Args         []any         `json:"args,omitempty"`
+	Revision     string        `json:"revision"`
+	Seq          int64         `json:"seq"`
+	Generation   uint64        `json:"generation"`
+	AckEffects   []string      `json:"ack_effects,omitempty"`
+	EffectResult *EffectResult `json:"effect_result,omitempty"`
+}
+
+type ViewFrame struct {
+	ViewSession string       `json:"view_session"`
+	Revision    string       `json:"revision"`
+	InReplyTo   int64        `json:"in_reply_to,omitempty"`
+	Generation  uint64       `json:"generation"`
+	Payload     *ViewPayload `json:"payload,omitempty"`
+	Patch       *ViewPatch   `json:"patch,omitempty"`
+	Effects     []Effect     `json:"effects,omitempty"`
+	Handlers    []string     `json:"handlers"`
+}
+
+type ViewOpenRequest struct {
+	ViewSession string         `json:"view_session"`
+	View        string         `json:"view"`
+	ProfileLens ProfileLens    `json:"profile_lens"`
+	Workspace   WorkspaceID    `json:"workspace"`
+	Client      ClientID       `json:"client"`
+	Args        map[string]any `json:"args,omitempty"`
+}
+
 type ViewPatch struct {
 	ViewID string    `json:"view_id"`
 	From   string    `json:"from"`
@@ -173,38 +210,4 @@ type WorktreeObservationPayload struct {
 	Path          string    `json:"path"`
 	Origin        string    `json:"origin"`
 	RunID         string    `json:"run_id,omitempty"`
-}
-
-type WorktreePreCreatePayload struct {
-	Event         HookEvent `json:"event"`
-	Timestamp     time.Time `json:"timestamp"`
-	ProfileID     string    `json:"profile_id,omitempty"`
-	WorktreeID    string    `json:"worktree_id"`
-	WorkspaceID   string    `json:"workspace_id"`
-	WorkspaceRoot string    `json:"workspace_root,omitempty"`
-	Name          string    `json:"name"`
-	Branch        string    `json:"branch"`
-	Path          string    `json:"path"`
-	Origin        string    `json:"origin"`
-	RunID         string    `json:"run_id,omitempty"`
-	Denied        bool      `json:"denied,omitempty"`
-	DenyReason    string    `json:"deny_reason,omitempty"`
-}
-
-type WorktreePreRemovePayload struct {
-	Event      HookEvent       `json:"event"`
-	Timestamp  time.Time       `json:"timestamp"`
-	Worktree   WorktreeContext `json:"worktree"`
-	Force      bool            `json:"force"`
-	Risk       WorktreeRisk    `json:"risk"`
-	Denied     bool            `json:"denied,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-}
-
-type WorktreeRisk struct {
-	ChangedFiles    int  `json:"changed_files"`
-	Insertions      int  `json:"insertions"`
-	Deletions       int  `json:"deletions"`
-	UnpushedCommits int  `json:"unpushed_commits"`
-	ExistsOnRemote  bool `json:"exists_on_remote"`
 }

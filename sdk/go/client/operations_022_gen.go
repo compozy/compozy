@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// ListTaskRunsParams carries the path, query, and header parameters.
+type ListTaskRunsParams struct {
+	ID          string  `url:"id"`
+	Status      *string `url:"status"`
+	SessionID   *string `url:"session_id"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListTaskRuns List runs for one task
 func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
 	path := "/api/tasks/{id}/runs"
