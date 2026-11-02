@@ -427,8 +427,6 @@ export interface SessionsWindowProps {
   railClosed?: boolean;
   /** Extra facts on a rail row's meta line, by session id. */
   rowExtra?: (id: string) => ReactNode;
-  /** The inspector toggle's state, when the draft shows the panel. */
-  inspector?: { open: boolean; onToggle: () => void };
   children: ReactNode;
 }
 
@@ -444,7 +442,6 @@ export function SessionsWindow({
   overlay,
   railClosed = false,
   rowExtra,
-  inspector,
   children,
 }: SessionsWindowProps) {
   const [railOpen, setRailOpen] = useState(!railClosed);
@@ -468,11 +465,7 @@ export function SessionsWindow({
               open={railOpen}
               panel="sidebar"
             />
-            <SessionPanelToggle
-              onToggle={inspector?.onToggle ?? (() => undefined)}
-              open={inspector?.open ?? false}
-              panel="inspector"
-            />
+            <SessionPanelToggle onToggle={() => undefined} open={false} panel="inspector" />
           </>
         ),
         overflow: <DraftViewToggle value="list" />,

@@ -1,6 +1,6 @@
 /**
- * Direction A. The header keeps today's chip, naming the most urgent item, and `+3 PRs` beside it
- * opens the list. Nothing new at rest, nothing stays open.
+ * The header keeps today's chip, naming the most urgent item, and `+3 PRs` beside it opens the
+ * list. Nothing new at rest, nothing stays open.
  */
 import { FolderGit2, GitPullRequest, Link2, Unlink } from "@compozy/ui/icons";
 import { useState, type ReactElement, type ReactNode } from "react";
@@ -39,7 +39,7 @@ export function HeaderDirection({ state }: { state: string }) {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="max-h-[72vh] w-110 max-w-[calc(100vw-2rem)] overflow-y-auto p-2"
+        className="w-120 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0"
       >
         <LinkedWork
           links={links}

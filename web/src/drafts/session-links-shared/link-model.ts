@@ -1,5 +1,9 @@
 /** How a session's links sort, group and summarize. Moves to the session system when it graduates. */
-import { pullRequestChipModel } from "@/systems/session/lib/pull-request-signal";
+import {
+  pullRequestChipModel,
+  pullRequestPill,
+  type PullRequestPill,
+} from "@/systems/session/lib/pull-request-signal";
 import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
 
 export function linkChip(link: SessionLink) {
@@ -109,10 +113,28 @@ export function needsYouLabel(count: number) {
   return `${count} ${count === 1 ? "needs" : "need"} you`;
 }
 
-/** The one signal a tight row keeps: whatever asks for a decision, else the first. */
-export function tightSignals<T extends { tone: unknown }>(signals: readonly T[]) {
-  const urgent = signals.find(part => part.tone === "destructive");
-  return signals.length > 0 ? [urgent ?? signals[0]!] : [];
+/** The one status a row shows: the board card's words, else the plainest fact that is left. */
+export function linkStatus(link: SessionLink): PullRequestPill {
+  const { pull_request: pr, pull_request_lookup: lookup } = link.facts;
+  const chip = linkChip(link);
+  if (chip.kind === "branch") {
+    const unknown = chip.marker === "unavailable" || chip.marker === "incomplete";
+    return { label: unknown ? "PR status unknown" : "No pull request yet", tone: "neutral" };
+  }
+  const pill = pullRequestPill(pr, lookup);
+  if (pill) return chip.stale ? { ...pill, tone: "neutral" } : pill;
+  if (pr?.checks.state === "pending") {
+    return { label: `${pr.checks.pending} checks pending`, tone: "neutral" };
+  }
+  const approved = pr?.review_decision === "approved";
+  return { label: approved ? "Approved" : "Review required", tone: "neutral" };
+}
+
+/** Why the status can't be trusted, when it can't. */
+export function linkCaution(link: SessionLink) {
+  const chip = linkChip(link);
+  if (chip.kind === "pull-request") return chip.causeText;
+  return chip.marker === "unavailable" || chip.marker === "incomplete" ? chip.detail : null;
 }
 
 export const LIST_GROUPS_MIN = 5;

@@ -1,0 +1,89 @@
+{
+  "version": 3,
+  "key": "session-links-header",
+  "sequence": 1,
+  "review": {
+    "status": "in_review",
+    "updatedAt": null
+  },
+  "events": [],
+  "comments": [
+    {
+      "id": "session-links-header-1",
+      "slug": "session-links-header",
+      "status": "resolved",
+      "createdAt": "2026-11-02T18:39:21.248Z",
+      "updatedAt": "2026-11-02T18:49:01.047Z",
+      "resolvedAt": "2026-11-02T18:48:41.855Z",
+      "context": {
+        "commit": "4228944b77777570133ff5a1c4c756f0b07572d0",
+        "state": "mixed-open",
+        "theme": "dark",
+        "role": null,
+        "viewport": {
+          "width": 2084,
+          "height": 1154
+        }
+      },
+      "target": {
+        "kind": "element",
+        "selector": "body > div:nth-of-type(2) > div > div",
+        "testId": null,
+        "tag": "div",
+        "text": "This session runs in compozy Linked work is a shortcut. It never changes where the agent runs. Linked to this session 4…",
+        "source": "src/drafts/session-links-header/header-direction.tsx:40:7",
+        "sourceChain": [
+          "src/drafts/session-links-header/header-direction.tsx:40:7",
+          "src/drafts/session-links-header/header-direction.tsx:36:5",
+          "src/drafts/session-links-header/header-direction.tsx:81:11",
+          "src/systems/os/components/os-window-frame.tsx:160:9",
+          "src/drafts/stays-on-agents-shared/draft-shell.tsx:197:11",
+          "src/drafts/stays-on-agents-shared/draft-shell.tsx:195:9",
+          "src/drafts/stays-on-agents-shared/draft-shell.tsx:191:7",
+          "src/drafts/stays-on-agents-shared/draft-shell.tsx:162:5"
+        ],
+        "rect": {
+          "x": 1414,
+          "y": 93,
+          "width": 440,
+          "height": 413
+        },
+        "rectNormalized": {
+          "x": 0.6785028790786948,
+          "y": 0.0805892547660312,
+          "width": 0.21113243761996162,
+          "height": 0.3578856152512998
+        },
+        "offset": null
+      },
+      "thread": [
+        {
+          "id": "4af4e339-9f0a-4ec9-887b-bec733f53ce2",
+          "at": "2026-11-02T18:39:21.270Z",
+          "editedAt": null,
+          "body": "acho que da para trabalhar melhor a UI aqui, está bem basica, densa de informações, da pra melhorar",
+          "author": "reviewer",
+          "attachments": []
+        },
+        {
+          "id": "60373c3c-be81-4a1d-bf66-36a0fe66daa7",
+          "at": "2026-11-02T18:48:41.854Z",
+          "editedAt": "2026-11-02T18:49:01.047Z",
+          "body": "Refiz o popover em web/src/drafts/session-links-shared (link-row, link-list, linked-work). Cada item agora tem duas linhas: título e um único status, com ícone à esquerda e o número à direita, que dá lugar ao menu no hover. Os detalhes de checks e review foram para o tooltip do chip. Quem adicionou só aparece nas exceções. 'This session runs in' desceu para um rodapé discreto, então o trabalho vem primeiro. Popover de 480 px com mais respiro. Conferi mixed-open em 2084x1154 no escuro, mais claro, 12 e 50 itens, estreito e os estados de erro.",
+          "author": "agent",
+          "attachments": [
+            {
+              "id": "93c41b98-2d30-47c4-b024-57255a35cb0e",
+              "name": "header-mixed-open-dark-2084.png",
+              "type": "image/png",
+              "size": 111522,
+              "width": 2084,
+              "height": 1154,
+              "uploaderKind": "agent"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -90,15 +90,8 @@ export interface LinkStageProps {
   status: ReactNode;
   /** Beside the stop action; the head keeps this side when it clips the status zone. */
   headAction?: ReactNode;
-  /** Between the head and the conversation. */
-  strip?: ReactNode;
-  /** Replaces the conversation. */
-  pane?: ReactNode;
-  /** Beside the conversation. */
-  side?: ReactNode;
   /** The composer's environment menu starts open. */
   environmentOpen?: boolean;
-  inspector?: { open: boolean; onToggle: () => void };
   /** The link dialog is showing from the start, with this search in it. */
   dialog?: LinkDialogPreset;
   dialogOpen: boolean;
@@ -112,11 +105,7 @@ export function LinkStage({
   links,
   status,
   headAction,
-  strip,
-  pane,
-  side,
   environmentOpen = false,
-  inspector,
   dialog,
   dialogOpen,
   onDialogOpenChange,
@@ -142,7 +131,6 @@ export function LinkStage({
   };
   const screen = (
     <SessionsWindow
-      inspector={inspector}
       overlay={
         <>
           {overlay}
@@ -168,13 +156,10 @@ export function LinkStage({
     >
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {strip}
-          {pane ?? (
-            <TranscriptColumn>
-              <UserTurn>{scenario.user}</UserTurn>
-              <AgentTurn>{scenario.agent}</AgentTurn>
-            </TranscriptColumn>
-          )}
+          <TranscriptColumn>
+            <UserTurn>{scenario.user}</UserTurn>
+            <AgentTurn>{scenario.agent}</AgentTurn>
+          </TranscriptColumn>
           <DraftComposer
             environmentControl={
               <EnvironmentControl
@@ -186,7 +171,6 @@ export function LinkStage({
             placeholder="Message Claude"
           />
         </div>
-        {side}
       </div>
     </SessionsWindow>
   );

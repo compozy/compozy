@@ -21,13 +21,15 @@ import {
   DialogTitle,
   Empty,
   Icon,
-  MonoId,
 } from "@compozy/ui";
 
-import { ChipBody } from "@/systems/session/components/session-pull-request-chip";
 import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
 
-import { linkChip, linkTitle, matchesLink } from "./link-model";
+import { linkTitle, matchesLink } from "./link-model";
+import { LinkFacts } from "./link-row";
+
+const GROUP_CLASS =
+  "p-0 **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:pt-2 **:[[cmdk-group-heading]]:pb-2";
 
 const THIS_REPOSITORY = "compozy/compozy";
 const LINK_URL = /github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/;
@@ -68,10 +70,10 @@ function Candidate({
   linked: boolean;
   onToggle: () => void;
 }) {
-  const chip = linkChip(link);
+  const pr = link.facts.pull_request;
   return (
     <CommandItem
-      className="min-h-11 gap-2.5 py-1.5"
+      className="min-h-14 gap-3 rounded-lg px-3 py-2.5"
       disabled={linked}
       onSelect={onToggle}
       value={link.id}
@@ -87,23 +89,13 @@ function Candidate({
         />
       )}
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate text-small-body text-fg">{linkTitle(link)}</span>
-        {link.title ? (
-          <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-badge font-medium text-muted-foreground [&_svg]:size-3 [&_svg]:shrink-0">
-            <ChipBody model={chip} refreshing={false} />
-          </span>
-        ) : null}
+        <span className="truncate text-small-body font-medium text-fg">{linkTitle(link)}</span>
+        <LinkFacts link={link} />
       </span>
-      {linked ? (
-        <span className="shrink-0 text-eyebrow text-subtle">Already linked</span>
-      ) : link.title ? (
-        <MonoId
-          className="max-w-44 shrink truncate"
-          preserveCase
-          size="sm"
-          value={link.facts.branch ?? ""}
-        />
-      ) : null}
+      <span className="shrink-0 font-mono text-mono-id tracking-mono-id text-faint tabular-nums">
+        {linked ? null : pr ? `#${pr.number}` : null}
+      </span>
+      {linked ? <span className="shrink-0 text-eyebrow text-subtle">Already linked</span> : null}
     </CommandItem>
   );
 }
@@ -162,36 +154,40 @@ export function LinkDialog({ candidates, linked, preset, onLink, onOpenChange }:
   );
   return (
     <Dialog onOpenChange={onOpenChange} open>
-      <DialogContent className="sm:max-w-140">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-150" unframed>
+        <DialogHeader variant="ruled">
           <DialogTitle>Link a pull request or branch</DialogTitle>
           <DialogDescription>
             It shows up on this session. The agent keeps running where it is.
           </DialogDescription>
         </DialogHeader>
-        {preset?.offline ? (
-          <Alert variant="warning">
-            <AlertTitle>GitHub isn't connected</AlertTitle>
-            <AlertDescription>
-              You can still link a branch. Its pull request shows up once GitHub is back.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        <Command className="min-w-0 bg-transparent" shouldFilter={false}>
-          <CommandInput
-            autoFocus
-            onValueChange={setQuery}
-            placeholder="Paste a link, or search by number, title or branch"
-            value={query}
-          />
-          <CommandList className="h-80 max-h-[46vh] pt-2">
+        <Command className="min-w-0 rounded-none bg-transparent" shouldFilter={false}>
+          <div className="flex flex-col gap-3 px-5 pt-4 pb-3">
+            {preset?.offline ? (
+              <Alert variant="warning">
+                <AlertTitle>GitHub isn't connected</AlertTitle>
+                <AlertDescription>
+                  You can still link a branch. Its pull request shows up once GitHub is back.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <CommandInput
+              autoFocus
+              onValueChange={setQuery}
+              placeholder="Paste a link, or search by number, title or branch"
+              value={query}
+            />
+          </div>
+          <CommandList className="h-96 max-h-[48vh] px-3 pb-3">
             {search.kind === "results" ? (
               <>
                 {pullRequests.length > 0 ? (
-                  <CommandGroup heading="Pull requests">{pullRequests.map(row)}</CommandGroup>
+                  <CommandGroup className={GROUP_CLASS} heading="Pull requests">
+                    {pullRequests.map(row)}
+                  </CommandGroup>
                 ) : null}
                 {branches.length > 0 ? (
-                  <CommandGroup heading="Branches with no pull request">
+                  <CommandGroup className={GROUP_CLASS} heading="Branches with no pull request">
                     {branches.map(row)}
                   </CommandGroup>
                 ) : null}
@@ -201,22 +197,27 @@ export function LinkDialog({ candidates, linked, preset, onLink, onOpenChange }:
             )}
           </CommandList>
         </Command>
-        <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} type="button" variant="secondary">
-            Cancel
-          </Button>
-          <Button
-            disabled={selected.length === 0}
-            onClick={() => {
-              const chosen = new Set(selected);
-              onLink(candidates.filter(link => chosen.has(link.id)));
-              onOpenChange(false);
-            }}
-            type="button"
-          >
-            <Icon as={Link2} data-icon="inline-start" size="sm" />
-            {selected.length > 1 ? `Link ${selected.length}` : "Link"}
-          </Button>
+        <DialogFooter className="items-center sm:justify-between" variant="ruled">
+          <span className="text-small-body text-muted-foreground">
+            {selected.length > 0 ? `${selected.length} selected` : null}
+          </span>
+          <span className="flex items-center gap-2">
+            <Button onClick={() => onOpenChange(false)} type="button" variant="secondary">
+              Cancel
+            </Button>
+            <Button
+              disabled={selected.length === 0}
+              onClick={() => {
+                const chosen = new Set(selected);
+                onLink(candidates.filter(link => chosen.has(link.id)));
+                onOpenChange(false);
+              }}
+              type="button"
+            >
+              <Icon as={Link2} data-icon="inline-start" size="sm" />
+              {selected.length > 1 ? `Link ${selected.length}` : "Link"}
+            </Button>
+          </span>
         </DialogFooter>
       </DialogContent>
     </Dialog>

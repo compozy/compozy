@@ -1,10 +1,8 @@
 /**
- * One linked item: what it is, how it's doing, and where it came from. `Item` in a popover or side
- * panel, `ListingRow` on a full page, the two row primitives the design system assigns to those
- * places. The status words are the header chip's own.
+ * One linked item in two lines: what it is, then how it's doing. Everything else waits on hover:
+ * the tooltip carries the chip's detail, and the number gives way to the row's menu.
  */
 import {
-  CircleSlash,
   FolderGit2,
   FolderX,
   GitBranch,
@@ -12,6 +10,7 @@ import {
   Unlink,
   type LucideIcon,
 } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
 import {
   Button,
@@ -22,63 +21,67 @@ import {
   Item,
   ItemActions,
   ItemContent,
+  ItemMedia,
   ItemTitle,
-  ListingRow,
-  MonoId,
   Pill,
-  cn,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@compozy/ui";
 
-import { ChipBody } from "@/systems/session/components/session-pull-request-chip";
+import { ChipTooltip } from "@/systems/session/components/session-pull-request-chip";
 import { PULL_REQUEST_SHAPE_ICON } from "@/systems/session/components/session-pull-request-chip-style";
 import { SessionPullRequestMenu } from "@/systems/session/components/session-pull-request-menu";
 import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
 
-import { linkChip, linkSourceLabel, linkTitle, tightSignals } from "./link-model";
+import { linkCaution, linkChip, linkSourceLabel, linkStatus, linkTitle } from "./link-model";
 
-/** `stacked` for popovers, `tight` for the side panel, `wide` for a full page. */
-export type LinkRowLayout = "stacked" | "tight" | "wide";
-
-const STATUS_CLASS =
-  "flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-badge font-medium text-muted-foreground [&_svg]:size-3 [&_svg]:shrink-0";
-
-/** The chip's own words; a branch has no status of its own, so the row says why. */
-function LinkStatus({ link, tight }: { link: SessionLink; tight: boolean }) {
-  const chip = linkChip(link);
-  if (chip.kind === "pull-request") {
-    const model = tight ? { ...chip, signals: tightSignals(chip.signals) } : chip;
-    return (
-      <span className={STATUS_CLASS} data-slot="session-link-status">
-        <ChipBody model={model} refreshing={false} />
-      </span>
-    );
-  }
-  const unknown = chip.marker === "unavailable" || chip.marker === "incomplete";
+function Fact({ children, truncate = false }: { children: ReactNode; truncate?: boolean }) {
   return (
-    <span className={STATUS_CLASS} data-slot="session-link-status">
-      <Icon as={unknown ? CircleSlash : GitBranch} className="text-subtle" />
-      {unknown ? `PR status unknown · ${chip.detail}` : "No pull request yet"}
-    </span>
+    <>
+      <span aria-hidden="true" className="text-faint">
+        ·
+      </span>
+      <span className={truncate ? "flex min-w-0 items-center gap-1" : "shrink-0"}>{children}</span>
+    </>
   );
 }
 
-/** Where the work lives, and whether the agent runs there. */
-function LinkPlace({ link }: { link: SessionLink }) {
+/** The worktree only when it adds something: the row's title already names a bare one. */
+function WorktreeFact({ link }: { link: SessionLink }) {
   const { worktree } = link;
-  // With no title the row already leads with the worktree, so the branch says something new.
-  if (!worktree || (!link.title && worktree.state === "ready")) {
-    return <MonoId className="min-w-0 truncate" preserveCase value={link.facts.branch ?? ""} />;
-  }
+  if (!worktree || (!link.title && worktree.state === "ready")) return null;
   const missing = worktree.state === "missing";
   return (
-    <span className="flex min-w-0 items-center gap-1">
+    <Fact truncate>
       <Icon as={missing ? FolderX : FolderGit2} className="size-3 shrink-0" />
-      <span className="min-w-0 truncate">{missing ? "Worktree removed" : worktree.name}</span>
+      <span className="truncate">{missing ? "Worktree removed" : worktree.name}</span>
+    </Fact>
+  );
+}
+
+/**
+ * Status, then where it lives, then only the exceptions. Without an `agentLabel` it leaves out who
+ * added the item, as the link dialog does: nothing there is linked yet.
+ */
+export function LinkFacts({ link, agentLabel }: { link: SessionLink; agentLabel?: string }) {
+  const status = linkStatus(link);
+  const caution = linkCaution(link);
+  const source = agentLabel ? linkSourceLabel(link, agentLabel) : null;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5 text-eyebrow text-subtle">
+      <Pill className="shrink-0" form="plain" tone={status.tone}>
+        {status.tone === "neutral" ? null : <Pill.Dot />}
+        {status.label}
+      </Pill>
+      <WorktreeFact link={link} />
+      {caution ? <Fact truncate>{caution}</Fact> : null}
       {link.runsHere ? (
         <Pill className="shrink-0" size="sm">
           Runs here
         </Pill>
       ) : null}
+      {source ? <Fact>{source}</Fact> : null}
     </span>
   );
 }
@@ -86,12 +89,10 @@ function LinkPlace({ link }: { link: SessionLink }) {
 function LinkRowMenu({
   link,
   defaultOpen,
-  className,
   onUnlink,
 }: {
   link: SessionLink;
   defaultOpen: boolean;
-  className: string;
   onUnlink: () => void;
 }) {
   return (
@@ -100,7 +101,7 @@ function LinkRowMenu({
         aria-label={`Actions for ${linkTitle(link)}`}
         render={
           <Button
-            className={cn("relative z-10 shrink-0 data-popup-open:opacity-100", className)}
+            className="opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100 data-popup-open:opacity-100"
             size="icon-xs"
             type="button"
             variant="quiet"
@@ -134,81 +135,61 @@ function rowIcon(link: SessionLink): LucideIcon {
 
 export interface LinkRowProps {
   link: SessionLink;
-  layout: LinkRowLayout;
   agentLabel: string;
   /** Pins the row's menu open for review. */
   menuOpen?: boolean;
   onUnlink: (link: SessionLink) => void;
 }
 
-export function LinkRow({ link, layout, agentLabel, menuOpen = false, onUnlink }: LinkRowProps) {
-  const url = link.facts.pull_request?.url;
-  const anchor = { href: url ?? "#", rel: "noreferrer", target: url ? "_blank" : undefined };
-  const source = linkSourceLabel(link, agentLabel);
-  const unlink = () => onUnlink(link);
-
-  if (layout === "wide") {
-    return (
-      <ListingRow className="group/link" data-slot="session-link-row" data-source={link.source}>
-        <ListingRow.Link {...anchor}>
-          <ListingRow.Icon>
-            <Icon as={rowIcon(link)} className="size-4" />
-          </ListingRow.Icon>
-          <ListingRow.Main>
-            <ListingRow.Name>
-              <ListingRow.Title>{linkTitle(link)}</ListingRow.Title>
-            </ListingRow.Name>
-            <ListingRow.Meta className="[&_[data-slot=chip-glyph]]:hidden">
-              <LinkStatus link={link} tight={false} />
-            </ListingRow.Meta>
-          </ListingRow.Main>
-        </ListingRow.Link>
-        <ListingRow.Trail className="flex items-center gap-4 text-eyebrow text-subtle">
-          <span className="flex w-24 justify-end">{source}</span>
-          <span className="flex w-44 min-w-0">
-            <LinkPlace link={link} />
-          </span>
-          <LinkRowMenu
-            className="opacity-0 group-focus-within/link:opacity-100 group-hover/link:opacity-100"
-            defaultOpen={menuOpen}
-            link={link}
-            onUnlink={unlink}
-          />
-        </ListingRow.Trail>
-      </ListingRow>
-    );
-  }
-
+export function LinkRow({ link, agentLabel, menuOpen = false, onUnlink }: LinkRowProps) {
+  const pr = link.facts.pull_request;
   return (
     <Item
-      className="flex-nowrap items-start"
+      className="flex-nowrap gap-3"
       data-slot="session-link-row"
       data-source={link.source}
       selectable
-      size="xs"
+      size="sm"
     >
-      <ItemContent className="min-w-0 group-data-[size=xs]/item:gap-1">
-        <ItemTitle className="w-full text-small-body">
-          <a
-            {...anchor}
-            className="min-w-0 truncate outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring"
-          >
-            {linkTitle(link)}
-          </a>
+      <ItemMedia className="size-8 rounded-md bg-surface-2 text-muted-foreground">
+        <Icon as={rowIcon(link)} className="size-4" />
+      </ItemMedia>
+      <ItemContent className="min-w-0 gap-1">
+        <ItemTitle className="w-full">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <a
+                  aria-label={linkTitle(link)}
+                  className="min-w-0 truncate outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring"
+                  href={pr?.url ?? "#"}
+                  rel="noreferrer"
+                  target={pr ? "_blank" : undefined}
+                />
+              }
+            >
+              {linkTitle(link)}
+            </TooltipTrigger>
+            <TooltipContent
+              align="start"
+              className="max-w-75 min-w-60 flex-col items-stretch gap-0 px-2.5 py-2 text-left whitespace-normal"
+              side="left"
+            >
+              <ChipTooltip model={linkChip(link)} />
+            </TooltipContent>
+          </Tooltip>
         </ItemTitle>
-        <LinkStatus link={link} tight={layout === "tight"} />
-        <span className="flex min-w-0 items-center justify-between gap-3 text-eyebrow text-subtle">
-          <LinkPlace link={link} />
-          {source ? <span className="shrink-0">{source}</span> : null}
-        </span>
+        <LinkFacts agentLabel={agentLabel} link={link} />
       </ItemContent>
-      <ItemActions>
-        <LinkRowMenu
-          className="opacity-0 group-focus-within/item:opacity-100 group-hover/item:opacity-100"
-          defaultOpen={menuOpen}
-          link={link}
-          onUnlink={unlink}
-        />
+      <ItemActions className="relative z-10 grid items-center justify-items-end">
+        {pr ? (
+          <span className="pointer-events-none col-start-1 row-start-1 font-mono text-mono-id tracking-mono-id text-faint tabular-nums group-focus-within/item:opacity-0 group-hover/item:opacity-0 group-has-data-popup-open/item:opacity-0">
+            #{pr.number}
+          </span>
+        ) : null}
+        <span className="col-start-1 row-start-1">
+          <LinkRowMenu defaultOpen={menuOpen} link={link} onUnlink={() => onUnlink(link)} />
+        </span>
       </ItemActions>
     </Item>
   );

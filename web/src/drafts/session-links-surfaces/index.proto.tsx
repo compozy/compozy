@@ -7,7 +7,7 @@ import { DialogSurface } from "./dialog-surface";
 import { PaletteSurface } from "./palette-surface";
 
 export const meta = definePrototype({
-  title: "Session links · Shared by every direction",
+  title: "Session links · Board, palette and link dialog",
   route: "/sessions",
   states: [
     { id: "board", label: "Kanban cards with +N PRs" },

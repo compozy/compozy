@@ -3,7 +3,7 @@ import { definePrototype, type PrototypeProps } from "@compozy/proto";
 import { HeaderDirection } from "./header-direction";
 
 export const meta = definePrototype({
-  title: "Session links · A · In the header",
+  title: "Session links · In the header",
   route: "/sessions/$id",
   states: [
     { id: "none", label: "Nothing linked yet" },

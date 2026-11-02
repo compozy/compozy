@@ -126,13 +126,7 @@ function ChipGlyph({ icon: Icon, refreshing }: { icon: LucideIcon; refreshing: b
 
 const MONO_ID = "font-mono text-mono-id tracking-mono-id text-fg-2";
 
-export function ChipBody({
-  model,
-  refreshing,
-}: {
-  model: PullRequestChipModel;
-  refreshing: boolean;
-}) {
+function ChipBody({ model, refreshing }: { model: PullRequestChipModel; refreshing: boolean }) {
   if (model.kind === "branch") {
     return (
       <>
@@ -225,7 +219,7 @@ function ChipSignal({ signal }: { signal: PullRequestSignalPart }) {
   );
 }
 
-function ChipTooltip({ model }: { model: PullRequestChipModel }) {
+export function ChipTooltip({ model }: { model: PullRequestChipModel }) {
   if (model.kind === "branch") {
     return (
       <>

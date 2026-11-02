@@ -1,4 +1,4 @@
-/** Everything linked to a session, urgent first, findable at any size. */
+/** Everything linked to a session, urgent first. Past a handful, grouped and with Done folded. */
 import { useState } from "react";
 
 import {
@@ -8,7 +8,6 @@ import {
   CollapsibleTrigger,
   Empty,
   ListGroup,
-  SearchInput,
 } from "@compozy/ui";
 
 import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
@@ -17,23 +16,24 @@ import {
   LINK_GROUP_LABEL,
   LIST_FOLD_DONE_MIN,
   LIST_GROUPS_MIN,
-  LIST_SEARCH_MIN,
   groupLinks,
   matchesLink,
   type LinkGroup,
 } from "./link-model";
-import { LinkRow, type LinkRowLayout } from "./link-row";
+import { LinkRow } from "./link-row";
 
 export interface LinkListProps {
   links: readonly SessionLink[];
-  layout?: LinkRowLayout;
+  query: string;
   agentLabel?: string;
   /** The link whose menu is pinned open for review. */
   openMenuFor?: string;
   onUnlink: (link: SessionLink) => void;
 }
 
-const GROUP_HEADER = { className: "border-b-0 bg-transparent px-2.5 py-1" };
+const GROUP_HEADER = {
+  className: "sticky top-0 z-20 border-b-0 bg-popover px-3 pt-3 pb-1.5",
+};
 
 function GroupRows({ group, list }: { group: LinkGroup; list: LinkListProps }) {
   return (
@@ -42,7 +42,6 @@ function GroupRows({ group, list }: { group: LinkGroup; list: LinkListProps }) {
         <LinkRow
           agentLabel={list.agentLabel ?? "Claude"}
           key={link.id}
-          layout={list.layout ?? "stacked"}
           link={link}
           menuOpen={link.id === list.openMenuFor}
           onUnlink={list.onUnlink}
@@ -67,7 +66,7 @@ function DoneGroup({ group, list }: { group: LinkGroup; list: LinkListProps }) {
         label={LINK_GROUP_LABEL.done}
       />
       <CollapsibleContent>
-        <ListGroup.Items>
+        <ListGroup.Items className="gap-0.5">
           <GroupRows group={group} list={list} />
         </ListGroup.Items>
       </CollapsibleContent>
@@ -76,51 +75,42 @@ function DoneGroup({ group, list }: { group: LinkGroup; list: LinkListProps }) {
 }
 
 export function LinkList(list: LinkListProps) {
-  const { links } = list;
-  const [query, setQuery] = useState("");
+  const { links, query } = list;
   const groups = groupLinks(links.filter(link => matchesLink(link, query)));
-  const headed = links.length >= LIST_GROUPS_MIN;
   const foldDone = links.length >= LIST_FOLD_DONE_MIN && query === "";
-  return (
-    <div className="flex min-w-0 flex-col gap-2" data-slot="session-link-list">
-      {links.length >= LIST_SEARCH_MIN ? (
-        <SearchInput
-          aria-label="Filter linked work"
-          containerClassName="min-w-0"
-          onChange={setQuery}
-          placeholder="Filter by title, number or branch…"
-          value={query}
-        />
-      ) : null}
-      {headed ? null : (
-        <ListGroup>
-          {groups.map(group => (
-            <GroupRows group={group} key={group.id} list={list} />
-          ))}
-        </ListGroup>
-      )}
-      {(headed ? groups : []).map(group =>
-        group.id === "done" && foldDone ? (
-          <DoneGroup group={group} key={group.id} list={list} />
-        ) : (
-          <ListGroup
-            count={group.links.length}
-            headerProps={GROUP_HEADER}
-            key={group.id}
-            label={LINK_GROUP_LABEL[group.id]}
-          >
-            <GroupRows group={group} list={list} />
-          </ListGroup>
-        )
-      )}
-      {groups.length === 0 ? (
-        <Empty
-          description="Try a number, a word from the title, or a branch."
-          fill={false}
-          size="compact"
-          title="Nothing matches"
-        />
-      ) : null}
-    </div>
+  if (groups.length === 0) {
+    return (
+      <Empty
+        className="py-8"
+        description="Try a number, a word from the title, or a branch."
+        fill={false}
+        size="compact"
+        title="Nothing matches"
+      />
+    );
+  }
+  if (links.length < LIST_GROUPS_MIN) {
+    return (
+      <ListGroup itemsProps={{ className: "gap-0.5" }}>
+        {groups.map(group => (
+          <GroupRows group={group} key={group.id} list={list} />
+        ))}
+      </ListGroup>
+    );
+  }
+  return groups.map(group =>
+    group.id === "done" && foldDone ? (
+      <DoneGroup group={group} key={group.id} list={list} />
+    ) : (
+      <ListGroup
+        count={group.links.length}
+        headerProps={GROUP_HEADER}
+        itemsProps={{ className: "gap-0.5" }}
+        key={group.id}
+        label={LINK_GROUP_LABEL[group.id]}
+      >
+        <GroupRows group={group} list={list} />
+      </ListGroup>
+    )
   );
 }
