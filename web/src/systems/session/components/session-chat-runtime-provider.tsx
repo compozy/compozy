@@ -1,3 +1,4 @@
+import { sessionStore } from "../stores/session-store";
 import { AgentIdentityScopeContext } from "@/systems/agent";
 import type { UIMessage } from "ai";
 import { useEffect, useState, type ReactNode } from "react";
@@ -46,6 +47,9 @@ async function restoreRejectedPromptDraft(
     (pending, file) => pending.then(() => aui.composer.addAttachment(file)),
     Promise.resolve()
   );
+  if (draft.refusalReason) {
+    sessionStore.trigger.composerPromptRefused({ sessionId, reason: draft.refusalReason });
+  }
   return true;
 }
 

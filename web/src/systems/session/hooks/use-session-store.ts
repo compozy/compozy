@@ -24,3 +24,8 @@ export function sessionHasUnsentInput(sessionId: string): boolean {
 export function useSessionGoalFeedback(sessionId: string): SessionGoalFeedback | undefined {
   return useSelector(sessionStore, snapshot => snapshot.context.goalFeedback[sessionId]);
 }
+
+/** The refusal belongs to the recovered draft until it is sent or discarded. */
+export function useSessionPromptRefusal(sessionId: string): string | undefined {
+  return useSelector(sessionStore, snapshot => snapshot.context.promptRefusals[sessionId]);
+}

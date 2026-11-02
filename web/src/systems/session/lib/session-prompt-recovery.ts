@@ -12,6 +12,7 @@ export interface RejectedSessionPromptDraft {
 }
 
 export interface RestoredSessionPromptDraft {
+  refusalReason?: string;
   files: readonly File[];
   quote: TerminalQuote | null;
   text: string;
@@ -125,13 +126,19 @@ export class SessionPromptRecovery {
   public recover(
     scope: SessionPromptRecoveryScope,
     messageId: string,
-    files: readonly File[]
+    files: readonly File[],
+    refusalReason?: string
   ): void {
     const key = stagedDraftKey(scope, messageId);
     const draft = this.drafts.get(key);
     this.drafts.delete(key);
     if (!draft) return;
-    this.deliver(recoveryScopeKey(scope), { files, quote: draft.quote, text: draft.text });
+    this.deliver(recoveryScopeKey(scope), {
+      files,
+      quote: draft.quote,
+      text: draft.text,
+      ...(refusalReason ? { refusalReason } : {}),
+    });
   }
 
   public subscribe(scope: SessionPromptRecoveryScope, listener: RecoveryListener): () => void {

@@ -1,3 +1,4 @@
+import { sessionStore } from "../stores/session-store";
 import { toast } from "@compozy/ui";
 
 const MAX_REFUSAL_REASON_LENGTH = 400;
@@ -35,6 +36,7 @@ export function notifySessionPromptNotSent(reason: string | null, sessionId: str
 /** Clears only this session's obsolete refusal after a prompt is accepted. */
 export function dismissSessionPromptNotSent(sessionId: string): void {
   toast.dismiss(`session-prompt-refusal-${sessionId}`);
+  sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
 }
 
 /** Caps daemon refusal text before presenting it in a notification or chat error. */

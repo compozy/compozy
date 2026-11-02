@@ -77,3 +77,13 @@ first running tile, covering removal before the next generator read. Its existin
 suite reproduces the earlier resurrection gap and covers both sides of that yield.
 Refused-message eviction awaits and observes runtime deletion failures while the
 draft remains recoverable; the recovery-owner suite covers that failure boundary.
+
+Second rendered re-walk at 1118px and 399px passed normal send, 5xx handling,
+duplicate/in-flight removal and recovered retry without stale bubbles, broken
+images, toast or tiles. S3 still failed because deleting the refused message also
+removed the inline error, leaving only a temporary toast. The reason now belongs
+to the restored draft and reuses the existing composer feedback note, with wrapping
+copy at narrow widths. It survives toast dismissal and session reopening, and
+clears on acceptance, attachment removal or draft discard. Final S2/S3/S4 remain
+pending rendered re-verification on the new head; the integration suite covers
+all four notice lifecycle paths without relying on the toast timer.

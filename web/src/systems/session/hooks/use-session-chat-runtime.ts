@@ -380,9 +380,9 @@ export function useSessionChatRuntime({
     if (messageId !== null) promptRecovery.acknowledge(recoveryScope, messageId);
     attachmentAdapter.acknowledgeSentFiles();
   };
-  const restoreDraft = (messageId: string | null) => {
+  const restoreDraft = (messageId: string | null, refusalReason?: string) => {
     const files = attachmentAdapter.recoverSentFiles();
-    if (messageId !== null) promptRecovery.recover(recoveryScope, messageId, files);
+    if (messageId !== null) promptRecovery.recover(recoveryScope, messageId, files, refusalReason);
   };
   const promptOutcome: SessionPromptOutcome = {
     accepted: messageId => {
@@ -392,7 +392,7 @@ export function useSessionChatRuntime({
     canceled: consumeDraft,
     returned: restoreDraft,
     notSent: (messageId, reason) => {
-      restoreDraft(messageId);
+      restoreDraft(messageId, reason ?? undefined);
       notifySessionPromptNotSent(reason, sessionId);
     },
   };

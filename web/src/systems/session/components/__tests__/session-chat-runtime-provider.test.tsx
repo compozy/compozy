@@ -58,6 +58,7 @@ const SESSION_STREAM_QUERY = "frames=transcript";
 // app-scoped: nothing one test leaves pending may reach the next.
 afterEach(() => {
   sessionPromptRecovery.reset();
+  sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: primarySessionFixture.id });
   discardComposerDraftAttachments(primarySessionFixture.id);
   toast.dismiss();
 });
@@ -2118,81 +2119,115 @@ describe("SessionChatRuntimeProvider", () => {
   // Invariant (#1142): a missing attachment returns the complete draft, re-uploads
   // its retained file, and renders recovery copy instead of the HTTP JSON envelope.
   // Owner: chat runtime; canonical suite: this provider integration suite.
-  it("Should recover a missing image with a fresh upload and readable error", async () => {
-    promptResponsePromise = Promise.resolve(
-      jsonResponse(
-        {
-          error: 'session: open prompt attachment "image.png": attachments: attachment not found',
-        },
-        { status: 404 }
-      )
-    );
-    // Distinct boundary responses prove retry consumes the fresh upload result.
-    // A real content-addressed store normally returns the same ID for unchanged bytes.
-    let uploadCount = 0;
-    attachmentUploadResponse = async () => {
-      uploadCount += 1;
-      const response = await uploadedAttachmentResponse(
-        "image.png",
-        uploadCount === 1 ? "a" : "b"
-      ).json();
-      return jsonResponse(
-        {
-          attachment: {
-            ...response.attachment,
-            kind: "image",
-            mime_type: "image/png",
-            height: 10,
-            width: 10,
+  it.each(["retry", "remove", "clear", "reopen"])(
+    "Should recover a missing image with persistent feedback until %s",
+    async outcome => {
+      promptResponsePromise = Promise.resolve(
+        jsonResponse(
+          {
+            error: 'session: open prompt attachment "image.png": attachments: attachment not found',
           },
-        },
-        { status: 201 }
+          { status: 404 }
+        )
       );
-    };
-    const user = userEvent.setup();
-    renderSessionThread({ includeToaster: true });
-    await screen.findByTestId("composer-input");
-    await setComposerText("Describe this image");
-    await act(async () => {
-      await requireComposerAui().composer.addAttachment(
-        new File(["image bytes"], "image.png", { type: "image/png" })
+      // Distinct boundary responses prove retry consumes the fresh upload result.
+      // A real content-addressed store normally returns the same ID for unchanged bytes.
+      let uploadCount = 0;
+      attachmentUploadResponse = async () => {
+        uploadCount += 1;
+        const response = await uploadedAttachmentResponse(
+          "image.png",
+          uploadCount === 1 ? "a" : "b"
+        ).json();
+        return jsonResponse(
+          {
+            attachment: {
+              ...response.attachment,
+              kind: "image",
+              mime_type: "image/png",
+              height: 10,
+              width: 10,
+            },
+          },
+          { status: 201 }
+        );
+      };
+      const user = userEvent.setup();
+      const view = renderSessionThread({ includeToaster: true });
+      await screen.findByTestId("composer-input");
+      await setComposerText("Describe this image");
+      await act(async () => {
+        await requireComposerAui().composer.addAttachment(
+          new File(["image bytes"], "image.png", { type: "image/png" })
+        );
+      });
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(composerText()).toBe("Describe this image"));
+      expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+      const feedback = await screen.findByTestId("composer-feedback-note");
+      expect(feedback).toHaveTextContent(
+        "An attachment is no longer available. Send again to upload the retained file"
       );
-    });
-    await user.click(screen.getByTestId("composer-send-button"));
-    await waitFor(() => expect(composerText()).toBe("Describe this image"));
-    expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
-    expect(await screen.findByText(/An attachment is no longer available/)).toBeInTheDocument();
-    expect(document.body.textContent).not.toContain('{"error"');
-    // A refused prompt belongs only in the recovered draft, never in the thread.
-    const sentImageBubbles = () =>
-      screen
-        .queryAllByTestId("user-message-bubble")
-        .filter(bubble => bubble.textContent?.includes("Describe this image"));
-    await waitFor(() => expect(sentImageBubbles()).toHaveLength(0));
-    const uploads = fetchMock.mock.calls.filter(([input]) =>
-      getPathname(input).endsWith("/attachments")
-    );
-    expect(uploads).toHaveLength(2);
-    promptResponsePromise = null;
-    await user.click(screen.getByTestId("composer-send-button"));
-    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
-    const prompts = fetchMock.mock.calls.filter(([input]) =>
-      getPathname(input).endsWith("/prompt")
-    );
-    const initialBody = JSON.parse(String(prompts[0]?.[1]?.body));
-    expect(initialBody.attachments).toEqual([
-      expect.objectContaining({ id: `att_${"a".repeat(64)}`, name: "image.png" }),
-    ]);
-    const retryBody = JSON.parse(String(prompts[1]?.[1]?.body));
-    expect(retryBody.attachments).toEqual([
-      expect.objectContaining({ id: `att_${"b".repeat(64)}`, name: "image.png" }),
-    ]);
-    await screen.findByText("Live runtime answer before transcript reconciliation.");
-    await waitFor(() => expect(sentImageBubbles()).toHaveLength(1));
-    await waitFor(() =>
-      expect(screen.queryByText(/Message not sent: An attachment/)).not.toBeInTheDocument()
-    );
-  });
+      await act(async () => {
+        toast.dismiss();
+      });
+      expect(feedback).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain('{"error"');
+      // A refused prompt belongs only in the recovered draft, never in the thread.
+      const sentImageBubbles = () =>
+        screen
+          .queryAllByTestId("user-message-bubble")
+          .filter(bubble => bubble.textContent?.includes("Describe this image"));
+      await waitFor(() => expect(sentImageBubbles()).toHaveLength(0));
+      const uploads = fetchMock.mock.calls.filter(([input]) =>
+        getPathname(input).endsWith("/attachments")
+      );
+      expect(uploads).toHaveLength(2);
+      if (outcome === "reopen") {
+        view.unmount();
+        renderSessionThread({ includeToaster: true });
+        await screen.findByTestId("composer-attachment-tile");
+        expect(await screen.findByTestId("composer-feedback-note")).toHaveTextContent(
+          "An attachment is no longer available"
+        );
+      }
+      if (outcome === "remove" || outcome === "clear") {
+        if (outcome === "clear")
+          await act(async () => {
+            await requireComposerAui().composer.reset();
+          });
+        else
+          await act(async () => {
+            const attachment = requireComposerAui().composer.getState().attachments[0]!;
+            await requireComposerAui().composer.attachment({ id: attachment.id }).remove();
+          });
+        await waitFor(() =>
+          expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument()
+        );
+        return;
+      }
+      promptResponsePromise = null;
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+      const prompts = fetchMock.mock.calls.filter(([input]) =>
+        getPathname(input).endsWith("/prompt")
+      );
+      const initialBody = JSON.parse(String(prompts[0]?.[1]?.body));
+      expect(initialBody.attachments).toEqual([
+        expect.objectContaining({ id: `att_${"a".repeat(64)}`, name: "image.png" }),
+      ]);
+      const retryBody = JSON.parse(String(prompts[1]?.[1]?.body));
+      expect(retryBody.attachments).toEqual([
+        expect.objectContaining({ id: `att_${"b".repeat(64)}`, name: "image.png" }),
+      ]);
+      await screen.findByText("Live runtime answer before transcript reconciliation.");
+      await waitFor(() => expect(sentImageBubbles()).toHaveLength(1));
+      expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByText(/Message not sent: An attachment/)).not.toBeInTheDocument()
+      );
+    }
+  );
 
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(

@@ -147,6 +147,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     // Removal transfers the first-message handoff to the edited draft before upload cleanup awaits.
     sessionStore.trigger.firstPromptSent({ sessionId: this.sessionId });
     consumeSubmittedComposerAttachment(attachment);
+    sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: this.sessionId });
     this.uploads.delete(attachment.id);
     this.uploadedFiles.delete(attachment.id);
     if (this.inFlightUploads.has(attachment.id)) {
