@@ -22,9 +22,10 @@ type SessionLinkedWorkItem struct {
 }
 
 type SessionLinkedWorkSummary struct {
-	Total    int                    `json:"total"`
-	NeedsYou int                    `json:"needs_you"`
-	Lead     *SessionLinkedWorkItem `json:"lead,omitempty"`
+	PullRequests int                    `json:"pull_requests"`
+	Total        int                    `json:"total"`
+	NeedsYou     int                    `json:"needs_you"`
+	Lead         *SessionLinkedWorkItem `json:"lead,omitempty"`
 }
 
 type SessionLinkedWorkResponse struct {

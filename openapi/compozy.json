@@ -25786,12 +25786,16 @@
           "needs_you": {
             "type": "integer"
           },
+          "pull_requests": {
+            "type": "integer"
+          },
           "total": {
             "type": "integer"
           }
         },
         "required": [
           "needs_you",
+          "pull_requests",
           "total"
         ],
         "type": "object"

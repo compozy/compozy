@@ -164,6 +164,9 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 		p.Items = unique
 		p.Summary.Total = len(unique)
 		for _, item := range unique {
+			if item.PullRequest != nil || item.PRNumber > 0 {
+				p.Summary.PullRequests++
+			}
 			if linkedWorkUrgency(item) == 0 {
 				p.Summary.NeedsYou++
 			}

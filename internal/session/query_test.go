@@ -4795,7 +4795,7 @@ func TestSessionLinkedWorkProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		view := got["root"]
-		if view.Summary.Total != len(cases) || view.Summary.NeedsYou != 3 || view.Summary.Lead.Branch != "changes" {
+		if view.Summary.Total != len(cases) || view.Summary.NeedsYou != 3 || view.Summary.PullRequests != 8 || view.Summary.Lead.Branch != "changes" {
 			t.Fatalf("summary=%+v", view.Summary)
 		}
 		for i := 1; i < len(view.Items); i++ {

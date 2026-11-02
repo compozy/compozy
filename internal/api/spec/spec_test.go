@@ -5532,6 +5532,21 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	)
 }
 
+func TestSessionLinkedWorkSummary(t *testing.T) {
+	t.Run("Should expose the pull request count in the session summary", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		schema := doc.Components.Schemas["SessionLinkedWorkSummary"].Value
+		assertRequired(t, schema, "total", "needs_you", "pull_requests")
+		if !schema.Properties["pull_requests"].Value.Type.Is("integer") {
+			t.Fatal("pull_requests must be an integer")
+		}
+	})
+}
+
 func addGoalWaitSchemas(value any) int {
 	count := 0
 	switch node := value.(type) {

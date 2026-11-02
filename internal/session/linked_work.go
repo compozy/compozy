@@ -35,9 +35,10 @@ type LinkedWorkItem struct {
 }
 
 type LinkedWorkSummary struct {
-	Total    int             `json:"total"`
-	NeedsYou int             `json:"needs_you"`
-	Lead     *LinkedWorkItem `json:"lead,omitempty"`
+	PullRequests int             `json:"pull_requests"`
+	Total        int             `json:"total"`
+	NeedsYou     int             `json:"needs_you"`
+	Lead         *LinkedWorkItem `json:"lead,omitempty"`
 }
 
 func (m *Manager) LinkSessionWork(ctx context.Context, sessionID string, link store.SessionWorkLink, automatic bool) error {

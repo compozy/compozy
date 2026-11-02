@@ -7091,6 +7091,7 @@ export type SessionLinkedWorkResponse = {
 export type SessionLinkedWorkSummary = {
   lead?: SessionLinkedWorkItem | null;
   needs_you: number;
+  pull_requests: number;
   total: number;
 };
 

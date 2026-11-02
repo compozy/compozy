@@ -45,7 +45,7 @@ func DecorateSessionLinkedWork(ctx context.Context, reader any, infos []*session
 	for i := range payloads {
 		p := &payloads[i]
 		view := views[p.ID]
-		summary := &contract.SessionLinkedWorkSummary{Total: view.Summary.Total, NeedsYou: view.Summary.NeedsYou}
+		summary := &contract.SessionLinkedWorkSummary{Total: view.Summary.Total, PullRequests: view.Summary.PullRequests, NeedsYou: view.Summary.NeedsYou}
 		if view.Summary.Lead != nil {
 			lead := linkedWorkItemPayload(*view.Summary.Lead)
 			summary.Lead = &lead

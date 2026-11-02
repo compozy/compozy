@@ -14814,6 +14814,7 @@ export interface components {
     SessionLinkedWorkSummary: {
       lead?: components["schemas"]["SessionLinkedWorkItem"] | null;
       needs_you: number;
+      pull_requests: number;
       total: number;
     };
     SessionMonitorPayload: {
