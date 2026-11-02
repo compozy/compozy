@@ -110,7 +110,7 @@ function useRetireSessionWindow(
   useEffect(() => {
     if (!retire || sessionId === null) return;
     if (announce) toast.error("Session not found");
-    // `sessionId` trails the route by a render: the window may already hold the next session.
+    // The shell may retarget before this effect runs; retire only the session we resolved.
     void coordinator.userRetireSession(windowId, sessionId);
   }, [announce, coordinator, retire, sessionId, windowId]);
 }

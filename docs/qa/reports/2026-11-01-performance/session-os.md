@@ -132,3 +132,57 @@ The test-convention checker was run once per changed Go test file. It reported 2
 No wire/schema/config/native-tool contract changes originate here. Native session readers retain ordering, scope and capability behavior; no migration is needed. Isolation is covered by active/durable overlay tests. Official skills/public docs need no operation/shape changes. Root owns consolidated impact, generators, QA scenario updates, real browser/daemon integration, delivery gates and current-head CI.
 
 Affected journeys: `ET-web-catalog-navigation`, `ET-web-shell-shortcuts-about-dialogs`, `E2E-023` shell/session responsiveness. This worker does not claim browser latency, retained-heap improvement, production behavior, full-suite success or PR delivery from focused measurements.
+
+## Dashboard connection CI follow-up (2026-11-02)
+
+Invariant: Home retains its loaded overview while its daemon health requests fail, shows a
+non-connected indicator within the existing 15-second limit, recovers when requests resume,
+and reloads current overview truth after a real daemon restart. The owning layer and canonical
+suite are the daemon-served Home browser flow in `web/e2e/__tests__/dashboard.spec.ts`, test
+`Home preserves its overview through health loss and recovers after a daemon restart`.
+
+CI run `41383826440`, job `125080272757`, failed this case on `14730a705771c0a3eb6e92947eddede632dff666`.
+The unchanged test reproduced locally with zero retries: it remained `connected` for all 34
+polls and failed the 15-second assertion (17.2 seconds total). Its network artifact contains
+two failed `/api/status` requests while `/api/status/identity` remained successful. The route
+interceptor only blocked the full diagnostic endpoint; Home now observes the bounded identity
+endpoint. This was an outdated outage injection, not evidence that identity-query errors were
+ignored in production. The correction covers both public status endpoints with the same route
+handler and removes that handler for recovery. All product assertions, timeouts and the real
+restart step remain unchanged. No production code changes are part of this follow-up.
+
+The focused reproduction uses `.cache/performance/run-browser.py`, which acquires the existing
+machine-wide browser lock before invoking `run-bounded.py`. It reuses the published-candidate
+daemon `.cache/performance/compozy-candidate-final` and the current built `web/dist` authorized
+for this diagnosis; the existing fixture provisions a fresh isolated home/workspace/port and
+cleans up its daemon, replacement daemon and temporary state. Negative receipt:
+`.cache/performance/session-os/dashboard-before.txt`; network/trace/screenshot artifacts are
+under `.cache/performance/session-os/dashboard-before/`.
+
+The corrected scenario passes **1/1**, with zero retries (25.9 seconds for the scenario,
+31.4 seconds total). The after-run network artifact records two failed identity reads and one
+failed full-status read, followed by successful health reads. The same browser assertions prove
+the indicator leaves `connected`, the loaded body and four metrics remain visible, connection
+recovers, and the real restart returns `ready` with a newly generated overview. The fixture's
+teardown completes without errors. Receipt: `.cache/performance/session-os/dashboard-after.txt`;
+network/trace/screenshot artifacts: `.cache/performance/session-os/dashboard-after/`.
+
+Both runs use daemon SHA-256
+`d700cc3f5d0424ba53c2bde275f6e9a76bd947955ccf85c95c4ce85ba307d146` and built Web index SHA-256
+`e115cd296c6ba119dcd2f90b98ebfc0e403df3c6ec02fffa969ae092db18922d`. The explicit launch command is:
+
+```sh
+python3 .cache/performance/run-browser.py env \
+  COMPOZY_E2E_BASE_URL= COMPOZY_E2E_WEB_SHARD= \
+  COMPOZY_TEST_DAEMON_BIN="$PWD/.cache/performance/compozy-candidate-final" \
+  COMPOZY_WEB_DIST_DIR="$PWD/web/dist" \
+  node web/node_modules/@playwright/test/cli.js test \
+  --config web/playwright.config.ts web/e2e/__tests__/dashboard.spec.ts \
+  --grep 'Home preserves its overview through health loss' --retries=0 \
+  --output .cache/performance/session-os/dashboard-after
+```
+
+The reproduction used the same command with `dashboard-before` as the output directory before
+changing the interceptor. This is focused real-daemon/browser evidence for connection recovery
+and overview retention, not full-shard or current-head CI success. Root owns the subsequent
+integrated lint/typecheck/build and publication. Scenario `RT-039` records this bounded re-walk.

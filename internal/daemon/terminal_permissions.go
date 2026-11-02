@@ -66,10 +66,8 @@ func (b *terminalPermissionBridge) ApproveTerminalExec(
 }
 
 func terminalToolDescriptor(id toolspkg.ToolID) toolspkg.Descriptor {
-	for _, descriptor := range builtintools.NativeDescriptors() {
-		if descriptor.ID == id {
-			return descriptor
-		}
+	if descriptor, ok := builtintools.TerminalDescriptor(id); ok {
+		return descriptor
 	}
 	return toolspkg.Descriptor{ID: id}
 }

@@ -147,20 +147,34 @@ var terminalToolSpecs = []terminalDescriptorSpec{
 	},
 }
 
+// TerminalDescriptor returns an independently owned descriptor for a terminal tool.
+func TerminalDescriptor(id toolspkg.ToolID) (toolspkg.Descriptor, bool) {
+	for _, spec := range terminalToolSpecs {
+		if spec.id == id {
+			return terminalDescriptor(spec), true
+		}
+	}
+	return toolspkg.Descriptor{}, false
+}
+
 func terminalDescriptors() []toolspkg.Descriptor {
 	descriptors := make([]toolspkg.Descriptor, 0, len(terminalToolSpecs))
 	for _, spec := range terminalToolSpecs {
-		descriptor := nativeDescriptor(
-			spec.id, spec.nativeName, spec.title, spec.description, spec.inputSchema,
-			spec.risk, spec.readOnly, spec.destructive, spec.openWorld,
-			[]toolspkg.ToolsetID{toolspkg.ToolsetIDTerminal}, []string{terminalTag},
-			[]string{spec.title, spec.description},
-		)
-		descriptor.OutputSchema = json.RawMessage(spec.outputSchema)
-		descriptor.ConcurrencySafe = spec.concurrent
-		descriptors = append(descriptors, withRequiredCapabilities(descriptor, spec.capability))
+		descriptors = append(descriptors, terminalDescriptor(spec))
 	}
 	return descriptors
+}
+
+func terminalDescriptor(spec terminalDescriptorSpec) toolspkg.Descriptor {
+	descriptor := nativeDescriptor(
+		spec.id, spec.nativeName, spec.title, spec.description, spec.inputSchema,
+		spec.risk, spec.readOnly, spec.destructive, spec.openWorld,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTerminal}, []string{terminalTag},
+		[]string{spec.title, spec.description},
+	)
+	descriptor.OutputSchema = json.RawMessage(spec.outputSchema)
+	descriptor.ConcurrencySafe = spec.concurrent
+	return withRequiredCapabilities(descriptor, spec.capability)
 }
 
 func terminalToolset() toolspkg.Toolset {

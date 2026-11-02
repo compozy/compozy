@@ -206,21 +206,33 @@ describe("SessionWindow", () => {
     );
   });
 
-  // Invariant: an in-place retarget reaches the view one deferred render behind the shell's
-  // route, so it is a transition the keyed boundary can animate. The view never sees a mix of
-  // two sessions: it keeps the current one until the next is the only thing it is given.
-  it("Should hand the view the retargeted session only on the deferred render", () => {
-    const view = render(<SessionWindow windowId="session:sess-1" />);
-    sessionWindowViewSpy.mockClear();
+  // Invariant: an accepted retarget owns the view and presence immediately. Streaming updates
+  // from the departing session cannot leave its conversation interactive under the new route.
+  // Owner: OS session-window controller; canonical suite: SessionWindow.
+  it.each([false, true])(
+    "Should bind every retarget render to the new session with loading=%s",
+    isLoading => {
+      const view = render(<SessionWindow windowId="session:sess-1" />);
+      sessionWindowViewSpy.mockClear();
+      useSessionPresenceSpy.mockClear();
+      scopedDetailSpy.mockClear();
 
-    desktop.windows["session:sess-1"].route.pathname = "/agents/qa-agent/sessions/sess-2";
-    view.rerender(<SessionWindow windowId="session:sess-1" />);
+      desktop.windows["session:sess-1"].route.pathname = "/agents/qa-agent/sessions/sess-2";
+      queryState.data = isLoading ? undefined : { ...session, id: "sess-2" };
+      queryState.isLoading = isLoading;
+      view.rerender(<SessionWindow windowId="session:sess-1" />);
 
-    const viewedIds = sessionWindowViewSpy.mock.calls.map(([props]) => props.id);
-    expect(viewedIds[0]).toBe("sess-1");
-    expect(viewedIds.at(-1)).toBe("sess-2");
-    expect(viewedIds).not.toContain(undefined);
-  });
+      const viewedIds = sessionWindowViewSpy.mock.calls.map(([props]) => props.id);
+      expect(viewedIds.length).toBeGreaterThan(0);
+      expect(new Set(viewedIds)).toEqual(new Set(["sess-2"]));
+      expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: "sess-2", session: queryState.data, isLoading })
+      );
+      expect(scopedDetailSpy.mock.calls.every(([id]) => id === "sess-2")).toBe(true);
+      expect(useSessionPresenceSpy.mock.calls.every(([, id]) => id === "sess-2")).toBe(true);
+      expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-2", !isLoading);
+    }
+  );
 
   it("Should retain live-tail ownership when another visible window gains focus", () => {
     const view = render(<SessionWindow windowId="session:sess-1" />);

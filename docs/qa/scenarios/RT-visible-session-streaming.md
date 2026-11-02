@@ -100,3 +100,19 @@ disconnected fallback must still reread; replay catch-up must not claim live aut
 until its watermark arrives. The canonical live-tail suite covers each boundary. The
 seeded browser slice validates loading/focus behavior only, not live provider execution;
 see `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
+
+QA impact 2026-11-02 (concurrent navigation): while the current session and other
+sessions stream, select another session in the same window, including a warm
+revisit. The accepted window route must replace the departing conversation with
+the target or its loading state; the old composer and presence identity must not
+remain active under the new window identity. Profile/workspace checks and retained
+transcript data continue to belong to the selected session.
+
+Targeted re-walk: the same real-daemon browser fixture with 32 active sessions,
+eight controlled streams and 640 retained sessions failed a warm revisit before
+the direct-identity correction, then passed all 64 selections afterward. All eight
+streams completed and every selected chat DOM identity changed correctly; the
+observer recorded no old chat node under a new window instance. This covers the
+concurrent-navigation addition, not a new verdict on the complete historical
+two-window or real-provider journey. The negative control, focused suites and
+timings are in the [navigation investigation](../reports/2026-11-01-performance/review-session-navigation.md).

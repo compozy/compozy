@@ -160,18 +160,25 @@ The owning [cross-surface impact audit](../docs/_memory/change-impact.md) record
 -->
 
 <!--
-Historical reference: concurrent-session responsiveness audit (2026-11-01).
+Historical reference: concurrent-session responsiveness audit, PR #1141 (2026-11-01).
 This retained measurement report applies only to branch perf/responsiveness-audit-20261101
 and baseline de5ab2f4d. It is not verification, authorship or scope evidence for a new PR.
-New PRs must fill the prompts above. Full reproductions, review dispositions and final CI
-are recorded in docs/qa/reports/2026-11-01-performance/README.md.
+New PRs must fill the prompts above. Current-head CI is tracked in PR #1141; full
+reproductions and review dispositions are in docs/qa/reports/2026-11-01-performance/.
 Authored by Codex with ten scoped audit workers and independent cross-reviews.
 
 ## Scope and evidence
 
-The audit covers the 92 `internal/` package roots and all 28 frontend systems,
-with distinct owners and individual findings in [the coverage inventory](../docs/qa/reports/2026-11-01-performance/coverage.md).
-Nested package coverage belongs to each owner's report. The work includes database
+The [complete coverage matrix](../docs/qa/reports/2026-11-01-performance/coverage.md) lists **195/195 tracked Go-containing
+directories** (161 internal, 34 elsewhere) and **28/28 frontend systems**, with a named
+owner, report and disposition for every entry. The [machine-readable inventory](../docs/qa/reports/2026-11-01-performance/coverage-inventory.json)
+includes file counts and per-directory file-list digests. SDK modules, command entrypoints,
+tooling, embedded contracts and fixtures are included. This supersedes the initial 92-root
+summary, whose grouping did not demonstrate exhaustive nested/outside-internal coverage.
+
+**Audited means documented source inspection, not a benchmark or executed test for every
+directory.** The owner reports distinguish retained measured changes, unchanged code,
+rejected experiments and static-only observations. The work includes database
 queries, navigation/data loading, event reconciliation, state subscriptions, retained
 memory, and whether concurrency would actually remove a measured bottleneck.
 
@@ -219,10 +226,12 @@ per experiment. Benchmark timings include unrelated shared-host noise.
 | Repeated secret registration, 1,024 secrets | 209.715 µs; 36,912 B/op | 0.0507 µs; 0 B/op | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
 | Slash parser, 128 skills / approximately 0.85 MB prompt | 217.029 ms; 527.54 MB/op | 1.699 ms; 0.133 MB/op | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md); UTF-16 positions preserved |
 | Toolset discovery, 32 toolsets / 128 descriptors | 8.853 ms; 128,534 allocations | 2.162 ms; 4,640 allocations | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md) |
+| Terminal approval descriptor, actual terminal-exec path | 1.095 ms; 955,364 B/op; 4,906 allocations | 0.00801 ms; 3,560 B/op; 32 allocations | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md); same complete descriptor, no approval/policy cache |
 | Unrelated profile read during controlled 20 ms credential I/O | 21.679 ms | 1.458 µs | [Usage/dashboard](../docs/qa/reports/2026-11-01-performance/usage-dashboard.md); isolation metric, not provider latency |
 
 | Frontend workload | Before | After | Evidence |
 | --- | ---: | ---: | --- |
+| Session retarget under eight streams, one-factor diagnostic | First warm revisit retained the previous conversation for over 5.25 s; 16/64 selections completed | 64/64 completed; 48 warm revisits reached the new conversation in median 166.15 ms, maximum 191.50 ms | [Navigation reproduction](../docs/qa/reports/2026-11-01-performance/review-session-navigation.md); same assertions and daemon, one diagnostic pair, not a population latency claim |
 | Dashboard, 100 lifecycle events / three observers | 300 reads; 297 cancellations | 6 reads; 0 cancellations | [Usage/dashboard](../docs/qa/reports/2026-11-01-performance/usage-dashboard.md); all caches reach revision 100 |
 | Loop, 100 events / 100 ms reads | 100 reads; 99 cancellations | 3 reads; 0 cancellations | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md); final revision 100 |
 | Task event, 50 cached run-detail/inspect pairs | 100 rereads | 2 rereads | [API/tasks](../docs/qa/reports/2026-11-01-performance/api-tasks.md); unknown owners remain conservative |
@@ -269,19 +278,29 @@ behavior; diagnostic panels keep the complete status operation.
 [Scope/SQL review](../docs/qa/reports/2026-11-01-performance/review-scopes.md) compared extension precedence against the previous
 resolver in 4,608 independent SQLite combinations. [Cache/Loop review](../docs/qa/reports/2026-11-01-performance/review-cache-loops.md),
 [credential/worktree review](../docs/qa/reports/2026-11-01-performance/review-usage-worktree.md), [ring/dashboard review](../docs/qa/reports/2026-11-01-performance/review-ring-dashboard.md)
-and the scheduler/session review distinguish source inspection from executed reproductions.
+and [scheduler/session review](../docs/qa/reports/2026-11-01-performance/review-scheduler-session.md) distinguish source inspection from executed reproductions.
 Confirmed findings retain their identifiers and fix dispositions. The dashboard teardown and
 credential ABA findings have failing-before tests; final receipts are recorded in their reports.
 
+The [integrated validation record](../docs/qa/reports/2026-11-01-performance/validation.md) separates completed focused checks,
+corrected attempts and CI-owned gates. The [browser report](../docs/qa/reports/2026-11-01-performance/browser.md) includes all
+accepted timing samples, screenshots, the failed baseline attempt and the explicit
+absence of a stable end-to-end latency claim.
+The [navigation reproduction](../docs/qa/reports/2026-11-01-performance/review-session-navigation.md) separately isolates a route
+identity deferral that left the old conversation interactive after a successful retarget.
+The fix immediately binds the new identity and its loading state; it does not depend on
+finishing the departing conversation's animation. Existing keyed providers and scope guards remain.
 
-## Verification status
+## Verification boundaries
 
-Real SQLite/Git/filesystem checks, focused race and frontend suites passed. Canonical
-make codegen and make codegen-check passed. The initial real browser comparison used
-32 active sessions, eight controlled ACP streams and 640 retained sessions, with zero
-page errors and successful teardown. Repeated browser comparison and current-head CI
-remain in progress at draft creation; use the owning report for final receipts.
+Real SQLite/Git/filesystem checks, focused race and frontend suites, canonical codegen,
+pinned scoped lint and root Turbo build checks are recorded in the linked validation
+report. The navigation correction passed 64/64 selections under eight controlled streams,
+with unchanged assertions and no old chat retained under the new identity. The earlier
+non-instrumented runs did not establish a stable overall latency or whole-browser heap gain.
+CI findings and their causal remediation are retained in the validation and owner reports.
 
-Per user authorization, broad gates run in CI rather than occupying the shared host.
-This report does not claim local make gate, production telemetry, INP or live-LLM latency.
+The user authorized broad gates in CI to protect shared-host resources. This report does
+not claim local make gate, production telemetry, INP or live-model latency. Final delivery
+requires every required CI check green at the actual PR head.
 -->

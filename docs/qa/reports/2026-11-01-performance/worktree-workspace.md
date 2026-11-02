@@ -105,3 +105,66 @@ No persisted schema, public DTO, CLI verb, native-tool ID, hook/config contract 
 Affected scenario owners: `ET-worktree-hook-event-contract`, `RT-worktree-web-nested-navigation`, `RT-worktree-web-exit-progress`, `RT-worktree-api-surface-parity`. The root owns scenario documentation and real integrated replay. Suggested existing real-Git integration cases under `TestWorktreeLifecycleIntegration`: `Should record real status corruption and recover truthful reads`, `Should report real upstream divergence exactly`, `Should refuse dirty and unpushed real loss then honor explicit evidence`, and `Should re-read real Git evidence after an external commit during removal`.
 
 This worker did not launch a daemon/browser, run full suites/gates, or commit. Integrated lint/typecheck/codegen, existing integration journeys and current-head PR CI remain with the root owner; focused receipts do not substitute for those gates.
+
+## Build and development tooling coverage (2026-11-02)
+
+This follow-up covers seven additional Go package directories outside `internal/`. These are development/build commands or test harnesses, not daemon request handlers or renderer interaction paths. The read-only inventory contains 52 Go files, including 44 under `magefiles`; exact paths are retained in `.cache/performance/worktree-workspace/build-tool-go-paths.txt`. The production Mage I/O/concurrency scan is retained in `.cache/performance/worktree-workspace/magefiles-io-scan.txt`.
+
+No tooling command, package test, benchmark, development supervisor, publisher or gate was executed for this follow-up. The conclusions below are source inspection, not runtime or performance passes. No source change or measured tooling improvement is claimed. Existing tests identify the owning verification surface; their presence does not count as execution evidence.
+
+### `magefiles`
+
+Inspected execution owners: `magefiles/command.go`, `magefiles/verify.go`, `magefiles/verifylock.go`, `magefiles/test.go`, `magefiles/gotest_lane.go`, `magefiles/gotest_integration.go`, `magefiles/gotest_discovery.go`, `magefiles/gotest_census.go`, `magefiles/build.go`, `magefiles/codegen.go`, `magefiles/codegen_guard.go`, `magefiles/deps_lint.go`, `magefiles/deps_fmt_lane.go`, `magefiles/deps_lint_modules.go`, `magefiles/web.go`, `magefiles/e2e.go`, `magefiles/web_assets.go`, `magefiles/web_assets_publish.go` and the dependency-closure execution in `magefiles/boundaries.go`. Existing ownership was cross-checked in `magefiles/verifylock_test.go`, `magefiles/gotest_lane_test.go`, `magefiles/gotest_lane_env_test.go` and `magefiles/deps_lint_test.go`.
+
+The earlier audit read `magefiles/gotest_lane.go` only to establish the repository's normal modernc race/checkptr policy. This entry completes explicit package coverage; the earlier worktree race receipt verifies use of that policy, not the Mage package itself.
+
+`Verify` executes named steps sequentially under a machine-wide capacity lock. Lock polling owns and stops its ticker, reports the current holder, and releases the file lock on completion. Acquisition intentionally has no deadline; lock errors warn and continue because this is a capacity guard. Command wrappers use synchronous `exec.CommandContext`, but many top-level commands pass `context.Background`, so this is not a claim that every tool invocation has a deadline. Go test invocations add their own timeouts, cap package/per-package parallelism, split oversized suites and use deterministic weighted sharding. Lint caps concurrency by policy, isolates its versioned cache by repository root, and scopes local formatting to changed files. Codegen remains ordered around shared outputs; its checked marker avoids a redundant check later in the same verified pipeline.
+
+Package discovery uses `go list` plus AST inspection instead of executing discovered tests. Asset freshness uses sorted content digests and immutable artifact identity rather than a TTL. Lane preparation reuses validated binaries, records cleanup and unwinds partial failures. Release/module-proxy polling has a fixed attempt count and a context-aware timer; its manual publishing entry point is not an interaction path. Directory hashing, dependency scans, compilation and the intentional double-build determinism check can cost developer time, but no measured redundant workload supports a change here. Adding subprocess concurrency would compete with existing bounded lanes and shared generation outputs. Disposition: preserve the current execution/capacity policy; static audit only.
+
+### `scripts` (Go files at directory root)
+
+Inspected `scripts/gate_integration_test.go` and `scripts/product_language_integration_test.go`. Both are integration-tagged test files; this directory has no production Go command. The gate suite owns evidence freshness, changed/generated input fingerprints, cache reuse, missing-log reruns, module scoping, fail-closed merge-base behavior and capacity-slot queuing. It seeds a Git fixture once per top-level suite and copies it into independent temporary directories for parallel cases. Subprocesses use test contexts and isolated capacity directories. The capacity-wait case uses a finite helper goroutine to release its fixture slot and consumes its result. Product-language cases use small temporary inputs and context-bound checker subprocesses.
+
+The main cost is intentional shell/Git integration work in the test process. Independent fixture copies preserve concurrent case isolation; shared mutable fixtures or extra process fan-out would weaken it. No runtime cache or product lifecycle is owned here. Disposition: no supported optimization; the canonical integration suites were inspected but not run in this follow-up.
+
+### `scripts/air-state-dir`
+
+Inspected the complete `scripts/air-state-dir/main.go`. This one-shot developer command resolves the home directory once, appends `.dev/air`, prints the path and exits. Errors propagate to stderr and a failing exit code. There is no directory scan, daemon connection, polling, retained cache or goroutine. Disposition: constant-size local path work; no supported optimization. Static inspection only, with no command execution.
+
+### `scripts/air-state-lock`
+
+Inspected `scripts/air-state-lock/main.go` and process-lifetime cases/helpers in `scripts/air-state-lock/main_test.go`. The Unix-only developer wrapper validates the lock target, opens it with restrictive permissions, acquires an exclusive file lock and synchronously runs the supplied command. The descriptor is close-on-exec, so descendants cannot retain the lock after the wrapper exits; deferred close joins its error with the command result. The blocking lock acquisition does not take cancellation or a deadline, and `main` uses a background context. That wait deliberately serializes ownership of the development daemon state.
+
+The existing tests own command-lifetime lock release and surviving-child descriptor isolation. Their subprocess cleanup uses a process group, termination, a bounded wait and a kill fallback; this source review does not establish a new runtime pass. Extra concurrency would violate the wrapper's ownership purpose. Disposition: no measured improvement and no source change; development-only static audit.
+
+### `scripts/demo-seed`
+
+Inspected the complete `scripts/demo-seed/main.go`, separately from the earlier `internal/demoseed` audit. The wrapper owns flag/home resolution, a signal-cancelable context and an exclusive daemon-state lock. It refuses to seed while a daemon owns the state, releases the lock with joined errors, calls `internal/demoseed.Seed` and emits either JSON or a bounded result summary. The implementation has no independent writer workers or persistent cache. Keeping dependent fixture writes under one ownership lock preserves consistency; there is no evidence that parallel writes would improve product responsiveness.
+
+Disposition: explicit offline fixture setup, not a production navigation path. The existing `internal/demoseed` source conclusion is reused only for the delegated seeding work. This wrapper was not run and no user home or fixture database was modified.
+
+### `scripts/dev-http-endpoint`
+
+Inspected the complete `scripts/dev-http-endpoint/main.go`. The command resolves home paths and loads configuration once per invocation, maps wildcard bind addresses to loopback addresses usable by the caller, and prints host/port. It makes no HTTP request and starts no daemon. Configuration stays fresh through invocation-time loading; there is no retained cache, polling or goroutine to optimize. Disposition: small development preflight command, outside request/renderer paths. Static inspection only, with no config or runtime mutation.
+
+### `scripts/devreadiness`
+
+Inspected `scripts/devreadiness/dev_readiness_integration_test.go`, the directory's only Go file. It is a Unix-only test package, despite the integration filename; it has no production Go command. `TestDevDaemonReadiness`, `TestDevSupervisorReadiness` and `TestRunAir` own build/readiness identity and developer process coordination. Fixtures use temporary directories, real build/Git operations where appropriate and executable shims at external process boundaries. Supervisor tests give the command a context, own its asynchronous wait result and stop its process group with a termination/kill fallback. Readiness marker/run identity prevents stale readiness from starting the next process. These tests explicitly do not establish browser or daemon HTTP-health behavior.
+
+One unmeasured harness lifecycle limitation was reported to the root owner: `readFIFOEvent` starts a goroutine whose `os.Open` or `Read` can remain blocked when the matching writer never arrives. `awaitFIFOEvent` stops its own timer and fails on timeout, but does not cancel or join that producer. The buffered result channel prevents a later send from blocking; it does not bound the FIFO open/read. This is a static failure-path observation, not a reproduced leak, measured regression or product impact claim. No test/tooling change was made under the read-only assignment. Disposition: process cleanup is explicit for launched commands; the FIFO helper's failure lifetime remains an identified limitation. No package tests or readiness harness were executed in this follow-up.
+
+## CI exit-refresh fixture diagnosis (2026-11-02)
+
+Before changing the existing fixture: the invariant is that a completed exit action persists fresh local status and requests exactly one forge refresh with the correct repository/branch identity, then retains the returned forge facts. The owning layer is worktree exit completion, and the canonical suite is `TestExitActions` in `internal/worktree/exit_actions_test.go`.
+
+CI for `14730a705` failed `Should refresh local and forge status once after a completed action`; the exact subtest reproduced locally in 0.467 s. Its positional Git stub still supplied two empty responses for the now-omitted clean `diff` commands. `remote get-url origin` consumed the first empty response, so repository identity was unavailable and the forge refresh correctly could not be scheduled. The failure is in command-to-fixture response routing, not evidence that real Git returns an empty origin after the clean-status optimization. The repair uses the existing command-aware Git stub seam, retains all forge/cache assertions and verifies the persisted local status. No redundant production Git subprocess is restored to satisfy a positional stub.
+
+Only `internal/worktree/exit_actions_test.go` changed for this repair; production sources remain unchanged. Final receipts, all through the bounded runner:
+
+- Exact repaired case: `go test ./internal/worktree -run '^TestExitActions$/Should_refresh_local_and_forge_status_once_after_a_completed_action$' -count=1 -parallel=2` passed in 0.397 s. The unchanged forge assertion still requires one call, the normalized remote URL and the requested branch; the cached forge facts still must exist. The additional read-back requires the persisted local branch, zero dirty files, a refresh timestamp and no read failure.
+- Negative control: the same case with `-overlay .cache/performance/worktree-workspace/exit-refresh-negative-overlay.json` failed in 0.369 s at the forge assertion with zero refresh calls. The overlay omits only `requestPullRequestRefresh` from `refreshAfterExit`; the checked-out production file was never edited. This confirms the repaired fixture still detects an actual missing forge refresh.
+- Full package, including all exit cases: `env CGO_ENABLED=1 go test -race ./internal/worktree -count=1 -parallel=2` passed in 2.935 s.
+- Focused `gofmt` completed, and the repository test-shape checker passed `internal/worktree/exit_actions_test.go`. No test inputs changed after these accepted runs.
+
+The captured failure and raw follow-up receipts are `.cache/performance/worktree-workspace/exit-refresh-before.log`, `exit-refresh-after.log`, `exit-refresh-negative.log`, `exit-refresh-package-race.log` and `exit-refresh-conventions.log`. These establish the fixture diagnosis and package behavior; integrated browser evidence and current-head CI remain root-owned.

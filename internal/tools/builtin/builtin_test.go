@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -24,6 +25,51 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 	nativeDescriptors := NativeDescriptors()
 	descriptors := descriptorMap(nativeDescriptors)
+
+	t.Run("Should return independently owned terminal descriptors matching the catalog", func(t *testing.T) {
+		t.Parallel()
+
+		for _, expected := range nativeDescriptors {
+			if !slices.Contains(expected.Toolsets, toolspkg.ToolsetIDTerminal) {
+				continue
+			}
+			t.Run("Should preserve "+string(expected.ID), func(t *testing.T) {
+				t.Parallel()
+
+				got, ok := TerminalDescriptor(expected.ID)
+				if !ok || !reflect.DeepEqual(got, expected) {
+					t.Fatalf(
+						"TerminalDescriptor(%q) = %#v, %v, want catalog descriptor %#v",
+						expected.ID,
+						got,
+						ok,
+						expected,
+					)
+				}
+				got.InputSchema[0] = '['
+				got.OutputSchema[0] = '['
+				got.Toolsets[0] = "mutated"
+				got.Tags[0] = "mutated"
+				got.SearchHints[0] = "mutated"
+				got.Backend.RequiresCapabilities[0] = "mutated"
+				got.DisplayTitle = "mutated"
+				again, ok := TerminalDescriptor(expected.ID)
+				if !ok || !reflect.DeepEqual(again, expected) {
+					t.Fatalf("TerminalDescriptor(%q) retained caller mutations: %#v", expected.ID, again)
+				}
+			})
+		}
+	})
+
+	t.Run("Should decline non-terminal descriptor IDs", func(t *testing.T) {
+		t.Parallel()
+
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDToolList, "compozy__unknown", ""} {
+			if descriptor, ok := TerminalDescriptor(id); ok || !reflect.DeepEqual(descriptor, toolspkg.Descriptor{}) {
+				t.Fatalf("TerminalDescriptor(%q) = %#v, %v, want no descriptor", id, descriptor, ok)
+			}
+		}
+	})
 
 	t.Run("Should accept ultra through every runtime input boundary", func(t *testing.T) {
 		t.Parallel()

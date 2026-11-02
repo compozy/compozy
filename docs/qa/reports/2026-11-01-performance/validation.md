@@ -39,6 +39,34 @@ machine-wide verification lock. No unrelated verification process was interrupte
 
 ## Corrected attempts
 
+The first published implementation was `14730a705771c0a3eb6e92947eddede632dff666`.
+[CI run 41383826440](https://github.com/compozy/compozy/actions/runs/41383826440)
+passed runtime/desktop E2E, three Web E2E shards, seven Go race shards, SDK race,
+platform checks, codegen and static/build lanes. Three primary failures were retained
+and investigated; aggregate verification jobs also failed because of those results:
+
+- The runtime-selector helper returned as soon as the popup existed, before Motion's
+  final opacity frame. A controlled 250 ms RAF delay reproduced the same visibility
+  failure on baseline and candidate. Waiting for the popup's existing visibility
+  contract fixed both, with original row/provider/ID assertions and default timeouts
+  retained. Root Turbo passed all 114 selector/store tests. See [daemon/runtime](daemon-runtime.md).
+- The worktree exit fixture supplied Git responses by invocation position and still
+  expected two diff subprocesses removed by the measured clean-status fast path. The
+  remote URL consequently received an empty diff response. A command-aware I/O stub
+  restores the real command contract and adds a persisted local-status assertion while
+  preserving the exact forge identity/count and cache assertions. The full worktree
+  race suite passed; suppressing the real forge refresh in a negative overlay still
+  fails. See [worktree/workspace](worktree-workspace.md).
+- The Home health-loss E2E intercepted only `/api/status`, while connection consumers
+  correctly continued reading `/api/status/identity`. The unchanged real-browser test
+  reproduced the failure: full-status requests failed while identity returned 200.
+  Injecting the intended outage into both public health endpoints repaired the existing
+  test without changing production, assertions, timeouts or the real daemon restart.
+  The focused E2E passed with zero retries (25.9 s test, 31.4 s run). See [session/OS](session-os.md).
+
+These are not blanket reruns or relaxed expectations. The replacement head must run
+the required CI lanes again; passing jobs on this earlier SHA are historical evidence.
+
 - Initial browser setup stopped at onboarding; the existing onboarding helper fixed setup.
   A subsequent cross-checkout Playwright import loaded duplicate package instances; imports
   now resolve from the selected checkout's Web package. Failed attempts produced no latency
@@ -63,6 +91,29 @@ Receipts are retained under `.cache/performance/`: `codegen-integrated.log`,
 `go-lint-final.log`, `web-final-lint-types-build.log`,
 `worktree-integrated-real-git.log` and the per-owner directories. Exact reproduction
 commands and measured fixtures are also checked in with each report.
+
+## Follow-up focused evidence
+
+- Session-window identity: the two cached/loading target cases failed before the
+  production edit and the three canonical window/view/sidebar suites passed 45/45
+  afterward. The unchanged instrumented real-app workload then passed 64/64 selections,
+  eight complete streams and teardown; details are in the [navigation review](review-session-navigation.md).
+- Terminal descriptor: complete metadata parity and independent mutable ownership for
+  all nine terminal tools, approval policy/cancellation and the actual call boundary
+  passed focused race checks in builtin and daemon. The canonical benchmark compares
+  the old two-file implementation through a Go overlay against the shared narrow factory.
+- React Doctor `npx --yes react-doctor@latest --verbose --diff` inspected 56 changed
+  source files, reported 93/100 and no issues. Its receipt is
+  `.cache/performance/react-doctor-followup.log`; the repository-pinned CI check remains
+  authoritative for the delivered head.
+- Follow-up root Turbo Web lint/typecheck/build passed all three tasks in 36.075 s;
+  `make codegen-check` passed again. The pinned Go formatter wrapped two long failure
+  messages in the added descriptor tests; those initial formatter failures remain in
+  the receipts. No test expectation or production behavior changed during formatting.
+- Final scoped `make go-lint` passed for `internal/tools/builtin`, `internal/daemon`
+  and `internal/worktree`, with zero issues in normal and integration-tag lanes,
+  all 86 changed Go files passing formatter checks, and source policies passing.
+  Receipt: `.cache/performance/go-lint-followup-accepted.log`.
 
 ## Browser and CI delivery
 

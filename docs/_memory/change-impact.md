@@ -13,6 +13,8 @@ unchanged public and persisted shapes need no compatibility shim or migration.
   work. The worktree aggregate's permitted workspace selection reaches internal hydration
   first; HTTP/UDS response parity remains covered. Connection-only Web consumers reuse the
   existing `/api/status/identity`; full diagnostics remain on the existing status endpoint.
+  Terminal approval selects one freshly constructed descriptor instead of rebuilding the
+  full native catalog; IDs, schema metadata, permission policy and unknown-ID fallback remain.
 - **Extensibility / hooks / config:** no manifest, hook, extension SDK or `config.toml` shape
   changes. Tool discovery takes a fresh per-request authority snapshot; development generation,
   attachment reach and enablement still apply. Skill metadata decodes the already parsed YAML
@@ -28,6 +30,9 @@ unchanged public and persisted shapes need no compatibility shim or migration.
   retain authoritative trailing reads and lifecycle fences. Closed selectors/About defer
   unused work; restart consumers observe only relevant status fields. Terminal pane state
   drops identities removed by the authoritative catalog. No UI redesign or product-copy change.
+  Accepted session retargets bind the new conversation or its loading state immediately,
+  preventing live updates from keeping the previous conversation interactive under the new route.
+  Keyed providers, composer replacement, drawer state and profile/workspace guards remain.
 - **Docs / official skill:** the performance report, requested historical PR-template section
   and affected `docs/qa/scenarios/` notes record measures and verification limits. User-facing
   operations and skill contracts are unchanged, so `packages/site` and `skills/compozy/` need

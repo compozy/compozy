@@ -47,6 +47,14 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 				call.request.RunID != "run-a" || call.request.Generation != 7 {
 				t.Fatalf("approval identity = %#v, want run-a generation 7", call)
 			}
+			if call.view.Descriptor.ID != toolspkg.ToolIDTerminalExec ||
+				call.view.Descriptor.Risk != toolspkg.RiskDestructive ||
+				!slices.Equal(call.view.Descriptor.Backend.RequiresCapabilities, []string{"terminal.exec"}) {
+				t.Fatalf(
+					"terminal approval descriptor = %#v, want terminal exec approval metadata",
+					call.view.Descriptor,
+				)
+			}
 		}
 	})
 
@@ -305,6 +313,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 type terminalApprovalCaptureCall struct {
 	scope   toolspkg.Scope
 	request toolspkg.CallRequest
+	view    toolspkg.ToolView
 }
 
 type terminalApprovalCapture struct {
@@ -316,11 +325,25 @@ func (c *terminalApprovalCapture) RequestToolApproval(
 	_ context.Context,
 	scope toolspkg.Scope,
 	request *toolspkg.CallRequest,
-	_ *toolspkg.ToolView,
+	view *toolspkg.ToolView,
 ) error {
 	request.ApprovalLabel = toolApprovalApprovedOnceLabel
-	c.calls = append(c.calls, terminalApprovalCaptureCall{scope: scope, request: *request})
+	c.calls = append(c.calls, terminalApprovalCaptureCall{scope: scope, request: *request, view: *view})
 	return c.err
+}
+
+func BenchmarkTerminalApprovalDescriptor(b *testing.B) {
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTerminalExec, toolspkg.ToolIDTerminalRequestInput} {
+		b.Run(string(id), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				descriptor := terminalToolDescriptor(id)
+				if descriptor.ID != id {
+					b.Fatalf("terminal descriptor ID = %q, want %q", descriptor.ID, id)
+				}
+			}
+		})
+	}
 }
 
 func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {

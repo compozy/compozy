@@ -148,7 +148,10 @@ function renderSelector({
 
 async function openSelector(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByTestId("rt-trigger"));
-  return screen.findByTestId("runtime-selector-popup");
+  const popup = await screen.findByTestId("runtime-selector-popup");
+  // Motion applies its final opacity on a frame even with skipAnimations.
+  await waitFor(() => expect(popup).toBeVisible());
+  return popup;
 }
 
 function row(id: string): HTMLElement {

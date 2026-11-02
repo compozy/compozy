@@ -381,6 +381,8 @@ func TestExitActions(t *testing.T) {
 		}
 	})
 
+	// Invariant: exit completion persists local truth and refreshes the exact forge identity once.
+	// Owner: worktree exit completion; canonical exit sequencing suite.
 	t.Run("Should refresh local and forge status once after a completed action", func(t *testing.T) {
 		t.Parallel()
 		store := newMemoryWorktreeStore()
@@ -391,15 +393,27 @@ func TestExitActions(t *testing.T) {
 		if err := store.Insert(t.Context(), item); err != nil {
 			t.Fatalf("seed refresh worktree: %v", err)
 		}
-		runner := &recordingGitRunner{responses: []gitResponse{
-			{stdout: []byte("# branch.oid deadbeef\x00# branch.head feature/refresh\x00" +
-				"# branch.upstream origin/feature/refresh\x00# branch.ab +0 -0\x00")},
-			{}, {}, {stdout: []byte("git@github.com:acme/repo.git\n")},
+		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+			switch strings.Join(call.args, " ") {
+			case "status --porcelain=v2 --branch -z":
+				return gitResponse{stdout: []byte("# branch.oid deadbeef\x00# branch.head feature/refresh\x00" +
+					"# branch.upstream origin/feature/refresh\x00# branch.ab +0 -0\x00")}
+			case "remote get-url origin":
+				return gitResponse{stdout: []byte("git@github.com:acme/repo.git\n")}
+			default:
+				return gitResponse{err: errors.New("unexpected Git call")}
+			}
 		}}
 		provider := &recordingExitForge{status: &ForgeStatus{Provider: "github"}}
 		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
 		cache := attachTestPullRequests(t, service, item, provider)
 		service.refreshAfterExit(t.Context(), item)
+		status, err := store.GetStatus(t.Context(), item.WorkspaceID, item.ID)
+		if err != nil || status == nil || status.ReadError != "" || status.Branch == nil ||
+			*status.Branch != item.Branch || status.DirtyFiles == nil || *status.DirtyFiles != 0 ||
+			status.RefreshedAt == nil {
+			t.Fatalf("cached local refresh = %#v, %v", status, err)
+		}
 
 		service.pullRequests.mu.Lock()
 		flight := service.pullRequests.flights[PullRequestKey{item.WorkspaceID, "github.com/acme/repo", item.Branch}]

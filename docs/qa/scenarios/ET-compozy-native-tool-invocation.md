@@ -99,3 +99,16 @@ pass with the race detector. The
 before/after registry measurements without synthetic network delay. Real
 CLI/HTTP/hosted-MCP verification and current-head CI remain pending for this
 audit; this entry does not change historical passing verdicts above.
+
+QA impact 2026-11-02 (terminal descriptor follow-up): terminal execution approval
+now constructs only its terminal descriptor instead of rebuilding the entire
+native catalog. Re-walk a terminal command requiring consent and a rejected
+command through the existing native-tool surface. The displayed tool/risk,
+acting profile/workspace/session/run, approval choices and typed rejection must
+remain unchanged. Observe-only agents must still be unable to execute commands.
+
+The same [performance report](../reports/2026-11-01-performance/events-settings.md)
+records canonical before/after CPU and allocation measurements, plus descriptor
+ownership and approval boundary checks. Focused race verification passed for the canonical descriptor and approval
+suites; real terminal/transport execution and current-head CI remain root-owned
+pending work. This impact note preserves all historical scenario verdicts.

@@ -1,16 +1,26 @@
 # Concurrent-session responsiveness audit
 
-Status: implementation, focused validation and independent review complete; repeated
-browser comparison and current-head CI are in progress. This is not a production-latency claim.
+Status: all directory/system audits and measured implementations are documented,
+including the reproduced navigation stall and causal CI remediation. Focused checks
+and real-app walks are recorded below. [PR #1141](https://github.com/compozy/compozy/pull/1141)
+owns final current-head CI status. The initial browser timings did not establish a stable
+overall navigation gain; the later one-factor experiment isolates the stale identity defect.
 
 Branch: `perf/responsiveness-audit-20261101`. Baseline: `de5ab2f4d`.
 The worktree is isolated from the primary checkout and production runtime state.
 
 ## Scope and evidence
 
-The audit covers the 92 `internal/` package roots and all 28 frontend systems,
-with distinct owners and individual findings in [the coverage inventory](coverage.md).
-Nested package coverage belongs to each owner's report. The work includes database
+The [complete coverage matrix](coverage.md) lists **195/195 tracked Go-containing
+directories** (161 internal, 34 elsewhere) and **28/28 frontend systems**, with a named
+owner, report and disposition for every entry. The [machine-readable inventory](coverage-inventory.json)
+includes file counts and per-directory file-list digests. SDK modules, command entrypoints,
+tooling, embedded contracts and fixtures are included. This supersedes the initial 92-root
+summary, whose grouping did not demonstrate exhaustive nested/outside-internal coverage.
+
+**Audited means documented source inspection, not a benchmark or executed test for every
+directory.** The owner reports distinguish retained measured changes, unchanged code,
+rejected experiments and static-only observations. The work includes database
 queries, navigation/data loading, event reconciliation, state subscriptions, retained
 memory, and whether concurrency would actually remove a measured bottleneck.
 
@@ -58,10 +68,12 @@ per experiment. Benchmark timings include unrelated shared-host noise.
 | Repeated secret registration, 1,024 secrets | 209.715 µs; 36,912 B/op | 0.0507 µs; 0 B/op | [Session/OS](session-os.md) |
 | Slash parser, 128 skills / approximately 0.85 MB prompt | 217.029 ms; 527.54 MB/op | 1.699 ms; 0.133 MB/op | [Events/settings](events-settings.md); UTF-16 positions preserved |
 | Toolset discovery, 32 toolsets / 128 descriptors | 8.853 ms; 128,534 allocations | 2.162 ms; 4,640 allocations | [Events/settings](events-settings.md) |
+| Terminal approval descriptor, actual terminal-exec path | 1.095 ms; 955,364 B/op; 4,906 allocations | 0.00801 ms; 3,560 B/op; 32 allocations | [Events/settings](events-settings.md); same complete descriptor, no approval/policy cache |
 | Unrelated profile read during controlled 20 ms credential I/O | 21.679 ms | 1.458 µs | [Usage/dashboard](usage-dashboard.md); isolation metric, not provider latency |
 
 | Frontend workload | Before | After | Evidence |
 | --- | ---: | ---: | --- |
+| Session retarget under eight streams, one-factor diagnostic | First warm revisit retained the previous conversation for over 5.25 s; 16/64 selections completed | 64/64 completed; 48 warm revisits reached the new conversation in median 166.15 ms, maximum 191.50 ms | [Navigation reproduction](review-session-navigation.md); same assertions and daemon, one diagnostic pair, not a population latency claim |
 | Dashboard, 100 lifecycle events / three observers | 300 reads; 297 cancellations | 6 reads; 0 cancellations | [Usage/dashboard](usage-dashboard.md); all caches reach revision 100 |
 | Loop, 100 events / 100 ms reads | 100 reads; 99 cancellations | 3 reads; 0 cancellations | [Loop/scheduler](loop-loops.md); final revision 100 |
 | Task event, 50 cached run-detail/inspect pairs | 100 rereads | 2 rereads | [API/tasks](api-tasks.md); unknown owners remain conservative |
@@ -108,9 +120,18 @@ behavior; diagnostic panels keep the complete status operation.
 [Scope/SQL review](review-scopes.md) compared extension precedence against the previous
 resolver in 4,608 independent SQLite combinations. [Cache/Loop review](review-cache-loops.md),
 [credential/worktree review](review-usage-worktree.md), [ring/dashboard review](review-ring-dashboard.md)
-[scheduler/session review](review-scheduler-session.md) distinguish source inspection from executed reproductions.
+and [scheduler/session review](review-scheduler-session.md) distinguish source inspection from executed reproductions.
 Confirmed findings retain their identifiers and fix dispositions. The dashboard teardown and
 credential ABA findings have failing-before tests; final receipts are recorded in their reports.
+
+The [integrated validation record](validation.md) separates completed focused checks,
+corrected attempts and CI-owned gates. The [browser report](browser.md) includes all
+accepted timing samples, screenshots, the failed baseline attempt and the explicit
+absence of a stable end-to-end latency claim.
+The [navigation reproduction](review-session-navigation.md) separately isolates a route
+identity deferral that left the old conversation interactive after a successful retarget.
+The fix immediately binds the new identity and its loading state; it does not depend on
+finishing the departing conversation's animation. Existing keyed providers and scope guards remain.
 
 ## Resource limits
 
@@ -135,15 +156,15 @@ correctness invariants, attempted ideas and outcomes needed to assess each chang
 | Requirement | Authoritative evidence | Current state |
 | --- | --- | --- |
 | New isolated worktree | Git branch/worktree inventory | Created from `de5ab2f4d` |
-| Per-package/system delegated audit | Coverage inventory and ten worker reports | All 92 roots and 28 systems audited; nested/entrypoint coverage in reports |
+| Per-package/system delegated audit | Exhaustive coverage matrix, machine-readable inventory and ten worker reports | 195/195 Go directories and 28/28 systems audited; zero pending directory audits; static inspection and runtime evidence separated |
 | Database/query improvements | Real SQLite plans and owning benchmarks/tests | Measured and focused suites passed |
-| Frontend loading/state/memory improvements | Real Query observers, component suites and browser runs | Measured and focused suites passed; integrated browser comparison pending |
+| Frontend loading/state/memory improvements | Real Query observers, component suites and browser runs | Focused suites and real browser passed; causal navigation fix retained; general timing variation prevents a population browser-latency claim |
 | Safe concurrency review | Package reports, ownership/cancellation analysis and race tests | No new production goroutines; focused race and independent reviews passed |
 | Before/after measures for every retained optimization | Worker reports plus consolidated result table | Recorded above with controls and tradeoffs |
-| Real app/integration validation under concurrent sessions | Isolated daemon/browser evidence and current-head CI | Pending |
-| Cross-surface impact and QA scenario updates | Change-impact entry and affected scenario files | Updated; integrated receipts pending |
-| Detailed PR and requested `.github/PULL_REQUEST_TEMPLATE.md` | Published PR description and tracked template section | Pending |
-| Final required CI and clean worktree | Current PR head, CI checks and Git status | Pending |
+| Real app/integration validation under concurrent sessions | Isolated daemon/browser evidence and current-head CI | Three original candidate runs passed 64 selections; later diagnostic reproduced stale identity and the one-factor fix passed 64/64; PR checks own combined platform acceptance |
+| Cross-surface impact and QA scenario updates | Change-impact entry and affected scenario files | Updated with focused checks, real walks and explicit historical limits |
+| Detailed PR and requested `.github/PULL_REQUEST_TEMPLATE.md` | PR description and tracked historical template section | Consolidated metrics, exhaustive coverage, rejected experiments, CI remediation and browser evidence |
+| Final required CI and clean worktree | Current PR head, live checks and final delivery receipt | Delivery requires green checks at the actual head; earlier green jobs are not substituted |
 
 ## Attempts and correctness
 
