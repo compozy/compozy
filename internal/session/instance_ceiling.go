@@ -86,7 +86,8 @@ func (m *Manager) applyInstanceCeiling(
 
 // instanceLevel keeps every instance-lineage session at or below the level configured for its own
 // agent. The instance's main session always uses that level, so a level persisted by an older
-// daemon does not survive a resume; a descendant keeps any narrower level it was started with.
+// daemon does not survive a resume, and settings alone never lift it above approve-reads. A
+// descendant resolves like any other session and keeps a narrower level it was started with.
 func (m *Manager) instanceLevel(
 	spec *sessionStartSpec,
 	resolved compozyconfig.ResolvedAgent,
@@ -94,7 +95,13 @@ func (m *Manager) instanceLevel(
 ) compozyconfig.PermissionMode {
 	configured := m.startPermissions(resolved.Permissions)
 	requested := m.startPermissions(startSpecPermissions(spec, resolved.Permissions))
-	if main || requested.Rank() > configured.Rank() {
+	if main {
+		if !resolved.PermissionsConfigured && configured.Rank() > compozyconfig.PermissionModeApproveReads.Rank() {
+			return compozyconfig.PermissionModeApproveReads
+		}
+		return configured
+	}
+	if requested.Rank() > configured.Rank() {
 		return configured
 	}
 	return requested

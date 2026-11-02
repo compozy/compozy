@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -114,6 +115,26 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 	})
 }
 
+func setHarnessAgentLevel(h *harness, mode compozyconfig.PermissionMode) {
+	h.resolver.mu.Lock()
+	defer h.resolver.mu.Unlock()
+	setLevel := func(agents []compozyconfig.AgentDef) []compozyconfig.AgentDef {
+		updated := slices.Clone(agents)
+		for i := range updated {
+			updated[i].Permissions = string(mode)
+		}
+		return updated
+	}
+	for ref, resolved := range h.resolver.byRef {
+		resolved.Agents = setLevel(resolved.Agents)
+		h.resolver.byRef[ref] = resolved
+	}
+	for path, resolved := range h.resolver.byPath {
+		resolved.Agents = setLevel(resolved.Agents)
+		h.resolver.byPath[path] = resolved
+	}
+}
+
 func setHarnessPermissionMode(h *harness, mode compozyconfig.PermissionMode) {
 	h.resolver.mu.Lock()
 	defer h.resolver.mu.Unlock()
@@ -214,7 +235,7 @@ func TestInstancePermissionMode(t *testing.T) {
 			func(t *testing.T) {
 				t.Parallel()
 				h := newHarness(t)
-				setHarnessPermissionMode(h, mode)
+				setHarnessAgentLevel(h, mode)
 				h.manager = newManagerWithHarness(t, h)
 				cleanupTestManager(t, h.manager)
 				h.manager.SetInstanceCeilingReader(
@@ -274,9 +295,38 @@ func TestInstancePermissionMode(t *testing.T) {
 		)
 	}
 
+	for _, tc := range []struct{ settings, want compozyconfig.PermissionMode }{
+		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveReads},
+		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
+		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
+	} {
+		t.Run("Should cap a main session with no level under "+string(tc.settings)+" settings UT-089", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			setHarnessPermissionMode(h, tc.settings)
+			h.manager.SetInstanceCeilingReader(
+				func(context.Context, string, string) (*InstanceCeiling, error) {
+					return &InstanceCeiling{
+						Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+						Main:   true,
+					}, nil
+				},
+			)
+			created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			if got := created.Info().EffectivePermissions; got != string(tc.want) {
+				t.Fatalf("main permissions = %s, want %s", got, tc.want)
+			}
+		})
+	}
+
 	t.Run("Should restore the configured level of a main session persisted below it", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
+		setHarnessAgentLevel(h, compozyconfig.PermissionModeApproveAll)
 		h.manager.SetInstanceCeilingReader(
 			func(context.Context, string, string) (*InstanceCeiling, error) {
 				return &InstanceCeiling{

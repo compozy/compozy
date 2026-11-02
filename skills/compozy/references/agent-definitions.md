@@ -240,8 +240,9 @@ never rendered into a session, and CompozyOS does not rewrite the file.
 
 ## Stays-On Permission Level
 
-- A stays-on agent runs at the level resolved for its own definition: `permissions`, then
-  `[permissions].mode` from settings. This holds for instances created by the operator or by an agent,
+- A stays-on agent runs at the `permissions` set on its own definition, and `approve-all` stays
+  `approve-all`. With no level on the definition it runs at `approve-reads`, or at `[permissions].mode`
+  when that is narrower. This holds for instances created by the operator or by an agent,
   and for main sessions resumed after an older release lowered them.
 - Sessions an instance starts do not inherit its level. Each uses the `permissions` of its own
   definition, or `[permissions].mode`. A delegation that omits `permission_mode` or sets `inherit` gets

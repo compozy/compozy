@@ -61,8 +61,8 @@ the native runtime walk remains pending.
 
 Instance permission level: configure one stays-on agent with `permissions: approve-all` and one with
 `approve-reads`, with `[permissions].mode = "approve-all"`. Create both instances, then prompt a turn
-that requests an edit. The first is allowed with no prompt, the second waits for the operator. A
-session created under the `approve-reads` instance with no level of its own runs at `approve-all` and
+that requests an edit. The first is allowed with no prompt, the second waits for the operator. A third
+stays-on agent with no `permissions` waits for the operator too. A session created under the `approve-reads` instance with no level of its own runs at `approve-all` and
 keeps the instance's tool, skill, MCP server, and path ceilings. Hidden triage stays read-only.
 `TestInstancePermissionMode` and `TestTriageSessionPermissions` own the level rules; the same walk ran
 through a real daemon with a scripted ACP provider.
