@@ -3,17 +3,20 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { statusFixture } from "../../mocks/fixtures";
+import { runtimeIdentityFixture, statusFixture } from "../../mocks/fixtures";
 import { statusKeys } from "../../lib/query-keys";
 import { deriveDaemonConnectionStatus, useDaemonHealth } from "../use-daemon-health";
 import { useDaemonStatus } from "../use-daemon-status";
 import { useStatus } from "../use-status";
+import { useDaemonConnectionStatus } from "../use-daemon-connection-status";
+import { useRuntimeIdentity } from "../use-runtime-identity";
 
 vi.mock("../../adapters/daemon-api", () => ({
   fetchStatus: vi.fn(),
+  fetchRuntimeIdentity: vi.fn(),
 }));
 
-import { fetchStatus } from "../../adapters/daemon-api";
+import { fetchRuntimeIdentity, fetchStatus } from "../../adapters/daemon-api";
 
 function createWrapper(queryClient?: QueryClient) {
   const client =
@@ -106,6 +109,55 @@ describe("daemon status query projections", () => {
 
     expect(result.current.data).toEqual(statusFixture.daemon);
     expect(fetchStatus).not.toHaveBeenCalled();
+  });
+
+  it("Should share bounded identity reads and retain refresh and failure behavior", async () => {
+    vi.useFakeTimers();
+    const restartedIdentity = {
+      ...runtimeIdentityFixture,
+      daemon: {
+        ...runtimeIdentityFixture.daemon,
+        pid: 5252,
+        started_at: "2026-04-18T18:00:00Z",
+        user_home_dir: "/workspace/new-home",
+      },
+    };
+    vi.mocked(fetchRuntimeIdentity)
+      .mockResolvedValueOnce(runtimeIdentityFixture)
+      .mockResolvedValueOnce(restartedIdentity)
+      .mockRejectedValue(new Error("Connection closed"));
+
+    const { result, unmount } = renderHook(
+      () => ({
+        firstConnection: useDaemonConnectionStatus(),
+        secondConnection: useDaemonConnectionStatus(),
+        identity: useRuntimeIdentity(),
+        diagnostics: useStatus({ enabled: false }),
+      }),
+      { wrapper: createWrapper() }
+    );
+
+    try {
+      expect(result.current.firstConnection).toBe("connecting");
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.firstConnection).toBe("connected");
+      expect(result.current.secondConnection).toBe("connected");
+      expect(result.current.identity.data).toEqual(runtimeIdentityFixture);
+      expect(fetchRuntimeIdentity).toHaveBeenCalledTimes(1);
+
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(result.current.identity.data).toEqual(restartedIdentity);
+      expect(fetchRuntimeIdentity).toHaveBeenCalledTimes(2);
+
+      await act(() => vi.advanceTimersByTimeAsync(11_100));
+      expect(result.current.firstConnection).toBe("error");
+      expect(result.current.secondConnection).toBe("error");
+      expect(result.current.identity.data).toEqual(restartedIdentity);
+      expect(fetchStatus).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("Should report connecting while the first shared status request is pending", () => {

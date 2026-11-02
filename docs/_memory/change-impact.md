@@ -1,5 +1,64 @@
 # Compozy Change Impact
 
+## Concurrent-session responsiveness audit — 2026-11-01
+
+Owner: `perf/responsiveness-audit-20261101`, original baseline `de5ab2f4d`, integrated main `8c025ff8f`.
+The owning evidence is `docs/qa/reports/2026-11-01-performance/README.md`, its package/system
+inventory and linked measurement/review reports. This is an internal-code optimization;
+unchanged public and persisted shapes need no compatibility shim or migration.
+These statements describe the performance delta relative to its base. The integrated
+Stays-on commit owns its new instance/memory contracts, migrations and identity dependencies;
+this audit preserves them and records their source inspection and focused integration checks.
+
+- **Native tools / CLI / HTTP / UDS:** existing IDs, verbs, flags, routes, DTOs, event payloads,
+  ordering and scope authority remain. Scheduler capability/task projections, task-event
+  snapshots, extension discovery, worktree aggregates and session catalogs do less repeated
+  work. The worktree aggregate's permitted workspace selection reaches internal hydration
+  first; HTTP/UDS response parity remains covered. Connection-only Web consumers reuse the
+  existing `/api/status/identity`; full diagnostics remain on the existing status endpoint.
+  Terminal approval selects one freshly constructed descriptor instead of rebuilding the
+  full native catalog; IDs, schema metadata, permission policy and unknown-ID fallback remain.
+- **Extensibility / hooks / config:** no manifest, hook, extension SDK or `config.toml` shape
+  changes. Tool discovery takes a fresh per-request authority snapshot; development generation,
+  attachment reach and enablement still apply. Skill metadata decodes the already parsed YAML
+  node. Ordered hooks and their worker limits are unchanged.
+- **User state / workspace isolation:** no SQLite schema, migration, persisted layout or
+  workspace-file format changes. Queries use existing indexes and generated SQLC code.
+  Profile/workspace filtering precedes rich projection where possible. Credential checks
+  move outside the shared mutex with identity/publication fences; a late read cannot publish
+  or clear another ownership generation. Positive read evidence, including unchanged-file
+  evidence, also fences older reads; validation errors do not. Failed workspace resolution
+  and retryable repository identity are not cached across later display rows, preserving
+  transient recovery while batching successes and retaining stable negative identity policy.
+  Failed PR-fact batches recover per key so a malformed persisted row cannot suppress valid
+  siblings; successful batches remain a single read, and cancellation stops fallback work.
+  A sequence-only collision on a credential mismatch triggers fresh evidence outside the mutex;
+  application order alone does not establish observation order. Error classification is unchanged.
+  Attachment checks retain authoritative retention,
+  pins, scope and content verification. Package availability reuse is bounded and keyed by
+  digest plus held-file identity/change evidence; installation always rehashes.
+- **Web:** session/task/worktree invalidation avoids unrelated scopes; Dashboard/Loop bursts
+  retain authoritative trailing reads and lifecycle fences. Loop/Home reconciliation belongs
+  to each existing Query, so one pending read cannot block updates to healthy queries.
+  Their shared subscription-local helper bounds a pending active cached read with the existing
+  15-second/30-second refresh intervals, retaining promise identity and initial/disabled/static
+  boundaries. No global HTTP timeout, cache authority or cross-subscription scheduler is added.
+  Closed selectors/About defer
+  unused work; restart consumers observe only relevant status fields. Terminal pane state
+  drops identities removed by the authoritative catalog. No UI redesign or product-copy change.
+  Accepted session retargets bind the new conversation or its loading state immediately,
+  preventing live updates from keeping the previous conversation interactive under the new route.
+  Keyed providers, composer replacement, drawer state and profile/workspace guards remain.
+- **Docs / official skill:** the performance report, requested historical PR-template section
+  and affected `docs/qa/scenarios/` notes record measures and verification limits. User-facing
+  operations and skill contracts are unchanged, so `packages/site` and `skills/compozy/` need
+  no behavioral documentation update. Local isolated fixtures use no production credentials.
+- **Validation:** each optimization names its invariant and existing canonical suite before
+  adding coverage. Real SQLite/Git/filesystem tests and focused race checks complement real
+  QueryObserver/component tests. The report separately records concurrent-session browser
+  observations, rejected experiments, tradeoffs and current-head CI; static audit is not
+  runtime evidence. Heavy validation is assigned to CI under the user's explicit authorization.
+
 ## `@compozy/ui` → BnUI convergence — `theme-compozy`, contract tokens, single points
 
 **Owning spec:** `.compozy/tasks/ui-bnui-convergence/_spec.md` (2026-10-31). Impact Analysis and

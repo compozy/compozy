@@ -112,10 +112,19 @@ function invalidateSessionReads(
   prefixes: readonly QueryKey[],
   exact: readonly QueryKey[] = []
 ): Promise<void> {
-  // Each invalidation scans the cache twice; match this wake's keys in one pass.
+  // Resource/session identities differ near the tail; avoid traversing the
+  // shared workspace prefix for each unrelated retained read.
   return queryClient.invalidateQueries({
     predicate: ({ queryKey }) =>
-      exact.some(key => key.length === queryKey.length && queryKeyHasScope(queryKey, key)) ||
+      exact.some(key => sameSessionReadKey(queryKey, key)) ||
       prefixes.some(key => queryKeyHasScope(queryKey, key)),
   });
+}
+
+function sameSessionReadKey(left: QueryKey, right: QueryKey): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = left.length - 1; index >= 0; index--) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
 }

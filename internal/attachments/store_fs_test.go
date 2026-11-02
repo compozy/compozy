@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -77,6 +78,15 @@ func TestFilesystemAttachmentStoreRoundTrip(t *testing.T) {
 		foreign, err := store.Stat(t.Context(), "ws_b", "sess_1", ref.ID)
 		if !errors.Is(err, ErrNotFound) || foreign != (AttachmentRef{}) {
 			t.Fatalf("Stat(foreign workspace) = %#v, %v, want not found", foreign, err)
+		}
+		foreignReader, _, err := store.Open(t.Context(), "ws_b", "sess_1", ref.ID)
+		if foreignReader != nil {
+			if err := foreignReader.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !errors.Is(err, ErrNotFound) {
+			t.Fatalf("Open(foreign workspace) error = %v, want not found", err)
 		}
 
 		if err := store.Delete(t.Context(), "ws_a", "sess_1", ref.ID); err != nil {
@@ -426,6 +436,34 @@ func TestFilesystemAttachmentStoreRetention(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refresh pins again before reserving capacity for a new attachment", func(t *testing.T) {
+		t.Parallel()
+		retention := testAttachmentRetention()
+		retention.MaxCount = 1
+		store := openTestAttachmentStore(t, filepath.Join(t.TempDir(), "session-attachments"), retention)
+		retained, err := store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_queued", Name: "queued.txt", Data: []byte("queued"),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reads := 0
+		store.retentionPins = retentionPinSourceFunc(func(context.Context, string) (map[string]struct{}, error) {
+			reads++
+			if reads == 1 {
+				return nil, nil
+			}
+			return map[string]struct{}{retained.ID: {}}, nil
+		})
+		_, err = store.Put(t.Context(), PutRequest{
+			WorkspaceID: "ws_a", SessionID: "sess_new", Name: "new.txt", Data: []byte("new"),
+		})
+		if !errors.Is(err, ErrPersistence) {
+			t.Fatalf("Put() error = %v, want pinned capacity rejection", err)
+		}
+		assertAttachmentPresent(t, store, "ws_a", "sess_queued", retained.ID)
+	})
+
 	t.Run("Should preserve pending-input pins until the queue releases them", func(t *testing.T) {
 		t.Parallel()
 
@@ -546,9 +584,7 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 		if err := store.Sweep(t.Context()); err != nil {
 			t.Fatalf("Sweep() error = %v, want sidecar-only retention accounting", err)
 		}
-		if _, err := store.Stat(t.Context(), "ws_a", "sess_1", ref.ID); !errors.Is(err, ErrCorrupt) {
-			t.Fatalf("Stat() error = %v, want corrupt", err)
-		}
+		assertCorruptAttachment(t, store, "ws_a", "sess_1", ref.ID)
 	})
 
 	t.Run("Should reject a sidecar whose byte count differs from content", func(t *testing.T) {
@@ -582,9 +618,7 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 		if err := os.WriteFile(sidecarPath, encoded, attachmentFileMode); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
-		if _, err := store.Stat(t.Context(), "ws_a", "sess_1", ref.ID); !errors.Is(err, ErrCorrupt) {
-			t.Fatalf("Stat() error = %v, want corrupt", err)
-		}
+		assertCorruptAttachment(t, store, "ws_a", "sess_1", ref.ID)
 	})
 
 	t.Run("Should reject a symlink sidecar", func(t *testing.T) {
@@ -612,9 +646,7 @@ func TestFilesystemAttachmentStoreMetadataIntegrity(t *testing.T) {
 		if err := os.Symlink(targetPath, sidecarPath); err != nil {
 			t.Fatalf("Symlink() error = %v", err)
 		}
-		if _, err := store.Stat(t.Context(), "ws_a", "sess_1", ref.ID); !errors.Is(err, ErrCorrupt) {
-			t.Fatalf("Stat() error = %v, want corrupt", err)
-		}
+		assertCorruptAttachment(t, store, "ws_a", "sess_1", ref.ID)
 	})
 }
 
@@ -659,6 +691,22 @@ func (s *testRetentionPinSource) PinnedAttachmentIDs(
 
 func testAttachmentLimits() StoreLimits {
 	return StoreLimits{MaxFileBytes: 1 << 20, AllowedMIME: DefaultAllowedMIMEs()}
+}
+
+func assertCorruptAttachment(t *testing.T, store Store, workspaceID, sessionID, id string) {
+	t.Helper()
+	if _, err := store.Stat(t.Context(), workspaceID, sessionID, id); !errors.Is(err, ErrCorrupt) {
+		t.Fatalf("Stat() error = %v, want corrupt", err)
+	}
+	reader, _, err := store.Open(t.Context(), workspaceID, sessionID, id)
+	if reader != nil {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+	}
+	if !errors.Is(err, ErrCorrupt) {
+		t.Fatalf("Open() error = %v, want corrupt", err)
+	}
 }
 
 func assertAttachmentMissing(
@@ -713,4 +761,114 @@ func TestFilesystemAttachmentStoreUserScope(t *testing.T) {
 		}
 		lease.Release()
 	})
+}
+
+func BenchmarkFilesystemAttachmentStorePutRetained(b *testing.B) {
+	for _, count := range []int{128, 512} {
+		b.Run(fmt.Sprintf("retained_%d", count), func(b *testing.B) {
+			root := filepath.Join(b.TempDir(), "attachments")
+			retention := testAttachmentRetention()
+			retention.MaxCount = count
+			store, err := OpenFilesystemAttachmentStore(b.Context(), FilesystemStoreConfig{
+				Root: root, Retention: retention, Limits: testAttachmentLimits(),
+			})
+			if err != nil {
+				b.Fatal(err)
+			}
+			now := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
+			store.now = func() time.Time { return now }
+			for index := range count {
+				data := fmt.Appendf(nil, "retained content %d", index)
+				id := attachmentID(data)
+				directory := filepath.Join(root, "ws_bench", fmt.Sprintf("sess_%d", index))
+				if err := os.MkdirAll(directory, attachmentDirMode); err != nil {
+					b.Fatal(err)
+				}
+				meta := store.newAttachmentMeta(
+					PutRequest{Name: "notes.txt", Data: data},
+					id,
+					MIMETextPlain,
+					KindFile,
+					0,
+					0,
+				)
+				encoded, err := json.Marshal(meta)
+				if err != nil {
+					b.Fatal(err)
+				}
+				path := filepath.Join(directory, id)
+				if err := os.WriteFile(path, data, attachmentFileMode); err != nil {
+					b.Fatal(err)
+				}
+				if err := os.WriteFile(metaPath(path), encoded, attachmentFileMode); err != nil {
+					b.Fatal(err)
+				}
+			}
+			now = now.Add(time.Minute)
+			index := 0
+			b.ReportAllocs()
+			for b.Loop() {
+				_, err := store.Put(b.Context(), PutRequest{
+					WorkspaceID: "ws_bench", SessionID: "sess_fresh", Name: "new.txt",
+					Data: fmt.Appendf(nil, "new content %d", index),
+				})
+				if err != nil {
+					b.Fatal(err)
+				}
+				index++
+			}
+		})
+	}
+}
+
+func BenchmarkFilesystemAttachmentStoreRead(b *testing.B) {
+	for _, size := range []int{64 << 10, 4 << 20} {
+		for _, method := range []string{"Stat", "Open"} {
+			b.Run(fmt.Sprintf("%s_%d", method, size), func(b *testing.B) {
+				retention := testAttachmentRetention()
+				retention.MaxBytes = 16 << 20
+				limits := testAttachmentLimits()
+				limits.MaxFileBytes = 8 << 20
+				store, err := OpenFilesystemAttachmentStore(b.Context(), FilesystemStoreConfig{
+					Root: b.TempDir(), Retention: retention, Limits: limits,
+				})
+				if err != nil {
+					b.Fatal(err)
+				}
+				data := bytes.Repeat([]byte("x"), size)
+				copy(data, "%PDF")
+				ref, err := store.Put(b.Context(), PutRequest{
+					WorkspaceID: "ws_bench", SessionID: "sess_bench", Name: "document.pdf", Data: data,
+				})
+				if err != nil {
+					b.Fatal(err)
+				}
+				b.ReportAllocs()
+				for b.Loop() {
+					if method == "Stat" {
+						if _, err := store.Stat(b.Context(), "ws_bench", "sess_bench", ref.ID); err != nil {
+							b.Fatal(err)
+						}
+						continue
+					}
+					reader, _, err := store.Open(b.Context(), "ws_bench", "sess_bench", ref.ID)
+					if err != nil {
+						b.Fatal(err)
+					}
+					if err := reader.Close(); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}
+
+type retentionPinSourceFunc func(context.Context, string) (map[string]struct{}, error)
+
+func (f retentionPinSourceFunc) PinnedAttachmentIDs(
+	ctx context.Context,
+	sessionID string,
+) (map[string]struct{}, error) {
+	return f(ctx, sessionID)
 }

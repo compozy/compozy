@@ -7,7 +7,7 @@ import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import { sessionKeys } from "@/systems/session";
 import { statusKeys } from "@/systems/status";
 import { ACTIVE_WORKSPACE_PERSIST_KEY } from "@/systems/workspace";
-import { statusFixture } from "@/systems/status/mocks";
+import { runtimeIdentityFixture } from "@/systems/status/mocks";
 
 import { useActiveWorkspace } from "../use-active-workspace";
 import { activeWorkspaceStore, rehydrateActiveWorkspaceStore } from "../use-active-workspace-store";
@@ -109,7 +109,7 @@ describe("workspace hooks", () => {
 
   it("keeps cached workspaces visible without fetching while disabled", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
     queryClient.setQueryData(workspaceKeys.list(), [makeWorkspace()]);
 
     const { result } = renderHook(() => useActiveWorkspace({ enabled: false }), {
@@ -300,7 +300,7 @@ describe("useActiveWorkspace", () => {
     const beta = makeWorkspace({ id: "ws_beta", root_dir: "/workspace/beta" });
     vi.mocked(fetchWorkspaces).mockResolvedValue([alpha]);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
     const wrapper = createWrapper(queryClient);
     const first = renderHook(() => useActiveWorkspace(), { wrapper });
     await waitFor(() => expect(first.result.current.pending).toBe(false));
@@ -356,7 +356,7 @@ describe("useActiveWorkspace", () => {
 
     vi.mocked(fetchWorkspaces).mockResolvedValue([alpha]);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
     queryClient.setQueryData(workspaceKeys.list(), [alpha]);
     const { result } = renderHook(() => useActiveWorkspace(), {
       wrapper: createWrapper(queryClient),
@@ -403,7 +403,7 @@ describe("useActiveWorkspace", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
 
     const { result } = renderHook(() => useActiveWorkspace(), {
       wrapper: createWrapper(queryClient),
@@ -423,7 +423,7 @@ describe("useActiveWorkspace", () => {
       makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
     ]);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(statusKeys.current(), statusFixture);
+    queryClient.setQueryData(statusKeys.identity(), runtimeIdentityFixture);
 
     const { result } = renderHook(() => useActiveWorkspace(), {
       wrapper: createWrapper(queryClient),
@@ -438,13 +438,13 @@ describe("useActiveWorkspace", () => {
 });
 
 describe("useUserHomeDir", () => {
-  it("reads the daemon home directory directly from the status query", async () => {
+  it("reads the daemon home directory from the bounded runtime identity query", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
     });
-    queryClient.setQueryData(statusKeys.current(), {
-      ...statusFixture,
-      daemon: { ...statusFixture.daemon, user_home_dir: "/workspace/home-one" },
+    queryClient.setQueryData(statusKeys.identity(), {
+      ...runtimeIdentityFixture,
+      daemon: { ...runtimeIdentityFixture.daemon, user_home_dir: "/workspace/home-one" },
     });
 
     const { result } = renderHook(() => useUserHomeDir(), {
@@ -454,9 +454,9 @@ describe("useUserHomeDir", () => {
     expect(result.current).toBe("/workspace/home-one");
 
     act(() => {
-      queryClient.setQueryData(statusKeys.current(), {
-        ...statusFixture,
-        daemon: { ...statusFixture.daemon, user_home_dir: "/workspace/home-two" },
+      queryClient.setQueryData(statusKeys.identity(), {
+        ...runtimeIdentityFixture,
+        daemon: { ...runtimeIdentityFixture.daemon, user_home_dir: "/workspace/home-two" },
       });
     });
 

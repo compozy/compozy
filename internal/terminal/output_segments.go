@@ -75,7 +75,3 @@ func validOutputTailSuffix(value string, maximum int) string {
 	}
 	return string(bytes)
 }
-
-func cloneOutputSegments(segments []OutputSegment) []OutputSegment {
-	return append([]OutputSegment(nil), segments...)
-}

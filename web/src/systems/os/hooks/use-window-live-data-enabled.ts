@@ -27,12 +27,27 @@ function liveDataOwners(state: OsDesktopRuntimeStore): readonly string[] {
     if (owners.length === LIVE_DATA_WINDOW_BUDGET) return owners;
   }
 
-  const unvisited = Object.entries(state.windows).sort(
-    ([leftId, left], [rightId, right]) => right.layer - left.layer || leftId.localeCompare(rightId)
-  );
-  for (const [windowId] of unvisited) {
-    append(windowId);
-    if (owners.length === LIVE_DATA_WINDOW_BUDGET) break;
+  const windowIds = Object.keys(state.windows);
+  while (owners.length < LIVE_DATA_WINDOW_BUDGET) {
+    let nextId: string | null = null;
+    for (const windowId of windowIds) {
+      const window = state.windows[windowId];
+      if (
+        owners[0] === windowId ||
+        owners[1] === windowId ||
+        !canOwnLiveData(window, state.activeDesktopId)
+      )
+        continue;
+      if (
+        nextId === null ||
+        window.layer > state.windows[nextId].layer ||
+        (window.layer === state.windows[nextId].layer && windowId.localeCompare(nextId) < 0)
+      ) {
+        nextId = windowId;
+      }
+    }
+    if (nextId === null) break;
+    owners.push(nextId);
   }
   return owners;
 }

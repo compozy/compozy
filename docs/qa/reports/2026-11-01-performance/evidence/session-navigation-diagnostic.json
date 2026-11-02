@@ -1,0 +1,2923 @@
+{
+  "purpose": "One-factor diagnostic, not a population latency benchmark",
+  "beforeSource": "14730a705",
+  "afterBehaviorChange": "Read authoritative window pathname and drawer identity without deferral",
+  "daemonSourceBoth": "14730a705",
+  "fixture": {
+    "activeSessions": 32,
+    "streamingSessions": 8,
+    "retainedSessions": 640,
+    "plannedSelections": 64,
+    "streamUpdatesEach": 600,
+    "streamDelayMs": 100
+  },
+  "unchangedAssertions": {
+    "currentRowTimeoutMs": 5000,
+    "chatVisible": true,
+    "twoAnimationFrames": true,
+    "retriesAdded": false
+  },
+  "negativeControl": {
+    "cachedAndLoadingIdentityCasesFailedBefore": 2,
+    "otherOwningCasesPassedBefore": 27,
+    "owningTestsPassedAfter": 45
+  },
+  "before": {
+    "outcome": "failed",
+    "attempted": 17,
+    "completed": 16,
+    "browserErrorCount": 0,
+    "httpErrorCount": 0,
+    "commandCount": 18,
+    "allCommandsApplied": true,
+    "rowOrderVersions": 1,
+    "teardown": {
+      "browser": "fulfilled",
+      "runtime": "fulfilled"
+    },
+    "selections": [
+      {
+        "ordinal": 1,
+        "pass": 0,
+        "fixtureSession": "Performance 16",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 125.186
+        },
+        "clickCallMs": 96.368,
+        "clockBridgeSpanMs": 88.863,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.6,
+        "clickToDOMMs": 327.7,
+        "windowIdentityToCurrentMs": 321.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          18.957,
+          107.82
+        ],
+        "ariaAssertionMs": 310.184,
+        "chatAssertionMs": 49.378,
+        "twoFramesMs": 109.705,
+        "harnessTotalMs": 565.635,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 98.001,
+          "bodyMs": 123.397
+        }
+      },
+      {
+        "ordinal": 2,
+        "pass": 0,
+        "fixtureSession": "Performance 17",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 94.201
+        },
+        "clickCallMs": 157.865,
+        "clockBridgeSpanMs": 6.434,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.5,
+        "clickToDOMMs": 272.5,
+        "windowIdentityToCurrentMs": 266.0,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          19.694,
+          26.128
+        ],
+        "ariaAssertionMs": 277.922,
+        "chatAssertionMs": 51.625,
+        "twoFramesMs": 110.644,
+        "harnessTotalMs": 598.056,
+        "expectedSessionCompletedReadCount": 8,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 52.989,
+          "bodyMs": 86.659
+        }
+      },
+      {
+        "ordinal": 3,
+        "pass": 0,
+        "fixtureSession": "Performance 18",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 101.88
+        },
+        "clickCallMs": 175.923,
+        "clockBridgeSpanMs": 35.944,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.0,
+        "clickToDOMMs": 275.4,
+        "windowIdentityToCurrentMs": 269.4,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          16.83,
+          52.774
+        ],
+        "ariaAssertionMs": 277.505,
+        "chatAssertionMs": 46.419,
+        "twoFramesMs": 122.717,
+        "harnessTotalMs": 622.564,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 57.391,
+          "bodyMs": 94.899
+        }
+      },
+      {
+        "ordinal": 4,
+        "pass": 0,
+        "fixtureSession": "Performance 19",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 93.53
+        },
+        "clickCallMs": 116.7,
+        "clockBridgeSpanMs": 36.458,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.8,
+        "clickToDOMMs": 264.3,
+        "windowIdentityToCurrentMs": 257.5,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          21.598,
+          58.055
+        ],
+        "ariaAssertionMs": 274.796,
+        "chatAssertionMs": 13.229,
+        "twoFramesMs": 156.441,
+        "harnessTotalMs": 561.166,
+        "expectedSessionCompletedReadCount": 9,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 53.881,
+          "bodyMs": 86.797
+        }
+      },
+      {
+        "ordinal": 5,
+        "pass": 0,
+        "fixtureSession": "Performance 20",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 98.194
+        },
+        "clickCallMs": 121.489,
+        "clockBridgeSpanMs": 32.646,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.2,
+        "clickToDOMMs": 271.3,
+        "windowIdentityToCurrentMs": 265.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          19.928,
+          52.574
+        ],
+        "ariaAssertionMs": 276.737,
+        "chatAssertionMs": 47.261,
+        "twoFramesMs": 78.11,
+        "harnessTotalMs": 523.596,
+        "expectedSessionCompletedReadCount": 11,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 106.381,
+          "bodyMs": 106.392
+        }
+      },
+      {
+        "ordinal": 6,
+        "pass": 0,
+        "fixtureSession": "Performance 21",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 349.365
+        },
+        "clickCallMs": 135.073,
+        "clockBridgeSpanMs": 9.461,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.0,
+        "clickToDOMMs": 252.5,
+        "windowIdentityToCurrentMs": 246.5,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          108.48,
+          117.941
+        ],
+        "ariaAssertionMs": 347.606,
+        "chatAssertionMs": 43.235,
+        "twoFramesMs": 34.464,
+        "harnessTotalMs": 560.378,
+        "expectedSessionCompletedReadCount": 11,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 85.204,
+          "bodyMs": 85.511
+        }
+      },
+      {
+        "ordinal": 7,
+        "pass": 0,
+        "fixtureSession": "Performance 22",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 96.244
+        },
+        "clickCallMs": 121.601,
+        "clockBridgeSpanMs": 71.197,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 5.4,
+        "clickToDOMMs": 263.9,
+        "windowIdentityToCurrentMs": 258.5,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.724,
+          95.921
+        ],
+        "ariaAssertionMs": 269.62,
+        "chatAssertionMs": 43.292,
+        "twoFramesMs": 97.736,
+        "harnessTotalMs": 532.25,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 90.319,
+          "bodyMs": 96.219
+        }
+      },
+      {
+        "ordinal": 8,
+        "pass": 0,
+        "fixtureSession": "Performance 23",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 102.752
+        },
+        "clickCallMs": 151.336,
+        "clockBridgeSpanMs": 28.199,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 5.2,
+        "clickToDOMMs": 270.4,
+        "windowIdentityToCurrentMs": 265.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          23.793,
+          51.992
+        ],
+        "ariaAssertionMs": 288.455,
+        "chatAssertionMs": 43.991,
+        "twoFramesMs": 123.047,
+        "harnessTotalMs": 606.829,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 65.724,
+          "bodyMs": 95.148
+        }
+      },
+      {
+        "ordinal": 9,
+        "pass": 0,
+        "fixtureSession": "Performance 24",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 101.544
+        },
+        "clickCallMs": 147.352,
+        "clockBridgeSpanMs": 31.504,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 35.8,
+        "clickToDOMMs": 334,
+        "windowIdentityToCurrentMs": 298.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          20.032,
+          51.537
+        ],
+        "ariaAssertionMs": 307.177,
+        "chatAssertionMs": 87.696,
+        "twoFramesMs": 127.248,
+        "harnessTotalMs": 669.474,
+        "expectedSessionCompletedReadCount": 12,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 134.887,
+          "bodyMs": 134.932
+        }
+      },
+      {
+        "ordinal": 10,
+        "pass": 0,
+        "fixtureSession": "Performance 25",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 110.483
+        },
+        "clickCallMs": 366.089,
+        "clockBridgeSpanMs": 8.345,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.4,
+        "clickToDOMMs": 273.5,
+        "windowIdentityToCurrentMs": 267.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          27.722,
+          36.068
+        ],
+        "ariaAssertionMs": 283.531,
+        "chatAssertionMs": 52.388,
+        "twoFramesMs": 77.4,
+        "harnessTotalMs": 779.408,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 97.275,
+          "bodyMs": 110.377
+        }
+      },
+      {
+        "ordinal": 11,
+        "pass": 0,
+        "fixtureSession": "Performance 26",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 121.361
+        },
+        "clickCallMs": 485.708,
+        "clockBridgeSpanMs": 46.254,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.2,
+        "clickToDOMMs": 295.3,
+        "windowIdentityToCurrentMs": 289.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          18.972,
+          65.227
+        ],
+        "ariaAssertionMs": 293.762,
+        "chatAssertionMs": 51.946,
+        "twoFramesMs": 118.918,
+        "harnessTotalMs": 950.335,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 113.647,
+          "bodyMs": 121.278
+        }
+      },
+      {
+        "ordinal": 12,
+        "pass": 0,
+        "fixtureSession": "Performance 27",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 100.333
+        },
+        "clickCallMs": 225.607,
+        "clockBridgeSpanMs": 44.33,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.1,
+        "clickToDOMMs": 266.2,
+        "windowIdentityToCurrentMs": 260.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          23.389,
+          67.719
+        ],
+        "ariaAssertionMs": 275.779,
+        "chatAssertionMs": 78.506,
+        "twoFramesMs": 135.358,
+        "harnessTotalMs": 715.25,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 54.251,
+          "bodyMs": 93.471
+        }
+      },
+      {
+        "ordinal": 13,
+        "pass": 0,
+        "fixtureSession": "Performance 28",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 104.235
+        },
+        "clickCallMs": 236.038,
+        "clockBridgeSpanMs": 5.05,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.2,
+        "clickToDOMMs": 272.7,
+        "windowIdentityToCurrentMs": 266.5,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          20.853,
+          25.904
+        ],
+        "ariaAssertionMs": 273.413,
+        "chatAssertionMs": 72.167,
+        "twoFramesMs": 138.888,
+        "harnessTotalMs": 720.506,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 58.2,
+          "bodyMs": 94.523
+        }
+      },
+      {
+        "ordinal": 14,
+        "pass": 0,
+        "fixtureSession": "Performance 29",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 138.907
+        },
+        "clickCallMs": 312.587,
+        "clockBridgeSpanMs": 6.838,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 9.2,
+        "clickToDOMMs": 343.1,
+        "windowIdentityToCurrentMs": 333.9,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          46.285,
+          53.124
+        ],
+        "ariaAssertionMs": 318.097,
+        "chatAssertionMs": 52.257,
+        "twoFramesMs": 103.403,
+        "harnessTotalMs": 786.343,
+        "expectedSessionCompletedReadCount": 8,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 153.019,
+          "bodyMs": 165.003
+        }
+      },
+      {
+        "ordinal": 15,
+        "pass": 0,
+        "fixtureSession": "Performance 30",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 260.502
+        },
+        "clickCallMs": 345.142,
+        "clockBridgeSpanMs": 36.845,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 44.5,
+        "clickToDOMMs": 288.5,
+        "windowIdentityToCurrentMs": 244.0,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          19.113,
+          55.958
+        ],
+        "ariaAssertionMs": 193.669,
+        "chatAssertionMs": 4.161,
+        "twoFramesMs": 81.678,
+        "harnessTotalMs": 624.649,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 49.974,
+          "bodyMs": 68.735
+        }
+      },
+      {
+        "ordinal": 16,
+        "pass": 0,
+        "fixtureSession": "Performance 31",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 137.048
+        },
+        "clickCallMs": 251.433,
+        "clockBridgeSpanMs": 117.755,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.2,
+        "clickToDOMMs": 379.7,
+        "windowIdentityToCurrentMs": 373.5,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          18.701,
+          136.455
+        ],
+        "ariaAssertionMs": 384.165,
+        "chatAssertionMs": 49.242,
+        "twoFramesMs": 168.023,
+        "harnessTotalMs": 852.864,
+        "expectedSessionCompletedReadCount": 12,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 210.228,
+          "bodyMs": 210.266
+        }
+      },
+      {
+        "ordinal": 17,
+        "pass": 1,
+        "fixtureSession": "Performance 16",
+        "completed": false,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 141.848
+        },
+        "clickCallMs": 357.775,
+        "clockBridgeSpanMs": 48.991,
+        "oldChatObservedUnderNewWindow": true,
+        "clickToWindowIdentityMs": 6.3,
+        "stillOldAtFinalSnapshotMsAfterClick": 5253.0,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 42.289,
+          "bodyMs": 88.784
+        }
+      }
+    ]
+  },
+  "after": {
+    "outcome": "passed",
+    "attempted": 64,
+    "completed": 64,
+    "browserErrorCount": 0,
+    "httpErrorCount": 0,
+    "commandCount": 65,
+    "allCommandsApplied": true,
+    "rowOrderVersions": 1,
+    "teardown": {
+      "browser": "fulfilled",
+      "runtime": "fulfilled"
+    },
+    "selections": [
+      {
+        "ordinal": 1,
+        "pass": 0,
+        "fixtureSession": "Performance 16",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 35.709
+        },
+        "clickCallMs": 115.09,
+        "clockBridgeSpanMs": 3.724,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 39.4,
+        "clickToDOMMs": 245.5,
+        "windowIdentityToCurrentMs": 206.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          15.318,
+          19.042
+        ],
+        "ariaAssertionMs": 185.824,
+        "chatAssertionMs": 9.617,
+        "twoFramesMs": 39.485,
+        "harnessTotalMs": 350.016,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 38.237,
+          "bodyMs": 38.257
+        }
+      },
+      {
+        "ordinal": 2,
+        "pass": 0,
+        "fixtureSession": "Performance 17",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 16.821
+        },
+        "clickCallMs": 161.21,
+        "clockBridgeSpanMs": 2.284,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 36.7,
+        "clickToDOMMs": 213.3,
+        "windowIdentityToCurrentMs": 176.6,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          17.345,
+          19.629
+        ],
+        "ariaAssertionMs": 184.728,
+        "chatAssertionMs": 9.878,
+        "twoFramesMs": 81.387,
+        "harnessTotalMs": 437.203,
+        "expectedSessionCompletedReadCount": 11,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 25.611,
+          "bodyMs": 25.637
+        }
+      },
+      {
+        "ordinal": 3,
+        "pass": 0,
+        "fixtureSession": "Performance 18",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 11.641
+        },
+        "clickCallMs": 158.665,
+        "clockBridgeSpanMs": 1.786,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 30.6,
+        "clickToDOMMs": 174.9,
+        "windowIdentityToCurrentMs": 144.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          14.927,
+          16.713
+        ],
+        "ariaAssertionMs": 147.361,
+        "chatAssertionMs": 9.911,
+        "twoFramesMs": 131.259,
+        "harnessTotalMs": 447.195,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 5.482,
+          "bodyMs": 5.497
+        }
+      },
+      {
+        "ordinal": 4,
+        "pass": 0,
+        "fixtureSession": "Performance 19",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 9.065
+        },
+        "clickCallMs": 79.596,
+        "clockBridgeSpanMs": 34.106,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 27.0,
+        "clickToDOMMs": 190.9,
+        "windowIdentityToCurrentMs": 163.9,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          15.742,
+          49.847
+        ],
+        "ariaAssertionMs": 170.844,
+        "chatAssertionMs": 6.943,
+        "twoFramesMs": 97.457,
+        "harnessTotalMs": 354.84,
+        "expectedSessionCompletedReadCount": 12,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 37.031,
+          "bodyMs": 37.06
+        }
+      },
+      {
+        "ordinal": 5,
+        "pass": 0,
+        "fixtureSession": "Performance 20",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 8.612
+        },
+        "clickCallMs": 114.398,
+        "clockBridgeSpanMs": 1.074,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 25.0,
+        "clickToDOMMs": 148.1,
+        "windowIdentityToCurrentMs": 123.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          13.894,
+          14.968
+        ],
+        "ariaAssertionMs": 128.194,
+        "chatAssertionMs": 11.696,
+        "twoFramesMs": 76.229,
+        "harnessTotalMs": 330.518,
+        "expectedSessionCompletedReadCount": 3,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 8.94,
+          "bodyMs": 9.412
+        }
+      },
+      {
+        "ordinal": 6,
+        "pass": 0,
+        "fixtureSession": "Performance 21",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 9.021
+        },
+        "clickCallMs": 162.401,
+        "clockBridgeSpanMs": 1.819,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 26.8,
+        "clickToDOMMs": 149.6,
+        "windowIdentityToCurrentMs": 122.8,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          14.641,
+          16.46
+        ],
+        "ariaAssertionMs": 128.339,
+        "chatAssertionMs": 7.661,
+        "twoFramesMs": 82.812,
+        "harnessTotalMs": 381.212,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 9.413,
+          "bodyMs": 9.446
+        }
+      },
+      {
+        "ordinal": 7,
+        "pass": 0,
+        "fixtureSession": "Performance 22",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 9.439
+        },
+        "clickCallMs": 140.008,
+        "clockBridgeSpanMs": 2.546,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 26.0,
+        "clickToDOMMs": 153.2,
+        "windowIdentityToCurrentMs": 127.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          14.43,
+          16.977
+        ],
+        "ariaAssertionMs": 132.32,
+        "chatAssertionMs": 6.854,
+        "twoFramesMs": 57.353,
+        "harnessTotalMs": 336.535,
+        "expectedSessionCompletedReadCount": 9,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 9.45,
+          "bodyMs": 9.459
+        }
+      },
+      {
+        "ordinal": 8,
+        "pass": 0,
+        "fixtureSession": "Performance 23",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 19.841
+        },
+        "clickCallMs": 133.377,
+        "clockBridgeSpanMs": 57.459,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 36.4,
+        "clickToDOMMs": 184.4,
+        "windowIdentityToCurrentMs": 148.0,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          14.559,
+          72.018
+        ],
+        "ariaAssertionMs": 142.379,
+        "chatAssertionMs": 12.94,
+        "twoFramesMs": 69.579,
+        "harnessTotalMs": 358.275,
+        "expectedSessionCompletedReadCount": 10,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 22.711,
+          "bodyMs": 24.936
+        }
+      },
+      {
+        "ordinal": 9,
+        "pass": 0,
+        "fixtureSession": "Performance 24",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 8.424
+        },
+        "clickCallMs": 140.526,
+        "clockBridgeSpanMs": 24.127,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 27.0,
+        "clickToDOMMs": 157.0,
+        "windowIdentityToCurrentMs": 130.0,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          14.738,
+          38.866
+        ],
+        "ariaAssertionMs": 136.61,
+        "chatAssertionMs": 7.13,
+        "twoFramesMs": 82.663,
+        "harnessTotalMs": 366.929,
+        "expectedSessionCompletedReadCount": 12,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 12.065,
+          "bodyMs": 12.094
+        }
+      },
+      {
+        "ordinal": 10,
+        "pass": 0,
+        "fixtureSession": "Performance 25",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 9.45
+        },
+        "clickCallMs": 164.57,
+        "clockBridgeSpanMs": 2.098,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 27.8,
+        "clickToDOMMs": 153.1,
+        "windowIdentityToCurrentMs": 125.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          43.509,
+          45.607
+        ],
+        "ariaAssertionMs": 159.537,
+        "chatAssertionMs": 3.322,
+        "twoFramesMs": 46.092,
+        "harnessTotalMs": 373.521,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 9.524,
+          "bodyMs": 9.533
+        }
+      },
+      {
+        "ordinal": 11,
+        "pass": 0,
+        "fixtureSession": "Performance 26",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 55.042
+        },
+        "clickCallMs": 228.666,
+        "clockBridgeSpanMs": 33.811,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 28.6,
+        "clickToDOMMs": 211.2,
+        "windowIdentityToCurrentMs": 182.6,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          16.174,
+          49.986
+        ],
+        "ariaAssertionMs": 190.105,
+        "chatAssertionMs": 8.445,
+        "twoFramesMs": 107.545,
+        "harnessTotalMs": 534.761,
+        "expectedSessionCompletedReadCount": 9,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 56.794,
+          "bodyMs": 56.803
+        }
+      },
+      {
+        "ordinal": 12,
+        "pass": 0,
+        "fixtureSession": "Performance 27",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 24.73
+        },
+        "clickCallMs": 314.469,
+        "clockBridgeSpanMs": 57.092,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 31.1,
+        "clickToDOMMs": 202.3,
+        "windowIdentityToCurrentMs": 171.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          17.781,
+          74.873
+        ],
+        "ariaAssertionMs": 174.61,
+        "chatAssertionMs": 9.547,
+        "twoFramesMs": 86.938,
+        "harnessTotalMs": 585.564,
+        "expectedSessionCompletedReadCount": 9,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 24.474,
+          "bodyMs": 24.51
+        }
+      },
+      {
+        "ordinal": 13,
+        "pass": 0,
+        "fixtureSession": "Performance 28",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 10.676
+        },
+        "clickCallMs": 207.978,
+        "clockBridgeSpanMs": 34.904,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 32.2,
+        "clickToDOMMs": 204.6,
+        "windowIdentityToCurrentMs": 172.4,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          15.973,
+          50.877
+        ],
+        "ariaAssertionMs": 179.393,
+        "chatAssertionMs": 8.25,
+        "twoFramesMs": 109.512,
+        "harnessTotalMs": 505.133,
+        "expectedSessionCompletedReadCount": 9,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 30.396,
+          "bodyMs": 30.404
+        }
+      },
+      {
+        "ordinal": 14,
+        "pass": 0,
+        "fixtureSession": "Performance 29",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 15.24
+        },
+        "clickCallMs": 260.775,
+        "clockBridgeSpanMs": 51.76,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 29.4,
+        "clickToDOMMs": 198.2,
+        "windowIdentityToCurrentMs": 168.8,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          11.255,
+          63.016
+        ],
+        "ariaAssertionMs": 172.272,
+        "chatAssertionMs": 7.683,
+        "twoFramesMs": 48.215,
+        "harnessTotalMs": 488.945,
+        "expectedSessionCompletedReadCount": 9,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 31.651,
+          "bodyMs": 31.66
+        }
+      },
+      {
+        "ordinal": 15,
+        "pass": 0,
+        "fixtureSession": "Performance 30",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 13.565
+        },
+        "clickCallMs": 162.851,
+        "clockBridgeSpanMs": 28.123,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 28.6,
+        "clickToDOMMs": 270.6,
+        "windowIdentityToCurrentMs": 242.0,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          31.449,
+          59.572
+        ],
+        "ariaAssertionMs": 259.595,
+        "chatAssertionMs": 10.283,
+        "twoFramesMs": 120.506,
+        "harnessTotalMs": 553.235,
+        "expectedSessionCompletedReadCount": 11,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 92.387,
+          "bodyMs": 92.39
+        }
+      },
+      {
+        "ordinal": 16,
+        "pass": 0,
+        "fixtureSession": "Performance 31",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 108.133
+        },
+        "clickCallMs": 346.859,
+        "clockBridgeSpanMs": 38.463,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 29.5,
+        "clickToDOMMs": 308,
+        "windowIdentityToCurrentMs": 278.5,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          18.224,
+          56.687
+        ],
+        "ariaAssertionMs": 287.86,
+        "chatAssertionMs": 9.517,
+        "twoFramesMs": 62.761,
+        "harnessTotalMs": 706.998,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 126.033,
+          "bodyMs": 126.041
+        }
+      },
+      {
+        "ordinal": 17,
+        "pass": 1,
+        "fixtureSession": "Performance 16",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 46.533
+        },
+        "clickCallMs": 375.337,
+        "clockBridgeSpanMs": 30.923,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 178.2,
+        "clickToDOMMs": 178.4,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          60.299,
+          91.222
+        ],
+        "ariaAssertionMs": 40.159,
+        "chatAssertionMs": 46.296,
+        "twoFramesMs": 79.928,
+        "harnessTotalMs": 541.72,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 50.006,
+          "bodyMs": 50.159
+        }
+      },
+      {
+        "ordinal": 18,
+        "pass": 1,
+        "fixtureSession": "Performance 17",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 61.916
+        },
+        "clickCallMs": 314.695,
+        "clockBridgeSpanMs": 4.314,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 172.1,
+        "clickToDOMMs": 172.3,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          100.09,
+          104.403
+        ],
+        "ariaAssertionMs": 37.189,
+        "chatAssertionMs": 41.233,
+        "twoFramesMs": 37.957,
+        "harnessTotalMs": 431.074,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 62.304,
+          "bodyMs": 92.822
+        }
+      },
+      {
+        "ordinal": 19,
+        "pass": 1,
+        "fixtureSession": "Performance 18",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 12.31
+        },
+        "clickCallMs": 258.798,
+        "clockBridgeSpanMs": 1.325,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 166.7,
+        "clickToDOMMs": 167.0,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          32.349,
+          33.674
+        ],
+        "ariaAssertionMs": 2.549,
+        "chatAssertionMs": 2.594,
+        "twoFramesMs": 58.785,
+        "harnessTotalMs": 322.726,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 12.351,
+          "bodyMs": 12.357
+        }
+      },
+      {
+        "ordinal": 20,
+        "pass": 1,
+        "fixtureSession": "Performance 19",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 23.643
+        },
+        "clickCallMs": 250.822,
+        "clockBridgeSpanMs": 33.084,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 188.5,
+        "clickToDOMMs": 188.7,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          26.063,
+          59.147
+        ],
+        "ariaAssertionMs": 9.738,
+        "chatAssertionMs": 43.652,
+        "twoFramesMs": 47.116,
+        "harnessTotalMs": 351.328,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 14.518,
+          "bodyMs": 16.35
+        }
+      },
+      {
+        "ordinal": 21,
+        "pass": 1,
+        "fixtureSession": "Performance 20",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 29.244
+        },
+        "clickCallMs": 306.98,
+        "clockBridgeSpanMs": 1.965,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 173.7,
+        "clickToDOMMs": 173.8,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          37.913,
+          39.877
+        ],
+        "ariaAssertionMs": 3.329,
+        "chatAssertionMs": 8.343,
+        "twoFramesMs": 35.838,
+        "harnessTotalMs": 354.49,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 70.688,
+          "bodyMs": 70.709
+        }
+      },
+      {
+        "ordinal": 22,
+        "pass": 1,
+        "fixtureSession": "Performance 21",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 17.68
+        },
+        "clickCallMs": 313.632,
+        "clockBridgeSpanMs": 1.846,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 166.8,
+        "clickToDOMMs": 166.9,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          26.701,
+          28.547
+        ],
+        "ariaAssertionMs": 3.767,
+        "chatAssertionMs": 7.061,
+        "twoFramesMs": 52.567,
+        "harnessTotalMs": 377.026,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 23,
+        "pass": 1,
+        "fixtureSession": "Performance 22",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 9.859
+        },
+        "clickCallMs": 284.836,
+        "clockBridgeSpanMs": 2.968,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 166.4,
+        "clickToDOMMs": 166.6,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          23.419,
+          26.387
+        ],
+        "ariaAssertionMs": 2.08,
+        "chatAssertionMs": 33.642,
+        "twoFramesMs": 32.697,
+        "harnessTotalMs": 353.255,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 10.24,
+          "bodyMs": 10.287
+        }
+      },
+      {
+        "ordinal": 24,
+        "pass": 1,
+        "fixtureSession": "Performance 23",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 21.605
+        },
+        "clickCallMs": 344.388,
+        "clockBridgeSpanMs": 29.542,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 175.1,
+        "clickToDOMMs": 175.3,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          27.371,
+          56.913
+        ],
+        "ariaAssertionMs": 6.98,
+        "chatAssertionMs": 43.048,
+        "twoFramesMs": 31.284,
+        "harnessTotalMs": 425.7,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 66.348,
+          "bodyMs": 66.639
+        }
+      },
+      {
+        "ordinal": 25,
+        "pass": 1,
+        "fixtureSession": "Performance 24",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 22.849
+        },
+        "clickCallMs": 318.312,
+        "clockBridgeSpanMs": 5.242,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 191.3,
+        "clickToDOMMs": 191.5,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          28.164,
+          33.406
+        ],
+        "ariaAssertionMs": 7.849,
+        "chatAssertionMs": 7.729,
+        "twoFramesMs": 57.025,
+        "harnessTotalMs": 390.916,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 26,
+        "pass": 1,
+        "fixtureSession": "Performance 25",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 23.226
+        },
+        "clickCallMs": 249.285,
+        "clockBridgeSpanMs": 3.86,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 176.9,
+        "clickToDOMMs": 177.2,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          59.317,
+          63.177
+        ],
+        "ariaAssertionMs": 34.829,
+        "chatAssertionMs": 2.175,
+        "twoFramesMs": 95.629,
+        "harnessTotalMs": 381.918,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 15.425,
+          "bodyMs": 15.546
+        }
+      },
+      {
+        "ordinal": 27,
+        "pass": 1,
+        "fixtureSession": "Performance 26",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 27.654
+        },
+        "clickCallMs": 234.434,
+        "clockBridgeSpanMs": 2.98,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 165.5,
+        "clickToDOMMs": 165.7,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          66.262,
+          69.242
+        ],
+        "ariaAssertionMs": 34.425,
+        "chatAssertionMs": 48.363,
+        "twoFramesMs": 53.036,
+        "harnessTotalMs": 370.258,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 21.748,
+          "bodyMs": 27.349
+        }
+      },
+      {
+        "ordinal": 28,
+        "pass": 1,
+        "fixtureSession": "Performance 27",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 28.402
+        },
+        "clickCallMs": 262.728,
+        "clockBridgeSpanMs": 7.766,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 160.7,
+        "clickToDOMMs": 160.8,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          33.521,
+          41.287
+        ],
+        "ariaAssertionMs": 13.391,
+        "chatAssertionMs": 44.317,
+        "twoFramesMs": 31.522,
+        "harnessTotalMs": 351.958,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 15.521,
+          "bodyMs": 15.844
+        }
+      },
+      {
+        "ordinal": 29,
+        "pass": 1,
+        "fixtureSession": "Performance 28",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 65.077
+        },
+        "clickCallMs": 417.301,
+        "clockBridgeSpanMs": 31.935,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 185.9,
+        "clickToDOMMs": 186.1,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          73.174,
+          105.109
+        ],
+        "ariaAssertionMs": 3.269,
+        "chatAssertionMs": 27.28,
+        "twoFramesMs": 61.377,
+        "harnessTotalMs": 509.228,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 27.902,
+          "bodyMs": 28.147
+        }
+      },
+      {
+        "ordinal": 30,
+        "pass": 1,
+        "fixtureSession": "Performance 29",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 22.32
+        },
+        "clickCallMs": 294.836,
+        "clockBridgeSpanMs": 2.965,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 168.1,
+        "clickToDOMMs": 168.3,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          31.718,
+          34.683
+        ],
+        "ariaAssertionMs": 7.779,
+        "chatAssertionMs": 2.213,
+        "twoFramesMs": 67.677,
+        "harnessTotalMs": 372.506,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 68.056,
+          "bodyMs": 99.881
+        }
+      },
+      {
+        "ordinal": 31,
+        "pass": 1,
+        "fixtureSession": "Performance 30",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 23.853
+        },
+        "clickCallMs": 299.845,
+        "clockBridgeSpanMs": 64.281,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 168.2,
+        "clickToDOMMs": 168.4,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.856,
+          89.138
+        ],
+        "ariaAssertionMs": 8.008,
+        "chatAssertionMs": 31.617,
+        "twoFramesMs": 58.89,
+        "harnessTotalMs": 398.361,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 17.221,
+          "bodyMs": 17.621
+        }
+      },
+      {
+        "ordinal": 32,
+        "pass": 1,
+        "fixtureSession": "Performance 31",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 22.435
+        },
+        "clickCallMs": 268.711,
+        "clockBridgeSpanMs": 28.059,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 167.1,
+        "clickToDOMMs": 167.4,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          28.16,
+          56.218
+        ],
+        "ariaAssertionMs": 8.746,
+        "chatAssertionMs": 6.831,
+        "twoFramesMs": 35.685,
+        "harnessTotalMs": 319.972,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 31.862,
+          "bodyMs": 32.82
+        }
+      },
+      {
+        "ordinal": 33,
+        "pass": 2,
+        "fixtureSession": "Performance 16",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 8.528
+        },
+        "clickCallMs": 342.139,
+        "clockBridgeSpanMs": 94.855,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 170.2,
+        "clickToDOMMs": 170.4,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          52.322,
+          147.177
+        ],
+        "ariaAssertionMs": 30.379,
+        "chatAssertionMs": 3.079,
+        "twoFramesMs": 57.581,
+        "harnessTotalMs": 433.178,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 9.39,
+          "bodyMs": 9.507
+        }
+      },
+      {
+        "ordinal": 34,
+        "pass": 2,
+        "fixtureSession": "Performance 17",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 19.389
+        },
+        "clickCallMs": 228.117,
+        "clockBridgeSpanMs": 4.473,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 168.8,
+        "clickToDOMMs": 169.1,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          28.305,
+          32.778
+        ],
+        "ariaAssertionMs": 5.286,
+        "chatAssertionMs": 34.715,
+        "twoFramesMs": 54.475,
+        "harnessTotalMs": 322.592,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 21.651,
+          "bodyMs": 58.204
+        }
+      },
+      {
+        "ordinal": 35,
+        "pass": 2,
+        "fixtureSession": "Performance 18",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 20.676
+        },
+        "clickCallMs": 225.82,
+        "clockBridgeSpanMs": 26.434,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 154.4,
+        "clickToDOMMs": 154.6,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.754,
+          51.188
+        ],
+        "ariaAssertionMs": 6.624,
+        "chatAssertionMs": 36.025,
+        "twoFramesMs": 55.18,
+        "harnessTotalMs": 323.649,
+        "expectedSessionCompletedReadCount": 6,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 58.226,
+          "bodyMs": 58.973
+        }
+      },
+      {
+        "ordinal": 36,
+        "pass": 2,
+        "fixtureSession": "Performance 19",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 23.471
+        },
+        "clickCallMs": 225.267,
+        "clockBridgeSpanMs": 54.902,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 159.8,
+        "clickToDOMMs": 160.0,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          74.179,
+          129.081
+        ],
+        "ariaAssertionMs": 41.509,
+        "chatAssertionMs": 25.883,
+        "twoFramesMs": 64.223,
+        "harnessTotalMs": 356.882,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 16.005,
+          "bodyMs": 16.234
+        }
+      },
+      {
+        "ordinal": 37,
+        "pass": 2,
+        "fixtureSession": "Performance 20",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 22.22
+        },
+        "clickCallMs": 248.837,
+        "clockBridgeSpanMs": 45.702,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 172.7,
+        "clickToDOMMs": 172.9,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          21.624,
+          67.326
+        ],
+        "ariaAssertionMs": 8.784,
+        "chatAssertionMs": 34.445,
+        "twoFramesMs": 93.738,
+        "harnessTotalMs": 385.803,
+        "expectedSessionCompletedReadCount": 8,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 13.553,
+          "bodyMs": 14.781
+        }
+      },
+      {
+        "ordinal": 38,
+        "pass": 2,
+        "fixtureSession": "Performance 21",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 19.803
+        },
+        "clickCallMs": 233.238,
+        "clockBridgeSpanMs": 1.655,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 165.3,
+        "clickToDOMMs": 165.4,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          25.347,
+          27.003
+        ],
+        "ariaAssertionMs": 8.307,
+        "chatAssertionMs": 39.674,
+        "twoFramesMs": 84.13,
+        "harnessTotalMs": 365.348,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 19.858,
+          "bodyMs": 22.601
+        }
+      },
+      {
+        "ordinal": 39,
+        "pass": 2,
+        "fixtureSession": "Performance 22",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 20.113
+        },
+        "clickCallMs": 219.317,
+        "clockBridgeSpanMs": 1.736,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 158.5,
+        "clickToDOMMs": 158.7,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.84,
+          26.576
+        ],
+        "ariaAssertionMs": 8.42,
+        "chatAssertionMs": 2.163,
+        "twoFramesMs": 34.995,
+        "harnessTotalMs": 264.895,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 22.794,
+          "bodyMs": 22.865
+        }
+      },
+      {
+        "ordinal": 40,
+        "pass": 2,
+        "fixtureSession": "Performance 23",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 19.991
+        },
+        "clickCallMs": 302.556,
+        "clockBridgeSpanMs": 2.075,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 157.9,
+        "clickToDOMMs": 158.1,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          23.78,
+          25.855
+        ],
+        "ariaAssertionMs": 6.121,
+        "chatAssertionMs": 2.194,
+        "twoFramesMs": 41.212,
+        "harnessTotalMs": 352.083,
+        "expectedSessionCompletedReadCount": 2,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 62.51,
+          "bodyMs": 62.519
+        }
+      },
+      {
+        "ordinal": 41,
+        "pass": 2,
+        "fixtureSession": "Performance 24",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 23.61
+        },
+        "clickCallMs": 233.006,
+        "clockBridgeSpanMs": 1.874,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 169.1,
+        "clickToDOMMs": 169.3,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          28.686,
+          30.56
+        ],
+        "ariaAssertionMs": 6.678,
+        "chatAssertionMs": 1.778,
+        "twoFramesMs": 31.767,
+        "harnessTotalMs": 273.229,
+        "expectedSessionCompletedReadCount": 3,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 25.852,
+          "bodyMs": 25.894
+        }
+      },
+      {
+        "ordinal": 42,
+        "pass": 2,
+        "fixtureSession": "Performance 25",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 31.547
+        },
+        "clickCallMs": 346.108,
+        "clockBridgeSpanMs": 66.103,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 179.5,
+        "clickToDOMMs": 179.7,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          37.916,
+          104.019
+        ],
+        "ariaAssertionMs": 13.705,
+        "chatAssertionMs": 40.808,
+        "twoFramesMs": 96.944,
+        "harnessTotalMs": 497.565,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 67.013,
+          "bodyMs": 75.344
+        }
+      },
+      {
+        "ordinal": 43,
+        "pass": 2,
+        "fixtureSession": "Performance 26",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 22.826
+        },
+        "clickCallMs": 364.372,
+        "clockBridgeSpanMs": 42.823,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 172.6,
+        "clickToDOMMs": 172.8,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          27.879,
+          70.702
+        ],
+        "ariaAssertionMs": 8.504,
+        "chatAssertionMs": 1.95,
+        "twoFramesMs": 56.195,
+        "harnessTotalMs": 431.021,
+        "expectedSessionCompletedReadCount": 1,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 48.852,
+          "bodyMs": 48.865
+        }
+      },
+      {
+        "ordinal": 44,
+        "pass": 2,
+        "fixtureSession": "Performance 27",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 548.629
+        },
+        "clickCallMs": 237.409,
+        "clockBridgeSpanMs": 27.196,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 153.8,
+        "clickToDOMMs": 154.0,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.478,
+          51.674
+        ],
+        "ariaAssertionMs": 5.765,
+        "chatAssertionMs": 5.86,
+        "twoFramesMs": 23.357,
+        "harnessTotalMs": 272.392,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 45,
+        "pass": 2,
+        "fixtureSession": "Performance 28",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 166.784
+        },
+        "clickCallMs": 209.813,
+        "clockBridgeSpanMs": 1.107,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 151.8,
+        "clickToDOMMs": 151.9,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          50.311,
+          51.419
+        ],
+        "ariaAssertionMs": 32.196,
+        "chatAssertionMs": 2.589,
+        "twoFramesMs": 19.076,
+        "harnessTotalMs": 263.675,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 46,
+        "pass": 2,
+        "fixtureSession": "Performance 29",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 263.062
+        },
+        "clickCallMs": 220.194,
+        "clockBridgeSpanMs": 1.03,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 147.9,
+        "clickToDOMMs": 148.1,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          45.009,
+          46.039
+        ],
+        "ariaAssertionMs": 11.114,
+        "chatAssertionMs": 41.336,
+        "twoFramesMs": 46.976,
+        "harnessTotalMs": 319.619,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 28.593,
+          "bodyMs": 29.707
+        }
+      },
+      {
+        "ordinal": 47,
+        "pass": 2,
+        "fixtureSession": "Performance 30",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 232.991
+        },
+        "clickCallMs": 290.848,
+        "clockBridgeSpanMs": 6.787,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 166.8,
+        "clickToDOMMs": 167.1,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          60.445,
+          67.232
+        ],
+        "ariaAssertionMs": 40.794,
+        "chatAssertionMs": 10.757,
+        "twoFramesMs": 88.545,
+        "harnessTotalMs": 430.945,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 10.228,
+          "bodyMs": 11.57
+        }
+      },
+      {
+        "ordinal": 48,
+        "pass": 2,
+        "fixtureSession": "Performance 31",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 21.701
+        },
+        "clickCallMs": 359.134,
+        "clockBridgeSpanMs": 7.536,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 167.3,
+        "clickToDOMMs": 167.6,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          26.379,
+          33.916
+        ],
+        "ariaAssertionMs": 7.543,
+        "chatAssertionMs": 1.852,
+        "twoFramesMs": 31.992,
+        "harnessTotalMs": 400.52,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 49,
+        "pass": 3,
+        "fixtureSession": "Performance 16",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 22.543
+        },
+        "clickCallMs": 283.566,
+        "clockBridgeSpanMs": 34.722,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 174.8,
+        "clickToDOMMs": 174.9,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          62.551,
+          97.273
+        ],
+        "ariaAssertionMs": 38.281,
+        "chatAssertionMs": 30.54,
+        "twoFramesMs": 55.605,
+        "harnessTotalMs": 407.991,
+        "expectedSessionCompletedReadCount": 6,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 13.079,
+          "bodyMs": 14.543
+        }
+      },
+      {
+        "ordinal": 50,
+        "pass": 3,
+        "fixtureSession": "Performance 17",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 19.532
+        },
+        "clickCallMs": 218.405,
+        "clockBridgeSpanMs": 1.466,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 164.2,
+        "clickToDOMMs": 164.5,
+        "windowIdentityToCurrentMs": 0.3,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          23.679,
+          25.145
+        ],
+        "ariaAssertionMs": 7.072,
+        "chatAssertionMs": 2.078,
+        "twoFramesMs": 35.263,
+        "harnessTotalMs": 262.818,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 51,
+        "pass": 3,
+        "fixtureSession": "Performance 18",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 24.616
+        },
+        "clickCallMs": 284.219,
+        "clockBridgeSpanMs": 26.963,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 160.7,
+        "clickToDOMMs": 160.9,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          60.65,
+          87.613
+        ],
+        "ariaAssertionMs": 33.327,
+        "chatAssertionMs": 3.274,
+        "twoFramesMs": 61.398,
+        "harnessTotalMs": 382.218,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 16.018,
+          "bodyMs": 16.117
+        }
+      },
+      {
+        "ordinal": 52,
+        "pass": 3,
+        "fixtureSession": "Performance 19",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 23.963
+        },
+        "clickCallMs": 256.099,
+        "clockBridgeSpanMs": 31.488,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 163.9,
+        "clickToDOMMs": 164.0,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          26.447,
+          57.936
+        ],
+        "ariaAssertionMs": 7.845,
+        "chatAssertionMs": 29.823,
+        "twoFramesMs": 58.353,
+        "harnessTotalMs": 352.12,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 54.208,
+          "bodyMs": 55.859
+        }
+      },
+      {
+        "ordinal": 53,
+        "pass": 3,
+        "fixtureSession": "Performance 20",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 19.654
+        },
+        "clickCallMs": 220.117,
+        "clockBridgeSpanMs": 1.957,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 152.0,
+        "clickToDOMMs": 152.2,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          29.712,
+          31.67
+        ],
+        "ariaAssertionMs": 13.893,
+        "chatAssertionMs": 25.159,
+        "twoFramesMs": 32.768,
+        "harnessTotalMs": 291.937,
+        "expectedSessionCompletedReadCount": 3,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 12.626,
+          "bodyMs": 13.223
+        }
+      },
+      {
+        "ordinal": 54,
+        "pass": 3,
+        "fixtureSession": "Performance 21",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 17.301
+        },
+        "clickCallMs": 210.757,
+        "clockBridgeSpanMs": 0.94,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 150.8,
+        "clickToDOMMs": 151.0,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          22.044,
+          22.984
+        ],
+        "ariaAssertionMs": 2.684,
+        "chatAssertionMs": 36.836,
+        "twoFramesMs": 54.034,
+        "harnessTotalMs": 304.311,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 17.384,
+          "bodyMs": 17.412
+        }
+      },
+      {
+        "ordinal": 55,
+        "pass": 3,
+        "fixtureSession": "Performance 22",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 20.376
+        },
+        "clickCallMs": 189.645,
+        "clockBridgeSpanMs": 1.343,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 134.6,
+        "clickToDOMMs": 134.8,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.966,
+          26.309
+        ],
+        "ariaAssertionMs": 2.519,
+        "chatAssertionMs": 1.139,
+        "twoFramesMs": 42.957,
+        "harnessTotalMs": 236.26,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 56,
+        "pass": 3,
+        "fixtureSession": "Performance 23",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 16.816
+        },
+        "clickCallMs": 183.348,
+        "clockBridgeSpanMs": 3.748,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 130.5,
+        "clickToDOMMs": 130.7,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          20.818,
+          24.566
+        ],
+        "ariaAssertionMs": 7.067,
+        "chatAssertionMs": 25.63,
+        "twoFramesMs": 54.273,
+        "harnessTotalMs": 270.319,
+        "expectedSessionCompletedReadCount": 7,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 10.399,
+          "bodyMs": 10.603
+        }
+      },
+      {
+        "ordinal": 57,
+        "pass": 3,
+        "fixtureSession": "Performance 24",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 18.387
+        },
+        "clickCallMs": 222.204,
+        "clockBridgeSpanMs": 1.404,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 151.2,
+        "clickToDOMMs": 151.4,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          23.474,
+          24.878
+        ],
+        "ariaAssertionMs": 2.168,
+        "chatAssertionMs": 1.234,
+        "twoFramesMs": 41.666,
+        "harnessTotalMs": 267.272,
+        "expectedSessionCompletedReadCount": 0
+      },
+      {
+        "ordinal": 58,
+        "pass": 3,
+        "fixtureSession": "Performance 25",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 35.024
+        },
+        "clickCallMs": 413.525,
+        "clockBridgeSpanMs": 22.906,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 160.8,
+        "clickToDOMMs": 161.0,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          65.216,
+          88.122
+        ],
+        "ariaAssertionMs": 27.289,
+        "chatAssertionMs": 2.968,
+        "twoFramesMs": 91.007,
+        "harnessTotalMs": 534.789,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 33.989,
+          "bodyMs": 34.994
+        }
+      },
+      {
+        "ordinal": 59,
+        "pass": 3,
+        "fixtureSession": "Performance 26",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 52.596
+        },
+        "clickCallMs": 306.062,
+        "clockBridgeSpanMs": 24.87,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 156.1,
+        "clickToDOMMs": 156.3,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          56.845,
+          81.715
+        ],
+        "ariaAssertionMs": 7.68,
+        "chatAssertionMs": 70.517,
+        "twoFramesMs": 115.813,
+        "harnessTotalMs": 500.072,
+        "expectedSessionCompletedReadCount": 6,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 13.967,
+          "bodyMs": 46.153
+        }
+      },
+      {
+        "ordinal": 60,
+        "pass": 3,
+        "fixtureSession": "Performance 27",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 20.174
+        },
+        "clickCallMs": 204.934,
+        "clockBridgeSpanMs": 1.068,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 144.4,
+        "clickToDOMMs": 144.6,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          24.82,
+          25.888
+        ],
+        "ariaAssertionMs": 7.284,
+        "chatAssertionMs": 34.086,
+        "twoFramesMs": 62.106,
+        "harnessTotalMs": 308.41,
+        "expectedSessionCompletedReadCount": 8,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 12.994,
+          "bodyMs": 14.333
+        }
+      },
+      {
+        "ordinal": 61,
+        "pass": 3,
+        "fixtureSession": "Performance 28",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 13.49
+        },
+        "clickCallMs": 211.286,
+        "clockBridgeSpanMs": 30.824,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 151.1,
+        "clickToDOMMs": 151.2,
+        "windowIdentityToCurrentMs": 0.1,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          25.58,
+          56.404
+        ],
+        "ariaAssertionMs": 6.99,
+        "chatAssertionMs": 1.882,
+        "twoFramesMs": 79.3,
+        "harnessTotalMs": 299.459,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 63.199,
+          "bodyMs": 63.204
+        }
+      },
+      {
+        "ordinal": 62,
+        "pass": 3,
+        "fixtureSession": "Performance 29",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 10.085
+        },
+        "clickCallMs": 367.863,
+        "clockBridgeSpanMs": 33.345,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 160.1,
+        "clickToDOMMs": 160.3,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          69.574,
+          102.919
+        ],
+        "ariaAssertionMs": 44.308,
+        "chatAssertionMs": 14.856,
+        "twoFramesMs": 56.958,
+        "harnessTotalMs": 483.985,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 12.236,
+          "bodyMs": 12.446
+        }
+      },
+      {
+        "ordinal": 63,
+        "pass": 3,
+        "fixtureSession": "Performance 30",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 8.84
+        },
+        "clickCallMs": 447.807,
+        "clockBridgeSpanMs": 39.005,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 174.6,
+        "clickToDOMMs": 174.8,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          66.94,
+          105.945
+        ],
+        "ariaAssertionMs": 38.229,
+        "chatAssertionMs": 26.292,
+        "twoFramesMs": 28.742,
+        "harnessTotalMs": 541.07,
+        "expectedSessionCompletedReadCount": 4,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 47.356,
+          "bodyMs": 47.608
+        }
+      },
+      {
+        "ordinal": 64,
+        "pass": 3,
+        "fixtureSession": "Performance 31",
+        "completed": true,
+        "trustedClickOnExpectedRow": true,
+        "plainClick": true,
+        "windowCommand": {
+          "targetMatches": true,
+          "status": 200,
+          "applied": true,
+          "responseTargetMatches": true,
+          "roundTripMs": 26.809
+        },
+        "clickCallMs": 294.543,
+        "clockBridgeSpanMs": 29.641,
+        "oldChatObservedUnderNewWindow": false,
+        "clickToWindowIdentityMs": 158.7,
+        "clickToDOMMs": 158.9,
+        "windowIdentityToCurrentMs": 0.2,
+        "newChatNode": true,
+        "DOMtoAssertionMsBounds": [
+          55.537,
+          85.178
+        ],
+        "ariaAssertionMs": 25.789,
+        "chatAssertionMs": 2.944,
+        "twoFramesMs": 67.057,
+        "harnessTotalMs": 390.333,
+        "expectedSessionCompletedReadCount": 5,
+        "firstExpectedSessionRead": {
+          "status": 200,
+          "headersMs": 19.953,
+          "bodyMs": 20.028
+        }
+      }
+    ]
+  }
+}

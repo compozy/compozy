@@ -84,23 +84,26 @@ func (s *Service) collectStatus(ctx context.Context, item Worktree) Status {
 	if err != nil {
 		return s.statusReadFailure(item, nil, err)
 	}
-	unstagedOutput, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--numstat", "-z")
-	if err != nil {
-		return s.statusReadFailure(item, stderr, err)
+	merged := Numstat{}
+	if parsed.DirtyFiles > 0 {
+		unstagedOutput, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--numstat", "-z")
+		if err != nil {
+			return s.statusReadFailure(item, stderr, err)
+		}
+		stagedOutput, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--cached", "--numstat", "-z")
+		if err != nil {
+			return s.statusReadFailure(item, stderr, err)
+		}
+		unstaged, err := ParseNumstat(unstagedOutput)
+		if err != nil {
+			return s.statusReadFailure(item, nil, err)
+		}
+		staged, err := ParseNumstat(stagedOutput)
+		if err != nil {
+			return s.statusReadFailure(item, nil, err)
+		}
+		merged = MergeNumstat(unstaged, staged)
 	}
-	stagedOutput, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--cached", "--numstat", "-z")
-	if err != nil {
-		return s.statusReadFailure(item, stderr, err)
-	}
-	unstaged, err := ParseNumstat(unstagedOutput)
-	if err != nil {
-		return s.statusReadFailure(item, nil, err)
-	}
-	staged, err := ParseNumstat(stagedOutput)
-	if err != nil {
-		return s.statusReadFailure(item, nil, err)
-	}
-	merged := MergeNumstat(unstaged, staged)
 	var aheadOfBase *int
 	if !parsed.HasUpstream && item.BaseRef != "" {
 		stdout, _, countErr := s.runner.Run(ctx, item.Path, "rev-list", "--count", item.BaseRef+"..HEAD")

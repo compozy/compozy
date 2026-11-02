@@ -22,7 +22,7 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	ctx context.Context,
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo, error) {
-	infos := m.List()
+	infos, excludedIDs := m.activeCatalogSnapshots(query)
 	visible := make([]*Info, 0, len(infos))
 	for _, info := range infos {
 		if catalogRelationVisible(info, query) {
@@ -40,8 +40,30 @@ func (m *Manager) activeBoardSessionCatalogRows(
 		}
 		info.BoardColumn = BoardColumnFor(BadgeForInfo(info), state)
 	}
-	active, ids, matches := m.activeSessionCatalogRowsFromInfos(query, infos)
+	active, ids, matches := m.activeSessionCatalogRowsFromInfos(query, infos, excludedIDs)
 	return active, ids, matches, nil
+}
+
+func (m *Manager) activeCatalogSnapshots(query ListQuery) ([]*Info, []string) {
+	sessions := m.activeSessions()
+	infos := make([]*Info, 0, len(sessions))
+	excludedIDs := make([]string, 0)
+	for _, target := range sessions {
+		target.mu.RLock()
+		identity := Info{ProfileID: target.ProfileID, WorkspaceID: target.WorkspaceID, Lineage: target.Lineage}
+		if !catalogRelationVisible(&identity, query) {
+			excludedIDs = append(excludedIDs, target.ID)
+			target.mu.RUnlock()
+			continue
+		}
+		info := target.infoLocked()
+		target.mu.RUnlock()
+		if info.State == StateActive && m.sessionStartRun(info.ID) != nil {
+			info.State = StateStarting
+		}
+		infos = append(infos, info)
+	}
+	return infos, excludedIDs
 }
 
 // PopulateSessionRelations enriches one already-authorized detail with scoped family metadata.

@@ -23,6 +23,9 @@ func sessionCatalogBoardSource(
 	repositoryKeys map[string]string,
 	defaultBranches map[string][]string,
 ) (string, []any, error) {
+	if len(repositoryKeys) == 0 {
+		return "(SELECT sessions.*, NULL AS board_pr_state FROM sessions) AS sessions", nil, nil
+	}
 	encoded, err := json.Marshal(repositoryKeys)
 	if err != nil {
 		return "", nil, fmt.Errorf("store: encode session repository keys: %w", err)

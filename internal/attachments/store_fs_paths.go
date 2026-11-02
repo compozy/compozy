@@ -1,13 +1,12 @@
 package attachments
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,6 +149,15 @@ func (s *FilesystemAttachmentStore) readMeta(
 	if err != nil {
 		return attachmentMeta{}, err
 	}
+	return readMetaForContent(ctx, contentPath, id, content)
+}
+
+func readMetaForContent(
+	ctx context.Context,
+	contentPath string,
+	id string,
+	content []byte,
+) (attachmentMeta, error) {
 	meta, err := readSidecar(ctx, contentPath)
 	if err != nil {
 		return attachmentMeta{}, err
@@ -254,20 +262,30 @@ func readAttachmentFile(ctx context.Context, path string, id string) ([]byte, er
 	return content, nil
 }
 
-func verifyAttachmentDigest(ctx context.Context, reader io.Reader, id string) error {
+// readOpenAttachment validates the same descriptor that Open returns to its caller.
+func readOpenAttachment(ctx context.Context, file *os.File, id string) ([]byte, error) {
 	if err := attachmentContextErr(ctx); err != nil {
-		return err
+		return nil, err
 	}
-	digest := sha256.New()
-	if _, err := io.Copy(digest, reader); err != nil {
-		return fmt.Errorf("hash attachment: %w", err)
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("stat open attachment: %w", err)
+	}
+	if !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > math.MaxInt-bytes.MinRead {
+		return nil, fmt.Errorf("%w: attachment is not a readable regular file", ErrCorrupt)
+	}
+	var content bytes.Buffer
+	// Leave room for ReadFrom's final EOF probe without growing the full payload.
+	// #nosec G115 -- the size is bounded by MaxInt above.
+	content.Grow(int(info.Size()) + bytes.MinRead)
+	if _, err := content.ReadFrom(file); err != nil {
+		return nil, fmt.Errorf("read attachment: %w", err)
 	}
 	if err := attachmentContextErr(ctx); err != nil {
-		return err
+		return nil, err
 	}
-	got := "att_" + hex.EncodeToString(digest.Sum(nil))
-	if got != id {
-		return fmt.Errorf("%w: content digest mismatch", ErrCorrupt)
+	if attachmentID(content.Bytes()) != id {
+		return nil, fmt.Errorf("%w: content digest mismatch", ErrCorrupt)
 	}
-	return nil
+	return content.Bytes(), nil
 }

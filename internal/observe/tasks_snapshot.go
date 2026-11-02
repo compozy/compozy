@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -20,7 +22,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	runs = filterRunsByWorktree(runs, query.WorktreeID)
 	runsByID := indexTaskSnapshotRuns(runs, taskIDs)
 	runs = filterRuns(runs, taskIDs, query)
-	events, err := o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
+	events, err := o.loadTaskSnapshotEvents(ctx, taskIDs)
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task events for summary: %w", err)
 	}
@@ -33,6 +35,21 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 
 		tasksByID: tasksByID,
 	}, nil
+}
+
+func (o *Observer) loadTaskSnapshotEvents(
+	ctx context.Context,
+	taskIDs map[string]struct{},
+) ([]taskpkg.Event, error) {
+	if len(taskIDs) == 0 {
+		return []taskpkg.Event{}, nil
+	}
+	if source, ok := o.registry.(interface {
+		ListTaskEventsForTasks(context.Context, []string) ([]taskpkg.Event, error)
+	}); ok {
+		return source.ListTaskEventsForTasks(ctx, slices.Collect(maps.Keys(taskIDs)))
+	}
+	return o.registry.ListTaskEvents(ctx, taskpkg.EventQuery{})
 }
 
 func (o *Observer) loadTaskSnapshotTasksAndRuns(

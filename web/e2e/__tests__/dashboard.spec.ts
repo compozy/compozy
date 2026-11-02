@@ -216,7 +216,9 @@ test("Home preserves its overview through health loss and recovers after a daemo
   );
 
   await test.step("Home preserves its loaded overview and recovers when health requests resume", async () => {
-    await page.route("**/api/status", async route => {
+    // Connection consumers use identity; diagnostic consumers use the full status endpoint.
+    const healthRequests = /\/api\/status(?:\/identity)?(?:\?|$)/;
+    await page.route(healthRequests, async route => {
       await route.abort("failed");
     });
 
@@ -228,7 +230,7 @@ test("Home preserves its overview through health loss and recovers after a daemo
     await expect(home.getByTestId("home-body")).toBeVisible();
     await expect(home.locator('[data-slot="home-kpi-strip"] [data-slot="metric"]')).toHaveCount(4);
 
-    await page.unroute("**/api/status");
+    await page.unroute(healthRequests);
     await expect(home.getByTestId("home-connection-indicator")).toHaveAttribute(
       "data-status",
       "connected",

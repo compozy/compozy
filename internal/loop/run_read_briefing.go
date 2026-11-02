@@ -76,24 +76,11 @@ func projectCompleteRoster(
 	state NodeStateFilter,
 	generation int,
 ) (RosterPage, error) {
-	query := RosterQuery{State: state, Generation: generation, Limit: 500}
-	complete := RosterPage{}
-	for {
-		page, err := ProjectRoster(source, query)
-		if err != nil {
-			return RosterPage{}, err
-		}
-		if complete.RunID == "" {
-			complete = page
-			complete.Nodes = nil
-		}
-		complete.Nodes = append(complete.Nodes, page.Nodes...)
-		if page.NextCursor == "" {
-			complete.NextCursor = ""
-			return complete, nil
-		}
-		query.Cursor = page.NextCursor
+	query, err := normalizeRosterQuery(RosterQuery{State: state, Generation: generation})
+	if err != nil {
+		return RosterPage{}, err
 	}
+	return projectRoster(source, query)
 }
 
 func (s *computedRunReadService) loadAllPendingRequests(

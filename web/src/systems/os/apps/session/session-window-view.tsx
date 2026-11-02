@@ -90,11 +90,10 @@ export function SessionWindowView({
       />
     );
   }
-  // The one animated seam of this window: switching to another session in place. The
-  // boundary is keyed by the session, so the switch cross-fades the departing window body
-  // with the arriving one and nothing else does (`default="none"`: a Suspense reveal, a
-  // live update or a tab swap elsewhere never snapshots it). The caller defers the session
-  // identity (`useSessionWindowRuntime`), which is what makes the switch a transition.
+  // The keyed boundary replaces the departing session's providers and composer together.
+  // Route identity is urgent: the next session or its loading state must replace the old
+  // conversation without waiting for an animation. The boundary can still animate an
+  // eligible transition; live updates and unrelated tab swaps never snapshot it.
   return (
     <ViewTransition
       key={id}

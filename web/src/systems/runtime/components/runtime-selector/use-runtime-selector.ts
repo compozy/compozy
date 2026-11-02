@@ -3,7 +3,11 @@ import { useSelector, useStore } from "@xstate/store-react";
 import type { RuntimeSpeed } from "@/lib/api-contract";
 
 import { runtimeModelKey } from "./model-key";
-import { buildRuntimeListModel, type RailFilter } from "./runtime-list-model";
+import {
+  buildRuntimeListModel,
+  type RailFilter,
+  type RuntimeListModel,
+} from "./runtime-list-model";
 import {
   advancedRuntimeOptions,
   sanitizeRuntimeACPSelections,
@@ -43,6 +47,17 @@ export interface UseRuntimeSelectorArgs {
 function isProviderManaged(provider: RuntimeProviderOption | undefined): boolean {
   return provider?.runtime_strategy === "provider_managed";
 }
+
+const CLOSED_LIST_MODEL: RuntimeListModel = {
+  exactEntry: false,
+  searching: false,
+  pinned: [],
+  pinnedHeading: "",
+  groups: [],
+  customLabel: "",
+  customCommit: "",
+  flatRows: [],
+};
 
 function resolveActiveCustomProvider(
   railFilter: RailFilter,
@@ -127,19 +142,21 @@ export function useRuntimeSelector({
   const activeCustomProvider =
     catalogCustomProvider || (allowCustomProvider ? value.provider.trim() : "");
 
-  const listModel = buildRuntimeListModel({
-    exactEntry: entryMode === "exact",
-    query,
-    railFilter,
-    models,
-    modelByKey,
-    providerById,
-    value: normalizedValue,
-    activeCustomProvider,
-    allowCustomProvider,
-    recentKeys: favorites.recents,
-    isFavoriteModel,
-  });
+  const listModel = open
+    ? buildRuntimeListModel({
+        exactEntry: entryMode === "exact",
+        query,
+        railFilter,
+        models,
+        modelByKey,
+        providerById,
+        value: normalizedValue,
+        activeCustomProvider,
+        allowCustomProvider,
+        recentKeys: favorites.recents,
+        isFavoriteModel,
+      })
+    : CLOSED_LIST_MODEL;
 
   // Numeric position of the active row, DERIVED from its stable compound key
   // against the current render order. When favoriting reorders the list the key

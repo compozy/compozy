@@ -35,15 +35,29 @@ func FromPath(path string) (Snapshot, error) {
 
 // FromInfo captures supplied metadata, fingerprinting content only when the OS lacks a reliable change token.
 func FromInfo(path string, info fs.FileInfo) Snapshot {
+	snapshot := metadataSnapshot(info)
+	if snapshot.change.available {
+		return snapshot
+	}
+	snapshot.digest, snapshot.reusable = fingerprintPath(path, info.Mode())
+	return snapshot
+}
+
+// FromFile captures held-file metadata without moving the reader or trusting unavailable change tokens.
+func FromFile(file *os.File) (Snapshot, error) {
+	info, err := file.Stat()
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("filesnap: stat held file: %w", err)
+	}
+	return metadataSnapshot(info), nil
+}
+
+func metadataSnapshot(info fs.FileInfo) Snapshot {
 	snapshot := Snapshot{
 		ModTime: info.ModTime(), Size: snapshotSize(info), mode: info.Mode(),
 		change: fileChangeToken(info), captured: true,
 	}
-	if snapshot.change.available {
-		snapshot.reusable = true
-		return snapshot
-	}
-	snapshot.digest, snapshot.reusable = fingerprintPath(path, info.Mode())
+	snapshot.reusable = snapshot.change.available
 	return snapshot
 }
 

@@ -137,6 +137,31 @@ func (s *Service) ContextForSession(
 	return normalized, nil
 }
 
+// CapabilitiesForSession resolves live capabilities without unrelated task, soul, or spawn-budget reads.
+func (s *Service) CapabilitiesForSession(
+	ctx context.Context,
+	info *session.Info,
+) (contract.AgentCapabilitySectionPayload, error) {
+	if s == nil {
+		return contract.AgentCapabilitySectionPayload{}, nil
+	}
+	if info == nil {
+		return contract.AgentCapabilitySectionPayload{}, errors.New("situation: session info is required")
+	}
+	if err := checkContext(ctx); err != nil {
+		return contract.AgentCapabilitySectionPayload{}, err
+	}
+	workspaceSnapshot, err := s.resolveWorkspace(ctx, info.WorkspaceID, info.Workspace, nil)
+	if err != nil {
+		return contract.AgentCapabilitySectionPayload{}, err
+	}
+	_, agentDef, err := s.resolveAgent(info.AgentName, info.Provider, compozyconfig.AgentDef{}, workspaceSnapshot)
+	if err != nil {
+		return contract.AgentCapabilitySectionPayload{}, err
+	}
+	return s.capabilitiesSection(ctx, workspaceSnapshot, agentDef)
+}
+
 // PromptStartupSection renders the startup prompt section with full startup metadata.
 func (s *Service) PromptStartupSection(
 	ctx context.Context,

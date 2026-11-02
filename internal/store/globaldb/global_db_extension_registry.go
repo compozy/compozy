@@ -78,3 +78,38 @@ func (r *ExtensionRegistryRepo) EnvBindingScopes(ctx context.Context, name strin
 	}
 	return result, nil
 }
+
+// ExtensionToolVisibility captures current installation reach and profile enablement.
+type ExtensionToolVisibility struct {
+	Enabled                 bool
+	Installed               bool
+	InstallationWorkspaceID string
+	DevLinked               bool
+	DevGeneration           string
+}
+
+// ToolVisibility reads fresh authority for one tool-catalog population in a single statement.
+func (r *ExtensionRegistryRepo) ToolVisibility(
+	ctx context.Context, profileID, workspaceID string,
+) (map[string]ExtensionToolVisibility, error) {
+	rows, err := r.queries.ListExtensionToolVisibility(ctx, sqlcgen.ListExtensionToolVisibilityParams{
+		ProfileID: profileID, WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]ExtensionToolVisibility, len(rows))
+	for _, row := range rows {
+		result[row.Name] = ExtensionToolVisibility{
+			Enabled: row.Enabled, Installed: row.Installed,
+			InstallationWorkspaceID: row.InstallationWorkspaceID,
+			DevLinked:               row.DevLinked, DevGeneration: row.DevGeneration,
+		}
+	}
+	return result, nil
+}
+
+// WorkspaceInstallations returns attached names across profiles for workspace inventory.
+func (r *ExtensionRegistryRepo) WorkspaceInstallations(ctx context.Context, workspaceID string) ([]string, error) {
+	return r.queries.ListExtensionWorkspaceInstallations(ctx, workspaceID)
+}

@@ -59,3 +59,14 @@ CI repair impact 2026-09-13: the browser suite installs both standard and .claud
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+
+## QA impact and focused evidence 2026-11-02 — responsiveness audit
+
+Catalog availability now reuses a bounded, expected-digest-bound verification result only for unchanged securely opened package bytes. Installation still opens and hashes the approved bytes. Catalog availability and permission to install remain distinct; replacement, corruption, missing files and digest changes must not inherit an earlier successful check.
+
+Focused verification passed under `-race`: `TestPackageCache` (`internal/marketplace/pluginsource/cache_test.go`, 2.281 s package receipt in `.cache/performance/extension-marketplace/focused-race.txt`) and `TestResolveAndAcquire` (`internal/marketplace/pluginsource/acquisition_test.go`, 1.457 s package receipt in `integration-race.txt`). `TestCatalogServiceDetailAndStatus` (`internal/marketplace/service_test.go`, 5.964 s in `marketplace-race-final.txt`) verifies truthful missing-package blockers and recovery. The mixed logs retain unrelated temporary compile failures; only their successful package rows are cited here.
+
+Existing root CI mappings, not rerun by this worker: `TestExtensionMarketplacePortableInstallParityIntegration` (`internal/cli/extension_marketplace_integration_test.go`); `TestDaemonE2EExtensionDistributionAcrossIsolatedHomes/Should install and update pinned plugins through public transports [IT-015 IT-018 IT-019]` (`internal/daemon/daemon_extension_distribution_e2e_integration_test.go`). Browser ownership remains `operator installs a badged catalog entry and reads its ingested and skipped components`, `operator installs a curated client-layout package with its layout provenance`, and `E2E-004: Add marketplace installs client-layout plugins only after approving current bytes` (`web/e2e/__tests__/marketplace.spec.ts`).
+
+No new trust/install browser journey ran; the skipped/pending historical verdict stays unchanged. Full bounded commands, integrity cases and limits: [extension/marketplace audit](../reports/2026-11-01-performance/extension-marketplace.md).

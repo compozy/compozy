@@ -56,3 +56,33 @@ orchestrated), and `looprun-c494117598fe2188` (failed, quarantined `orchestrate`
 (`RegisterRoutedGraph`) recaptured at 1440×900 through the eng-ui-screenshot helper.
 
 2026-10-05 functional replay: Targeted Usage regression replay on the completed human review displays 0m00s / 10m, matching the daemon's adjusted active span. Evidence: loops-human-review-usage-fixed.png and loops-human-review-done-uds.json. This is a focused retest; unchanged briefing contracts retain their prior provenance. Delivery gate passed; fix commit: acbeed2ec31a6d7c2f97fc82d00e0271d904ad70.
+
+QA impact 2026-11-01 (responsiveness audit): complete briefing/progress rosters now
+project all node items once, independently of the public page limit. The existing
+briefing and roster contract suites pass under the race detector, including a
+1,200-item, two-generation fixture with state filtering and stable order. Recheck
+large-run progress and the public paginated roster together in the isolated runtime
+walk. Focused evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+Runtime/browser and current-head CI verification remain with the enclosing audit.
+
+QA impact 2026-11-02 (stream freshness review): a lifecycle event now restarts an
+older active cached briefing read even while an initial or disabled roster read
+is pending under the same run prefix. Initial and disabled reads retain trailing
+invalidation; a disabled read refreshes only on activation. The canonical hook
+suite passes 31 cases and the eight existing lifecycle controls pass. The enclosing
+audit owns runtime/CI verification; the focused evidence and remaining dependence
+on read settlement are recorded in `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): emit a second lifecycle event while
+the roster read is still pending. The healthy briefing and catalog must advance
+before that roster request settles, then the roster must consume the accepted
+events without an extra redundant read. The strengthened canonical suite passes
+32 cases and the eight lifecycle controls still pass. The enclosing runtime/CI
+walk remains pending; evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (pending-read recovery): keep an active cached briefing
+request pending and deliver another lifecycle event. It coalesces normally before
+the existing 15-second live refresh budget, then may cancel only that still-current
+request and read the latest revision. Initial/disabled/static reads keep their
+existing deferred behavior. The owning suite passes 39 cases; runtime/CI evidence
+remains with the enclosing audit. See `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

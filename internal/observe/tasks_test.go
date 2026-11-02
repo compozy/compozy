@@ -151,6 +151,58 @@ func TestQueryTaskSummaryAggregatesByScopeOriginAndOwner(t *testing.T) {
 func TestQueryTaskSummaryKeepsProfileReadsIsolated(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should decode audit rows only for visible tasks", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		const otherProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+		seedObserveProfile(t, h.registry, otherProfile, h.now)
+		for _, fixture := range []struct{ id, profile string }{
+			{"task-audit-visible", store.DefaultProfileID},
+			{"task-audit-other", otherProfile},
+		} {
+			createObserveTask(t, h, taskpkg.Task{
+				ID: fixture.id, ProfileID: fixture.profile, Scope: taskpkg.ScopeGlobal,
+				Title: fixture.id, Status: taskpkg.TaskStatusReady,
+				CreatedBy: taskActor(taskpkg.ActorKindHuman, "operator"),
+				Origin:    taskOrigin(taskpkg.OriginKindCLI, "test"), CreatedAt: h.now, UpdatedAt: h.now,
+			})
+			if err := h.registry.CreateTaskEvent(t.Context(), taskpkg.Event{
+				ID: "event-" + fixture.id, TaskID: fixture.id, EventType: taskEventRunForceStopped,
+				Actor:  taskActor(taskpkg.ActorKindHuman, "operator"),
+				Origin: taskOrigin(taskpkg.OriginKindCLI, "test"), Timestamp: h.now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := h.registry.DB().ExecContext(t.Context(),
+			`UPDATE task_events SET timestamp = 'invalid' WHERE task_id = ?`, "task-audit-other"); err != nil {
+			t.Fatal(err)
+		}
+		metrics, err := h.observer.QueryTaskMetrics(t.Context(), TaskMetricsQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		})
+		if err != nil || metrics.TaskForcedStopsTotal != 1 {
+			t.Fatalf("scoped metrics = %+v, %v; want one visible forced stop", metrics, err)
+		}
+		_, err = h.observer.QueryTaskMetrics(t.Context(), TaskMetricsQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		parseErr, ok := errors.AsType[*time.ParseError](err)
+		if !ok || parseErr.Value != "invalid" ||
+			!strings.Contains(err.Error(), "observe: list task events for summary:") {
+			t.Fatalf(
+				"all-profile metrics error = %v, want included audit timestamp parse error for %q",
+				err, "invalid",
+			)
+		}
+		empty, err := h.observer.loadTaskSnapshot(t.Context(), TaskSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Search: "no-such-task",
+		})
+		if err != nil || len(empty.tasks) != 0 || len(empty.events) != 0 {
+			t.Fatalf("empty snapshot = %+v, %v", empty, err)
+		}
+	})
+
 	t.Run("Should summarize current profile state while task audit is unavailable", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

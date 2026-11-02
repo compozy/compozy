@@ -9,10 +9,7 @@ import type {
 } from "../types";
 
 function invalidateSchedulerQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: schedulerKeys.status() }),
-    queryClient.invalidateQueries({ queryKey: schedulerKeys.all }),
-  ]);
+  return queryClient.invalidateQueries({ queryKey: schedulerKeys.all });
 }
 
 export function usePauseScheduler() {

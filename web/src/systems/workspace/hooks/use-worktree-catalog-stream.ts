@@ -5,6 +5,11 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { workspaceKeys } from "../lib/query-keys";
+import {
+  createCoalescedReread,
+  WORKTREE_REREAD_COALESCE_MS,
+  WORKTREE_REREAD_MAX_WAIT_MS,
+} from "../lib/worktree-reread";
 import type { WorktreeCatalogEventPayload } from "../types";
 import {
   worktreeCatalogStreamLogic,
@@ -62,15 +67,28 @@ function openWorktreeCatalogStream(
   onStatusChange: (status: Exclude<WorktreeCatalogStreamStatus, "disabled">) => void
 ): () => void {
   const authorizedWorkspaceIds = new Set(workspaceIds);
-  // A reconnect may have missed frames, so every authorized workspace rereads.
+  const pendingWorkspaces = new Set<string>();
+  const reread = createCoalescedReread(
+    () => {
+      for (const workspaceId of pendingWorkspaces) {
+        // The list prefix includes its details, status and exit plan queries.
+        void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceId) });
+      }
+      pendingWorkspaces.clear();
+      void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktreeAggregates() });
+    },
+    WORKTREE_REREAD_COALESCE_MS,
+    WORKTREE_REREAD_MAX_WAIT_MS
+  );
   const reconcileWorkspaces: EventListener = () => {
     onStatusChange("live");
-    for (const workspaceId of authorizedWorkspaceIds) {
-      void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceId) });
-    }
-    void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktreeAggregates() });
+    for (const workspaceId of authorizedWorkspaceIds) pendingWorkspaces.add(workspaceId);
+    reread.request();
   };
-  const handleStreamError: EventListener = () => onStatusChange("stale");
+  const handleStreamError: EventListener = () => {
+    reread.flush();
+    onStatusChange("stale");
+  };
   const handleCatalogChange: EventListener = event => {
     const payload = parseWorktreeCatalogEvent(event);
     // Frames for workspaces this client does not hold are dropped before any
@@ -82,15 +100,8 @@ function openWorktreeCatalogStream(
         payload.error || "Worktree creation failed and was rolled back."
       );
     }
-    void queryClient.invalidateQueries({
-      queryKey: workspaceKeys.worktrees(payload.workspace_id),
-    });
-    // The All projects listing holds this workspace's rows too.
-    void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktreeAggregates() });
-    void queryClient.invalidateQueries({
-      queryKey: workspaceKeys.worktreeDetail(payload.workspace_id, payload.worktree_id),
-      exact: true,
-    });
+    pendingWorkspaces.add(payload.workspace_id);
+    reread.request();
   };
 
   const source = eventSourceFactory(worktreeCatalogStreamURL());
@@ -99,6 +110,7 @@ function openWorktreeCatalogStream(
     source.addEventListener("error", handleStreamError);
     source.addEventListener(WORKTREE_CATALOG_CHANGED_EVENT, handleCatalogChange);
   } catch (error) {
+    reread.flush();
     source.removeEventListener("open", reconcileWorkspaces);
     source.removeEventListener("error", handleStreamError);
     source.removeEventListener(WORKTREE_CATALOG_CHANGED_EVENT, handleCatalogChange);
@@ -107,6 +119,7 @@ function openWorktreeCatalogStream(
   }
 
   return () => {
+    reread.flush();
     source.removeEventListener("open", reconcileWorkspaces);
     source.removeEventListener("error", handleStreamError);
     source.removeEventListener(WORKTREE_CATALOG_CHANGED_EVENT, handleCatalogChange);

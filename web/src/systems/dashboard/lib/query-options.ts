@@ -7,6 +7,7 @@ import type { ProfileScopeParams } from "@/systems/profiles";
 import type { HomeActivityFilter, HomeOverviewFilter } from "../types";
 import type { ActivityFilter } from "./activity-view";
 import { dashboardKeys } from "./query-keys";
+import { OVERVIEW_REFETCH_INTERVAL } from "./query-policy";
 
 export function permissionRollupOptions(filter: ActivityFilter, profile: ProfileScopeParams) {
   return queryOptions({
@@ -27,7 +28,6 @@ export function permissionEntriesOptions(filter: ActivityFilter, profile: Profil
 }
 
 export const OVERVIEW_STALE_TIME = 15_000;
-export const OVERVIEW_REFETCH_INTERVAL = 30_000;
 export const ACTIVITY_STALE_TIME = 5_000;
 export const HOME_ACTIVITY_LIMIT = 30;
 

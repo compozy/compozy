@@ -5,45 +5,61 @@ interface HomeLiveRefreshState {
   scope: string;
 }
 
+type InvalidateProjection = () => void;
+
 type HomeLiveRefreshEvents = {
   activityReceived: {
     at: number;
-    invalidateOverview: () => Promise<unknown>;
-    invalidateTaskAggregates: () => Promise<unknown>;
+    invalidateOverview: InvalidateProjection;
+    invalidateTaskAggregates: InvalidateProjection;
     lifecycle: boolean;
     minimumIntervalMs: number;
     scope: string;
   };
   scopeActivated: { scope: string };
+  scopeDeactivated: { scope: string };
 };
 
-async function invoke(operation: () => Promise<unknown>): Promise<void> {
+function invoke(operation: InvalidateProjection): void {
   try {
-    await operation();
+    operation();
   } catch (error) {
     console.error("Failed to invalidate a home live projection", error);
   }
 }
 
 export const homeLiveRefreshLogic = createStoreLogic<HomeLiveRefreshState, HomeLiveRefreshEvents>({
-  context: { lastOverviewInvalidateAt: 0, scope: "" },
+  context: {
+    lastOverviewInvalidateAt: 0,
+    scope: "",
+  },
   on: {
     scopeActivated: (context, event) =>
       context.scope === event.scope
         ? undefined
-        : { lastOverviewInvalidateAt: 0, scope: event.scope },
+        : {
+            ...context,
+            lastOverviewInvalidateAt: 0,
+            scope: event.scope,
+          },
+    scopeDeactivated: (context, event) => {
+      if (event.scope !== context.scope) return;
+      return {
+        ...context,
+        scope: "",
+      };
+    },
     activityReceived: (context, event, enqueue) => {
       if (event.scope !== context.scope) return;
       if (event.lifecycle) {
-        enqueue.effect(async () => {
-          await invoke(event.invalidateTaskAggregates);
-        });
-        return { ...context, lastOverviewInvalidateAt: event.at };
+        enqueue.effect(() => invoke(event.invalidateTaskAggregates));
+        return {
+          ...context,
+          lastOverviewInvalidateAt: event.at,
+        };
       }
       if (event.at - context.lastOverviewInvalidateAt < event.minimumIntervalMs) return;
-      enqueue.effect(async () => {
-        await invoke(event.invalidateOverview);
-      });
+      enqueue.effect(() => invoke(event.invalidateOverview));
       return { ...context, lastOverviewInvalidateAt: event.at };
     },
   },

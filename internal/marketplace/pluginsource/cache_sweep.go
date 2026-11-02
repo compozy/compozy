@@ -66,6 +66,7 @@ func (c *PackageCache) sweep(ctx context.Context, pinned map[string]struct{}, re
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.clearVerifiedSnapshots()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

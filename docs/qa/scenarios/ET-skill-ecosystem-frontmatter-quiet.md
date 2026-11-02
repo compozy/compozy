@@ -42,3 +42,14 @@ QA impact 2026-09-02: reset because malformed skill definitions are now withheld
 catalog instead of falling back to their directory name, and the scanner no longer emits a repeated
 warning for the same malformed file. Re-walk the malformed-neighbor, structured diagnostics, repair,
 and quiet-rescan path. Charter: `CH-malformed-skill-recovery`.
+
+
+## QA impact and focused evidence 2026-11-02 — responsiveness audit
+
+The skill loader now decodes metadata from its already parsed YAML node instead of parsing the same frontmatter twice. Recognized ecosystem fields must remain inert and quiet, genuinely unknown fields must retain named warnings, and malformed input/body handling must remain unchanged.
+
+Focused verification passed under `-race` for the existing loader suites in `internal/skills/loader_test.go`, including `TestParseSkillContentAcceptsEcosystemFrontmatterWithoutWarnings`, `TestParseSkillContentWarnsOnUnknownFields`, `TestParseSkillContentErrors`, and `TestParseSkillFileIgnoresForeignMetadata`. The selected skills package receipt is 1.738 s (`.cache/performance/extension-marketplace/integration-race.txt`); the same parser suite also passed with the five-sample after benchmark. Parsing median decreased from 18,566 to 9,479 ns/op while retaining these behavioral checks.
+
+Existing root CI mappings, not rerun by this worker: `TestRegistryIntegrationSourceIsolationAndRealpathDedup` (`internal/skills/registry_integration_test.go`) for real source loading/isolation, and `TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart` (`internal/daemon/daemon_integration_test.go`) for live source refresh. Browser source/picker coverage is `E2E-007 / E2E-008: source toggles and custom folders apply live and update the picker` and `E2E-010: the picker labels an absorbed skill and leaves a native one unlabeled` (`web/e2e/__tests__/skill-sources.spec.ts`); these are adjacent source-delivery coverage, not assertions that the full unknown-field/quiet-rescan journey was walked.
+
+No new daemon-log, settings/browser or CLI scenario walk ran. Historical verdicts above remain unchanged. Full commands and boundaries: [extension/marketplace audit](../reports/2026-11-01-performance/extension-marketplace.md).

@@ -642,6 +642,61 @@ func (q *Queries) ListTaskEvents(ctx context.Context, arg ListTaskEventsParams) 
 	return items, nil
 }
 
+const listTaskEventsForTasks = `-- name: ListTaskEventsForTasks :many
+SELECT id, task_id, run_id, event_type, actor_kind, actor_id,
+       origin_kind, origin_ref, payload_json, timestamp
+FROM task_events
+WHERE task_id IN (SELECT CAST(value AS TEXT) FROM json_each(CAST(?1 AS TEXT)))
+ORDER BY timestamp DESC, id DESC
+`
+
+type ListTaskEventsForTasksRow struct {
+	ID          string         `json:"id"`
+	TaskID      string         `json:"task_id"`
+	RunID       sql.NullString `json:"run_id"`
+	EventType   string         `json:"event_type"`
+	ActorKind   string         `json:"actor_kind"`
+	ActorID     string         `json:"actor_id"`
+	OriginKind  string         `json:"origin_kind"`
+	OriginRef   string         `json:"origin_ref"`
+	PayloadJson sql.NullString `json:"payload_json"`
+	Timestamp   string         `json:"timestamp"`
+}
+
+func (q *Queries) ListTaskEventsForTasks(ctx context.Context, taskIdsJson string) ([]ListTaskEventsForTasksRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTaskEventsForTasks, taskIdsJson)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTaskEventsForTasksRow{}
+	for rows.Next() {
+		var i ListTaskEventsForTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.RunID,
+			&i.EventType,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.OriginKind,
+			&i.OriginRef,
+			&i.PayloadJson,
+			&i.Timestamp,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskTriageStates = `-- name: ListTaskTriageStates :many
 SELECT task_id, actor_kind, actor_id, is_read, archived, dismissed, last_seen_activity_at, updated_at
 FROM task_triage_state

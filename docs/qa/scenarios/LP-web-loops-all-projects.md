@@ -21,3 +21,29 @@ story: As an operator running Loops in several projects, I see every project's L
 src: .compozy/tasks/all-projects/_spec.md (slice 3, BR-4/5/10/12/15); `_uiux.md` S5/S8; `_tests.md` W-18, W-23, E-03
 
 2026-10-21 qa-impact (all-projects AW3): added. Walk with two projects plus User-scope runs, one project with a broken loop config (inline error row), and a second profile (All profiles note; dock badge follows the profile lens). Include a bound run permalink and reload. Unit evidence: `loop-catalog.test.tsx`, `loop-runs-location.test.tsx`, `use-loop-request-attention.test.tsx`, `use-menubar-attention-selection.test.tsx`, `-route-preloading.integration.test.tsx`; E2E: `loops.spec.ts` ("Loop runs open in place under All projects…"). Owned by the trailing QA pair.
+
+QA impact 2026-11-01 (responsiveness audit): stream reconciliation retains both
+the concrete workspace and All projects query prefixes while coalescing lifecycle
+bursts. Confirm latest-run/catalog updates after terminal events, plus request
+markers after answering from another surface, without invalidating unrelated run
+detail scopes. Existing scenario verdict/history is retained; the enclosing audit
+owns the runtime replay and current-head CI. Focused evidence is recorded in
+`docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA impact 2026-11-02 (stream freshness review): lifecycle invalidation can restart
+active cached aggregate reads without waiting for their pre-event request. Initial
+and disabled reads keep their trailing freshness obligation. Workspace/aggregate
+prefixes are unchanged. Focused hook checks pass; the enclosing audit retains the
+runtime/CI walk. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): include a second event for a healthy
+aggregate/catalog while a sibling run read is pending. Refresh ownership is now
+per Query, preserving workspace/aggregate scope without waiting for unrelated
+requests. Focused controls pass; runtime/CI verification remains with the enclosing
+audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (pending-read recovery): cached active aggregate reads use
+the same event-driven 15-second coalescing budget as other Loop reads. Recovery
+targets the captured Query/promise and retains the existing workspace/profile
+prefixes; disabled reads are not forced. Focused checks pass; the enclosing audit
+owns runtime/CI verification. See `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

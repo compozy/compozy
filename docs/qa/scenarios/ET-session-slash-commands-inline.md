@@ -49,3 +49,16 @@ switch or restart, old advertisements cannot activate commands until the replace
 Hook-added surrounding whitespace is normalized before standalone command delivery; arguments remain
 intact. `TestAgentCommandsFollowCurrentRuntime` exercises the first-message advertisement event,
 subsequent command, provider switch and stop/resume paths.
+
+QA impact 2026-11-01 (responsiveness audit): inline skill parsing now computes
+UTF-16 offsets with one forward cursor. Re-walk long prompts containing emoji,
+unknown commands, path-like markers, and repeated admitted skills. The first
+admitted marker for each skill must retain its exact browser range and the
+submitted text must remain unchanged after reload.
+
+Focused evidence: the canonical `TestParseSkillInvocations` suite passes with the
+race detector, including skipped/repeated markers and malformed UTF-8. The
+[performance report](../reports/2026-11-01-performance/events-settings.md) records
+the before/after allocation and parser measurements. This evidence does not
+replace the browser/provider walk or current-head CI; both remain pending for
+this audit and historical verdicts above are unchanged.

@@ -2178,8 +2178,11 @@ describe("SessionList folders and manual order", () => {
     screen.getByTestId(`session-row-actions-${source.id}`).focus();
     await user.keyboard("{Enter}");
     await user.keyboard("Nest{ArrowRight}");
-    expect(await screen.findByRole("menuitem", { name: "Destination" })).toBeInTheDocument();
+    const destination = await screen.findByRole("menuitem", { name: "Destination" });
+    expect(destination).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Foreign" })).not.toBeInTheDocument();
+    // Mounting precedes the submenu's scheduled keyboard focus handoff.
+    await waitFor(() => expect(destination).toHaveFocus());
     await user.keyboard("{Enter}");
     expect(onAdopt).toHaveBeenCalledWith(source, target);
   });

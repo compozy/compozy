@@ -116,3 +116,40 @@ expiry were not part of this targeted walk.
 
 Targeted evidence: [issue-1023 report](../reports/2026-10-29-issue-1023.md). The broader scenario
 retains its existing status; unrelated transports and packaged-desktop journeys are not claimed.
+
+QA impact 2026-11-01 (responsiveness audit): hold a local credential-evidence read for one
+profile while reading another profile and clearing/removing the original profile's provider
+route. Unrelated reads and authoritative invalidation must complete independently of that I/O;
+a late read result must not restore quota/account data after credential reset or route removal.
+Repeat the existing logout, atomic credential-file replacement and ownership-change checks,
+including A-to-B-to-A login while a read waits and a newer verified A publication succeeds
+without a credential-clear operation. The delayed B mismatch must not clear that newer quota.
+The controlled fixture uses temporary synthetic credentials and loopback quota HTTP only;
+measurements of its injected I/O delay are not production/provider latency claims. Focused
+service tests and the contention benchmark are recorded in
+`../reports/2026-11-01-performance/usage-dashboard.md`; real transport/browser re-walk remains
+owned by the enclosing audit until evidence is recorded there.
+
+2026-11-02 review follow-up: repeat A-to-B-to-A with a newer successful `Envelope`
+read instead of a collection, including a restored unchanged-file cache hit. The
+older B mismatch must not clear the successfully revalidated A snapshot. A newer
+failed validation must not suppress that mismatch. The existing `TestUsageService`
+table covers these boundaries with real temporary files and loopback HTTP; both
+positive races failed before the correction and the final focused race suite passes.
+This adds no claim about live provider credentials or the broader scenario verdict.
+
+2026-11-02 reverse-order review follow-up: pause an owner-A credential probe, write
+owner B, and pause a second probe after it reads B. Let A apply first, then release
+B. The second `Envelope` must obtain fresh evidence after the sequence collision
+and discard A's quota while B remains current. Repeat across three collisions;
+cancel during a recheck and verify that no further credential probe starts. A
+recheck that observes the same owner with a validation error must retain the
+last-good quota without inventing an ownership mismatch. Existing A-to-B-to-A,
+cached-read, failed-read and unrelated-profile checks remain required.
+
+Targeted evidence: the reverse-order case failed before the production correction;
+the canonical `TestUsageService` race suite and package lint pass, with behavioral
+negative controls for rereading, the sequence fence, cancellation and error handling.
+See the reverse observation-order section of
+`../reports/2026-11-01-performance/usage-dashboard.md`. This uses temporary synthetic
+credentials and loopback HTTP; it does not change the broader scenario verdict.

@@ -73,14 +73,19 @@ func (s *FilesystemAttachmentStore) putLocked(
 	if err != nil {
 		return AttachmentRef{}, err
 	}
-	if err := s.sweepLocked(ctx, 0, 0); err != nil {
+	retained, err := s.listAttachments(ctx)
+	if err != nil {
+		return AttachmentRef{}, err
+	}
+	retained, err = s.sweepItemsLocked(ctx, retained, 0, 0)
+	if err != nil {
 		return AttachmentRef{}, err
 	}
 	contentPath := filepath.Join(sessionDir, id)
 	if existing, found, err := s.existingRef(ctx, contentPath, id, request.Data); err != nil || found {
 		return existing, err
 	}
-	if err := s.sweepLocked(ctx, 1, int64(len(request.Data))); err != nil {
+	if _, err := s.sweepItemsLocked(ctx, retained, 1, int64(len(request.Data))); err != nil {
 		return AttachmentRef{}, err
 	}
 	meta := s.newAttachmentMeta(request, id, mime, kind, width, height)

@@ -96,3 +96,26 @@ slice, not a new full-scenario verdict; official-shard and CI evidence are track
 
 All-projects A4 backend coverage (2026-10-21): Read the local `/api/terminals/catalog-stream?all_workspaces=true` across projects and profiles. Reconnect with its selection-bound cursor, then widen the selection: expect a fresh snapshot with `reset: true`, including terminals created before the previous fence. Close/delete events identify workspace and profile. The private Gateway returns 404 for both terminal aggregate routes.
 Targeted evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`. The integrated Web walk remains owned by the orchestration QA slice.
+
+QA impact 2026-11-02 (responsiveness audit): ring retention now reuses owned byte buffers and
+limits the newline preference search to its existing 256-byte window. Reconnect cursors,
+UTF-8/escape boundaries, typed redacted markers and immutable returned replays remain the contract.
+The append improvement does not imply faster full replay: immutable full replay adds one copy.
+
+Focused evidence: [terminal performance audit](../reports/2026-11-01-performance/terminal-terminal.md).
+`TestRingReplayContract` (`internal/terminal/ring_test.go`), `TestSessionTailReadContract` and
+`TestSessionAttachReplayAndResizeContract` (`internal/terminal/manager_test.go`) passed with
+`-race` through the bounded runner. The latter includes a stopped-consuming read/write viewer
+while output continues; this is controlled runtime-contract coverage, not a browser flood walk.
+
+Existing current-head CI targets, identified here but not executed by this note:
+
+- `web/e2e/__tests__/terminal.spec.ts`: `E2E-014: alternate-screen TUI reflows, matches a watcher, and restores primary`.
+- The same file: `E2E-020: zsh prompt > redraws each key with shell integration disabled` and
+  `E2E-020: zsh prompt ❯ redraws each key with shell integration disabled` (redraw and reconnect).
+- `web/e2e/__tests__/terminal-agent.spec.ts`: `E2E-004: two browser contexts write to one agent terminal concurrently`.
+- `internal/api/core/terminal_wire_integration_test.go`: `TestTerminalWireShouldCompleteRealLifecycle`
+  supplies the existing real wire/runtime integration target alongside the browser selection.
+
+No browser re-walk is claimed for this audit. The prior scenario verdict remains historical;
+the owning root/CI run must attach its fresh receipt before claiming the changed journey passed.

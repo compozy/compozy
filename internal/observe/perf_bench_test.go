@@ -64,6 +64,23 @@ func BenchmarkTaskSnapshotSQLite(b *testing.B) {
 		}
 	}
 	observer := &Observer{registry: registry, now: func() time.Time { return benchmarkObserveNow }}
+	b.Run("FilteredEvents", func(b *testing.B) {
+		b.ReportAllocs()
+		var snapshot taskSnapshot
+		for b.Loop() {
+			snapshot, err = observer.loadTaskSnapshot(b.Context(), TaskSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, Search: "task-0001",
+			})
+			if err != nil || len(snapshot.tasks) != 1 || len(snapshot.events) != 16 {
+				b.Fatalf("snapshot tasks=%d events=%d, error=%v", len(snapshot.tasks), len(snapshot.events), err)
+			}
+		}
+		encoded, err := json.Marshal(snapshot.events)
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.Logf("filtered events SHA-256: %x", sha256.Sum256(encoded))
+	})
 	b.Run("DependencyCounts", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {

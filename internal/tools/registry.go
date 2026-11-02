@@ -264,12 +264,16 @@ func (r *RuntimeRegistry) Call(ctx context.Context, scope Scope, req CallRequest
 func (r *RuntimeRegistry) ListToolsets(ctx context.Context, scope Scope) ([]ToolsetView, error) {
 	toolsets := r.toolsets.List()
 	views := make([]ToolsetView, 0, len(toolsets))
+	if len(toolsets) == 0 {
+		return views, nil
+	}
+	index, err := r.buildIndex(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	universe := index.ids()
 	for _, toolset := range toolsets {
-		view, err := r.toolsetView(ctx, scope, toolset)
-		if err != nil {
-			return nil, err
-		}
-		views = append(views, view)
+		views = append(views, r.toolsetView(toolset, universe))
 	}
 	return views, nil
 }
@@ -289,7 +293,11 @@ func (r *RuntimeRegistry) GetToolset(ctx context.Context, scope Scope, id Toolse
 			ReasonToolsetUnknown,
 		)
 	}
-	return r.toolsetView(ctx, scope, toolset)
+	index, err := r.buildIndex(ctx, scope)
+	if err != nil {
+		return ToolsetView{}, err
+	}
+	return r.toolsetView(toolset, index.ids()), nil
 }
 
 // OperatorProjection returns all registered tools with diagnostics.

@@ -83,7 +83,7 @@ export function invalidateWorktreeExitScope(
   worktreeID: string
 ): Promise<unknown> {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID) }),
+    queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID), exact: true }),
     queryClient.invalidateQueries({
       queryKey: workspaceKeys.worktreeDetail(workspaceID, worktreeID),
       exact: true,

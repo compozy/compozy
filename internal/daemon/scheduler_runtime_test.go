@@ -28,14 +28,14 @@ import (
 )
 
 type schedulerSituationContextStub struct {
-	payload contractpkg.AgentContextPayload
+	payload contractpkg.AgentCapabilitySectionPayload
 	err     error
 }
 
-func (s *schedulerSituationContextStub) ContextForSession(
+func (s *schedulerSituationContextStub) CapabilitiesForSession(
 	context.Context,
 	*session.Info,
-) (contractpkg.AgentContextPayload, error) {
+) (contractpkg.AgentCapabilitySectionPayload, error) {
 	return s.payload, s.err
 }
 
@@ -1292,4 +1292,88 @@ func assertGenerationZeroCoordinatorFailureEvent(t *testing.T, events []looppkg.
 	if got, want := len(failureEvents), 1; got != want {
 		t.Fatalf("generation-zero coordinator failure events = %d, want %d", got, want)
 	}
+}
+
+type schedulerProjectionCountingStore struct {
+	*globaldb.GlobalDB
+	taskReads  int
+	pauseReads int
+}
+
+func (s *schedulerProjectionCountingStore) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
+	s.taskReads++
+	return s.GlobalDB.GetTask(ctx, id)
+}
+
+func (s *schedulerProjectionCountingStore) IsTaskEffectivelyPaused(
+	ctx context.Context,
+	id string,
+) (bool, string, error) {
+	s.pauseReads++
+	return s.GlobalDB.IsTaskEffectivelyPaused(ctx, id)
+}
+
+func TestSchedulerTaskProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read each task once per sweep and retain current ancestor pause eligibility", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		parent := daemonTaskRecordForTest("projection-parent", now)
+		child := daemonTaskRecordForTest("projection-child", now)
+		child.ParentTaskID = parent.ID
+		peer := daemonTaskRecordForTest("projection-peer", now)
+		for _, record := range []taskpkg.Task{parent, child, peer} {
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+		}
+		dbReads := &schedulerProjectionCountingStore{GlobalDB: db}
+		source := schedulerTaskSource{store: dbReads}
+		runs := []taskpkg.Run{
+			{ID: "child-1", TaskID: child.ID},
+			{ID: "peer-1", TaskID: peer.ID},
+			{ID: "child-2", TaskID: child.ID},
+			{ID: "peer-2", TaskID: peer.ID},
+		}
+		first, err := source.joinRunsWithTasks(ctx, runs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first, err = source.filterPausedRuns(ctx, first)
+		if err != nil || len(first) != len(runs) {
+			t.Fatalf("initial projection = %#v, %v", first, err)
+		}
+		for index, run := range runs {
+			if first[index].Run.ID != run.ID {
+				t.Fatal("run order changed")
+			}
+		}
+		if dbReads.taskReads != 2 || dbReads.pauseReads != 2 {
+			t.Fatalf("reads = tasks %d, pauses %d; want one each per task", dbReads.taskReads, dbReads.pauseReads)
+		}
+		if _, err := db.PauseTask(
+			ctx,
+			taskpkg.PauseMutation{
+				TaskID:   parent.ID,
+				Actor:    "performance-test",
+				Reason:   "pause children",
+				PausedAt: now,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		second, err := source.joinRunsWithTasks(ctx, runs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err = source.filterPausedRuns(ctx, second)
+		if err != nil || len(second) != 2 || second[0].Run.ID != "peer-1" || second[1].Run.ID != "peer-2" {
+			t.Fatalf("paused projection = %#v, %v", second, err)
+		}
+		if dbReads.taskReads != 4 || dbReads.pauseReads != 4 {
+			t.Fatalf("second sweep reused stale reads: tasks %d, pauses %d", dbReads.taskReads, dbReads.pauseReads)
+		}
+	})
 }

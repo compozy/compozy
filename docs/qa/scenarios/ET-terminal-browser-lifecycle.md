@@ -112,3 +112,27 @@ terminal's title with no spinner or running mark while the shell idles at its pr
 command runs, and the deck tab shows only its glyph and title. Then end three terminals: `exit 0`
 shows the done check, `exit 1` the neutral idle mark, and Stop (signal) the stopped mark in the
 head. Session windows in the same deck keep their state glyphs.
+
+QA impact 2026-11-02 (responsiveness audit): catalog reconciliation now releases local pane state
+for terminals removed from the current workspace/profile catalog. Panes still present keep their
+connection state; late events cannot recreate a removed pane, and foreign-scope reconciliation is
+ignored. Emulator ownership and the existing close/reload contract remain unchanged.
+
+Focused evidence: [terminal performance audit](../reports/2026-11-01-performance/terminal-terminal.md).
+The root-Turborepo run passed `terminal-window-app.test.tsx` (44 tests) and
+`terminal-store.test.ts` (6 tests). The new canonical cases are
+`Should release removed pane state while preserving a live connection in the same scope` and
+`Should ignore a catalog from an old scope`. The isolated store measurement retained one live pane
+after 1,000 catalog rotations instead of keeping all 1,000; this is not a browser heap measurement.
+
+Existing current-head CI targets, identified here but not executed by this note:
+
+- `web/e2e/__tests__/terminal.spec.ts`: `E2E-002: browser restores terminal tabs and confirms group termination`
+  exercises tab switching, reload, a still-writable process, canceled close and confirmed group close.
+- The same file: `E2E-020: terminal window close preserves Stop and retries after disconnect`
+  exercises failure recovery, reload, Stop and closing the exited window.
+- `web/e2e/__tests__/terminal-agent.spec.ts`: `E2E-020: profile switches isolate terminals and aggregate journal owners`
+  covers the adjacent profile-isolation journey; it is not a substitute for the new catalog-state test.
+
+No new browser verdict is recorded. The existing `untested` status and historical receipts above
+are preserved; root owns the fresh isolated-browser/CI receipt and any broader launcher re-walk.

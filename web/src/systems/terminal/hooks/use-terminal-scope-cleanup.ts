@@ -53,19 +53,17 @@ export function useTerminalScopeCleanup({
 }) {
   const [owner] = useState<TerminalScopeOwner>(() => ({ keys: new Set<string>() }));
   const scopeKey = terminalScopeKey(workspaceId, profile);
-  const liveKeySignature = JSON.stringify(
-    terminals.flatMap(terminal =>
-      terminal.profile_name === profile
-        ? [terminalInstanceKey(workspaceId, profile, terminal.id)]
-        : []
-    )
+  const terminalIdSignature = JSON.stringify(
+    terminals.flatMap(terminal => (terminal.profile_name === profile ? [terminal.id] : []))
   );
 
   useEffect(() => () => releaseTerminalScope(owner), [owner]);
 
   useEffect(() => {
-    const live = new Set(JSON.parse(liveKeySignature) as string[]);
+    const terminalIds = JSON.parse(terminalIdSignature) as string[];
+    const live = new Set(terminalIds.map(id => terminalInstanceKey(workspaceId, profile, id)));
     store.trigger.scopeBound({ scopeKey });
+    store.trigger.panesReconciled({ scopeKey, terminalIds });
     reconcileTerminalInstances(owner, live);
-  }, [liveKeySignature, owner, scopeKey, store]);
+  }, [terminalIdSignature, owner, profile, scopeKey, store, workspaceId]);
 }

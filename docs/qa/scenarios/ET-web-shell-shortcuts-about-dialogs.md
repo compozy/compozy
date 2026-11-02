@@ -43,3 +43,11 @@ the Herdr parity QA tail.
 QA 2026-08-16 Herdr parity: The full Web E2E, daemon settings contract suites, and inspected visual bundles covered editable shortcuts, array/range persistence, blocked and shadowed diagnostics, Terminal preset preview/apply/revert, live cheatsheet freshness, and editable-context routing.
 
 qa-impact: 2026-09-30 expectation corrected against the product: the section list follows `SHORTCUT_SECTION_ORDER` (Shell, Window, Tiling, Tabs, Sessions, Desktops, Workspaces, Layout) plus registry-reported extras such as Apps. Expected text only; status fields untouched.
+
+
+QA impact 2026-11-01 (responsiveness audit): About now enables the full `/api/status` query only
+while open. With About closed, shell connection and user-home consumers share `/api/status/identity`.
+Open About and verify every diagnostic field, pending/error state and refreshed identity; close it
+and confirm its diagnostic polling stops while connection refresh continues. The existing About
+dialog and status-query suites own focused request-count/freshness coverage. Historical verdicts
+above remain historical; this change awaits the audit's integrated browser/runtime QA tail.

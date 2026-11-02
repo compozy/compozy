@@ -8,7 +8,7 @@ import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
 import { isLoopRequestEventKind } from "../lib/loop-graph-events";
-import { LOOP_AGGREGATE_KEY, loopsKeys } from "../lib/query-keys";
+import { createLoopLiveRefreshStore } from "../lib/loop-live-refresh-coordinator";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 import {
   loopStreamLifecycleLogic,
@@ -72,50 +72,6 @@ function attachLoopStreamSource(
     source.onerror = null;
     source.close();
   };
-}
-
-type QueryClient = ReturnType<typeof useQueryClient>;
-
-function invalidateLoopRunQueries(
-  queryClient: QueryClient,
-  workspaceId: string,
-  runId: string,
-  refreshCatalog: boolean
-) {
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) });
-  // The stream accelerates; the reads reconcile. A lifecycle frame is the signal
-  // that the briefing, roster and story have something new to say — it is never
-  // the story itself, because the daemon writes those sentences at read time.
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });
-  if (refreshCatalog) {
-    void queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) });
-    void queryClient.invalidateQueries({
-      queryKey: loopsKeys.catalogByWorkspace(LOOP_AGGREGATE_KEY),
-    });
-  }
-}
-
-function invalidateLoopRequestQueries(
-  queryClient: QueryClient,
-  workspaceId: string,
-  runId: string
-) {
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) });
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) });
-  void queryClient.invalidateQueries({
-    queryKey: loopsKeys.requestsByWorkspace(LOOP_AGGREGATE_KEY),
-  });
-  // The workspace roster carries a server-owned needs-you marker, and a request
-  // can be opened or answered from another surface entirely. Without this the
-  // run list keeps advertising a decision that has already been made.
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) });
-  // A request opening or closing changes the served verdict, so the briefing has
-  // to be re-read rather than inferred from the frame.
-  void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });
 }
 
 /**
@@ -185,6 +141,7 @@ export function useLoopStream(
       workspaceId: trimmedWorkspace,
     };
     lifecycleStore.trigger.subscriptionOpened({ subscription });
+    const refreshStore = createLoopLiveRefreshStore(queryClient, trimmedWorkspace, trimmedRun);
 
     /** Accepts frames from the active subscription and refreshes affected Run reads. */
     const handleFrame = (event: MessageEvent) => {
@@ -207,19 +164,14 @@ export function useLoopStream(
       // ("message") falls back to the parsed payload kind.
       const kind = event.type !== "message" ? event.type : (payload.kind ?? "");
       if (kind === "goal_turn_started" || kind === "goal_turn_completed") {
-        void queryClient.invalidateQueries({
-          queryKey: loopsKeys.goalTurns(trimmedWorkspace, trimmedRun),
-        });
+        refreshStore.trigger.refreshRequested({ scope: "goal-turns" });
       }
       if (isLifecycleKind(kind)) {
-        invalidateLoopRunQueries(
-          queryClient,
-          trimmedWorkspace,
-          trimmedRun,
-          kind === "status_changed"
-        );
+        refreshStore.trigger.refreshRequested({
+          scope: kind === "status_changed" ? "catalog" : "run",
+        });
       } else if (isRequestKind(kind)) {
-        invalidateLoopRequestQueries(queryClient, trimmedWorkspace, trimmedRun);
+        refreshStore.trigger.refreshRequested({ scope: "request" });
       }
       notifyEvent(payload, subscription);
     };
@@ -231,6 +183,7 @@ export function useLoopStream(
     const detach = attachLoopStreamSource(source, handleFrame, handleError);
     return () => {
       lifecycleStore.trigger.subscriptionClosed({ subscription });
+      refreshStore.trigger.disposed();
       detach();
     };
   }, [

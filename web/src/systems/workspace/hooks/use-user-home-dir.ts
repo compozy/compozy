@@ -1,6 +1,6 @@
-import { useDaemonStatus } from "@/systems/status";
+import { useRuntimeIdentity } from "@/systems/status";
 
 export function useUserHomeDir(options: { enabled?: boolean } = {}): string | undefined {
-  const { data } = useDaemonStatus(options);
-  return data?.user_home_dir ?? undefined;
+  const { data } = useRuntimeIdentity(options);
+  return data?.daemon.user_home_dir ?? undefined;
 }

@@ -53,17 +53,22 @@ func (r *dynamicSecretRegistry) register(secret string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.values[secret]++
-	r.storeSnapshotLocked()
+	if r.values[secret] == 1 {
+		r.storeSnapshotLocked()
+	}
 }
 
 func (r *dynamicSecretRegistry) unregister(secret string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.values[secret] <= 1 {
-		delete(r.values, secret)
-	} else {
+	if r.values[secret] > 1 {
 		r.values[secret]--
+		return
 	}
+	if r.values[secret] == 0 {
+		return
+	}
+	delete(r.values, secret)
 	r.storeSnapshotLocked()
 }
 

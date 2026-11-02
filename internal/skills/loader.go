@@ -173,7 +173,7 @@ func decodeSkillMeta(frontmatter string) (SkillMeta, error) {
 	warnUnknownFields(&document)
 
 	var meta SkillMeta
-	if err := yaml.Unmarshal([]byte(frontmatter), &meta); err != nil {
+	if err := document.Decode(&meta); err != nil {
 		return SkillMeta{}, err
 	}
 

@@ -67,3 +67,36 @@ refresh and provider-unavailable behavior. Automated coverage: `TestServiceStatu
 Native refusal parity (#1012): duplicate creation returns `worktree_name_taken`; removal while session-bound returns `worktree_session_active` with a readable explanation. A real workspace prune failure retains `tool_backend_failed` / `backend_unhealthy` and a sanitized cause. Verify that refusals do not replace or remove the checkout.
 
 The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.
+
+2026-11-01 responsiveness audit impact: compare HTTP and UDS aggregate worktree reads with
+`all_workspaces=true`, a selected profile, and explicit `workspace_ids`. Only selected registered
+workspaces may reach metadata hydration; an empty authorized selection returns no rows, and a
+workspace-catalog failure stops before hydration. Verify unchanged owner labels, deterministic
+ordering, default archived-workspace exclusion and explicitly selected history. The API admission
+suite and real-SQLite worktree suite own automated evidence; this revision's transport/browser
+scenario re-walk remains pending. Evidence and limits: [API and Tasks audit](../reports/2026-11-01-performance/api-tasks.md)
+and [worktree audit](../reports/2026-11-01-performance/worktree-workspace.md).
+
+2026-11-02 review follow-up: if one row encounters a transient workspace lookup
+or uncached repository-identity failure, later rows must retry resolution and retain available
+forge facts; after success, subsequent rows share that resolution. The existing
+`TestGlobalDBWorktreeStore` fixture verifies three ordered rows using real SQLite
+and Git, with a controlled lookup failure at the I/O boundary. It fails before the
+correction and passes under race afterward. The repository variant makes the temporary
+fixture root unavailable to the real Git runner, then restores it for the next row.
+Stable negative identity caching remains unchanged. The aggregate benchmark also checks
+local and forge status on every one of its 64 rows. These checks do not replace
+the enclosing transport journey or alter its historical verdict.
+
+2026-11-02 PR-cache failure-isolation follow-up: an unreadable cached PR row must not
+hide independently readable forge facts for other authorized worktrees. Aggregate and
+workspace listings share this behavior while preserving row order, local status and
+workspace/repository/branch identity. The canonical `TestGlobalDBWorktreeStore` case
+uses real SQLite and Git: one schema-valid JSON object that cannot decode as a list
+previously suppressed all five other cached observations; the corrected listing retains
+those five. Focused race coverage also verifies that cancellation stops individual
+fallback reads and that a failed single-row read is not repeated. Normal 64-row reads
+still use one PR batch and check every returned row's status and forge facts.
+Evidence and exact commands: [worktree audit](../reports/2026-11-01-performance/worktree-workspace.md).
+This adds service/store evidence; the enclosing HTTP/UDS/CLI/native transport re-walk
+and current-head CI remain separately owned. Historical scenario status is unchanged.

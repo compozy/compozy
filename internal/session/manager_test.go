@@ -2064,3 +2064,51 @@ func TestManagerOptionsPreserveExplicitQueryStore(t *testing.T) {
 		}
 	})
 }
+
+func TestManagerProcessActivity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		state State
+		tool  string
+		live  bool
+		busy  bool
+	}{
+		{"Should ignore stopped tool activity", StateStopped, "shell", false, false},
+		{"Should observe starting sessions", StateStarting, "", true, false},
+		{"Should observe stopping sessions", StateStopping, "", true, false},
+		{"Should observe idle active sessions", StateActive, "", true, false},
+		{"Should observe active tool work", StateActive, "shell", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			manager := &Manager{sessions: map[string]*Session{"target": {
+				State:    tc.state,
+				Liveness: &store.SessionLivenessMeta{Activity: &store.SessionActivityMeta{CurrentTool: tc.tool}},
+			}}}
+			live, busy := manager.ProcessActivity()
+			if live != tc.live || busy != tc.busy {
+				t.Fatalf("ProcessActivity() = %v, %v; want %v, %v", live, busy, tc.live, tc.busy)
+			}
+		})
+	}
+	t.Run("Should observe activity changes without retaining snapshots", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{sessions: map[string]*Session{"target": {State: StateActive}}}
+		manager.sessions["target"].observeRuntimeEventActivity(
+			store.SessionActivityMeta{CurrentTool: "shell"},
+			benchmarkSessionTime,
+		)
+		if live, busy := manager.ProcessActivity(); !live || !busy {
+			t.Fatalf("started tool demand = %v, %v", live, busy)
+		}
+		manager.sessions["target"].clearRuntimeActivity(benchmarkSessionTime.Add(time.Second))
+		if live, busy := manager.ProcessActivity(); !live || busy {
+			t.Fatalf("settled tool demand = %v, %v", live, busy)
+		}
+		delete(manager.sessions, "target")
+		if live, busy := manager.ProcessActivity(); live || busy {
+			t.Fatalf("empty manager demand = %v, %v", live, busy)
+		}
+	})
+}

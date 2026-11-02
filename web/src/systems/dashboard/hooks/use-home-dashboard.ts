@@ -18,7 +18,7 @@ import { useHomeLive } from "./use-home-live";
 import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-home-prefs-store";
 import { useHomeSystem } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
-import { useDaemonHealth } from "@/systems/status";
+import { useDaemonConnectionStatus } from "@/systems/status";
 import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 import type { AttentionNotificationScope } from "@/systems/notifications";
 import { useProfileReadScope } from "@/systems/profiles";
@@ -75,7 +75,7 @@ const UNSETTLED_HOME_SCOPE: HomeScope = {
 export function useHomeDashboard({
   liveEnabled = true,
 }: UseHomeDashboardOptions = {}): HomeDashboardModel {
-  const { connectionStatus } = useDaemonHealth();
+  const connectionStatus = useDaemonConnectionStatus();
   const { activeWorkspace, dataScope, registeredWorkspaces } = useActiveWorkspace();
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();

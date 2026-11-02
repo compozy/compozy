@@ -117,3 +117,15 @@ HTTP is denied and UDS/CLI config access still works. Both re-walks passed. See
 [PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md).
 
 QA impact 2026-10-07 (memory removal): Settings now lists 18 sections; the Memory section and `/settings/memory` were removed (a restored Settings window on that route lands on the overview, and a direct visit renders not-found). The takeover shell contract is unchanged; the "Memory page" remarks in the 2026-10-04 walks above are historical. No verdict change.
+
+QA impact 2026-11-01 (responsiveness audit): restart consumers now observe the
+active-session count and restart-required flag from the shared status query.
+Unrelated uptime/health updates must not alter the restart notice; live session
+counts, externally applied restart requirements, dismiss/snooze state, failure
+details, and retry must remain current. The status cache still retains its full
+response and polling cadence is unchanged.
+
+The [performance report](../reports/2026-11-01-performance/events-settings.md)
+records the Profiler comparison and focused hook/notice verification. The real
+Settings restart journey and current-head CI remain pending for this audit;
+historical verdicts above are unchanged.

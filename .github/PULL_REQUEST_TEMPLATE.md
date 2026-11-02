@@ -158,3 +158,226 @@ The owning [cross-surface impact audit](../docs/_memory/change-impact.md) record
 - [ ] Squash merge is performed only after the current head passes the delivery checks above.
 
 -->
+
+<!--
+Historical reference: concurrent-session responsiveness audit, PR #1141 (2026-11-01).
+This retained measurement report applies only to branch perf/responsiveness-audit-20261101
+with original baseline de5ab2f4d and integrated main 8c025ff8f. It is not verification,
+authorship or scope evidence for a new PR.
+New PRs must fill the prompts above. Current-head CI is tracked in PR #1141; full
+reproductions and review dispositions are in docs/qa/reports/2026-11-01-performance/.
+Authored by Codex with ten scoped audit workers and independent cross-reviews.
+
+## Scope and evidence
+
+The [complete coverage matrix](../docs/qa/reports/2026-11-01-performance/coverage.md) lists **197/197 tracked Go-containing
+directories** (163 internal, 34 elsewhere) and **28/28 frontend systems**, with a named
+owner, report and disposition for every entry. The [machine-readable inventory](../docs/qa/reports/2026-11-01-performance/coverage-inventory.json)
+includes file counts and Go/system file-list digests. SDK modules, command entrypoints,
+tooling, embedded contracts and fixtures are included. This supersedes the initial 92-root
+summary, whose grouping did not demonstrate exhaustive nested/outside-internal coverage.
+The final main integration adds `agentinstance` and `agentmemory`; both have complete source
+audits, and all 43 existing/new Go directories and 12 systems changed by that incoming
+commit have owner delta reviews. Unchanged directories retain their original inspections.
+
+**Audited means documented source inspection, not a benchmark or executed test for every
+directory.** The owner reports distinguish retained measured changes, unchanged code,
+rejected experiments and static-only observations. The work includes database
+queries, navigation/data loading, event reconciliation, state subscriptions, retained
+memory, and whether concurrency would actually remove a measured bottleneck.
+
+Previous performance changes in PRs #723 and #983 are already part of the baseline.
+Their historical measurements are not reused as results for this branch.
+
+Each retained change must have a before/after comparison using the same fixture and
+budget, behavioral coverage at its owning layer, and an explicit correctness check.
+Operation counts, allocations, synthetic CPU timings, browser observations, and
+production traffic are different evidence categories and are reported separately.
+No change may claim user-facing latency improvements based only on a unit benchmark.
+
+## Retained improvements
+
+Unless explicitly labeled as a main-integration rerun, the tables retain measurements
+against the original `de5ab2f4d` baseline and the intermediate revisions identified in each
+owner report. They are historical experiments, not new measurements of Stays-on behavior.
+The tables report comparable fixture medians or exact operation counts, with the unit
+shown for each row. They are not additive: several optimizations affect the same request.
+The linked reports include population sizes, controls, sample counts, ranges, allocation
+measurements, test invariants and rejected alternatives. Darwin/arm64 measurements use
+an Apple M4 Max. Go measurements run with two CPUs; frontend runtime versions are recorded
+per experiment. Benchmark timings include unrelated shared-host noise.
+
+| Area and workload | Before | After | Evidence |
+| --- | ---: | ---: | --- |
+| Session Info, 128 model options | 34,512 B/op; 12 allocations | 12,400 B/op; 6 allocations | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| Scoped catalog, 1,024 active sessions in 32 workspaces | 7.309 ms; 37.02 MB/op | 0.223 ms; 0.592 MB/op | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| Process-demand read, 256 idle active sessions | 0.902 ms; 3,179,008 B/op | 0.00499 ms; 2,304 B/op | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md); baseline already includes the Info fix |
+| Transcript fold retained heap per measured cache | 6,303,472 B | 4,199,638 B | [Store/session](../docs/qa/reports/2026-11-01-performance/store-session.md) |
+| SQLite catalog page without repository filter, 4,096 rows | 8.969 ms | 7.353 ms | [Store/session](../docs/qa/reports/2026-11-01-performance/store-session.md); redundant PR joins removed |
+| Session invalidation CPU, surfaces / usage fixtures | 9.392 / 6.707 ms | 7.652 / 4.153 ms | [Store/session](../docs/qa/reports/2026-11-01-performance/store-session.md); custom query hashes preserved |
+| Scheduler capability sweep, 128 sessions | 9.672 ms; 256 unrelated SQL reads | 0.0387 ms; 0 unrelated reads | [Daemon/runtime](../docs/qa/reports/2026-11-01-performance/daemon-runtime.md) |
+| Scheduler projection, 256 runs / 64 tasks | 27.700 ms; 768 SQL reads | 4.787 ms; 128 SQL reads | [Daemon/runtime](../docs/qa/reports/2026-11-01-performance/daemon-runtime.md) |
+| Scoped observe snapshot, one of 64 tasks with 16 events each | 4.367 ms; 1,024 decoded events | 0.304 ms; 16 decoded events | [Daemon/runtime](../docs/qa/reports/2026-11-01-performance/daemon-runtime.md); identical event digest |
+| Loop complete roster, 10,000 outputs | 141.979 ms; 142.72 MB/op | 8.795 ms; 6.72 MB/op | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md) |
+| Scheduler selection, 500 runs and sessions in 50 workspaces | 12.072 ms; 42.89 MB/op | 1.198 ms; 2.27 MB/op | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md); same 500 targets |
+| Scheduler selection, single-workspace control | 30.767 ms; 42.89 MB/op | 26.155 ms; 2.20 MB/op | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md) |
+| Worktree aggregate, 64 rows / two workspaces | 6.292 ms; 64 workspace + 64 PR reads | 2.628 ms; 2 workspace + 1 PR reads | [Worktree/workspace](../docs/qa/reports/2026-11-01-performance/worktree-workspace.md) |
+| Clean worktree status with real Git | 45.699 ms; three Git subprocesses | 16.169 ms; one Git subprocess | [Worktree/workspace](../docs/qa/reports/2026-11-01-performance/worktree-workspace.md) |
+| Extension tool List + Resolve, 128 extensions | 11.434 ms; 29,549 allocations | 6.206 ms; 15,531 allocations | [Extension/marketplace](../docs/qa/reports/2026-11-01-performance/extension-marketplace.md) |
+| Extension inventory, 128 extensions | 1.990 ms; 128 attachment reads | 0.452 ms; one attachment read | [Extension/marketplace](../docs/qa/reports/2026-11-01-performance/extension-marketplace.md) |
+| Warm package-availability check, 8 MiB archive | 4.725 ms; 36,296 B/op | 0.180 ms; 3,183 B/op | [Extension/marketplace](../docs/qa/reports/2026-11-01-performance/extension-marketplace.md); installation still hashes |
+| Skill frontmatter parse | 18.566 µs; 20,768 B/op | 9.479 µs; 11,136 B/op | [Extension/marketplace](../docs/qa/reports/2026-11-01-performance/extension-marketplace.md) |
+| Terminal ring, 100 writes then full replay | 44.866 ms; 317.29 MB/op | 0.299 ms; 2.23 MB/op | [Terminal/attachments](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md) |
+| Attachment Put, 512 retained objects | 123.970 ms; 6.10 MB/op | 77.965 ms; 3.07 MB/op | [Terminal/attachments](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md); filesystem fixture, no SQL-pin claim |
+| Attachment Open, 4 MiB content | 3.385 ms; two content validations | 1.803 ms; one held-descriptor validation | [Terminal/attachments](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md) |
+| Repeated secret registration, 1,024 secrets | 209.715 µs; 36,912 B/op | 0.0507 µs; 0 B/op | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| Slash parser, 128 skills / approximately 0.85 MB prompt | 217.029 ms; 527.54 MB/op | 1.699 ms; 0.133 MB/op | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md); UTF-16 positions preserved |
+| Toolset discovery, 32 toolsets / 128 descriptors | 8.853 ms; 128,534 allocations | 2.162 ms; 4,640 allocations | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md) |
+| Terminal approval descriptor, actual terminal-exec path | 1.095 ms; 955,364 B/op; 4,906 allocations | 0.00801 ms; 3,560 B/op; 32 allocations | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md); same complete descriptor, no approval/policy cache |
+| Unrelated profile read during controlled 20 ms credential I/O | 21.679 ms | 1.458 µs | [Usage/dashboard](../docs/qa/reports/2026-11-01-performance/usage-dashboard.md); isolation metric, not provider latency |
+
+| Frontend workload | Before | After | Evidence |
+| --- | ---: | ---: | --- |
+| Session retarget under eight streams, one-factor diagnostic | First warm revisit retained the previous conversation for over 5.25 s; 16/64 selections completed | 64/64 completed; 48 warm revisits reached the new conversation in median 166.15 ms, maximum 191.50 ms | [Navigation reproduction](../docs/qa/reports/2026-11-01-performance/review-session-navigation.md); same assertions and daemon, one diagnostic pair, not a population latency claim |
+| Dashboard, 100 lifecycle events / three observers | 300 reads; 297 cancellations | 6 reads; 0 cancellations | [Usage/dashboard](../docs/qa/reports/2026-11-01-performance/usage-dashboard.md); all caches reach revision 100 |
+| Loop, 100 events / 100 ms reads | 100 reads; 99 cancellations | 3 reads; 0 cancellations | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md); final revision 100 |
+| Task event, 50 cached run-detail/inspect pairs | 100 rereads | 2 rereads | [API/tasks](../docs/qa/reports/2026-11-01-performance/api-tasks.md); unknown owners remain conservative |
+| Worktree catalog, 100 lifecycle frames | 400 rereads | 3 rereads | [Worktree/workspace](../docs/qa/reports/2026-11-01-performance/worktree-workspace.md) |
+| Worktree detail scope | 8 rereads; one sibling reread | 4 rereads; zero sibling rereads | [Worktree/workspace](../docs/qa/reports/2026-11-01-performance/worktree-workspace.md) |
+| Scheduler mutation settlement, each of six cases | 2 status reads; 1 cancellation | 1 status read; 0 cancellations | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md) |
+| Runtime selector closed, 40 SSR mounts / 2,500 models | 143.728 ms; 100,000 popup rows | 11.440 ms; zero popup rows | [Daemon/runtime](../docs/qa/reports/2026-11-01-performance/daemon-runtime.md); SSR, not browser latency |
+| Closed About over 30 seconds | 4 full-status reads | 0 full-status reads | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md); open About retains diagnostics |
+| Settings restart, 100 unrelated status updates | 100 React commits | 0 React commits | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md); relevant update still commits once |
+| Terminal pane catalog, 1,000 rotations | 1,000 retained records; 192,817 serialized bytes | 1 record; 230 serialized bytes | [Terminal/attachments](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md); serialized size is not heap |
+| Terminal store, 1,000 subsequent presence updates | 20.548 ms | 0.192 ms | [Terminal/attachments](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md) |
+| OS fallback selection, 256 windows | 20.660 µs | 5.376 µs | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md); same two owners |
+
+Connection-only status/home consumers also share the existing bounded identity endpoint
+instead of enabling full diagnostics. No route or DTO was added. The real-query suite
+verifies one shared initial identity read, zero full-status reads and unchanged refresh/error
+behavior; diagnostic panels keep the complete status operation.
+
+## Main-integration paired measurements
+
+These measurements compare immutable main `8c025ff8f` with the combined source, using
+identical benchmark fixtures supplied through Go overlays and two CPUs. Sample counts and
+200 ms budgets are recorded in the owner reports (six samples per side for the SQLite board).
+They measure the incremental performance changes after Stays-on landed; the broader instance
+API hydration and production traffic are outside these fixtures.
+
+| Workload | Main `8c025ff8f` | Integrated candidate | Evidence |
+| --- | ---: | ---: | --- |
+| Session Info, 128 options | 3.924 µs; 34,512 B; 12 allocations | 1.469 µs; 12,400 B; 6 allocations | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| Scoped catalog, 1,024 sessions / 32 workspaces | 4.982 ms; 37,073,752 B | 0.130 ms; 593,608 B | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| All-workspace catalog, same population | 5.150 ms; 37,645,570 B | 2.281 ms; 15,002,880 B | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| Process-demand read, 256 sessions | 1.059 ms; 8,839,680 B | 3.032 µs; 2,304 B | [Session/OS](../docs/qa/reports/2026-11-01-performance/session-os.md) |
+| Terminal-exec approval descriptor, expanded catalog | 561.680 µs; 1,079,899 B; 6,058 allocations | 3.131 µs; 3,560 B; 32 allocations | [Events/settings](../docs/qa/reports/2026-11-01-performance/events-settings.md) |
+| SQLite local-board page, 4,096 rows | 7.174 ms; three PR/repository joins | 5.721 ms; those joins removed | [Store/session](../docs/qa/reports/2026-11-01-performance/store-session.md); same page/count assertions |
+| Scheduler selection, 500 runs / 50 workspaces | 10.223 ms; 46,991,103 B | 1.040 ms; 2,316,122 B | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md); same 500 targets |
+| Scheduler selection, single-workspace control | 25.918 ms; 46,991,152 B | 23.062 ms; 2,221,768 B | [Loop/scheduler](../docs/qa/reports/2026-11-01-performance/loop-loops.md) |
+
+The final capability-helper extraction preserves every allocation/byte median above. A new
+combined-source [browser walk](../docs/qa/reports/2026-11-01-performance/browser.md#main-integration-correctness-walk) completed 64/64
+selections and all eight streams without errors; its timings are observation only, not a
+paired speed comparison with new main. Final CI owns acceptance after the helper extraction.
+
+## Tradeoffs, limits and rejected ideas
+
+- The terminal ring trades immutable read copies for much cheaper writes. Full replay alone
+  measured 222.503 → 343.244 µs and 1,048,640 → 2,097,216 B/op. Snapshot allocations are
+  unchanged; noisy snapshot timing is not claimed as a win.
+- Credential isolation adds one transient allocation in the whole fixture (60 → 61);
+  the credential owner still waits for its I/O. Pointer, epoch, identity and publication
+  sequence protect newer ownership, including an A-to-B-to-A rotation.
+- The package verification cache is capped at 1,024 entries and requires a reliable held-file
+  identity/change token plus expected digest. Unsupported token platforms rehash. Installation
+  never skips hashing. No authorization, provider credential or configuration TTL was added.
+- Attachment retention still sweeps authoritative state and rereads pins between reservation
+  passes. Worktree status/activity hydration still has per-row work. These costs are not hidden
+  by the filesystem and PR-batching figures. The daemon shares one attachment Store per
+  root under its singleton lock. Neither version provides an atomic count limit between
+  independent Stores writing the same root; the [attachment review](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md)
+  records the widened unsupported window and both baseline/current interleavings.
+- A persistently undecodable PR row adds the failed batch before per-key recovery:
+  the six-key fault fixture uses seven PR reads versus six on the baseline, preserving
+  the same five valid facts. Successful 64-row listings still improve from 64 to one
+  PR read. Cancellation bounds the error path; partial-store semantics or a read cap
+  were not introduced to optimize that exceptional case.
+- Single-toolset timings overlapped host noise and did not improve; all-workspace session
+  timings also varied too much for a latency claim. Allocation measures remain separately reported.
+- Fault-injection checks also identified pre-existing Task coordination limits: a suspended
+  live query blocks its siblings, and disposal drops its pending follow-up. Identical baseline
+  and candidate reproductions plus release/no-dispose controls are recorded in
+  [API/tasks](../docs/qa/reports/2026-11-01-performance/api-tasks.md). The Task ownership
+  optimization does not claim to repair those existing lifecycle behaviors.
+- Rejected: query-hash indexing that could violate custom TanStack hashes; a facet CTE and
+  additional session catalog reconciliation with no stable benefit; native process timestamp
+  replacement without equivalent persisted identity; speculative pools and blanket goroutines.
+- No new production goroutine was added. Owners audited existing bounded workers, admission,
+  cancellation and join behavior. Batching, scoped projection and releasing mutexes before I/O
+  removed measured bottlenecks without introducing new lifecycle owners.
+
+## Independent review
+
+[Scope/SQL review](../docs/qa/reports/2026-11-01-performance/review-scopes.md) compared extension precedence against the previous
+resolver in 4,608 independent SQLite combinations. [Cache/Loop review](../docs/qa/reports/2026-11-01-performance/review-cache-loops.md),
+[credential/worktree review](../docs/qa/reports/2026-11-01-performance/review-usage-worktree.md), [ring/dashboard review](../docs/qa/reports/2026-11-01-performance/review-ring-dashboard.md)
+and [scheduler/session review](../docs/qa/reports/2026-11-01-performance/review-scheduler-session.md) distinguish source inspection from executed reproductions.
+Confirmed findings retain their identifiers and fix dispositions. The dashboard teardown and
+credential ABA findings have failing-before tests; final receipts are recorded in their reports.
+
+The [integrated validation record](../docs/qa/reports/2026-11-01-performance/validation.md) separates completed focused checks,
+corrected attempts and CI-owned gates. The [browser report](../docs/qa/reports/2026-11-01-performance/browser.md) includes all
+accepted timing samples, screenshots, the failed baseline attempt and the explicit
+absence of a stable end-to-end latency claim.
+The [navigation reproduction](../docs/qa/reports/2026-11-01-performance/review-session-navigation.md) separately isolates a route
+identity deferral that left the old conversation interactive after a successful retarget.
+The fix immediately binds the new identity and its loading state; it does not depend on
+finishing the departing conversation's animation. Existing keyed providers and scope guards remain.
+
+The [external review dispositions](../docs/qa/reports/2026-11-01-performance/validation.md#external-review-follow-up) record confirmed
+read/read credential ordering, transient workspace-resolution, PR-fact batch failure isolation
+and stalled Loop/Home-read defects, stronger error/identity
+controls, and the evidence for retaining attachment ownership and per-sweep pause projection.
+Successful credential reads, including verified cached evidence, now fence older observations;
+failed validation does not advance that fence. Loop and Home share a subscription-local
+coordinator: each pending query retains its own trailing obligation while healthy queries
+continue to process later events. A pending active cached read can restart after the existing
+15-second Loop or 30-second Home refresh interval. The timer starts on the first pending wake,
+does not slide with later frames, and cannot cancel a replaced promise or an initial,
+disabled or static query. This is targeted reconciliation recovery, not a global HTTP deadline.
+No additional speedup is inferred from the credential follow-up timings.
+The reverse credential ordering also requires fresh evidence after a sequence-only mismatch
+collision: successful application order alone does not establish which observation was newer.
+This recheck preserves the existing error classification and stops new attempts on cancellation.
+Worktree hydration also leaves retryable repository-identity failures uncached within a listing;
+stable negative identities retain the existing repository service policy. A failed PR-fact
+batch falls back once per key, preserving valid rows when another persisted row cannot decode.
+Cancellation and single-key reads do not fan out; successful listings still perform one batch.
+
+## Frontend verification follow-up
+
+The integrated `895d8a5d7` CI run passed 25 jobs but reached the existing 45-minute
+frontend deadline. A one-worker diagnostic passed 96 changed suites and 1,924 tests;
+it did not reproduce that non-completion. A separate SessionList keyboard race was
+causally reproduced and repaired in its existing test by awaiting submenu focus before
+the same Enter. The workflow now streams the same frontend task logs so cancellation
+cannot hide all in-progress test output. Coverage, assertions and deadlines remain intact.
+The [validation record](../docs/qa/reports/2026-11-01-performance/validation.md#frontend-ci-deadline-and-keyboard-readiness)
+keeps these findings separate; PR #1141 owns acceptance of the subsequent current head.
+
+## Verification boundaries
+
+Real SQLite/Git/filesystem checks, focused race and frontend suites, canonical codegen,
+pinned scoped lint and root Turbo build checks are recorded in the linked validation
+report. The navigation correction passed 64/64 selections under eight controlled streams,
+with unchanged assertions and no old chat retained under the new identity. The earlier
+non-instrumented runs did not establish a stable overall latency or whole-browser heap gain.
+The main-integration walk also completed 64/64 selections and all eight streams; its recorded
+source precedes the final capability-helper extraction, which has separate focused checks.
+CI findings and their causal remediation are retained in the validation and owner reports.
+
+The user authorized broad gates in CI to protect shared-host resources. This report does
+not claim local make gate, production telemetry, INP or live-model latency. Final delivery
+requires every required CI check green at the actual PR head.
+-->

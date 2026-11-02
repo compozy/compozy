@@ -3,18 +3,17 @@
 // quiet window rather than once per frame, so a replayed history or a burst of frames cannot
 // multiply the same four reads or cancel its own in-flight fetches; a pending reread is paid when
 // the connection goes away. Owning layer: workspace stream hook. Canonical suite: this hook test.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workspaceKeys } from "../../lib/query-keys";
 import {
-  useWorktreeStream,
   WORKTREE_REREAD_COALESCE_MS,
   WORKTREE_REREAD_MAX_WAIT_MS,
-  type WorktreeEventSource,
-} from "../use-worktree-stream";
+} from "../../lib/worktree-reread";
+import { useWorktreeStream, type WorktreeEventSource } from "../use-worktree-stream";
 
 const WORKSPACE_ID = "ws-a";
 const WORKTREE_ID = "wt-a";
@@ -69,7 +68,7 @@ function setup() {
     () => useWorktreeStream(WORKSPACE_ID, WORKTREE_ID, { eventSourceFactory }),
     { wrapper }
   );
-  return { source, invalidate, view };
+  return { source, invalidate, view, queryClient };
 }
 
 describe("useWorktreeStream", () => {
@@ -79,6 +78,48 @@ describe("useWorktreeStream", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  // Invariant: one scope wake fetches each owned read once and leaves sibling details alone.
+  it("Should reconcile each live query once without refreshing sibling worktrees", async () => {
+    const { source, queryClient, view } = setup();
+    const reads = [0, 0, 0, 0, 0];
+    const keys = [
+      workspaceKeys.worktrees(WORKSPACE_ID),
+      workspaceKeys.worktreeDetail(WORKSPACE_ID, WORKTREE_ID),
+      workspaceKeys.worktreeStatus(WORKSPACE_ID, WORKTREE_ID),
+      workspaceKeys.worktreeExit(WORKSPACE_ID, WORKTREE_ID),
+      workspaceKeys.worktreeDetail(WORKSPACE_ID, "other"),
+    ];
+    let generation = 0;
+    const subscriptions = keys.map((queryKey, index) => {
+      queryClient.setQueryData(queryKey, { generation });
+      return new QueryObserver(queryClient, {
+        queryKey,
+        staleTime: Infinity,
+        queryFn: async ({ signal }) => {
+          void signal.aborted;
+          reads[index] += 1;
+          return { generation };
+        },
+      }).subscribe(() => {});
+    });
+    try {
+      await act(async () => {
+        generation = 1;
+        source.emit("worktree.status_refreshed", statusFrame(1));
+        await vi.advanceTimersByTimeAsync(WORKTREE_REREAD_COALESCE_MS);
+      });
+      for (const key of keys.slice(0, 4))
+        expect(queryClient.getQueryData(key)).toEqual({ generation: 1 });
+      expect(queryClient.getQueryData(keys[4])).toEqual({ generation: 0 });
+      expect(reads).toEqual([1, 1, 1, 1, 0]);
+      console.info("worktree scope wake requests", JSON.stringify(reads));
+    } finally {
+      subscriptions.forEach(unsubscribe => unsubscribe());
+      view.unmount();
+      queryClient.clear();
+    }
   });
 
   it("Should reread the worktree scope once for a replayed burst of status frames", () => {
@@ -98,6 +139,7 @@ describe("useWorktreeStream", () => {
     expect(invalidate).toHaveBeenCalledTimes(SCOPE_READS);
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: workspaceKeys.worktrees(WORKSPACE_ID),
+      exact: true,
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: workspaceKeys.worktreeDetail(WORKSPACE_ID, WORKTREE_ID),

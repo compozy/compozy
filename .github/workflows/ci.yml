@@ -231,7 +231,7 @@ jobs:
           COMPOZY_CODEGEN_CHECKED: "1"
         run: |
           bun run lint
-          bunx turbo run typecheck test --filter='!@compozy/desktop'
+          bunx turbo run typecheck test --filter='!@compozy/desktop' --log-order=stream
           bunx turbo run build --filter=./web
           bunx turbo run test:package --filter=@compozy/client
 
@@ -743,7 +743,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: e2e-runtime-artifacts
-          path: /tmp/compozy-e2e-*
+          path: /tmp/compozy-e2e-artifacts-*/_artifacts
           if-no-files-found: ignore
           retention-days: 7
 

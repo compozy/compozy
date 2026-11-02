@@ -3,10 +3,13 @@ package providerusage
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -66,6 +69,271 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	for _, test := range []struct {
+		name         string
+		collisions   int
+		cancel       bool
+		recheckError bool
+	}{
+		{name: "Should discard old-owner quota after a later read observes a changed owner", collisions: 1},
+		{name: "Should resolve repeated read sequence collisions without hiding a changed owner", collisions: 3},
+		{name: "Should stop credential revalidation when the reader is canceled", collisions: 2, cancel: true},
+		{name: "Should preserve recheck validation errors without inventing a mismatch", collisions: 1, recheckError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := credentialFenceFixture(t)
+			service, collector, path := fixture.service, fixture.collector, fixture.path
+			original, err := os.ReadFile(path)
+			requireNoError(t, err)
+			changed := bytes.ReplaceAll(original, []byte("fixture-owner"), []byte("next-owner"))
+			writes := 0
+			writeCredential := func(data []byte) {
+				t.Helper()
+				writes++
+				requireNoError(t, os.WriteFile(path, data, 0o600))
+				stamp := service.options.Clock.Now().Add(time.Duration(writes) * time.Second)
+				requireNoError(t, os.Chtimes(path, stamp, stamp))
+			}
+			collectGate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+			collector.collectGate.Store(collectGate)
+			t.Cleanup(func() { close(collectGate.release) })
+			type pendingRead struct {
+				done     chan struct{}
+				release  func()
+				envelope Envelope
+				err      error
+			}
+			waitForProbe := func(gate *credentialProbeGate) {
+				t.Helper()
+				select {
+				case <-gate.entered:
+				case <-time.After(5 * time.Second):
+					t.Fatal("credential probe did not start")
+				}
+			}
+			startRead := func(ctx context.Context) *pendingRead {
+				t.Helper()
+				gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+				read := &pendingRead{
+					done: make(chan struct{}), release: sync.OnceFunc(func() { close(gate.release) }),
+				}
+				collector.gate.Store(gate)
+				go func() {
+					defer close(read.done)
+					read.envelope, read.err = service.Envelope(ctx, "personal")
+				}()
+				t.Cleanup(func() { read.release(); <-read.done })
+				waitForProbe(gate)
+				return read
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			matching := startRead(t.Context())
+			writeCredential(changed)
+			mismatching := startRead(ctx)
+			releaseMismatch := mismatching.release
+			for collision := range test.collisions {
+				matching.release()
+				<-matching.done
+				requireNoError(t, matching.err)
+				requireEqual(t, StatusOK, matching.envelope.Targets[0].Status)
+				if collision+1 == test.collisions {
+					break
+				}
+				writeCredential(original)
+				matching = startRead(t.Context())
+				writeCredential(changed)
+				nextProbe := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+				releaseNext := sync.OnceFunc(func() { close(nextProbe.release) })
+				t.Cleanup(releaseNext)
+				collector.gate.Store(nextProbe)
+				releaseMismatch()
+				waitForProbe(nextProbe)
+				releaseMismatch = releaseNext
+			}
+			switch {
+			case test.recheckError:
+				writeCredential(original)
+				failedRead := &credentialProbeGate{
+					entered: make(chan struct{}), release: make(chan struct{}),
+					err: NewUsageError(ErrorCodeProviderUnavailable, "Codex"),
+				}
+				close(failedRead.release)
+				collector.gate.Store(failedRead)
+				calls := collector.calls.Load()
+				releaseMismatch()
+				<-mismatching.done
+				requireNoError(t, mismatching.err)
+				requireEqual(t, StatusOK, mismatching.envelope.Targets[0].Status)
+				requireEqual(t, len(matching.envelope.Targets[0].Windows), len(mismatching.envelope.Targets[0].Windows))
+				requireEqual(t, calls+1, collector.calls.Load())
+			case test.cancel:
+				calls := collector.calls.Load()
+				cancel()
+				select {
+				case <-mismatching.done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("canceled credential revalidation did not stop")
+				}
+				requireEqual(t, calls, collector.calls.Load())
+				requireEqual(t, StatusOK, mismatching.envelope.Targets[0].Status)
+			default:
+				releaseMismatch()
+				<-mismatching.done
+				requireNoError(t, mismatching.err)
+				requireEqual(t, StatusRefreshing, mismatching.envelope.Targets[0].Status)
+				requireEqual(t, 0, len(mismatching.envelope.Targets[0].Windows))
+			}
+		})
+	}
+	for _, test := range []struct {
+		name   string
+		action string
+	}{
+		{name: "Should serve unrelated profiles while credential evidence is pending", action: "read"},
+		{name: "Should preserve a credential reset over an older pending read fence", action: "clear"},
+		{name: "Should preserve a removed target over an older pending read fence", action: "remove"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := credentialFenceFixture(t)
+			service, collector, catalog := fixture.service, fixture.collector, fixture.catalog
+			gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+			release := sync.OnceFunc(func() { close(gate.release) })
+			collector.gate.Store(gate)
+			ownerDone := make(chan struct{})
+			var ownerEnvelope Envelope
+			var ownerErr error
+			go func() {
+				defer close(ownerDone)
+				ownerEnvelope, ownerErr = service.Envelope(t.Context(), "personal")
+			}()
+			t.Cleanup(func() { release(); <-ownerDone })
+			select {
+			case <-gate.entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("credential probe did not start")
+			}
+
+			operationDone := make(chan struct{})
+			var operationErr error
+			go func() {
+				defer close(operationDone)
+				switch test.action {
+				case "clear":
+					service.ClearCredentials("personal", "codex")
+				case "remove":
+					catalog.Replace("personal", nil)
+					_, operationErr = service.Envelope(t.Context(), "personal")
+				default:
+					_, operationErr = service.Envelope(t.Context(), "other")
+				}
+			}()
+			t.Cleanup(func() { release(); <-operationDone })
+			select {
+			case <-operationDone:
+				requireNoError(t, operationErr)
+			case <-time.After(5 * time.Second):
+				t.Fatal("credential I/O held the manager lock")
+			}
+			release()
+			<-ownerDone
+			requireNoError(t, ownerErr)
+			switch test.action {
+			case "clear":
+				requireEqual(t, StatusRefreshing, ownerEnvelope.Targets[0].Status)
+				requireEqual(t, 0, len(ownerEnvelope.Targets[0].Windows))
+			case "remove":
+				requireEqual(t, 0, len(ownerEnvelope.Targets))
+			default:
+				requireEqual(t, StatusOK, ownerEnvelope.Targets[0].Status)
+			}
+		})
+	}
+	for _, change := range []string{"identity", "epoch", "publication", "read", "cached read", "failed read"} {
+		name := "Should preserve a newer credential " + change + " over an older pending read mismatch"
+		if change == "failed read" {
+			name = "Should retain a pending credential mismatch after an unverified newer read"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			fixture := credentialFenceFixture(t)
+			service, collector, path := fixture.service, fixture.collector, fixture.path
+			original, err := os.ReadFile(path)
+			requireNoError(t, err)
+			preservedPath := ""
+			if change == "cached read" {
+				_, err = service.Envelope(t.Context(), "personal")
+				requireNoError(t, err)
+				preservedPath = path + ".original"
+				requireNoError(t, os.Rename(path, preservedPath))
+			}
+			renewed := bytes.ReplaceAll(original, []byte("fixture-owner"), []byte("next-owner"))
+			requireNoError(t, os.WriteFile(path, renewed, 0o600))
+			gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+			release := sync.OnceFunc(func() { close(gate.release) })
+			collector.gate.Store(gate)
+			ownerDone := make(chan struct{})
+			var ownerEnvelope Envelope
+			var ownerErr error
+			go func() {
+				defer close(ownerDone)
+				ownerEnvelope, ownerErr = service.Envelope(t.Context(), "personal")
+			}()
+			t.Cleanup(func() { release(); <-ownerDone })
+			select {
+			case <-gate.entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("credential probe did not start")
+			}
+			if change == "epoch" {
+				service.ClearCredentials("personal", "codex")
+			}
+			if preservedPath != "" {
+				requireNoError(t, os.Remove(path))
+				requireNoError(t, os.Rename(preservedPath, path))
+			} else if change != "identity" {
+				requireNoError(t, os.WriteFile(path, original, 0o600))
+			}
+			if change == "publication" {
+				service.options.Clock.(*clockwork.FakeClock).Advance(time.Minute)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if change == "failed read" {
+				failedRead := &credentialProbeGate{
+					entered: make(chan struct{}), release: make(chan struct{}),
+					err: NewUsageError(ErrorCodeProviderUnavailable, "Codex"),
+				}
+				close(failedRead.release)
+				collector.gate.Store(failedRead)
+			}
+			var latest Envelope
+			if change == "read" || change == "cached read" || change == "failed read" {
+				latest, err = service.Envelope(ctx, "personal")
+			} else {
+				latest, err = service.Refresh(ctx, RefreshRequest{
+					ProfileID: "personal", Intent: IntentExplicit, Wait: time.Second,
+				})
+			}
+			requireNoError(t, err)
+			requireEqual(t, StatusOK, latest.Targets[0].Status)
+			// Hold any accidental recollection so it cannot hide a stale read clearing the new snapshot.
+			recollect := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+			collector.collectGate.Store(recollect)
+			t.Cleanup(func() { close(recollect.release) })
+			release()
+			<-ownerDone
+			requireNoError(t, ownerErr)
+			wantStatus, wantWindows := StatusOK, len(latest.Targets[0].Windows)
+			if change == "failed read" {
+				wantStatus, wantWindows = StatusRefreshing, 0
+			}
+			requireEqual(t, wantStatus, ownerEnvelope.Targets[0].Status)
+			requireEqual(t, wantWindows, len(ownerEnvelope.Targets[0].Windows))
+		})
+	}
 	for _, change := range []string{"native login", "config directory", "secure storage directory", "home"} {
 		t.Run("Should recover Claude usage after switching "+change, func(t *testing.T) {
 			t.Parallel()
@@ -161,7 +429,11 @@ func TestUsageService(t *testing.T) {
 			}
 			return nil, nil
 		})})
-		t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
 		stale := make(chan error, 1)
 		go func() {
 			_, err := service.Envelope(context.Background(), "personal")
@@ -1578,4 +1850,151 @@ func TestUsagePartialSnapshots(t *testing.T) {
 		requireEqual(t, 0, len(replaced.Windows))
 		requireEqual(t, (*time.Time)(nil), replaced.MeasuredAt)
 	})
+}
+
+// controlledCredentialProbe gates one completed local credential read to expose lock ownership.
+type controlledCredentialProbe struct {
+	Collector
+	gate        atomic.Pointer[credentialProbeGate]
+	collectGate atomic.Pointer[credentialProbeGate]
+	calls       atomic.Int32
+}
+
+type credentialProbeGate struct {
+	entered chan struct{}
+	release chan struct{}
+	err     error
+}
+
+func (c *controlledCredentialProbe) Identity(
+	ctx context.Context, target Target, intent Intent,
+) (CredentialIdentity, error) {
+	c.calls.Add(1)
+	identity, err := c.Collector.Identity(ctx, target, intent)
+	if gate := c.gate.Swap(nil); gate != nil {
+		close(gate.entered)
+		select {
+		case <-gate.release:
+		case <-ctx.Done():
+			return CredentialIdentity{}, ctx.Err()
+		}
+		if gate.err != nil {
+			return identity, gate.err
+		}
+	}
+	return identity, err
+}
+
+func (c *controlledCredentialProbe) Collect(
+	ctx context.Context, target Target, intent Intent, identity CredentialIdentity,
+) (Snapshot, error) {
+	if gate := c.collectGate.Swap(nil); gate != nil {
+		close(gate.entered)
+		select {
+		case <-gate.release:
+		case <-ctx.Done():
+			return Snapshot{}, ctx.Err()
+		}
+	}
+	return c.Collector.Collect(ctx, target, intent, identity)
+}
+
+type credentialFenceTestFixture struct {
+	service   *Manager
+	collector *controlledCredentialProbe
+	catalog   *TargetCatalog
+	path      string
+}
+
+func credentialFenceFixture(t testing.TB) credentialFenceTestFixture {
+	t.Helper()
+	now := time.Date(2026, time.November, 1, 12, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(now)
+	home := t.TempDir()
+	path := filepath.Join(home, "auth.json")
+	token := "fixture." + base64.RawURLEncoding.EncodeToString(
+		fmt.Appendf(nil, `{"exp":%d}`, now.Add(24*time.Hour).Unix()),
+	) + ".signature"
+	data := fmt.Appendf(nil, `{"tokens":{"access_token":%q,"account_id":"fixture-owner"}}`, token)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, err := io.WriteString(w, codexHTTPFixture); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(server.Close)
+	collector := &controlledCredentialProbe{Collector: NewCodexCollector(CodexOptions{
+		BaseURL: server.URL, Now: clock.Now,
+	})}
+	catalog := &TargetCatalog{}
+	catalog.Replace("personal", []Target{{
+		ProfileID: "personal", ProviderID: "codex", ProviderName: "Codex", RouteFingerprint: "fixture",
+		Route: ResolvedRoute{Env: []string{"CODEX_HOME=" + home}},
+	}})
+	service := NewService(Options{
+		Resolver: catalog, Collectors: Registry{"codex": collector}, Clock: clock,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	t.Cleanup(func() {
+		if err := service.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	env, err := service.Refresh(ctx, RefreshRequest{ProfileID: "personal", Wait: time.Second})
+	if err != nil || len(env.Targets) != 1 || env.Targets[0].Status != StatusOK {
+		t.Fatalf("seed usage: status=%v err=%v", env.Targets, err)
+	}
+	return credentialFenceTestFixture{service: service, collector: collector, catalog: catalog, path: path}
+}
+
+func BenchmarkUsageCredentialReadContention(b *testing.B) {
+	b.ReportAllocs()
+	fixture := credentialFenceFixture(b)
+	service, collector, path := fixture.service, fixture.collector, fixture.path
+	var elapsed time.Duration
+	iteration := 0
+	for b.Loop() {
+		iteration++
+		changedAt := time.Date(2026, time.November, 1, 12, 0, iteration, 0, time.UTC)
+		if err := os.Chtimes(path, changedAt, changedAt); err != nil {
+			b.Fatal(err)
+		}
+		gate := &credentialProbeGate{entered: make(chan struct{}), release: make(chan struct{})}
+		collector.gate.Store(gate)
+		ownerDone := make(chan error, 1)
+		go func() {
+			_, err := service.Envelope(b.Context(), "personal")
+			ownerDone <- err
+		}()
+		<-gate.entered
+		timer := time.AfterFunc(20*time.Millisecond, func() { close(gate.release) })
+		started := time.Now()
+		_, err := service.Envelope(b.Context(), "other")
+		elapsed += time.Since(started)
+		if err != nil {
+			b.Error(err)
+		}
+		if err := <-ownerDone; err != nil {
+			b.Error(err)
+		}
+		timer.Stop()
+	}
+	b.ReportMetric(float64(elapsed.Nanoseconds())/float64(b.N), "other-read-ns/op")
+}
+
+func BenchmarkUsageCredentialReadCached(b *testing.B) {
+	b.ReportAllocs()
+	service := credentialFenceFixture(b).service
+	if _, err := service.Envelope(b.Context(), "personal"); err != nil {
+		b.Fatal(err)
+	}
+	for b.Loop() {
+		if _, err := service.Envelope(b.Context(), "personal"); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

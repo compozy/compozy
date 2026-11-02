@@ -178,3 +178,11 @@ failure/recovery semantics. The existing hook suite owns these transitions; the
 agent create and session provider-override browser journeys own the daemon/UI slice.
 Current-head CI evidence is recorded in PR #983. This change does not claim a new
 live-vendor authentication or discovery walk.
+
+
+QA impact 2026-11-01 (responsiveness audit): closed runtime selectors defer popup row projection.
+Verify the selected model and valid advertised controls remain visible while closed; update the
+catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keyboard selection and
+Escape focus restoration against the latest data. The existing runtime-selector component suite
+owns focused coverage; the new check includes catalog updates while closed. This note does not
+claim a fresh live-provider/browser walk; integrated runtime evidence belongs to the audit QA tail.

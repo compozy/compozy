@@ -33,8 +33,8 @@ const ABOUT_VALUE_PROPS = { className: "truncate font-mono text-micro text-fg" }
  * in `internal/version` but are never published, so they are not invented here.
  */
 export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
-  const daemon = useDaemonStatus();
-  const status = useStatus();
+  const daemon = useDaemonStatus({ enabled: open });
+  const status = useStatus({ enabled: open });
   const rows = daemon.data
     ? [
         { id: "version", label: ABOUT_LABELS.version, value: daemon.data.version ?? UNKNOWN },

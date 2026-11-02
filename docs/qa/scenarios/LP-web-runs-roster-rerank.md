@@ -32,3 +32,28 @@ steps:
 src: web/src/systems/os/apps/loops/ (runs roster); visual contract docs/design/opendesign/loop-legibility/loop-legibility-runs-roster.html (VC-33..VC-36)
 
 QA impact 2026-08-21: Task 05 re-ranked the roster from the server-owned extended read (`_uiux.md` S6). Planning flag only; the loop's QA phase owns the walk and evidence.
+
+QA impact 2026-11-01 (responsiveness audit): Loop stream frames still reach the
+live consumer immediately; affected authoritative reads now reconcile one burst
+and any arrivals during an in-flight read in successive rounds. Workspace and
+All projects run lists must converge to the final server order and needs-you marker.
+Re-walk with a rapid run lifecycle burst and a pending refresh when leaving the run.
+Focused results and pending runtime/current-head CI evidence are tracked in
+`docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA impact 2026-11-02 (stream freshness review): include a cached roster/list with
+an older pending read when a lifecycle event arrives. Its active cached read can
+restart immediately; initial or disabled sibling reads still reconcile after
+settlement. Focused hook checks pass; runtime/CI verification remains with the
+enclosing audit. Evidence and limits: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): a second event must refresh a healthy
+run list while another affected query remains pending. Only the busy query's own
+follow-up waits for settlement. The canonical mixed-query controls pass; retain
+the enclosing runtime/CI walk. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (pending-read recovery): an accepted later event may restart
+a still-pending active cached roster/list read after the existing 15-second budget.
+Normal bursts retain three reads and zero cancellations in the focused fixture;
+no per-frame restart is introduced. Runtime/CI verification remains with the
+enclosing audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

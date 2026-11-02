@@ -7,10 +7,18 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// ListAggregate reads stored worktree state without invoking Git discovery or refresh.
-func (s *Service) ListAggregate(ctx context.Context, scope store.ReadScope) (*DetailedListing, error) {
+// ListAggregate reads authorized stored state without Git discovery or status refresh.
+func (s *Service) ListAggregate(
+	ctx context.Context,
+	scope store.ReadScope,
+	allowedWorkspaces map[string]bool,
+) (*DetailedListing, error) {
 	if err := scope.Validate(); err != nil {
 		return nil, err
+	}
+	result := &DetailedListing{Worktrees: []Inspection{}}
+	if len(allowedWorkspaces) == 0 {
+		return result, nil
 	}
 	reader, ok := s.store.(interface {
 		ListAggregate(context.Context) ([]Worktree, error)
@@ -22,9 +30,9 @@ func (s *Service) ListAggregate(ctx context.Context, scope store.ReadScope) (*De
 	if err != nil {
 		return nil, err
 	}
-	result := &DetailedListing{Worktrees: make([]Inspection, 0, len(rows))}
+	result.Worktrees = make([]Inspection, 0, len(rows))
 	for _, row := range rows {
-		if !scope.Matches(row.ProfileID) {
+		if !scope.Matches(row.ProfileID) || !allowedWorkspaces[row.WorkspaceID] {
 			continue
 		}
 		item, err := s.inspectItem(ctx, row)
@@ -33,5 +41,6 @@ func (s *Service) ListAggregate(ctx context.Context, scope store.ReadScope) (*De
 		}
 		result.Worktrees = append(result.Worktrees, item)
 	}
+	s.hydrateDisplayPullRequests(ctx, result.Worktrees)
 	return result, nil
 }

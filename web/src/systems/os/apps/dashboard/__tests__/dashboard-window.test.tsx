@@ -1,4 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Topbar, TopbarSlotProvider } from "@compozy/ui";
@@ -17,12 +23,8 @@ vi.mock("../../../hooks/use-desktop", () => ({
   useDesktop: (selector: (state: typeof desktop) => unknown) => selector(desktop),
 }));
 
-vi.mock("@/systems/status/hooks/use-daemon-health", () => ({
-  useDaemonHealth: () => ({
-    connectionStatus: connection.status,
-    health: undefined,
-    isInitialLoading: false,
-  }),
+vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
+  useDaemonConnectionStatus: () => connection.status,
 }));
 
 vi.mock("@/systems/session/hooks/use-session-create", () => ({
@@ -42,13 +44,22 @@ vi.mock("@/systems/dashboard/components/home-dashboard", () => ({
 
 import { DashboardWindow } from "../dashboard-window";
 
-function renderWindow() {
-  return render(
-    <TopbarSlotProvider>
-      <Topbar title="Home" />
-      <DashboardWindow windowId="win-1" />
-    </TopbarSlotProvider>
-  );
+async function renderWindow() {
+  const rootRoute = createRootRoute({
+    component: () => (
+      <TopbarSlotProvider>
+        <Topbar title="Home" />
+        <DashboardWindow windowId="win-1" />
+      </TopbarSlotProvider>
+    ),
+  });
+  const router = createRouter({
+    routeTree: rootRoute,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+  });
+  const result = render(<RouterProvider router={router} />);
+  await act(() => router.load());
+  return result;
 }
 
 describe("DashboardWindow", () => {
@@ -64,31 +75,31 @@ describe("DashboardWindow", () => {
     };
   });
 
-  it("Should mount the home dashboard body while connected", () => {
+  it("Should mount the home dashboard body while connected", async () => {
     connection.status = "connected";
-    renderWindow();
+    await renderWindow();
     expect(homeDashboardSpy).toHaveBeenCalledWith(expect.objectContaining({ liveEnabled: true }));
     expect(screen.queryByTestId("home-error")).toBeNull();
   });
 
-  it("Should rest New session while the destination settles", () => {
+  it("Should rest New session while the destination settles", async () => {
     connection.status = "connected";
     sessionCreate.hasActiveWorkspace = false;
-    renderWindow();
+    await renderWindow();
     expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
   });
 
-  it("Should offer New session once the destination has settled", () => {
+  it("Should offer New session once the destination has settled", async () => {
     connection.status = "connected";
-    renderWindow();
+    await renderWindow();
     expect(screen.getByRole("button", { name: "New session" })).toBeEnabled();
   });
 
-  it("Should keep Home live while it remains visible without focus", () => {
+  it("Should keep Home live while it remains visible without focus", async () => {
     connection.status = "connected";
     desktop.focusedId = "another-window";
 
-    renderWindow();
+    await renderWindow();
 
     expect(homeDashboardSpy).toHaveBeenCalledWith(expect.objectContaining({ liveEnabled: true }));
   });
@@ -112,18 +123,18 @@ describe("DashboardWindow", () => {
         desktop.windows["win-1"].stackActive = false;
       },
     },
-  ])("Should keep Home live reads dormant when $name", ({ arrange }) => {
+  ])("Should keep Home live reads dormant when $name", async ({ arrange }) => {
     connection.status = "connected";
     arrange();
 
-    renderWindow();
+    await renderWindow();
 
     expect(homeDashboardSpy).toHaveBeenCalledWith(expect.objectContaining({ liveEnabled: false }));
   });
 
-  it("Should render the disconnect surface when the daemon is unreachable", () => {
+  it("Should render the disconnect surface when the daemon is unreachable", async () => {
     connection.status = "disconnected";
-    renderWindow();
+    await renderWindow();
     expect(screen.getByTestId("home-error")).toHaveTextContent("CompozyOS isn't running");
     expect(homeDashboardSpy).not.toHaveBeenCalled();
   });

@@ -219,6 +219,12 @@ type processSource struct {
 	ownersErr error
 }
 
+func (s *processSource) ProcessActivity() (bool, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.owner.Live, s.owner.Live && s.owner.ToolBusy
+}
+
 func (s *processSource) Owners(context.Context) ([]sessionprocess.Owner, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

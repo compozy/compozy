@@ -6,7 +6,10 @@ package terminal
 
 import (
 	"bytes"
+	"fmt"
+	"sync"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestRingReplayContract(t *testing.T) {
@@ -132,4 +135,117 @@ func TestRingReplayContract(t *testing.T) {
 			t.Fatalf("ring = %q bounds=%d..%d seq=%d, want exact newest suffix 67890 at 5..10", got, oldest, next, seq)
 		}
 	})
+
+	t.Run("Should keep returned snapshots independent of later appends and caller mutation", func(t *testing.T) {
+		t.Parallel()
+		ring := NewRing(32)
+		input := []byte("first output")
+		ring.Append(input)
+		input[0] = 'X'
+		replay := ring.ReplayFrom(0)
+		segments, _ := ring.SnapshotSegments()
+		snapshot, _ := ring.Snapshot()
+		snapshot[0] = 'Y'
+		for range 32 {
+			ring.Append([]byte("new output "))
+		}
+		if got := string(replay.Bytes()); got != "first output" {
+			t.Fatalf("saved replay = %q, want first output", got)
+		}
+		if got := RenderOutputSegments(segments); got != "first output" {
+			t.Fatalf("saved segments = %q, want first output", got)
+		}
+		current, _ := ring.Snapshot()
+		if bytes.ContainsAny(current, "XY") {
+			t.Fatalf("ring retained caller mutation: %q", current)
+		}
+	})
+
+	t.Run("Should preserve UTF-8 and split escapes while trimming across repeated writes", func(t *testing.T) {
+		t.Parallel()
+		ring := NewRing(32)
+		for range 64 {
+			ring.Append([]byte("before\x1b[3"))
+			ring.Append([]byte("1mPortuguês 日本語\x1b[0m\n"))
+		}
+		content, seq := ring.Snapshot()
+		if len(content) > 32 || !utf8.Valid(content) {
+			t.Fatalf("retained content = %q (%d bytes), want bounded UTF-8", content, len(content))
+		}
+		oldest, next := ring.Bounds()
+		if next != seq || uint64(len(content)) != next-oldest {
+			t.Fatalf("retained offsets = %d..%d (%d bytes), seq=%d", oldest, next, len(content), seq)
+		}
+		if !bytes.Equal(ring.ReplayFrom(oldest).Bytes(), content) {
+			t.Fatal("replay differs from retained snapshot")
+		}
+	})
+
+	t.Run("Should retain readable immutable replay during concurrent appends", func(t *testing.T) {
+		t.Parallel()
+		ring := NewRing(1024)
+		var workers sync.WaitGroup
+		workers.Go(func() {
+			for range 1000 {
+				ring.Append([]byte("concurrent output\n"))
+			}
+		})
+		for range 1000 {
+			content, _ := ring.Snapshot()
+			if len(content) > 1024 {
+				t.Errorf("snapshot length = %d, want <= 1024", len(content))
+			}
+			replay := ring.ReplayFrom(0)
+			if len(replay.Bytes()) > 1024+len(resetSequence) {
+				t.Errorf("replay exceeds retention cap")
+			}
+		}
+		workers.Wait()
+	})
+}
+
+func BenchmarkRingAppendRetention(b *testing.B) {
+	for _, size := range []int{256, 8192} {
+		b.Run(fmt.Sprintf("chunk_%d", size), func(b *testing.B) {
+			const capacity = 1 << 20
+			ring := NewRing(capacity)
+			chunk := bytes.Repeat([]byte("x"), size)
+			for range capacity / size {
+				ring.Append(chunk)
+			}
+			b.ReportAllocs()
+			b.SetBytes(int64(size))
+			for b.Loop() {
+				ring.Append(chunk)
+			}
+		})
+	}
+}
+
+func BenchmarkRingReadRetention(b *testing.B) {
+	const capacity = 1 << 20
+	for _, read := range []string{"snapshot", "replay_tail", "replay_full"} {
+		b.Run(read, func(b *testing.B) {
+			ring := NewRing(capacity)
+			ring.Append(bytes.Repeat([]byte("x"), capacity))
+			b.ReportAllocs()
+			for b.Loop() {
+				switch read {
+				case "snapshot":
+					data, _ := ring.Snapshot()
+					if len(data) != capacity {
+						b.Fatal("incomplete snapshot")
+					}
+				case "replay_tail":
+					if len(ring.ReplayFrom(capacity-256).Bytes()) != 256 {
+						b.Fatal("incomplete tail replay")
+					}
+				case "replay_full":
+					if len(ring.ReplayFrom(0).Bytes()) != capacity {
+						b.Fatal("incomplete full replay")
+					}
+				}
+			}
+		})
+	}
 }

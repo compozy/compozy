@@ -1,5 +1,3 @@
-import { useDeferredValue } from "react";
-
 import { useDesktop } from "../../../hooks/use-desktop";
 import { matchSessionInstance } from "../../../lib/app-catalog";
 import { useSessionWindowDesktopState } from "./use-session-window-desktop-state";
@@ -27,23 +25,16 @@ export interface SessionWindowRuntime {
  * window on a hidden tab or a background desktop is not someone watching, and
  * claiming otherwise would silently stop `done` from ever appearing.
  *
- * The session identity follows the route one deferred render behind it. The route comes from
- * the shell's store, whose updates are always urgent, and an urgent update can never animate
- * (`<ViewTransition>` only plays for transitions). Deferring the path turns the switch to
- * another session into one: the window keeps showing the current session until the next is
- * ready, then swaps under the keyed boundary in `SessionWindowView`.
+ * Session and drawer identity follow the shell route together. Deferring that identity can
+ * leave the departing conversation interactive while live updates continue.
+ * The view owns the next session's loading state; the old session must not remain its target.
  *
  * The session is being viewed only while it is on screen: always in List, and on the
  * Kanban view only while the board shows it in its drawer.
  */
 export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime {
   const live = useSessionWindowDesktopState(windowId);
-  const { liveTailEnabled } = live;
-  // The drawer flag defers with the path: opening a card must not show the drawer a frame
-  // early with the previous session in it.
-  const location = useDeferredValue(`${live.drawerOpen ? "1" : "0"}${live.pathname}`);
-  const drawerOpen = location.startsWith("1");
-  const pathname = location.slice(1);
+  const { drawerOpen, liveTailEnabled, pathname } = live;
   const focused = useDesktop(state => state.focusedId === windowId);
   const documentActive = useDocumentActive();
   const sessionId = matchSessionInstance(pathname);

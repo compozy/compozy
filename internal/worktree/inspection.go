@@ -46,6 +46,7 @@ func (s *Service) Inspect(ctx context.Context, workspaceID, ref string) (*Inspec
 		return nil, err
 	}
 	inspection.Repo = repo
+	inspection.ForgeStatus = s.readDisplayPullRequest(ctx, *item)
 	return &inspection, nil
 }
 
@@ -79,6 +80,7 @@ func (s *Service) ListDetails(
 		}
 		detailed.Worktrees = append(detailed.Worktrees, inspection)
 	}
+	s.hydrateDisplayPullRequests(ctx, detailed.Worktrees)
 	return detailed, nil
 }
 
@@ -87,7 +89,6 @@ func (s *Service) inspectItem(ctx context.Context, item Worktree) (Inspection, e
 	if err != nil {
 		return Inspection{}, fmt.Errorf("worktree: inspect cached status: %w", err)
 	}
-	forgeStatus := s.readDisplayPullRequest(ctx, item)
 	activity := AgentActivityIdle
 	if s.sessions != nil {
 		active, activeErr := s.sessions.HasActiveSession(ctx, item.WorkspaceID, item.ID)
@@ -99,6 +100,6 @@ func (s *Service) inspectItem(ctx context.Context, item Worktree) (Inspection, e
 		}
 	}
 	return Inspection{
-		Worktree: item, Status: status, ForgeStatus: forgeStatus, AgentActivity: activity,
+		Worktree: item, Status: status, AgentActivity: activity,
 	}, nil
 }

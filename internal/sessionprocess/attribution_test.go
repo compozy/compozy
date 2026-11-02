@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -166,6 +167,8 @@ func TestAgentStartupProtection(t *testing.T) {
 }
 
 type attributionSource struct{}
+
+func (attributionSource) ProcessActivity() (bool, bool) { return false, false }
 
 func (attributionSource) Owners(context.Context) ([]Owner, error) { return nil, nil }
 func (attributionSource) Owner(context.Context, string) (Owner, bool, error) {
@@ -592,6 +595,10 @@ func (s *resumedProcessSource) RecordTermination(_ context.Context, p Process, _
 	return nil
 }
 
+func (s *resumedProcessSource) ProcessActivity() (bool, bool) {
+	return s.owner.Live, s.owner.Live && s.owner.ToolBusy
+}
+
 func (s *resumedProcessSource) Owners(context.Context) ([]Owner, error) { return []Owner{s.owner}, nil }
 
 // Owner resolves only this source's session, so host processes marked for other sessions stay
@@ -821,4 +828,69 @@ func TestProcessTrees(t *testing.T) {
 			t.Fatalf("targets=%v", got)
 		}
 	})
+}
+
+// Invariant: demand polling hydrates owners only when a scan is due, while busy tools stay prompt.
+// Owning layer: process scanner demand loop; canonical suite: observed-process attribution.
+func TestProcessScanDemand(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		live, busy bool
+		wantReads  int64
+	}{
+		{name: "Should leave inactive owners unhydrated"},
+		{name: "Should leave idle owners unhydrated between normal scans", live: true},
+		{name: "Should immediately hydrate owners for busy tool scans", live: true, busy: true, wantReads: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			source := &processDemandSource{live: tc.live, busy: tc.busy, observed: make(chan struct{}), cancel: cancel}
+			service := &Service{
+				source: source,
+				logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+				done:   make(chan struct{}),
+			}
+			go service.run(ctx)
+			select {
+			case <-source.observed:
+			case <-time.After(3 * time.Second):
+				t.Fatal("process demand was not observed")
+			}
+			cancel()
+			select {
+			case <-service.done:
+			case <-time.After(time.Second):
+				t.Fatal("process demand loop did not stop")
+			}
+			if got := source.reads.Load(); got != tc.wantReads {
+				t.Fatalf("owner reads = %d, want %d", got, tc.wantReads)
+			}
+		})
+	}
+}
+
+type processDemandSource struct {
+	attributionSource
+	live, busy bool
+	reads      atomic.Int64
+	polls      int
+	observed   chan struct{}
+	cancel     context.CancelFunc
+}
+
+func (s *processDemandSource) ProcessActivity() (bool, bool) {
+	s.polls++
+	if s.polls == 2 {
+		s.cancel()
+		close(s.observed)
+		return false, false
+	}
+	return s.live, s.busy
+}
+func (s *processDemandSource) Owners(context.Context) ([]Owner, error) {
+	s.reads.Add(1)
+	return nil, errors.New("stop before OS scan")
 }

@@ -465,3 +465,84 @@ func (s *benchmarkInventoryReads) SessionTranscriptEpoch(ctx context.Context, id
 	s.reads++
 	return s.SessionTranscriptEpochStore.SessionTranscriptEpoch(ctx, id)
 }
+
+func BenchmarkSessionInfoLiveCapabilities(b *testing.B) {
+	caps := benchmarkSessionCapabilities()
+	target := &Session{
+		ID: "session-live-caps", AgentName: "coder", Provider: "codex", State: StateActive,
+		ACPCaps: caps, process: NewAgentProcess(AgentProcessOptions{Caps: caps}),
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		info := target.Info()
+		if len(info.ACPCaps.ConfigOptions[0].Values) != 128 {
+			b.Fatal("capability snapshot lost model options")
+		}
+	}
+}
+
+func BenchmarkManagerActiveCatalogScope(b *testing.B) {
+	caps := benchmarkSessionCapabilities()
+	manager := &Manager{sessions: make(map[string]*Session), now: func() time.Time { return benchmarkSessionTime }}
+	for index := range 1024 {
+		target := &Session{
+			ID: fmt.Sprintf("active-%04d", index), AgentName: "coder", Provider: "codex",
+			ProfileID: store.DefaultProfileID, WorkspaceID: fmt.Sprintf("workspace-%02d", index%32),
+			State: StateActive, ACPCaps: caps, process: NewAgentProcess(AgentProcessOptions{Caps: caps}),
+			CreatedAt: benchmarkSessionTime.Add(time.Duration(index) * time.Second),
+		}
+		manager.sessions[target.ID] = target
+	}
+	for _, scoped := range []bool{true, false} {
+		name, want := "Workspace", 32
+		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "workspace-00"}
+		if !scoped {
+			name, want = "AllWorkspaces", 1024
+			query.WorkspaceID, query.AllWorkspaces = "", true
+		}
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_, ids, matches, err := manager.activeBoardSessionCatalogRows(b.Context(), query)
+				if err != nil || len(ids) != 1024 || len(matches) != want {
+					b.Fatalf("catalog active=%d matches=%d want=%d error=%v", len(ids), len(matches), want, err)
+				}
+			}
+		})
+	}
+}
+
+func benchmarkSessionCapabilities() acp.Caps {
+	values := make([]acp.SessionConfigOptionValue, 128)
+	for index := range values {
+		values[index] = acp.SessionConfigOptionValue{
+			Value: fmt.Sprintf("model-%d", index),
+			Label: fmt.Sprintf("Model %d", index),
+		}
+	}
+	return acp.Caps{
+		SupportedModes: []string{"chat", "agent"},
+		ConfigOptions: []acp.SessionConfigOption{
+			{ID: "model", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "model-0", Values: values},
+		},
+	}
+}
+
+func BenchmarkManagerProcessDemand(b *testing.B) {
+	caps := benchmarkSessionCapabilities()
+	manager := &Manager{sessions: make(map[string]*Session)}
+	for index := range 256 {
+		target := &Session{
+			ID: fmt.Sprintf("process-%04d", index), State: StateActive, ACPCaps: caps,
+			process: NewAgentProcess(AgentProcessOptions{Caps: caps}),
+		}
+		manager.sessions[target.ID] = target
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		live, busy := manager.ProcessActivity()
+		if !live || busy {
+			b.Fatalf("unexpected process demand: live=%v busy=%v", live, busy)
+		}
+	}
+}

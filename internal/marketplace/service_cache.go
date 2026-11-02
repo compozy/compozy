@@ -74,14 +74,11 @@ func (s *CatalogService) projectPackageAvailability(ctx context.Context, entry *
 	if s.packageCache == nil || entry == nil || entry.SourceName == CompozyCatalogSource || entry.InstallBlocker != "" {
 		return nil
 	}
-	reader, err := s.packageCache.Open(ctx, entry.DigestSHA256)
+	err := s.packageCache.Check(ctx, entry.DigestSHA256)
 	if errors.Is(err, pluginsource.ErrPackageUnavailable) {
 		entry.Installable = false
 		entry.InstallBlocker = "package_unavailable"
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	return reader.Close()
+	return err
 }

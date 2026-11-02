@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -288,5 +289,43 @@ func seedBenchmarkTranscriptEntries(b *testing.B, db *SessionDB, count int) {
 	}
 	if _, err := db.RecordPersistedBatch(b.Context(), events); err != nil {
 		b.Fatal(err)
+	}
+}
+
+// BenchmarkTranscriptFoldRetainedHeap measures live heap after three long turns
+// across four session writers. The cache contract retains the last two folds.
+// Run with -benchtime=1x: the retained-B/cache metric is the measurement.
+func BenchmarkTranscriptFoldRetainedHeap(b *testing.B) {
+	for b.Loop() {
+		runtime.GC()
+		var before runtime.MemStats
+		runtime.ReadMemStats(&before)
+		caches := make([]transcriptFoldCache, 4)
+		for index := range caches {
+			for turn := range 3 {
+				identity := transcript.EntryIdentity{
+					Key: fmt.Sprintf("entry-%d-%d", index, turn), Kind: transcript.EntryKindAssistant,
+					LogicalID: fmt.Sprintf("turn-%d-%d", index, turn),
+				}
+				fold, err := transcript.NewEntryFold(identity)
+				if err != nil {
+					b.Fatal(err)
+				}
+				payload := fmt.Sprintf(`{"type":"agent_message","text":%q}`, strings.Repeat("x", 2*1024*1024))
+				if err := fold.Append([]store.SessionEvent{{
+					Sequence: 1, TurnID: identity.LogicalID, Type: "agent_message",
+					Content: payload, Timestamp: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+				}}); err != nil {
+					b.Fatal(err)
+				}
+				caches[index].stage(fold)
+				caches[index].commit()
+			}
+		}
+		runtime.GC()
+		var after runtime.MemStats
+		runtime.ReadMemStats(&after)
+		b.ReportMetric(float64(after.HeapAlloc-before.HeapAlloc)/float64(len(caches)), "retained-B/cache")
+		runtime.KeepAlive(caches)
 	}
 }

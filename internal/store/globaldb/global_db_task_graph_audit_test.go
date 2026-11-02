@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -226,6 +227,58 @@ func TestGlobalDBTaskEventRejectsRunTaskMismatch(t *testing.T) {
 	if !errors.Is(err, taskpkg.ErrValidation) {
 		t.Fatalf("CreateTaskEvent(run mismatch) error = %v, want ErrValidation", err)
 	}
+}
+
+func TestGlobalDBTaskEventsForTasks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve ordered payloads for distinct requested tasks and fresh writes", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		for _, id := range []string{"task-audit-a", "task-audit-b", "task-audit-decoy"} {
+			if err := db.CreateTask(ctx, taskRecordForTest(id)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		first := taskEventForTest("event-audit-a", "task-audit-a", "")
+		second := taskEventForTest("event-audit-b", "task-audit-b", "")
+		decoy := taskEventForTest("event-audit-decoy", "task-audit-decoy", "")
+		for _, event := range []taskpkg.Event{first, second, decoy} {
+			if err := db.CreateTaskEvent(ctx, event); err != nil {
+				t.Fatal(err)
+			}
+		}
+		ids := []string{"task-audit-b", " task-audit-a ", "task-audit-a", "", "missing"}
+		events, err := db.ListTaskEventsForTasks(ctx, ids)
+		if err != nil || len(events) != 2 {
+			t.Fatalf("ListTaskEventsForTasks() = %v, %v", events, err)
+		}
+		assertTaskEventEqual(t, events[0], second)
+		assertTaskEventEqual(t, events[1], first)
+
+		latest := taskEventForTest("event-audit-latest", "task-audit-a", "")
+		latest.Timestamp = first.Timestamp.Add(time.Hour)
+		if err := db.CreateTaskEvent(ctx, latest); err != nil {
+			t.Fatal(err)
+		}
+		events, err = db.ListTaskEventsForTasks(ctx, ids)
+		if err != nil || len(events) != 3 {
+			t.Fatalf("ListTaskEventsForTasks(fresh) = %v, %v", events, err)
+		}
+		assertTaskEventEqual(t, events[0], latest)
+		for _, empty := range [][]string{nil, {"", " "}} {
+			events, err = db.ListTaskEventsForTasks(ctx, empty)
+			if err != nil || len(events) != 0 {
+				t.Fatalf("ListTaskEventsForTasks(empty) = %v, %v", events, err)
+			}
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := db.ListTaskEventsForTasks(canceled, ids); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ListTaskEventsForTasks(canceled) = %v", err)
+		}
+	})
 }
 
 func TestGlobalDBTaskRunIdempotencyLookupUsesOriginScope(t *testing.T) {

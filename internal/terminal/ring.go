@@ -30,7 +30,7 @@ func (r Replay) Bytes() []byte {
 
 type Ring struct {
 	mu       sync.RWMutex
-	segments []SequencedOutputSegment
+	segments []retainedOutputSegment
 	bytes    int
 	capacity int
 	oldest   uint64
@@ -39,11 +39,32 @@ type Ring struct {
 	modes    *modePreambleTracker
 }
 
+type retainedOutputSegment struct {
+	seq, end   uint64
+	kind       OutputSegmentKind
+	data       []byte
+	characters int
+}
+
+func (s retainedOutputSegment) output() OutputSegment {
+	if s.kind == OutputSegmentBytes {
+		return OutputSegment{Kind: s.kind, Text: string(s.data)}
+	}
+	return RedactedInputMarker(s.characters)
+}
+
+func (s retainedOutputSegment) cost() int {
+	if s.kind == OutputSegmentBytes {
+		return len(s.data)
+	}
+	return len(RenderOutputSegment(s.output()))
+}
+
 func NewRing(capacity int) *Ring {
 	if capacity < 1 {
 		capacity = 1
 	}
-	return &Ring{capacity: capacity, segments: make([]SequencedOutputSegment, 0, 8), modes: newModePreambleTracker()}
+	return &Ring{capacity: capacity, segments: make([]retainedOutputSegment, 0, 8), modes: newModePreambleTracker()}
 }
 
 func (r *Ring) Append(input []byte) (start uint64, end uint64) {
@@ -56,9 +77,8 @@ func (r *Ring) Append(input []byte) (start uint64, end uint64) {
 	defer r.mu.Unlock()
 	start = r.next
 	r.next += uint64(len(input))
-	r.appendSegmentLocked(SequencedOutputSegment{
-		Seq: start, End: r.next,
-		Segment: OutputSegment{Kind: OutputSegmentBytes, Text: string(input)},
+	r.appendSegmentLocked(retainedOutputSegment{
+		seq: start, end: r.next, kind: OutputSegmentBytes, data: input,
 	})
 	r.trim()
 	return start, r.next
@@ -69,24 +89,25 @@ func (r *Ring) AppendRedactedInput(characters int) (start uint64, end uint64) {
 	defer r.mu.Unlock()
 	start = r.next
 	r.next++
-	r.appendSegmentLocked(SequencedOutputSegment{
-		Seq: start, End: r.next, Segment: RedactedInputMarker(characters),
+	r.appendSegmentLocked(retainedOutputSegment{
+		seq: start, end: r.next, kind: OutputSegmentRedactedInput, characters: max(characters, 0),
 	})
 	r.trim()
 	return start, r.next
 }
 
-func (r *Ring) appendSegmentLocked(segment SequencedOutputSegment) {
-	cost := len(RenderOutputSegment(segment.Segment))
-	if segment.Segment.Kind == OutputSegmentBytes && len(r.segments) > 0 {
+func (r *Ring) appendSegmentLocked(segment retainedOutputSegment) {
+	cost := segment.cost()
+	if segment.kind == OutputSegmentBytes && len(r.segments) > 0 {
 		last := &r.segments[len(r.segments)-1]
-		if last.Segment.Kind == OutputSegmentBytes && last.End == segment.Seq {
-			last.End = segment.End
-			last.Segment.Text += segment.Segment.Text
+		if last.kind == OutputSegmentBytes && last.end == segment.seq {
+			last.end = segment.end
+			last.data = append(last.data, segment.data...)
 			r.bytes += cost
 			return
 		}
 	}
+	segment.data = bytes.Clone(segment.data)
 	r.segments = append(r.segments, segment)
 	r.bytes += cost
 }
@@ -100,39 +121,44 @@ func (r *Ring) SetModePreamble(preamble []byte) {
 func (r *Ring) ReplayFrom(seq uint64) Replay {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if seq < r.oldest {
-		preamble := make([]byte, 0, len(resetSequence)+len(r.preamble))
+	var preamble []byte
+	truncated := seq < r.oldest
+	if truncated {
+		preamble = make([]byte, 0, len(resetSequence)+len(r.preamble))
 		preamble = append(preamble, resetSequence...)
 		preamble = append(preamble, r.preamble...)
-		return Replay{
-			Preamble: preamble, Segments: cloneSequencedOutputSegments(r.segments),
-			Seq: r.next, Truncated: true,
-		}
 	}
-	if seq > r.next {
-		seq = r.next
-	}
+	seq = min(seq, r.next)
 	segments := make([]SequencedOutputSegment, 0, len(r.segments))
 	for _, segment := range r.segments {
-		if segment.End <= seq {
+		if segment.end <= seq {
 			continue
 		}
-		copyOfSegment := segment
-		if segment.Segment.Kind == OutputSegmentBytes && seq > segment.Seq {
-			offset := min(seq-segment.Seq, uint64(len(segment.Segment.Text)))
-			// #nosec G115 -- offset is bounded by the segment text length.
-			copyOfSegment.Segment.Text = segment.Segment.Text[int(offset):]
-			copyOfSegment.Seq = seq
+		if segment.kind == OutputSegmentBytes && seq > segment.seq {
+			offset := min(seq-segment.seq, uint64(len(segment.data)))
+			// #nosec G115 -- offset is bounded by the segment data length.
+			segment.data = segment.data[int(offset):]
+			segment.seq = seq
 		}
-		segments = append(segments, copyOfSegment)
+		segments = append(segments, SequencedOutputSegment{
+			Seq: segment.seq, End: segment.end, Segment: segment.output(),
+		})
 	}
-	return Replay{Segments: segments, Seq: r.next}
+	return Replay{Preamble: preamble, Segments: segments, Seq: r.next, Truncated: truncated}
 }
 
 func (r *Ring) Snapshot() ([]byte, uint64) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	return renderSequencedOutputSegments(r.segments), r.next
+	content := make([]byte, 0, r.bytes)
+	for _, segment := range r.segments {
+		if segment.kind == OutputSegmentBytes {
+			content = append(content, segment.data...)
+		} else {
+			content = append(content, RenderOutputSegment(segment.output())...)
+		}
+	}
+	return content, r.next
 }
 
 func (r *Ring) SnapshotSegments() ([]OutputSegment, uint64) {
@@ -140,9 +166,9 @@ func (r *Ring) SnapshotSegments() ([]OutputSegment, uint64) {
 	defer r.mu.RUnlock()
 	segments := make([]OutputSegment, 0, len(r.segments))
 	for _, segment := range r.segments {
-		segments = append(segments, segment.Segment)
+		segments = append(segments, segment.output())
 	}
-	return cloneOutputSegments(segments), r.next
+	return segments, r.next
 }
 
 func (r *Ring) Bounds() (oldest uint64, next uint64) {
@@ -155,14 +181,15 @@ func (r *Ring) trim() {
 	for r.bytes > r.capacity && len(r.segments) > 0 {
 		excess := r.bytes - r.capacity
 		first := &r.segments[0]
-		cost := len(RenderOutputSegment(first.Segment))
-		if cost <= excess || first.Segment.Kind != OutputSegmentBytes {
+		cost := first.cost()
+		if cost <= excess || first.kind != OutputSegmentBytes {
 			r.bytes -= cost
-			r.oldest = first.End
+			r.oldest = first.end
+			*first = retainedOutputSegment{}
 			r.segments = r.segments[1:]
 			continue
 		}
-		data := []byte(first.Segment.Text)
+		data := first.data
 		cut := safeTrimIndex(data, excess)
 		if cut < 1 {
 			cut = excess
@@ -170,24 +197,15 @@ func (r *Ring) trim() {
 		for cut < len(data) && data[cut]&0xc0 == 0x80 {
 			cut++
 		}
-		first.Segment.Text = string(data[cut:])
+		first.data = data[cut:]
+		if len(data)-r.capacity > r.capacity {
+			first.data = bytes.Clone(first.data)
+		}
 		// #nosec G115 -- cut is bounded by the segment text length.
-		first.Seq += uint64(cut)
-		r.oldest = first.Seq
+		first.seq += uint64(cut)
+		r.oldest = first.seq
 		r.bytes -= cut
 	}
-}
-
-func cloneSequencedOutputSegments(segments []SequencedOutputSegment) []SequencedOutputSegment {
-	return append([]SequencedOutputSegment(nil), segments...)
-}
-
-func renderSequencedOutputSegments(segments []SequencedOutputSegment) []byte {
-	var content []byte
-	for _, segment := range segments {
-		content = append(content, RenderOutputSegment(segment.Segment)...)
-	}
-	return content
 }
 
 func safeTrimIndex(data []byte, minimum int) int {
@@ -198,7 +216,7 @@ func safeTrimIndex(data []byte, minimum int) int {
 	for index, value := range data {
 		state = nextEscapeState(state, value)
 		if index+1 >= minimum && state == 0 {
-			if newline := bytes.IndexByte(data[index+1:], '\n'); newline >= 0 && newline < 256 {
+			if newline := bytes.IndexByte(data[index+1:min(index+257, len(data))], '\n'); newline >= 0 {
 				return index + newline + 2
 			}
 			return index + 1

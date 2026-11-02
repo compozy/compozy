@@ -1,4 +1,9 @@
-import type { DaemonStatusPayload, HealthPayload, StatusPayload } from "../types";
+import type {
+  DaemonStatusPayload,
+  HealthPayload,
+  RuntimeIdentityPayload,
+  StatusPayload,
+} from "../types";
 
 export const daemonHealthFixture: HealthPayload = {
   status: "ok",
@@ -121,5 +126,17 @@ export const statusFixture: StatusPayload = {
   log_tail: {
     available: true,
     status: "available",
+  },
+};
+
+export const runtimeIdentityFixture: RuntimeIdentityPayload = {
+  schema_version: statusFixture.schema_version,
+  daemon: {
+    pid: daemonStatusFixture.pid,
+    started_at: daemonStatusFixture.started_at,
+    http_host: daemonStatusFixture.http_host,
+    http_port: daemonStatusFixture.http_port,
+    user_home_dir: daemonStatusFixture.user_home_dir,
+    version: daemonStatusFixture.version ?? "",
   },
 };

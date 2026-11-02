@@ -73,3 +73,30 @@ Needs you count every project, Working now badges each session and task-run card
 User), and opening a card keeps All projects on and shows the project badge in the window chrome.
 Repeat in project mode (no badges, that project only) and with User focused (`@user`). The Needs you
 items carry no project in the overview payload, so their Open lands unbound on the All projects desktop.
+
+QA impact 2026-11-01 (responsiveness audit): while Home observes task lifecycle activity,
+exercise a burst with aggregate responses still pending. The first event must start a read
+immediately; later events must produce one trailing read after it settles, with final attention,
+outcome, task-dashboard and inbox data matching the latest event. A failed leading response must
+not discard that trailing read. Switch profiles away and back while reads are pending, then close
+Home; old stream callbacks must not change the replacement view and queued aggregate changes
+must be reconciled after the leading read settles. Repeat closure with disabled observers and
+without initial query data; disabled data must remain invalidated until re-enabled. A pending
+old scope must settle through its original QueryClient without consuming a replacement scope's
+trailing refresh. Connectivity-only reads use runtime identity; System still reads full status.
+Focused evidence: dashboard stream/model suites and the reproducible QueryClient benchmark in
+`web/e2e/scripts/benchmark-home-live.ts`; these do not substitute for the isolated browser/daemon
+walk. See `../reports/2026-11-01-performance/usage-dashboard.md` for current verification status.
+
+2026-11-02 live-refresh review follow-up: suspend one overview response after Home
+has cached data, let task-dashboard, inbox and another overview window finish,
+then deliver another lifecycle event. Each settled query must refresh immediately;
+the suspended query must not hold a shared aggregate gate. An accepted pending
+change on an active cached query must recover using Home's existing 30-second live
+interval instead of waiting forever. Initial, disabled and static reads retain
+their settle-then-invalidate behavior. Closing or switching Home blocks old stream
+frames but preserves already accepted reconciliation through its original client.
+Repeat the 100-event burst: three leading and three trailing reads, zero cancellations
+when reads finish normally, and revision 100 in all three caches. The focused hook
+suite and shared coordinator suite own these boundaries; the broader browser/daemon
+scenario retains its existing verdict until a separate walk is recorded.

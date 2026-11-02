@@ -145,47 +145,45 @@ func (s *FilesystemAttachmentStore) Open(
 	workspaceID string,
 	sessionID string,
 	id string,
-) (io.ReadCloser, AttachmentRef, error) {
-	ref, contentPath, err := s.statLocked(ctx, workspaceID, sessionID, id)
+) (reader io.ReadCloser, ref AttachmentRef, err error) {
+	contentPath, err := s.validatedContentPath(ctx, workspaceID, sessionID, id)
 	if err != nil {
+		return nil, AttachmentRef{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.sweepLocked(ctx, 0, 0); err != nil {
 		return nil, AttachmentRef{}, err
 	}
 	file, err := os.Open(contentPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, AttachmentRef{}, ErrNotFound
+		}
 		return nil, AttachmentRef{}, fmt.Errorf("open attachment: %w", err)
 	}
-	if err := attachmentContextErr(ctx); err != nil {
-		closeErr := file.Close()
-		if closeErr != nil {
-			return nil, AttachmentRef{}, errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
+	defer func() {
+		if err != nil {
+			if closeErr := file.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
+			}
 		}
+	}()
+	content, err := readOpenAttachment(ctx, file, id)
+	if err != nil {
 		return nil, AttachmentRef{}, err
 	}
-	if err := verifyAttachmentDigest(ctx, file, id); err != nil {
-		closeErr := file.Close()
-		if closeErr != nil {
-			return nil, AttachmentRef{}, errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
-		}
+	meta, err := readMetaForContent(ctx, contentPath, id, content)
+	if err != nil {
 		return nil, AttachmentRef{}, err
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		closeErr := file.Close()
-		if closeErr != nil {
-			return nil, AttachmentRef{}, errors.Join(
-				fmt.Errorf("rewind attachment: %w", err),
-				fmt.Errorf("close attachment: %w", closeErr),
-			)
-		}
 		return nil, AttachmentRef{}, fmt.Errorf("rewind attachment: %w", err)
 	}
 	if err := attachmentContextErr(ctx); err != nil {
-		closeErr := file.Close()
-		if closeErr != nil {
-			return nil, AttachmentRef{}, errors.Join(err, fmt.Errorf("close attachment: %w", closeErr))
-		}
 		return nil, AttachmentRef{}, err
 	}
-	return file, ref, nil
+	return file, attachmentRef(id, meta), nil
 }
 
 // Stat returns retained metadata after enforcing workspace and session scope.
@@ -195,8 +193,20 @@ func (s *FilesystemAttachmentStore) Stat(
 	sessionID string,
 	id string,
 ) (AttachmentRef, error) {
-	ref, _, err := s.statLocked(ctx, workspaceID, sessionID, id)
-	return ref, err
+	contentPath, err := s.validatedContentPath(ctx, workspaceID, sessionID, id)
+	if err != nil {
+		return AttachmentRef{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.sweepLocked(ctx, 0, 0); err != nil {
+		return AttachmentRef{}, err
+	}
+	meta, err := s.readMeta(ctx, contentPath, id)
+	if err != nil {
+		return AttachmentRef{}, err
+	}
+	return attachmentRef(id, meta), nil
 }
 
 // Delete removes one retained attachment and its sidecar metadata.
@@ -236,34 +246,23 @@ func (s *FilesystemAttachmentStore) Sweep(ctx context.Context) error {
 	return s.sweepLocked(ctx, 0, 0)
 }
 
-func (s *FilesystemAttachmentStore) statLocked(
+func (s *FilesystemAttachmentStore) validatedContentPath(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
 	id string,
-) (AttachmentRef, string, error) {
+) (string, error) {
 	if err := attachmentContextErr(ctx); err != nil {
-		return AttachmentRef{}, "", err
+		return "", err
 	}
 	workspaceID, sessionID, err := sanitizeScopeIDs(workspaceID, sessionID)
 	if err != nil {
-		return AttachmentRef{}, "", err
+		return "", err
 	}
 	if !attachmentIDPattern.MatchString(id) {
-		return AttachmentRef{}, "", fmt.Errorf("%w: %q", ErrInvalidID, id)
+		return "", fmt.Errorf("%w: %q", ErrInvalidID, id)
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.sweepLocked(ctx, 0, 0); err != nil {
-		return AttachmentRef{}, "", err
-	}
-	contentPath := s.contentPath(workspaceID, sessionID, id)
-	meta, err := s.readMeta(ctx, contentPath, id)
-	if err != nil {
-		return AttachmentRef{}, "", err
-	}
-	return attachmentRef(id, meta), contentPath, nil
+	return s.contentPath(workspaceID, sessionID, id), nil
 }
 
 func (s *FilesystemAttachmentStore) publish(

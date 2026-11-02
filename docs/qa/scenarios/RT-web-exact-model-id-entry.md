@@ -23,3 +23,11 @@ catalog mode, while cancel restores search focus. Reset for keyboard and pointer
 
 QA 2026-08-05 (review remediation): cancel restored catalog search focus; Enter and pointer commit
 both returned to the open catalog with search focused and `Cursor Agent / Composer 2.5` selected.
+
+
+QA impact 2026-11-01 (responsiveness audit): closed runtime selectors defer popup row projection.
+Verify the selected model and valid advertised controls remain visible while closed; update the
+catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keyboard selection and
+Escape focus restoration against the latest data. The existing runtime-selector component suite
+owns focused coverage; the new check includes catalog updates while closed. This note does not
+claim a fresh live-provider/browser walk; integrated runtime evidence belongs to the audit QA tail.
