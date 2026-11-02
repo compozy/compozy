@@ -193,27 +193,29 @@ type ResolvedAgent struct {
 	Model              string
 	ReasoningEffort    string
 	*AgentRuntimeDefaults
-	Tools           []string
-	Toolsets        []string
-	DenyTools       []string
-	Permissions     string
-	Harness         ProviderHarness
-	RuntimeProvider string
-	Transport       string
-	BaseURL         string
-	AuthMode        ProviderAuthMode
-	EnvPolicy       ProviderEnvPolicy
-	HomePolicy      ProviderHomePolicy
-	NoneSecurity    ProviderNoneSecurity
-	AuthStatusCmd   string
-	AuthLoginCmd    string
-	AuthACPMethod   string
-	SessionMCP      bool
-	CredentialSlots []ProviderCredentialSlot
-	MCPServers      []MCPServer
-	Reasoning       ProviderReasoningConfig
-	RuntimeSources  ResolvedRuntimeSources
-	Prompt          string
+	Tools       []string
+	Toolsets    []string
+	DenyTools   []string
+	Permissions string
+	// PermissionsConfigured reports that the definition set Permissions; false means settings supplied it.
+	PermissionsConfigured bool
+	Harness               ProviderHarness
+	RuntimeProvider       string
+	Transport             string
+	BaseURL               string
+	AuthMode              ProviderAuthMode
+	EnvPolicy             ProviderEnvPolicy
+	HomePolicy            ProviderHomePolicy
+	NoneSecurity          ProviderNoneSecurity
+	AuthStatusCmd         string
+	AuthLoginCmd          string
+	AuthACPMethod         string
+	SessionMCP            bool
+	CredentialSlots       []ProviderCredentialSlot
+	MCPServers            []MCPServer
+	Reasoning             ProviderReasoningConfig
+	RuntimeSources        ResolvedRuntimeSources
+	Prompt                string
 }
 
 // ErrProviderUnavailable reports that a requested provider cannot be resolved

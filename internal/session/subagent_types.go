@@ -122,6 +122,14 @@ type SubagentProviderOption struct {
 	Constraints     []string
 }
 
+// SubagentPermissionLimit is the broadest mode one delegation may request.
+type SubagentPermissionLimit struct {
+	Mode compozyconfig.PermissionMode
+	// ChildOwnsLevel is set in an instance lineage, where the child's own configured level sets the
+	// limit and an unset mode resolves from that level instead of the caller's.
+	ChildOwnsLevel bool
+}
+
 // SubagentCapabilities answers compozy__subagent_capabilities.
 type SubagentCapabilities struct {
 	ParentSessionID string
@@ -192,6 +200,7 @@ type NativeSubagentTask struct {
 // SubagentService owns subagent records, delivery, and lifecycle. Transition
 // owners are called from the session manager call sites listed in the spec.
 type SubagentService interface {
+	PermissionLimit(context.Context, *Info, SubagentTarget) (SubagentPermissionLimit, error)
 	Capabilities(ctx context.Context, caller SubagentCaller) (SubagentCapabilities, error)
 	Delegate(ctx context.Context, req SubagentRequest) (Subagent, error)
 	Status(ctx context.Context, caller SubagentCaller, id string) (Subagent, error)

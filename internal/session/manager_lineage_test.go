@@ -63,8 +63,8 @@ func TestCreateManualSessionProducesRootLineage(t *testing.T) {
 			t.Fatal(err)
 		}
 		h.manager.SetInstanceCeilingReader(
-			func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
-				return &policy, "", nil
+			func(context.Context, string, string) (*InstanceCeiling, error) {
+				return &InstanceCeiling{Policy: policy}, nil
 			},
 		)
 		resumed, err := h.manager.Resume(t.Context(), created.ID)
