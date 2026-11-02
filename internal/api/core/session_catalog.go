@@ -131,19 +131,15 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
-	columns, hideChildren, err := parseSessionListBoardFilters(c)
-	if err != nil {
-		return session.ListQuery{}, false, err
-	}
-	excludeFinishedAutomation, err := parseBoolQuery(c, "exclude_finished_automation")
+	board, err := parseSessionListBoardFilters(c)
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
 	query := session.ListQuery{
-		ExcludeFinishedAutomation: excludeFinishedAutomation,
+		ExcludeFinishedAutomation: board.excludeFinishedAutomation,
 
-		Columns:         columns,
-		HideChildren:    hideChildren,
+		Columns:         board.columns,
+		HideChildren:    board.hideChildren,
 		Subagents:       subagents,
 		SkipTotal:       skipTotal,
 		ReadScope:       readScope,
@@ -170,16 +166,26 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	return query, includeHealth, nil
 }
 
-func parseSessionListBoardFilters(c *gin.Context) ([]string, bool, error) {
+type sessionListBoardFilters struct {
+	columns                   []string
+	hideChildren              bool
+	excludeFinishedAutomation bool
+}
+
+func parseSessionListBoardFilters(c *gin.Context) (sessionListBoardFilters, error) {
 	columns, err := session.ParseBoardColumns(c.QueryArray("board_column"))
 	if err != nil {
-		return nil, false, err
+		return sessionListBoardFilters{}, err
 	}
 	hideChildren, err := session.ParseChildrenFilter(c.Query("children"))
 	if err != nil {
-		return nil, false, err
+		return sessionListBoardFilters{}, err
 	}
-	return columns, hideChildren, nil
+	excludeFinished, err := parseBoolQuery(c, "exclude_finished_automation")
+	if err != nil {
+		return sessionListBoardFilters{}, err
+	}
+	return sessionListBoardFilters{columns, hideChildren, excludeFinished}, nil
 }
 
 // parseSessionListWorkspaceIDs resolves the All projects narrowing, mapping the legacy global alias.

@@ -43,12 +43,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	if err := normalizeListBreadth(&query); err != nil {
 		return ListQuery{}, err
 	}
-	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
-	query.State = strings.TrimSpace(query.State)
-	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
-	query.AgentName = strings.TrimSpace(query.AgentName)
-	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
-	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
+	trimListQueryText(&query)
 	if err := normalizeListSearch(&query); err != nil {
 		return ListQuery{}, err
 	}
@@ -57,9 +52,6 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
 	}
 	query.Badges = badges
-	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
-	query.Sort = strings.TrimSpace(query.Sort)
-	query.Cursor = strings.TrimSpace(query.Cursor)
 	if (query.AttentionOnly || len(query.Badges) > 0) && query.Sort == "" {
 		query.Sort = ListSortAttention
 	} else if query.Sort == "" {
@@ -89,17 +81,36 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
 	}
+	if err := validateListQueryEnums(&query); err != nil {
+		return ListQuery{}, err
+	}
+	return query, nil
+}
+
+func trimListQueryText(query *ListQuery) {
+	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
+	query.State = strings.TrimSpace(query.State)
+	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
+	query.AgentName = strings.TrimSpace(query.AgentName)
+	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
+	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
+	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
+	query.Sort = strings.TrimSpace(query.Sort)
+	query.Cursor = strings.TrimSpace(query.Cursor)
+}
+
+func validateListQueryEnums(query *ListQuery) error {
 	switch State(query.State) {
 	case "", StateStarting, StateActive, StateStopping, StateStopped:
 	default:
-		return ListQuery{}, fmt.Errorf("%w: unsupported state %q", ErrListQueryInvalid, query.State)
+		return fmt.Errorf("%w: unsupported state %q", ErrListQueryInvalid, query.State)
 	}
 	switch query.SessionType {
 	case "", SessionTypeUser, SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned:
 	default:
-		return ListQuery{}, fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
+		return fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
 	}
-	return query, nil
+	return nil
 }
 
 // explicitSessionLookup reports a read that names what it wants, so it reaches

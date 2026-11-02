@@ -131,11 +131,15 @@ export function sessionListFacetFilters({
   SessionListGroupsInput,
   "scope" | "lens" | "shelf" | "search" | "worktreeId" | "population"
 >): SessionListFilters {
+  // A search reaches finished automation runs, so their groups must survive the counts.
+  const { exclude_finished_automation: hideFinished, ...shelfFilters } =
+    sessionListShelfFilters(shelf);
   return {
     ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
     ...(population ?? { subagents: sessionListSubagentsParam(search) }),
     ...(worktreeId ? { worktree: worktreeId } : {}),
-    ...sessionListShelfFilters(shelf),
+    ...shelfFilters,
+    ...(hideFinished && !search?.trim() ? { exclude_finished_automation: true } : {}),
     ...lens,
   };
 }

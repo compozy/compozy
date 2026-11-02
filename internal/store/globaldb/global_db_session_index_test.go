@@ -122,7 +122,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		db := openTestGlobalDB(t)
-		workspaceID := registerWorkspaceForGlobalTests(t, db, "automation-catalog", filepath.Join(t.TempDir(), "workspace"))
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			db,
+			"automation-catalog",
+			filepath.Join(t.TempDir(), "workspace"),
+		)
 		base := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 		seed := func(id, root, lineage, state, failure string) {
 			t.Helper()
@@ -131,11 +136,20 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.db.ExecContext(ctx, `UPDATE sessions SET initiator_kind = 'automation', initiator_id = 'job-1',
+			if _, err := db.db.ExecContext(
+				ctx,
+				`UPDATE sessions SET initiator_kind = 'automation', initiator_id = 'job-1',
  root_session_id = NULLIF(?, ''), parent_session_id = NULLIF(?, ''), lineage_kind = ?,
  origin_agent_name = CASE WHEN ? = 'fork' THEN 'coder' ELSE '' END,
  spawn_depth = CASE WHEN ? = '' THEN 0 ELSE 1 END, failure_kind = NULLIF(?, '') WHERE id = ?`,
-				root, root, lineage, lineage, root, failure, id); err != nil {
+				root,
+				root,
+				lineage,
+				lineage,
+				root,
+				failure,
+				id,
+			); err != nil {
 				t.Fatal(err)
 			}
 		}

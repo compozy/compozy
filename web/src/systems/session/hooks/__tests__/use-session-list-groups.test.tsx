@@ -260,6 +260,27 @@ describe("useSessionListGroups", () => {
     );
   });
 
+  it("Should count finished automation runs only while a search can reach them", async () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse());
+    const { rerender } = renderHook(
+      ({ search }: { search?: string }) => useSessionListGroups(groupsInput({ search })),
+      { wrapper, initialProps: {} }
+    );
+    await waitFor(() =>
+      expect(fetchSessionFacets).toHaveBeenLastCalledWith(
+        expect.objectContaining({ exclude_finished_automation: true }),
+        expect.any(AbortSignal)
+      )
+    );
+    rerender({ search: "nightly" });
+    await waitFor(() =>
+      expect(fetchSessionFacets).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ exclude_finished_automation: true }),
+        expect.any(AbortSignal)
+      )
+    );
+  });
+
   it("Should report a failed facets read with one retry that reads it again", async () => {
     vi.mocked(fetchSessionFacets).mockRejectedValueOnce(new Error("facets down"));
     const { result } = renderHook(() => useSessionListGroups(groupsInput()), { wrapper });
