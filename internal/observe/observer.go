@@ -24,7 +24,7 @@ import (
 type Registry interface {
 	PermissionDailyRollups(context.Context, store.PermissionRollupQuery) ([]store.PermissionDailyRollup, error)
 	PermissionEntries(context.Context, store.PermissionEntriesQuery) ([]store.PermissionLogEntry, error)
-	RegisterSession(ctx context.Context, session store.SessionInfo) error
+	RegisterSession(ctx context.Context, session *store.SessionInfo) error
 	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
 	ReconcileSessions(ctx context.Context, sessions []store.SessionInfo) (store.ReconcileResult, error)
 	WriteEventSummary(ctx context.Context, summary store.EventSummary) error
