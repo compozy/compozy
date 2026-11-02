@@ -4805,8 +4805,8 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 			if !reflect.DeepEqual(cleared.Info().Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
 				t.Fatal("replacement changed child ceiling")
 			}
-			if cleared.Info().EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
-				t.Fatal("replacement bypasses approvals")
+			if got := cleared.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveAll) {
+				t.Fatalf("replacement level = %s, want the authored approve-all", got)
 			}
 			events, err := manager.Prompt(t.Context(), id, "child work")
 			if err != nil {
