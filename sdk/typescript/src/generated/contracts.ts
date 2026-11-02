@@ -1774,6 +1774,7 @@ export interface ForgeCapabilitiesRequest {
 }
 
 export interface ForgeCapabilitiesResponse {
+  supports_pr_discovery?: boolean;
   served: boolean;
   available: boolean;
   winner?: string;
@@ -1788,6 +1789,14 @@ export interface ForgeCapabilitiesResponse {
   credential_source?: string;
   default_branch?: string;
   cause?: string;
+}
+
+export interface ForgePRCandidate {
+  number: number;
+  title?: string;
+  url: string;
+  branch: string;
+  state: string;
 }
 
 export interface ForgePRCreateRequest {
@@ -1805,6 +1814,23 @@ export interface ForgePRCreateResponse {
   number?: number;
   url?: string;
   cause?: string;
+}
+
+export interface ForgePRReadRequest {
+  remote_urls: string[];
+  number: number;
+}
+
+export interface ForgePRSearchRequest {
+  remote_urls: string[];
+  query?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface ForgePRSearchResponse {
+  items: ForgePRCandidate[];
+  has_more: boolean;
 }
 
 export interface ForgeStatusRequest {
@@ -1844,6 +1870,7 @@ export interface ForgeReviews {
 }
 
 export interface ForgeStatusResponse {
+  title?: string;
   checks?: ForgeChecks;
   reviews?: ForgeReviews;
   reviews_unavailable?: boolean;

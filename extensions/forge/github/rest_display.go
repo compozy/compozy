@@ -68,6 +68,7 @@ func (p *Provider) restDisplayStatus(
 			if merged {
 				state = "merged"
 			}
+			response.Title = selected.Title
 			response.PRNumber, response.PRState = &selected.Number, &state
 			response.PRURL, response.Merged = selected.HTMLURL, &merged
 			response.Head, response.Base = selected.Head.Ref, selected.Base.Ref

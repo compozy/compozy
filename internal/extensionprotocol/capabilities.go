@@ -34,6 +34,8 @@ const (
 	ExtensionServiceMethodConnectivityTeardown  ExtensionServiceMethod = "connectivity/teardown"
 	ExtensionServiceMethodForgeCapabilities     ExtensionServiceMethod = "forge/capabilities"
 	ExtensionServiceMethodForgeStatus           ExtensionServiceMethod = "forge/status"
+	ExtensionServiceMethodForgePRSearch         ExtensionServiceMethod = "forge/pr_search"
+	ExtensionServiceMethodForgePRRead           ExtensionServiceMethod = "forge/pr_read"
 	ExtensionServiceMethodForgePRCreate         ExtensionServiceMethod = "forge/pr_create"
 	ExtensionServiceMethodViewOpen              ExtensionServiceMethod = "view/open"
 	ExtensionServiceMethodViewEvent             ExtensionServiceMethod = "view/event"
@@ -99,7 +101,11 @@ func CapabilityServiceMethods(provides []string) []string {
 	seen := make(map[string]struct{})
 	methods := make([]string, 0)
 	for _, provide := range normalizeUniqueStrings(provides) {
-		for _, method := range RequiredServiceMethods(provide) {
+		methodsForProvide := RequiredServiceMethods(provide)
+		if provide == CapabilityProvideForgeProvider {
+			methodsForProvide = append(methodsForProvide, string(ExtensionServiceMethodForgePRSearch), string(ExtensionServiceMethodForgePRRead))
+		}
+		for _, method := range methodsForProvide {
 			if _, ok := seen[method]; ok {
 				continue
 			}

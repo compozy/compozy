@@ -18,7 +18,7 @@ const graphCheckCancelled = "CANCELLED" //nolint:misspell // GitHub's GraphQL en
 const pullQuery = `query($owner:String!,$name:String!,$branch:String!,$states:[PullRequestState!]!,$after:String){
  repository(owner:$owner,name:$name){pullRequests(
  headRefName:$branch,states:$states,first:50,after:$after,orderBy:{field:UPDATED_AT,direction:DESC}){
- nodes{number url state isDraft merged headRefOid baseRefName updatedAt
+ nodes{number title url state isDraft merged headRefOid baseRefName updatedAt
  reviewDecision mergeable headRepository{nameWithOwner}}
  pageInfo{hasNextPage endCursor}}}}`
 
@@ -28,6 +28,7 @@ const checksQuery = `query($owner:String!,$name:String!,$oid:GitObjectID!,$after
 const maxCheckPages = 5
 
 type graphPull struct {
+	Title          string
 	Number         int
 	URL            string
 	State          string
@@ -173,6 +174,7 @@ func (p *Provider) graphStatus(
 		return response, nil
 	}
 	state := strings.ToLower(pull.State)
+	response.Title = pull.Title
 	response.PRNumber, response.PRState = &pull.Number, &state
 	response.PRURL, response.Merged, response.Draft = pull.URL, &pull.Merged, &pull.IsDraft
 	response.Head, response.Base, response.HeadSHA = branch, pull.BaseRefName, pull.HeadRefOID

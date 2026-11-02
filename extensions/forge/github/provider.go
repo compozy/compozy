@@ -38,6 +38,7 @@ type repositoryPayload struct {
 }
 
 type pullPayload struct {
+	Title     string     `json:"title"`
 	Number    int        `json:"number"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	HTMLURL   string     `json:"html_url"`
@@ -73,7 +74,8 @@ func (p *Provider) Capabilities(
 	response := extensioncontract.ForgeCapabilitiesResponse{
 		Served: true, Provider: githubProviderName, ServedRemote: repo.url,
 		RequestNoun: "PR", OpenActionLabel: "Open PR", ViewActionLabel: "View PR",
-		SupportsDraft: true, CompareURLTemplate: repo.url + "/compare/{base}...{head}",
+		SupportsPRDiscovery: true,
+		SupportsDraft:       true, CompareURLTemplate: repo.url + "/compare/{base}...{head}",
 		TemplatePaths: append([]string(nil), githubTemplatePaths...),
 	}
 	credential, err := p.credentials.resolve(ctx)
