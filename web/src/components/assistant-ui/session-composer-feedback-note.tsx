@@ -214,7 +214,7 @@ export function SessionComposerFeedbackNote({
       <span
         className={cn(
           "min-w-0",
-          feedback.kind === "prompt-refusal" ? "whitespace-normal" : "truncate"
+          feedback.kind === "prompt-refusal" ? "whitespace-normal wrap-anywhere" : "truncate"
         )}
       >
         <span className="font-medium text-fg">{view.lead}</span>

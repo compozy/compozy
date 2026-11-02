@@ -95,3 +95,21 @@ results replace the old prompt notice; acceptance clears it even if the operator
 rewrote the draft while waiting. Existing provider and composer suites reproduce
 these races and cover the fixes. The multipart-file boundary also verifies that
 recovery uploads the retained image name and bytes, rather than only counting POSTs.
+
+Rendered walk at d8570b2de passed S1, S2, S3 and its end conditions, S4, normal
+send and ambiguous 5xx at both widths. A separate long-token probe still overflowed
+at 399px; the existing feedback note now permits overflow wrapping for URLs/paths.
+The final delta must verify that token, removal during re-upload without stale
+advice returning, newer busy-send results replacing old guidance, and S3/S4 smoke.
+No final-head visual verdict is claimed until that delta is complete.
+
+Full-page reload remains a known pre-existing limit: main's draft localStorage
+envelope stores text only; retained Files live in module Maps for one app run.
+Reload therefore loses unsent tiles and the memory-only refusal reason, leaving
+text that can be sent alone. Session reopening in the same app run is covered;
+durable attachment drafts or a persisted loss marker need a separate contract.
+Main was compared by source, not by a separate rendered walk. The transient global
+refusal toast can outlive attachment removal or session navigation until its
+timeout, though acceptance dismisses it. The optimistic bubble can flash before
+authoritative refusal and request deliberately deleted image bytes; it must be
+gone after refusal and remain absent after a successful retry.
