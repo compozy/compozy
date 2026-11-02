@@ -98,7 +98,8 @@ Ask an agent to run something slow and report back, for example:
    lines of output, and reports back.
 
 If you send a message while the agent is busy, the wake waits behind the current turn. If the
-session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. Stopping the
+session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. A pull request
+wake keeps retrying for as long as the monitor lives, and what changes meanwhile comes in the next wake. Stopping the
 session on purpose cancels its monitors, so nothing it registered restarts it later.
 
 ## Walkthrough: watch a pull request
@@ -118,6 +119,8 @@ Ask an agent to open a pull request and see it through, for example:
 
    The monitor follows the session's branch. Pass `branch` to watch another one. A default branch, or
    a session with no branch, is refused. If the pull request does not exist yet, the monitor waits for it.
+   It also waits when the branch only has a pull request that had already merged or closed, as a reused
+   branch does: only a pull request the monitor saw open can end it.
 
 2. The agent ends its turn, or keeps working on something else. CompozyOS reads the pull request
    about once a minute through the [forge extension](/docs/extensions), with that extension's own
@@ -132,27 +135,28 @@ Ask an agent to open a pull request and see it through, for example:
 
 What wakes the agent:
 
-| Change                                  | When the wake arrives                                                 |
-| --------------------------------------- | --------------------------------------------------------------------- |
-| A check fails                           | At the next read, about a minute. Failures already there wake at once |
-| All checks finish                       | At the next read, once per head                                       |
-| A new review or a new unresolved thread | After 2 minutes of quiet, held at most 5, so a burst is one wake      |
-| The pull request merges or closes       | At the next read. This is the last wake                               |
+| Change                                        | When the wake arrives                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| A check fails                                 | At the next read, about a minute. Failures already there wake at once |
+| All checks finish                             | At the next read, once per head                                       |
+| A new review or unresolved thread on the head | After 2 minutes of quiet, held at most 5, so a burst is one wake      |
+| The pull request merges or closes             | At the next read. This is the last wake                               |
 
 What it deliberately does not wake on:
 
 - Reviews and threads already there when the monitor starts. Only new ones count.
-- A push by itself. A new head resets the checks, and anything still reported for the old head is
-  ignored.
+- A push by itself. A new head resets the checks and drops pending review activity. A review or thread
+  that arrives late on the old head is ignored, though open threads stay in the count each wake reports.
 - A check rerun on the same head that passes. All checks finishing wakes once per head; a rerun wakes
   the agent only if it fails.
 - Review text. The wake says who reviewed and how, and tells the agent to read the reviews itself,
   including the review body, because follow-ups can live only there.
 
 If the forge cannot be reached, those failed reads are never treated as check results. After 15
-minutes of failures, one wake says the forge is unavailable and the monitor stays armed. Rate limits
-are respected, and sessions watching the same pull request share one read. A forge extension that does
-not report reviews still supports checks, and each wake says what it could not observe. Pull requests
+minutes of failures, one wake says the forge is unavailable and the monitor stays armed. If only reviews
+fail to load, checks keep working and reviews that arrive meanwhile are still reported once they can be
+read. Rate limits are respected, and sessions watching the same pull request share one read. A forge
+extension that does not report reviews still supports checks, and each wake says what it could not observe. Pull requests
 from forks are not visible to the monitor.
 
 A pull request monitor keeps its slot for its whole life, and a Stays-on agent's session does not

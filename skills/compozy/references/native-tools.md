@@ -169,18 +169,22 @@ still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 t
 `kind="pull_request"` is the wait for a pull request's checks and reviews. The daemon reads the forge about
 once a minute, with the forge extension's own credential, and runs no command or URL of yours. `branch`
 defaults to the session's branch; a default branch, or a session with no branch, is refused. A missing pull
-request is a wait, so you can register before opening it. `timeout_seconds` defaults to 21,600 and caps at
+request is a wait, so you can register before opening it, and so is one that had already merged or closed
+when the monitor first read it: a reused branch's old pull request is history, and only a pull request this
+monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at
 86,400. One monitor fires many times and stays armed until the pull request merges or closes, the timeout
 expires, you cancel it, or it reaches 64 wakes. It wakes at once when checks are already failing on the
 head, then within about a minute of a check newly failing and once per head when all checks finish; a new
-review on the current head or a rising unresolved thread count wakes after 2 minutes of quiet, held at most
-5, and the first read is the baseline for reviews and threads. A new head wakes nothing by itself and drops
-what the old head had pending; a rerun on the same head wakes only if it fails. The wake carries the pull
+review or unresolved thread on the current head wakes after 2 minutes of quiet, held at most 5, and the first
+read is the baseline for reviews and threads. A new head wakes nothing by itself and drops
+what the old head had pending, and a late review or thread on an old head wakes nothing, though open threads
+stay in the count each wake reports; a rerun on the same head wakes only if it fails. The wake carries the pull
 request, head, check counts, failed names, and new reviews and threads, in an entity-encoded untrusted
 block, and says what the forge could not observe. It carries no review text: read the reviews yourself,
 including review bodies, because follow-ups can live only there. You, not the daemon, decide when delivery
 is done. Failed forge lookups are never check results: after 15 minutes of failures one wake reports
-the forge unavailable and the monitor stays armed, and rate-limit retry times are honored. A session
+the forge unavailable and the monitor stays armed, and rate-limit retry times are honored. A failed read of
+reviews alone keeps checks flowing, never counts as a baseline, and is reported the same way. A session
 holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256; a `pull_request` monitor
 holds its slot for its whole life, and agent instance rotation waits while one is active. There is no generic
 remote polling kind: wait on other remote work, such as a deploy, by running its bounded watch command through
@@ -191,8 +195,9 @@ active monitor rather than adding a second wake. After
 end your turn only when every remaining step waits on a registered monitor or subagent. The wake is a synthetic `monitor`
 message headed `[COMPOZY MONITOR - NOT USER INPUT]` with the monitor id, status (exit code, match,
 timeout, timer, or pull request change), and an entity-encoded, untrusted output tail. A busy session runs it after the
-current turn; a full input queue retries the wake for up to 15 minutes (`status: "delivering"`), after
-which a `pull_request` monitor returns to active and reports the same changes in its next wake.
+current turn; a full input queue retries the wake for up to 15 minutes (`status: "delivering"`). A
+`pull_request` wake instead keeps its place and message id for the monitor's life plus those 15 minutes while
+later changes collect for the next wake, so a fact that leaves the forge meanwhile is still reported.
 Stopping the session on purpose cancels its monitors and drops their history, and a session stopped on
 purpose is never revived. `monitor_cancel` only stops the wake, not the watched process; if its
 durable write fails the call returns an error and a repeat retries it. Finished monitors stay

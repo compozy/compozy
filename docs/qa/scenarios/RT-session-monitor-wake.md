@@ -43,12 +43,16 @@ story: As an operator I ask an agent to run something slow and report back, and 
 13. **Pull request monitor.** In an isolated lab with a forge that serves one open pull request on the session's
     branch, have the agent call `compozy__monitor_create {kind:"pull_request", description:…}` on that branch. Expect
     one `active` monitor with `branch` set; a second identical call reports it already watches the branch; a call on a
-    default branch is refused with `tool_invalid_input`. With checks pending, no wake arrives. When a check fails, a
+    default branch is refused with `tool_invalid_input`. On a branch whose only pull request had already merged, the
+    monitor stays `active` with no wake until a new pull request opens on it. With checks pending, no wake arrives. When a check fails, a
     `monitor` wake arrives within about a minute (metadata reason `monitor_pull_request_changed`, message id
     `monitor:<id>:1`), naming the head and the failed check inside the `untrusted="true"` block, and the monitor returns
     to `active` with `fire_count: 1`. When a new review arrives, a second wake (`monitor:<id>:2`) follows after 2 minutes
-    of quiet and names the author and state, with no review text. A push wakes nothing by itself. A daemon restart keeps
-    the monitor armed with its count, and a change during the downtime still wakes. Merging fires a final wake and
+    of quiet and names the author and state, with no review text. A push wakes nothing by itself, and a late review or
+    thread on the old head wakes nothing either. With the input queue full, the wake keeps its id past 15 minutes and is
+    delivered even if the check recovered meanwhile, and later changes arrive in the next wake. A daemon restart keeps
+    the monitor armed with its count, and a change during the downtime still wakes. A forge read that fails only for
+    reviews keeps checks flowing and turns no existing review into a baseline. Merging fires a final wake and
     `monitor_list` shows `fired` with reason `pull_request_merged`. The Web composer popover shows "Pull request on
     <branch>", and the transcript divider reads "Monitor fired · <description> · Pull request changed".
 
@@ -92,3 +96,5 @@ armed across wakes on one durable row (migration `00173`), and wakes under `moni
 monitors keep their exact behavior and message id. `gh pr checks --watch` now redirects to this kind. Owning automated
 evidence: `TestDetectPullRequest`, `TestServicePullRequestMonitor`, `TestServicePullRequestMonitorRestart`,
 `TestProviderGraphQL`, `TestMonitorPullRequestObservation`, `TestGlobalDBSessionMonitorKindMigration`, and step 13.
+A wake that the queue refuses keeps its durable fire and id; a pull request first seen ended is history; thread
+wakes follow the head through each thread's opening commit; a failed review read differs from a forge without reviews.

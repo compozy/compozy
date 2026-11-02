@@ -5027,8 +5027,9 @@ Native tools: `compozy__monitor_create` gains `kind: "pull_request"` and `branch
 widens to 86,400 (terminal monitors still refuse more than 21,600 at runtime); `monitor_list` and
 `monitor_cancel` items gain `branch`, `fire_count` and `last_fired_at`. IDs are unchanged. There is no monitor CLI.
 HTTP/UDS: the monitor payload gains the same three optional fields, additively; routes are unchanged.
-Extensibility: the forge contract gains optional `reviews` on `ForgeStatusResponse`, in both SDKs. A provider that
-omits it still serves checks. The provider-side `failed_names` limit rises from 5 to 64; the display cache and the
+Extensibility: the forge contract gains optional `reviews` on `ForgeStatusResponse`, including unresolved `threads`
+with the commit each was opened on, and `reviews_unavailable` for a read that failed, in both SDKs. A provider that
+omits `reviews` still serves checks. The provider-side `failed_names` limit rises from 5 to 64; the display cache and the
 session payload still carry 5. Hooks and config keys are unchanged.
 Persisted data: migration `00173` rebuilds `session_monitors` to admit the kind and adds `branch`, `repo_key`,
 `pr_cursor`, `fire_count` and `last_fired_at`, keeping every row; review activity is not stored in
