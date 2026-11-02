@@ -4,6 +4,11 @@ package client
 
 import "time"
 
+// WorktreeBindingsPayload is a daemon API value.
+type WorktreeBindingsPayload struct {
+	AgentActivity string `json:"agent_activity"`
+}
+
 // WorktreeBranchOutcomePayload is a daemon API value.
 type WorktreeBranchOutcomePayload struct {
 	Name    string `json:"name"`

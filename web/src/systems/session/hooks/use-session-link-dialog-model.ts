@@ -47,6 +47,7 @@ function useSessionLinkCandidates(workspaceId: string, sessionId: string, query:
   // The refusal answers both searches: it is about the link, not about the forge.
   const refused = isRepositoryMismatch(pulls.error) || isRepositoryMismatch(branchReads.error);
   return {
+    repository: pages[0]?.repository ?? branchReads.data?.pages[0]?.repository ?? null,
     pullRequests: discovery ? pages.flatMap(page => page.items) : [],
     branches: branchReads.data?.pages.flatMap(page => page.items) ?? [],
     // A forge that can't answer leaves branches linkable; it is not a dead dialog.
@@ -115,8 +116,7 @@ export function useSessionLinkDialogModel({
 
   const { pullRequests, branches } = candidates;
   const items = list.data?.items ?? [];
-  const repository =
-    items[0]?.repository ?? pullRequests[0]?.repository ?? branches[0]?.repository ?? null;
+  const repository = items[0]?.repository ?? candidates.repository;
   const hosted = hostedRepository(repository);
   const searching = query.trim() !== debounced || candidates.fetching;
   const exact = searching ? null : sessionLinkExactMatch(debounced, pullRequests);

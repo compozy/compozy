@@ -5079,33 +5079,36 @@ func (r *catalogBranchReadCounter) SessionCatalogBranches(
 func TestUnlinkRolledUpWork(t *testing.T) {
 	t.Parallel()
 	// Invariant: a rolled-up item belongs to its child, so the parent can't report it unlinked.
-	const repo = "example.com/a/b"
-	manager := newWorkspaceSessionReadFixture(t, 1, 1)
-	reader := &pullRequestQueryReader{
-		repositories: map[string]string{"ws-read-00": repo},
-		views: map[BranchKey]PullRequestView{
-			{"ws-read-00", "child-work"}: {PullRequest: &PullRequest{Number: 9, State: PullRequestOpen}},
-		},
-	}
-	branches := &linkedWorkQueryStore{
-		links: map[string][]store.SessionWorkLink{
-			"child": {{SessionID: "child", WorkspaceID: "ws-read-00", Repository: repo, Branch: "child-work"}},
-		},
-		members: []store.SessionWorkMember{
-			{
-				RootID:      "sess-read-000",
-				ID:          "sess-read-000",
-				WorkspaceID: "ws-read-00",
-				ProfileID:   store.DefaultProfileID,
+	t.Run("Should refuse to unlink an item only a child owns", func(t *testing.T) {
+		t.Parallel()
+		const repo = "example.com/a/b"
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		reader := &pullRequestQueryReader{
+			repositories: map[string]string{"ws-read-00": repo},
+			views: map[BranchKey]PullRequestView{
+				{"ws-read-00", "child-work"}: {PullRequest: &PullRequest{Number: 9, State: PullRequestOpen}},
 			},
-			{RootID: "sess-read-000", ID: "child", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID},
-		},
-	}
-	manager.ConfigurePullRequests(reader, branches)
-	err := manager.UnlinkSessionWork(t.Context(), "sess-read-000", repo, "child-work")
-	if !errors.Is(err, ErrLinkedWorkInvalid) {
-		t.Fatalf("UnlinkSessionWork(rolled up) error = %v, want ErrLinkedWorkInvalid", err)
-	}
+		}
+		branches := &linkedWorkQueryStore{
+			links: map[string][]store.SessionWorkLink{
+				"child": {{SessionID: "child", WorkspaceID: "ws-read-00", Repository: repo, Branch: "child-work"}},
+			},
+			members: []store.SessionWorkMember{
+				{
+					RootID:      "sess-read-000",
+					ID:          "sess-read-000",
+					WorkspaceID: "ws-read-00",
+					ProfileID:   store.DefaultProfileID,
+				},
+				{RootID: "sess-read-000", ID: "child", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID},
+			},
+		}
+		manager.ConfigurePullRequests(reader, branches)
+		err := manager.UnlinkSessionWork(t.Context(), "sess-read-000", repo, "child-work")
+		if !errors.Is(err, ErrLinkedWorkInvalid) {
+			t.Fatalf("UnlinkSessionWork(rolled up) error = %v, want ErrLinkedWorkInvalid", err)
+		}
+	})
 }
 
 func TestRefreshSessionWorkLink(t *testing.T) {

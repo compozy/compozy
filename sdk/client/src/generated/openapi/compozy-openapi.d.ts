@@ -20773,6 +20773,7 @@ export interface components {
     WorkCandidates: {
       has_more: boolean;
       items: components["schemas"]["WorkCandidate"][];
+      repository?: string;
       supports_pr_discovery: boolean;
     };
     WorkSignal: {

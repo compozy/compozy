@@ -45731,6 +45731,9 @@
             },
             "type": "array"
           },
+          "repository": {
+            "type": "string"
+          },
           "supports_pr_discovery": {
             "type": "boolean"
           }

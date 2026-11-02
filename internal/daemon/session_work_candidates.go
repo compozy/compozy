@@ -78,6 +78,7 @@ func (a sessionPullRequestAdapter) WorkCandidates(
 	if err != nil {
 		return result, err
 	}
+	result.Repository = repo
 	number, err := workCandidateNumber(query, repo)
 	if err != nil {
 		return result, err
@@ -134,7 +135,11 @@ func (a sessionPullRequestAdapter) searchWorkPRs(
 	ctx context.Context, runtime forgeDiscoveryRuntime, workspaceID, repo string,
 	number int, request c.ForgePRSearchRequest,
 ) (session.WorkCandidates, error) {
-	result := session.WorkCandidates{Items: []session.WorkCandidate{}, SupportsPRDiscovery: true}
+	result := session.WorkCandidates{
+		Items:               []session.WorkCandidate{},
+		SupportsPRDiscovery: true,
+		Repository:          repo,
+	}
 	if number > 0 && request.Page == 1 {
 		candidate, readErr := a.WorkPR(ctx, workspaceID, number)
 		// Providers do not share a not-found error; normal search remains the fallback.

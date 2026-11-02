@@ -12319,6 +12319,7 @@ export type WorkCandidate = {
 export type WorkCandidates = {
   has_more: boolean;
   items: Array<WorkCandidate>;
+  repository?: string;
   supports_pr_discovery: boolean;
 };
 

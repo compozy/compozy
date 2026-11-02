@@ -20,6 +20,8 @@ type WorkCandidates struct {
 	Items               []WorkCandidate `json:"items"`
 	HasMore             bool            `json:"has_more"`
 	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
+	// Repository names the session's project even when nothing matched the search.
+	Repository string `json:"repository,omitempty"`
 }
 type WorkCandidateReader interface {
 	WorkCandidates(context.Context, string, string, string, int, int) (WorkCandidates, error)

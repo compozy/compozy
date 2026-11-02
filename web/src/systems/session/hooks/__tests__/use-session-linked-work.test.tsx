@@ -594,6 +594,18 @@ describe("useSessionLinkDialogModel", () => {
     );
   });
 
+  it("Should call a local project forgeless when nothing matched the search", async () => {
+    vi.mocked(fetchSessionLinkedWork).mockResolvedValue({ items: [] });
+    vi.mocked(searchSessionLinkCandidates).mockResolvedValue({
+      items: [],
+      has_more: false,
+      repository: "local:ws-one",
+      supports_pr_discovery: false,
+    });
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.forgeless).toBe(true));
+  });
+
   it("Should report a refused pick when no pasted link can say so", async () => {
     candidates();
     vi.mocked(addSessionWorkLink).mockRejectedValue(

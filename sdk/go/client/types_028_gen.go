@@ -293,6 +293,7 @@ type WorkCandidates struct {
 	Items               []WorkCandidate `json:"items"`
 	HasMore             bool            `json:"has_more"`
 	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
+	Repository          string          `json:"repository,omitempty"`
 }
 
 // WorkSignal is a daemon API value.
@@ -442,9 +443,4 @@ type WorkspacesResponse struct {
 type WorktreeBindingAvailability struct {
 	Available         bool   `json:"available"`
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
-}
-
-// WorktreeBindingsPayload is a daemon API value.
-type WorktreeBindingsPayload struct {
-	AgentActivity string `json:"agent_activity"`
 }
