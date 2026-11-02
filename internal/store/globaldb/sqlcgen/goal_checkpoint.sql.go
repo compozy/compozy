@@ -256,7 +256,7 @@ func (q *Queries) GetAwaitingGoalControl(ctx context.Context, arg GetAwaitingGoa
 }
 
 const getGoalCheckpoint = `-- name: GetGoalCheckpoint :one
-SELECT loop_run_id, generation, node_id, item_index, control_epoch, control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, turns_used, turn_limit, broken_streak, recovery_streak, task_run_id, queue_entry_id, prompt_id, prompt_kind, prompt_attempt, context_state, usage_sequence, usage_pending_after_sequence, session_id, binding_handle, binding_epoch, context_nudge_ratio, control_grant_id, control_grant_kind, control_grant_cause, control_grant_turn, control_grant_scope, control_grant_consumed, judge_attempt_id, compaction_cancel_prompt_id, compaction_cancel_cause, compaction_cancel_requested_at, report_prompt_id, report_status, report_evidence_ref, report_binding_epoch, report_actor_kind, report_actor_id, report_recorded_at, updated_at, control_cause, compaction_baseline_used, compaction_recovery_required
+SELECT wait_started_at, loop_run_id, generation, node_id, item_index, control_epoch, control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, turns_used, turn_limit, broken_streak, recovery_streak, task_run_id, queue_entry_id, prompt_id, prompt_kind, prompt_attempt, context_state, usage_sequence, usage_pending_after_sequence, session_id, binding_handle, binding_epoch, context_nudge_ratio, control_grant_id, control_grant_kind, control_grant_cause, control_grant_turn, control_grant_scope, control_grant_consumed, judge_attempt_id, compaction_cancel_prompt_id, compaction_cancel_cause, compaction_cancel_requested_at, report_prompt_id, report_status, report_evidence_ref, report_binding_epoch, report_actor_kind, report_actor_id, report_recorded_at, updated_at, control_cause, compaction_baseline_used, compaction_recovery_required
 FROM loop_goal_checkpoints
 WHERE loop_run_id = ?1 AND generation = ?2
   AND node_id = ?3 AND item_index = ?4
@@ -278,6 +278,7 @@ func (q *Queries) GetGoalCheckpoint(ctx context.Context, arg GetGoalCheckpointPa
 	)
 	var i LoopGoalCheckpoint
 	err := row.Scan(
+		&i.WaitStartedAt,
 		&i.LoopRunID,
 		&i.Generation,
 		&i.NodeID,
@@ -509,6 +510,7 @@ func (q *Queries) IncrementGoalBudgetVersion(ctx context.Context, id string) (in
 
 const insertGoalCheckpoint = `-- name: InsertGoalCheckpoint :execrows
 INSERT INTO loop_goal_checkpoints (
+    wait_started_at,
     loop_run_id, generation, node_id, item_index, control_epoch,
     control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, control_cause,
     turns_used, turn_limit, broken_streak, recovery_streak, task_run_id,
@@ -521,27 +523,28 @@ INSERT INTO loop_goal_checkpoints (
     report_prompt_id, report_status, report_evidence_ref, report_binding_epoch,
     report_actor_kind, report_actor_id, report_recorded_at, updated_at
 ) VALUES (
-    ?1, ?2, ?3, ?4, ?5,
-    ?6, ?7, CAST(?8 AS TEXT),
-    ?9, ?10, ?11,
-    ?12, ?13, ?14, ?15,
-    ?16, ?17, ?18, ?19,
-    ?20, ?21, ?22,
-    ?23, ?24,
-    ?25, ?26, ?27,
-    ?28, ?29, ?30,
-    ?31, ?32, ?33,
-    ?34, ?35, ?36,
-    ?37, ?38,
-    CAST(?39 AS TEXT), ?40,
-    ?41, ?42, ?43,
-    ?44, ?45, CAST(?46 AS TEXT),
-    CAST(?47 AS TEXT)
+    CAST(?1 AS TEXT), ?2, ?3, ?4, ?5, ?6,
+    ?7, ?8, CAST(?9 AS TEXT),
+    ?10, ?11, ?12,
+    ?13, ?14, ?15, ?16,
+    ?17, ?18, ?19, ?20,
+    ?21, ?22, ?23,
+    ?24, ?25,
+    ?26, ?27, ?28,
+    ?29, ?30, ?31,
+    ?32, ?33, ?34,
+    ?35, ?36, ?37,
+    ?38, ?39,
+    CAST(?40 AS TEXT), ?41,
+    ?42, ?43, ?44,
+    ?45, ?46, CAST(?47 AS TEXT),
+    CAST(?48 AS TEXT)
 )
 ON CONFLICT(loop_run_id, generation, node_id, item_index) DO NOTHING
 `
 
 type InsertGoalCheckpointParams struct {
+	WaitStartedAt               sql.NullString `json:"wait_started_at"`
 	LoopRunID                   string         `json:"loop_run_id"`
 	Generation                  int64          `json:"generation"`
 	NodeID                      string         `json:"node_id"`
@@ -593,6 +596,7 @@ type InsertGoalCheckpointParams struct {
 
 func (q *Queries) InsertGoalCheckpoint(ctx context.Context, arg InsertGoalCheckpointParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertGoalCheckpoint,
+		arg.WaitStartedAt,
 		arg.LoopRunID,
 		arg.Generation,
 		arg.NodeID,
@@ -765,6 +769,58 @@ func (q *Queries) RecordGoalReportIntent(ctx context.Context, arg RecordGoalRepo
 		arg.ControlEpoch,
 		arg.BindingEpoch,
 		arg.PromptID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setGoalCheckpointWait = `-- name: SetGoalCheckpointWait :execrows
+UPDATE loop_goal_checkpoints
+SET phase = ?1, goal_status = ?2,
+    wait_started_at = CAST(?3 AS TEXT),
+    updated_at = CAST(?4 AS TEXT)
+WHERE loop_run_id = ?5 AND generation = ?6
+  AND node_id = ?7 AND item_index = ?8
+  AND control_epoch = ?9 AND binding_epoch = ?10
+  AND session_id = ?11 AND task_run_id = ?12
+  AND phase = ?13 AND phase IN ('idle','waiting')
+  AND prompt_id IS NULL AND queue_entry_id IS NULL
+  AND control_actor_kind IS NULL AND control_actor_id IS NULL
+`
+
+type SetGoalCheckpointWaitParams struct {
+	Phase         string         `json:"phase"`
+	GoalStatus    string         `json:"goal_status"`
+	WaitStartedAt sql.NullString `json:"wait_started_at"`
+	UpdatedAt     string         `json:"updated_at"`
+	LoopRunID     string         `json:"loop_run_id"`
+	Generation    int64          `json:"generation"`
+	NodeID        string         `json:"node_id"`
+	ItemIndex     int64          `json:"item_index"`
+	ControlEpoch  int64          `json:"control_epoch"`
+	BindingEpoch  sql.NullInt64  `json:"binding_epoch"`
+	SessionID     sql.NullString `json:"session_id"`
+	TaskRunID     sql.NullString `json:"task_run_id"`
+	ExpectedPhase string         `json:"expected_phase"`
+}
+
+func (q *Queries) SetGoalCheckpointWait(ctx context.Context, arg SetGoalCheckpointWaitParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setGoalCheckpointWait,
+		arg.Phase,
+		arg.GoalStatus,
+		arg.WaitStartedAt,
+		arg.UpdatedAt,
+		arg.LoopRunID,
+		arg.Generation,
+		arg.NodeID,
+		arg.ItemIndex,
+		arg.ControlEpoch,
+		arg.BindingEpoch,
+		arg.SessionID,
+		arg.TaskRunID,
+		arg.ExpectedPhase,
 	)
 	if err != nil {
 		return 0, err

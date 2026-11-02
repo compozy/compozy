@@ -21,6 +21,54 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 
 	// Invariant: binding adoption is fenced and cannot erase same-binding context freshness.
 	// Owner: Goal checkpoint store; canonical checkpoint control integration suite.
+	// Invariant: waits preserve counters and their original deadline under owner fences.
+	// Owner: Goal persistence; canonical checkpoint integration suite.
+	t.Run("Should round-trip a wait and fence foreign mutations without allocating turns", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-wait", "ws-foreign")
+		insertGoalSchemaLoopRun(t, db, "run-wait", "ws-wait", "catalog", nil)
+		ctx := t.Context()
+		now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+		key := goal.TurnKey{WorkspaceID: "ws-wait", LoopRunID: "run-wait", Generation: 1, NodeID: "goal"}
+		checkpoint, err := db.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+			Key: key, ControlEpoch: 1, Phase: "idle", Status: "active", TurnsUsed: 2, TurnLimit: 8,
+			TaskRunID: "task-wait", SessionID: "session-wait", BindingHandle: "goal:wait", BindingEpoch: 1,
+			ContextState: "unknown", UpdatedAt: now,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		waiting, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: checkpoint, Waiting: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting.Status != "waiting" || waiting.Phase != "waiting" || waiting.WaitStartedAt == nil || waiting.TurnsUsed != 2 {
+			t.Fatalf("wait = %#v", waiting)
+		}
+		replayed, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: waiting, Waiting: true})
+		if err != nil || replayed.WaitStartedAt == nil || !replayed.WaitStartedAt.Equal(*waiting.WaitStartedAt) {
+			t.Fatalf("replay = %#v, %v", replayed, err)
+		}
+		foreign := waiting
+		foreign.ControlEpoch++
+		if _, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: foreign}); !errors.Is(err, looppkg.ErrTransitionConflict) {
+			t.Fatalf("foreign wait = %v", err)
+		}
+		foreign = waiting
+		foreign.Key.WorkspaceID = "ws-foreign"
+		if _, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: foreign}); !errors.Is(err, looppkg.ErrRunNotFound) {
+			t.Fatalf("foreign scope = %v", err)
+		}
+		loaded, err := db.LoadCheckpoint(ctx, key)
+		if err != nil || loaded.WaitStartedAt == nil || !loaded.WaitStartedAt.Equal(*waiting.WaitStartedAt) {
+			t.Fatalf("read = %#v, %v", loaded, err)
+		}
+		active, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: loaded})
+		if err != nil || active.Phase != "idle" || active.Status != "active" || active.WaitStartedAt != nil || active.TurnsUsed != 2 {
+			t.Fatalf("release = %#v, %v", active, err)
+		}
+	})
+
 	t.Run("Should adopt an active binding before context observation with exact ownership", func(t *testing.T) {
 		t.Parallel()
 		db := openLoopTestGlobalDB(t, "ws-bind", "ws-foreign")

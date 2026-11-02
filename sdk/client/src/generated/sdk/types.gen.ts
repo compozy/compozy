@@ -2595,6 +2595,8 @@ export type GoalCommandResult = {
     | "stopped"
     | "error";
   reason_code:
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable"
     | "goal_not_active"
     | "goal_replace_required"
     | "goal_replace_stale"
@@ -2685,6 +2687,8 @@ export type GoalPromptMeta = {
 export type GoalSnapshot = {
   bound_session_id: string;
   cause:
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable"
     | "goal_not_active"
     | "goal_replace_required"
     | "goal_replace_stale"
@@ -2741,7 +2745,14 @@ export type GoalSnapshot = {
     | "exhausted"
     | "stalled"
     | "canceled";
-  status: "active" | "paused" | "blocked" | "usage-limited" | "budget-limited" | "complete";
+  status:
+    | "waiting"
+    | "active"
+    | "paused"
+    | "blocked"
+    | "usage-limited"
+    | "budget-limited"
+    | "complete";
   turn_limit: number;
   turns_used: number;
 };
@@ -2762,6 +2773,8 @@ export type GoalTurn = {
   prompt_id: string;
   prompt_ref: string | null;
   reason_code:
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable"
     | "goal_not_active"
     | "goal_replace_required"
     | "goal_replace_stale"

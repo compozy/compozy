@@ -77,7 +77,7 @@ function primaryAction({
       onAct: onPause,
       hint: "The current goal turn is being interrupted. No further goal turns will start.",
     };
-  return snapshot.status === "active" && onPause
+  return (snapshot.status === "active" || snapshot.status === "waiting") && onPause
     ? {
         action: "pause" as const,
         label: "Pause goal",

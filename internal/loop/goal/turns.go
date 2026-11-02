@@ -25,6 +25,13 @@ func (e *Executor) advanceSegment(ctx context.Context, segment *segmentState) (*
 	if control, ok, pauseErr := e.pendingPauseBoundary(ctx, segment); ok || pauseErr != nil {
 		return &turnBoundary{checkpoint: segment.checkpoint, control: control, completed: true}, pauseErr
 	}
+	if boundary, err := e.waitBeforeWork(ctx, segment); boundary != nil || err != nil {
+		return boundary, err
+	}
+	if control, ok, err := e.pendingPauseBoundary(ctx, segment); ok || err != nil {
+		return &turnBoundary{checkpoint: segment.checkpoint, control: control}, err
+	}
+	checkpoint = segment.checkpoint
 	if checkpoint.CompactionRecoveryRequired {
 		return e.reseedOrEscalate(ctx, segment, segment.lastResult)
 	}
@@ -259,6 +266,23 @@ func (e *Executor) routeCompletedStop(
 		if !postDecision.Allowed {
 			control, controlErr := e.budgetBoundary(ctx, segment, postDecision)
 			return &turnBoundary{checkpoint: segment.checkpoint, result: result, control: control}, controlErr
+		}
+		if !matchingCompleteReport(segment.checkpoint, result.PromptID) && !hasTerminalClaim(result) {
+			waiting, err := e.hasLiveWait(ctx, segment)
+			if waiting || err != nil {
+				settled, settleErr := e.completeTurn(ctx, segment, result, nil)
+				if settleErr != nil {
+					return nil, settleErr
+				}
+				segment.checkpoint = settled
+				if control, paused, pauseErr := e.pendingPauseBoundary(ctx, segment); paused || pauseErr != nil {
+					return &turnBoundary{checkpoint: settled, control: control}, pauseErr
+				}
+				if err != nil {
+					return e.waitFailureBoundary(ctx, segment, loop.ReasonCodeGoalWaitUnavailable)
+				}
+				return nil, nil
+			}
 		}
 		return e.judgeWorkTurn(ctx, segment, result)
 	case loop.ActionStopMaxTokens:

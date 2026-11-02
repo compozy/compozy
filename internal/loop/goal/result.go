@@ -34,3 +34,18 @@ func authoritativeGoalStructuredResult(
 	}
 	return encoded, nil
 }
+
+// A completion or blocked claim retains normal judge handling even with live waits.
+func hasTerminalClaim(result loop.ActionPromptResult) bool {
+	candidate, err := loop.ActionStructuredCandidate(result)
+	if err != nil {
+		return false
+	}
+	var claim struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(candidate, &claim); err != nil {
+		return false
+	}
+	return claim.Status == goalStatusComplete || claim.Status == goalStatusBlocked
+}

@@ -21,7 +21,7 @@ func SessionGoalOperationValues() []string {
 // GoalStatusValues returns the closed public Goal lifecycle vocabulary.
 func GoalStatusValues() []string {
 	return []string{
-		string(GoalStatusActive), string(GoalStatusPaused), string(GoalStatusBlocked),
+		string(GoalStatusWaiting), string(GoalStatusActive), string(GoalStatusPaused), string(GoalStatusBlocked),
 		string(GoalStatusUsageLimited), string(GoalStatusBudgetLimited), string(GoalStatusComplete),
 	}
 }
@@ -66,22 +66,43 @@ func GoalSnapshotChangeCauseValues() []string {
 // GoalReasonCodeValues returns the stable public Goal reason vocabulary.
 func GoalReasonCodeValues() []string {
 	return []string{
-		string(GoalReasonNotActive), string(GoalReasonReplaceRequired), string(GoalReasonReplaceStale),
-		string(GoalReasonObjectiveRequired), string(GoalReasonObjectiveTooLarge),
-		string(GoalReasonContractClauseEmpty), string(GoalReasonCommandInvalid),
-		string(GoalReasonDraftRequiresIdle), string(GoalReasonEvidenceTooLarge),
-		string(GoalReasonReportConflict), string(GoalReasonSessionBusyQueueFull),
-		string(GoalReasonTurnFilterInvalid), string(GoalReasonJudgeUnavailable),
-		string(GoalReasonJudgeBroken), string(GoalReasonJudgeOutcomeInvalid),
-		string(GoalReasonActionControlInvalid), string(GoalReasonStopReasonInvalid),
-		string(GoalReasonPromptRequestFailed), string(GoalReasonAgentRefused),
-		string(GoalReasonCompactionCancelled), string(GoalReasonRecoveryAmbiguous),
-		string(GoalReasonControlRevokedInFlight), string(GoalReasonReseedConfirmationRequired),
-		string(GoalReasonPresubmitRetriesExhausted), string(GoalReasonBudgetFenced),
-		string(GoalReasonOriginInvalid), string(GoalReasonOriginWorkspaceMismatch),
-		string(GoalReasonOriginProfileUnavailable), string(GoalReasonControlStale),
-		string(GoalReasonPromptFenced), string(GoalReasonSessionCreationMismatch),
-		string(GoalReasonContinuousBindingMismatch), string(GoalReasonRuntimeInvalid),
+		string(
+			GoalReasonWaitTimeout,
+		),
+		string(GoalReasonWaitUnavailable),
+		string(GoalReasonNotActive),
+		string(GoalReasonReplaceRequired),
+		string(GoalReasonReplaceStale),
+		string(GoalReasonObjectiveRequired),
+		string(GoalReasonObjectiveTooLarge),
+		string(GoalReasonContractClauseEmpty),
+		string(GoalReasonCommandInvalid),
+		string(GoalReasonDraftRequiresIdle),
+		string(GoalReasonEvidenceTooLarge),
+		string(GoalReasonReportConflict),
+		string(GoalReasonSessionBusyQueueFull),
+		string(GoalReasonTurnFilterInvalid),
+		string(GoalReasonJudgeUnavailable),
+		string(GoalReasonJudgeBroken),
+		string(GoalReasonJudgeOutcomeInvalid),
+		string(GoalReasonActionControlInvalid),
+		string(GoalReasonStopReasonInvalid),
+		string(GoalReasonPromptRequestFailed),
+		string(GoalReasonAgentRefused),
+		string(GoalReasonCompactionCancelled),
+		string(GoalReasonRecoveryAmbiguous),
+		string(GoalReasonControlRevokedInFlight),
+		string(GoalReasonReseedConfirmationRequired),
+		string(GoalReasonPresubmitRetriesExhausted),
+		string(GoalReasonBudgetFenced),
+		string(GoalReasonOriginInvalid),
+		string(GoalReasonOriginWorkspaceMismatch),
+		string(GoalReasonOriginProfileUnavailable),
+		string(GoalReasonControlStale),
+		string(GoalReasonPromptFenced),
+		string(GoalReasonSessionCreationMismatch),
+		string(GoalReasonContinuousBindingMismatch),
+		string(GoalReasonRuntimeInvalid),
 		string(GoalReasonCallerUnauthorized),
 	}
 }

@@ -7315,3 +7315,72 @@ func TestPermissionDailyRollups(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: widening Goal phases preserves every existing checkpoint across upgrade and reopen.
+// Owner: global user-state migration; canonical open/reopen suite.
+func TestGlobalDBGoalWaitMigration(t *testing.T) {
+	t.Run("Should preserve in-flight Goal checkpoints while adding durable waits", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00173_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO loop_runs (id, profile_id, workspace_id, loop_name, status, last_progress_at, inputs_json, origin_kind)
+			VALUES ('wait-upgrade', '00000000000000000000000000', '', 'goal-wait', 'running', '2026-11-02T12:00:00Z', '{}', 'catalog')`,
+			`INSERT INTO loop_goal_checkpoints (loop_run_id,generation,node_id,control_epoch,phase,goal_status,
+			turns_used,turn_limit,broken_streak,recovery_streak,task_run_id,queue_entry_id,prompt_id,prompt_kind,
+			session_id,binding_handle,binding_epoch,context_nudge_ratio,judge_attempt_id,updated_at)
+			VALUES ('wait-upgrade',1,'goal',7,'judging','active',3,8,1,2,'task','queue','prompt','continuation',
+			'session','goal:handle',4,0.7,'judge','2026-11-02T12:00:00Z')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const retained = `SELECT json_array(loop_run_id,generation,node_id,control_epoch,phase,goal_status,
+			turns_used,turn_limit,broken_streak,recovery_streak,task_run_id,queue_entry_id,prompt_id,prompt_kind,
+			session_id,binding_handle,binding_epoch,context_nudge_ratio,judge_attempt_id,updated_at)
+			FROM loop_goal_checkpoints WHERE loop_run_id='wait-upgrade'`
+		var before string
+		if err := prior.QueryRowContext(ctx, retained).Scan(&before); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var after string
+			var started sql.NullTime
+			if err := upgraded.db.QueryRowContext(ctx, retained).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if err := upgraded.db.QueryRowContext(ctx, `SELECT wait_started_at FROM loop_goal_checkpoints WHERE loop_run_id='wait-upgrade'`).
+				Scan(&started); err != nil {
+				t.Fatal(err)
+			}
+			if after != before || started.Valid {
+				t.Fatalf("checkpoint changed: before=%s after=%s wait=%#v", before, after, started)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}

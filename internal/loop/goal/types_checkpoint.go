@@ -69,6 +69,7 @@ type Checkpoint struct {
 	ControlActorID             string
 	ControlRequestedAt         *time.Time
 	ContextNudgeRatio          float64
+	WaitStartedAt              *time.Time
 	UpdatedAt                  time.Time
 }
 

@@ -9701,6 +9701,8 @@
           },
           "reason_code": {
             "enum": [
+              "goal_wait_timeout",
+              "goal_wait_unavailable",
               "goal_not_active",
               "goal_replace_required",
               "goal_replace_stale",
@@ -9945,6 +9947,8 @@
           },
           "cause": {
             "enum": [
+              "goal_wait_timeout",
+              "goal_wait_unavailable",
               "goal_not_active",
               "goal_replace_required",
               "goal_replace_stale",
@@ -10039,6 +10043,7 @@
           },
           "status": {
             "enum": [
+              "waiting",
               "active",
               "paused",
               "blocked",
@@ -10168,6 +10173,8 @@
           },
           "reason_code": {
             "enum": [
+              "goal_wait_timeout",
+              "goal_wait_unavailable",
               "goal_not_active",
               "goal_replace_required",
               "goal_replace_stale",

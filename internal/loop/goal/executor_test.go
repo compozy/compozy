@@ -3388,3 +3388,264 @@ func promptKinds(requests []loop.ActionPromptRequest) []string {
 	}
 	return kinds
 }
+
+// Invariant: verified waits admit no Goal provider or judge effects. Owner: Goal executor state machine.
+func TestExecutorShouldSuspendForVerifiedWaits(t *testing.T) {
+	for _, afterWork := range []bool{false, true} {
+		name := "Should wait before the first work turn"
+		if afterWork {
+			name = "Should settle a yielded turn without judging and continue after the wake"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := newFakeExecutorStore()
+			binder := newFakeManagedBinder(store, scriptedEndTurn("waiting", 3), scriptedEndTurn("ready", 4))
+			judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+			executor.waitInterval = time.Nanosecond
+			calls := 0
+			executor.waits = waitReaderFunc(func(context.Context, loop.ActionSessionBinding) (bool, error) {
+				calls++
+				checkpoint, turns, _ := store.snapshot()
+				if afterWork && calls == 1 {
+					return false, nil
+				}
+				if checkpoint.Phase != checkpointPhaseWaiting {
+					return true, nil
+				}
+				want := 0
+				if afterWork {
+					want = 1
+				}
+				if len(binder.preparedRequests()) != want || len(turns) != want || judge.callCount() != 0 {
+					t.Fatalf(
+						"waiting effects: prompts=%d turns=%d judges=%d",
+						len(binder.preparedRequests()),
+						len(turns),
+						judge.callCount(),
+					)
+				}
+				if checkpoint.Status != goalStatusWaiting || checkpoint.WaitStartedAt == nil {
+					t.Fatalf("wait checkpoint = %#v", checkpoint)
+				}
+				return false, nil // Wake, cancellation, or undelivered wake removes the authoritative wait.
+			})
+			// Once the wait ends, retain the absence for the completed candidate's inspection.
+			reader := executor.waits
+			released := false
+			executor.waits = waitReaderFunc(func(ctx context.Context, b loop.ActionSessionBinding) (bool, error) {
+				if released {
+					return false, nil
+				}
+				active, err := reader.HasLiveWait(ctx, b)
+				if !active && (!afterWork || calls > 1) {
+					released = true
+				}
+				return active, err
+			})
+			raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
+			if err != nil || raw.Control == nil || raw.Control.Disposition != loop.ActionDispositionSucceeded {
+				t.Fatalf("result = %#v, %v", raw, err)
+			}
+			checkpoint, turns, _ := store.snapshot()
+			want := 1
+			if afterWork {
+				want = 2
+				if turns[0].Verdict != nil {
+					t.Fatal("yielded wait was judged")
+				}
+			}
+			if checkpoint.TurnsUsed != want || judge.callCount() != 1 {
+				t.Fatalf("turns=%d judges=%d", checkpoint.TurnsUsed, judge.callCount())
+			}
+		})
+	}
+}
+
+func TestExecutorShouldPreserveClaimsWhileWaiting(t *testing.T) {
+	for _, status := range []string{reportStatusComplete, reportStatusBlocked} {
+		t.Run("Should retain an explicit "+status+" report with a live wait", func(t *testing.T) {
+			t.Parallel()
+			store := newFakeExecutorStore()
+			candidate := scriptedEndTurn("claimed", 1)
+			candidate.report = &ReportIntent{
+				Status:      status,
+				EvidenceRef: "evidence",
+				ActorKind:   "agent",
+				ActorID:     "worker",
+			}
+			binder := newFakeManagedBinder(store, candidate)
+			judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+			executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+			calls := 0
+			executor.waits = waitReaderFunc(
+				func(context.Context, loop.ActionSessionBinding) (bool, error) { calls++; return calls > 1, nil },
+			)
+			raw, err := executor.Execute(t.Context(), testGoalNode(2), testGoalInput(t))
+			if err != nil || raw.Control == nil {
+				t.Fatalf("result = %#v, %v", raw, err)
+			}
+			wantJudges := 1
+			if status == reportStatusBlocked {
+				wantJudges = 0
+			}
+			if raw.Control.GoalStatus != status || judge.callCount() != wantJudges {
+				t.Fatalf("claim = %#v, judges=%d", raw.Control, judge.callCount())
+			}
+		})
+	}
+}
+
+func TestExecutorShouldRecoverAndControlWaits(t *testing.T) {
+	for _, operation := range []string{"wake", "abnormal end", "timeout", "inspection failure", "pause", "budget", "cancel"} {
+		t.Run("Should handle "+operation+" from a persisted wait without replaying work", func(t *testing.T) {
+			t.Parallel()
+			store := newFakeExecutorStore()
+			binder := newFakeManagedBinder(store, scriptedEndTurn("ready", 1))
+			judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+			budget := &fakeBudgetGuard{}
+			executor := newTestExecutor(t, store, binder, judge, budget)
+			in := testGoalInput(t)
+			segment, err := executor.initializeSegment(t.Context(), testGoalNode(3), in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkpoint, err := store.SetWaitState(
+				t.Context(),
+				WaitCheckpointRequest{Checkpoint: segment.checkpoint, Waiting: true},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if checkpoint.WaitStartedAt == nil {
+				t.Fatal("wait has no durable origin")
+			}
+			executor.waitInterval = time.Nanosecond
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if operation == "timeout" {
+				executor.now = func() time.Time { return checkpoint.WaitStartedAt.Add(defaultWaitTimeout) }
+			}
+			if operation == "pause" {
+				store.mu.Lock()
+				store.checkpoint.ControlActorKind = "user"
+				store.checkpoint.ControlActorID = "operator"
+				store.mu.Unlock()
+			}
+			if operation == "budget" {
+				budget.decisions[BudgetBeforeWork] = []BudgetDecision{
+					{
+						Allowed:     false,
+						Disposition: loop.ActionDispositionExhausted,
+						Cause:       loop.ReasonCodeGoalBudgetFenced,
+					},
+				}
+			}
+			executor.waits = waitReaderFunc(func(context.Context, loop.ActionSessionBinding) (bool, error) {
+				switch operation {
+				case "wake", "abnormal end":
+					return false, nil
+				case "inspection failure":
+					return false, errors.New("monitor store unavailable")
+				case "cancel":
+					cancel()
+				}
+				return true, nil
+			})
+			raw, err := executor.Execute(ctx, testGoalNode(3), in)
+			if operation == "cancel" {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancel = %v", err)
+				}
+				return
+			}
+			if err != nil || raw.Control == nil {
+				t.Fatalf("result = %#v, %v", raw, err)
+			}
+			if operation == "wake" || operation == "abnormal end" {
+				if judge.callCount() != 1 || raw.Control.Disposition != loop.ActionDispositionSucceeded {
+					t.Fatalf("wake = %#v", raw)
+				}
+				return
+			}
+			if judge.callCount() != 0 || len(binder.preparedRequests()) != 0 {
+				t.Fatal("wait control started provider work")
+			}
+			causes := map[string]loop.ReasonCode{
+				"timeout":            loop.ReasonCodeGoalWaitTimeout,
+				"inspection failure": loop.ReasonCodeGoalWaitUnavailable,
+				"pause":              loop.ReasonCode(loop.TransitionCausePauseBoundary),
+				"budget":             loop.ReasonCodeGoalBudgetFenced,
+			}
+			if raw.Control.Cause != causes[operation] {
+				t.Fatalf("control cause = %s", raw.Control.Cause)
+			}
+		})
+	}
+}
+
+func TestExecutorShouldResumeAfterWaitInterruption(t *testing.T) {
+	t.Run("Should recover a settled waiting turn without replay or a duplicate judge", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("waiting", 3), scriptedEndTurn("ready", 4))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		executor.waitInterval = time.Nanosecond
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		executor.waits = waitReaderFunc(func(context.Context, loop.ActionSessionBinding) (bool, error) {
+			checkpoint, turns, _ := store.snapshot()
+			if len(turns) == 0 && checkpoint.PromptID == "" {
+				return false, nil
+			}
+			if checkpoint.Phase == checkpointPhaseWaiting {
+				cancel()
+			}
+			return true, nil
+		})
+		input := testGoalInput(t)
+		if _, err := executor.Execute(ctx, testGoalNode(3), input); !errors.Is(err, context.Canceled) {
+			t.Fatalf("interruption = %v", err)
+		}
+		checkpoint, turns, _ := store.snapshot()
+		if checkpoint.Phase != checkpointPhaseWaiting || checkpoint.TurnsUsed != 1 || len(turns) != 1 ||
+			turns[0].Verdict != nil ||
+			judge.callCount() != 0 {
+			t.Fatalf("interrupted wait = %#v, turns=%d, judges=%d", checkpoint, len(turns), judge.callCount())
+		}
+		restarted := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		restarted.waits = waitReaderFunc(
+			func(context.Context, loop.ActionSessionBinding) (bool, error) { return false, nil },
+		)
+		raw, err := restarted.Execute(t.Context(), testGoalNode(3), input)
+		if err != nil || raw.Control == nil || raw.Control.Disposition != loop.ActionDispositionSucceeded {
+			t.Fatalf("recovery = %#v, %v", raw, err)
+		}
+		requests := binder.preparedRequests()
+		if len(requests) != 2 || requests[1].Owner.Turn != 2 || requests[0].PromptID == requests[1].PromptID ||
+			judge.callCount() != 1 {
+			t.Fatalf("recovery prompts=%#v, judges=%d", requests, judge.callCount())
+		}
+	})
+}
+
+func TestExecutorShouldJudgeStructuredClaimsWithLiveWait(t *testing.T) {
+	t.Run("Should judge a structured completion claim instead of parking it", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		candidate := scriptedEndTurn("claimed", 1)
+		candidate.result.Structured = []byte(`{"status":"complete"}`)
+		binder := newFakeManagedBinder(store, candidate)
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 1)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		calls := 0
+		executor.waits = waitReaderFunc(
+			func(context.Context, loop.ActionSessionBinding) (bool, error) { calls++; return calls > 1, nil },
+		)
+		raw, err := executor.Execute(t.Context(), testGoalNode(2), testGoalInput(t))
+		if err != nil || raw.Control == nil || raw.Control.GoalStatus != goalStatusComplete || judge.callCount() != 1 {
+			t.Fatalf("completion = %#v, judges=%d, %v", raw, judge.callCount(), err)
+		}
+	})
+}

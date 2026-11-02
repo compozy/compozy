@@ -301,3 +301,19 @@ start path applies them. Active Runs keep their pinned values. See the
 paths, bounds, and restart lifecycle.
 
 A stopped session reopens when you send an ordinary message. Control-only `/goal` commands do not reopen it. The Goal stays paused until an explicit Resume after the session is active.
+
+### Goals waiting for external work
+
+When a bound session has a live monitor or delegated child, the Goal shows `waiting` and admits
+no new work prompt, compaction, or judge call. A work turn that registers the wait still counts as
+one started turn; if it ends without an explicit `complete` or `blocked` claim, it settles without
+a judge verdict. The count then stays flat until the wait ends. A model's claim that it is waiting
+is insufficient: the daemon checks its own monitor and child state.
+
+A delivered wake runs through the ordinary session input queue before the next Goal prompt and
+consumes no Goal turn. Cancellation, failed delivery, or a child stopping also releases the wait.
+The Goal rechecks durable wait state after restart. Pause, Stop, ordinary input, and budget limits
+remain effective; wall-clock budgets continue during the wait. A wait lasting 25 hours pauses for
+attention with `goal_wait_timeout`; unavailable wait inspection pauses with `goal_wait_unavailable`.
+Inspect the monitor or child before explicitly resuming the Goal. Completion and evidenced blocked
+reports keep their existing judge/control handling, including while another wait is live.

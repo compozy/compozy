@@ -9,6 +9,10 @@ interface GoalAwareFetchOptions {
 type GoalCommandFailureReason = Exclude<SessionGoalCommandResult["reason_code"], null>;
 
 const GOAL_COMMAND_FAILURE_GUIDANCE = {
+  goal_wait_timeout:
+    "The wait exceeded 25 hours. Check the monitor or child, then resume the goal.",
+  goal_wait_unavailable:
+    "Couldn't verify the goal's wait. Check its monitor or child, then resume the goal.",
   goal_not_active: "Start a Goal before using this control, then try again.",
   goal_replace_required:
     "A Goal is already active. Replace it explicitly or keep the current Goal.",

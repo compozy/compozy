@@ -11,6 +11,7 @@ import (
 
 func goalCheckpointInsertParams(checkpoint goal.Checkpoint) sqlcgen.InsertGoalCheckpointParams {
 	params := sqlcgen.InsertGoalCheckpointParams{
+		WaitStartedAt:              goalNullableTimestampString(checkpoint.WaitStartedAt),
 		LoopRunID:                  string(checkpoint.Key.LoopRunID),
 		Generation:                 int64(checkpoint.Key.Generation),
 		NodeID:                     string(checkpoint.Key.NodeID),

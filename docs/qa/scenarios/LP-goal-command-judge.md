@@ -42,3 +42,22 @@ profile, its checkpoint is valid, and Goal status remains visible after the comm
 another profile and verify run/request lists and `@user&all_profiles=true` retain exact User scope
 and owner labels. Worker coverage lives in the canonical Goal command and SQLite loop suites; the
 full User-session transport journey waits for U2 integration.
+
+### Verified external waits (#1149)
+
+Use a provider-free acpmock worker that calls the real `compozy__monitor_create` tool during its
+first Goal turn, then ends without a terminal claim. Keep a 180-second timer active and make the
+judge reject unfinished work. Verify `status: waiting`, a flat started-turn count, and no judge
+attempt for the yielded turn; after the wake, verify one queued wake turn followed by resumed Goal
+work. Repeat with an asynchronous delegated child and with a terminal monitor.
+
+Cancel the monitor, stop the child, and exercise a failed/undelivered wake: each must release the
+Goal without operator resume. Restart the isolated daemon during a live wait and verify the
+original wait deadline, stable turn audit, and eventual advance. Pause and Stop while waiting must
+remain effective; an explicit complete claim must still reach the judge. Check Waiting and Pause
+in the Web Goal strip and inspect the CLI/HTTP Goal snapshot. A stuck wait must pause with a reason.
+
+2026-11-02 baseline: issue #1149 reproduced before the fix for timers and async children. Both
+consumed 8/8 turns and exhausted before the wait ended. acpmock drove the real native-tool and
+agent-judge paths; its judge always revised. The lab used a driver-only overlay allowing judge
+sessions without hosted MCP. Post-fix runtime and rendered verification remain pending.

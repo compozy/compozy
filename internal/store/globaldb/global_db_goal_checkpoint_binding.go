@@ -29,7 +29,8 @@ func (g *GoalRepo) BindCheckpoint(ctx context.Context, req goal.BindCheckpointRe
 			return err
 		}
 		if checkpoint.ControlEpoch != req.ExpectedControlEpoch || checkpoint.BindingEpoch != req.ExpectedBindingEpoch ||
-			checkpoint.Phase != req.ExpectedPhase || checkpoint.Status != goalStatusActive ||
+			checkpoint.Phase != req.ExpectedPhase ||
+			(checkpoint.Status != goalStatusActive && checkpoint.Status != goalStatusWaiting) ||
 			checkpoint.TaskRunID != req.TaskRunID {
 			return goalControlStaleError("Goal checkpoint binding owner changed")
 		}

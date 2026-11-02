@@ -40,6 +40,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: InsertGoalCheckpoint :execrows
 INSERT INTO loop_goal_checkpoints (
+    wait_started_at,
     loop_run_id, generation, node_id, item_index, control_epoch,
     control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, control_cause,
     turns_used, turn_limit, broken_streak, recovery_streak, task_run_id,
@@ -52,7 +53,7 @@ INSERT INTO loop_goal_checkpoints (
     report_prompt_id, report_status, report_evidence_ref, report_binding_epoch,
     report_actor_kind, report_actor_id, report_recorded_at, updated_at
 ) VALUES (
-    sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(node_id), sqlc.arg(item_index), sqlc.arg(control_epoch),
+    CAST(sqlc.narg(wait_started_at) AS TEXT), sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(node_id), sqlc.arg(item_index), sqlc.arg(control_epoch),
     sqlc.narg(control_actor_kind), sqlc.narg(control_actor_id), CAST(sqlc.narg(control_requested_at) AS TEXT),
     sqlc.arg(phase), sqlc.arg(goal_status), sqlc.narg(control_cause),
     sqlc.arg(turns_used), sqlc.arg(turn_limit), sqlc.arg(broken_streak), sqlc.arg(recovery_streak),
@@ -266,3 +267,16 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
 UPDATE loop_runs
 SET control_actor_kind = NULL, control_actor_id = NULL, control_requested_at = NULL
 WHERE id = sqlc.arg(id);
+
+-- name: SetGoalCheckpointWait :execrows
+UPDATE loop_goal_checkpoints
+SET phase = sqlc.arg(phase), goal_status = sqlc.arg(goal_status),
+    wait_started_at = CAST(sqlc.narg(wait_started_at) AS TEXT),
+    updated_at = CAST(sqlc.arg(updated_at) AS TEXT)
+WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
+  AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)
+  AND control_epoch = sqlc.arg(control_epoch) AND binding_epoch = sqlc.arg(binding_epoch)
+  AND session_id = sqlc.arg(session_id) AND task_run_id = sqlc.arg(task_run_id)
+  AND phase = sqlc.arg(expected_phase) AND phase IN ('idle','waiting')
+  AND prompt_id IS NULL AND queue_entry_id IS NULL
+  AND control_actor_kind IS NULL AND control_actor_id IS NULL;

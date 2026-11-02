@@ -36,6 +36,9 @@ type Dependencies struct {
 	Budget            BudgetGuard
 	Context           ContextHealth
 	Recovery          PromptRecovery
+	Waits             WaitReader
+	WaitInterval      time.Duration
+	WaitTimeout       time.Duration
 	Now               func() time.Time
 	CompactionTimeout time.Duration
 	CompactionDrain   time.Duration
@@ -50,6 +53,9 @@ type Executor struct {
 	budget            BudgetGuard
 	context           ContextHealth
 	recovery          PromptRecovery
+	waits             WaitReader
+	waitInterval      time.Duration
+	waitTimeout       time.Duration
 	now               func() time.Time
 	compactionTimeout time.Duration
 	compactionDrain   time.Duration
@@ -92,6 +98,14 @@ func NewExecutor(deps Dependencies) (*Executor, error) {
 	if recoveryTimeout <= 0 {
 		recoveryTimeout = defaultRecoveryTimeout
 	}
+	waitInterval := deps.WaitInterval
+	if waitInterval <= 0 {
+		waitInterval = defaultWaitInterval
+	}
+	waitTimeout := deps.WaitTimeout
+	if waitTimeout <= 0 {
+		waitTimeout = defaultWaitTimeout
+	}
 	return &Executor{
 		store:             deps.Store,
 		binder:            deps.Binder,
@@ -99,6 +113,9 @@ func NewExecutor(deps Dependencies) (*Executor, error) {
 		budget:            deps.Budget,
 		context:           deps.Context,
 		recovery:          deps.Recovery,
+		waits:             deps.Waits,
+		waitInterval:      waitInterval,
+		waitTimeout:       waitTimeout,
 		now:               now,
 		compactionTimeout: compactionTimeout,
 		compactionDrain:   compactionDrain,

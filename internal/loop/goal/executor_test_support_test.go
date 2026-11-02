@@ -832,3 +832,35 @@ func (r *livenessSessionRecorder) sessions() []string {
 	defer r.mu.Unlock()
 	return slices.Clone(r.names)
 }
+
+// WaitReaderFunc models the daemon read port without simulating provider work.
+type waitReaderFunc func(context.Context, loop.ActionSessionBinding) (bool, error)
+
+var _ WaitReader = waitReaderFunc(nil)
+
+func (f waitReaderFunc) HasLiveWait(ctx context.Context, binding loop.ActionSessionBinding) (bool, error) {
+	return f(ctx, binding)
+}
+
+func (s *fakeExecutorStore) SetWaitState(_ context.Context, req WaitCheckpointRequest) (Checkpoint, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkpoint.ControlEpoch != req.Checkpoint.ControlEpoch ||
+		s.checkpoint.Phase != req.Checkpoint.Phase {
+		return Checkpoint{}, loop.ErrTransitionConflict
+	}
+	if !checkpointHasPendingPause(s.checkpoint) {
+		if req.Waiting {
+			if s.checkpoint.Phase != checkpointPhaseWaiting {
+				s.checkpoint.WaitStartedAt = new(s.checkpoint.UpdatedAt)
+			}
+			s.checkpoint.Phase = checkpointPhaseWaiting
+			s.checkpoint.Status = goalStatusWaiting
+		} else {
+			s.checkpoint.Phase = checkpointPhaseIdle
+			s.checkpoint.Status = goalStatusActive
+			s.checkpoint.WaitStartedAt = nil
+		}
+	}
+	return cloneTestCheckpoint(s.checkpoint), nil
+}

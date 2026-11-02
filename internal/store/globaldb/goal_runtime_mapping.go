@@ -60,6 +60,9 @@ func goalCheckpointFromGenerated(
 		ContextState:      row.ContextState,
 		ContextNudgeRatio: row.ContextNudgeRatio,
 	}
+	if row.WaitStartedAt.Valid {
+		checkpoint.WaitStartedAt = new(row.WaitStartedAt.Time.UTC())
+	}
 	fields := goalCheckpointScanFields{
 		workspaceID: workspaceID, controlActorKind: row.ControlActorKind, controlActorID: row.ControlActorID,
 		controlRequestedAt: goalOptionalTimeValue(row.ControlRequestedAt), controlCause: row.ControlCause,

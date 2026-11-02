@@ -10072,6 +10072,8 @@ export interface components {
         | "error";
       /** @enum {string|null} */
       reason_code:
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | "goal_not_active"
         | "goal_replace_required"
         | "goal_replace_stale"
@@ -10169,6 +10171,8 @@ export interface components {
       bound_session_id: string;
       /** @enum {string|null} */
       cause:
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | "goal_not_active"
         | "goal_replace_required"
         | "goal_replace_stale"
@@ -10228,7 +10232,14 @@ export interface components {
         | "stalled"
         | "canceled";
       /** @enum {string} */
-      status: "active" | "paused" | "blocked" | "usage-limited" | "budget-limited" | "complete";
+      status:
+        | "waiting"
+        | "active"
+        | "paused"
+        | "blocked"
+        | "usage-limited"
+        | "budget-limited"
+        | "complete";
       turn_limit: number;
       turns_used: number;
     };
@@ -10261,6 +10272,8 @@ export interface components {
       prompt_ref: string | null;
       /** @enum {string|null} */
       reason_code:
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | "goal_not_active"
         | "goal_replace_required"
         | "goal_replace_stale"

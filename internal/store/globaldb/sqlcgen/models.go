@@ -760,6 +760,7 @@ type LoopGoalBindingRetryWitness struct {
 }
 
 type LoopGoalCheckpoint struct {
+	WaitStartedAt               sql.NullTime   `json:"wait_started_at"`
 	LoopRunID                   string         `json:"loop_run_id"`
 	Generation                  int64          `json:"generation"`
 	NodeID                      string         `json:"node_id"`

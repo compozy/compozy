@@ -28,6 +28,8 @@ function goalState(snapshot: SessionGoalSnapshot): {
   if (snapshot.run_status === "paused" || snapshot.status === "paused")
     return { state: "paused", label: "Paused", tone: "warning" };
   if (snapshot.pause_requested) return { state: "pausing", label: "Pausing…", tone: "warning" };
+  if (snapshot.status === "waiting" && snapshot.live)
+    return { state: "waiting", label: "Waiting", tone: "neutral" };
   if (snapshot.status === "active" && snapshot.live)
     return { state: "active", label: "Active", tone: "brand" };
   if (snapshot.status === "budget-limited")
