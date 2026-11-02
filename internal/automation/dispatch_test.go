@@ -2058,7 +2058,9 @@ func newRecordingSessionCreator(plans ...sessionAttemptPlan) *recordingSessionCr
 	}
 }
 
-func (c *recordingSessionCreator) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (c *recordingSessionCreator) Create(ctx context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
