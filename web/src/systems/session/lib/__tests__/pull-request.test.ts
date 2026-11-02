@@ -370,8 +370,8 @@ describe("agent prompts", () => {
   });
 });
 
-// Invariant: linked work reads urgent first, the session's own work before what rolled up from its
-// children, and a summary never claims more than its counts say.
+// Invariant: linked work reads in the daemon's order, grouped but never re-sorted, so the header,
+// the list and the catalog's cards name one lead; a summary never claims more than its counts say.
 describe("session linked work", () => {
   const titles = (items: readonly SessionLinkedWorkItem[]) => items.map(linkTitle);
 
@@ -389,30 +389,27 @@ describe("session linked work", () => {
     expect(shown).toHaveLength(50);
   });
 
-  it("Should lead a group with runs-here, then with what is closest to done", () => {
-    const inProgress = groupLinks(SESSION_LINK_SETS.runsHere).find(
-      group => group.id === "in-progress"
-    );
-    expect(inProgress?.items[0]?.runs_here).toBe(true);
-    const progress = groupLinks(SESSION_LINKS_DOZEN).find(group => group.id === "in-progress");
-    expect(progress?.items[0]?.pr_number).toBe(955);
-    expect(progress?.items.at(-1)?.pull_request).toBeNull();
+  it("Should keep the daemon's order inside a group and lead with its first item", () => {
+    const [draft, ready] = [SESSION_LINK_SETS.onePr[0]!, SESSION_LINK_SETS.worktreeRemoved[0]!];
+    const child = { ...SESSION_LINK_SETS.rolledUp[2]!, pull_request: ready.pull_request };
+    const runsHere = { ...SESSION_LINK_SETS.runsHere[0]!, branch: "feat/runs-here" };
+    const served = [child, draft, ready, runsHere];
+    expect(groupLinks(served).flatMap(group => group.items)).toEqual(served);
+    expect(leadLink(served)).toBe(child);
   });
 
-  it("Should sort direct items before rolled-up items within a group", () => {
-    const [direct, childOne, childTwo] = SESSION_LINK_SETS.rolledUp;
-    const group = groupLinks([childTwo!, childOne!, direct!]).find(
-      entry => entry.id === "in-progress"
-    );
-    expect(group?.items[0]).toBe(direct);
-    expect(group?.items.at(-1)).toBe(childTwo);
+  it("Should name the same lead as the daemon's catalog summary", () => {
+    const served = SESSION_LINK_SETS.rolledUp;
+    const summary = { total: 3, needs_you: 1, pull_requests: 3, lead: served[0] };
+    expect(leadLink(served)).toBe(summary.lead);
+    expect(groupLinks(served)[0]?.items[0]).toBe(summary.lead);
   });
 
   it("Should name the rolled-up source as a fact and say nothing about who added it", () => {
-    const rolled = SESSION_LINK_SETS.rolledUp[1]!;
+    const rolled = SESSION_LINK_SETS.rolledUp[0]!;
     expect(linkOriginLabel(rolled)).toBe("From Login redirect fix");
     expect(linkSourceLabel({ ...rolled, provenance: "agent" }, "Claude")).toBeNull();
-    expect(linkOriginLabel(SESSION_LINK_SETS.rolledUp[0]!)).toBeNull();
+    expect(linkOriginLabel(SESSION_LINK_SETS.rolledUp[1]!)).toBeNull();
   });
 
   it("Should say who added an item only for the exceptions", () => {

@@ -179,7 +179,15 @@ export const SESSION_LINK_SETS = {
     ),
     REVIEW_PR,
   ],
+  // The daemon's order: urgency first, and direct before rolled-up only within one urgency.
   rolledUp: [
+    pr(
+      951,
+      "Fix the login redirect loop",
+      "fix/login-redirect",
+      { checks: failing(2, ["lint", "test-web"]) },
+      { source: { id: "s2", title: "Login redirect fix" } }
+    ),
     pr(
       944,
       "Show the pull request in the session header",
@@ -188,13 +196,6 @@ export const SESSION_LINK_SETS = {
         draft: true,
       },
       { worktree: worktree("session-pr-chip") }
-    ),
-    pr(
-      951,
-      "Fix the login redirect loop",
-      "fix/login-redirect",
-      { checks: failing(2, ["lint", "test-web"]) },
-      { source: { id: "s2", title: "Login redirect fix" } }
     ),
     pr(
       948,

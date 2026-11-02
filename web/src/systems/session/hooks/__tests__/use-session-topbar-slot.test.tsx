@@ -644,8 +644,8 @@ describe("useSessionTopbarSlot", () => {
       ["another branch", needsWork(SESSION_LINK_SETS.onePr[0]!), "feat/somewhere-else"],
       [
         "a child session, even on this branch",
-        needsWork(SESSION_LINK_SETS.rolledUp[1]!),
-        SESSION_LINK_SETS.rolledUp[1]!.branch,
+        needsWork(SESSION_LINK_SETS.rolledUp[0]!),
+        SESSION_LINK_SETS.rolledUp[0]!.branch,
       ],
     ])("Should offer no agent prompts on the chip of %s", async (_name, item, branch) => {
       const onSendPrompt = vi.fn();
@@ -713,7 +713,7 @@ describe("useSessionTopbarSlot", () => {
 
     it("Should open a lone rolled-up item's child session from the chip menu", async () => {
       const onOpenSession = vi.fn();
-      const child = SESSION_LINK_SETS.rolledUp[1]!;
+      const child = SESSION_LINK_SETS.rolledUp[0]!;
       renderWithTopbar(
         <SessionPublisher
           linkedWork={model([child])}

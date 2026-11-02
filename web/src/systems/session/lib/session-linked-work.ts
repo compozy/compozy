@@ -1,6 +1,7 @@
 /**
- * How a session's linked work sorts, groups and summarizes. The daemon owns every fact here; the
- * list route returns the full set, so grouping is presentation over one complete response.
+ * How a session's linked work groups and summarizes. The daemon owns every fact here, its order
+ * included; the list route returns the full set, so grouping is presentation over one complete
+ * response and keeps the order it was given.
  */
 import type { components } from "@compozy/client";
 
@@ -92,24 +93,6 @@ function linkGroup(item: SessionLinkedWorkItem): LinkGroupId {
   return needsYou(item) ? "needs-you" : "in-progress";
 }
 
-const PROGRESS_RANK = { ready: 0, open: 1, draft: 2, none: 3 } as const;
-
-function progressRank(item: SessionLinkedWorkItem): number {
-  const chip = linkChip(item);
-  if (chip.kind !== "pull-request") return PROGRESS_RANK.none;
-  if (chip.signals.some(part => part.id === "ready")) return PROGRESS_RANK.ready;
-  return chip.shape === "draft" ? PROGRESS_RANK.draft : PROGRESS_RANK.open;
-}
-
-/** The session's own work first, runs-here leading it, then what is closest to done. */
-function compareLinks(a: SessionLinkedWorkItem, b: SessionLinkedWorkItem): number {
-  return (
-    Number(isRolledUp(a)) - Number(isRolledUp(b)) ||
-    Number(b.runs_here) - Number(a.runs_here) ||
-    progressRank(a) - progressRank(b)
-  );
-}
-
 export interface LinkGroup {
   id: LinkGroupId;
   items: SessionLinkedWorkItem[];
@@ -119,14 +102,14 @@ const GROUP_ORDER: readonly LinkGroupId[] = ["needs-you", "in-progress", "done"]
 
 export function groupLinks(items: readonly SessionLinkedWorkItem[]): LinkGroup[] {
   return GROUP_ORDER.flatMap(id => {
-    const members = items.filter(item => linkGroup(item) === id).sort(compareLinks);
+    const members = items.filter(item => linkGroup(item) === id);
     return members.length > 0 ? [{ id, items: members }] : [];
   });
 }
 
-/** Whichever item deserves the header: the first one the list would show. */
+/** The daemon's first item, the same one its catalog summary names as the lead. */
 export function leadLink(items: readonly SessionLinkedWorkItem[]): SessionLinkedWorkItem | null {
-  return groupLinks(items)[0]?.items[0] ?? null;
+  return items[0] ?? null;
 }
 
 export function needsYouCount(items: readonly SessionLinkedWorkItem[]): number {
