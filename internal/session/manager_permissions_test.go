@@ -286,10 +286,13 @@ func TestTriagePromptStatesProposalLimits(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, limit := range []int{heartbeat.TriageTitleMaxRunes, heartbeat.TriageBodyMaxRunes} {
-			if !strings.Contains(prompt, fmt.Sprintf("within %d characters", limit)) {
-				t.Fatalf("prompt omits limit %d: %q", limit, prompt)
-			}
+		want := fmt.Sprintf(
+			"Keep each title within %d Unicode code points and each body within %d Unicode code points",
+			heartbeat.TriageTitleMaxRunes,
+			heartbeat.TriageBodyMaxRunes,
+		)
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt omits field limits %q: %q", want, prompt)
 		}
 	})
 }

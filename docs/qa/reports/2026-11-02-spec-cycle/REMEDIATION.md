@@ -87,3 +87,28 @@ The skills-disabled boot checks passed in 7.683s with
 `go test -exec 'env -u COMPOZY_INTERNAL_RESTART_OPERATION_ID' ./internal/daemon -run 'TestWorkspaceRegistrationRefreshesHookBindings|TestBootInjectsComposedAssemblerForFeatureFlagCombinations|TestDaemonModelCatalogWiring|TestAgentDefinitionSyncRuntimeWiring' -count=1`.
 The old head's web window-performance E2E exceeded its unchanged 50ms budget by 3ms. Its gate stays
 intact; the new-head CI run determines whether that failure reproduces.
+
+## CodeRabbit reconciliation
+
+- Worker task failure metadata now becomes the generation failure payload before terminal classification.
+  `TestCoordinatorRunnerShouldFailRemovedPinnedTool` drives ExecuteActionRun and a failed worker record
+  with a non-halt strategy, instead of manually substituting an output cell.
+- Loop scheduler reconciliation refreshes the resolved target default after recovery while preserving
+  explicit schedule policy. Missing definitions on the second resolution retain the typed sentinel.
+- Work-log opens are nonblocking and remain confined by os.Root. Deterministic replacement tests cover
+  an outside symlink and a FIFO. Truncation uses the bytes read with a one-byte overflow probe.
+- Workspace lookup failure logs a warning and preserves other check-in facts. The existing real-daemon
+  work-log integration case now includes a failed workspace lookup alongside a retained automation fact.
+- Fingerprints sort a copy of the selected keys, preserving oldest-first work-item display while
+  preventing timestamp-only ordering changes from creating an extra check-in.
+- Proposal prompts identify Unicode code-point limits and bind each limit to its field. Existing
+  ceiling tests now launch a session through the real manager/reader path. Upgrade tests assert exact
+  saved references, trigger target shape, and refreshed catalog identities; automation tests read
+  durable records and distinguish the missing and unavailable sentinels and malformed errors.
+- Two suggestions were declined with evidence: managed sync must accept saved config references even
+  before their first resource-row import; work-log selection remains the approved first-64-KiB prefix.
+  Dynamic creation remains strict and the orchestrator keeps open entries at the top.
+
+The unchanged 11-window E2E passed on main 68d03d37f in CI run 41499949170/job 125465016657.
+The PR changes neither that test nor systems/os. Its 50ms envelope remains unchanged; new-head CI
+provides the rerun evidence before any conclusion about the observed 53ms result.

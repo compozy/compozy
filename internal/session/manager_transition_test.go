@@ -1302,7 +1302,8 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 				TTL:        time.Minute,
 			},
 		)
-		if !errors.Is(err, store.ErrSessionNotAttachable) || !strings.Contains(err.Error(), "no longer available") {
+		if !errors.Is(err, store.ErrSessionNotAttachable) ||
+			!strings.Contains(err.Error(), fmt.Sprintf("agent %q is no longer available", active.Info().AgentName)) {
 			t.Fatalf("AttachSession() error = %v, want refusal naming the removed agent", err)
 		}
 	})
