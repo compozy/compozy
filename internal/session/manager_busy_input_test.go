@@ -5598,7 +5598,13 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		dispatcher.dispatchInputPreSubmitFn = func(
 			_ context.Context, payload hookspkg.InputPreSubmitPayload,
 		) (hookspkg.InputPreSubmitPayload, error) {
-			reviewed <- payload.Message
+			// Keep the promotion's review: the held turn came first and the entry's dispatch reviews it again.
+			if payload.Message != "hold" {
+				select {
+				case reviewed <- payload.Message:
+				default:
+				}
+			}
 			return payload, nil
 		}
 		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Hour},
