@@ -115,6 +115,7 @@ export function DraftComposer({
   children,
   disabled = false,
   above,
+  environmentControl,
   onSend,
 }: {
   placeholder: string;
@@ -123,6 +124,8 @@ export function DraftComposer({
   disabled?: boolean;
   /** Decision docks sit here, as `decisionDock` does in the real composer. */
   above?: ReactNode;
+  /** The environment chip the real composer carries beside the attach button. */
+  environmentControl?: ReactNode;
   onSend?: (text: string) => void;
 }) {
   return (
@@ -160,6 +163,7 @@ export function DraftComposer({
                       controls: { kind: "send" },
                     }}
                     busyInputSteerDelivery={null}
+                    environmentControl={environmentControl}
                     handleInterruptAction={ignore}
                     handleQueueAction={ignore}
                     handleSteerAction={ignore}

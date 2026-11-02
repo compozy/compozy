@@ -82,6 +82,8 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   workspaceName?: string | null;
   current?: boolean;
   archived?: boolean;
+  /** Follows the PR number in the meta row. */
+  metaExtra?: ReactNode;
   /** Who started a spawned session; the live card supplies it. */
   creatorBadge?: ReactNode;
   /** The provider mark and model label shown beside the agent name. */
@@ -148,6 +150,7 @@ export function SessionBoardCardView({
   selection,
   onActivate,
   creatorBadge,
+  metaExtra,
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
@@ -184,7 +187,12 @@ export function SessionBoardCardView({
       {...intentHandlers}
       type="button"
     >
-      <SessionBoardCardMetaRow meta={meta} sessionId={session.id} status={status} />
+      <SessionBoardCardMetaRow
+        extra={metaExtra}
+        meta={meta}
+        sessionId={session.id}
+        status={status}
+      />
       <span className={SESSION_BOARD_CARD_TITLE_ROW}>
         {sessionBoardCardUnread(session) ? (
           <span
@@ -223,10 +231,12 @@ function SessionBoardCardMetaRow({
   sessionId,
   meta,
   status,
+  extra,
 }: {
   sessionId: string;
   meta: SessionBoardCardMeta;
   status: SessionBoardCardStatus | null;
+  extra?: ReactNode;
 }) {
   if (meta.shape === null && meta.workspaceName === null && status === null) return null;
   const Icon = meta.shape ? SHAPE_ICON[meta.shape] : null;
@@ -253,6 +263,7 @@ function SessionBoardCardMetaRow({
             <span className="shrink-0 text-fg-2">#{meta.number}</span>
           </>
         ) : null}
+        {extra}
       </span>
       {status ? (
         <Pill

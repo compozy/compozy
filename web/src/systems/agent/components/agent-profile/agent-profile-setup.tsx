@@ -16,7 +16,7 @@ import {
   HOME_RUN_ROW_CLASS,
   HOME_RUN_SUBTITLE_CLASS,
   HOME_RUN_TITLE_CLASS,
-} from "@/systems/dashboard";
+} from "@/systems/dashboard/components/home-zone-shape";
 
 export function SetupRow({
   icon: Icon,

@@ -24,6 +24,8 @@ interface SessionEnvironmentChipProps {
   forkUnavailableReason?: string;
   /** Marks illustrative creation states in stories. */
   presentational?: boolean;
+  /** Opens with the menu shown (prototypes and stories). */
+  defaultMenuOpen?: boolean;
 }
 
 const ICON = {
@@ -56,8 +58,9 @@ export function SessionEnvironmentChip({
   onFork,
   forkUnavailableReason,
   presentational = false,
+  defaultMenuOpen = false,
 }: SessionEnvironmentChipProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(defaultMenuOpen);
   const Glyph = ICON[state];
   const forkAvailable = Boolean(onFork);
   const interactive = Boolean(menu) || forkAvailable;

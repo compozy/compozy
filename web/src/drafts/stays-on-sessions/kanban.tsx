@@ -1,6 +1,6 @@
 /** S15: the real board columns and cards inside project lanes, with the row in each header. */
 import { ListTree, Plus, SquareKanban } from "@compozy/ui/icons";
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 
 import { Button, Eyebrow, cn, type TopbarSlotValue } from "@compozy/ui";
 
@@ -108,10 +108,13 @@ export function KanbanWindow({
   lanes,
   top,
   initialHide = false,
+  card = DraftBoardCard,
 }: {
   lanes: readonly KanbanLane[];
   top?: readonly DraftInstance[];
   initialHide?: boolean;
+  /** The card the board renders; the stays-on card unless a draft brings its own. */
+  card?: ComponentType<SessionBoardCardProps>;
 }) {
   const [hide, setHide] = useState(initialHide);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ done: true });
@@ -149,7 +152,7 @@ export function KanbanWindow({
     ) : null;
   return (
     <DraftShell app="sessions" glyph={<SquareKanban />} title="Sessions" topbar={topbar}>
-      <SessionBoardCardSlot value={DraftBoardCard}>
+      <SessionBoardCardSlot value={card}>
         <div className={SESSIONS_BOARD_FRAME}>
           <div className={SESSIONS_BOARD_SCROLLER}>
             <div className={SESSIONS_BOARD_LANES}>

@@ -353,6 +353,7 @@ export {
   UnderlineIcon,
   Undo2,
   UndoDot,
+  Unlink,
   Unplug,
   Upload,
   UploadIcon,

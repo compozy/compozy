@@ -5,13 +5,9 @@ import {
   CircleSlashIcon,
   ClockIcon,
   GitBranchIcon,
-  GitMergeIcon,
-  GitPullRequestClosedIcon,
-  GitPullRequestDraftIcon,
-  GitPullRequestIcon,
   type LucideIcon,
 } from "@compozy/ui/icons";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   cn,
@@ -26,10 +22,10 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
+import { PULL_REQUEST_SHAPE_ICON, SESSION_CHIP_CLASS } from "./session-pull-request-chip-style";
 import {
   pullRequestChipModel,
   type PullRequestChipModel,
-  type PullRequestShape,
   type PullRequestSignalPart,
 } from "../lib/pull-request-signal";
 import type { PullRequestExitPlanView } from "../lib/pull-request-actions";
@@ -38,17 +34,6 @@ import {
   SessionPullRequestMenu,
   type SessionPullRequestPromptKind,
 } from "./session-pull-request-menu";
-
-const SHAPE_ICON: Record<PullRequestShape, LucideIcon> = {
-  open: GitPullRequestIcon,
-  draft: GitPullRequestDraftIcon,
-  merged: GitMergeIcon,
-  closed: GitPullRequestClosedIcon,
-};
-
-/** Worktree-chip geometry (`SessionWorktreeBindingChip`): 24 px surface-2 pill, badge type. */
-const CHIP_CLASS =
-  "inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-surface-2 py-0 pr-1.5 pl-2.5 text-badge font-medium text-muted-foreground outline-none transition-colors duration-fast ease-out hover:bg-selected hover:text-fg focus-visible:shadow-focus-ring data-popup-open:bg-selected data-popup-open:text-fg [&_svg]:size-3 [&_svg]:shrink-0";
 
 export interface SessionPullRequestChipProps {
   facts: SessionPullRequestFacts;
@@ -61,6 +46,10 @@ export interface SessionPullRequestChipProps {
   onExitAction?: (action: string) => void;
   onRefresh?: () => void;
   onPrompt?: (kind: SessionPullRequestPromptKind, text: string) => void;
+  /** Rows after the delivery actions in the menu. */
+  menuFooter?: ReactNode;
+  /** Opens with the menu shown (prototypes and stories). */
+  defaultMenuOpen?: boolean;
 }
 
 /**
@@ -76,8 +65,10 @@ export function SessionPullRequestChip({
   onExitAction,
   onRefresh,
   onPrompt,
+  menuFooter,
+  defaultMenuOpen = false,
 }: SessionPullRequestChipProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(defaultMenuOpen);
   const model = pullRequestChipModel(facts);
   if (model === null) return null;
 
@@ -88,7 +79,7 @@ export function SessionPullRequestChip({
           render={
             <DropdownMenuTrigger
               aria-label={model.ariaLabel}
-              className={CHIP_CLASS}
+              className={SESSION_CHIP_CLASS}
               data-kind={model.kind}
               data-slot="session-pull-request-chip"
               data-stale={model.kind === "pull-request" && model.stale ? "true" : undefined}
@@ -113,6 +104,7 @@ export function SessionPullRequestChip({
         controllable={controllable}
         exitPlan={exitPlan}
         exitRunning={exitRunning}
+        footer={menuFooter}
         observedAt={facts.pull_request_lookup?.observed_at}
         onExitAction={onExitAction}
         onPrompt={onPrompt}
@@ -134,7 +126,13 @@ function ChipGlyph({ icon: Icon, refreshing }: { icon: LucideIcon; refreshing: b
 
 const MONO_ID = "font-mono text-mono-id tracking-mono-id text-fg-2";
 
-function ChipBody({ model, refreshing }: { model: PullRequestChipModel; refreshing: boolean }) {
+export function ChipBody({
+  model,
+  refreshing,
+}: {
+  model: PullRequestChipModel;
+  refreshing: boolean;
+}) {
   if (model.kind === "branch") {
     return (
       <>
@@ -148,7 +146,7 @@ function ChipBody({ model, refreshing }: { model: PullRequestChipModel; refreshi
   }
   return (
     <>
-      <ChipGlyph icon={SHAPE_ICON[model.shape]} refreshing={refreshing} />
+      <ChipGlyph icon={PULL_REQUEST_SHAPE_ICON[model.shape]} refreshing={refreshing} />
       <span
         className={cn(
           MONO_ID,
