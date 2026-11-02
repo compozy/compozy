@@ -329,7 +329,8 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 			Items: []worktree.ForgeReview{
 				{ID: "r1", Author: "reviewer", State: "commented", Commit: "head-a"},
 			},
-			UnresolvedThreads: 2,
+			Threads:           []worktree.ForgeReviewThread{{ID: "t1", Commit: "head-a"}},
+			UnresolvedThreads: 2, Truncated: true,
 		},
 	}
 	t.Run("Should map a current lookup", func(t *testing.T) {
@@ -338,7 +339,8 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: facts}, nil)
 		if got.Lookup != monitorpkg.PullRequestFound || got.Number != 7 || got.Head != "head-a" ||
 			got.Checks == nil || got.Checks.Failed != 1 || got.Reviews == nil ||
-			got.Reviews.UnresolvedThreads != 2 || got.Reviews.Items[0].ID != "r1" {
+			got.Reviews.UnresolvedThreads != 2 || got.Reviews.Items[0].ID != "r1" ||
+			got.Reviews.Threads[0] != (monitorpkg.PullRequestThread{ID: "t1", Commit: "head-a"}) {
 			t.Fatalf("observation = %+v", got)
 		}
 	})
@@ -359,6 +361,16 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 			errors.New("boom"),
 		)
 		if got.Lookup != monitorpkg.PullRequestFailed || got.Cause != "provider_failed" {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should tell a failed review read from a forge without reviews", func(t *testing.T) {
+		t.Parallel()
+
+		partial := *facts
+		partial.Reviews, partial.ReviewsUnavailable = nil, true
+		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: &partial}, nil)
+		if got.Lookup != monitorpkg.PullRequestFound || got.Reviews != nil || !got.ReviewsFailed {
 			t.Fatalf("observation = %+v", got)
 		}
 	})

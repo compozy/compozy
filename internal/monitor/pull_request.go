@@ -27,6 +27,7 @@ const (
 	// Cursor and wake bounds keep a durable row small whatever the forge returns.
 	maxTrackedFailedNames = 64
 	maxTrackedReviews     = 100
+	maxTrackedThreads     = 100
 	maxSeenReviews        = 128
 	maxBurstReviews       = 32
 	maxForgeTextRunes     = 200
@@ -66,14 +67,22 @@ type PullRequestReview struct {
 	Commit string `json:"commit,omitempty"`
 }
 
-// PullRequestReviews is review activity. A nil value means the forge cannot observe it.
+// PullRequestThread is one unresolved review thread and the commit it was opened on.
+type PullRequestThread struct {
+	ID     string
+	Commit string
+}
+
+// PullRequestReviews is review activity. Threads lists unresolved threads; UnresolvedThreads is their total.
 type PullRequestReviews struct {
 	Items             []PullRequestReview
+	Threads           []PullRequestThread
 	UnresolvedThreads int
 	Truncated         bool
 }
 
-// PullRequestObservation is one forge read. Checks is nil when the forge could not establish them.
+// PullRequestObservation is one forge read. Checks is nil when the forge could not establish them. Reviews
+// is nil when the forge cannot observe them, or, with ReviewsFailed, when this read of them failed.
 type PullRequestObservation struct {
 	Lookup PullRequestLookup
 	// Cause says why a lookup failed.
@@ -84,6 +93,8 @@ type PullRequestObservation struct {
 	Head    string
 	Checks  *PullRequestChecks
 	Reviews *PullRequestReviews
+	// ReviewsFailed marks a forge that serves reviews but could not read them this time.
+	ReviewsFailed bool
 }
 
 // PullRequestSource reads pull requests through the daemon's forge. ResolvePullRequest binds a spec to its
@@ -98,47 +109,56 @@ func WithPullRequests(source PullRequestSource) Option {
 	return func(s *Service) { s.pullRequests = source }
 }
 
-// pullRequestWatch is the durable watch state of one pull_request monitor. Reported facts in cursor
-// advance only after a wake is admitted; pending holds the fire a restart must replay unchanged.
+// pullRequestWatch is the durable watch state of one pull_request monitor. Everything the agent has not
+// been told lives here until a wake is admitted: pending is the one fire in flight, immutable so its
+// message id always means the same wake, and carry collects what changed since, for the next fire.
 type pullRequestWatch struct {
 	repoKey string
 	cursor  prCursor
 	pending *prFire
+	carry   PullRequestChanges
 }
 
-// prCursor is what the agent was already told, plus quiet progress that needs no wake.
+// prCursor is the base each observation is compared to: facts already assigned to a fire, plus quiet
+// progress that needs no wake. Those facts cannot be lost once here, because the fire that carries them
+// is durable in the same write and stays until admission or until the monitor ends undelivered.
 type prCursor struct {
-	Number           int            `json:"number,omitempty"`
-	Head             string         `json:"head,omitempty"`
-	Failed           int            `json:"failed,omitempty"`
-	FailedNames      []string       `json:"failed_names,omitempty"`
-	Finished         bool           `json:"finished,omitempty"`
+	Number      int      `json:"number,omitempty"`
+	Head        string   `json:"head,omitempty"`
+	Failed      int      `json:"failed,omitempty"`
+	FailedNames []string `json:"failed_names,omitempty"`
+	Finished    bool     `json:"finished,omitempty"`
+	// EndedNumber is the last pull request first seen already merged or closed: history, not this watch.
+	EndedNumber      int            `json:"ended_number,omitempty"`
 	ReviewsBaselined bool           `json:"reviews_baselined,omitempty"`
 	SeenReviews      []string       `json:"seen_reviews,omitempty"`
-	Unresolved       int            `json:"unresolved,omitempty"`
+	SeenThreads      []string       `json:"seen_threads,omitempty"`
 	Burst            *prReviewBurst `json:"burst,omitempty"`
 	OutageSince      time.Time      `json:"outage_since,omitzero"`
 	OutageReported   bool           `json:"outage_reported,omitempty"`
+	// ReviewsDownSince tracks failed review reads while checks stay readable.
+	ReviewsDownSince time.Time `json:"reviews_down_since,omitzero"`
+	ReviewsDownSaid  bool      `json:"reviews_down_said,omitempty"`
 }
 
-// prReviewBurst is review activity waiting out its debounce.
+// prReviewBurst is review activity on the current head waiting out its debounce.
 type prReviewBurst struct {
-	Since      time.Time           `json:"since"`
-	Last       time.Time           `json:"last"`
-	Reviews    []PullRequestReview `json:"reviews,omitempty"`
-	Unresolved int                 `json:"unresolved"`
+	Since   time.Time           `json:"since"`
+	Last    time.Time           `json:"last"`
+	Reviews []PullRequestReview `json:"reviews,omitempty"`
+	Threads []string            `json:"threads,omitempty"`
 }
 
 // prFire is one wake from its durable decision until admission.
 type prFire struct {
 	Changes PullRequestChanges `json:"changes"`
-	Next    prCursor           `json:"next"`
 	Final   bool               `json:"final,omitempty"`
 }
 
 type pullRequestDurable struct {
-	Cursor  prCursor `json:"cursor"`
-	Pending *prFire  `json:"pending,omitempty"`
+	Cursor  prCursor           `json:"cursor"`
+	Pending *prFire            `json:"pending,omitempty"`
+	Carry   PullRequestChanges `json:"carry,omitzero"`
 }
 
 // PullRequestChanges is what one wake tells the agent.
@@ -166,6 +186,11 @@ type PullRequestChanges struct {
 	Cause        string              `json:"cause,omitempty"`
 	TimedOut     bool                `json:"timed_out,omitempty"`
 	FireCapHit   bool                `json:"fire_cap_hit,omitempty"`
+	// ReviewsFailed says this read of reviews failed; ReviewsDown says they stayed unreadable past the grace.
+	ReviewsFailed bool `json:"reviews_failed,omitempty"`
+	ReviewsDown   bool `json:"reviews_down,omitempty"`
+	// EndedNumber names a pull request that had already ended when a timed-out watch saw it.
+	EndedNumber int `json:"ended_number,omitempty"`
 }
 
 func (changes PullRequestChanges) reason() string {
@@ -192,7 +217,7 @@ func (w *pullRequestWatch) encode() string {
 	if w == nil {
 		return ""
 	}
-	data, err := json.Marshal(pullRequestDurable{Cursor: w.cursor, Pending: w.pending})
+	data, err := json.Marshal(pullRequestDurable{Cursor: w.cursor, Pending: w.pending, Carry: w.carry})
 	if err != nil {
 		panic("invariant: pull request cursor holds only marshalable values: " + err.Error())
 	}
@@ -210,7 +235,7 @@ func decodePullRequestWatch(repoKey, raw string) (*pullRequestWatch, error) {
 	if err := json.Unmarshal([]byte(raw), &durable); err != nil {
 		return watch, fmt.Errorf("monitor: decode pull request cursor: %w", err)
 	}
-	watch.cursor, watch.pending = durable.Cursor, durable.Pending
+	watch.cursor, watch.pending, watch.carry = durable.Cursor, durable.Pending, durable.Carry
 	return watch, nil
 }
 

@@ -10,9 +10,8 @@ const (
 	pullRequestClosed = "closed"
 )
 
-// detectPullRequest is the whole change policy: from what the agent was told and one observation, it
-// returns what this wake must say, if anything, and the next cursor. It never mutates cur, so a wake
-// that is not admitted leaves cur to be reported again.
+// detectPullRequest is the whole change policy: from the base cursor and one observation, it returns what
+// a wake must say, if anything, and the next cursor. It never mutates cur.
 func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) (PullRequestChanges, prCursor) {
 	next := cur
 	switch obs.Lookup {
@@ -22,15 +21,22 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 		next.OutageSince, next.OutageReported = time.Time{}, false
 		return PullRequestChanges{}, next
 	}
+	missedReads := !cur.OutageSince.IsZero()
 	next.OutageSince, next.OutageReported = time.Time{}, false
+	terminal := obs.State == pullRequestMerged || obs.State == pullRequestClosed
+	if terminal && obs.Number != cur.Number {
+		// A branch can be reused: an ended pull request this watch never saw open is history, not an outcome.
+		next.EndedNumber = obs.Number
+		return PullRequestChanges{}, next
+	}
 	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head}
 	next = resetForNewPullRequest(next, obs)
-	if obs.State == pullRequestMerged || obs.State == pullRequestClosed {
+	if terminal {
 		changes.Terminal, changes.Wake = obs.State, true
 		return flushBurst(changes, next)
 	}
 	next = detectChecks(&changes, next, obs.Checks)
-	next = detectReviews(&changes, next, obs.Reviews, obs.Head, now)
+	next = detectReviews(&changes, next, obs, now, missedReads)
 	if changes.Wake || burstDue(next.Burst, now) {
 		return flushBurst(changes, next)
 	}
@@ -54,23 +60,26 @@ func detectOutage(cur prCursor, obs PullRequestObservation, now time.Time) (Pull
 // resetForNewPullRequest drops what belongs to a superseded head. A new head does not wake by itself, and
 // a different pull request on the branch also starts a new review baseline.
 func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor {
-	samePull := next.Number == obs.Number
-	if samePull && next.Head == obs.Head {
+	if next.Number == obs.Number && next.Head == obs.Head {
 		return next
 	}
-	if !samePull {
-		next.ReviewsBaselined, next.Unresolved, next.Burst, next.SeenReviews = false, 0, nil, nil
+	if next.Number != obs.Number {
+		next.ReviewsBaselined, next.Burst = false, nil
+		next.SeenReviews, next.SeenThreads = nil, nil
+	}
+	if burst := next.Burst; burst != nil {
+		// Forgetting the burst's ids lets an item that really belongs to the new head, such as one from a
+		// forge that reports no commit, be seen again; anything tied to the old head stays filtered out.
+		next.SeenReviews = slices.DeleteFunc(slices.Clone(next.SeenReviews), func(id string) bool {
+			return slices.ContainsFunc(burst.Reviews, func(r PullRequestReview) bool { return r.ID == id })
+		})
+		next.SeenThreads = slices.DeleteFunc(slices.Clone(next.SeenThreads), func(id string) bool {
+			return slices.Contains(burst.Threads, id)
+		})
+		next.Burst = nil
 	}
 	next.Number, next.Head = obs.Number, obs.Head
 	next.Failed, next.FailedNames, next.Finished = 0, nil, false
-	if next.Burst != nil {
-		burst := *next.Burst
-		burst.Reviews = nil
-		next.Burst = &burst
-		if burst.Unresolved <= next.Unresolved {
-			next.Burst = nil
-		}
-	}
 	return next
 }
 
@@ -100,47 +109,109 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 func detectReviews(
 	changes *PullRequestChanges,
 	next prCursor,
-	reviews *PullRequestReviews,
-	head string,
+	obs PullRequestObservation,
 	now time.Time,
+	missedReads bool,
 ) prCursor {
+	if obs.ReviewsFailed {
+		return detectReviewsDown(changes, next, now)
+	}
+	reviews := obs.Reviews
 	if reviews == nil {
 		return next
 	}
+	missedReads = missedReads || !next.ReviewsDownSince.IsZero()
+	next.ReviewsDownSince, next.ReviewsDownSaid = time.Time{}, false
 	changes.ReviewsKnown, changes.Truncated = true, reviews.Truncated
 	changes.Unresolved = reviews.UnresolvedThreads
-	var fresh []PullRequestReview
-	for _, review := range reviews.Items {
-		if (review.Commit == "" || review.Commit == head) && !slices.Contains(next.SeenReviews, review.ID) {
-			fresh = append(fresh, review)
-		}
-	}
+	freshReviews := unseenReviews(reviews.Items, next.SeenReviews, obs.Head)
+	freshThreads := unseenThreads(reviews.Threads, next.SeenThreads, obs.Head)
 	seen := slices.Clone(next.SeenReviews)
-	for _, review := range fresh {
+	for _, review := range freshReviews {
 		seen = append(seen, review.ID)
 	}
 	next.SeenReviews = seen[max(len(seen)-maxSeenReviews, 0):]
-	if !next.ReviewsBaselined {
-		next.ReviewsBaselined, next.Unresolved = true, reviews.UnresolvedThreads
+	if !next.ReviewsBaselined && !missedReads {
+		next.ReviewsBaselined = true
+		next.SeenThreads = threadIDs(reviews.Threads)
 		return next
 	}
-	next.Unresolved = min(next.Unresolved, reviews.UnresolvedThreads)
-	rising := reviews.UnresolvedThreads > next.Unresolved
-	if next.Burst == nil {
-		if len(fresh) == 0 && !rising {
-			return next
-		}
-		next.Burst = &prReviewBurst{Since: now, Last: now}
+	// A baseline taken after failed reads cannot tell old activity from what arrived meanwhile, so it is
+	// reported instead of being absorbed.
+	next.ReviewsBaselined = true
+	unresolved := threadIDs(reviews.Threads)
+	next.SeenThreads = keepUnresolved(append(slices.Clone(next.SeenThreads), freshThreads...), unresolved)
+	return extendBurst(next, freshReviews, freshThreads, unresolved, now)
+}
+
+// detectReviewsDown keeps the baseline, the seen sets and any burst exactly as they were: a failed read
+// says nothing about reviews. It speaks once if the failure outlasts the grace.
+func detectReviewsDown(changes *PullRequestChanges, next prCursor, now time.Time) prCursor {
+	changes.ReviewsFailed = true
+	if next.ReviewsDownSince.IsZero() {
+		next.ReviewsDownSince = now
 	}
-	burst := *next.Burst
-	if len(fresh) > 0 || (rising && reviews.UnresolvedThreads != burst.Unresolved) {
+	if !next.ReviewsDownSaid && now.Sub(next.ReviewsDownSince) >= forgeOutageGrace {
+		next.ReviewsDownSaid, changes.ReviewsDown, changes.Wake = true, true, true
+	}
+	return next
+}
+
+func unseenReviews(items []PullRequestReview, seen []string, head string) []PullRequestReview {
+	var fresh []PullRequestReview
+	for _, review := range items {
+		if (review.Commit == "" || review.Commit == head) && !slices.Contains(seen, review.ID) {
+			fresh = append(fresh, review)
+		}
+	}
+	return fresh
+}
+
+func unseenThreads(threads []PullRequestThread, seen []string, head string) []string {
+	var fresh []string
+	for _, thread := range threads {
+		if (thread.Commit == "" || thread.Commit == head) && !slices.Contains(seen, thread.ID) {
+			fresh = append(fresh, thread.ID)
+		}
+	}
+	return fresh
+}
+
+func threadIDs(threads []PullRequestThread) []string {
+	ids := make([]string, 0, len(threads))
+	for _, thread := range threads {
+		ids = append(ids, thread.ID)
+	}
+	return ids
+}
+
+// keepUnresolved forgets resolved threads, so one that reopens counts as new again.
+func keepUnresolved(ids, unresolved []string) []string {
+	return slices.DeleteFunc(ids, func(id string) bool { return !slices.Contains(unresolved, id) })
+}
+
+func extendBurst(
+	next prCursor,
+	freshReviews []PullRequestReview,
+	freshThreads, unresolved []string,
+	now time.Time,
+) prCursor {
+	active := len(freshReviews) > 0 || len(freshThreads) > 0
+	if next.Burst == nil && !active {
+		return next
+	}
+	burst := prReviewBurst{Since: now, Last: now}
+	if next.Burst != nil {
+		burst = *next.Burst
+	}
+	if active {
 		burst.Last = now
 	}
-	burst.Unresolved = reviews.UnresolvedThreads
-	burst.Reviews = slices.Concat(burst.Reviews, fresh)
+	burst.Reviews = slices.Concat(burst.Reviews, freshReviews)
 	burst.Reviews = burst.Reviews[max(len(burst.Reviews)-maxBurstReviews, 0):]
+	burst.Threads = keepUnresolved(slices.Concat(burst.Threads, freshThreads), unresolved)
 	next.Burst = &burst
-	if len(burst.Reviews) == 0 && !rising {
+	if len(burst.Reviews) == 0 && len(burst.Threads) == 0 {
 		next.Burst = nil // The threads were resolved again before the burst woke anyone.
 	}
 	return next
@@ -157,8 +228,42 @@ func flushBurst(changes PullRequestChanges, next prCursor) (PullRequestChanges, 
 	}
 	changes.Wake = true
 	changes.Reviews = next.Burst.Reviews
-	changes.NewThreads = max(next.Burst.Unresolved-next.Unresolved, 0)
-	next.Unresolved = max(next.Unresolved, next.Burst.Unresolved)
+	changes.NewThreads = len(next.Burst.Threads)
 	next.Burst = nil
 	return changes, next
+}
+
+// mergePullRequestChanges folds what later reports into what is already waiting for the next fire. It
+// keeps everything the agent still has to hear, except what a new head or pull request superseded.
+func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges {
+	if carry.Head != "" && later.Head != "" && (carry.Head != later.Head || carry.Number != later.Number) {
+		carry = PullRequestChanges{}
+	}
+	if !later.Wake {
+		return carry
+	}
+	if !carry.Wake {
+		return later
+	}
+	if later.State == "" { // No observation behind it: only the outage is news.
+		carry.ForgeDown, carry.Cause = carry.ForgeDown || later.ForgeDown, later.Cause
+		return carry
+	}
+	merged := later
+	for _, name := range carry.NewlyFailed {
+		if !slices.Contains(merged.NewlyFailed, name) {
+			merged.NewlyFailed = append(merged.NewlyFailed, name)
+		}
+	}
+	merged.Reviews = slices.Concat(carry.Reviews, later.Reviews)
+	merged.Reviews = merged.Reviews[max(len(merged.Reviews)-maxBurstReviews, 0):]
+	merged.NewThreads += carry.NewThreads
+	merged.FailureRose = merged.FailureRose || carry.FailureRose
+	merged.AllFinished = merged.AllFinished || carry.AllFinished
+	merged.ForgeDown = merged.ForgeDown || carry.ForgeDown
+	merged.ReviewsDown = merged.ReviewsDown || carry.ReviewsDown
+	if merged.Cause == "" {
+		merged.Cause = carry.Cause
+	}
+	return merged
 }

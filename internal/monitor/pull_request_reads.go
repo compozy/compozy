@@ -88,6 +88,16 @@ func boundPullRequestObservation(obs PullRequestObservation) PullRequestObservat
 			item.State, item.Commit = boundForgeText(item.State), boundForgeText(item.Commit)
 			reviews.Items = append(reviews.Items, item)
 		}
+		threads := reviews.Threads
+		if len(threads) > maxTrackedThreads {
+			threads, reviews.Truncated = threads[len(threads)-maxTrackedThreads:], true
+		}
+		reviews.Threads = make([]PullRequestThread, 0, len(threads))
+		for _, thread := range threads {
+			reviews.Threads = append(reviews.Threads, PullRequestThread{
+				ID: boundForgeText(thread.ID), Commit: boundForgeText(thread.Commit),
+			})
+		}
 		obs.Reviews = &reviews
 	}
 	return obs

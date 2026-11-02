@@ -21,8 +21,8 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"builds, polling remote state, or a delay. kind=pull_request is the wait for a pull request: the daemon "+
 			"reads its forge about once a minute and wakes you when checks fail, all checks finish, a new review or "+
 			"unresolved thread arrives, or the pull request merges or closes. It selects branch, by default this "+
-			"session's branch, refuses a default branch, and stays armed across wakes until the pull request ends, "+
-			"timeout_seconds expires, or you cancel it; you decide when delivery is done. kind=terminal watches a "+
+			"session's branch, refuses a default branch, and stays armed across wakes until a pull request it saw "+
+			"open ends, timeout_seconds expires, or you cancel it; you decide when delivery is done. kind=terminal watches a "+
 			"terminal_id from compozy__terminal_exec (still_running) or compozy__terminal_open until it exits or its "+
 			"output matches a pattern; kind=timer fires once after delay_seconds. Use it instead of shell watches such "+
 			"as gh pr checks --watch, sleep loops, polling, or provider-internal background tasks, Monitor, and "+

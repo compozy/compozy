@@ -67,56 +67,36 @@ func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (
 	return outcome, true
 }
 
-// deliver admits a one-shot monitor's wake and records its end.
+// deliver admits the wake, retrying transient refusals with capped backoff
+// inside deliveryRetryWindow. The waker's message id is stable per monitor, so
+// a retry after an ambiguous failure cannot queue a second wake.
 func (s *Service) deliver(ctx context.Context, item *entry, notification Notification) {
-	switch s.admitWake(ctx, notification) {
-	case wakeAdmitted:
-		s.settle(item, StatusFired, "")
-	case wakeSessionGone:
-		s.settle(item, StatusUndelivered, causeSessionGone)
-	case wakeRetryExhausted:
-		s.settle(item, StatusUndelivered, causeRetryExhausted)
-	case wakeAbandoned:
-	}
-}
-
-type wakeResult int
-
-const (
-	wakeAbandoned wakeResult = iota
-	wakeAdmitted
-	wakeSessionGone
-	wakeRetryExhausted
-)
-
-// admitWake retries transient refusals with capped backoff inside
-// deliveryRetryWindow. The waker's message id is stable per wake, so a retry
-// after an ambiguous failure cannot queue a second one. Only ctx ending
-// abandons a wake, which a restart then replays.
-func (s *Service) admitWake(ctx context.Context, notification Notification) wakeResult {
 	mon := notification.Monitor
 	deadline := s.now().Add(deliveryRetryWindow)
 	backoff := deliveryRetryInitial
 	for {
 		err := s.waker.WakeSession(ctx, notification)
 		if err == nil {
-			return wakeAdmitted
+			s.settle(item, StatusFired, "")
+			return
 		}
 		if ctx.Err() != nil {
-			return wakeAbandoned
+			return
 		}
 		if errors.Is(err, ErrSessionGone) {
-			return wakeSessionGone
+			s.settle(item, StatusUndelivered, causeSessionGone)
+			return
 		}
 		if !s.now().Add(backoff).Before(deadline) {
-			return wakeRetryExhausted
+			s.settle(item, StatusUndelivered, causeRetryExhausted)
+			return
 		}
 		s.logLifecycle("monitor.wake_deferred", mon, "admission_retry")
 		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return wakeAbandoned
+			return
 		case <-timer.C:
 		}
 		backoff = min(backoff*2, deliveryRetryMax)

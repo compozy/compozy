@@ -45,6 +45,9 @@ func pullRequestLines(mon Monitor, changes *PullRequestChanges) []string {
 	if changes.ForgeDown {
 		add("forge lookup cause: %s", forgeLine(changes.Cause))
 	}
+	if changes.EndedNumber > 0 {
+		add("no open pull request seen; #%d had already ended when this monitor read it", changes.EndedNumber)
+	}
 	if changes.ChecksKnown {
 		add("checks: %d passed, %d failed, %d pending", changes.Passed, changes.Failed, changes.Pending)
 		if changes.AllFinished {
@@ -88,6 +91,9 @@ func reviewLines(changes *PullRequestChanges, add func(string, ...any)) {
 	if changes.Truncated {
 		add("review counts are partial: the forge reported more than one read returns")
 	}
+	if changes.ReviewsDown {
+		add("reviews have been unreadable for 15 minutes; this monitor stays armed and will report them when it can")
+	}
 }
 
 // unobservable names what an observed wake could not see. A wake with no observation behind it, such as
@@ -100,7 +106,10 @@ func unobservable(changes *PullRequestChanges) string {
 	if !changes.ChecksKnown {
 		missing = append(missing, "checks")
 	}
-	if !changes.ReviewsKnown {
+	switch {
+	case changes.ReviewsFailed:
+		missing = append(missing, "reviews and threads (this read failed)")
+	case !changes.ReviewsKnown:
 		missing = append(missing, "reviews and threads")
 	}
 	return strings.Join(missing, ", ")

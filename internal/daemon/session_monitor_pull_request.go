@@ -124,7 +124,7 @@ func monitorPullRequestObservation(
 	}
 	observation := monitorpkg.PullRequestObservation{
 		Lookup: monitorpkg.PullRequestFound, Number: *facts.PRNumber, URL: facts.PRURL,
-		State: *facts.PRState, Head: facts.HeadSHA,
+		State: *facts.PRState, Head: facts.HeadSHA, ReviewsFailed: facts.ReviewsUnavailable,
 	}
 	if checks := facts.Checks; checks != nil && checks.State != pullRequestChecksUnknown {
 		observation.Checks = &monitorpkg.PullRequestChecks{
@@ -139,8 +139,12 @@ func monitorPullRequestObservation(
 				ID: item.ID, Author: item.Author, IsBot: item.IsBot, State: item.State, Commit: item.Commit,
 			})
 		}
+		threads := make([]monitorpkg.PullRequestThread, 0, len(reviews.Threads))
+		for _, thread := range reviews.Threads {
+			threads = append(threads, monitorpkg.PullRequestThread{ID: thread.ID, Commit: thread.Commit})
+		}
 		observation.Reviews = &monitorpkg.PullRequestReviews{
-			Items: items, UnresolvedThreads: reviews.UnresolvedThreads, Truncated: reviews.Truncated,
+			Items: items, Threads: threads, UnresolvedThreads: reviews.UnresolvedThreads, Truncated: reviews.Truncated,
 		}
 	}
 	return observation
