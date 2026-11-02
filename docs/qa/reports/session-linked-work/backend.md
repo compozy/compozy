@@ -7,7 +7,8 @@ This report describes backend implementation and focused evidence, not a live-pr
 
 - `d87f81970`: optional forge discovery contract, SDK registration and GitHub provider.
 - `81c9eff26`: durable links, migration, batched projection, board rules and initial regressions.
-- Subsequent surface and verification commits are listed in the final handoff.
+- `5307d78ec`: HTTP/UDS/CLI/native surfaces, generated clients, official reference, candidate source selection and final regressions.
+- A following documentation-only commit records the final validation evidence.
 
 ## Exact public contract
 
@@ -105,3 +106,11 @@ go test ./internal/session -run 'TestSessionLinkedWorkProjection'
 ```
 
 These cover both queue admission states and the reused-branch PR identity fence. Final source build and vet passed after adding the candidate `kind` selector. No new runtime lab was started; real SQLite fresh/reopen/migration tests provide the backend's real execution evidence. HTTP/UDS/native authorization behavior has compilation and existing-suite coverage; a new full transport-level linked-work journey was not executed.
+
+Final TypeScript delivery check passed from the repository root:
+
+```sh
+bunx turbo run typecheck --filter=@compozy/extension-sdk --filter=@compozy/client
+```
+
+All three tasks succeeded (including the prerequisite codegen-check). The final standalone `make codegen-check` also exited 0. Final backend feature head: `5307d78ec2d9a669be0b2dccefdd6e36ab0c66ed`; the following commit only updates this report. The only remaining working-tree modification is the inherited `web/proto.config.ts`.
