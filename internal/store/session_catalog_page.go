@@ -60,37 +60,39 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
-	BoardExcludedIDs    []string
-	DefaultBranches     map[string][]string
-	RepositoryKeys      map[string]string
-	Columns             []string
-	HideChildren        bool
-	ExcludeVerdictOnly  bool
-	Subagents           string
-	SkipTotal           bool
-	ReadScope           ReadScope
-	WorkspaceIDs        []string
-	WorkspaceID         string
-	WorktreeID          string
-	State               string
-	SessionType         string
-	AgentName           string
-	ParentSessionID     string
-	RootSessionID       string
-	LineageKind         LineageKind
-	SearchFields        string
-	Search              string
-	AttentionOnly       bool
-	Badges              []string
-	Resumable           bool
-	Archive             SessionArchiveFilter
-	Later               SessionLaterFilter
-	Sort                string
-	Limit               int
-	After               *SessionCatalogPosition
-	ExcludeIDs          []string
-	ExcludeSessionTypes []string
-	ExcludeSpawnRoles   []string
+	BoardExcludedIDs   []string
+	DefaultBranches    map[string][]string
+	RepositoryKeys     map[string]string
+	Columns            []string
+	HideChildren       bool
+	ExcludeVerdictOnly bool
+	// ExcludeFinishedAutomation hides settled automation-run session families.
+	ExcludeFinishedAutomation bool
+	Subagents                 string
+	SkipTotal                 bool
+	ReadScope                 ReadScope
+	WorkspaceIDs              []string
+	WorkspaceID               string
+	WorktreeID                string
+	State                     string
+	SessionType               string
+	AgentName                 string
+	ParentSessionID           string
+	RootSessionID             string
+	LineageKind               LineageKind
+	SearchFields              string
+	Search                    string
+	AttentionOnly             bool
+	Badges                    []string
+	Resumable                 bool
+	Archive                   SessionArchiveFilter
+	Later                     SessionLaterFilter
+	Sort                      string
+	Limit                     int
+	After                     *SessionCatalogPosition
+	ExcludeIDs                []string
+	ExcludeSessionTypes       []string
+	ExcludeSpawnRoles         []string
 }
 
 // Validate ensures the durable query is bounded and its anchor is usable.

@@ -96,6 +96,8 @@ func (g *SessionRepo) SessionCatalogFacets(
 // filter of the read, so the Later toggle needs no second facets request.
 func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.SessionCatalogPageQuery) (int, error) {
 	query.Later = store.SessionLaterOnly
+	// The Later shelf is an explicit view, so it counts what the shelf read returns.
+	query.ExcludeFinishedAutomation = false
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
 	if err != nil {
 		return 0, err

@@ -202,6 +202,8 @@ CREATE INDEX idx_automation_jobs_loop_target
 
 CREATE INDEX idx_automation_runs_job ON automation_runs(job_id);
 
+CREATE INDEX idx_automation_runs_session ON automation_runs(session_id) WHERE session_id IS NOT NULL;
+
 CREATE INDEX idx_automation_runs_loop_run ON automation_runs(loop_run_id);
 
 CREATE INDEX idx_automation_runs_started ON automation_runs(started_at);

@@ -204,7 +204,7 @@ export function useSessionsBoard({
   const population = hideChildren ? { children: "exclude" as const } : {};
   const shared: SessionListFilters = {
     ...population,
-    exclude_instance_main: true,
+    ...sessionListShelfFilters("active"),
     sort: sessionBoardSort(sort),
   };
   const base = sessionCatalogScopedFilters(scope, shared, params);

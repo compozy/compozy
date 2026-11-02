@@ -124,6 +124,10 @@ compozy automation jobs --workspace checkout-api --target loop -o json | jq -r '
 nightly-delivery
 ```
 
+### Finished runs on the session list
+
+A job or trigger session leaves the session list and the board once it finishes cleanly. Its run stays here, with a link to the session, and search still finds it. A failed run, a run waiting on you and a run you prompted stay on the list. `compozy session list` and `compozy__session_list` still return every run session.
+
 ## Reference
 
 <RouteList>

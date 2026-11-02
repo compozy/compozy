@@ -697,6 +697,13 @@ same scope and child visibility, independent of search, badge and selected board
 columns or child visibility invalidates an existing cursor. Read paths use cached PR facts and
 never wait on forge calls.
 
+`GET /api/sessions` and `/api/sessions/facets` accept `exclude_finished_automation=true`, which the
+Web list and board send. It hides a settled automation family: a job or trigger ran the root session
+directly, that run did not fail, and every hierarchy member is plainly `stopped` with no operator
+prompt. Loop and Task sessions are never hidden. The rows are not archived. `q`, `type`, `parent`,
+`root`, `archive=only` and `later=only` reads ignore the flag, and facets keep the flag under search.
+`compozy session list` and `compozy__session_list` do not send it, so agents still see every run.
+
 ### Waiting for session state
 
 `compozy session wait <session-id>` blocks until the session settles or needs someone. The default

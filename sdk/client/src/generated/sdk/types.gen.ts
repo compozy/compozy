@@ -23998,6 +23998,10 @@ export type ListSessionsData = {
      */
     exclude_instance_main?: boolean;
     /**
+     * Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it
+     */
+    exclude_finished_automation?: boolean;
+    /**
      * Filter by exact session state
      */
     state?: "starting" | "active" | "stopping" | "stopped";
@@ -24211,6 +24215,10 @@ export type ListSessionFacetsData = {
      * Exclude instance main sessions from board counts
      */
     exclude_instance_main?: boolean;
+    /**
+     * Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it
+     */
+    exclude_finished_automation?: boolean;
     /**
      * Workspace id or path
      */
@@ -35069,6 +35077,10 @@ export type ListWorkspaceSessionsData = {
      * Exclude stays-on main sessions from the page and its total
      */
     exclude_instance_main?: boolean;
+    /**
+     * Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it
+     */
+    exclude_finished_automation?: boolean;
     /**
      * Filter by exact session state
      */

@@ -5,6 +5,8 @@ import "github.com/compozy/compozy/internal/api/contract"
 const (
 	agentIdentityDeniedDescription         = "Agent identity is denied"
 	sessionAttentionUnavailableDescription = "Session attention is unavailable"
+	finishedAutomationParamDescription     = "Exclude settled automation-run sessions; " +
+		"search, type, parent, root, archive=only and later=only reads ignore it"
 )
 
 func sessionCatalogOperations() []OperationSpec {
@@ -85,6 +87,7 @@ func sessionCatalogListOperation() OperationSpec {
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
 			boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
 			boolQueryParam("exclude_instance_main", "Exclude stays-on main sessions from the page and its total"),
+			boolQueryParam("exclude_finished_automation", finishedAutomationParamDescription),
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",
@@ -278,6 +281,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
 			boolQueryParam("exclude_instance_main", "Exclude instance main sessions from board counts"),
+			boolQueryParam("exclude_finished_automation", finishedAutomationParamDescription),
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
 			workspaceIDsQueryParam("Project IDs or @user; repeatable, requires all_workspaces"),

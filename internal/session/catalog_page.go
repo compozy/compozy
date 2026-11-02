@@ -52,30 +52,33 @@ type ListQuery struct {
 	// ExcludeInstanceMain hides InstanceMainIDs from the page and its total.
 	ExcludeInstanceMain bool
 	InstanceMainIDs     []string
-	Columns             []string
-	HideChildren        bool
-	Subagents           string
-	ReadScope           store.ReadScope
-	WorkspaceID         string
-	WorkspaceIDs        []string
-	AllWorkspaces       bool
-	WorktreeID          string
-	State               string
-	SessionType         Type
-	AgentName           string
-	ParentSessionID     string
-	RootSessionID       string
-	SearchFields        string
-	Search              string
-	Resumable           bool
-	AttentionOnly       bool
-	Badges              []Badge
-	Archive             store.SessionArchiveFilter
-	Later               store.SessionLaterFilter
-	Sort                string
-	Cursor              string
-	Limit               int
-	SkipTotal           bool
+	// ExcludeFinishedAutomation hides settled automation-run sessions from a
+	// default read; normalizeListQuery clears it for an explicit lookup.
+	ExcludeFinishedAutomation bool
+	Columns                   []string
+	HideChildren              bool
+	Subagents                 string
+	ReadScope                 store.ReadScope
+	WorkspaceID               string
+	WorkspaceIDs              []string
+	AllWorkspaces             bool
+	WorktreeID                string
+	State                     string
+	SessionType               Type
+	AgentName                 string
+	ParentSessionID           string
+	RootSessionID             string
+	SearchFields              string
+	Search                    string
+	Resumable                 bool
+	AttentionOnly             bool
+	Badges                    []Badge
+	Archive                   store.SessionArchiveFilter
+	Later                     store.SessionLaterFilter
+	Sort                      string
+	Cursor                    string
+	Limit                     int
+	SkipTotal                 bool
 }
 
 // ListPage contains one bounded public session catalog result.
@@ -116,6 +119,8 @@ type sessionListFingerprint struct {
 	// ExcludeInstanceMain binds the population, not the current main IDs, so a
 	// rotation between pages keeps the cursor valid.
 	ExcludeInstanceMain bool `json:"exclude_instance_main,omitempty"`
+	// ExcludeFinishedAutomation stays empty when unset so existing cursors remain valid.
+	ExcludeFinishedAutomation bool `json:"exclude_finished_automation,omitempty"`
 }
 
 // ListPage returns a stable, bounded union of durable and active sessions.
@@ -266,6 +271,8 @@ func sessionCatalogPageQuery(
 		After:             after,
 		ExcludeIDs:        activeIDs,
 		ExcludeSpawnRoles: []string{SpawnRoleAutoTitle},
+
+		ExcludeFinishedAutomation: normalized.ExcludeFinishedAutomation,
 	}
 	if normalized.SessionType == "" {
 		query.ExcludeVerdictOnly = true
@@ -333,7 +340,8 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		Later:           laterFingerprint(query.Later),
 		Sort:            query.Sort,
 
-		ExcludeInstanceMain: query.ExcludeInstanceMain,
+		ExcludeInstanceMain:       query.ExcludeInstanceMain,
+		ExcludeFinishedAutomation: query.ExcludeFinishedAutomation,
 	})
 	if err != nil {
 		return "", fmt.Errorf("session: fingerprint list query: %w", err)

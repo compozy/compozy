@@ -87,6 +87,15 @@ describe("stays-on session lists", () => {
     });
   });
 
+  it("Should leave finished automation runs out of the active shelf only", () => {
+    expect(sessionListShelfFilters("active").exclude_finished_automation).toBe(true);
+    expect(sessionListShelfFilters("archive").exclude_finished_automation).toBeUndefined();
+    expect(sessionListShelfFilters("later").exclude_finished_automation).toBeUndefined();
+    expect(normalizeSessionListFilters({ exclude_finished_automation: true })).toMatchObject({
+      exclude_finished_automation: true,
+    });
+  });
+
   it("Should give a project with only an agent its own empty group", () => {
     const input = {
       workspaces: [{ id: "ws-a", name: "alpha" }],

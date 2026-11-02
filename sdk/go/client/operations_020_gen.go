@@ -131,23 +131,24 @@ func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEvents
 
 // ListSessionFacetsParams carries the path, query, and header parameters.
 type ListSessionFacetsParams struct {
-	ExcludeInstanceMain *bool     `url:"exclude_instance_main"`
-	WorkspaceID         *string   `url:"workspace_id"`
-	AllWorkspaces       *bool     `url:"all_workspaces"`
-	WorkspaceIds        *[]string `url:"workspace_ids"`
-	Worktree            *string   `url:"worktree"`
-	Agent               *string   `url:"agent"`
-	Subagents           *string   `url:"subagents"`
-	Children            *string   `url:"children"`
-	Parent              *string   `url:"parent"`
-	Root                *string   `url:"root"`
-	Resumable           *bool     `url:"resumable"`
-	State               *string   `url:"state"`
-	Type                *string   `url:"type"`
-	Archive             *string   `url:"archive"`
-	Later               *string   `url:"later"`
-	Profile             *string   `url:"profile"`
-	AllProfiles         *bool     `url:"all_profiles"`
+	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
+	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	WorkspaceID               *string   `url:"workspace_id"`
+	AllWorkspaces             *bool     `url:"all_workspaces"`
+	WorkspaceIds              *[]string `url:"workspace_ids"`
+	Worktree                  *string   `url:"worktree"`
+	Agent                     *string   `url:"agent"`
+	Subagents                 *string   `url:"subagents"`
+	Children                  *string   `url:"children"`
+	Parent                    *string   `url:"parent"`
+	Root                      *string   `url:"root"`
+	Resumable                 *bool     `url:"resumable"`
+	State                     *string   `url:"state"`
+	Type                      *string   `url:"type"`
+	Archive                   *string   `url:"archive"`
+	Later                     *string   `url:"later"`
+	Profile                   *string   `url:"profile"`
+	AllProfiles               *bool     `url:"all_profiles"`
 }
 
 // ListSessionFacets Count session catalog facets
@@ -156,6 +157,9 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 	query := url.Values{}
 	if params.ExcludeInstanceMain != nil {
 		query.Set("exclude_instance_main", strconv.FormatBool(*params.ExcludeInstanceMain))
+	}
+	if params.ExcludeFinishedAutomation != nil {
+		query.Set("exclude_finished_automation", strconv.FormatBool(*params.ExcludeFinishedAutomation))
 	}
 	if params.WorkspaceID != nil {
 		query.Set("workspace_id", *params.WorkspaceID)
@@ -426,23 +430,4 @@ type ListSessionToolsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	AgentName   *string `url:"agent_name"`
-}
-
-// ListSessionTools List session-callable registry tools
-func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }
