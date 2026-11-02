@@ -584,6 +584,19 @@ Evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`.
   `config-toml` `[shell.sessions]`, generated CLI pages; glossary entries All projects and topbar;
   release note `.release-notes/all-projects-*.md`; migration guide section.
 
+## Session monitor kind — 2026-11-02
+
+Owner: branch `feat/session-monitor-kind`. Additive across every public surface (SD-013); no delete
+targets. Native tools: `compozy__monitor_create` gains `kind="session"`, `target_session_ids`, `states`,
+and `until` values `any` and `all`; monitor results gain optional `target_session_ids`, `states`, and
+`targets`. HTTP/UDS `SessionMonitorPayload` gains the same optional fields (OpenAPI, TS and Go SDKs
+regenerated). Persisted state: migration `00174` rebuilds `session_monitors` to widen the `kind` check and
+add three JSON columns; every existing row is preserved. Extensibility: hooks, extension SDKs, and config
+keys are unchanged. Workspace isolation: every target must belong to the caller's workspace, checked at
+creation through the orchestration target path. Official skill (`references/native-tools.md`) and site docs
+(`sessions/monitors.mdx`) updated. Web labels the kind in the composer popover and shows "Sessions settled"
+on the wake divider. QA scenario `RT-session-monitor-wake` gains step 13.
+
 ## Session monitor visibility — 2026-10-21
 
 Owner: branch `feat/session-monitor-visibility`. Additive across every public surface (SD-013); no

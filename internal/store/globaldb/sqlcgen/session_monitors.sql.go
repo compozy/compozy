@@ -11,7 +11,7 @@ import (
 )
 
 const listSessionMonitors = `-- name: ListSessionMonitors :many
-SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version FROM session_monitors ORDER BY created_at, id
+SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version, target_session_ids, states, targets FROM session_monitors ORDER BY created_at, id
 `
 
 func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, error) {
@@ -43,6 +43,9 @@ func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, er
 			&i.OwnerBinding,
 			&i.OwnerCheckFailedAt,
 			&i.Version,
+			&i.TargetSessionIds,
+			&i.States,
+			&i.Targets,
 		); err != nil {
 			return nil, err
 		}
@@ -70,8 +73,9 @@ func (q *Queries) PruneFinishedSessionMonitors(ctx context.Context, firedAt stri
 const upsertSessionMonitor = `-- name: UpsertSessionMonitor :exec
 INSERT INTO session_monitors (
   id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms,
-  status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version,
+  target_session_ids, states, targets
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   status = excluded.status,
   fired_at = excluded.fired_at,
@@ -79,6 +83,7 @@ ON CONFLICT(id) DO UPDATE SET
   exit_code = excluded.exit_code,
   owner_binding = excluded.owner_binding,
   owner_check_failed_at = excluded.owner_check_failed_at,
+  targets = excluded.targets,
   version = excluded.version
 WHERE excluded.version > session_monitors.version
 `
@@ -103,6 +108,9 @@ type UpsertSessionMonitorParams struct {
 	OwnerBinding       string        `json:"owner_binding"`
 	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
 	Version            int64         `json:"version"`
+	TargetSessionIds   string        `json:"target_session_ids"`
+	States             string        `json:"states"`
+	Targets            string        `json:"targets"`
 }
 
 func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMonitorParams) error {
@@ -126,6 +134,9 @@ func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMon
 		arg.OwnerBinding,
 		arg.OwnerCheckFailedAt,
 		arg.Version,
+		arg.TargetSessionIds,
+		arg.States,
+		arg.Targets,
 	)
 	return err
 }

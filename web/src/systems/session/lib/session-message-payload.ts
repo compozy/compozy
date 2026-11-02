@@ -215,6 +215,7 @@ export type SessionMonitorWakeReason =
   | "stalled"
   | "timer_elapsed"
   | "terminal_unavailable"
+  | "condition_met"
   | "unknown";
 
 const MONITOR_REASONS: ReadonlySet<string> = new Set<SessionMonitorWakeReason>([
@@ -224,6 +225,7 @@ const MONITOR_REASONS: ReadonlySet<string> = new Set<SessionMonitorWakeReason>([
   "stalled",
   "timer_elapsed",
   "terminal_unavailable",
+  "condition_met",
 ]);
 
 /** A `monitor` wake: a daemon-owned monitor the agent registered fired and woke this session. */

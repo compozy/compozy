@@ -358,19 +358,22 @@ type SessionMentionKind string
 
 // SessionMonitorPayload is a daemon API value.
 type SessionMonitorPayload struct {
-	MonitorID   string     `json:"monitor_id"`
-	SessionID   string     `json:"session_id"`
-	Kind        string     `json:"kind"`
-	Description string     `json:"description"`
-	TerminalID  string     `json:"terminal_id,omitempty"`
-	Until       string     `json:"until,omitempty"`
-	Pattern     string     `json:"pattern,omitempty"`
-	Status      string     `json:"status"`
-	CreatedAt   time.Time  `json:"created_at"`
-	DeadlineAt  time.Time  `json:"deadline_at"`
-	FiredAt     *time.Time `json:"fired_at,omitempty"`
-	Reason      string     `json:"reason,omitempty"`
-	ExitCode    *int       `json:"exit_code,omitempty"`
+	MonitorID        string                        `json:"monitor_id"`
+	SessionID        string                        `json:"session_id"`
+	Kind             string                        `json:"kind"`
+	Description      string                        `json:"description"`
+	TerminalID       string                        `json:"terminal_id,omitempty"`
+	Until            string                        `json:"until,omitempty"`
+	Pattern          string                        `json:"pattern,omitempty"`
+	Status           string                        `json:"status"`
+	CreatedAt        time.Time                     `json:"created_at"`
+	DeadlineAt       time.Time                     `json:"deadline_at"`
+	FiredAt          *time.Time                    `json:"fired_at,omitempty"`
+	Reason           string                        `json:"reason,omitempty"`
+	ExitCode         *int                          `json:"exit_code,omitempty"`
+	TargetSessionIDs []string                      `json:"target_session_ids,omitempty"`
+	States           []string                      `json:"states,omitempty"`
+	Targets          []SessionMonitorTargetPayload `json:"targets,omitempty"`
 }
 
 // SessionMonitorResponse is a daemon API value.
@@ -381,6 +384,14 @@ type SessionMonitorResponse struct {
 // SessionMonitorSummaryPayload is a daemon API value.
 type SessionMonitorSummaryPayload struct {
 	Active int `json:"active"`
+}
+
+// SessionMonitorTargetPayload is a daemon API value.
+type SessionMonitorTargetPayload struct {
+	SessionID string `json:"session_id"`
+	Name      string `json:"name,omitempty"`
+	State     string `json:"state"`
+	Matched   bool   `json:"matched"`
 }
 
 // SessionMonitorsResponse is a daemon API value.

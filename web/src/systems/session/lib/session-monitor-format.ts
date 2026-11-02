@@ -8,6 +8,11 @@ export function monitorControlLabel(active: number): string {
 /** What one monitor waits for, in plain words. */
 export function monitorWatchLabel(monitor: SessionMonitorPayload): string {
   if (monitor.kind === "timer") return "Timer";
+  if (monitor.kind === "session") {
+    const count = monitor.target_session_ids?.length ?? 0;
+    const noun = count === 1 ? "session" : "sessions";
+    return monitor.until === "any" ? `Any of ${count} ${noun}` : `All of ${count} ${noun}`;
+  }
   if (monitor.until === "match" && monitor.pattern) {
     return `Terminal output matches ${monitor.pattern}`;
   }

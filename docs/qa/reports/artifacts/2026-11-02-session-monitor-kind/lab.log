@@ -1,0 +1,24 @@
+{"error":"workspace: register workspace \"/Users/pedronauck/dev/qa-labs/compozy-session-monitor-kind-20261102-150548-331198-lab\": workspace path already registered"}
+targets sess-d96171766c2d62d7 sess-2ecdddaae2822b3b sess-c8ceb7916d3b0eb4 sess-a30371f23ecce29d sess-2b09e7ba5781f3c6 sess-d464b6d1920a2546 ws=ws_b88da6021184c761
+--- badges: T1=running T3=running
+=== A all
+A after register: [{"monitor_id":"mon-a8e2e1280d82","kind":"session","status":"active","reason":null,"until":"all","targets":null}] badge=waiting
+A after T1 settled (done): [{"monitor_id":"mon-a8e2e1280d82","kind":"session","status":"active","reason":null,"until":"all","targets":null}] badge=waiting
+A after T2 settled: [{"monitor_id":"mon-a8e2e1280d82","kind":"session","status":"fired","reason":"condition_met","until":"all","targets":[{"session_id":"sess-2ecdddaae2822b3b","state":"done","matched":true},{"session_id":"sess-d96171766c2d62d7","state":"done","matched":true}]}]
+A wake text count: 2; badge=done
+=== B any + operator stop
+B: [{"monitor_id":"mon-297db16a5aab","kind":"session","status":"fired","reason":"condition_met","until":"any","targets":[{"session_id":"sess-a30371f23ecce29d","state":"running","matched":false},{"session_id":"sess-c8ceb7916d3b0eb4","state":"stopped","matched":true}]}]
+=== D timeout
+D: [{"monitor_id":"mon-e3ab2dcaa7a9","kind":"session","status":"fired","reason":"timeout","until":"all","targets":[{"session_id":"sess-d464b6d1920a2546","state":"running","matched":false}]}]
+=== C restart
+C before: [{"monitor_id":"mon-b385a6593334","kind":"session","status":"active","reason":null,"until":"all","targets":null}] T5=running
+restart op 385cc1f4-9530-40c7-8eab-4973980aba08
+restart status=ready
+id                session_id             kind     status  reason         fired_at                   
+----------------  ---------------------  -------  ------  -------------  ---------------------------
+mon-a8e2e1280d82  sess-e9ac72e2b166c379  session  fired   condition_met  2026-11-02T15:16:01.602443Z
+mon-297db16a5aab  sess-2b3b1421404f0c63  session  fired   condition_met  2026-11-02T15:16:05.704511Z
+mon-e3ab2dcaa7a9  sess-5d6e9f6e9e1496c2  session  fired   timeout        2026-11-02T15:16:09.357906Z
+mon-b385a6593334  sess-7dfd8210732664e1  session  fired   condition_met  2026-11-02T15:16:42.915888Z
+C after boot: [{"monitor_id":"mon-b385a6593334","kind":"session","status":"fired","reason":"condition_met","until":"all","targets":[{"session_id":"sess-2b09e7ba5781f3c6","state":"done","matched":true}]}] T5=done C=done wakes=2
+DONE

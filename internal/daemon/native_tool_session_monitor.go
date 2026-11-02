@@ -23,6 +23,9 @@ type nativeMonitorCreateInput struct {
 	Pattern        string `json:"pattern"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
 	DelaySeconds   int    `json:"delay_seconds"`
+	// TargetSessionIDs and States apply to session monitors.
+	TargetSessionIDs []string `json:"target_session_ids"`
+	States           []string `json:"states"`
 }
 
 type nativeMonitorCancelInput struct {
@@ -59,12 +62,18 @@ func (n *daemonNativeTools) monitorCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	for _, target := range input.TargetSessionIDs {
+		if _, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, target, true); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	created, err := service.Create(ctx, monitorpkg.Spec{
 		WorkspaceID: workspaceID, ProfileID: strings.TrimSpace(scope.ProfileID), SessionID: sessionID,
 		Kind: monitorpkg.Kind(strings.TrimSpace(input.Kind)), Description: input.Description,
 		TerminalID: input.TerminalID, Until: input.Until, Pattern: input.Pattern,
 		Timeout: time.Duration(input.TimeoutSeconds) * time.Second,
 		Delay:   time.Duration(input.DelaySeconds) * time.Second,
+		Targets: input.TargetSessionIDs, States: input.States,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, monitorToolError(req.ToolID, err)

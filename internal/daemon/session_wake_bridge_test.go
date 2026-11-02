@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -288,6 +289,87 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 	stub.calls++
 	stub.id, stub.opts = id, opts
 	return store.SessionInputQueueEntry{ID: "inq-1"}, stub.enqueueErr
+}
+
+type monitorTargetManagerStub struct {
+	infos  map[string]*session.Info
+	errs   map[string]error
+	events chan session.CatalogEvent
+	scope  session.CatalogScope
+}
+
+func (stub *monitorTargetManagerStub) Status(_ context.Context, id string) (*session.Info, error) {
+	return stub.infos[id], stub.errs[id]
+}
+
+func (stub *monitorTargetManagerStub) SubscribeSessionCatalogEvents(
+	_ context.Context,
+	scope session.CatalogScope,
+) (<-chan session.CatalogEvent, func(), error) {
+	stub.scope = scope
+	return stub.events, func() {}, nil
+}
+
+func TestMonitorSessionTargets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read each target from its live badge and fold final states", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &monitorTargetManagerStub{
+			infos: map[string]*session.Info{
+				"sess-idle": {ID: "sess-idle", Name: "Idle", State: session.StateActive},
+				"sess-busy": {ID: "sess-busy", State: session.StateStarting},
+				"sess-auth": {ID: "sess-auth", State: session.StateStopped, PendingPermission: true},
+			},
+			errs: map[string]error{
+				"sess-gone":  session.ErrSessionNotFound,
+				"sess-moved": store.ErrSessionSuperseded,
+				"sess-flaky": errors.New("database is busy"),
+			},
+		}
+		targets := monitorSessionTargets{sessions: func() any { return stub }}
+		got := targets.ReadTargets(testutil.Context(t), monitorpkg.Spec{
+			Targets: []string{"sess-idle", "sess-busy", "sess-auth", "sess-gone", "sess-moved", "sess-flaky"},
+		})
+		want := []monitorpkg.TargetStatus{
+			{SessionID: "sess-idle", Name: "Idle", State: monitorpkg.TargetStateIdle},
+			{SessionID: "sess-busy", State: string(session.BadgeRunning)},
+			{SessionID: "sess-auth", State: monitorpkg.TargetStateStopped},
+			{SessionID: "sess-gone", State: monitorpkg.TargetStateGone},
+			{SessionID: "sess-moved", State: monitorpkg.TargetStateGone},
+			{SessionID: "sess-flaky", State: monitorpkg.TargetStateUnknown},
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("ReadTargets() = %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("Should signal only target changes and close when the catalog drops the subscriber", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &monitorTargetManagerStub{events: make(chan session.CatalogEvent, 2)}
+		targets := monitorSessionTargets{sessions: func() any { return stub }}
+		changes, stop, err := targets.TargetChanges(testutil.Context(t), monitorpkg.Spec{
+			WorkspaceID: "ws-1", Targets: []string{"sess-a"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stop()
+		if stub.scope.WorkspaceID != "ws-1" || !stub.scope.ReadScope.AllProfiles {
+			t.Fatalf("scope = %+v, want the workspace across profiles", stub.scope)
+		}
+		stub.events <- session.CatalogEvent{SessionID: "sess-other"}
+		stub.events <- session.CatalogEvent{SessionID: "sess-a"}
+		if _, open := <-changes; !open {
+			t.Fatal("changes closed, want a signal for the target")
+		}
+		close(stub.events)
+		if _, open := <-changes; open {
+			t.Fatal("changes delivered an unrelated signal, want it closed")
+		}
+	})
 }
 
 func TestMonitorSessionWaker(t *testing.T) {

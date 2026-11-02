@@ -1680,6 +1680,9 @@ type SessionMonitor struct {
 	OwnerBinding       string        `json:"owner_binding"`
 	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
 	Version            int64         `json:"version"`
+	TargetSessionIds   string        `json:"target_session_ids"`
+	States             string        `json:"states"`
+	Targets            string        `json:"targets"`
 }
 
 type SessionPendingInteraction struct {

@@ -181,7 +181,7 @@ type monitorTerminalWatcher struct {
 func (w *monitorTerminalWatcher) WatchTerminal(
 	ctx context.Context,
 	spec monitorpkg.Spec,
-) (monitorpkg.TerminalWatch, error) {
+) (monitorpkg.Watch, error) {
 	manager := w.terminals()
 	if manager == nil {
 		return nil, fmt.Errorf("terminal service is unavailable: %w", terminalpkg.ErrServiceUnavailable)
@@ -233,6 +233,7 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 	opts := []monitorpkg.Option{
 		monitorpkg.WithLogger(logger), monitorpkg.WithObserver(publish),
 		monitorpkg.WithOwners(monitorSessionOwners{sessions: func() any { return state.sessions }}),
+		monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return state.sessions }}),
 	}
 	if persistence, ok := state.registry.(monitorpkg.Store); ok {
 		opts = append(opts, monitorpkg.WithStore(persistence))
