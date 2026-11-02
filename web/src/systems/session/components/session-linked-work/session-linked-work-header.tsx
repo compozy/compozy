@@ -2,7 +2,7 @@
  * The header keeps today's chip, naming the most urgent item, and `+3 PRs` beside it opens the
  * list. Nothing new at rest, nothing stays open.
  */
-import { FolderGit2, GitPullRequest, Link2, Unlink } from "@compozy/ui/icons";
+import { ArrowUpRight, FolderGit2, GitPullRequest, Link2, Unlink } from "@compozy/ui/icons";
 import { useState, type ReactElement, type ReactNode } from "react";
 
 import {
@@ -112,6 +112,7 @@ function ChipLinkActions({
   lead: SessionLinkedWorkItem;
 }) {
   const openWorktree = worktreeAction?.(lead);
+  const child = lead.source_session_id;
   return (
     <>
       <DropdownMenuLabel className="tracking-normal normal-case">
@@ -121,6 +122,12 @@ function ChipLinkActions({
         <DropdownMenuItem onClick={openWorktree}>
           <Icon as={FolderGit2} size="sm" />
           Worktree {lead.worktree_name}
+        </DropdownMenuItem>
+      ) : null}
+      {child ? (
+        <DropdownMenuItem onClick={() => actions.onOpenSession(child)}>
+          <Icon as={ArrowUpRight} size="sm" />
+          Open session
         </DropdownMenuItem>
       ) : null}
       <DropdownMenuItem onClick={actions.onLink}>

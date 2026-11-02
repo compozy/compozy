@@ -711,6 +711,30 @@ describe("useSessionTopbarSlot", () => {
       expect(within(otherMenu).queryByText("Fix failing checks")).not.toBeInTheDocument();
     });
 
+    it("Should open a lone rolled-up item's child session from the chip menu", async () => {
+      const onOpenSession = vi.fn();
+      const child = SESSION_LINK_SETS.rolledUp[1]!;
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={model([child])}
+          onOpenSession={onOpenSession}
+          onStop={vi.fn()}
+        />
+      );
+      expect(screen.queryByTestId("session-links-more")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      fireEvent.click(within(menu).getByText("Open session"));
+      expect(onOpenSession).toHaveBeenCalledWith(child.source_session_id);
+    });
+
+    it("Should not offer Open session on the session's own direct item", async () => {
+      renderLinks(model(SESSION_LINK_SETS.onePr));
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(menu).queryByText("Open session")).not.toBeInTheDocument();
+    });
+
     it("Should leave Unlink off a rolled-up row, whose target is the child session", async () => {
       const onOpenSession = vi.fn();
       renderWithTopbar(

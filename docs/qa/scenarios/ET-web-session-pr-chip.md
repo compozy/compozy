@@ -31,7 +31,8 @@ Focused evidence: pull-request menu suite and real SQLite branch/board suites pa
 Linked work 2026-11-02: the chip now names the most urgent linked item, not only the
 session's branch, and a session with several items shows `+N PRs` or `+N more` beside it.
 Exit actions, Refresh and prompts on the chip stay with the session's own branch; another
-branch's lead offers Open PR and a list reread. The walk lives in
+branch's lead offers Open PR and a list reread, as does its list row. A lone rolled-up item's
+chip menu offers Open session for its child. The walk lives in
 `ET-session-pull-request-link`; `E2E-006` owns the seeded journey in CI.
 
 Release regression 2026-10-24: the Fix failing checks journey must send exactly

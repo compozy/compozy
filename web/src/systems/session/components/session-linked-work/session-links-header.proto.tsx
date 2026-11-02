@@ -17,6 +17,7 @@ export const meta = definePrototype({
     { id: "runs-here", label: "Runs here vs. linked" },
     { id: "unlink", label: "Unlink" },
     { id: "rolled-up", label: "Rolled up from child sessions" },
+    { id: "rolled-up-single", label: "One item, rolled up from a child session" },
     { id: "details-failing", label: "Details, checks failing" },
     { id: "details-pending", label: "Details, checks running" },
     { id: "details-ready", label: "Details, ready to merge" },

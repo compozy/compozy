@@ -1,6 +1,6 @@
 /** The states the linked work prototypes walk through. */
 import type { SessionLinkedWorkItem, SessionRunsIn } from "../lib/session-linked-work";
-import { linkKey } from "../lib/session-linked-work";
+import { isRolledUp, linkKey } from "../lib/session-linked-work";
 import {
   SESSION_LINK_SETS,
   SESSION_LINKS_DOZEN,
@@ -91,6 +91,11 @@ const SCENARIOS: Record<string, LinkScenario> = {
     items: SESSION_LINK_SETS.rolledUp,
     openMenuFor: sessionLinkFixtureKey("fix/login-redirect"),
     agent: "Two child sessions are working on this. Their pull requests show up here too.",
+  },
+  "rolled-up-single": {
+    ...ORCHESTRATOR,
+    items: SESSION_LINK_SETS.rolledUp.filter(isRolledUp).slice(0, 1),
+    agent: "A child session is working on this. Its pull request shows up here too.",
   },
   "details-failing": {
     ...SINGLE,
