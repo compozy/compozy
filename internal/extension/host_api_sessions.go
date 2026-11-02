@@ -137,7 +137,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	if !ok {
 		return nil, errors.New("extension: session manager does not support durable acceptance")
 	}
-	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: createOpts})
+	info, err := acceptance.CreateAccepted(ctx, new(session.CreateAcceptedOpts{Session: createOpts}))
 	if err != nil {
 		return nil, err
 	}

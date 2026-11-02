@@ -181,11 +181,11 @@ func TestHostAPIHandlerBindsWorkspaceScopedExtensionCalls(t *testing.T) {
 
 		owned := env.createSession(t)
 		foreignWorkspace := env.addForeignWorkspace(t)
-		foreign, err := env.sessions.Create(testutil.Context(t), session.CreateOpts{
+		foreign, err := env.sessions.Create(testutil.Context(t), new(session.CreateOpts{
 			AgentName: "coder",
 			Workspace: foreignWorkspace.ID,
 			Type:      session.SessionTypeSystem,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("sessions.Create(foreign) error = %v", err)
 		}
@@ -4892,7 +4892,7 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 		return nil, fmt.Errorf("%w: unsupported task scope %q", taskpkg.ErrValidation, spec.Task.Scope)
 	}
 
-	created, err := e.sessions.Create(ctx, opts)
+	created, err := e.sessions.Create(ctx, &(opts))
 	if err != nil {
 		return nil, fmt.Errorf("start task session: create session: %w", err)
 	}
@@ -5507,11 +5507,11 @@ func (e *hostAPITestEnv) addForeignWorkspace(t testing.TB) workspacepkg.Resolved
 func (e *hostAPITestEnv) createSession(t *testing.T) *session.Session {
 	t.Helper()
 
-	sess, err := e.sessions.Create(testutil.Context(t), session.CreateOpts{
+	sess, err := e.sessions.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName: "coder",
 		Workspace: e.workspace.ID,
 		Type:      session.SessionTypeSystem,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("sessions.Create() error = %v", err)
 	}
@@ -5628,8 +5628,10 @@ type recordingHostAPISessionManager struct {
 
 func (m *recordingHostAPISessionManager) Create(
 	_ context.Context,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 ) (*session.Session, error) {
+	opts := *optsInput
+
 	m.createCalls = append(m.createCalls, opts)
 	return &session.Session{
 		ID:          "sess-bridge",
@@ -5644,8 +5646,10 @@ func (m *recordingHostAPISessionManager) Create(
 
 func (m *recordingHostAPISessionManager) CreateAccepted(
 	_ context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	m.acceptedCreateCalls = append(m.acceptedCreateCalls, opts)
 	return &session.Info{
 		ID:        "sess-accepted",
@@ -5944,7 +5948,7 @@ type promptSessionManagerStub struct {
 	listAllFn             func(context.Context) ([]*session.Info, error)
 }
 
-func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+func (s promptSessionManagerStub) Create(context.Context, *session.CreateOpts) (*session.Session, error) {
 	return nil, errors.New("unexpected create call")
 }
 
