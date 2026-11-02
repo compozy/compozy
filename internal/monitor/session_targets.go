@@ -188,7 +188,8 @@ func (s *Service) sessionWatch(spec Spec) Watch {
 		defer timeout.Stop()
 		sweep := time.NewTicker(targetSweepInterval)
 		defer sweep.Stop()
-		return s.followTargets(ctx, spec, deadline, changes, timeout.C, sweep.C)
+		reader := &targetReader{service: s, spec: spec}
+		return s.followTargets(ctx, reader, deadline, changes, timeout.C, sweep.C)
 	}
 }
 
@@ -196,7 +197,8 @@ func (s *Service) sessionWatch(spec Spec) Watch {
 // A recovered watch first waits for the gate: until sessions are resumed and supervised, a target's
 // state is not yet its real state.
 func (s *Service) followTargets(
-	ctx context.Context, spec Spec, deadline time.Time, changes <-chan struct{}, timeout, sweep <-chan time.Time,
+	ctx context.Context, reader *targetReader, deadline time.Time,
+	changes <-chan struct{}, timeout, sweep <-chan time.Time,
 ) (Outcome, error) {
 	select {
 	case <-ctx.Done():
@@ -205,17 +207,15 @@ func (s *Service) followTargets(
 		return Outcome{}, errWatchQuiesced
 	case <-s.watchGate:
 	}
-	var last []TargetStatus
 	for {
 		budget := max(min(targetReadTimeout, time.Until(deadline)), time.Millisecond)
-		marked, held, err := s.readTargets(ctx, spec, budget, last)
+		marked, held, err := reader.read(ctx, budget)
 		if err != nil {
 			return Outcome{}, err
 		}
 		if held {
 			return Outcome{Reason: ReasonConditionMet, Targets: marked}, nil
 		}
-		last = marked
 		timedOut, closed, err := s.awaitTargetRead(ctx, changes, timeout, sweep)
 		if err != nil {
 			return Outcome{}, err
@@ -224,7 +224,16 @@ func (s *Service) followTargets(
 			changes = nil
 		}
 		if timedOut {
-			return s.finalTargetRead(ctx, spec, last)
+			// The final read may run past the timeout by targetReadTimeout at most: a slightly late wake
+			// that reports a settled target correctly beats an on-time one that reports it as working.
+			marked, held, err = reader.read(ctx, targetReadTimeout)
+			if err != nil {
+				return Outcome{}, err
+			}
+			if held {
+				return Outcome{Reason: ReasonConditionMet, Targets: marked}, nil
+			}
+			return Outcome{Reason: ReasonTimeout, Targets: marked}, nil
 		}
 	}
 }
@@ -255,51 +264,88 @@ func (s *Service) awaitTargetRead(
 	}
 }
 
-// finalTargetRead settles a timeout from the targets as they are now, so a target that settled since
-// the last read is never reported as still working.
-func (s *Service) finalTargetRead(ctx context.Context, spec Spec, last []TargetStatus) (Outcome, error) {
-	marked, held, err := s.readTargets(ctx, spec, targetReadTimeout, last)
-	if err != nil {
-		return Outcome{}, err
-	}
-	if held {
-		return Outcome{Reason: ReasonConditionMet, Targets: marked}, nil
-	}
-	return Outcome{Reason: ReasonTimeout, Targets: marked}, nil
+// targetReader runs one watch's reads off the watch goroutine, because a session read can stall past
+// its context. At most one read is in flight: a watch whose read stalled waits for that read again
+// instead of starting another, and the service joins it at shutdown.
+type targetReader struct {
+	service *Service
+	spec    Spec
+	pending chan []TargetStatus
+	known   []TargetStatus
 }
 
-// readTargets reads every target within budget. A read cut short tells nothing about a target, so it
-// keeps the target's last known state. A read that overlaps quiescing is discarded: it may have
-// observed a target the daemon itself is stopping, which says nothing about that target's work.
-func (s *Service) readTargets(
-	ctx context.Context, spec Spec, budget time.Duration, last []TargetStatus,
-) ([]TargetStatus, bool, error) {
-	readCtx, cancel := context.WithTimeout(ctx, budget)
-	defer cancel()
-	statuses := s.targets.ReadTargets(readCtx, spec)
-	if readCtx.Err() != nil {
-		statuses = keepKnownTargets(statuses, last)
+// read evaluates the condition on what this read observed, and only that: a state remembered from an
+// earlier read may no longer hold, so it can fill in the report but never satisfy the condition.
+func (r *targetReader) read(ctx context.Context, budget time.Duration) ([]TargetStatus, bool, error) {
+	statuses, err := r.await(ctx, budget)
+	if err != nil {
+		return nil, false, err
 	}
 	select {
-	case <-s.quiesced:
+	case <-r.service.quiesced:
+		// This read may have observed a target the daemon itself is stopping.
 		return nil, false, errWatchQuiesced
 	default:
 	}
-	marked, held := evaluateTargets(spec, statuses)
-	return marked, held, nil
+	marked, held := evaluateTargets(r.spec, statuses)
+	if held {
+		return marked, true, nil
+	}
+	r.known = keepKnownTargets(marked, r.known)
+	return r.known, false, nil
 }
 
-func keepKnownTargets(statuses, last []TargetStatus) []TargetStatus {
+func (r *targetReader) await(ctx context.Context, budget time.Duration) ([]TargetStatus, error) {
+	if r.pending == nil {
+		r.pending = make(chan []TargetStatus, 1)
+		r.start(ctx, budget)
+	}
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-r.service.quiesced:
+		return nil, errWatchQuiesced
+	case <-timer.C:
+		return unknownTargets(r.spec), nil
+	case statuses := <-r.pending:
+		r.pending = nil
+		return statuses, nil
+	}
+}
+
+func (r *targetReader) start(ctx context.Context, budget time.Duration) {
+	pending, service, spec := r.pending, r.service, r.spec
+	service.wg.Go(func() {
+		readCtx, cancel := context.WithTimeout(ctx, budget)
+		defer cancel()
+		pending <- service.targets.ReadTargets(readCtx, spec)
+	})
+}
+
+func unknownTargets(spec Spec) []TargetStatus {
+	statuses := make([]TargetStatus, 0, len(spec.Targets))
+	for _, target := range spec.Targets {
+		statuses = append(statuses, TargetStatus{SessionID: target, State: TargetStateUnknown})
+	}
+	return statuses
+}
+
+// keepKnownTargets reports an unreadable target by its last known state, unmatched: the owner learns
+// what the target was doing, and the report never claims a condition this read did not observe.
+func keepKnownTargets(statuses, known []TargetStatus) []TargetStatus {
 	kept := slices.Clone(statuses)
 	for index, status := range kept {
 		if status.State != TargetStateUnknown {
 			continue
 		}
-		position := slices.IndexFunc(last, func(known TargetStatus) bool {
-			return known.SessionID == status.SessionID
+		position := slices.IndexFunc(known, func(last TargetStatus) bool {
+			return last.SessionID == status.SessionID
 		})
 		if position >= 0 {
-			kept[index] = last[position]
+			kept[index] = known[position]
+			kept[index].Matched = false
 		}
 	}
 	return kept

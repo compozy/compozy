@@ -1868,6 +1868,16 @@ type fakeTargets struct {
 	err     error
 	reads   int
 	stall   bool
+	hang    chan struct{}
+}
+
+// hangReads makes reads block past their context until the returned function runs.
+func (f *fakeTargets) hangReads() func() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	release := make(chan struct{})
+	f.hang = release
+	return func() { close(release) }
 }
 
 func (f *fakeTargets) stallReads() {
@@ -1910,6 +1920,13 @@ func (f *fakeTargets) ReadTargets(ctx context.Context, spec Spec) []TargetStatus
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reads++
+	if f.hang != nil {
+		hang := f.hang
+		f.mu.Unlock()
+		<-hang
+		f.mu.Lock()
+		return nil
+	}
 	if f.stall {
 		f.mu.Unlock()
 		<-ctx.Done()
@@ -2144,6 +2161,48 @@ func TestServiceSessionMonitorConditions(t *testing.T) {
 			if state := got[0].Outcome.Targets[0].State; got[0].Outcome.Reason != ReasonTimeout || state != "running" {
 				t.Fatalf("outcome = %+v, want a timeout that keeps the running state", got[0].Outcome)
 			}
+		})
+	})
+
+	t.Run("Should wake on time when a read ignores its context", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			spec := sessionSpec("sess-o", "sess-a")
+			spec.Timeout = 10 * time.Second
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			release := targets.hangReads()
+			defer release()
+			time.Sleep(11 * time.Second)
+			reads := targets.readCount()
+			time.Sleep(10*time.Second + targetReadTimeout)
+			got := wokenTargets(t, waker, 1)
+			if got[0].Outcome.Reason != ReasonTimeout || got[0].Outcome.Targets[0].State != "running" {
+				t.Fatalf("outcome = %+v, want a timeout with the last known state", got[0].Outcome)
+			}
+			if targets.readCount() != reads {
+				t.Fatalf("reads = %d, want no read started while one is in flight (%d)", targets.readCount(), reads)
+			}
+		})
+	})
+
+	t.Run("Should not let a remembered state satisfy all", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running", "sess-b": TargetStateIdle})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			if _, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a", "sess-b")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			targets.set("sess-b", TargetStateUnknown)
+			wokenTargets(t, waker, 0)
+			targets.set("sess-a", TargetStateIdle)
+			wokenTargets(t, waker, 0)
 		})
 	})
 
