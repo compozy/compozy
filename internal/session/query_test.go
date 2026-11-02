@@ -4354,11 +4354,12 @@ func (b *pullRequestQueryBranches) SessionBranches(_ context.Context, ids []stri
 }
 
 type pullRequestQueryReader struct {
-	state        PullRequestState
-	repositories map[string]string
-	calls        int
-	keys         []BranchKey
-	views        map[BranchKey]PullRequestView
+	state                   PullRequestState
+	repositories            map[string]string
+	calls                   int
+	keys                    []BranchKey
+	views                   map[BranchKey]PullRequestView
+	repoCalls, defaultCalls int
 }
 
 func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
@@ -4374,6 +4375,7 @@ func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKe
 	return result
 }
 func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []BranchKey) map[BranchKey]bool {
+	r.defaultCalls++
 	result := make(map[BranchKey]bool)
 	for _, key := range keys {
 		result[key] = key.Branch == "main"
@@ -4382,6 +4384,7 @@ func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []Branc
 }
 
 func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope, []string) map[string]string {
+	r.repoCalls++
 	return r.repositories
 }
 
@@ -4740,6 +4743,21 @@ func (r *catalogBranchReadCounter) SessionCatalogBranches(
 // Owner: session projection; canonical pull-request query suite.
 func TestSessionLinkedWorkProjection(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve repositories once per profile and workspace", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws": "example.com/a/b"}}
+		branches := &linkedWorkQueryStore{}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		_, err := manager.SessionLinkedWork(t.Context(), []*Info{{ID: "root", WorkspaceID: "ws"}, {ID: "other", WorkspaceID: "ws"}, {ID: "third", WorkspaceID: "other"}, {ID: "fourth", WorkspaceID: "ws", ProfileID: "other"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reader.repoCalls != 3 || reader.defaultCalls != 1 || reader.calls != 1 || branches.calls != 1 {
+			t.Fatalf("repos=%d defaults=%d cache=%d branches=%d", reader.repoCalls, reader.defaultCalls, reader.calls, branches.calls)
+		}
+	})
+
 	t.Run("Should sort fresh decisions before ready work and unknown lookups", func(t *testing.T) {
 		t.Parallel()
 		cases := []struct {

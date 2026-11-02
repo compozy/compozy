@@ -54,12 +54,16 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 	if err != nil {
 		return nil, err
 	}
-	repos := map[string]string{}
+	type repositoryScope struct{ profile, workspace string }
+	repos := map[repositoryScope]string{}
+	resolved := map[repositoryScope]bool{}
 	if r, ok := reader.(PullRequestRepositoryReader); ok {
 		for _, info := range infos {
 			if info != nil {
-				for id, key := range r.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID}) {
-					repos[id] = key
+				scope := repositoryScope{info.ProfileID, info.WorkspaceID}
+				if !resolved[scope] {
+					repos[scope] = r.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID})[info.WorkspaceID]
+					resolved[scope] = true
 				}
 			}
 		}
@@ -68,7 +72,7 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 	seen := map[BranchKey]bool{}
 	for _, member := range family {
 		for _, link := range stored[member.ID] {
-			if !link.Unlinked && link.Repository == repos[member.WorkspaceID] {
+			if !link.Unlinked && link.Repository == repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
 				key := BranchKey{member.WorkspaceID, link.Branch}
 				if !seen[key] {
 					seen[key] = true
@@ -101,12 +105,12 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 		branch := snapshots[member.ID]
 		found := false
 		for _, item := range items {
-			if item.Branch == branch && item.Repository == repos[member.WorkspaceID] {
+			if item.Branch == branch && item.Repository == repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
 				found = true
 			}
 		}
 		if branch != "" && !found && (!defaults[BranchKey{member.WorkspaceID, branch}] || member.WorktreeID != "") {
-			items = append(append([]store.SessionWorkLink{}, items...), store.SessionWorkLink{Repository: repos[member.WorkspaceID], Branch: branch, WorktreeID: member.WorktreeID, Provenance: "created"})
+			items = append(append([]store.SessionWorkLink{}, items...), store.SessionWorkLink{Repository: repos[repositoryScope{member.ProfileID, member.WorkspaceID}], Branch: branch, WorktreeID: member.WorktreeID, Provenance: "created"})
 		}
 		projection := out[root.ID]
 		projection.Pending = pending[root.ID]
@@ -118,7 +122,7 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 			if link.PRNumber > 0 && view.PullRequest != nil && view.PullRequest.Number != link.PRNumber {
 				view = PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: "pr_identity_changed", Stale: true}}
 			}
-			if link.Repository != repos[member.WorkspaceID] {
+			if link.Repository != repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
 				view = PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: "repository_changed", Stale: true}}
 			}
 			item := LinkedWorkItem{Repository: link.Repository, Branch: link.Branch, PRNumber: link.PRNumber, WorktreeID: link.WorktreeID, WorktreeName: link.WorktreeName, WorktreeRemoved: link.WorktreeRemoved, Provenance: link.Provenance, RunsHere: direct && root.WorktreeID != "" && root.WorktreeID == link.WorktreeID, PullRequestView: view}
