@@ -396,3 +396,33 @@ func TestInstanceLaunchCeiling(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceCeilingManagedWorktree(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		outside bool
+		denied  bool
+	}{
+		{name: "Should admit a managed worktree of a workspace inside the ceiling"},
+		{name: "Should deny a managed worktree of a workspace outside the ceiling", outside: true, denied: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root, worktree := t.TempDir(), t.TempDir()
+			ceiling := store.SessionPermissionPolicy{WorkspacePaths: []string{root}}
+			spec := &sessionStartSpec{worktreeRoot: worktree}
+			spec.workspace.RootDir = root
+			if tc.outside {
+				spec.workspace.RootDir = t.TempDir()
+			}
+			ceiling.WorkspacePaths = withManagedWorktree(ceiling, spec)
+			spec.instancePermissionCeiling = &ceiling
+			opts := acp.StartOpts{Cwd: worktree}
+			err := validateInstanceLaunch(spec, opts, opts)
+			if tc.denied != errors.Is(err, ErrValidation) || !tc.denied && err != nil {
+				t.Fatalf("launch in worktree: denied=%v err=%v", tc.denied, err)
+			}
+		})
+	}
+}

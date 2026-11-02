@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-deliver-through-agents
 expected: A spec_conductor session delivers a two-slice spec from an untracked spec directory through one integration worktree, recovers from restarts without repeating a slice, refuses to replace an active conductor, and runs reviewers read-only.
 entry_points: compozy session new --agent spec_conductor; compozy session prompt; compozy session status; compozy__worktree_list; git log --grep Spec-Slice
-qa_status: untested
+qa_status: partial
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/reports/2026-11-02-spec-cycle/QA.md
+last_report: docs/qa/reports/2026-11-02-spec-cycle/QA.md
 overlaps: RT-upgrade-spec-cycle-hard-cut
 ---
 

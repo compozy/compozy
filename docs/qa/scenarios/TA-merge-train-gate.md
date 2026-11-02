@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-deliver-through-agents
 expected: In a sandbox repository, merge-train refuses a moved head, a red check and a handoff without an exact head, merges a valid handoff bound to that head, and runs a release only on a direct operator message.
 entry_points: compozy session prompt <merge-train session> 'ready: #<pr> <sha>'
-qa_status: untested
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/reports/2026-11-02-spec-cycle/QA.md
+last_report: docs/qa/reports/2026-11-02-spec-cycle/QA.md
 overlaps: TA-spec-conductor-delivery
 ---
 

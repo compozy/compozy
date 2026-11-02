@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-deliver-through-agents
 expected: cy-create-spec writes _slices.md, asks the peer review questions once after approval, stops at the first round without blockers, and declining review leaves no review artifacts.
 entry_points: skill cy-create-spec; .compozy/tasks/<slug>/_slices.md; .compozy/tasks/<slug>/qa/peer-review-findings-round<N>-<reviewer>.md
-qa_status: untested
+qa_status: partial
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/reports/2026-11-02-spec-cycle/QA.md
+last_report: docs/qa/reports/2026-11-02-spec-cycle/QA.md
 overlaps: TA-spec-conductor-delivery
 ---
 

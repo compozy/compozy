@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-deliver-through-agents
 expected: A real v0.4.8 home with references to removed resources starts normally after upgrading, sessions open, affected automations fail in isolation with a clear error, .compozy/tasks files stay byte-identical, and nothing needs deleting.
 entry_points: compozy daemon start; compozy doctor; compozy session list; compozy automation; compozy loop list; compozy extension list
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: partial
+bug_ids: BUG-20261102-migration-172-autoindex
+fix_status: fixed
+retest_status: pass
+fix_commits: 2fa8edf3c
+evidence: docs/qa/reports/2026-11-02-spec-cycle/QA.md
+last_report: docs/qa/reports/2026-11-02-spec-cycle/QA.md
 overlaps: RT-upgrade-memory-removal-home; ET-052; TA-web-automations-upgrade
 ---
 

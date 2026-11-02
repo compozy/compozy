@@ -1321,6 +1321,74 @@ func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
 	assertSQLiteIntegrity(t, "global run profile tail", db)
 }
 
+func TestGlobalAgentSnapshotProfileMigrationConvergesUniqueKeyShapes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		autoindexed bool
+	}{
+		{name: "Should migrate a home carrying named unique indexes"},
+		{name: "Should migrate a home bootstrapped with autoindexed unique keys", autoindexed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := migrationTestContext(t)
+			db := openStreamTestDB(t, "global-snapshot-profile.db")
+			stream := globaldb.MigrationStream()
+			stream.Bootstrap = nil
+			if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 171)); err != nil {
+				t.Fatalf("Apply(global through 00171): %v", err)
+			}
+			if tc.autoindexed {
+				for _, name := range []string{
+					"agent_heartbeat_snapshots_workspace_id_agent_name_digest",
+					"agent_soul_snapshots_workspace_id_agent_name_digest",
+				} {
+					if _, err := db.ExecContext(ctx, `DROP INDEX `+name); err != nil {
+						t.Fatalf("drop %s: %v", name, err)
+					}
+				}
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_soul_snapshots
+ (id, workspace_id, agent_name, source_path, digest, created_at)
+ VALUES ('soul-1', '', 'general', '/home/agents/general/SOUL.md', 'digest-1', '2026-10-01T00:00:00Z')`); err != nil {
+				t.Fatalf("seed soul snapshot: %v", err)
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_heartbeat_snapshots
+ (id, workspace_id, agent_name, source_path, digest, config_digest, body, frontmatter_json, resolved_json,
+  diagnostics_json, created_at)
+ VALUES ('beat-1', '', 'general', '/home/agents/general/HEARTBEAT.md', 'digest-1', 'config-1', 'body', '{}', '{}',
+  '[]', '2026-10-01T00:00:00Z')`); err != nil {
+				t.Fatalf("seed heartbeat snapshot: %v", err)
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_heartbeat_revisions
+ (id, workspace_id, agent_name, source_path, operation, new_snapshot_id, actor_kind, actor_id, created_at)
+ VALUES ('revision-1', '', 'general', '/home/agents/general/HEARTBEAT.md', 'write', 'beat-1', 'system', 'qa',
+  '2026-10-01T00:00:00Z')`); err != nil {
+				t.Fatalf("seed heartbeat revision: %v", err)
+			}
+			if err := store.Apply(ctx, db, stream); err != nil {
+				t.Fatalf("Apply(global head): %v", err)
+			}
+			var snapshotID, owner string
+			if err := db.QueryRowContext(ctx, `SELECT r.new_snapshot_id, s.profile_id FROM agent_heartbeat_revisions r
+ JOIN agent_heartbeat_snapshots s ON s.id = r.new_snapshot_id WHERE r.id = 'revision-1'`).
+				Scan(&snapshotID, &owner); err != nil {
+				t.Fatalf("read migrated heartbeat snapshot: %v", err)
+			}
+			if snapshotID != "beat-1" || owner != store.DefaultProfileID {
+				t.Fatalf("heartbeat snapshot = %q/%q; want beat-1 owned by the default profile", snapshotID, owner)
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_soul_snapshots
+ (id, workspace_id, profile_id, agent_name, source_path, digest, created_at)
+ VALUES ('soul-2', '', '01K00000000000000000000091', 'general', '/other/SOUL.md', 'digest-1', '2026-10-02T00:00:00Z')`); err != nil {
+				t.Fatalf("same digest under another profile must be allowed: %v", err)
+			}
+			assertSQLiteIntegrity(t, "global snapshot profile migration", db)
+		})
+	}
+}
+
 func BenchmarkCurrentMigrationStream(b *testing.B) {
 	for _, item := range migrationStreamsUnderTest() {
 		b.Run(item.name, func(b *testing.B) {

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-deliver-through-agents
 expected: On a real provider, a stays-on orchestrator records a work log entry before dispatch, runs the item in its own worktree, closes it with evidence, and a stale entry wakes heartbeat triage.
 entry_points: compozy agent instance create orchestrator; compozy session prompt; .compozy/work-log.md; compozy__agent_heartbeat_status
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: blocked-decision
+bug_ids: BUG-20261102-instance-worktree-ceiling; BUG-20261102-triage-limits
+fix_status: fixed
+retest_status: pass
+fix_commits: 5ed24fec1; d732bffc3
+evidence: docs/qa/reports/2026-11-02-spec-cycle/QA.md
+last_report: docs/qa/reports/2026-11-02-spec-cycle/QA.md
 overlaps: TA-spec-conductor-delivery; MS-web-stays-on-reports
 ---
 
