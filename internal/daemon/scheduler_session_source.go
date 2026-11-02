@@ -13,7 +13,7 @@ import (
 )
 
 type schedulerSituationContext interface {
-	ContextForSession(context.Context, *session.Info) (contractpkg.AgentContextPayload, error)
+	CapabilitiesForSession(context.Context, *session.Info) (contractpkg.AgentCapabilitySectionPayload, error)
 }
 
 var _ schedulerSituationContext = (*situation.Service)(nil)
@@ -69,12 +69,12 @@ func (s schedulerSessionSource) capabilities(
 	if s.situation == nil {
 		return nil, schedulerpkg.CapabilityStateKnown, nil
 	}
-	payload, err := s.situation.ContextForSession(ctx, info)
+	payload, err := s.situation.CapabilitiesForSession(ctx, info)
 	if err != nil {
 		return nil, schedulerpkg.CapabilityStateUnknown, err
 	}
-	capabilities := make([]string, 0, len(payload.Capabilities.Capabilities))
-	for _, capability := range payload.Capabilities.Capabilities {
+	capabilities := make([]string, 0, len(payload.Capabilities))
+	for _, capability := range payload.Capabilities {
 		if id := strings.TrimSpace(capability.ID); id != "" {
 			capabilities = append(capabilities, id)
 		}

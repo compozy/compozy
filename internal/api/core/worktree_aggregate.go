@@ -21,15 +21,10 @@ func (h *BaseHandlers) ListWorktreeAggregate(c *gin.Context) {
 		return
 	}
 	reader, ok := h.Worktrees.(interface {
-		ListAggregate(context.Context, store.ReadScope) (*worktree.DetailedListing, error)
+		ListAggregate(context.Context, store.ReadScope, map[string]bool) (*worktree.DetailedListing, error)
 	})
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, fmt.Errorf("worktree aggregate unavailable"))
-		return
-	}
-	listing, err := reader.ListAggregate(c.Request.Context(), scope)
-	if err != nil {
-		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
 	allowed, err := h.aggregateWorkspaceSet(c, breadth)
@@ -37,13 +32,11 @@ func (h *BaseHandlers) ListWorktreeAggregate(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	selected := listing.Worktrees[:0]
-	for _, item := range listing.Worktrees {
-		if allowed[item.Worktree.WorkspaceID] {
-			selected = append(selected, item)
-		}
+	listing, err := reader.ListAggregate(c.Request.Context(), scope, allowed)
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
 	}
-	listing.Worktrees = selected
 	if err := h.enrichWorktreeListingOwners(c.Request.Context(), listing); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return

@@ -43,15 +43,16 @@ type profileState struct {
 }
 
 type targetState struct {
-	readFence   *credentialReadFence
-	epoch       uint64
-	target      Target
-	snapshot    Snapshot
-	identity    CredentialIdentity
-	hasIdentity bool
-	lastSuccess time.Time
-	flight      *flight
-	cooldown    *cooldown
+	readFence     *credentialReadFence
+	epoch         uint64
+	validationSeq uint64
+	target        Target
+	snapshot      Snapshot
+	identity      CredentialIdentity
+	hasIdentity   bool
+	lastSuccess   time.Time
+	flight        *flight
+	cooldown      *cooldown
 }
 
 type cooldown struct {
@@ -225,9 +226,9 @@ func (s *Manager) Envelope(ctx context.Context, profile string) (Envelope, error
 	if err := s.resolve(ctx, profile); err != nil {
 		return Envelope{}, err
 	}
+	s.fenceRead(ctx, profile)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fenceReadLocked(ctx, profile)
 	return s.envelopeLocked(profile), nil
 }
 

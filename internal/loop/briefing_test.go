@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -13,6 +14,30 @@ import (
 	"github.com/compozy/compozy/internal/task"
 	"github.com/kballard/go-shellquote"
 )
+
+func BenchmarkCompleteRoster(b *testing.B) {
+	for _, size := range []int{500, 2500, 10000} {
+		b.Run(fmt.Sprintf("items_%d", size), func(b *testing.B) {
+			source := RosterSource{
+				Run:     Run{ID: "run-large", Status: StatusRunning, Generation: 1},
+				Graph:   dsl.Graph{Nodes: []dsl.Node{{ID: "fan", Class: dsl.NodeClassAction}}},
+				Outputs: make([]GenerationOutput, size),
+			}
+			for itemIndex := range size {
+				source.Outputs[itemIndex] = GenerationOutput{
+					Generation: 1, NodeID: "fan", ItemIndex: itemIndex, Status: "succeeded",
+				}
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				roster, err := projectCompleteRoster(&source, NodeStateFilterAll, 0)
+				if err != nil || len(roster.Nodes) != size {
+					b.Fatalf("complete roster length = %d, error = %v", len(roster.Nodes), err)
+				}
+			}
+		})
+	}
+}
 
 func TestBriefingContract(t *testing.T) {
 	t.Parallel()
@@ -519,6 +544,53 @@ func TestBriefingContract(t *testing.T) {
 		if len(roster.Nodes) != 600 || briefing.Progress.StepsDone != 600 ||
 			briefing.Progress.StepsTotal != 600 {
 			t.Fatalf("roster/progress = %d/%#v, want 600 settled steps", len(roster.Nodes), briefing.Progress)
+		}
+	})
+	t.Run("Should retain complete filtered rosters across generations", func(t *testing.T) {
+		t.Parallel()
+		source := RosterSource{
+			Run:         Run{ID: "run-rounds", Status: StatusRunning, Generation: 2},
+			Graph:       dsl.Graph{Nodes: []dsl.Node{{ID: "fan", Class: dsl.NodeClassAction}}},
+			Generations: []LoopGeneration{{Generation: 1}, {Generation: 2}},
+		}
+		for generation := 1; generation <= 2; generation++ {
+			for itemIndex := range 600 {
+				status := "succeeded"
+				if itemIndex%2 != 0 {
+					status = "running"
+				}
+				source.Outputs = append(source.Outputs, GenerationOutput{
+					Generation: generation, NodeID: "fan", ItemIndex: itemIndex, Status: status,
+				})
+			}
+		}
+		complete, err := projectCompleteRoster(&source, NodeStateFilterAll, 0)
+		if err != nil || len(complete.Nodes) != 1200 || complete.NextCursor != "" {
+			t.Fatalf(
+				"complete roster length = %d, cursor = %q, error = %v",
+				len(complete.Nodes),
+				complete.NextCursor,
+				err,
+			)
+		}
+		for index, node := range complete.Nodes {
+			if node.Generation != index/600+1 || node.ItemIndex != index%600 {
+				t.Fatalf("node %d lost generation/item order: %#v", index, node)
+			}
+		}
+		filtered, err := projectCompleteRoster(&source, NodeStateFilter(NodeStateSucceeded), 2)
+		if err != nil || len(filtered.Nodes) != 300 || filtered.NextCursor != "" {
+			t.Fatalf(
+				"filtered roster length = %d, cursor = %q, error = %v",
+				len(filtered.Nodes),
+				filtered.NextCursor,
+				err,
+			)
+		}
+		for index, node := range filtered.Nodes {
+			if node.Generation != 2 || node.ItemIndex != 2*index || node.State != NodeStateSucceeded {
+				t.Fatalf("node %d lost filter/order: %#v", index, node)
+			}
 		}
 	})
 }

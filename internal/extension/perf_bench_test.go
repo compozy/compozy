@@ -74,9 +74,18 @@ func BenchmarkTaskRunPayloadsFromRuns(b *testing.B) {
 }
 
 func BenchmarkExtensionToolProviderListAndResolve(b *testing.B) {
+	benchmarkExtensionToolProviderListAndResolve(b, 16)
+}
+
+func BenchmarkExtensionToolProviderListAndResolveMany(b *testing.B) {
+	benchmarkExtensionToolProviderListAndResolve(b, 128)
+}
+
+func benchmarkExtensionToolProviderListAndResolve(b *testing.B, count int) {
+	b.Helper()
 	b.ReportAllocs()
 
-	registry, targetID := extensionBenchmarkToolRegistry(b, 16)
+	registry, targetID := extensionBenchmarkToolRegistry(b, count)
 	provider, err := NewExtensionToolProvider(registry, func() ExtensionToolRuntime {
 		return nil
 	})
@@ -85,17 +94,38 @@ func BenchmarkExtensionToolProviderListAndResolve(b *testing.B) {
 	}
 	ctx := testutil.Context(b)
 	scope := toolspkg.Scope{Operator: true}
+	if _, err := provider.List(ctx, scope); err != nil {
+		b.Fatal(err)
+	}
 
 	for b.Loop() {
 		descriptors, err := provider.List(ctx, scope)
 		if err != nil {
 			b.Fatalf("List() error = %v", err)
 		}
-		if len(descriptors) != 16 {
-			b.Fatalf("len(descriptors) = %d, want 16", len(descriptors))
+		if len(descriptors) != count {
+			b.Fatalf("len(descriptors) = %d, want %d", len(descriptors), count)
 		}
 		if _, found, err := provider.Resolve(ctx, scope, targetID); err != nil || !found {
 			b.Fatalf("Resolve(%q) = found %v, error %v; want found", targetID, found, err)
+		}
+	}
+}
+
+func BenchmarkExtensionManagerWorkspaceInventory(b *testing.B) {
+	b.ReportAllocs()
+	registry, _ := extensionBenchmarkToolRegistry(b, 128)
+	infos, err := registry.List()
+	if err != nil {
+		b.Fatal(err)
+	}
+	manager := NewManager(registry)
+	for index := range infos {
+		manager.extensions[infos[index].Name] = &managedExtension{info: infos[index]}
+	}
+	for b.Loop() {
+		if got := manager.ListForWorkspace("workspace-bench"); len(got) != len(infos) {
+			b.Fatalf("ListForWorkspace() returned %d extensions, want %d", len(got), len(infos))
 		}
 	}
 }

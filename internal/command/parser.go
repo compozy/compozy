@@ -24,6 +24,14 @@ func ParseSkillInvocations(text string, catalog Catalog) ([]Invocation, error) {
 		available[descriptor.CanonicalToken] = *descriptor.Skill
 	}
 
+	byteAt, unitAt := 0, 0
+	utf16Offset := func(byteOffset int) int {
+		for _, character := range text[byteAt:byteOffset] {
+			unitAt += utf16.RuneLen(character)
+		}
+		byteAt = byteOffset
+		return unitAt
+	}
 	invocations := make([]Invocation, 0)
 	seen := make(map[string]struct{})
 	for offset := 0; offset < len(text); {
@@ -41,7 +49,7 @@ func ParseSkillInvocations(text string, catalog Catalog) ([]Invocation, error) {
 		if ref, ok := available[token]; ok {
 			if _, duplicate := seen[ref.CommandID]; !duplicate {
 				invocations = append(invocations, Invocation{
-					Ref: ref, Token: token, Start: utf16Offset(text, offset), End: utf16Offset(text, end),
+					Ref: ref, Token: token, Start: utf16Offset(offset), End: utf16Offset(end),
 				})
 				seen[ref.CommandID] = struct{}{}
 			}
@@ -54,10 +62,6 @@ func ParseSkillInvocations(text string, catalog Catalog) ([]Invocation, error) {
 		offset = end
 	}
 	return invocations, nil
-}
-
-func utf16Offset(text string, byteOffset int) int {
-	return len(utf16.Encode([]rune(text[:byteOffset])))
 }
 
 // ReconcileInvocations narrows admitted refs to markers that survive a hook rewrite.

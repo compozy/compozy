@@ -124,18 +124,13 @@ func (s *Service) run(ctx context.Context) {
 			return
 		case <-ticker.C:
 		}
+		live, busy := s.source.ProcessActivity()
+		if (!live && s.clients.Load() == 0) || (!busy && time.Since(last) < normalInterval) {
+			continue
+		}
 		owners, err := s.source.Owners(ctx)
 		if err != nil {
 			s.logger.Warn("Read session process demand", "error", err)
-			continue
-		}
-		demand := s.clients.Load() > 0
-		busy := false
-		for _, o := range owners {
-			demand = demand || o.Live
-			busy = busy || (o.Live && o.ToolBusy)
-		}
-		if !demand || (!busy && time.Since(last) < normalInterval) {
 			continue
 		}
 		if _, err := s.refresh(ctx, owners, false); err != nil && ctx.Err() == nil {

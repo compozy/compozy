@@ -2,6 +2,7 @@ import { createStore, type EnqueueObject } from "@xstate/store";
 import type { Query, QueryClient } from "@tanstack/react-query";
 
 import { tasksKeys } from "./query-keys";
+import type { TaskRunDetailView, TaskRunInspectView } from "../types";
 
 type TaskLiveRefreshPhase = "idle" | "scheduled" | "refreshing" | "disposed";
 
@@ -39,9 +40,17 @@ function isTaskLiveQuery(query: Query, taskId: string): boolean {
     case "tree":
     case "profile":
       return key[2] === taskId;
-    case "inspect":
-      return key[2] === "run" || (key[2] === "task" && key[3] === taskId);
-    case "run-detail":
+    case "inspect": {
+      if (key[2] === "task") return key[3] === taskId;
+      if (key[2] !== "run") return false;
+      const inspect = query.state.data as TaskRunInspectView | undefined;
+      return !inspect?.task?.id || inspect.task.id === taskId;
+    }
+    case "run-detail": {
+      const detail = query.state.data as TaskRunDetailView | undefined;
+      // Run ownership is immutable; a missing snapshot still needs a canonical reread.
+      return !detail?.run?.task_id || detail.run.task_id === taskId;
+    }
     case "agent-context":
       return true;
     case "reviews":

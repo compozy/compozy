@@ -35,6 +35,7 @@ func (f workspaceGetterFunc) Get(ctx context.Context, ref string) (workspacepkg.
 type workspaceServiceStub struct {
 	get     workspaceGetterFunc
 	resolve func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+	list    func(context.Context) ([]workspacepkg.Workspace, error)
 }
 
 func (s workspaceServiceStub) Register(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
@@ -49,7 +50,10 @@ func (s workspaceServiceStub) Update(context.Context, string, workspacepkg.Updat
 	return workspacepkg.ErrWorkspaceNotFound
 }
 
-func (s workspaceServiceStub) List(context.Context) ([]workspacepkg.Workspace, error) {
+func (s workspaceServiceStub) List(ctx context.Context) ([]workspacepkg.Workspace, error) {
+	if s.list != nil {
+		return s.list(ctx)
+	}
 	return nil, nil
 }
 

@@ -32,3 +32,11 @@ steps:
 src: web/src/systems/os/apps/loops/ (runs roster); visual contract docs/design/opendesign/loop-legibility/loop-legibility-runs-roster.html (VC-33..VC-36)
 
 QA impact 2026-08-21: Task 05 re-ranked the roster from the server-owned extended read (`_uiux.md` S6). Planning flag only; the loop's QA phase owns the walk and evidence.
+
+QA impact 2026-11-01 (responsiveness audit): Loop stream frames still reach the
+live consumer immediately; affected authoritative reads now reconcile one burst
+and any arrivals during an in-flight read in successive rounds. Workspace and
+All projects run lists must converge to the final server order and needs-you marker.
+Re-walk with a rapid run lifecycle burst and a pending refresh when leaving the run.
+Focused results and pending runtime/current-head CI evidence are tracked in
+`docs/qa/reports/2026-11-01-performance/loop-loops.md`.

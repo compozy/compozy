@@ -307,6 +307,55 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name      string
+		profile   string
+		workspace string
+	}{
+		{"Should exclude stale durable rows and relations after the live workspace changes", store.DefaultProfileID, "ws-read-01"},
+		{"Should exclude stale durable rows and relations outside the live profile", "other-profile", "ws-read-00"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			manager := newWorkspaceSessionReadFixture(t, 4, 2)
+			child := &Session{
+				ID: "sess-read-000", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+				AgentName: "coder", Provider: "claude", State: StateActive, RuntimeStatus: store.SessionRuntimeReady,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-read-002", RootSessionID: "sess-read-002",
+					SpawnDepth: 1, Kind: store.LineageKindSpawn,
+				},
+				CreatedAt: benchmarkSessionTime,
+			}
+			if err := manager.sessionCatalog.RegisterSession(
+				t.Context(),
+				sessionCatalogInfoFromRuntime(child.Info()),
+			); err != nil {
+				t.Fatal(err)
+			}
+			child.ProfileID, child.WorkspaceID = tc.profile, tc.workspace
+			manager.sessions[child.ID] = child
+			query := ListQuery{
+				ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID:  "ws-read-00",
+				HideChildren: true,
+			}
+			page, err := manager.ListPage(t.Context(), query)
+			if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "sess-read-002" {
+				t.Fatalf("scoped page = %#v, %v", page, err)
+			}
+			if page.Sessions[0].Children != nil {
+				t.Fatalf("out-of-scope active child leaked through durable relation: %#v", page.Sessions[0].Children)
+			}
+			query.HideChildren = false
+			page, err = manager.ListPage(t.Context(), query)
+			facets, facetErr := manager.CatalogFacets(t.Context(), query)
+			if err != nil || facetErr != nil || len(page.Sessions) != 1 || page.Total != 1 || facets.Facets.All != 1 {
+				t.Fatalf("scoped union page=%#v/%v facets=%#v/%v", page, err, facets, facetErr)
+			}
+		})
+	}
+
 	t.Run(
 		"Should hide verdict-only judges before counting and preserve actionable system sessions",
 		func(t *testing.T) {

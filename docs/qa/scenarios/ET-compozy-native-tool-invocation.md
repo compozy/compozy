@@ -85,3 +85,17 @@ the launch. Never restart the operator daemon for this walk. WSL2 ENOENT behavio
 requires separate platform evidence when the local lab is macOS.
 
 The [targeted report](../reports/2026-10-30-claude-hosted-mcp-startup.md) records fresh/load payload evidence, a controlled bind failure, and the unreproduced WSL2 limit.
+
+QA impact 2026-11-01 (responsiveness audit): a toolset-list request now discovers
+the scoped tool universe once and expands every toolset against that snapshot.
+Re-walk toolset discovery with multiple toolsets and dynamic MCP tools, change the
+available tools, and repeat discovery. All toolsets in each response must agree;
+the later request must reflect the changed catalog while preserving workspace,
+profile, authorization, and unknown-tool diagnostics.
+
+Focused evidence: `TestRuntimeRegistryToolsets` and the canonical registry tests
+pass with the race detector. The
+[performance report](../reports/2026-11-01-performance/events-settings.md) records
+before/after registry measurements without synthetic network delay. Real
+CLI/HTTP/hosted-MCP verification and current-head CI remain pending for this
+audit; this entry does not change historical passing verdicts above.

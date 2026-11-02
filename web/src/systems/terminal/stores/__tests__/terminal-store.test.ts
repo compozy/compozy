@@ -80,3 +80,11 @@ describe("terminal profile rebinding", () => {
     expect(Object.keys(store.getSnapshot().context.panes)).toEqual([DEV_SERVER]);
   });
 });
+
+describe("terminal catalog retention", () => {
+  it("Should ignore a catalog from an old scope", () => {
+    const store = openStore(WORK_KEY, DEV_SERVER);
+    store.trigger.panesReconciled({ scopeKey: PERSONAL_KEY, terminalIds: [] });
+    expect(Object.keys(store.getSnapshot().context.panes)).toEqual([DEV_SERVER]);
+  });
+});

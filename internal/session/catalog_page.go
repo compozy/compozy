@@ -267,15 +267,22 @@ func sessionCatalogPageQuery(
 func (m *Manager) activeSessionCatalogRows(
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo) {
-	return m.activeSessionCatalogRowsFromInfos(query, m.List())
+	infos, excludedIDs := m.activeCatalogSnapshots(query)
+	return m.activeSessionCatalogRowsFromInfos(query, infos, excludedIDs)
 }
 
 func (m *Manager) activeSessionCatalogRowsFromInfos(
 	query ListQuery,
 	activeInfos []*Info,
+	excludedIDs []string,
 ) (map[string]*Info, []string, []store.SessionInfo) {
-	activeByID := make(map[string]*Info, len(activeInfos))
-	activeIDs := make([]string, 0, len(activeInfos))
+	activeByID := make(map[string]*Info, len(activeInfos)+len(excludedIDs))
+	activeIDs := make([]string, 0, len(activeInfos)+len(excludedIDs))
+	for _, id := range excludedIDs {
+		// Exclude stale durable identities even when their live owner moved outside the requested scope.
+		activeByID[id] = nil
+		activeIDs = append(activeIDs, id)
+	}
 	activeMatches := make([]store.SessionInfo, 0, len(activeInfos))
 	now := m.now().UTC()
 	for _, info := range activeInfos {

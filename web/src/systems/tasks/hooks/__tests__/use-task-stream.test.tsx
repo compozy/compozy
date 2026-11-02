@@ -2,7 +2,12 @@
 // Invariant: one stream coalesces event refreshes and reconciles dirty catalogs before release.
 // Boundary IN: EventSource ownership, refresh admission, and cache invalidation sequencing.
 // Boundary OUT: task endpoint framing and visible task rendering, owned by adapter and component suites.
-import { QueryClient, QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+  useInfiniteQuery,
+} from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -14,6 +19,8 @@ import {
   type TaskStreamPayload,
   useTaskStream,
 } from "@/systems/tasks";
+
+import { createTaskLiveRefreshStore } from "../../lib/task-live-refresh-coordinator";
 
 class FakeTaskStreamEventSource {
   public close = vi.fn();
@@ -89,6 +96,64 @@ describe("buildTaskStreamUrl", () => {
 });
 
 describe("useTaskStream", () => {
+  it("Should refresh only the event task's populated run queries among many active reads", async () => {
+    const requestsPerEvent: number[] = [];
+    for (let sample = 0; sample < 5; sample++) {
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+      });
+      const unsubscribe: (() => void)[] = [];
+      let requests = 0;
+      for (let index = 0; index < 50; index++) {
+        const taskId = `task_${index}`;
+        const runId = `run_${index}`;
+        const queries = [
+          { queryKey: tasksKeys.runDetail(runId), data: { run: { id: runId, task_id: taskId } } },
+          {
+            queryKey: tasksKeys.inspectRun(runId, { profile: "default" }),
+            data: { task: { id: taskId }, current_run: { run_id: runId, task_id: taskId } },
+          },
+        ];
+        for (const { queryKey, data } of queries) {
+          queryClient.setQueryData(queryKey, data);
+          const observer = new QueryObserver(queryClient, {
+            queryKey,
+            queryFn: async () => {
+              requests++;
+              return data;
+            },
+          });
+          unsubscribe.push(observer.subscribe(() => {}));
+        }
+      }
+      const refresh = createTaskLiveRefreshStore(queryClient, "task_0");
+      refresh.trigger.refreshRequested();
+      await waitFor(() => {
+        expect(requests).toBeGreaterThan(0);
+        expect(refresh.getSnapshot().context.phase).toBe("idle");
+      });
+      requestsPerEvent.push(requests);
+      refresh.trigger.disposed();
+      unsubscribe.forEach(release => release());
+      queryClient.clear();
+    }
+    expect(requestsPerEvent).toEqual([2, 2, 2, 2, 2]);
+  });
+
+  it("Should refresh run reads with unknown task ownership conservatively", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const detailKey = tasksKeys.runDetail("run_pending");
+    const inspectKey = tasksKeys.inspectRun("run_pending", { profile: "default" });
+    queryClient.setQueryData(detailKey, {});
+    queryClient.setQueryData(inspectKey, {});
+    const refresh = createTaskLiveRefreshStore(queryClient, "task_001");
+    refresh.trigger.refreshRequested();
+    await waitFor(() => expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true));
+    expect(queryClient.getQueryState(inspectKey)?.isInvalidated).toBe(true);
+    refresh.trigger.disposed();
+    queryClient.clear();
+  });
+
   it("Should coalesce a synchronous event burst into one live refresh cycle", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");

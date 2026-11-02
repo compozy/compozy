@@ -2,6 +2,7 @@ package filesnap
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -9,6 +10,74 @@ import (
 	"testing"
 	"time"
 )
+
+func TestFromFile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve held file identity and reader position", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "held.txt")
+		if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := file.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := file.Seek(3, io.SeekStart); err != nil {
+			t.Fatal(err)
+		}
+		before, err := FromFile(file)
+		if err != nil || before.Size != 8 {
+			t.Fatalf("FromFile() = %#v, %v", before, err)
+		}
+		remaining, err := io.ReadAll(file)
+		if err != nil || string(remaining) != "ginal" {
+			t.Fatalf("remaining = %q, %v", remaining, err)
+		}
+		if err := os.Rename(path, path+".old"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("replacement"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		held, err := FromFile(file)
+		if err != nil || held.Size != 8 {
+			t.Fatalf("held snapshot = %#v, %v", held, err)
+		}
+		replacement, err := FromPath(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if held.Equal(replacement) {
+			t.Fatal("path replacement must not reuse the held file's snapshot")
+		}
+	})
+	t.Run("Should leave metadata without change tokens uncacheable", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "plain.txt")
+		if err := os.WriteFile(path, []byte("data"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := metadataSnapshot(withoutSystemMetadata{info})
+		info, err = os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		after := metadataSnapshot(withoutSystemMetadata{info})
+		if before.Equal(after) {
+			t.Fatal("metadata without a change token must not authorize reuse")
+		}
+	})
+}
 
 func TestFromPath(t *testing.T) {
 	t.Parallel()

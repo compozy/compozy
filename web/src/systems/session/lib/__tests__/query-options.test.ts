@@ -22,6 +22,7 @@ import { sessionKeys } from "../query-keys";
 import { sessionProcessesOptions } from "../session-processes-query-options";
 import {
   invalidateSessionLiveQueries,
+  invalidateSessionMonitorsQueries,
   invalidateSessionProcessesQueries,
   invalidateSessionMutationQueries,
   invalidateSessionUsageQueries,
@@ -459,6 +460,59 @@ describe("session read invalidation", () => {
     otherOwner: sessionKeys.byId("other-session", "profile"),
     usageDescendant: [...sessionKeys.usage("ws", "session"), "descendant"],
   };
+  it("Should preserve exact wake scope with a configured query hash and newly retained reads", async () => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: Infinity,
+          queryKeyHashFn: queryKey => `session-test:${JSON.stringify(queryKey)}`,
+        },
+      },
+    });
+    const monitorKey = sessionKeys.monitors("ws", "session");
+    const otherKey = sessionKeys.monitors("other-ws", "session");
+    const descendantKey = [...monitorKey, "descendant"];
+    try {
+      // A wake before first use must not materialize a query or suppress a later wake.
+      await invalidateSessionMonitorsQueries(client, "ws", "session");
+      expect(client.getQueryState(monitorKey)).toBeUndefined();
+      for (const queryKey of [monitorKey, otherKey, descendantKey])
+        client.setQueryData(queryKey, "retained");
+      await invalidateSessionMonitorsQueries(client, "ws", "session");
+      expect(client.getQueryState(monitorKey)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(descendantKey)?.isInvalidated).toBe(false);
+    } finally {
+      client.clear();
+    }
+  });
+  it.each([
+    { name: "hash function", options: { queryKeyHashFn: () => "custom-monitor" } },
+    { name: "explicit hash", options: { queryHash: "custom-monitor" } },
+  ])("Should invalidate exact reads with a per-query $name", async ({ options }) => {
+    const client = new QueryClient();
+    const queryKey = sessionKeys.monitors("ws", "session");
+    const queryFn = vi.fn(async () => "after");
+    const observer = new QueryObserver(client, {
+      queryKey,
+      queryFn,
+      initialData: "before",
+      staleTime: Infinity,
+      ...options,
+    });
+    const unsubscribe = observer.subscribe(() => undefined);
+    try {
+      client.setQueryData(queryKey, "inactive-copy");
+      await invalidateSessionMonitorsQueries(client, "ws", "session");
+      expect(queryFn).toHaveBeenCalledTimes(1);
+      expect(observer.getCurrentResult().data).toBe("after");
+      expect(client.getQueryState(queryKey)?.isInvalidated).toBe(true);
+    } finally {
+      unsubscribe();
+      client.clear();
+    }
+  });
   for (const testCase of [
     {
       name: "live",

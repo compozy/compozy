@@ -3,12 +3,16 @@
 // alone), invalidation keys are workspace-qualified and dropped for unauthorized workspaces, and
 // both the listeners and the source are released on unmount/disconnect (B-015, L-017/L-018 class).
 // Owning layer: workspace stream hook. Canonical suite: this hook test.
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { workspaceKeys } from "../../lib/query-keys";
+import {
+  WORKTREE_REREAD_COALESCE_MS,
+  WORKTREE_REREAD_MAX_WAIT_MS,
+} from "../../lib/worktree-reread";
 import { useWorktrees, useWorktreeListings } from "../use-worktrees";
 import * as worktreeApi from "../../adapters/worktree-api";
 import {
@@ -61,14 +65,179 @@ function setup(workspaces: Array<{ id: string }>) {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  const view = renderHook(
-    () => useWorktreeCatalogStream(workspaces, { eventSourceFactory: () => source }),
-    { wrapper }
-  );
+  const eventSourceFactory = () => source;
+  const view = renderHook(() => useWorktreeCatalogStream(workspaces, { eventSourceFactory }), {
+    wrapper,
+  });
   return { source, invalidate, queryClient, view };
 }
 
 describe("useWorktreeCatalogStream", () => {
+  it("Should reconcile every affected workspace by the ceiling during continuous frames", () => {
+    vi.useFakeTimers();
+    const { source, queryClient, view } = setup([{ id: "a" }, { id: "b" }]);
+    const keys = [workspaceKeys.worktrees("a"), workspaceKeys.worktrees("b")];
+    for (const key of keys) queryClient.setQueryData(key, {});
+    try {
+      act(() => {
+        for (let elapsed = 0; elapsed < WORKTREE_REREAD_MAX_WAIT_MS; elapsed += 100) {
+          source.emit("worktree_catalog_changed", {
+            kind: "updated",
+            workspace_id: elapsed % 200 === 0 ? "a" : "b",
+            worktree_id: "wt",
+          });
+          vi.advanceTimersByTime(99);
+          for (const key of keys) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+          vi.advanceTimersByTime(1);
+        }
+      });
+      for (const key of keys) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+    } finally {
+      view.unmount();
+      queryClient.clear();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["error", "unmount"])("Should flush pending work on %s without a late reread", reason => {
+    vi.useFakeTimers();
+    const { source, queryClient, view, invalidate } = setup([{ id: "a" }, { id: "b" }]);
+    const affected = workspaceKeys.worktreeDetail("a", "wt");
+    const untouched = workspaceKeys.worktreeDetail("b", "wt");
+    queryClient.setQueryData(affected, {});
+    queryClient.setQueryData(untouched, {});
+    try {
+      act(() => {
+        source.emit("worktree_catalog_changed", {
+          kind: "updated",
+          workspace_id: "a",
+          worktree_id: "wt",
+        });
+      });
+      expect(queryClient.getQueryState(affected)?.isInvalidated).toBe(false);
+      act(() => {
+        if (reason === "error") source.emit("error");
+        else view.unmount();
+      });
+      expect(queryClient.getQueryState(affected)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(untouched)?.isInvalidated).toBe(false);
+      if (reason === "error") expect(view.result.current).toBe("stale");
+      invalidate.mockClear();
+      act(() => vi.advanceTimersByTime(WORKTREE_REREAD_MAX_WAIT_MS));
+      expect(invalidate).not.toHaveBeenCalled();
+    } finally {
+      view.unmount();
+      queryClient.clear();
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should replace authorized scopes and ignore frames from the disposed connection", () => {
+    vi.useFakeTimers();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = () => {
+      const source = new FakeCatalogEventSource();
+      sources.push(source);
+      return source;
+    };
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const view = renderHook(
+      ({ workspaces }) => useWorktreeCatalogStream(workspaces, { eventSourceFactory: factory }),
+      { wrapper, initialProps: { workspaces: [{ id: "a" }] } }
+    );
+    try {
+      const alpha = workspaceKeys.worktrees("a");
+      const beta = workspaceKeys.worktrees("b");
+      client.setQueryData(alpha, {});
+      client.setQueryData(beta, {});
+      act(() =>
+        sources[0].emit("worktree_catalog_changed", {
+          kind: "updated",
+          workspace_id: "a",
+          worktree_id: "wt",
+        })
+      );
+      view.rerender({ workspaces: [{ id: "b" }] });
+      expect(client.getQueryState(alpha)?.isInvalidated).toBe(true);
+      expect(sources[0].closed).toBe(true);
+      client.setQueryData(alpha, {});
+      act(() => {
+        sources[0].emit("worktree_catalog_changed", {
+          kind: "updated",
+          workspace_id: "a",
+          worktree_id: "wt",
+        });
+        sources[1].emit("worktree_catalog_changed", {
+          kind: "updated",
+          workspace_id: "a",
+          worktree_id: "wt",
+        });
+        sources[1].emit("worktree_catalog_changed", {
+          kind: "updated",
+          workspace_id: "b",
+          worktree_id: "wt",
+        });
+        vi.advanceTimersByTime(WORKTREE_REREAD_COALESCE_MS);
+      });
+      expect(client.getQueryState(alpha)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(beta)?.isInvalidated).toBe(true);
+    } finally {
+      view.unmount();
+      client.clear();
+      vi.useRealTimers();
+    }
+  });
+
+  // Invariant: a catalog burst reconciles every affected live read to the latest generation.
+  // Owner: catalog-stream cache boundary; measured through real Query observers.
+  it("Should reconcile a burst to the latest catalog generation with bounded rereads", async () => {
+    vi.useFakeTimers();
+    const { source, queryClient, view } = setup([{ id: "ws_alpha" }]);
+    let generation = 0;
+    const reads = [0, 0, 0];
+    const keys = [
+      workspaceKeys.worktrees("ws_alpha"),
+      workspaceKeys.worktreeAggregate([]),
+      workspaceKeys.worktreeDetail("ws_alpha", "wt_one"),
+    ];
+    const subscriptions = keys.map((queryKey, index) => {
+      queryClient.setQueryData(queryKey, { generation });
+      return new QueryObserver(queryClient, {
+        queryKey,
+        staleTime: Infinity,
+        queryFn: async ({ signal }) => {
+          void signal.aborted;
+          reads[index] += 1;
+          return { generation };
+        },
+      }).subscribe(() => {});
+    });
+    try {
+      await act(async () => {
+        for (generation = 1; generation <= 100; generation += 1) {
+          source.emit("worktree_catalog_changed", {
+            kind: "updated",
+            workspace_id: "ws_alpha",
+            worktree_id: "wt_one",
+          });
+        }
+        generation = 100;
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      for (const key of keys) expect(queryClient.getQueryData(key)).toEqual({ generation: 100 });
+      expect(reads).toEqual([1, 1, 1]);
+      console.info("worktree catalog burst requests", JSON.stringify(reads));
+    } finally {
+      subscriptions.forEach(unsubscribe => unsubscribe());
+      view.unmount();
+      queryClient.clear();
+      vi.useRealTimers();
+    }
+  });
+
   it.each([useWorktrees, () => useWorktreeListings([{ id: "a" }])])(
     "Should recover gone-workspace reads through catalog observations (%s)",
     async useListing => {
@@ -164,9 +333,11 @@ describe("useWorktreeCatalogStream", () => {
     expect(source.listeners.has("error")).toBe(true);
   });
 
-  it("Should invalidate the workspace-qualified key named by the frame", () => {
-    const { source, invalidate } = setup([{ id: "ws_alpha" }, { id: "ws_beta" }]);
+  it("Should invalidate the workspace-qualified key named by the frame", async () => {
+    const { source, invalidate, queryClient } = setup([{ id: "ws_alpha" }, { id: "ws_beta" }]);
     invalidate.mockClear();
+    queryClient.setQueryData(workspaceKeys.worktreeDetail("ws_beta", "wt_one"), {});
+    queryClient.setQueryData(workspaceKeys.worktreeDetail("ws_alpha", "wt_other"), {});
 
     act(() => {
       source.emit("worktree_catalog_changed", {
@@ -176,11 +347,15 @@ describe("useWorktreeCatalogStream", () => {
       });
     });
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.worktrees("ws_beta") });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: workspaceKeys.worktreeDetail("ws_beta", "wt_one"),
-      exact: true,
-    });
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.worktrees("ws_beta") })
+    );
+    expect(
+      queryClient.getQueryState(workspaceKeys.worktreeDetail("ws_beta", "wt_one"))?.isInvalidated
+    ).toBe(true);
+    expect(
+      queryClient.getQueryState(workspaceKeys.worktreeDetail("ws_alpha", "wt_other"))?.isInvalidated
+    ).toBe(false);
     // The other workspace's cache is untouched.
     expect(invalidate).not.toHaveBeenCalledWith({
       queryKey: workspaceKeys.worktrees("ws_alpha"),
@@ -232,14 +407,16 @@ describe("useWorktreeCatalogStream", () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it("Should reread every authorized workspace on reconnect", () => {
+  it("Should reread every authorized workspace on reconnect", async () => {
     const { source, invalidate } = setup([{ id: "ws_alpha" }, { id: "ws_beta" }]);
     invalidate.mockClear();
 
     // A reconnect may have missed frames, so each workspace rereads.
     act(() => source.emit("open"));
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.worktrees("ws_alpha") });
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.worktrees("ws_alpha") })
+    );
     expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.worktrees("ws_beta") });
   });
 

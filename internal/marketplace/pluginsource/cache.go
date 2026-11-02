@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
@@ -26,9 +27,11 @@ var (
 type PackageCache struct {
 	Root string
 	// Zero selects the 1 GiB default; Sweep applies the aggregate budget at refresh commit.
-	MaxBytes int64
-	mu       sync.RWMutex
-	useMu    sync.RWMutex
+	MaxBytes   int64
+	mu         sync.RWMutex
+	useMu      sync.RWMutex
+	verifiedMu sync.Mutex
+	verified   map[string]filesnap.Snapshot
 }
 
 // Hold keeps packages available until a refresh or installation publishes its references.
@@ -140,7 +143,18 @@ func (c *PackageCache) Open(ctx context.Context, digest string) (io.ReadCloser, 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	directory, err := fileutil.OpenDirectory(c.Root)
+	file, err := openCacheBlob(c.Root, digest)
+	if err != nil {
+		return nil, err
+	}
+	if err := verifyCacheBlob(ctx, file, digest, limit); err != nil {
+		return nil, errors.Join(err, file.Close())
+	}
+	return file, nil
+}
+
+func openCacheBlob(root, digest string) (*os.File, error) {
+	directory, err := fileutil.OpenDirectory(root)
 	if err != nil {
 		return nil, unavailableCacheFile(err)
 	}
@@ -150,9 +164,6 @@ func (c *PackageCache) Open(ctx context.Context, digest string) (io.ReadCloser, 
 			err = errors.Join(err, file.Close())
 		}
 		return nil, unavailableCacheFile(err)
-	}
-	if err := verifyCacheBlob(ctx, file, digest, limit); err != nil {
-		return nil, errors.Join(err, file.Close())
 	}
 	return file, nil
 }

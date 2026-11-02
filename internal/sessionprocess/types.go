@@ -83,6 +83,7 @@ type Store interface {
 }
 
 type Source interface {
+	ProcessActivity() (live bool, toolBusy bool)
 	Owners(context.Context) ([]Owner, error)
 	Owner(context.Context, string) (Owner, bool, error)
 	OrphanOwner(context.Context, procutil.ScannedProcess) (Owner, bool, error)

@@ -276,12 +276,7 @@ func (m *Manager) currentTurnEndNotifier() TurnEndNotifier {
 
 // List returns active in-memory sessions in stable order.
 func (m *Manager) List() []*Info {
-	m.mu.RLock()
-	sessions := make([]*Session, 0, len(m.sessions))
-	for _, session := range m.sessions {
-		sessions = append(sessions, session)
-	}
-	m.mu.RUnlock()
+	sessions := m.activeSessions()
 
 	infos := make([]*Info, 0, len(sessions))
 	for _, session := range sessions {
@@ -293,6 +288,32 @@ func (m *Manager) List() []*Info {
 	})
 
 	return infos
+}
+
+func (m *Manager) activeSessions() []*Session {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	sessions := make([]*Session, 0, len(m.sessions))
+	for _, session := range m.sessions {
+		sessions = append(sessions, session)
+	}
+	return sessions
+}
+
+// ProcessActivity reports sampling demand without hydrating session read models.
+func (m *Manager) ProcessActivity() (live bool, toolBusy bool) {
+	for _, target := range m.activeSessions() {
+		target.mu.RLock()
+		active := target.State != StateStopped
+		busy := active && target.Liveness != nil && target.Liveness.Activity != nil &&
+			target.Liveness.Activity.CurrentTool != ""
+		target.mu.RUnlock()
+		live = live || active
+		if busy {
+			return true, true
+		}
+	}
+	return live, false
 }
 
 func (m *Manager) lookup(id string) (*Session, error) {

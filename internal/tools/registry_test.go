@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"sync/atomic"
@@ -1262,4 +1263,132 @@ func makeFilledBytes(length int, value byte) []byte {
 		data[i] = value
 	}
 	return data
+}
+
+func TestRuntimeRegistryToolsets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expand a scoped provider snapshot consistently and refresh the next request", func(t *testing.T) {
+		t.Parallel()
+		catalog, err := NewToolsetCatalog(
+			Toolset{ID: "compozy__first", Tools: []string{"compozy__*"}},
+			Toolset{ID: "compozy__second", Tools: []string{"compozy__*"}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		provider := registryTestProvider{
+			source: SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+			listScoped: func(scope Scope) []Descriptor {
+				if scope.WorkspaceID != "workspace-a" || scope.ProfileID != "profile-a" {
+					t.Fatalf("provider scope = %#v, want the request workspace and profile", scope)
+				}
+				calls++
+				id := ToolIDSkillView
+				if calls > 1 {
+					id = ToolIDTaskRead
+				}
+				return []Descriptor{descriptorWithID(id, "Current tool")}
+			},
+		}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(DefaultPolicyInputs(), catalog))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []ToolID{ToolIDSkillView, ToolIDTaskRead} {
+			views, err := registry.ListToolsets(t.Context(), Scope{WorkspaceID: "workspace-a", ProfileID: "profile-a"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(views) != 2 {
+				t.Fatalf("ListToolsets() = %#v, want both toolsets", views)
+			}
+			for _, view := range views {
+				if !slices.Equal(view.ExpandedTools, []ToolID{want}) || len(view.ReasonCodes) != 0 {
+					t.Fatalf("toolset view = %#v, want current snapshot tool %q", view, want)
+				}
+			}
+		}
+	})
+
+	t.Run("Should skip provider discovery when there are no toolsets", func(t *testing.T) {
+		t.Parallel()
+		provider := registryTestProvider{
+			source: SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+			list: func() []Descriptor {
+				t.Fatal("empty toolset list should not discover providers")
+				return nil
+			},
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.ListToolsets(t.Context(), Scope{})
+		if err != nil || len(views) != 0 {
+			t.Fatalf("ListToolsets() = %#v, %v; want an empty list", views, err)
+		}
+	})
+
+	t.Run("Should preserve expansion diagnostics and get one fresh toolset", func(t *testing.T) {
+		t.Parallel()
+		catalog, err := NewToolsetCatalog(Toolset{ID: "compozy__missing", Tools: []string{string(ToolIDSkillView)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := registryTestProvider{source: SourceRef{Kind: SourceBuiltin, Owner: "daemon"}}
+		registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(DefaultPolicyInputs(), catalog))
+		if err != nil {
+			t.Fatal(err)
+		}
+		views, err := registry.ListToolsets(t.Context(), Scope{})
+		if err != nil || len(views) != 1 {
+			t.Fatalf("ListToolsets() = %#v, %v", views, err)
+		}
+		view, err := registry.GetToolset(t.Context(), Scope{}, "compozy__missing")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(view, views[0]) || !slices.Equal(view.ReasonCodes, []ReasonCode{ReasonToolUnknown}) {
+			t.Fatalf("GetToolset() = %#v, want matching unknown-tool diagnostic %#v", view, views[0])
+		}
+	})
+}
+
+func BenchmarkRegistryListToolsets(b *testing.B) {
+	for _, count := range []int{1, 16, 32} {
+		b.Run(fmt.Sprintf("toolsets_%d", count), func(b *testing.B) {
+			sets := make([]Toolset, count)
+			for index := range count {
+				sets[index] = Toolset{
+					ID:    ToolsetID(fmt.Sprintf("compozy__set_%d", index)),
+					Tools: []string{"compozy__*"},
+				}
+			}
+			catalog, err := NewToolsetCatalog(sets...)
+			if err != nil {
+				b.Fatal(err)
+			}
+			descriptors := make([]Descriptor, 128)
+			for index := range descriptors {
+				descriptors[index] = descriptorWithID(ToolID(fmt.Sprintf("compozy__tool_%d", index)), "Tool")
+			}
+			provider := registryTestProvider{
+				source:      SourceRef{Kind: SourceBuiltin, Owner: "daemon"},
+				descriptors: descriptors,
+			}
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(DefaultPolicyInputs(), catalog))
+			if err != nil {
+				b.Fatal(err)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				views, err := registry.ListToolsets(b.Context(), Scope{})
+				if err != nil || len(views) != count {
+					b.Fatalf("ListToolsets() count=%d error=%v", len(views), err)
+				}
+			}
+		})
+	}
 }

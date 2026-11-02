@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -131,6 +131,239 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
 }
 
 describe("useLoopStream", () => {
+  it.each(["active", "disposed", "disabled", "disabled without prefetch", "failed initial read"])(
+    "Should reconcile a wake across an initial read with an %s observer",
+    async boundary => {
+      vi.useFakeTimers();
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const eventSource = new FakeLoopStreamEventSource();
+      const eventSourceFactory = () => eventSource;
+      const onEvent = vi.fn();
+      const disabled = boundary.startsWith("disabled");
+      let revision = 0;
+      let reads = 0;
+      let canceled = 0;
+      const options = {
+        queryKey: ["loops", "run-detail", "ws_1", "looprun_1"],
+        enabled: !disabled,
+        staleTime: Infinity,
+        queryFn: ({ signal }: { signal: AbortSignal }) => {
+          const attempt = ++reads;
+          const readRevision = revision;
+          return new Promise<{ revision: number }>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              if (boundary === "failed initial read" && attempt === 1) {
+                reject(new Error("Initial read failed"));
+              } else {
+                resolve({ revision: readRevision });
+              }
+            }, 100);
+            signal.addEventListener(
+              "abort",
+              () => {
+                canceled++;
+                clearTimeout(timer);
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          });
+        },
+      };
+      const observer = new QueryObserver(queryClient, options);
+      const unsubscribe = observer.subscribe(() => undefined);
+      const prefetch = boundary === "disabled" ? queryClient.prefetchQuery(options) : undefined;
+      const { unmount } = renderHook(
+        () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory, onEvent }),
+        { wrapper: createWrapper(queryClient) }
+      );
+      try {
+        const initialReads = boundary === "disabled without prefetch" ? 0 : 1;
+        expect(reads).toBe(initialReads);
+        await act(async () => {
+          revision = 1;
+          eventSource.emitNamed("node_running", buildFrame({ kind: "node_running" }));
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(onEvent).toHaveBeenCalledTimes(1);
+        expect(reads).toBe(initialReads);
+        if (boundary === "disposed") unmount();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(300);
+        });
+        await prefetch;
+        if (disabled) {
+          expect(reads).toBe(initialReads);
+          expect(queryClient.getQueryState(options.queryKey)?.isInvalidated).toBe(true);
+          await act(async () => {
+            observer.setOptions({ ...options, enabled: true });
+            await vi.advanceTimersByTimeAsync(100);
+          });
+        }
+        expect(reads).toBe(initialReads + 1);
+        expect(canceled).toBe(0);
+        expect(observer.getCurrentResult().data).toEqual({ revision: 1 });
+        expect(queryClient.getQueryState(options.queryKey)?.isInvalidated).toBe(false);
+      } finally {
+        unmount();
+        unsubscribe();
+        queryClient.clear();
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it("Should converge scoped reads after a lifecycle burst while delivering every frame", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const eventSource = new FakeLoopStreamEventSource();
+    const onEvent = vi.fn();
+    let revision = 0;
+    let reads = 0;
+    let canceled = 0;
+    const queryKey = ["loops", "run-detail", "ws_1", "looprun_1"];
+    queryClient.setQueryData(queryKey, { revision: 0 });
+    queryClient.setQueryData(["loops", "run-detail", "ws_2", "looprun_2"], { revision: 0 });
+    const observer = new QueryObserver(queryClient, {
+      queryKey,
+      staleTime: Infinity,
+      queryFn: ({ signal }) => {
+        reads++;
+        const readRevision = revision;
+        return new Promise<{ revision: number }>((resolve, reject) => {
+          const timer = setTimeout(() => resolve({ revision: readRevision }), 100);
+          signal.addEventListener(
+            "abort",
+            () => {
+              canceled++;
+              clearTimeout(timer);
+              reject(new DOMException("Aborted", "AbortError"));
+            },
+            { once: true }
+          );
+        });
+      },
+    });
+    const unsubscribe = observer.subscribe(() => undefined);
+    const eventSourceFactory = () => eventSource;
+    const { unmount } = renderHook(
+      () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory, onEvent }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    try {
+      for (let sequence = 1; sequence <= 100; sequence++) {
+        await act(async () => {
+          revision = sequence;
+          eventSource.emitNamed(
+            "node_running",
+            buildFrame({ kind: "node_running", seq: sequence })
+          );
+          await vi.advanceTimersByTimeAsync(2);
+        });
+      }
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(onEvent).toHaveBeenCalledTimes(100);
+      expect(observer.getCurrentResult().data).toEqual({ revision: 100 });
+      expect(
+        queryClient.getQueryState(["loops", "run-detail", "ws_2", "looprun_2"])?.isInvalidated
+      ).toBe(false);
+      console.log(`[loop-stream-burst] ${JSON.stringify({ frames: 100, reads, canceled })}`);
+      expect(reads).toBe(3);
+      expect(canceled).toBe(0);
+    } finally {
+      unmount();
+      unsubscribe();
+      queryClient.clear();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["scheduled disposal", "in-flight disposal", "stream error", "read failure"])(
+    "Should preserve pending authoritative reads through %s",
+    async boundary => {
+      vi.useFakeTimers();
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const eventSource = new FakeLoopStreamEventSource();
+      const eventSourceFactory = () => eventSource;
+      const onEvent = vi.fn();
+      const onError = vi.fn();
+      const queryKey = ["loops", "run-detail", "ws_1", "looprun_1"];
+      const affectedKeys = [
+        ["loops", "requests", "ws_1"],
+        ["loops", "node-inventory", "ws_1"],
+        ["loops", "catalog", "ws_1"],
+        ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
+      ];
+      queryClient.setQueryData(queryKey, { revision: 0 });
+      for (const key of affectedKeys) queryClient.setQueryData(key, { revision: 0 });
+      let revision = 1;
+      let reads = 0;
+      let canceled = 0;
+      const observer = new QueryObserver(queryClient, {
+        queryKey,
+        staleTime: Infinity,
+        queryFn: ({ signal }) => {
+          const attempt = ++reads;
+          const readRevision = revision;
+          signal.addEventListener(
+            "abort",
+            () => {
+              canceled++;
+            },
+            { once: true }
+          );
+          return new Promise<{ revision: number }>((resolve, reject) => {
+            setTimeout(() => {
+              if (boundary === "read failure" && attempt === 1) reject(new Error("Read failed"));
+              else resolve({ revision: readRevision });
+            }, 100);
+          });
+        },
+      });
+      const unsubscribe = observer.subscribe(() => undefined);
+      const { unmount } = renderHook(
+        () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory, onEvent, onError }),
+        { wrapper: createWrapper(queryClient) }
+      );
+      try {
+        act(() => eventSource.emitNamed("node_running", buildFrame({ kind: "node_running" })));
+        expect(onEvent).toHaveBeenCalledTimes(1);
+        if (boundary !== "scheduled disposal") {
+          await act(async () => {
+            await vi.advanceTimersByTimeAsync(1);
+          });
+          expect(reads).toBe(1);
+        }
+        act(() => {
+          revision = 2;
+          for (const kind of ["request_opened", "status_changed", "goal_turn_completed"] as const) {
+            eventSource.emitNamed(kind, buildFrame({ kind }));
+          }
+          if (boundary.includes("disposal")) unmount();
+          if (boundary === "stream error") eventSource.emitError();
+        });
+        expect(onEvent).toHaveBeenCalledTimes(4);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+        expect(observer.getCurrentResult().data).toEqual({ revision: 2 });
+        expect(reads).toBe(boundary === "scheduled disposal" ? 1 : 2);
+        expect(canceled).toBe(0);
+        for (const key of affectedKeys) {
+          expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+        }
+        expect(onError).toHaveBeenCalledTimes(boundary === "stream error" ? 1 : 0);
+      } finally {
+        unmount();
+        unsubscribe();
+        queryClient.clear();
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it("Should open a workspace-scoped stream seeded with after_sequence and subscribe to every enumerated kind", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const eventSource = new FakeLoopStreamEventSource();
@@ -286,11 +519,8 @@ describe("useLoopStream", () => {
       eventSource.emitNamed("goal_turn_completed", buildFrame({ kind: "goal_turn_completed" }));
     });
     await waitFor(() => expect(onEvent).toHaveBeenCalledTimes(3));
-    expect(invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(invalidateQueries).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
-      queryKey: ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
-    });
-    expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
       queryKey: ["loops", "run-reads", "ws_1", "looprun_1", "goal-turns", 50],
     });
 

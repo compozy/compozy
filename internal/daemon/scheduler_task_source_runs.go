@@ -57,24 +57,19 @@ func (s schedulerTaskSource) joinRunsWithTasks(
 	runs []taskpkg.Run,
 ) ([]schedulerpkg.RunSnapshot, error) {
 	work := make([]schedulerpkg.RunSnapshot, 0, len(runs))
+	tasks := make(map[string]taskpkg.Task)
 	for _, run := range runs {
-		taskRecord, err := s.store.GetTask(ctx, run.TaskID)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: scheduler load task %q for run %q: %w", run.TaskID, run.ID, err)
+		taskRecord, found := tasks[run.TaskID]
+		if !found {
+			var err error
+			taskRecord, err = s.store.GetTask(ctx, run.TaskID)
+			if err != nil {
+				return nil, fmt.Errorf("daemon: scheduler load task %q for run %q: %w", run.TaskID, run.ID, err)
+			}
+			tasks[run.TaskID] = taskRecord
 		}
 		if taskRecord.Paused {
 			continue
-		}
-		if pauseReader, ok := s.store.(interface {
-			IsTaskEffectivelyPaused(context.Context, string) (bool, string, error)
-		}); ok {
-			paused, _, err := pauseReader.IsTaskEffectivelyPaused(ctx, taskRecord.ID)
-			if err != nil {
-				return nil, err
-			}
-			if paused {
-				continue
-			}
 		}
 		work = append(work, schedulerpkg.RunSnapshot{Task: taskRecord, Run: run})
 	}
@@ -90,11 +85,17 @@ func (s schedulerTaskSource) filterPausedRuns(
 		return snapshots, nil
 	}
 	filtered := make([]schedulerpkg.RunSnapshot, 0, len(snapshots))
+	pauses := make(map[string]bool)
 	for idx := range snapshots {
 		snapshot := &snapshots[idx]
-		paused, _, err := pauseStore.IsTaskEffectivelyPaused(ctx, snapshot.Task.ID)
-		if err != nil {
-			return nil, fmt.Errorf("daemon: scheduler check task %q pause: %w", snapshot.Task.ID, err)
+		paused, found := pauses[snapshot.Task.ID]
+		if !found {
+			var err error
+			paused, _, err = pauseStore.IsTaskEffectivelyPaused(ctx, snapshot.Task.ID)
+			if err != nil {
+				return nil, fmt.Errorf("daemon: scheduler check task %q pause: %w", snapshot.Task.ID, err)
+			}
+			pauses[snapshot.Task.ID] = paused
 		}
 		if paused {
 			continue

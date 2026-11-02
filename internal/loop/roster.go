@@ -165,6 +165,26 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 	if err != nil {
 		return RosterPage{}, err
 	}
+	page, err := projectRoster(source, query)
+	if err != nil || source.Run.Generation < 1 {
+		return page, err
+	}
+	offset, err := decodeRosterCursor(query.Cursor)
+	if err != nil {
+		return RosterPage{}, err
+	}
+	if offset > len(page.Nodes) {
+		return RosterPage{}, fmt.Errorf("%w: roster cursor is beyond the result set", ErrInvalidRosterCursor)
+	}
+	end := min(offset+query.Limit, len(page.Nodes))
+	if end < len(page.Nodes) {
+		page.NextCursor = encodeRosterCursor(rosterCursor{Offset: end})
+	}
+	page.Nodes = page.Nodes[offset:end]
+	return page, nil
+}
+
+func projectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) {
 	page := RosterPage{
 		RunID: source.Run.ID, LoopName: source.Run.LoopName, RunStatus: source.Run.Status,
 		Nodes: []RosterNode{}, FanoutRollups: []FanoutRollup{},
@@ -216,19 +236,7 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 		}
 	}
 	page.FanoutRollups = buildFanoutRollups(page.Nodes, source.Graph)
-	filtered := filterRosterNodes(page.Nodes, query.State)
-	offset, err := decodeRosterCursor(query.Cursor)
-	if err != nil {
-		return RosterPage{}, err
-	}
-	if offset > len(filtered) {
-		return RosterPage{}, fmt.Errorf("%w: roster cursor is beyond the result set", ErrInvalidRosterCursor)
-	}
-	end := min(offset+query.Limit, len(filtered))
-	page.Nodes = filtered[offset:end]
-	if end < len(filtered) {
-		page.NextCursor = encodeRosterCursor(rosterCursor{Offset: end})
-	}
+	page.Nodes = filterRosterNodes(page.Nodes, query.State)
 	return page, nil
 }
 

@@ -3161,6 +3161,23 @@ func TestSessionCatalogBoard(t *testing.T) {
 		if page.Total != 0 {
 			t.Fatalf("foreign repository returned %d sessions", page.Total)
 		}
+		for _, repositories := range []map[string]string{nil, {}} {
+			query.RepositoryKeys = repositories
+			page, err = db.PageSessions(ctx, query)
+			if err != nil || page.Total != 0 {
+				t.Fatalf("unknown repository used cached PR: total=%d error=%v", page.Total, err)
+			}
+			query.Columns = []string{store.SessionBoardDone}
+			page, err = db.PageSessions(ctx, query)
+			if err != nil || page.Total != 120 || len(page.Sessions) != 10 || page.Sessions[0].ID != "board-000" {
+				t.Fatalf("unknown repository done page: total=%d rows=%d error=%v", page.Total, len(page.Sessions), err)
+			}
+			facets, err = db.SessionCatalogFacets(ctx, query)
+			if err != nil || facets.Facets.Board.InReview != 0 || facets.Facets.Board.Done != 120 {
+				t.Fatalf("unknown repository facets=%+v error=%v", facets.Facets, err)
+			}
+			query.Columns = []string{store.SessionBoardInReview}
+		}
 	})
 }
 
@@ -3230,4 +3247,81 @@ func BenchmarkSessionCatalogBoard(b *testing.B) {
 			}
 		}
 	})
+}
+
+// BenchmarkSessionCatalogLocalBoard isolates the board path without hosted repository identity.
+func BenchmarkSessionCatalogLocalBoard(b *testing.B) {
+	ctx := b.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(b.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	if _, err := db.db.ExecContext(ctx, `WITH RECURSIVE fixture(i) AS (
+ SELECT 0 UNION ALL SELECT i+1 FROM fixture WHERE i < 4095)
+ INSERT INTO sessions(id,profile_id,workspace_id,scope,agent_name,provider,state,branch,created_at,updated_at)
+ SELECT printf('sess-local-%04d',i), ?, '', 'global', 'coder', 'claude', 'stopped', 'topic',
+ '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z' FROM fixture`, store.DefaultProfileID); err != nil {
+		b.Fatal(err)
+	}
+	query := store.SessionCatalogPageQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveExclude,
+		Sort: sessionCatalogSortRecent, Limit: 50, Columns: []string{store.SessionBoardDone},
+	}
+	logBenchmarkLocalBoardPlan(b, db, query)
+	b.Run("Facets", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			facets, err := db.SessionCatalogFacets(ctx, query)
+			if err != nil || facets.Facets.All != 4096 || facets.Facets.Board.Done != 4096 {
+				b.Fatalf("facets=%+v error=%v", facets.Facets, err)
+			}
+		}
+	})
+	b.Run("Page", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			page, err := db.PageSessions(ctx, query)
+			if err != nil || page.Total != 4096 || len(page.Sessions) != 50 {
+				b.Fatalf("total=%d rows=%d error=%v", page.Total, len(page.Sessions), err)
+			}
+		}
+	})
+}
+
+func logBenchmarkLocalBoardPlan(b *testing.B, db *GlobalDB, query store.SessionCatalogPageQuery) {
+	b.Helper()
+	source, args, err := sessionCatalogPageSource(query)
+	if err != nil {
+		b.Fatal(err)
+	}
+	where, filterArgs, err := sessionCatalogPageFilters(query, "2026-11-01T00:00:00Z")
+	if err != nil {
+		b.Fatal(err)
+	}
+	statement := "EXPLAIN QUERY PLAN " + store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
+	rows, err := db.db.QueryContext(b.Context(), statement, append(args, filterArgs...)...)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			b.Error(err)
+		}
+	}()
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			b.Fatal(err)
+		}
+		b.Log(detail)
+	}
+	if err := rows.Err(); err != nil {
+		b.Fatal(err)
+	}
 }

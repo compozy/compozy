@@ -2,9 +2,11 @@ package command_test
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf16"
 
 	commandpkg "github.com/compozy/compozy/internal/command"
 )
@@ -255,6 +257,27 @@ func TestParseSkillInvocations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve UTF-16 offsets across skipped and repeated markers", func(t *testing.T) {
+		t.Parallel()
+		text := "🚀 /unknown /review/file /review. /review ⚙️ \xff /ops:deploy!"
+		invocations, parseErr := commandpkg.ParseSkillInvocations(text, catalog)
+		if parseErr != nil {
+			t.Fatalf("ParseSkillInvocations() error = %v", parseErr)
+		}
+		if len(invocations) != 2 {
+			t.Fatalf("ParseSkillInvocations() count = %d, want 2", len(invocations))
+		}
+		for index, token := range []string{"/review", "/ops:deploy"} {
+			byteOffset := strings.Index(text, token+[]string{".", "!"}[index])
+			wantStart := len(utf16.Encode([]rune(text[:byteOffset])))
+			wantEnd := wantStart + len(utf16.Encode([]rune(token)))
+			got := invocations[index]
+			if got.Token != token || got.Start != wantStart || got.End != wantEnd {
+				t.Fatalf("invocation = %#v, want %q at %d:%d", got, token, wantStart, wantEnd)
+			}
+		}
+	})
+
 	t.Run("Should leave URLs paths in-word and unknown markers literal", func(t *testing.T) {
 		t.Parallel()
 		invocations, parseErr := commandpkg.ParseSkillInvocations(
@@ -364,4 +387,35 @@ func TestBuildInvokedSkillsBlock(t *testing.T) {
 			t.Fatalf("BuildInvokedSkillsBlock() error = %v, want combined ErrSkillContextTooLarge", err)
 		}
 	})
+}
+
+func BenchmarkParseSkillInvocations(b *testing.B) {
+	for _, count := range []int{1, 32, 128} {
+		b.Run(fmt.Sprintf("skills_%d", count), func(b *testing.B) {
+			skills := make([]commandpkg.SkillSpec, count)
+			var text strings.Builder
+			for index := range count {
+				name := fmt.Sprintf("skill-%d", index)
+				skills[index] = commandpkg.SkillSpec{
+					Name: name, Available: true,
+					Source: commandpkg.Source{Kind: "workspace", Scope: "workspace"},
+				}
+				text.WriteString(strings.Repeat("context 🚀 ", 512))
+				text.WriteString(" /" + name + " ")
+			}
+			catalog, err := commandpkg.BuildCatalog(nil, nil, skills)
+			if err != nil {
+				b.Fatal(err)
+			}
+			prompt := text.String()
+			b.ReportAllocs()
+			b.SetBytes(int64(len(prompt)))
+			for b.Loop() {
+				invocations, err := commandpkg.ParseSkillInvocations(prompt, catalog)
+				if err != nil || len(invocations) != count {
+					b.Fatalf("ParseSkillInvocations() count=%d error=%v", len(invocations), err)
+				}
+			}
+		})
+	}
 }

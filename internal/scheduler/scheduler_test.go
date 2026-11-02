@@ -18,6 +18,35 @@ import (
 	"github.com/jonboulle/clockwork"
 )
 
+func BenchmarkSelectWakeTargets(b *testing.B) {
+	for _, workspaces := range []int{1, 50} {
+		b.Run(fmt.Sprintf("sessions_500_workspaces_%d", workspaces), func(b *testing.B) {
+			base := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+			pending := make([]RunSnapshot, 500)
+			sessions := make([]SessionSnapshot, 500)
+			for index := range 500 {
+				workspaceID := fmt.Sprintf("ws-%d", index%workspaces)
+				pending[index] = workSnapshot(
+					fmt.Sprintf("task-%d", index), fmt.Sprintf("run-%d", index),
+					taskpkg.ScopeWorkspace, workspaceID, []string{"go"}, base,
+				)
+				sessions[index] = sessionSnapshot(
+					fmt.Sprintf("session-%d", index), workspaceID, "active", false,
+					[]string{"go", "sqlite"}, base,
+				)
+			}
+			scheduler := &Scheduler{sweepLimit: 500, wakeCooldown: time.Minute}
+			b.ReportAllocs()
+			for b.Loop() {
+				selected := scheduler.selectWakeTargets(base, time.Time{}, pending, sessions, nil)
+				if len(selected.targets) != 500 {
+					b.Fatalf("wake targets = %d, want 500", len(selected.targets))
+				}
+			}
+		})
+	}
+}
+
 func TestRunOnceWakesOnlyEligibleIdleSessions(t *testing.T) {
 	base := time.Date(2026, 4, 26, 9, 0, 0, 0, time.UTC)
 	source := &fakeTaskSource{
@@ -203,7 +232,7 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
-				disposition := classifyRunCapacity(&work, testCase.sessions, testCase.occupied)
+				disposition := classifyRunCapacity(&work, testCase.sessions, testCase.occupied, nil)
 				if disposition.Kind != testCase.wantKind {
 					t.Fatalf("capacity kind = %q, want %q", disposition.Kind, testCase.wantKind)
 				}
@@ -1331,6 +1360,48 @@ func TestRunOnceOrdersGlobalWakeTargetsByPriorityAndSession(t *testing.T) {
 	gotSessions := []string{targets[0].Session.ID, targets[1].Session.ID}
 	if want := []string{"sess-a", "sess-b"}; !slices.Equal(gotSessions, want) {
 		t.Fatalf("wake session order = %v, want %v", gotSessions, want)
+	}
+}
+
+func TestRunOncePreservesNormalizedScope(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct {
+		name          string
+		scope         taskpkg.Scope
+		workspaceID   string
+		wantSessionID string
+	}{
+		{"Should trim workspace identities before matching", taskpkg.ScopeWorkspace, " ws-1 ", "session-workspace"},
+		{"Should use global scope independently of workspace metadata", taskpkg.ScopeGlobal, "ws-1", "session-global"},
+		{"Should reject empty workspace identities", taskpkg.ScopeWorkspace, " ", ""},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			base := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+			source := &fakeTaskSource{pending: []RunSnapshot{
+				workSnapshot("task-1", "run-1", scenario.scope, scenario.workspaceID, nil, base),
+			}}
+			sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+				sessionSnapshot("session-other", "ws-2", "active", false, nil, base),
+				sessionSnapshot("session-global", " ", "active", false, nil, base),
+				sessionSnapshot("session-workspace", " ws-1 ", "active", false, nil, base),
+			}}
+			waker := &fakeWaker{}
+			scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)))
+			if _, err := scheduler.RunOnce(testutil.Context(t)); err != nil {
+				t.Fatalf("RunOnce() error = %v", err)
+			}
+			targets := waker.targetsSnapshot()
+			if scenario.wantSessionID == "" {
+				if len(targets) != 0 {
+					t.Fatalf("wake targets = %#v, want none", targets)
+				}
+				return
+			}
+			if len(targets) != 1 || targets[0].Session.ID != scenario.wantSessionID {
+				t.Fatalf("wake targets = %#v, want %q", targets, scenario.wantSessionID)
+			}
+		})
 	}
 }
 

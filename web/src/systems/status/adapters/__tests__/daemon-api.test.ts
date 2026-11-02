@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
-import { statusFixture } from "../../mocks/fixtures";
-import { fetchStatus } from "../daemon-api";
+import { runtimeIdentityFixture, statusFixture } from "../../mocks/fixtures";
+import { fetchRuntimeIdentity, fetchStatus } from "../daemon-api";
 
 describe("fetchStatus", () => {
   beforeEach(() => {
@@ -47,5 +47,31 @@ describe("fetchStatus", () => {
     vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
 
     await expect(fetchStatus()).rejects.toThrow("Failed to fetch");
+  });
+});
+
+describe("fetchRuntimeIdentity", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("Should read the bounded identity and forward cancellation", async () => {
+    mockJsonResponse(runtimeIdentityFixture);
+    const controller = new AbortController();
+
+    expect(await fetchRuntimeIdentity(controller.signal)).toEqual(runtimeIdentityFixture);
+    await expectFetchRequest({ path: "/api/status/identity", signal: controller.signal });
+  });
+
+  it("Should preserve identity request failures", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await expect(fetchRuntimeIdentity()).rejects.toThrow("Runtime identity check failed: 503");
+
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(fetchRuntimeIdentity()).rejects.toThrow("Failed to fetch");
   });
 });
