@@ -49,8 +49,10 @@ import { SessionPullRequestMenu } from "../session-pull-request-menu";
 
 /** What a row can do. Absent handlers leave the matching action out. */
 export interface SessionLinkActions {
-  /** User-controllable sessions get agent prompts in the row menu. */
+  /** User-controllable sessions get agent prompts, on their own branch's item only. */
   controllable: boolean;
+  /** Agent prompts say "this branch", so they only hold for the session's own branch. */
+  isOwn: (item: SessionLinkedWorkItem) => boolean;
   refreshing: boolean;
   onLink: () => void;
   onUnlink: (item: SessionLinkedWorkItem) => void;
@@ -147,7 +149,7 @@ function SessionLinkRowMenu({
         <Icon as={MoreHorizontal} size="sm" />
       </DropdownMenuTrigger>
       <SessionPullRequestMenu
-        controllable={actions.controllable && !rolledUp}
+        controllable={actions.controllable && actions.isOwn(item)}
         exitRunning={false}
         footer={
           rolledUp ? null : (

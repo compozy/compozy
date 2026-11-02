@@ -303,6 +303,7 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
   const more = moreLabel(items);
   const actions: SessionLinkActions = {
     controllable: true,
+    isOwn: () => false,
     refreshing: false,
     onLink: () => setDialogOpen(true),
     onUnlink: unlink,
@@ -336,7 +337,6 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
             {...list}
             chipMenuOpen={items.length === 1 && scenario.open}
             lead={lead}
-            leadIsOwn={false}
             more={more}
             onClippedChange={setClipped}
             ownChip={{}}

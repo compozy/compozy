@@ -628,6 +628,89 @@ describe("useSessionTopbarSlot", () => {
       expect(onRefresh).not.toHaveBeenCalled();
     });
 
+    const needsWork = (item: SessionLinkedWorkItem): SessionLinkedWorkItem => ({
+      ...item,
+      pull_request: {
+        ...item.pull_request!,
+        ...FAILING_PR,
+        number: item.pull_request!.number,
+        draft: false,
+        review_decision: "changes_requested",
+      },
+    });
+    const AGENT_PROMPTS = ["Fix failing checks", "Address review comments"];
+
+    it.each([
+      ["another branch", needsWork(SESSION_LINK_SETS.onePr[0]!), "feat/somewhere-else"],
+      [
+        "a child session, even on this branch",
+        needsWork(SESSION_LINK_SETS.rolledUp[1]!),
+        SESSION_LINK_SETS.rolledUp[1]!.branch,
+      ],
+    ])("Should offer no agent prompts on the chip of %s", async (_name, item, branch) => {
+      const onSendPrompt = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={model([item])}
+          onSendPrompt={onSendPrompt}
+          onStop={vi.fn()}
+          session={{ ...withPullRequest(), branch }}
+        />
+      );
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(menu).getByText("Open PR")).toBeInTheDocument();
+      for (const prompt of AGENT_PROMPTS) {
+        expect(within(menu).queryByText(prompt)).not.toBeInTheDocument();
+      }
+    });
+
+    it("Should keep agent prompts on the chip of the session's own branch", async () => {
+      const item = needsWork(SESSION_LINK_SETS.onePr[0]!);
+      const onSendPrompt = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={model([item])}
+          onSendPrompt={onSendPrompt}
+          onStop={vi.fn()}
+          session={{ ...withPullRequest(), branch: item.branch }}
+        />
+      );
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      fireEvent.click(within(menu).getByText("Fix failing checks"));
+      expect(onSendPrompt).toHaveBeenCalledTimes(1);
+    });
+
+    it("Should offer agent prompts in the list only on the session's own branch", async () => {
+      const [own, other] = SESSION_LINK_SETS.mixed.slice(0, 2).map(item => needsWork(item));
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={model([own!, other!])}
+          onSendPrompt={vi.fn()}
+          onStop={vi.fn()}
+          session={{ ...withPullRequest(), branch: own!.branch }}
+        />
+      );
+      fireEvent.click(screen.getByTestId("session-links-more"));
+      const list = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(list).getByRole("button", { name: `Actions for ${own!.pull_request!.title}` })
+      );
+      const ownMenu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(ownMenu).getByText("Fix failing checks")).toBeInTheDocument();
+      fireEvent.keyDown(ownMenu, { key: "Escape" });
+      await waitFor(() =>
+        expect(screen.queryByTestId("session-pull-request-menu")).not.toBeInTheDocument()
+      );
+      fireEvent.click(
+        within(list).getByRole("button", { name: `Actions for ${other!.pull_request!.title}` })
+      );
+      const otherMenu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(otherMenu).getByText("Open PR")).toBeInTheDocument();
+      expect(within(otherMenu).queryByText("Fix failing checks")).not.toBeInTheDocument();
+    });
+
     it("Should leave Unlink off a rolled-up row, whose target is the child session", async () => {
       const onOpenSession = vi.fn();
       renderWithTopbar(

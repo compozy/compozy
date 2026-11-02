@@ -144,6 +144,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     agentLabel,
     actions: {
       controllable: actions.lifecycleControllable,
+      isOwn: item => isOwnBranch(item, session),
       refreshing: linkedWork.refreshing,
       onLink: () => requestSessionLinkDialog(session.id),
       onUnlink: linkedWork.unlink,
@@ -184,7 +185,6 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         <SessionLinkedWorkStatus
           {...linkedList}
           lead={linkedWork.lead}
-          leadIsOwn={linkedWork.lead ? isOwnBranch(linkedWork.lead, session) : false}
           more={linkedWork.more}
           onClippedChange={linkedWork.setClipped}
           ownChip={{

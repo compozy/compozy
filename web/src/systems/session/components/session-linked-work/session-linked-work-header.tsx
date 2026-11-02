@@ -95,7 +95,6 @@ export interface SessionLinkedWorkStatusProps extends SessionLinkedWorkListProps
     SessionPullRequestChipProps,
     "exitPlan" | "exitRunning" | "onExitAction" | "onRefresh" | "refreshing"
   >;
-  leadIsOwn: boolean;
   /** Opens the worktree a linked item lives in, when this client can show it. */
   worktreeAction?: (item: SessionLinkedWorkItem) => (() => void) | undefined;
   /** Opens the chip's own menu (prototypes). */
@@ -140,16 +139,16 @@ function ChipLinkActions({
 
 /** The head's status zone: the lead's chip, then `+3 PRs` when there is more to see. */
 export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
-  const { lead, more, ownFacts, ownChip, leadIsOwn, actions, onClippedChange } = props;
+  const { lead, more, ownFacts, ownChip, actions, onClippedChange } = props;
   const anchor = useSessionTopbarClipped(onClippedChange);
-  const own = lead === null || leadIsOwn;
+  const own = lead === null || actions.isOwn(lead);
   return (
     <span className="flex min-w-0 shrink-0 items-center gap-1" ref={anchor}>
       <SessionPullRequestChip
         {...(own
           ? ownChip
           : { onRefresh: () => actions.onRefresh(lead), refreshing: actions.refreshing })}
-        controllable={actions.controllable}
+        controllable={own && actions.controllable}
         defaultMenuOpen={props.chipMenuOpen}
         facts={lead ? linkFacts(lead) : ownFacts}
         menuFooter={
@@ -162,7 +161,7 @@ export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
             />
           ) : undefined
         }
-        onPrompt={actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
+        onPrompt={own && actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
       />
       {more ? (
         <SessionLinkedWorkPopover
