@@ -280,6 +280,34 @@ func forgeInitializeParams() map[string]any {
 
 func TestProvider(t *testing.T) {
 	t.Parallel()
+	// Invariant: discovery scopes search to the repository and preserves PR number, title and branch.
+	// Owner: forge provider I/O; canonical provider suite.
+	t.Run("Should discover a bounded page and resolve PR identity", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/search/issues":
+				if r.URL.Query().Get("q") != `repo:acme/repo is:pr "review"` || r.URL.Query().Get("page") != "2" || r.URL.Query().Get("per_page") != "1" {
+					t.Errorf("query=%s", r.URL.RawQuery)
+				}
+				writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 3, "items": []map[string]any{{"number": 42}}})
+			case "/repos/acme/repo/pulls/42":
+				writeJSON(t, w, http.StatusOK, map[string]any{"number": 42, "title": "Linked work", "html_url": "https://github.com/acme/repo/pull/42", "state": "open", "head": map[string]any{"ref": "topic"}})
+			default:
+				t.Errorf("unexpected path=%s", r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		defer closeServer()
+		result, err := provider.SearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{RemoteURLs: []string{"https://github.com/acme/repo.git"}, Query: "review", Page: 2, Limit: 1})
+		if err != nil || len(result.Items) != 1 || !result.HasMore {
+			t.Fatalf("result=%+v error=%v", result, err)
+		}
+		item := result.Items[0]
+		if item.Number != 42 || item.Title != "Linked work" || item.Branch != "topic" {
+			t.Fatalf("candidate=%+v", item)
+		}
+	})
 
 	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
 		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {

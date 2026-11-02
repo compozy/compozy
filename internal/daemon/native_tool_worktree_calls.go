@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -101,6 +102,13 @@ func (n *daemonNativeTools) worktreeCreate(
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
+	}
+	if scope.SessionID != "" && scope.WorkspaceID == workspaceID {
+		if manager, ok := n.deps.Sessions.(core.SessionLinkedWorkManager); ok {
+			if err := manager.LinkSessionWork(ctx, scope.SessionID, store.SessionWorkLink{WorkspaceID: workspaceID, Branch: item.Branch, WorktreeID: item.ID, WorktreeName: item.Name, Provenance: "created"}, true); err != nil {
+				return toolspkg.ToolResult{}, err
+			}
+		}
 	}
 	payload := core.WorktreePayloadFromInspection(worktree.Inspection{
 		Worktree: *item, AgentActivity: worktree.AgentActivityIdle,

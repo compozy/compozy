@@ -1059,3 +1059,15 @@ Reports become delivered at provider dispatch. Canceling, replacing, clearing, o
 queued prompt to steer releases its reservation, as do stop and failure before dispatch. An
 uncertain dispatch is terminal (`indeterminate`) and is never resent; a transcript note records
 that uncertainty. Retrying a message identity reuses its existing admission.
+
+### Session linked work
+
+`compozy__session_link` and `compozy__session_unlink` mutate only the calling session.
+Inputs are `branch` (required), optional `repository` (normalized repository identity,
+defaulting to the session project) and optional positive `pr_number`. They never bind
+or move the runtime and never delete worktrees, branches or pull requests. Link
+provenance is `agent`; automatic `compozy__worktree_create` links use `created`.
+Repository mismatch returns `session_link_repository_mismatch`. Session reads carry
+an additive `linked_work` summary (`total`, `needs_you`, `lead`). Use the session
+resource's `links` endpoint for the full list; child items carry `source_session_id`
+and `source_session_title` and are read-only on their parent.

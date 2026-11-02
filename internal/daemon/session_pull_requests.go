@@ -15,6 +15,8 @@ const displayFailedNames = 5
 type sessionPullRequestAdapter struct {
 	service  *worktree.PullRequestService
 	resolver worktree.WorkspaceResolver
+	runtime  func() extensionRuntime
+	runner   worktree.GitRunner
 }
 
 func (a sessionPullRequestAdapter) PullRequests(
@@ -123,6 +125,7 @@ func sessionPullRequestView(entry worktree.PullRequestEntry) session.PullRequest
 		Provider:       facts.Provider,
 		Number:         *facts.PRNumber,
 		URL:            facts.PRURL,
+		Title:          facts.Title,
 		State:          session.PullRequestState(*facts.PRState),
 		Draft:          facts.Draft,
 		HeadSHA:        facts.HeadSHA,

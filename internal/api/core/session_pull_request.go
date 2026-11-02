@@ -87,7 +87,7 @@ func DecorateSessionPullRequests(
 		}
 		payloads[i].BoardColumn = session.BoardColumnFor(payloads[i].Badge, state)
 	}
-	return nil
+	return DecorateSessionLinkedWork(ctx, reader, infos, payloads)
 }
 
 func pullRequestPayload(
@@ -114,6 +114,7 @@ func pullRequestPayload(
 		Provider: pr.Provider,
 		Number:   pr.Number,
 		URL:      pr.URL,
+		Title:    pr.Title,
 		State:    pr.State,
 		Draft:    pr.Draft,
 		HeadSHA:  pr.HeadSHA,

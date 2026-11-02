@@ -21,6 +21,10 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	registerSessionLayoutRoutes(api, handlers)
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
 	workspaceSessions.GET("", handlers.ListSessions)
+	workspaceSessions.GET("/:session_id/links", handlers.ListSessionLinkedWork)
+	workspaceSessions.GET("/:session_id/link-candidates", handlers.SearchSessionWorkCandidates)
+	workspaceSessions.POST("/:session_id/links", handlers.AddSessionWorkLink)
+	workspaceSessions.DELETE("/:session_id/links", handlers.RemoveSessionWorkLink)
 	{
 		workspaceSessions.GET("/:session_id/subagents", handlers.ListSessionSubagents)
 		workspaceSessions.GET("/:session_id/monitors", handlers.ListSessionMonitors)

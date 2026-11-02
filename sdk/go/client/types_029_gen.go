@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// WorktreeBranchOutcomePayload is a daemon API value.
+type WorktreeBranchOutcomePayload struct {
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
+	Reason  string `json:"reason,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+// WorktreeCatalogEventPayload is a daemon API value.
+type WorktreeCatalogEventPayload struct {
+	Kind        string `json:"kind"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+	Error       string `json:"error,omitempty"`
+}
+
 // WorktreeCleanupResponse is a daemon API value.
 type WorktreeCleanupResponse struct {
 	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`

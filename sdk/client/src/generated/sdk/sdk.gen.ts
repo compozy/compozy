@@ -22,6 +22,9 @@ import type {
   AddMarketplaceSourceData,
   AddMarketplaceSourceErrors,
   AddMarketplaceSourceResponses,
+  AddSessionWorkLinkData,
+  AddSessionWorkLinkErrors,
+  AddSessionWorkLinkResponses,
   AddTaskDependencyData,
   AddTaskDependencyErrors,
   AddTaskDependencyResponses,
@@ -939,6 +942,9 @@ import type {
   ListSessionInteractionsData,
   ListSessionInteractionsErrors,
   ListSessionInteractionsResponses,
+  ListSessionLinkedWorkData,
+  ListSessionLinkedWorkErrors,
+  ListSessionLinkedWorkResponses,
   ListSessionMonitorsData,
   ListSessionMonitorsErrors,
   ListSessionMonitorsResponses,
@@ -1236,6 +1242,9 @@ import type {
   RemoveMarketplaceSourceData,
   RemoveMarketplaceSourceErrors,
   RemoveMarketplaceSourceResponses,
+  RemoveSessionWorkLinkData,
+  RemoveSessionWorkLinkErrors,
+  RemoveSessionWorkLinkResponses,
   RemoveTaskDependencyData,
   RemoveTaskDependencyErrors,
   RemoveTaskDependencyResponses,
@@ -1371,6 +1380,9 @@ import type {
   SearchSessionTranscriptData,
   SearchSessionTranscriptErrors,
   SearchSessionTranscriptResponses,
+  SearchSessionWorkCandidatesData,
+  SearchSessionWorkCandidatesErrors,
+  SearchSessionWorkCandidatesResponses,
   SearchToolsData,
   SearchToolsErrors,
   SearchToolsResponses,
@@ -8490,6 +8502,101 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/later",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Search this project for link candidates
+   */
+  public searchSessionWorkCandidates<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionWorkCandidatesData, ThrowOnError>
+  ): RequestResult<
+    SearchSessionWorkCandidatesResponses,
+    SearchSessionWorkCandidatesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      SearchSessionWorkCandidatesResponses,
+      SearchSessionWorkCandidatesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates",
+      ...options,
+    });
+  }
+
+  /**
+   * Unlink session work
+   */
+  public removeSessionWorkLink<ThrowOnError extends boolean = true>(
+    options: Options<RemoveSessionWorkLinkData, ThrowOnError>
+  ): RequestResult<
+    RemoveSessionWorkLinkResponses,
+    RemoveSessionWorkLinkErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      RemoveSessionWorkLinkResponses,
+      RemoveSessionWorkLinkErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List session linked work
+   */
+  public listSessionLinkedWork<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionLinkedWorkData, ThrowOnError>
+  ): RequestResult<
+    ListSessionLinkedWorkResponses,
+    ListSessionLinkedWorkErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionLinkedWorkResponses,
+      ListSessionLinkedWorkErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
+      ...options,
+    });
+  }
+
+  /**
+   * Link work to a session
+   */
+  public addSessionWorkLink<ThrowOnError extends boolean = true>(
+    options: Options<AddSessionWorkLinkData, ThrowOnError>
+  ): RequestResult<AddSessionWorkLinkResponses, AddSessionWorkLinkErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AddSessionWorkLinkResponses,
+      AddSessionWorkLinkErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links",
       ...options,
       headers: {
         "Content-Type": "application/json",

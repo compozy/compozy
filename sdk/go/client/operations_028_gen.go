@@ -8,6 +8,32 @@ import (
 	"strings"
 )
 
+// RequestTaskRunReview Request review for one terminal task run
+func (c *Client) RequestTaskRunReview(ctx context.Context, params RequestTaskRunReviewParams, body RunReviewRequest) (*TaskRunReviewRequestResponse, error) {
+	path := "/api/task-runs/{id}/reviews"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewRequestResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RequeueLoopNodeParams carries the path, query, and header parameters.
+type RequeueLoopNodeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Profile     *string `url:"profile"`
+}
+
 // RequeueLoopNode Requeue one Loop node
 func (c *Client) RequeueLoopNode(ctx context.Context, params RequeueLoopNodeParams, body LoopNodeMutationRequest) (*LoopMutationResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue"
@@ -408,29 +434,4 @@ func (c *Client) RewindSessionConversation(ctx context.Context, params RewindSes
 type RollbackAgentHeartbeatParams struct {
 	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
-}
-
-// RollbackAgentHeartbeat Rollback HEARTBEAT.md through managed authoring
-func (c *Client) RollbackAgentHeartbeat(ctx context.Context, params RollbackAgentHeartbeatParams, body HeartbeatRollbackByPathRequest) (*HeartbeatMutationResponse, error) {
-	path := "/api/agents/{name}/heartbeat/rollback"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatMutationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RollbackAgentMemoryParams carries the path, query, and header parameters.
-type RollbackAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

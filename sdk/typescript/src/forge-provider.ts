@@ -3,7 +3,10 @@ import type { ExtensionContext } from "./extension-contract.js";
 import { InvalidParamsError } from "./errors.js";
 import { registerProvideSurface } from "./extension-provide-surface.js";
 import type {
-  ForgePRSearchRequest, ForgePRReadRequest, ForgePRCandidate, ForgePRSearchResponse,
+  ForgePRSearchRequest,
+  ForgePRReadRequest,
+  ForgePRCandidate,
+  ForgePRSearchResponse,
   ForgeCapabilitiesRequest,
   ForgeCapabilitiesResponse,
   ForgePRCreateRequest,
@@ -18,8 +21,14 @@ export const FORGE_STATUS_METHOD = "forge/status";
 export const FORGE_PR_CREATE_METHOD = "forge/pr_create";
 
 export interface ForgeProviderHandlers {
- searchPRs?: (context: ExtensionContext, request: ForgePRSearchRequest) => Promise<ForgePRSearchResponse> | ForgePRSearchResponse;
- readPR?: (context: ExtensionContext, request: ForgePRReadRequest) => Promise<ForgePRCandidate> | ForgePRCandidate;
+  searchPRs?: (
+    context: ExtensionContext,
+    request: ForgePRSearchRequest
+  ) => Promise<ForgePRSearchResponse> | ForgePRSearchResponse;
+  readPR?: (
+    context: ExtensionContext,
+    request: ForgePRReadRequest
+  ) => Promise<ForgePRCandidate> | ForgePRCandidate;
   capabilities: (
     context: ExtensionContext,
     request: ForgeCapabilitiesRequest
@@ -112,8 +121,42 @@ export function registerForgeProvider(
     throw new Error("forge provider handlers are required");
   }
   return extension[registerProvideSurface](FORGE_PROVIDER_CAPABILITY, [
- ...(handlers.searchPRs ? [{method:"forge/pr_search", handler:async (context:ExtensionContext, request:unknown) => {const record=requestRecord("forge/pr_search",request); return await handlers.searchPRs!(context,{remote_urls:remoteURLs("forge/pr_search",record),query:typeof record.query === "string" ? record.query : "",page:typeof record.page === "number" ? record.page : 1,limit:typeof record.limit === "number" ? record.limit : 30});}}] : []),
- ...(handlers.readPR ? [{method:"forge/pr_read", handler:async (context:ExtensionContext, request:unknown) => {const record=requestRecord("forge/pr_read",request); if(typeof record.number !== "number" || !Number.isInteger(record.number) || record.number < 1) throw new InvalidParamsError("positive PR number required"); return await handlers.readPR!(context,{remote_urls:remoteURLs("forge/pr_read",record),number:record.number});}}] : []),
+    ...(handlers.searchPRs
+      ? [
+          {
+            method: "forge/pr_search",
+            handler: async (context: ExtensionContext, request: unknown) => {
+              const record = requestRecord("forge/pr_search", request);
+              return await handlers.searchPRs!(context, {
+                remote_urls: remoteURLs("forge/pr_search", record),
+                query: typeof record.query === "string" ? record.query : "",
+                page: typeof record.page === "number" ? record.page : 1,
+                limit: typeof record.limit === "number" ? record.limit : 30,
+              });
+            },
+          },
+        ]
+      : []),
+    ...(handlers.readPR
+      ? [
+          {
+            method: "forge/pr_read",
+            handler: async (context: ExtensionContext, request: unknown) => {
+              const record = requestRecord("forge/pr_read", request);
+              if (
+                typeof record.number !== "number" ||
+                !Number.isInteger(record.number) ||
+                record.number < 1
+              )
+                throw new InvalidParamsError("positive PR number required");
+              return await handlers.readPR!(context, {
+                remote_urls: remoteURLs("forge/pr_read", record),
+                number: record.number,
+              });
+            },
+          },
+        ]
+      : []),
     {
       method: FORGE_CAPABILITIES_METHOD,
       handler: async (context, request) =>

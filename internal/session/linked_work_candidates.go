@@ -20,11 +20,11 @@ type WorkCandidates struct {
 	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
 }
 type WorkCandidateReader interface {
-	WorkCandidates(context.Context, string, string, int, int) (WorkCandidates, error)
+	WorkCandidates(context.Context, string, string, string, int, int) (WorkCandidates, error)
 	WorkPR(context.Context, string, int) (WorkCandidate, error)
 }
 
-func (m *Manager) SessionWorkCandidates(ctx context.Context, id, query string, page, limit int) (WorkCandidates, error) {
+func (m *Manager) SessionWorkCandidates(ctx context.Context, id, query, kind string, page, limit int) (WorkCandidates, error) {
 	info, err := m.Status(ctx, id)
 	if err != nil {
 		return WorkCandidates{}, err
@@ -38,7 +38,7 @@ func (m *Manager) SessionWorkCandidates(ctx context.Context, id, query string, p
 	if !ok {
 		return WorkCandidates{Items: []WorkCandidate{}}, nil
 	}
-	return reader.WorkCandidates(ctx, info.WorkspaceID, query, max(1, page), min(100, max(1, limit)))
+	return reader.WorkCandidates(ctx, info.WorkspaceID, query, kind, max(1, page), min(100, max(1, limit)))
 }
 func (m *Manager) resolveWorkNumber(ctx context.Context, info *Info, link *store.SessionWorkLink) error {
 	if link.PRNumber == 0 {

@@ -210,6 +210,8 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 	}
 	if branchStore, ok := state.registry.(sessionBranchStore); ok && pulls != nil {
 		adapter := sessionPullRequestAdapter{
+			runtime:  state.currentExtensionRuntime,
+			runner:   runner,
 			service:  pulls,
 			resolver: daemonWorktreeWorkspaceResolver{resolver: state.workspaceResolver, homePaths: d.homePaths},
 		}

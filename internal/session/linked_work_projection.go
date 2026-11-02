@@ -115,6 +115,9 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 				continue
 			}
 			view := views[BranchKey{member.WorkspaceID, link.Branch}]
+			if link.PRNumber > 0 && view.PullRequest != nil && view.PullRequest.Number != link.PRNumber {
+				view = PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: "pr_identity_changed", Stale: true}}
+			}
 			if link.Repository != repos[member.WorkspaceID] {
 				view = PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: "repository_changed", Stale: true}}
 			}

@@ -4763,6 +4763,16 @@ func TestSessionLinkedWorkProjection(t *testing.T) {
 		if view.DirectOpen || view.Summary.Total != 1 || view.Items[0].SourceSessionID != "child" || view.Items[0].SourceSessionTitle != "Child work" {
 			t.Fatalf("rollup=%+v", view)
 		}
+		branches.links["root"][0].Unlinked = false
+		branches.links["root"][0].PRNumber = 99
+		got, err = manager.SessionLinkedWork(t.Context(), infos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view = got["root"]
+		if view.DirectOpen || view.Summary.Total != 2 || view.Items[0].Lookup.Cause != "pr_identity_changed" || view.Items[0].PullRequest != nil {
+			t.Fatalf("identity fence=%+v", view)
+		}
 	})
 }
 

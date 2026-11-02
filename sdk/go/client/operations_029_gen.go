@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// RollbackAgentHeartbeat Rollback HEARTBEAT.md through managed authoring
+func (c *Client) RollbackAgentHeartbeat(ctx context.Context, params RollbackAgentHeartbeatParams, body HeartbeatRollbackByPathRequest) (*HeartbeatMutationResponse, error) {
+	path := "/api/agents/{name}/heartbeat/rollback"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RollbackAgentMemoryParams carries the path, query, and header parameters.
+type RollbackAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // RollbackAgentMemory Restore a memory revision (experimental) Experimental: pin the exact SDK version.
 func (c *Client) RollbackAgentMemory(ctx context.Context, params RollbackAgentMemoryParams, body AgentMemoryRollbackRequest) (*AgentMemoryDocument, error) {
 	path := "/api/agents/{name}/memory/rollback"
@@ -248,6 +273,48 @@ func (c *Client) SearchSessionTranscript(ctx context.Context, params SearchSessi
 	return &out, nil
 }
 
+// SearchSessionWorkCandidatesParams carries the path, query, and header parameters.
+type SearchSessionWorkCandidatesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	Kind        *string `url:"kind"`
+	Q           *string `url:"q"`
+	Page        *string `url:"page"`
+	Limit       *string `url:"limit"`
+}
+
+// SearchSessionWorkCandidates Search this project for link candidates
+func (c *Client) SearchSessionWorkCandidates(ctx context.Context, params SearchSessionWorkCandidatesParams) (*WorkCandidates, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.Page != nil {
+		query.Set("page", *params.Page)
+	}
+	if params.Limit != nil {
+		query.Set("limit", *params.Limit)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkCandidates
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // SearchToolsParams carries the path, query, and header parameters.
 type SearchToolsParams struct {
 	Profile *string `url:"profile"`
@@ -380,66 +447,4 @@ func (c *Client) SetSessionRuntime(ctx context.Context, params SetSessionRuntime
 type SetTaskExecutionProfileParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// SetTaskExecutionProfile Replace one task execution profile
-func (c *Client) SetTaskExecutionProfile(ctx context.Context, params SetTaskExecutionProfileParams, body ExecutionProfile) (*TaskExecutionProfileResponse, error) {
-	path := "/api/tasks/{id}/execution-profile"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetTaskWorktreePolicyParams carries the path, query, and header parameters.
-type SetTaskWorktreePolicyParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// SetTaskWorktreePolicy Set one task worktree policy
-func (c *Client) SetTaskWorktreePolicy(ctx context.Context, params SetTaskWorktreePolicyParams, body WorktreePolicy) (*TaskExecutionProfileResponse, error) {
-	path := "/api/tasks/{id}/execution-profile/worktree"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetToolApprovalGrantParams carries the path, query, and header parameters.
-type SetToolApprovalGrantParams struct {
-	WorkspaceID string `url:"workspace_id"`
-}
-
-// SetToolApprovalGrant Set an explicit agent-wide or tool-wide native-tool approval decision
-func (c *Client) SetToolApprovalGrant(ctx context.Context, params SetToolApprovalGrantParams, body ToolApprovalGrantSetRequest) (*ToolApprovalGrantResponse, error) {
-	path := "/api/tool-approval-grants"
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalGrantResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -49,6 +49,32 @@ func (c *Client) RemoveMarketplaceSource(ctx context.Context, params RemoveMarke
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
+// RemoveSessionWorkLinkParams carries the path, query, and header parameters.
+type RemoveSessionWorkLinkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RemoveSessionWorkLink Unlink session work
+func (c *Client) RemoveSessionWorkLink(ctx context.Context, params RemoveSessionWorkLinkParams, body SessionWorkLinkRequest) (*SessionLinkedWorkResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionLinkedWorkResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RemoveTaskDependencyParams carries the path, query, and header parameters.
 type RemoveTaskDependencyParams struct {
 	ID          string  `url:"id"`
@@ -415,30 +441,4 @@ func (c *Client) ReplaceWindowManagerLayout(ctx context.Context, params ReplaceW
 type RequestTaskRunReviewParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// RequestTaskRunReview Request review for one terminal task run
-func (c *Client) RequestTaskRunReview(ctx context.Context, params RequestTaskRunReviewParams, body RunReviewRequest) (*TaskRunReviewRequestResponse, error) {
-	path := "/api/task-runs/{id}/reviews"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RequeueLoopNodeParams carries the path, query, and header parameters.
-type RequeueLoopNodeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
 }

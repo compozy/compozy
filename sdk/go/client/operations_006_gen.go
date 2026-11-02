@@ -10,6 +10,19 @@ import (
 	"strings"
 )
 
+// DeleteWorkspace Delete a registered workspace
+func (c *Client) DeleteWorkspace(ctx context.Context, params DeleteWorkspaceParams) error {
+	path := "/api/workspaces/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteWorkspaceFolderParams carries the path, query, and header parameters.
+type DeleteWorkspaceFolderParams struct {
+	FolderID string  `url:"folder_id"`
+	Profile  *string `url:"profile"`
+}
+
 // DeleteWorkspaceFolder Delete a workspace folder; its workspaces return to the root
 func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspaceFolderParams) (*WorkspaceLayoutResponse, error) {
 	path := "/api/workspace-folders/{folder_id}"
@@ -427,23 +440,4 @@ func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams
 // EnableGatewayProviderParams carries the path, query, and header parameters.
 type EnableGatewayProviderParams struct {
 	Name string `url:"name"`
-}
-
-// EnableGatewayProvider Enable one connectivity provider for a gateway tier
-func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnableSkillParams carries the path, query, and header parameters.
-type EnableSkillParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
 }

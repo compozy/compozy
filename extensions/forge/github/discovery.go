@@ -29,7 +29,7 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		limit = 30
 	}
 	page := max(1, request.Page)
-	q := url.Values{"q": {fmt.Sprintf("repo:%s/%s is:pr %s", repo.owner, repo.name, strings.TrimSpace(request.Query))}, "per_page": {fmt.Sprint(limit)}, "page": {fmt.Sprint(page)}, "sort": {"updated"}, "order": {"desc"}}
+	q := url.Values{"q": {fmt.Sprintf("repo:%s/%s is:pr %q", repo.owner, repo.name, strings.TrimSpace(request.Query))}, "per_page": {fmt.Sprint(limit)}, "page": {fmt.Sprint(page)}, "sort": {"updated"}, "order": {"desc"}}
 	var response struct {
 		Total int `json:"total_count"`
 		Items []struct {

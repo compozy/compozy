@@ -66,6 +66,8 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionUnarchive,
 			availability: catalogAvailability,
 		},
+		toolspkg.ToolIDSessionLink:   {call: n.sessionLink, availability: catalogAvailability},
+		toolspkg.ToolIDSessionUnlink: {call: n.sessionUnlink, availability: catalogAvailability},
 		toolspkg.ToolIDSessionRename: {
 			call:         n.sessionRename,
 			availability: catalogAvailability,

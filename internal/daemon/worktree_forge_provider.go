@@ -83,6 +83,7 @@ func (p daemonExtensionForgeProvider) Status(
 		PRNumber:           response.PRNumber,
 		PRState:            response.PRState,
 		PRURL:              response.PRURL,
+		Title:              response.Title,
 		Merged:             response.Merged,
 		Head:               response.Head,
 		Base:               response.Base,

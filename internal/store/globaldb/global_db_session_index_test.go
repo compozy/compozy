@@ -2950,9 +2950,10 @@ func TestSessionCatalogBoard(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, pending := range []bool{false, true} {
+				for _, queueState := range []string{"", "queued", "dispatching"} {
+					pending := queueState != ""
 					if pending {
-						if _, err := db.db.ExecContext(ctx, `INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('queue',?,'queued','queue','next','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z')`, info.ID); err != nil {
+						if _, err := db.db.ExecContext(ctx, `INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('queue',?,?,'queue','next','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z') ON CONFLICT(id) DO UPDATE SET status=excluded.status`, info.ID, queueState); err != nil {
 							t.Fatal(err)
 						}
 					}

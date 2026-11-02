@@ -9,6 +9,82 @@ import (
 	"strings"
 )
 
+// UpdateSettingsSkills Update the skills settings section
+func (c *Client) UpdateSettingsSkills(ctx context.Context, params UpdateSettingsSkillsParams, body UpdateSettingsSkillsRequest) (*SettingsSkillsMutationResponse, error) {
+	path := "/api/settings/skills"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsSkillsMutationResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSettingsWindowManagerParams carries the path, query, and header parameters.
+type UpdateSettingsWindowManagerParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// UpdateSettingsWindowManager Update the window-manager settings section
+func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateSettingsWindowManagerParams, body UpdateSettingsWindowManagerRequest) (*SettingsWindowManagerMutationResponse, error) {
+	path := "/api/settings/window-manager"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsWindowManagerMutationResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateTaskParams carries the path, query, and header parameters.
+type UpdateTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateTask Update one task
+func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body UpdateTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateWorkspaceParams carries the path, query, and header parameters.
 type UpdateWorkspaceParams struct {
 	ID string `url:"id"`

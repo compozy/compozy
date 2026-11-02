@@ -39,7 +39,7 @@ func sessionCatalogBoardSource(
  EXISTS (SELECT 1 FROM session_work_links l JOIN forge_pull_requests f
  ON f.workspace_id = l.workspace_id AND f.repo_key = l.repo_key AND f.branch = l.branch
  WHERE l.session_id = sessions.id AND l.workspace_id = sessions.workspace_id
- AND l.unlinked = 0 AND f.pr_state = 'open' AND l.repo_key = json_extract(?, '$.' || json_quote(sessions.workspace_id))) AS board_link_open
+ AND l.unlinked = 0 AND f.pr_state = 'open' AND (l.pr_number IS NULL OR l.pr_number = f.pr_number) AND l.repo_key = json_extract(?, '$.' || json_quote(sessions.workspace_id))) AS board_link_open
  FROM sessions
  LEFT JOIN worktrees AS board_worktree ON board_worktree.id = sessions.worktree_id
  AND board_worktree.workspace_id = sessions.workspace_id

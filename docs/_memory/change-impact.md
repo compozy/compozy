@@ -5142,3 +5142,16 @@ independently malformed contracts remain strict. No wire, config, hook, SDK, Web
 skill contract changes; persisted definitions and workspace files remain untouched. IT-005
 coverage extends the existing starter and daemon reopen suites; QA-004's
 `RT-upgrade-spec-cycle-hard-cut` includes these saved shapes and the malformed control.
+||||||| parent of 5307d78ec (feat: expose session linked work across public surfaces)
+
+## Session linked work — 2026-11-02
+
+Owner: `docs/prompts/20261102-1950_backend-task.md`, branch `proto/session-links`.
+
+- Native tools: additive `compozy__session_link` and `compozy__session_unlink`, self-targeted through Scope. Worktree creation records an automatic link without binding.
+- HTTP/UDS/CLI: additive session links and candidate discovery resources; `session link` lists or adds, `session unlink` soft removes. Existing branch/PR fields retain their meaning.
+- Extensibility: optional `forge/pr_search`, `forge/pr_read`, `supports_pr_discovery`, and PR title. Existing providers retain the required three methods. No hooks or config keys change.
+- User state: appended migration 00174 creates session links and adds cached PR titles. Soft removal survives automatic refresh. Worktree identity is retained after removal.
+- Isolation: session workspace/profile authorization precedes API access; lineage recursion stays within workspace/profile; writes validate session membership. Native tools cannot select another session.
+- Web: generated clients include full items and catalog summaries. The following frontend task owns production UI, copy/glossary and live scenario verification.
+- Official skill: native tools reference documents self-targeting, unlink and summary semantics.

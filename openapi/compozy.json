@@ -25684,6 +25684,118 @@
         ],
         "type": "object"
       },
+      "SessionLinkedWorkItem": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "pr_number": {
+            "type": "integer"
+          },
+          "provenance": {
+            "type": "string"
+          },
+          "pull_request": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "pull_request_lookup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestLookupPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "repository": {
+            "type": "string"
+          },
+          "runs_here": {
+            "type": "boolean"
+          },
+          "source_session_id": {
+            "type": "string"
+          },
+          "source_session_title": {
+            "type": "string"
+          },
+          "worktree_id": {
+            "type": "string"
+          },
+          "worktree_name": {
+            "type": "string"
+          },
+          "worktree_removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "branch",
+          "provenance",
+          "pull_request",
+          "pull_request_lookup",
+          "repository",
+          "runs_here",
+          "worktree_removed"
+        ],
+        "type": "object"
+      },
+      "SessionLinkedWorkResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionLinkedWorkItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "SessionLinkedWorkSummary": {
+        "properties": {
+          "lead": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionLinkedWorkItem"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "needs_you": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "needs_you",
+          "total"
+        ],
+        "type": "object"
+      },
       "SessionMonitorPayload": {
         "properties": {
           "branch": {
@@ -26034,6 +26146,19 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SessionLineagePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "linked_work": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionLinkedWorkSummary"
               },
               {
                 "enum": [
@@ -26837,6 +26962,9 @@
               "closed",
               "merged"
             ],
+            "type": "string"
+          },
+          "title": {
             "type": "string"
           },
           "url": {
@@ -27771,6 +27899,23 @@
           "revision",
           "session_id",
           "waited_ms"
+        ],
+        "type": "object"
+      },
+      "SessionWorkLinkRequest": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "pr_number": {
+            "type": "integer"
+          },
+          "repository": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch"
         ],
         "type": "object"
       },
@@ -45538,6 +45683,55 @@
         "required": [
           "pathname",
           "search"
+        ],
+        "type": "object"
+      },
+      "WorkCandidate": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "pr_number": {
+            "type": "integer"
+          },
+          "repository": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "repository"
+        ],
+        "type": "object"
+      },
+      "WorkCandidates": {
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkCandidate"
+            },
+            "type": "array"
+          },
+          "supports_pr_discovery": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "has_more",
+          "items",
+          "supports_pr_discovery"
         ],
         "type": "object"
       },
@@ -93424,6 +93618,446 @@
           }
         },
         "summary": "Stop a session and its children and park them in Later, with an optional reason and return time",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates": {
+      "get": {
+        "operationId": "searchSessionWorkCandidates",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Candidate source; defaults to pull requests with local branch fallback",
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "enum": [
+                "branches",
+                "pull_requests"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search repository pull requests or local branches",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number, starting at 1",
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, at most 100",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkCandidates"
+                }
+              }
+            },
+            "description": "Linked work"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid link or repository mismatch"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forge discovery failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Linked work unavailable"
+          }
+        },
+        "summary": "Search this project for link candidates",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/links": {
+      "delete": {
+        "operationId": "removeSessionWorkLink",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionWorkLinkRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLinkedWorkResponse"
+                }
+              }
+            },
+            "description": "Linked work"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid link or repository mismatch"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Linked work unavailable"
+          }
+        },
+        "summary": "Unlink session work",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "get": {
+        "operationId": "listSessionLinkedWork",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLinkedWorkResponse"
+                }
+              }
+            },
+            "description": "Linked work"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid link or repository mismatch"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Linked work unavailable"
+          }
+        },
+        "summary": "List session linked work",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "addSessionWorkLink",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionWorkLinkRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLinkedWorkResponse"
+                }
+              }
+            },
+            "description": "Linked work"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid link or repository mismatch"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Linked work unavailable"
+          }
+        },
+        "summary": "Link work to a session",
         "tags": [
           "sessions"
         ],

@@ -70,3 +70,11 @@ and the catalog-stream Vitest suite. Live GitHub and full desktop walks remain c
   A relation-reader or PR-projection failure leaves the core detail and admission queue available;
   optional family/PR facts are omitted. Owning checks: `TestManagerBoardCatalog` and
   `TestSessionPayloadOptionalRelations`.
+
+Session linked work extension (backend slice; live walk pending):
+
+- Create a worktree through a session's native tool: it appears in `GET .../sessions/{id}/links` without binding. Soft unlink it, refresh, then manually relink; it stays removed until the manual action.
+- Link a branch or PR with `session link <id> <branch> [--pr-number N] -o json`; read it through HTTP and UDS. Reject another repository with `session_link_repository_mismatch`.
+- Remove the worktree: linked work retains its name, branch and PR identity and sets `worktree_removed`.
+- Link the same PR to parent and child: parent shows one item, direct wins. Archived children still contribute; child-only work never changes the parent's column.
+- Keep an unrelated open PR linked while running several turns. Working and Needs you retain precedence; queued and dispatching inputs keep the session in Working. An unknown session moves only under the legacy own-branch rule.

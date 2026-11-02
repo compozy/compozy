@@ -6,6 +6,7 @@ import "time"
 
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
+	LinkedWork               *SessionLinkedWorkSummary        `json:"linked_work,omitempty"`
 	InstanceID               string                           `json:"instance_id,omitempty"`
 	Diagnostics              []DiagnosticItem                 `json:"diagnostics,omitempty"`
 	WorktreeBinding          *WorktreeBindingAvailability     `json:"worktree_binding,omitempty"`
@@ -208,6 +209,7 @@ type SessionPullRequestLookupPayload struct {
 
 // SessionPullRequestPayload is a daemon API value.
 type SessionPullRequestPayload struct {
+	Title          string                          `json:"title,omitempty"`
 	Provider       string                          `json:"provider"`
 	Number         int                             `json:"number"`
 	URL            string                          `json:"url"`
