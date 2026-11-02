@@ -16,13 +16,17 @@ import {
   Pill,
   Spinner,
   StateGlyph,
-  Time,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@compozy/ui";
 
-import { PULL_REQUEST_SHAPE_ICON, SESSION_CHIP_CLASS } from "./session-pull-request-chip-style";
+import {
+  PULL_REQUEST_SHAPE_ICON,
+  SESSION_CHIP_CLASS,
+  SESSION_PULL_REQUEST_DETAILS_CLASS,
+} from "./session-pull-request-chip-style";
+import { SessionPullRequestDetails } from "./session-pull-request-details";
 import {
   pullRequestChipModel,
   type PullRequestChipModel,
@@ -93,11 +97,11 @@ export function SessionPullRequestChip({
         </TooltipTrigger>
         <TooltipContent
           align="start"
-          className="max-w-75 min-w-60 flex-col items-stretch gap-0 px-2.5 py-2 text-left whitespace-normal"
+          className={SESSION_PULL_REQUEST_DETAILS_CLASS}
           data-testid="session-pull-request-tooltip"
           side="bottom"
         >
-          <ChipTooltip model={model} />
+          <SessionPullRequestDetails model={model} />
         </TooltipContent>
       </Tooltip>
       <SessionPullRequestMenu
@@ -216,63 +220,5 @@ function ChipSignal({ signal }: { signal: PullRequestSignalPart }) {
         {signal.label}
       </span>
     </>
-  );
-}
-
-export function ChipTooltip({ model }: { model: PullRequestChipModel }) {
-  if (model.kind === "branch") {
-    return (
-      <>
-        <div className="font-mono text-mono-id break-all text-fg-2">{model.branch}</div>
-        <div className="mt-1">{model.detail}</div>
-      </>
-    );
-  }
-  return (
-    <>
-      <div className="font-mono text-mono-id break-all text-fg-2">{model.branch}</div>
-      {model.rows.length > 0 ? (
-        <dl className="mt-1.5 grid gap-0.5">
-          {model.rows.map(row => (
-            <div className="flex justify-between gap-4 whitespace-nowrap" key={row.label}>
-              <dt className="font-normal text-subtle">{row.label}</dt>
-              <dd>{row.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      {model.failedNames.length > 0 ? (
-        <ul className="mt-1.5 font-mono text-mono-id font-normal text-fg-2">
-          {model.failedNames.map(name => (
-            <li key={name}>{name}</li>
-          ))}
-        </ul>
-      ) : null}
-      <ObservedFoot model={model} />
-    </>
-  );
-}
-
-function ObservedFoot({
-  model,
-}: {
-  model: Extract<PullRequestChipModel, { kind: "pull-request" }>;
-}) {
-  const prefix = model.causeText ? `${model.causeText} · ` : "";
-  return (
-    <div
-      className="mt-1.5 border-t border-line-soft pt-1.5 font-normal text-subtle"
-      data-slot="chip-observed"
-    >
-      {model.observedAt ? (
-        <>
-          {prefix}
-          {model.stale ? "Last checked " : "Checked "}
-          <Time iso={model.observedAt} />
-        </>
-      ) : (
-        `${prefix}Not checked yet`
-      )}
-    </div>
   );
 }

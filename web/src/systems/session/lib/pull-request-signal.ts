@@ -125,30 +125,67 @@ export function pullRequestCauseText(cause: string | null | undefined): string {
   return (cause && LOOKUP_CAUSE_TEXT[cause]) || "Couldn't look up the pull request";
 }
 
-export interface PullRequestTooltipRow {
-  label: string;
-  value: string;
+/** One line of the details: a plain sentence and a mark, in the signal grammar of the chip. */
+export interface PullRequestDetailLine {
+  id: "checks" | "review" | "merge";
+  text: string;
+  /** `null` reads in muted ink; a tone marks a decision. */
+  tone: PillTone | null;
+  mark: PullRequestSignalPart["mark"];
 }
 
-const REVIEW_WORD: Record<SessionPullRequest["review_decision"], string> = {
-  approved: "Approved",
-  changes_requested: "Changes requested",
-  review_required: "Review required",
-  none: "Not required",
-  unknown: "Unknown",
-};
+function checksDetail({ checks }: SessionPullRequest): PullRequestDetailLine {
+  const total = checks.passed + checks.failed + checks.pending;
+  const line = { id: "checks" as const, tone: null };
+  switch (checks.state) {
+    case "failing":
+      return {
+        ...line,
+        text: `${checks.failed} of ${total} checks failing`,
+        tone: "destructive",
+        mark: "dot",
+      };
+    case "pending":
+      return { ...line, text: `${checks.pending} of ${total} checks pending`, mark: "spinner" };
+    case "passing":
+      return { ...line, text: `All ${checks.passed} checks passed`, mark: "check" };
+    case "none":
+      return { ...line, text: "No checks", mark: "dot" };
+    default:
+      return { ...line, text: "Checks unknown", mark: "dot" };
+  }
+}
 
-const MERGEABLE_WORD: Record<SessionPullRequest["mergeable"], string> = {
-  mergeable: "Yes",
-  conflicting: "Conflicts",
-  unknown: "Unknown",
-};
+function reviewDetail(pr: SessionPullRequest): PullRequestDetailLine {
+  const line = { id: "review" as const, tone: null };
+  switch (pr.review_decision) {
+    case "approved":
+      return { ...line, text: "Approved", mark: "check" };
+    case "changes_requested":
+      return { ...line, text: "Changes requested", tone: "destructive", mark: "dot" };
+    case "review_required":
+      return { ...line, text: "Review required", mark: "dot" };
+    case "none":
+      return { ...line, text: "No review needed", mark: "check" };
+    default:
+      return { ...line, text: "Review unknown", mark: "dot" };
+  }
+}
 
-function checksBreakdown(pr: SessionPullRequest): string {
-  const { checks } = pr;
-  if (checks.state === "unknown") return "Unknown";
-  if (checks.state === "none") return "None";
-  return `${checks.passed} passed · ${checks.failed} failed · ${checks.pending} pending`;
+function mergeDetail(pr: SessionPullRequest): PullRequestDetailLine {
+  const line = { id: "merge" as const, tone: null };
+  if (pr.mergeable === "conflicting") {
+    return { ...line, text: "Conflicts", tone: "destructive", mark: "dot" };
+  }
+  return pr.mergeable === "mergeable"
+    ? { ...line, text: "No conflicts", mark: "check" }
+    : { ...line, text: "Conflicts unknown", mark: "dot" };
+}
+
+/** Stale facts keep their words in muted ink, as the chip's own signals do. */
+function pullRequestDetailLines(pr: SessionPullRequest, fresh: boolean): PullRequestDetailLine[] {
+  const lines = [checksDetail(pr), reviewDetail(pr), mergeDetail(pr)];
+  return fresh ? lines : lines.map(line => ({ ...line, tone: null }));
 }
 
 export type PullRequestChipModel =
@@ -171,8 +208,11 @@ export type PullRequestChipModel =
       word: string;
       signals: PullRequestSignalPart[];
       stale: boolean;
-      rows: PullRequestTooltipRow[];
+      /** What stands between an open PR and merging; terminal PRs have none. */
+      lines: PullRequestDetailLine[];
       failedNames: string[];
+      /** Failing checks past the named ones. */
+      failedMore: number;
       /** Sanitized cause of the last failed lookup, shown beside "last checked". */
       causeText: string | null;
       observedAt: string | null;
@@ -216,14 +256,7 @@ export function pullRequestChipModel(facts: SessionPullRequestFacts): PullReques
   }
   const shape = pullRequestShape(pr);
   const word = PULL_REQUEST_SHAPE_WORD[shape];
-  const rows: PullRequestTooltipRow[] =
-    pr.state === "open"
-      ? [
-          { label: "Checks", value: checksBreakdown(pr) },
-          { label: "Review", value: REVIEW_WORD[pr.review_decision] },
-          { label: "Mergeable", value: MERGEABLE_WORD[pr.mergeable] },
-        ]
-      : [];
+  const failedNames = pr.checks.state === "failing" ? pr.checks.failed_names.slice(0, 5) : [];
   return {
     kind: "pull-request",
     branch,
@@ -233,8 +266,9 @@ export function pullRequestChipModel(facts: SessionPullRequestFacts): PullReques
     word,
     signals: pullRequestChipSignals(pr, lookup),
     stale: lookup.stale || lookup.state === "error",
-    rows,
-    failedNames: pr.checks.state === "failing" ? pr.checks.failed_names.slice(0, 5) : [],
+    lines: pr.state === "open" ? pullRequestDetailLines(pr, pullRequestFactsFresh(lookup)) : [],
+    failedNames,
+    failedMore: failedNames.length > 0 ? Math.max(pr.checks.failed - failedNames.length, 0) : 0,
     causeText: lookup.state === "error" ? pullRequestCauseText(lookup.cause) : null,
     observedAt: lookup.observed_at,
     ariaLabel: `Pull request #${pr.number}, ${word}`,

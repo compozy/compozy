@@ -81,10 +81,13 @@ describe("pullRequestChipModel", () => {
       ["Review required", null],
     ]);
     expect(draft.failedNames).toEqual(["lint", "test-web"]);
-    expect(draft.rows).toContainEqual({
-      label: "Checks",
-      value: "12 passed · 2 failed · 0 pending",
+    expect(draft.lines).toContainEqual({
+      id: "checks",
+      text: "2 of 14 checks failing",
+      tone: "destructive",
+      mark: "dot",
     });
+    expect(prChip(facts({ ...DX_PR, checks: { ...DX_PR.checks, failed: 7 } })).failedMore).toBe(5);
 
     const ready = prChip(facts(READY_PR));
     expect(ready).toMatchObject({ number: 931, shape: "open", word: "Open" });
@@ -113,7 +116,7 @@ describe("pullRequestChipModel", () => {
     ]);
 
     const merged = prChip(facts({ ...READY_PR, state: "merged", ready_to_merge: false }));
-    expect(merged).toMatchObject({ shape: "merged", word: "Merged", signals: [], rows: [] });
+    expect(merged).toMatchObject({ shape: "merged", word: "Merged", signals: [], lines: [] });
   });
 
   it("UT-061: middle-truncates a 60-character branch and keeps the full name", () => {
@@ -138,7 +141,12 @@ describe("pullRequestChipModel", () => {
       })
     );
     expect(model.signals[0]).toMatchObject({ id: "checks", label: "No checks", mark: "none" });
-    expect(model.rows).toContainEqual({ label: "Checks", value: "None" });
+    expect(model.lines).toContainEqual({
+      id: "checks",
+      text: "No checks",
+      tone: null,
+      mark: "dot",
+    });
   });
 
   it("UT-073: branch chips keep lookup states apart from a confirmed no PR", () => {

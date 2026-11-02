@@ -29,8 +29,11 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
-import { ChipTooltip } from "@/systems/session/components/session-pull-request-chip";
-import { PULL_REQUEST_SHAPE_ICON } from "@/systems/session/components/session-pull-request-chip-style";
+import {
+  PULL_REQUEST_SHAPE_ICON,
+  SESSION_PULL_REQUEST_DETAILS_CLASS,
+} from "@/systems/session/components/session-pull-request-chip-style";
+import { SessionPullRequestDetails } from "@/systems/session/components/session-pull-request-details";
 import { SessionPullRequestMenu } from "@/systems/session/components/session-pull-request-menu";
 import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
 
@@ -138,10 +141,18 @@ export interface LinkRowProps {
   agentLabel: string;
   /** Pins the row's menu open for review. */
   menuOpen?: boolean;
+  /** Pins the row's details open for review. */
+  detailOpen?: boolean;
   onUnlink: (link: SessionLink) => void;
 }
 
-export function LinkRow({ link, agentLabel, menuOpen = false, onUnlink }: LinkRowProps) {
+export function LinkRow({
+  link,
+  agentLabel,
+  menuOpen = false,
+  detailOpen = false,
+  onUnlink,
+}: LinkRowProps) {
   const pr = link.facts.pull_request;
   return (
     <Item
@@ -156,7 +167,7 @@ export function LinkRow({ link, agentLabel, menuOpen = false, onUnlink }: LinkRo
       </ItemMedia>
       <ItemContent className="min-w-0 gap-1">
         <ItemTitle className="w-full">
-          <Tooltip>
+          <Tooltip defaultOpen={detailOpen}>
             <TooltipTrigger
               render={
                 <a
@@ -172,10 +183,12 @@ export function LinkRow({ link, agentLabel, menuOpen = false, onUnlink }: LinkRo
             </TooltipTrigger>
             <TooltipContent
               align="start"
-              className="max-w-75 min-w-60 flex-col items-stretch gap-0 px-2.5 py-2 text-left whitespace-normal"
+              className={SESSION_PULL_REQUEST_DETAILS_CLASS}
               side="left"
+              // The title sits past the icon; the details clear the popover's edge instead.
+              sideOffset={72}
             >
-              <ChipTooltip model={linkChip(link)} />
+              <SessionPullRequestDetails model={linkChip(link)} />
             </TooltipContent>
           </Tooltip>
         </ItemTitle>

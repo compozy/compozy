@@ -45,6 +45,7 @@ export function HeaderDirection({ state }: { state: string }) {
           links={links}
           onLink={openLink}
           onUnlink={unlink}
+          openDetailFor={scenario.openDetailFor}
           openMenuFor={scenario.openMenuFor}
           runsIn={scenario.runsIn}
         />

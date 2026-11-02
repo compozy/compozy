@@ -16,11 +16,19 @@ export interface LinkedWorkProps {
   links: readonly SessionLink[];
   runsIn: SessionRunsIn;
   openMenuFor?: string;
+  openDetailFor?: string;
   onLink: () => void;
   onUnlink: (link: SessionLink) => void;
 }
 
-export function LinkedWork({ links, runsIn, openMenuFor, onLink, onUnlink }: LinkedWorkProps) {
+export function LinkedWork({
+  links,
+  runsIn,
+  openMenuFor,
+  openDetailFor,
+  onLink,
+  onUnlink,
+}: LinkedWorkProps) {
   const [query, setQuery] = useState("");
   return (
     <div className="flex max-h-[min(78vh,52rem)] min-h-0 flex-col" data-slot="session-linked-work">
@@ -46,7 +54,13 @@ export function LinkedWork({ links, runsIn, openMenuFor, onLink, onUnlink }: Lin
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5">
-        <LinkList links={links} onUnlink={onUnlink} openMenuFor={openMenuFor} query={query} />
+        <LinkList
+          links={links}
+          onUnlink={onUnlink}
+          openDetailFor={openDetailFor}
+          openMenuFor={openMenuFor}
+          query={query}
+        />
       </div>
       <div
         className="flex min-w-0 items-center gap-2 border-t border-line bg-sunken px-4 py-2.5 text-eyebrow text-muted-foreground"

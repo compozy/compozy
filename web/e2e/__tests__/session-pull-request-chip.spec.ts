@@ -80,7 +80,7 @@ test("E2E-001: the topbar shows the linked PR instead of the agent chip", async 
   // The breakdown lives in the tooltip.
   await chip.hover();
   const tooltip = appPage.getByTestId("session-pull-request-tooltip");
-  await expect(tooltip).toContainText("14 passed · 0 failed · 0 pending");
+  await expect(tooltip).toContainText("All 14 checks passed");
   await expect(tooltip).toContainText("Approved");
   await browserArtifacts.captureScreenshot("session-pr-chip-ready", appPage);
 });

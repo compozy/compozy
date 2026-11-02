@@ -15,6 +15,8 @@ export interface LinkScenario {
   open: boolean;
   /** The row whose menu is pinned open. */
   openMenuFor?: string;
+  /** The row whose details are pinned open. */
+  openDetailFor?: string;
   narrow?: boolean;
   user: string;
   agent: string;
@@ -90,6 +92,42 @@ const SCENARIOS: Record<string, LinkScenario> = {
     links: SESSION_LINK_SETS.mixed,
     openMenuFor: "pr-948",
     agent: "Four pull requests from this session: one is merged, one closed, two still open.",
+  },
+  "details-failing": {
+    ...SINGLE,
+    links: SESSION_LINK_SETS.mixed,
+    openDetailFor: "pr-951",
+    agent: "Four pull requests from this session: one is merged, one closed, two still open.",
+  },
+  "details-pending": {
+    ...SINGLE,
+    links: SESSION_LINK_SETS.mixed,
+    openDetailFor: "pr-948",
+    agent: "Four pull requests from this session: one is merged, one closed, two still open.",
+  },
+  "details-ready": {
+    ...SINGLE,
+    links: SESSION_LINK_SETS.worktreeRemoved,
+    openDetailFor: "pr-931",
+    agent: "#931 is ready to merge. I cleaned up its worktree, so only the pull request is left.",
+  },
+  "details-stale": {
+    ...SINGLE,
+    links: SESSION_LINK_SETS.lookupFailed,
+    openDetailFor: "pr-942",
+    agent: "Both branches are pushed. CompozyOS can't reach GitHub right now.",
+  },
+  "details-merged": {
+    ...SINGLE,
+    links: SESSION_LINK_SETS.mixed,
+    openDetailFor: "pr-939",
+    agent: "Four pull requests from this session: one is merged, one closed, two still open.",
+  },
+  "details-branch": {
+    ...SINGLE,
+    links: SESSION_LINK_SETS.lookupFailed,
+    openDetailFor: "branch-fix/attachment-rebase",
+    agent: "Both branches are pushed. CompozyOS can't reach GitHub right now.",
   },
   orchestrator: { ...ORCHESTRATOR, links: SESSION_LINKS_DOZEN },
   fifty: {

@@ -28,6 +28,8 @@ export interface LinkListProps {
   agentLabel?: string;
   /** The link whose menu is pinned open for review. */
   openMenuFor?: string;
+  /** The link whose details are pinned open for review. */
+  openDetailFor?: string;
   onUnlink: (link: SessionLink) => void;
 }
 
@@ -43,6 +45,7 @@ function GroupRows({ group, list }: { group: LinkGroup; list: LinkListProps }) {
           agentLabel={list.agentLabel ?? "Claude"}
           key={link.id}
           link={link}
+          detailOpen={link.id === list.openDetailFor}
           menuOpen={link.id === list.openMenuFor}
           onUnlink={list.onUnlink}
         />
