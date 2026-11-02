@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,8 +37,19 @@ const targetSweepInterval = 30 * time.Second
 // targetReadGap bounds reads driven by a busy target: every event of every target signals a change.
 const targetReadGap = time.Second
 
-// targetReadTimeout bounds one read of all targets, so a slow read cannot hold a monitor past its timeout.
-const targetReadTimeout = 5 * time.Second
+// targetReadTimeout bounds one read of all targets, so a slow read cannot hold a monitor past its
+// timeout. targetReadPerTarget extends it for large monitors, whose targets are read one at a time.
+const (
+	targetReadTimeout   = 5 * time.Second
+	targetReadPerTarget = 250 * time.Millisecond
+)
+
+// maxTargetReads bounds one watch's reads in flight, counting reads that stalled past their budget.
+const maxTargetReads = 2
+
+func targetReadBudget(spec Spec) time.Duration {
+	return max(targetReadTimeout, time.Duration(len(spec.Targets))*targetReadPerTarget)
+}
 
 // errWatchQuiesced ends a session watch without an outcome; the monitor stays active for the next boot.
 var errWatchQuiesced = errors.New("monitor: session watches are quiesced")
@@ -208,7 +220,7 @@ func (s *Service) followTargets(
 	case <-s.watchGate:
 	}
 	for {
-		budget := max(min(targetReadTimeout, time.Until(deadline)), time.Millisecond)
+		budget := max(min(targetReadBudget(reader.spec), time.Until(deadline)), time.Millisecond)
 		marked, held, err := reader.read(ctx, budget)
 		if err != nil {
 			return Outcome{}, err
@@ -224,9 +236,9 @@ func (s *Service) followTargets(
 			changes = nil
 		}
 		if timedOut {
-			// The final read may run past the timeout by targetReadTimeout at most: a slightly late wake
+			// The final read may run past the timeout by one read budget at most: a slightly late wake
 			// that reports a settled target correctly beats an on-time one that reports it as working.
-			marked, held, err = reader.read(ctx, targetReadTimeout)
+			marked, held, err = reader.read(ctx, targetReadBudget(reader.spec))
 			if err != nil {
 				return Outcome{}, err
 			}
@@ -265,15 +277,15 @@ func (s *Service) awaitTargetRead(
 }
 
 // targetReader runs one watch's reads off the watch goroutine, because a session read can stall past
-// its context. At most one read is in flight: a watch whose read stalled waits for that read again
-// instead of starting another, and the service joins it at shutdown. A read that outlived its budget
-// is discarded when it lands, because what it saw may no longer hold.
+// its context. A read that outlives its budget is abandoned, because what it saw may no longer hold,
+// and the next read replaces it so a stall cannot hide a target that settles meanwhile. At most
+// maxTargetReads run at once, and the service joins them at shutdown.
 type targetReader struct {
-	service *Service
-	spec    Spec
-	pending chan []TargetStatus
-	expired bool
-	known   []TargetStatus
+	service  *Service
+	spec     Spec
+	pending  chan []TargetStatus
+	inFlight atomic.Int32
+	known    []TargetStatus
 }
 
 // read evaluates the condition on what this read observed, and only that: a state remembered from an
@@ -297,32 +309,35 @@ func (r *targetReader) read(ctx context.Context, budget time.Duration) ([]Target
 func (r *targetReader) await(ctx context.Context, budget time.Duration) ([]TargetStatus, error) {
 	timer := time.NewTimer(budget)
 	defer timer.Stop()
-	for {
-		if r.pending == nil {
-			r.pending = make(chan []TargetStatus, 1)
-			r.expired = false
-			r.start(ctx, budget)
-		}
+	if r.pending == nil && r.inFlight.Load() < maxTargetReads {
+		r.pending = make(chan []TargetStatus, 1)
+		r.start(ctx, budget)
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-r.service.quiesced:
+		return nil, errWatchQuiesced
+	case <-timer.C:
+		r.pending = nil
+		return unknownTargets(r.spec), nil
+	case statuses := <-r.pending:
+		r.pending = nil
 		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-r.service.quiesced:
-			return nil, errWatchQuiesced
 		case <-timer.C:
-			r.expired = true
+			// Both were ready and select chose the result, which already outlived its budget.
 			return unknownTargets(r.spec), nil
-		case statuses := <-r.pending:
-			r.pending = nil
-			if !r.expired {
-				return statuses, nil
-			}
+		default:
+			return statuses, nil
 		}
 	}
 }
 
 func (r *targetReader) start(ctx context.Context, budget time.Duration) {
 	pending, service, spec := r.pending, r.service, r.spec
+	r.inFlight.Add(1)
 	service.wg.Go(func() {
+		defer r.inFlight.Add(-1)
 		readCtx, cancel := context.WithTimeout(ctx, budget)
 		defer cancel()
 		pending <- service.targets.ReadTargets(readCtx, spec)

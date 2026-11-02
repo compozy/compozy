@@ -1863,21 +1863,25 @@ func TestServiceRecoveryStartsTheWatchOnlyAfterTheAnchorClearIsDurable(t *testin
 
 // fakeTargets is the session boundary of session monitors. A nil changes channel leaves the sweep alone.
 type fakeTargets struct {
-	mu      sync.Mutex
-	states  map[string]string
-	changes chan struct{}
-	err     error
-	reads   int
-	stall   bool
-	hang    chan struct{}
+	mu       sync.Mutex
+	states   map[string]string
+	changes  chan struct{}
+	err      error
+	reads    int
+	stall    bool
+	hang     chan struct{}
+	hangLeft int
 }
 
 // hangReads makes reads block past their context until the returned function runs.
-func (f *fakeTargets) hangReads() func() {
+func (f *fakeTargets) hangReads() func() { return f.hangNextReads(-1) }
+
+// hangNextReads hangs the next count reads; a negative count hangs every read.
+func (f *fakeTargets) hangNextReads(count int) func() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	release := make(chan struct{})
-	f.hang = release
+	f.hang, f.hangLeft = release, count
 	return func() { close(release) }
 }
 
@@ -1933,6 +1937,11 @@ func (f *fakeTargets) ReadTargets(ctx context.Context, spec Spec) []TargetStatus
 	f.reads++
 	if f.hang != nil {
 		hang := f.hang
+		if f.hangLeft > 0 {
+			if f.hangLeft--; f.hangLeft == 0 {
+				f.hang = nil
+			}
+		}
 		seen := make([]TargetStatus, 0, len(spec.Targets))
 		for _, id := range spec.Targets {
 			seen = append(seen, TargetStatus{SessionID: id, State: f.states[id]})
@@ -1940,7 +1949,6 @@ func (f *fakeTargets) ReadTargets(ctx context.Context, spec Spec) []TargetStatus
 		f.mu.Unlock()
 		<-hang
 		f.mu.Lock()
-		f.hang = nil
 		return seen
 	}
 	if f.stall {
@@ -2204,9 +2212,56 @@ func TestServiceSessionMonitorConditions(t *testing.T) {
 			if got[0].Outcome.Reason != ReasonTimeout || got[0].Outcome.Targets[0].State != "running" {
 				t.Fatalf("outcome = %+v, want a timeout with the last known state", got[0].Outcome)
 			}
-			if targets.readCount() != reads {
-				t.Fatalf("reads = %d, want no read started while one is in flight (%d)", targets.readCount(), reads)
+			if got := targets.readCount(); got > reads+maxTargetReads {
+				t.Fatalf("reads = %d, want at most %d in flight past %d", got, maxTargetReads, reads)
 			}
+		})
+	})
+
+	t.Run("Should replace a stalled read so a target that settles meanwhile is seen", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running"})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			if _, err := service.Create(t.Context(), sessionSpec("sess-o", "sess-a")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			release := targets.hangNextReads(1)
+			defer release()
+			targets.set("sess-a", "running")
+			time.Sleep(targetReadGap + targetReadTimeout + time.Second)
+			targets.set("sess-a", TargetStateIdle)
+			got := wokenTargets(t, waker, 1)
+			if got[0].Outcome.Reason != ReasonConditionMet {
+				t.Fatalf("outcome = %+v, want the replacement read to see the settled target", got[0].Outcome)
+			}
+		})
+	})
+
+	t.Run("Should give large monitors a larger read budget", func(t *testing.T) {
+		spec := Spec{Targets: make([]string, MaxSessionTargets)}
+		if got, want := targetReadBudget(spec), 8*time.Second; got != want {
+			t.Fatalf("budget = %s, want %s", got, want)
+		}
+		if got := targetReadBudget(Spec{Targets: []string{"sess-a"}}); got != targetReadTimeout {
+			t.Fatalf("budget = %s, want %s", got, targetReadTimeout)
+		}
+	})
+
+	t.Run("Should not wake an any monitor on an unreadable target alone", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			targets := newFakeTargets(map[string]string{"sess-a": "running", "sess-b": "running"})
+			waker := &recordingWaker{}
+			service := newTargetService(t, targets, waker, nil)
+			spec := sessionSpec("sess-o", "sess-a", "sess-b")
+			spec.Until = UntilAny
+			if _, err := service.Create(t.Context(), spec); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			targets.setAll(map[string]string{"sess-a": TargetStateUnknown, "sess-b": "running"})
+			wokenTargets(t, waker, 0)
 		})
 	})
 

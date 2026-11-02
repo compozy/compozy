@@ -76,7 +76,7 @@ they are done. The wake lists each session and its state.
 - The monitor checks each session as it is now. A session that needed input and got an answer before
   the check doesn't count.
 - If the condition already holds, the monitor fires right away.
-- At the timeout, the monitor checks the sessions one last time, so the wake can arrive up to 5 seconds
+- At the timeout, the monitor checks the sessions one last time, so the wake can arrive up to 8 seconds
   late.
 - A session monitor survives a daemon restart and is checked again afterward. Restarting the daemon
   doesn't fire it.

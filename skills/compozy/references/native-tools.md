@@ -175,7 +175,7 @@ deleted (`gone`) always counts, so it cannot leave you waiting. A target a daemo
 resuming reads `interrupted`: it ends an `all` condition, and satisfies `any` only if `stopped` is selected.
 A target with its own open work reads `waiting`, and one with queued input reads `running`; neither counts
 as idle. `timeout_seconds` defaults to 7,200, caps at 21,600, and the
-monitor still wakes you on timeout, up to 5 seconds late so it can read the targets once more, with the
+monitor still wakes you on timeout, up to 8 seconds late so it can read the targets once more, with the
 targets that did not settle. A state that could not be read is reported as last known and never counts. A condition that already holds
 fires at once. A session
 holds at most 8 active monitors, a terminal at most 4, and the daemon at most 256. There is no remote
