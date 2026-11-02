@@ -760,6 +760,9 @@ type LoopGoalBindingRetryWitness struct {
 }
 
 type LoopGoalCheckpoint struct {
+	WaitStartedAt               sql.NullTime   `json:"wait_started_at"`
+	WaitDeferrals               int64          `json:"wait_deferrals"`
+	PendingCompaction           int64          `json:"pending_compaction"`
 	LoopRunID                   string         `json:"loop_run_id"`
 	Generation                  int64          `json:"generation"`
 	NodeID                      string         `json:"node_id"`
@@ -1680,6 +1683,11 @@ type SessionMonitor struct {
 	OwnerBinding       string        `json:"owner_binding"`
 	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
 	Version            int64         `json:"version"`
+	Branch             string        `json:"branch"`
+	RepoKey            string        `json:"repo_key"`
+	PrCursor           string        `json:"pr_cursor"`
+	FireCount          int64         `json:"fire_count"`
+	LastFiredAt        string        `json:"last_fired_at"`
 	TargetSessionIds   string        `json:"target_session_ids"`
 	States             string        `json:"states"`
 	Targets            string        `json:"targets"`

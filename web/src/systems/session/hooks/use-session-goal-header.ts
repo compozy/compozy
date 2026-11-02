@@ -149,7 +149,7 @@ export function useSessionGoalHeader(
     onClear: !readOnly && snapshot && !snapshot.live ? () => command("clear") : undefined,
     onStop: !readOnly && snapshot?.live ? () => command("stop") : undefined,
     onPause:
-      !readOnly && snapshot?.live && snapshot.status === "active"
+      !readOnly && snapshot?.live && (snapshot.status === "active" || snapshot.status === "waiting")
         ? () => command("pause")
         : undefined,
     onPrefillComposer: readOnly ? undefined : onPrefillComposer,

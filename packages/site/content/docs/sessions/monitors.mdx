@@ -1,12 +1,13 @@
 ---
 title: Monitors
-description: Let an agent start long-running work, end its turn, and wake up on its own when the work finishes.
+description: Let an agent start long-running work or watch a pull request, end its turn, and wake up on its own when something needs it.
 ---
 
 A monitor lets an agent say "wake me when this finishes" and keep that promise. The agent starts a
 long command (a build, a deploy, a release workflow), registers a monitor on it, and ends its turn.
 When the command exits, prints the line you were waiting for, or a timer runs out, CompozyOS starts a
-new turn in the same session with the result.
+new turn in the same session with the result. A monitor can also watch a pull request and wake the
+agent each time its checks or reviews need attention.
 
 ## Why agents need it
 
@@ -28,14 +29,17 @@ An agent that waits inside its own shell keeps the turn busy, so the session loo
 CompozyOS can't supervise the wait. When a session can use monitors, CompozyOS refuses these commands
 and tells the agent the exact call to make instead:
 
-| Refused                                                    | The agent is told to                               |
-| ---------------------------------------------------------- | -------------------------------------------------- |
-| `gh pr checks --watch`, `gh run watch`, `watch`, `tail -f` | run it in a terminal and put a monitor on it       |
-| `while`, `until`, or `for` loops that `sleep` to poll      | run the loop in a terminal and put a monitor on it |
-| `sleep` for 5 seconds or more                              | set a timer monitor                                |
+| Refused                                               | The agent is told to                               |
+| ----------------------------------------------------- | -------------------------------------------------- |
+| `gh pr checks --watch`                                | register a pull request monitor                    |
+| `gh run watch`, `watch`, `tail -f`                    | run it in a terminal and put a monitor on it       |
+| `while`, `until`, or `for` loops that `sleep` to poll | run the loop in a terminal and put a monitor on it |
+| `sleep` for 5 seconds or more                         | set a timer monitor                                |
 
 Shorter sleeps, `gh pr checks` without `--watch`, and text that only mentions these commands still
-run. The check also sees through `timeout`, `env`, `bash -c`, and paths such as `/bin/sleep`.
+run. The check also sees through `timeout`, `env`, `bash -c`, and paths such as `/bin/sleep`. A
+`gh pr checks --watch` that names a pull request or another repository, or that depends on its
+directory or environment, is sent to a terminal instead.
 
 What each provider gets:
 
@@ -51,15 +55,17 @@ If the check itself fails, the command runs.
 
 ## What a monitor can watch
 
-| Kind       | Fires when                                                                                    | Limits                                                                                    |
-| ---------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `terminal` | the terminal's process exits (`until: exit`) or its output matches a pattern (`until: match`) | `timeout_seconds` defaults to 30 minutes, up to 6 hours. A timeout still wakes the agent. |
-| `timer`    | `delay_seconds` have passed                                                                   | 5 seconds to 24 hours                                                                     |
-| `session`  | any or all of `target_session_ids` reach `states` (`until: any` or `until: all`)              | 1 to 32 sessions. `timeout_seconds` defaults to 2 hours, up to 6 hours.                   |
+| Kind           | Fires when                                                                                    | Limits                                                                                    |
+| -------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `terminal`     | the terminal's process exits (`until: exit`) or its output matches a pattern (`until: match`) | `timeout_seconds` defaults to 30 minutes, up to 6 hours. A timeout still wakes the agent. |
+| `timer`        | `delay_seconds` have passed                                                                   | 5 seconds to 24 hours                                                                     |
+| `pull_request` | checks fail or finish, a review or unresolved thread arrives, or the pull request ends        | `timeout_seconds` defaults to 6 hours, up to 24 hours, and at most 64 wakes per monitor   |
+| `session`      | any or all of `target_session_ids` reach `states` (`until: any` or `until: all`)              | 1 to 32 sessions. `timeout_seconds` defaults to 2 hours, up to 6 hours.                   |
 
 Each session can hold up to 8 active monitors, and each terminal up to 4. Registering the same
-terminal condition again (same terminal, `until`, pattern, normalized timeout, and description) returns the monitor that is already
-active, so a retried call never adds a second wake. The same applies to a session condition.
+terminal condition again (same terminal, `until`, pattern, normalized timeout, and description), the
+same branch for a pull request monitor, or the same session condition returns the monitor that is
+already active, so a retried call never adds a second wake.
 
 ### Waiting for other sessions
 
@@ -81,8 +87,8 @@ they are done. The wake lists each session and its state.
 - A session monitor survives a daemon restart and is checked again afterward. Restarting the daemon
   doesn't fire it.
 
-There is no polling kind for remote state such as CI. The agent runs the bounded watch command
-(for example `gh pr checks <n> --watch`) in a terminal and monitors that terminal, setting
+There is no generic polling kind for remote state. For work that is not a pull request, such as a
+deploy, the agent runs a bounded watch command in a terminal and monitors that terminal, setting
 `timeout_seconds` past the expected wait.
 
 ## Walkthrough: wait for a long command
@@ -113,8 +119,72 @@ Ask an agent to run something slow and report back, for example:
    lines of output, and reports back.
 
 If you send a message while the agent is busy, the wake waits behind the current turn. If the
-session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. Stopping the
+session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. A pull request
+wake keeps retrying for as long as the monitor lives, and what changes meanwhile comes in the next wake. Stopping the
 session on purpose cancels its monitors, so nothing it registered restarts it later.
+
+## Walkthrough: watch a pull request
+
+Ask an agent to open a pull request and see it through, for example:
+
+> Open a pull request for this branch and fix whatever CI or reviewers find.
+
+1. The agent pushes, opens the pull request, and calls `compozy__monitor_create`:
+
+   ```json
+   {
+     "kind": "pull_request",
+     "description": "fix what CI and reviewers find on my pull request"
+   }
+   ```
+
+   The monitor follows the session's branch. Pass `branch` to watch another one. A default branch, or
+   a session with no branch, is refused. If the pull request does not exist yet, the monitor waits for it.
+   It also waits when the branch only has a pull request that had already merged or closed, as a reused
+   branch does: only a pull request the monitor saw open can end it.
+
+2. The agent ends its turn, or keeps working on something else. CompozyOS reads the pull request
+   about once a minute through the [forge extension](/docs/extensions), with that extension's own
+   credential. It never runs a command or a URL the agent supplied.
+3. When something needs the agent, a new turn starts with the facts: the pull request, its head, the
+   check counts, the names of failing checks, and who reviewed. The transcript shows a divider such as
+   **Monitor fired · fix what CI and reviewers find on my pull request · Pull request changed**.
+4. The agent reads the logs and reviews, pushes a fix, and ends its turn again. The monitor stays
+   armed, so the next change wakes it too. Nothing else is needed from you.
+5. When the pull request merges or closes, one last wake says so and the monitor ends. The agent, not
+   CompozyOS, decides when the work is done, so the agent can cancel the monitor sooner.
+
+What wakes the agent:
+
+| Change                                        | When the wake arrives                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| A check fails                                 | At the next read, about a minute. Failures already there wake at once |
+| All checks finish                             | At the next read, once per head                                       |
+| A new review or unresolved thread on the head | After 2 minutes of quiet, held at most 5, so a burst is one wake      |
+| The pull request merges or closes             | At the next read. This is the last wake                               |
+
+What it deliberately does not wake on:
+
+- Reviews and threads already there when the monitor starts. Only new ones count.
+- A push by itself. A new head resets the checks and drops pending review activity. A review or thread
+  that arrives late on the old head is ignored, though open threads stay in the count each wake reports.
+- A check rerun on the same head that passes. All checks finishing wakes once per head; a rerun wakes
+  the agent only if it fails.
+- Review text. The wake says who reviewed and how, and tells the agent to read the reviews itself,
+  including the review body, because follow-ups can live only there.
+
+If the forge cannot be reached, those failed reads are never treated as check results. After 15
+minutes of failures, one wake says the forge is unavailable and the monitor stays armed. If only reviews
+fail to load, checks keep working and reviews that arrive meanwhile are still reported once they can be
+read. Rate limits are respected, and sessions watching the same pull request share one read. A forge
+extension that does not report reviews still supports checks, and each wake says what it could not observe. Pull requests
+from forks are not visible to the monitor.
+
+A pull request monitor keeps its slot for its whole life, and a Stays-on agent's session does not
+rotate while one is active.
+
+Everything a forge reports, such as check names and author names, is treated as untrusted text, the same
+way terminal output is.
 
 ## See and cancel monitors in the app
 
@@ -122,8 +192,8 @@ A session whose turn ended but still has an active monitor is not done yet, and 
 
 - In the session list, the row shows an amber radar mark instead of the green done check.
 - In the message box, a radar button with the number of active monitors sits next to the attach
-  button. Click it to see what each monitor watches (a timer, a terminal exit, or a terminal output
-  pattern) and when it fires or gives up.
+  button. Click it to see what each monitor watches (a timer, a terminal exit, a terminal output
+  pattern, or a pull request) and when it fires or gives up.
 - Click **×** on a monitor to cancel it. The session is not woken, and the watched command keeps
   running. A monitor that already fired reads "Waking the session…" and can no longer be canceled.
 
@@ -151,6 +221,8 @@ Monitors are stored by the daemon and survive a restart. After the daemon comes 
 - A timer keeps its original deadline. One that came due while the daemon was down fires right away.
 - A monitor that had already fired but was not yet delivered is delivered once; the terminal output it
   carried is not kept, and the wake says so.
+- A pull request monitor picks up where it stopped: changes during the downtime still wake the agent,
+  and a wake that was not delivered is delivered once, unchanged.
 - A terminal does not survive a restart, and CompozyOS never reruns its command. A monitor on a
   terminal that no longer exists fires with the status "terminal is no longer observable".
 - The owning session is resumed only when CompozyOS would resume it after a restart: automatic

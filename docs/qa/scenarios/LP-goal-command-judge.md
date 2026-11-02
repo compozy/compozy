@@ -42,3 +42,33 @@ profile, its checkpoint is valid, and Goal status remains visible after the comm
 another profile and verify run/request lists and `@user&all_profiles=true` retain exact User scope
 and owner labels. Worker coverage lives in the canonical Goal command and SQLite loop suites; the
 full User-session transport journey waits for U2 integration.
+
+### Verified external waits (#1149)
+
+Use a provider-free acpmock worker that calls the real `compozy__monitor_create` tool during its
+first Goal turn, then ends without a terminal claim. Keep a 180-second timer active and make the
+judge reject unfinished work. Verify `status: waiting`, a flat started-turn count, and no judge
+attempt for the yielded turn; after the wake, verify one queued wake turn followed by resumed Goal
+work. Repeat with an asynchronous delegated child and with a terminal monitor. For the child,
+retain the wait across terminal publication and queued/dispatched result delivery; resume only
+after delivery, acknowledgement, or disposal.
+
+Cancel the monitor, stop the child, and exercise a failed/undelivered wake: each must release the
+Goal without operator resume. Restart the isolated daemon during a live wait and verify the
+original wait deadline, stable turn audit, and eventual advance. Repeat with max-token compaction
+pending, and with a prior queued input registering a monitor before the Goal ticket is claimed.
+Neither may submit Goal work or compaction while the wait is live. Pause and Stop while waiting must
+remain effective; an explicit complete claim must still reach the judge. Check Waiting and Pause
+in the Web Goal strip and inspect the CLI/HTTP Goal snapshot. A stuck wait must pause with a reason.
+
+2026-11-02 baseline: issue #1149 reproduced before the fix for timers and async children. Both
+consumed 8/8 turns and exhausted before the wait ended. acpmock drove the real native-tool and
+agent-judge paths; its judge always revised. The lab used a driver-only overlay allowing judge
+sessions without hosted MCP.
+
+Operator lab report at `304669183`: a 180.9-second monitor wait and a 149.5-second child wait
+kept Goal turn counts flat with no waiting-state judge. The Goal completed at 3/8 turns with two
+judges. CLI, HTTP, native, and Web exposed Waiting; 44 Goals had no duplicate turns or judges.
+The child-only restart case failed because the stopped parent did not consume the queued wake.
+The recovery, delivery-handoff, pending-compaction, queued-input deferral, pause deadline, and
+narrow-screen fixes require a new-head runtime/rendered rewalk before delivery.

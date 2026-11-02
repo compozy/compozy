@@ -638,24 +638,26 @@ func (q *Queries) SettleGoalTurn(ctx context.Context, arg SettleGoalTurnParams) 
 
 const updateGoalCheckpointAfterTurn = `-- name: UpdateGoalCheckpointAfterTurn :execrows
 UPDATE loop_goal_checkpoints
-SET phase = ?1, goal_status = ?2, control_cause = ?3,
-    broken_streak = ?4, recovery_streak = ?5,
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+SET pending_compaction = ?1,
+    phase = ?2, goal_status = ?3, control_cause = ?4,
+    broken_streak = ?5, recovery_streak = ?6,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     judge_attempt_id = NULL, report_prompt_id = NULL, report_status = NULL,
     report_evidence_ref = NULL, report_binding_epoch = NULL, report_actor_kind = NULL,
     report_actor_id = NULL, report_recorded_at = NULL,
-    control_actor_kind = ?6, control_actor_id = ?7,
-    control_requested_at = CAST(?8 AS TEXT),
-    control_grant_consumed = CASE WHEN ?9 = 1 THEN 1 ELSE control_grant_consumed END,
-    updated_at = CAST(?10 AS TEXT)
-WHERE loop_run_id = ?11 AND generation = ?12
-  AND node_id = ?13 AND item_index = ?14
-  AND control_epoch = ?15 AND binding_epoch = ?16
-  AND task_run_id = ?17 AND queue_entry_id = ?18
-  AND prompt_id = ?19 AND phase IN ('prompting','judging','persisting')
+    control_actor_kind = ?7, control_actor_id = ?8,
+    control_requested_at = CAST(?9 AS TEXT),
+    control_grant_consumed = CASE WHEN ?10 = 1 THEN 1 ELSE control_grant_consumed END,
+    updated_at = CAST(?11 AS TEXT)
+WHERE loop_run_id = ?12 AND generation = ?13
+  AND node_id = ?14 AND item_index = ?15
+  AND control_epoch = ?16 AND binding_epoch = ?17
+  AND task_run_id = ?18 AND queue_entry_id = ?19
+  AND prompt_id = ?20 AND phase IN ('prompting','judging','persisting')
 `
 
 type UpdateGoalCheckpointAfterTurnParams struct {
+	PendingCompaction  int64          `json:"pending_compaction"`
 	Phase              string         `json:"phase"`
 	GoalStatus         string         `json:"goal_status"`
 	ControlCause       sql.NullString `json:"control_cause"`
@@ -679,6 +681,7 @@ type UpdateGoalCheckpointAfterTurnParams struct {
 
 func (q *Queries) UpdateGoalCheckpointAfterTurn(ctx context.Context, arg UpdateGoalCheckpointAfterTurnParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateGoalCheckpointAfterTurn,
+		arg.PendingCompaction,
 		arg.Phase,
 		arg.GoalStatus,
 		arg.ControlCause,

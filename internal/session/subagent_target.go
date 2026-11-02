@@ -18,6 +18,50 @@ import (
 
 const subagentProviderUnavailable = "provider_unavailable"
 
+// PermissionLimit returns the caller's mode, or the child's configured level in an instance lineage.
+func (r managerSubagentRuntime) PermissionLimit(
+	ctx context.Context,
+	parent *Info,
+	requested SubagentTarget,
+) (SubagentPermissionLimit, error) {
+	return r.m.SubagentPermissionLimit(ctx, parent, requested)
+}
+
+// SubagentPermissionLimit resolves the limit for one delegation from parent to the requested target.
+func (m *Manager) SubagentPermissionLimit(
+	ctx context.Context,
+	parent *Info,
+	requested SubagentTarget,
+) (SubagentPermissionLimit, error) {
+	inherited := SubagentPermissionLimit{Mode: permissionMode(parent)}
+	if m.instanceCeiling == nil {
+		return inherited, nil
+	}
+	ceiling, err := m.instanceCeiling(ctx, parent.ID, "")
+	if err != nil || ceiling == nil {
+		return inherited, err
+	}
+	runtime := managerSubagentRuntime{m: m}
+	target, err := runtime.Resolve(ctx, parent, requested)
+	if err != nil {
+		return SubagentPermissionLimit{}, err
+	}
+	workspace, err := m.resolveResumeWorkspace(
+		ctx,
+		&store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID},
+	)
+	if err != nil {
+		return SubagentPermissionLimit{}, err
+	}
+	resolved, err := resolveWorkspaceSessionAgentForType(
+		target.Agent, target.Provider, SessionTypeSpawned, &workspace, m.agentResolver,
+	)
+	if err != nil {
+		return SubagentPermissionLimit{}, err
+	}
+	return SubagentPermissionLimit{Mode: m.startPermissions(resolved.Permissions), ChildOwnsLevel: true}, nil
+}
+
 func (r managerSubagentRuntime) Resolve(
 	ctx context.Context,
 	parent *Info,

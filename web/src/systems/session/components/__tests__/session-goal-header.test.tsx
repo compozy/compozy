@@ -307,6 +307,21 @@ describe("SessionGoalHeader", () => {
     expect(screen.queryByTestId("goal-control-pause")).not.toBeInTheDocument();
   });
 
+  it("Should pause a waiting Goal through the header eligibility hook", async () => {
+    visibleGoal = snapshot({ status: "waiting" });
+    renderHeader();
+    const pause = await screen.findByRole("button", { name: "Pause goal" });
+    expect(pause).toBeEnabled();
+    fireEvent.click(pause);
+    await waitFor(() => expect(operations).toEqual(["pause"]));
+    await waitFor(() =>
+      expect(screen.getByRole("region", { name: "Goal status" })).toHaveAttribute(
+        "data-goal-status",
+        "paused"
+      )
+    );
+  });
+
   it("Should clear only a terminal snapshot from the Goal surface", async () => {
     visibleGoal = snapshot({ live: false, status: "complete", run_status: "done" });
     renderHeader();

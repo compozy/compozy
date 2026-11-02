@@ -94,6 +94,7 @@ func persistRejectedGoalQueueRow(
 	return requireGoalAffectedCount(affected, "reject prepared Goal queue row")
 }
 
+// advanceRejectedGoalCheckpoint advances ticket identity while accounting separately for daemon wait deferrals.
 func advanceRejectedGoalCheckpoint(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -102,6 +103,7 @@ func advanceRejectedGoalCheckpoint(
 	now time.Time,
 ) error {
 	affected, err := sqlcgen.New(exec).AdvanceRejectedGoalCheckpoint(ctx, sqlcgen.AdvanceRejectedGoalCheckpointParams{
+		WaitDeferred:  int64(boolToInt(req.ReasonCode == looppkg.ReasonCodeGoalWaitDeferred)),
 		PromptAttempt: int64(nextAttempt), UpdatedAt: store.FormatTimestamp(now),
 		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
 		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),

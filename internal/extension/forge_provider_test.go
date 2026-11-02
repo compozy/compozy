@@ -46,18 +46,54 @@ func TestManagerForgeProvider(t *testing.T) {
 		if err := validateForgeStatusResponse(base); err != nil {
 			t.Fatal(err)
 		}
+		atLimit := base
+		atLimit.Checks = &extensioncontract.ForgeChecks{
+			State: "failing", FailedNames: make([]string, extensioncontract.MaxForgeFailedNames),
+		}
+		for i := range atLimit.Checks.FailedNames {
+			atLimit.Checks.FailedNames[i] = "check"
+		}
+		if err := validateForgeStatusResponse(atLimit); err != nil {
+			t.Fatalf("rejected %d failed names: %v", extensioncontract.MaxForgeFailedNames, err)
+		}
 		for _, value := range []extensioncontract.ForgeStatusResponse{
 			{ReviewDecision: "approved_by_author"},
 			{Mergeable: "yes"},
 			{Selection: "partial"},
 			{RetryAfter: new(time.Unix(2, 0))},
 			{Checks: &extensioncontract.ForgeChecks{State: "passing", Passed: -1}},
-			{Checks: &extensioncontract.ForgeChecks{State: "passing", FailedNames: []string{"a", "b", "c", "d", "e", "f"}}},
+			{Checks: &extensioncontract.ForgeChecks{
+				State: "failing", FailedNames: make([]string, extensioncontract.MaxForgeFailedNames+1),
+			}},
+			{Reviews: &extensioncontract.ForgeReviews{UnresolvedThreads: -1}},
+			{Reviews: &extensioncontract.ForgeReviews{UnresolvedThreads: 2}},
+			{Reviews: &extensioncontract.ForgeReviews{Threads: []extensioncontract.ForgeReviewThread{{}}, UnresolvedThreads: 1}},
+			{Reviews: &extensioncontract.ForgeReviews{
+				Threads: make([]extensioncontract.ForgeReviewThread, extensioncontract.MaxForgeThreads+1), UnresolvedThreads: 200, Truncated: true,
+			}},
+			{ReviewsUnavailable: true, Reviews: &extensioncontract.ForgeReviews{}},
+			{Reviews: &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{{State: "approved"}}}},
+			{Reviews: &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{{ID: "r", State: "pending"}}}},
+			{Reviews: &extensioncontract.ForgeReviews{Items: make([]extensioncontract.ForgeReview, extensioncontract.MaxForgeReviews+1)}},
 		} {
 			value.Provider, value.FetchedAt = base.Provider, base.FetchedAt
 			if err := validateForgeStatusResponse(value); err == nil {
 				t.Fatalf("accepted invalid facts: %#v", value)
 			}
+		}
+		reviewed := base
+		reviewed.Reviews = &extensioncontract.ForgeReviews{
+			Items: []extensioncontract.ForgeReview{
+				{ID: "r1", State: extensioncontract.ForgeReviewChangesRequested},
+			},
+			Threads: []extensioncontract.ForgeReviewThread{
+				{ID: "t1", Commit: "head-a"},
+			},
+			UnresolvedThreads: 2,
+			Truncated:         true,
+		}
+		if err := validateForgeStatusResponse(reviewed); err != nil {
+			t.Fatalf("rejected review activity: %v", err)
 		}
 	})
 

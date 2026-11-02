@@ -9734,7 +9734,10 @@
               "session_creation_identity_mismatch",
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
-              "goal_caller_unauthorized"
+              "goal_caller_unauthorized",
+              "goal_wait_deferred",
+              "goal_wait_timeout",
+              "goal_wait_unavailable"
             ],
             "nullable": true,
             "type": "string"
@@ -9978,7 +9981,10 @@
               "session_creation_identity_mismatch",
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
-              "goal_caller_unauthorized"
+              "goal_caller_unauthorized",
+              "goal_wait_deferred",
+              "goal_wait_timeout",
+              "goal_wait_unavailable"
             ],
             "nullable": true,
             "type": "string"
@@ -10044,7 +10050,8 @@
               "blocked",
               "usage-limited",
               "budget-limited",
-              "complete"
+              "complete",
+              "waiting"
             ],
             "type": "string"
           },
@@ -10201,7 +10208,10 @@
               "session_creation_identity_mismatch",
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
-              "goal_caller_unauthorized"
+              "goal_caller_unauthorized",
+              "goal_wait_deferred",
+              "goal_wait_timeout",
+              "goal_wait_unavailable"
             ],
             "nullable": true,
             "type": "string"
@@ -25411,6 +25421,9 @@
             },
             "type": "array"
           },
+          "coalesced_wakes": {
+            "type": "integer"
+          },
           "delivery": {
             "type": "string"
           },
@@ -25673,6 +25686,9 @@
       },
       "SessionMonitorPayload": {
         "properties": {
+          "branch": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -25688,12 +25704,20 @@
             "nullable": true,
             "type": "integer"
           },
+          "fire_count": {
+            "type": "integer"
+          },
           "fired_at": {
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "kind": {
+            "type": "string"
+          },
+          "last_fired_at": {
+            "format": "date-time",
+            "nullable": true,
             "type": "string"
           },
           "monitor_id": {

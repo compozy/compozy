@@ -127,8 +127,8 @@ Consecutive queued messages from other sessions and reply wakes run as one turn 
 its own message in the transcript with its own reply watch; operator input is never merged and always
 goes first. Send `supersede: true` to replace your own older message still queued for the same target.
 When the target has been in one turn longer than `session.messaging.queue_promote_after` (default 2
-minutes) and its provider supports steering, waiting agent messages are injected into the live turn
-instead of waiting for it to end.
+minutes) and its provider supports steering, waiting agent messages and coalesced monitor wakes are
+injected into the live turn instead of waiting for it to end.
 
 Native self-targeting returns `invalid_request`. To continue work in the same session, end the turn;
 to schedule work, use a subagent or send `compozy__session_prompt` to another session. This approved

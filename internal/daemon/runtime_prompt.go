@@ -115,7 +115,9 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 				"`gh pr checks --watch`, `gh run watch`, `sleep`, and `while`, `until`, or `for` polling loops keep the " +
 				"turn busy where Compozy cannot supervise them, and provider-internal background tasks, monitors, " +
 				"scheduled wakeups, and \"I will report when it finishes\" promises cannot start a Compozy turn, so " +
-				"their results never reach the user. Instead, run the command with `compozy__terminal_exec` " +
+				"their results never reach the user. To wait on a pull request's checks and reviews, call " +
+				"`compozy__monitor_create` with `kind: \"pull_request\"`; it stays armed across wakes until the pull " +
+				"request ends. For other work, run the command with `compozy__terminal_exec` " +
 				"(executable in `command`, the rest in `args`); if the result reports `still_running`, call " +
 				"`compozy__monitor_create` with `kind: \"terminal\"` on the returned `terminal_id`. For a plain delay, " +
 				"call `compozy__monitor_create` with `kind: \"timer\"`. Compozy wakes this session when the monitor " +

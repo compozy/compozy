@@ -260,6 +260,35 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			output.AdditionalProperties {
 			t.Fatalf("Goal control output envelope = %#v, want closed required envelope", output)
 		}
+		compiled := compileNativeSchema(t, descriptor, descriptor.OutputSchema, "output")
+		if err := compiled.Validate(map[string]any{
+			"outcome": "status", "reason_code": nil, "replaced_run_id": nil,
+			"snapshot": map[string]any{
+				"run_id":            "run",
+				"node_id":           "goal",
+				"objective":         "wait",
+				"origin_session_id": "parent",
+				"bound_session_id":  "parent",
+				"status":            "waiting",
+				"run_status":        "running",
+				"cause":             nil,
+				"turns_used":        1,
+				"turn_limit":        8,
+				"live":              true,
+				"contract_summary":  "",
+				"last_verdict":      nil,
+				"context": map[string]any{
+					"state":       "unknown",
+					"used":        nil,
+					"size":        nil,
+					"ratio":       nil,
+					"nudge_ratio": 0.7,
+					"reported_at": nil,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("strict waiting Goal output = %v", err)
+		}
 		var snapshot struct {
 			Type       []string                   `json:"type"`
 			Required   []string                   `json:"required"`
@@ -2353,7 +2382,7 @@ func assertSessionInputsListSchema(t *testing.T, descriptor toolspkg.Descriptor)
 	if err := json.Unmarshal(descriptor.OutputSchema, &output); err != nil {
 		t.Fatalf("%s output schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" output", output, []string{"inputs"})
+	assertClosedObjectSchema(t, descriptor.ID.String()+" output", output, []string{"inputs", "queue"})
 	var inputs nativeObjectSchema
 	if err := json.Unmarshal(output.Properties["inputs"], &inputs); err != nil {
 		t.Fatalf("%s outputs schema unmarshal error = %v", descriptor.ID, err)
@@ -2464,9 +2493,9 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
-		"delivery", "enqueued_at", "id", "idempotency_key", "message_id", "mode", "origin", "owner_id", "owner_kind",
-		"queue_generation",
-		"runtime", "session_id", "status", "steer_delivery", "target_turn_id", "text",
+		"attachments", "coalesced_wakes", "delivery", "enqueued_at", "id", "idempotency_key", "mentions", "message_id",
+		"mode", "origin", "owner_id", "owner_kind", "queue_generation",
+		"runtime", "session_id", "skill_invocations", "status", "steer_delivery", "target_turn_id", "text",
 	})
 	if !slices.Equal(input.Required, []string{
 		"id", "session_id", "status", "mode", "delivery", "text", "queue_generation", "enqueued_at",

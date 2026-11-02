@@ -127,6 +127,8 @@ type SessionInputPayload struct {
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
 	Mentions         []SessionInputMentionPayload    `json:"mentions,omitempty"`
 	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
+	// CoalescedWakes counts the daemon wakes merged into this entry.
+	CoalescedWakes int `json:"coalesced_wakes,omitempty"`
 }
 
 // SessionInputMentionPayload is one verified @-mention on queued input. Target is
@@ -147,7 +149,8 @@ type SessionInputListResponse struct {
 	Queue  *SessionQueueSummaryPayload `json:"queue,omitzero"`
 }
 
-// SessionQueueSummaryPayload exposes the daemon's current admission capacity.
+// SessionQueueSummaryPayload exposes the daemon's current admission capacity. Entries counts every pending
+// row; Cap bounds operator input, whose pool excludes agent messages and daemon wakes.
 type SessionQueueSummaryPayload struct {
 	Entries int `json:"entries"`
 	Cap     int `json:"cap"`

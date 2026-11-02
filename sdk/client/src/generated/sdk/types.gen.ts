@@ -2628,7 +2628,10 @@ export type GoalCommandResult = {
     | "session_creation_identity_mismatch"
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
-    | "goal_caller_unauthorized";
+    | "goal_caller_unauthorized"
+    | "goal_wait_deferred"
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable";
   replaced_run_id: string | null;
   snapshot: GoalSnapshot | null;
 };
@@ -2718,7 +2721,10 @@ export type GoalSnapshot = {
     | "session_creation_identity_mismatch"
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
-    | "goal_caller_unauthorized";
+    | "goal_caller_unauthorized"
+    | "goal_wait_deferred"
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable";
   context: GoalContextSnapshot;
   contract_summary: string;
   last_verdict: GoalVerdictSummary | null;
@@ -2741,7 +2747,14 @@ export type GoalSnapshot = {
     | "exhausted"
     | "stalled"
     | "canceled";
-  status: "active" | "paused" | "blocked" | "usage-limited" | "budget-limited" | "complete";
+  status:
+    | "active"
+    | "paused"
+    | "blocked"
+    | "usage-limited"
+    | "budget-limited"
+    | "complete"
+    | "waiting";
   turn_limit: number;
   turns_used: number;
 };
@@ -2795,7 +2808,10 @@ export type GoalTurn = {
     | "session_creation_identity_mismatch"
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
-    | "goal_caller_unauthorized";
+    | "goal_caller_unauthorized"
+    | "goal_wait_deferred"
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable";
   result_status: "completed" | "invalid-result" | "failed" | "ambiguous";
   seq: number;
   session_id: string;
@@ -6992,6 +7008,7 @@ export type SessionInputMentionPayload = {
 
 export type SessionInputPayload = {
   attachments?: Array<PromptAttachmentRef>;
+  coalesced_wakes?: number;
   delivery: string;
   enqueued_at: string;
   id: string;
@@ -7053,12 +7070,15 @@ export type SessionLineagePayload = {
 };
 
 export type SessionMonitorPayload = {
+  branch?: string;
   created_at: string;
   deadline_at: string;
   description: string;
   exit_code?: number | null;
+  fire_count?: number;
   fired_at?: string | null;
   kind: string;
+  last_fired_at?: string | null;
   monitor_id: string;
   pattern?: string;
   reason?: string;

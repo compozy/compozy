@@ -32,6 +32,8 @@ type PendingInput struct {
 	SkillInvocations []commandpkg.Invocation
 	Mentions         []mention.Mention
 	Attachments      []AttachmentMeta
+	// CoalescedWakes counts the wakes a coalesced row carries; zero for any other row.
+	CoalescedWakes int
 }
 
 type ClearPendingInputsResult struct {

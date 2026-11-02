@@ -125,7 +125,7 @@ UPDATE session_input_queue
 SET status = 'dispatching', dispatch_started_at = sqlc.arg(now),
     attempt_count = attempt_count + 1, updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
-  AND mode = 'steer' AND status = 'queued' AND owner_kind IS NULL
+  AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
 -- name: ResolveSessionSteer :execrows
@@ -136,14 +136,14 @@ SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),
     turn_id = CASE WHEN sqlc.arg(status) = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = sqlc.narg(sent_at), dispatch_started_at = NULL, updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
-  AND mode = 'steer' AND status = 'dispatching' AND owner_kind IS NULL;
+  AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic');
 
 -- name: CancelPendingSessionSteer :execrows
 UPDATE session_input_queue
 SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
   AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
-  AND owner_kind IS NULL;
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic');
 
 -- name: SettlePendingSessionSteer :execrows
 UPDATE session_input_queue
@@ -156,7 +156,7 @@ SET steer_delivery = sqlc.arg(steer_delivery), updated_at = sqlc.arg(now),
     turn_id = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
   AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
-  AND owner_kind IS NULL
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
 -- name: AdvanceSessionInputGeneration :execrows
@@ -196,11 +196,13 @@ INSERT INTO session_input_queue (
 );
 
 -- name: CountPendingSessionInputs :one
--- Human input and agent/synthetic input hold separate capacity pools.
+-- Human input and agent/synthetic input hold separate capacity pools. A coalesced wake row is in neither:
+-- it holds one row per session, bounded by its member limit.
 SELECT COUNT(*) FROM session_input_queue
 WHERE session_id = sqlc.arg(session_id)
   AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status))
+  AND json_extract(synthetic_prompt_json, '$.coalesce_key') IS NULL
   AND (origin_class = 'human') = (CAST(sqlc.arg(pool_class) AS TEXT) = 'human');
 
 -- name: ReleaseSessionInput :execrows
@@ -229,21 +231,50 @@ WHERE session_id = sqlc.arg(session_id)
   AND status IN (sqlc.arg(queued_status), sqlc.arg(dispatching_status));
 
 -- name: GetSyntheticSessionInputByMessage :one
-SELECT * FROM session_input_queue WHERE session_id = ? AND message_id = ?
- AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching');
+SELECT * FROM session_input_queue
+WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'synthetic' AND status IN ('queued','dispatching')
+  AND CAST(sqlc.arg(message_id) AS TEXT) <> ''
+  AND (message_id = sqlc.arg(message_id) OR EXISTS (
+    SELECT 1 FROM json_each(synthetic_prompt_json, '$.coalesced_message_ids') AS member
+    WHERE member.value = sqlc.arg(message_id)
+  ))
+LIMIT 1;
+
+-- name: GetCoalescibleSessionInput :one
+-- The open wake row of a coalesce key. A claimed or promoted row no longer accepts members, so what it
+-- carries is exactly what the agent receives.
+SELECT * FROM session_input_queue
+WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'synthetic'
+  AND status = 'queued' AND mode = 'queue' AND dispatchable = 1
+  AND json_extract(synthetic_prompt_json, '$.coalesce_key') = CAST(sqlc.arg(coalesce_key) AS TEXT)
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
+ORDER BY rowid DESC LIMIT 1;
+
+-- name: AppendCoalescedSessionInput :execrows
+UPDATE session_input_queue
+SET text = sqlc.arg(text), synthetic_prompt_json = sqlc.arg(synthetic_prompt_json), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id) AND status = 'queued' AND mode = 'queue';
 
 -- name: SyntheticSessionInputAdmitted :one
 -- A synthetic input counts as admitted once it was queued, is dispatching, or was sent; a failed or
--- canceled one was never delivered and may be admitted again.
+-- canceled one was never delivered and may be admitted again. A wake coalesced into another row is
+-- admitted with that row.
 SELECT EXISTS(
-  SELECT 1 FROM session_input_queue WHERE session_id = ? AND message_id = ?
-   AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching','sent')
+  SELECT 1 FROM session_input_queue
+  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'synthetic'
+    AND status IN ('queued','dispatching','sent') AND CAST(sqlc.arg(message_id) AS TEXT) <> ''
+    AND (message_id = sqlc.arg(message_id) OR EXISTS (
+      SELECT 1 FROM json_each(synthetic_prompt_json, '$.coalesced_message_ids') AS member
+      WHERE member.value = sqlc.arg(message_id)
+    ))
 );
 
 -- name: ListStaleDispatchingSessionInputs :many
--- Boot recovery: no live turn can own a non-Goal lease left by a previous daemon process.
+-- Boot recovery: no live turn can own a non-Goal lease left by a previous daemon process. A promoted wake
+-- whose injection was unconfirmed is excluded: RecoverUnconfirmedWakeSteers returns it to the queue.
 SELECT session_id, id FROM session_input_queue
 WHERE status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND NOT (COALESCE(owner_kind, '') = 'synthetic' AND mode = 'steer')
 ORDER BY session_id, enqueued_at, id;
 
 -- name: RecoverStagedSessionSteers :execrows
@@ -256,7 +287,18 @@ SET mode = CASE WHEN origin_class = 'human' THEN mode ELSE 'queue' END,
     target_turn_id = CASE WHEN origin_class = 'human' THEN target_turn_id ELSE '' END,
     dispatchable = 1, updated_at = sqlc.arg(now)
 WHERE status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
-  AND owner_kind IS NULL
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
+
+-- name: RecoverUnconfirmedWakeSteers :execrows
+-- Boot recovery: a promoted wake still dispatching, or sent while its injection was pending, never had its
+-- injection confirmed, and its completion watch died with the previous daemon. Its monitors are settled and
+-- will not fire again, so it returns to after-turn delivery; repeating an outcome is safe, losing one is not.
+UPDATE session_input_queue
+SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, status = 'queued', dispatchable = 1,
+    turn_id = '', target_turn_id = '', sent_at = NULL, dispatch_started_at = NULL, updated_at = sqlc.arg(now)
+WHERE owner_kind = 'synthetic' AND mode = 'steer'
+  AND (status = 'dispatching' OR (status = 'sent' AND steer_delivery = 'pending_injection'))
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
 
 -- name: CancelSupersededAgentSessionInputs :many
@@ -311,12 +353,15 @@ WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id) AND status = 'disp
 -- name: PromoteQueuedAgentSessionInputToSteer :execrows
 -- Long-turn promotion keeps the row identity (message, event, admission, origin) so reply watches
 -- follow it. It never runs while operator input waits, and it respects the per-sender steer slot.
+-- Coalesced wakes promote too; they share the empty sender, so one wake row is staged at a time.
 UPDATE session_input_queue
 SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, dispatchable = 0,
     target_turn_id = sqlc.arg(target_turn_id), updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
-  AND session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL
+  AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
+    OR (session_input_queue.owner_kind = 'synthetic'
+      AND json_extract(session_input_queue.synthetic_prompt_json, '$.coalesce_key') IS NOT NULL))
   AND session_input_queue.dispatchable = 1
   AND session_input_queue.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND NOT EXISTS (
@@ -337,7 +382,7 @@ UPDATE session_input_queue
 SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, dispatchable = 1, target_turn_id = '',
     status = 'queued', dispatch_started_at = NULL, updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
-  AND origin_class = 'agent' AND owner_kind IS NULL AND mode = 'steer'
+  AND ((origin_class = 'agent' AND owner_kind IS NULL) OR owner_kind = 'synthetic') AND mode = 'steer'
   AND (
     (status IN ('queued', 'dispatching') AND steer_delivery IS NULL)
     OR (status = 'queued' AND steer_delivery = 'interrupt_fallback')

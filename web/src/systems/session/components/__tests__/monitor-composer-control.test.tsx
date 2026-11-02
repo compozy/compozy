@@ -78,6 +78,17 @@ describe("MonitorComposerControl", () => {
     expect(onCancel).toHaveBeenCalledExactlyOnceWith("mon-1");
   });
 
+  it("Should show which branch a pull request monitor watches", async () => {
+    const user = userEvent.setup();
+    renderControl({
+      monitors: [monitor({ kind: "pull_request", branch: "feat/retry-budget" })],
+    });
+    await user.click(screen.getByRole("button", { name: "Monitors, 1 active" }));
+    const row = screen.getByTestId("composer-monitor-mon-1");
+    expect(row).toHaveTextContent("Pull request on feat/retry-budget");
+    expect(row).toHaveTextContent(/gives up in/);
+  });
+
   it("Should show a fired monitor as waking the session without a cancel action", async () => {
     const user = userEvent.setup();
     renderControl({ onCancel: vi.fn(), monitors: [monitor({ status: "delivering" })] });

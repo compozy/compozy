@@ -20,6 +20,8 @@ type loopGoalRuntimePorts interface {
 	looppkg.ManagedActionSessionBinder
 	goalpkg.ContextHealth
 	goalpkg.PromptRecovery
+	goalpkg.WaitReader
+	goalpkg.WaitSessionRecovery
 }
 
 type loopGoalExecutorStore interface {
@@ -37,6 +39,7 @@ type loopGoalProductionStore interface {
 }
 
 type loopGoalRuntime struct {
+	waitSources *sessionWorkSources
 	*loopActionSessionBinder
 	*loopGoalContextRuntime
 	*loopGoalPromptRecovery
@@ -68,6 +71,7 @@ func composeLoopGoalExecutor(
 		Budget:   store,
 		Context:  runtime,
 		Recovery: runtime,
+		Waits:    runtime,
 	})
 	if err != nil {
 		return nil, err

@@ -9,6 +9,9 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
+// displayFailedNames matches the display cache, so a live refresh shows what a cached read does.
+const displayFailedNames = 5
+
 type sessionPullRequestAdapter struct {
 	service  *worktree.PullRequestService
 	resolver worktree.WorkspaceResolver
@@ -100,12 +103,13 @@ func sessionPullRequestView(entry worktree.PullRequestEntry) session.PullRequest
 	}
 	checks := session.PullRequestChecks{State: session.ChecksUnknown, FailedNames: []string{}}
 	if facts.Checks != nil {
+		names := facts.Checks.FailedNames[:min(len(facts.Checks.FailedNames), displayFailedNames)]
 		checks = session.PullRequestChecks{
 			State:       session.ChecksState(facts.Checks.State),
 			Passed:      facts.Checks.Passed,
 			Failed:      facts.Checks.Failed,
 			Pending:     facts.Checks.Pending,
-			FailedNames: append([]string{}, facts.Checks.FailedNames...),
+			FailedNames: append([]string{}, names...),
 		}
 	}
 	review, mergeable := session.ReviewDecision(facts.ReviewDecision), session.Mergeable(facts.Mergeable)

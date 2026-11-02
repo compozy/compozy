@@ -10,12 +10,14 @@ import (
 
 const (
 	goalStatusActive        = "active"
+	goalStatusWaiting       = "waiting"
 	goalStatusPaused        = "paused"
 	goalStatusBlocked       = "blocked"
 	goalStatusUsageLimited  = "usage-limited"
 	goalStatusBudgetLimited = "budget-limited"
 	goalStatusComplete      = "complete"
 
+	checkpointPhaseWaiting         = "waiting"
 	checkpointPhaseIdle            = "idle"
 	checkpointPhasePreparing       = "preparing"
 	checkpointPhaseQueued          = "queued"

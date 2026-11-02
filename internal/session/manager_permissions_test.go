@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -114,70 +116,146 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 	})
 }
 
-func TestInstancePermissionMode(t *testing.T) {
-	t.Run("Should apply the parent instance ceiling before a derived session is registered", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		parent := createSession(t, h)
-		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
-		h.manager.SetInstanceCeilingReader(
-			func(_ context.Context, id, _ string) (*store.SessionPermissionPolicy, string, error) {
-				if id == parent.ID {
-					return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
-				}
-				return nil, "", nil
-			},
-		)
-		child, err := h.manager.Create(t.Context(), new(CreateOpts{
-			AgentName:   "coder",
-			Workspace:   h.workspaceID,
-			Permissions: compozyconfig.PermissionModeApproveAll,
-			Lineage: &store.SessionLineage{
-				ParentSessionID: parent.ID,
-				Kind:            store.LineageKindFork,
-				OriginAgentName: "coder",
-			},
-		}))
-		if err != nil {
-			t.Fatal(err)
+func setHarnessAgentLevel(h *harness, mode compozyconfig.PermissionMode) {
+	h.resolver.mu.Lock()
+	defer h.resolver.mu.Unlock()
+	setLevel := func(agents []compozyconfig.AgentDef) []compozyconfig.AgentDef {
+		updated := slices.Clone(agents)
+		for i := range updated {
+			updated[i].Permissions = string(mode)
 		}
-		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
-		if got := child.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
-			t.Fatalf("first derived launch permissions = %s", got)
-		}
-		h.driver.mu.Lock()
-		defer h.driver.mu.Unlock()
-		if got := h.driver.startCalls[len(h.driver.startCalls)-1].Permissions; got != compozyconfig.PermissionModeApproveReads {
-			t.Fatalf("provider received permissions = %s", got)
-		}
-	})
+		return updated
+	}
+	for ref, resolved := range h.resolver.byRef {
+		resolved.Agents = setLevel(resolved.Agents)
+		h.resolver.byRef[ref] = resolved
+	}
+	for path, resolved := range h.resolver.byPath {
+		resolved.Agents = setLevel(resolved.Agents)
+		h.resolver.byPath[path] = resolved
+	}
+}
 
-	for _, tc := range []struct{ mode, want compozyconfig.PermissionMode }{
-		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveReads},
-		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
-		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
+func setHarnessPermissionMode(h *harness, mode compozyconfig.PermissionMode) {
+	h.resolver.mu.Lock()
+	defer h.resolver.mu.Unlock()
+	for ref, resolved := range h.resolver.byRef {
+		resolved.Config.Permissions.Mode = mode
+		h.resolver.byRef[ref] = resolved
+	}
+	for path, resolved := range h.resolver.byPath {
+		resolved.Config.Permissions.Mode = mode
+		h.resolver.byPath[path] = resolved
+	}
+}
+
+func TestInstancePermissionMode(t *testing.T) {
+	parentCeiling := func(parentID string, policy store.SessionPermissionPolicy) InstanceCeilingReader {
+		return func(_ context.Context, id, _ string) (*InstanceCeiling, error) {
+			if id == parentID {
+				return &InstanceCeiling{Policy: policy, Main: true}, nil
+			}
+			return nil, nil
+		}
+	}
+	for _, tc := range []struct {
+		name      string
+		settings  compozyconfig.PermissionMode
+		requested compozyconfig.PermissionMode
+		want      compozyconfig.PermissionMode
+	}{
+		{
+			name:     "Should resolve a child without a level from settings, not the parent",
+			settings: compozyconfig.PermissionModeApproveAll,
+			want:     compozyconfig.PermissionModeApproveAll,
+		},
+		{
+			name:     "Should not lift a child above narrower settings",
+			settings: compozyconfig.PermissionModeApproveReads,
+			want:     compozyconfig.PermissionModeApproveReads,
+		},
+		{
+			name:      "Should keep a narrower requested child level",
+			settings:  compozyconfig.PermissionModeApproveAll,
+			requested: compozyconfig.PermissionModeDenyAll,
+			want:      compozyconfig.PermissionModeDenyAll,
+		},
+		{
+			name:      "Should clamp a requested child level above its configured level",
+			settings:  compozyconfig.PermissionModeApproveReads,
+			requested: compozyconfig.PermissionModeApproveAll,
+			want:      compozyconfig.PermissionModeApproveReads,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			setHarnessPermissionMode(h, tc.settings)
+			parent := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+			policy := store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}
+			h.manager.SetInstanceCeilingReader(parentCeiling(parent.ID, policy))
+			child, err := h.manager.Create(t.Context(), new(CreateOpts{
+				AgentName:   "coder",
+				Workspace:   h.workspaceID,
+				Permissions: tc.requested,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: parent.ID,
+					Kind:            store.LineageKindFork,
+					OriginAgentName: "coder",
+				},
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+			if got := child.Info().EffectivePermissions; got != string(tc.want) {
+				t.Fatalf("child permissions = %s, want %s", got, tc.want)
+			}
+			if got := child.Info().Lineage.PermissionPolicy.WorkspacePaths; !reflect.DeepEqual(got, policy.WorkspacePaths) {
+				t.Fatalf("child workspace ceiling = %v, want %v", got, policy.WorkspacePaths)
+			}
+			if got := child.Info().Lineage.PermissionPolicy.Tools; len(got) != 0 {
+				t.Fatalf("child tool ceiling = %v, want the empty inherited ceiling", got)
+			}
+			h.driver.mu.Lock()
+			defer h.driver.mu.Unlock()
+			if got := h.driver.startCalls[len(h.driver.startCalls)-1].Permissions; got != tc.want {
+				t.Fatalf("provider received permissions = %s, want %s", got, tc.want)
+			}
+		})
+	}
+
+	for _, mode := range []compozyconfig.PermissionMode{
+		compozyconfig.PermissionModeApproveAll,
+		compozyconfig.PermissionModeApproveReads,
+		compozyconfig.PermissionModeDenyAll,
 	} {
 		t.Run(
-			"Should retain bounded "+string(tc.mode)+" permissions across resume and context replacement",
+			"Should run the main session at configured "+string(mode)+" across resume and context replacement",
 			func(t *testing.T) {
 				t.Parallel()
 				h := newHarness(t)
+				setHarnessAgentLevel(h, mode)
 				h.manager = newManagerWithHarness(t, h)
 				cleanupTestManager(t, h.manager)
 				h.manager.SetInstanceCeilingReader(
-					func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
-						return &store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}, "", nil
+					func(context.Context, string, string) (*InstanceCeiling, error) {
+						return &InstanceCeiling{
+							Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+							Main:   true,
+						}, nil
 					},
 				)
 				created, err := h.manager.Create(
 					t.Context(),
-					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Permissions: tc.mode}),
+					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}),
 				)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got := created.Info().EffectivePermissions; got != string(tc.want) {
-					t.Fatalf("launch permissions=%s, want %s", got, tc.want)
+				if got := created.Info().EffectivePermissions; got != string(mode) {
+					t.Fatalf("launch permissions=%s, want %s", got, mode)
 				}
 				if err := h.manager.Stop(t.Context(), created.ID); err != nil {
 					t.Fatal(err)
@@ -186,8 +264,8 @@ func TestInstancePermissionMode(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got := resumed.Info().EffectivePermissions; got != string(tc.want) {
-					t.Fatalf("resume permissions=%s, want %s", got, tc.want)
+				if got := resumed.Info().EffectivePermissions; got != string(mode) {
+					t.Fatalf("resume permissions=%s, want %s", got, mode)
 				}
 				cleared, err := h.manager.ClearConversation(t.Context(), resumed.ID)
 				if err != nil {
@@ -196,8 +274,8 @@ func TestInstancePermissionMode(t *testing.T) {
 				if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(cleared.ID)); err != nil {
 					t.Fatal(err)
 				}
-				if got := cleared.Info().EffectivePermissions; got != string(tc.want) {
-					t.Fatalf("replacement permissions=%s, want %s", got, tc.want)
+				if got := cleared.Info().EffectivePermissions; got != string(mode) {
+					t.Fatalf("replacement permissions=%s, want %s", got, mode)
 				}
 				events, err := h.manager.Prompt(t.Context(), cleared.ID, "Continue within the instance permissions")
 				if err != nil {
@@ -210,16 +288,171 @@ func TestInstancePermissionMode(t *testing.T) {
 					t.Fatalf("provider launches=%d, want 3", len(h.driver.startCalls))
 				}
 				for _, launch := range h.driver.startCalls {
-					if launch.Permissions != tc.want {
-						t.Fatalf("provider permissions=%s, want %s", launch.Permissions, tc.want)
+					if launch.Permissions != mode {
+						t.Fatalf("provider permissions=%s, want %s", launch.Permissions, mode)
 					}
 				}
 			},
 		)
 	}
+
+	for _, tc := range []struct{ settings, want compozyconfig.PermissionMode }{
+		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveReads},
+		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
+		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
+	} {
+		t.Run("Should cap a main session with no level under "+string(tc.settings)+" settings UT-089", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			setHarnessPermissionMode(h, tc.settings)
+			h.manager.SetInstanceCeilingReader(
+				func(context.Context, string, string) (*InstanceCeiling, error) {
+					return &InstanceCeiling{
+						Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+						Main:   true,
+					}, nil
+				},
+			)
+			created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			if got := created.Info().EffectivePermissions; got != string(tc.want) {
+				t.Fatalf("main permissions = %s, want %s", got, tc.want)
+			}
+		})
+	}
+
+	t.Run("Should restore the configured level of a main session persisted below it", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setHarnessAgentLevel(h, compozyconfig.PermissionModeApproveAll)
+		h.manager.SetInstanceCeilingReader(
+			func(context.Context, string, string) (*InstanceCeiling, error) {
+				return &InstanceCeiling{
+					Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+					Main:   true,
+				}, nil
+			},
+		)
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		meta.SetEffectivePermissions(string(compozyconfig.PermissionModeApproveReads))
+		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
+			t.Fatal(err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := resumed.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveAll) {
+			t.Fatalf("resumed permissions = %s, want the configured approve-all", got)
+		}
+	})
+
+	t.Run("Should keep a descendant at the narrower level it persisted", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		h.manager.SetInstanceCeilingReader(
+			parentCeiling(parent.ID, store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}}),
+		)
+		child, err := h.manager.Create(t.Context(), new(CreateOpts{
+			AgentName:   "coder",
+			Workspace:   h.workspaceID,
+			Permissions: compozyconfig.PermissionModeApproveReads,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID,
+				Kind:            store.LineageKindFork,
+				OriginAgentName: "coder",
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(t.Context(), child.ID); err != nil {
+			t.Fatal(err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), child.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := resumed.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
+			t.Fatalf("resumed child permissions = %s, want approve-reads", got)
+		}
+	})
+
+	t.Run("Should limit a delegation by the child's level only in an instance lineage", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		h.cfg.Providers["available"] = compozyconfig.ProviderConfig{
+			Command: "go", AuthMode: compozyconfig.ProviderAuthModeNone,
+			Models: compozyconfig.ProviderModelsConfig{Default: "model"},
+		}
+		info := parent.Info()
+		info.EffectivePermissions = string(compozyconfig.PermissionModeApproveReads)
+		info.Provider, info.Model = "available", "model"
+		limit, err := h.manager.SubagentPermissionLimit(t.Context(), info, SubagentTarget{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if limit != (SubagentPermissionLimit{Mode: compozyconfig.PermissionModeApproveReads}) {
+			t.Fatalf("ordinary limit = %+v, want the caller's mode", limit)
+		}
+		h.manager.SetInstanceCeilingReader(parentCeiling(parent.ID, store.SessionPermissionPolicy{}))
+		limit, err = h.manager.SubagentPermissionLimit(t.Context(), info, SubagentTarget{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := SubagentPermissionLimit{Mode: compozyconfig.PermissionModeApproveAll, ChildOwnsLevel: true}
+		if limit != want {
+			t.Fatalf("instance limit = %+v, want %+v", limit, want)
+		}
+	})
 }
 
 func TestTriageSessionPermissions(t *testing.T) {
+	t.Run("Should stay read-only under an instance configured for approve-all", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.SetInstanceCeilingReader(
+			func(context.Context, string, string) (*InstanceCeiling, error) {
+				return &InstanceCeiling{
+					Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{h.workspace}},
+					Main:   true,
+				}, nil
+			},
+		)
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeTriage,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		if got := created.Info().EffectivePermissions; got != string(compozyconfig.PermissionModeApproveReads) {
+			t.Fatalf("triage permissions = %s, want approve-reads", got)
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		opts := h.driver.startCalls[len(h.driver.startCalls)-1]
+		if opts.Permissions != compozyconfig.PermissionModeApproveReads || opts.ExecutionPolicy != "triage" {
+			t.Fatalf("triage launch permissions=%s policy=%s", opts.Permissions, opts.ExecutionPolicy)
+		}
+	})
+
 	t.Run("Should preserve triage restrictions across stop and resume", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

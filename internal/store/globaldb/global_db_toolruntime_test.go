@@ -173,6 +173,63 @@ func TestGlobalDBToolProcessRecords(t *testing.T) {
 	})
 }
 
+// Invariant: the rebuild that admits pull_request monitors keeps every existing monitor row.
+func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep existing monitors and admit the new kind", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00175_schema.sql"))
+		if err != nil {
+			t.Fatalf("open prefix before 00175 error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_monitors (
+			id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, timeout_ms, status,
+			created_at, deadline_at, exit_code, owner_binding, version
+		) VALUES ('mon-aaaaaaaaaaaa', 'sess-1', 'ws-1', 'prof-1', 'terminal', 'wait for CI', 'term-1', 'exit', 60000,
+			'active', '2026-11-01T09:00:00Z', '2026-11-01T10:00:00Z', 3, 'binding', 4)`); err != nil {
+			t.Fatalf("seed monitor before 00175 error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("close prefix before 00175 error = %v", err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("upgrade through 00175 error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("close upgraded database error = %v", closeErr)
+			}
+		})
+		records, err := upgraded.LoadMonitors(ctx)
+		if err != nil || len(records) != 1 {
+			t.Fatalf("LoadMonitors() = %+v, %v", records, err)
+		}
+		mon := records[0].Monitor
+		if mon.Kind != monitor.KindTerminal || mon.TerminalID != "term-1" || mon.ExitCode == nil || *mon.ExitCode != 3 ||
+			records[0].OwnerBinding != "binding" || records[0].Version != 4 || mon.FireCount != 0 ||
+			mon.Branch != "" {
+			t.Fatalf("migrated monitor = %+v", records[0])
+		}
+		deadline := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+		if mon.Until != "exit" || records[0].Timeout != time.Minute || mon.Status != monitor.StatusActive ||
+			!mon.DeadlineAt.Equal(deadline) {
+			t.Fatalf("migrated wait = %+v", records[0])
+		}
+		if err := upgraded.SaveMonitor(ctx, monitor.Record{
+			Monitor: monitor.Monitor{
+				ID: "mon-bbbbbbbbbbbb", SessionID: "sess-1", Kind: monitor.KindPullRequest, Description: "watch my PR",
+				Branch: "feat/x", Status: monitor.StatusActive, CreatedAt: time.Now(), DeadlineAt: time.Now(),
+			},
+			WorkspaceID: "ws-1", ProfileID: "prof-1", Version: 1,
+		}); err != nil {
+			t.Fatalf("save pull_request monitor error = %v", err)
+		}
+	})
+}
+
 // Invariant: a monitor definition and lifecycle survive a reopen, a stale write never
 // overwrites a newer one, and retention prunes only finished monitors.
 // Owning layer/canonical suite: globaldb daemon-owned wait persistence.
@@ -294,6 +351,50 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" ||
 			got[0].Version != active.Version {
 			t.Fatalf("LoadMonitors() = %+v, %v; want %+v", got, err, active)
+		}
+	})
+	t.Run("Should round-trip a pull_request watch and update its cursor and fires", func(t *testing.T) {
+		watch := monitor.Record{
+			Monitor: monitor.Monitor{
+				ID: "mon-bbbbbbbbbbbb", SessionID: "sess-1", Kind: monitor.KindPullRequest, Description: "watch my PR",
+				Branch: "feat/x", Status: monitor.StatusActive, CreatedAt: at, DeadlineAt: at.Add(6 * time.Hour),
+			},
+			WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: 6 * time.Hour, Version: 1,
+			RepoKey: "forge.test/acme/repo", Cursor: `{"cursor":{"head":"a"}}`,
+		}
+		if err := db.SaveMonitor(ctx, watch); err != nil {
+			t.Fatal(err)
+		}
+		fired := watch
+		fired.Monitor.Status, fired.Monitor.FireCount = monitor.StatusDelivering, 3
+		fired.Monitor.LastFiredAt = at.Add(time.Minute)
+		fired.Cursor, fired.Version = `{"cursor":{"head":"b"}}`, 2
+		if err := db.SaveMonitor(ctx, fired); err != nil {
+			t.Fatal(err)
+		}
+		records, err := db.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		index := slices.IndexFunc(records, func(r monitor.Record) bool { return r.Monitor.ID == watch.Monitor.ID })
+		if index < 0 || !reflect.DeepEqual(records[index].Monitor, fired.Monitor) || records[index].RepoKey != watch.RepoKey ||
+			records[index].Cursor != fired.Cursor {
+			t.Fatalf("LoadMonitors() = %+v, want %+v", records, fired)
+		}
+		canceled := fired
+		canceled.Monitor.Status, canceled.Monitor.FiredAt, canceled.Version = monitor.StatusCanceled, at, 3
+		if err := db.SaveMonitor(ctx, canceled); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.PruneFinishedMonitors(ctx, at.Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		pruned, err := db.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.ContainsFunc(pruned, func(r monitor.Record) bool { return r.Monitor.ID == watch.Monitor.ID }) {
+			t.Fatalf("PruneFinishedMonitors() kept %s", watch.Monitor.ID)
 		}
 	})
 	t.Run("Should apply newer versions and ignore stale and equal-version writes", func(t *testing.T) {

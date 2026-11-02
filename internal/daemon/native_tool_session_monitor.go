@@ -21,6 +21,7 @@ type nativeMonitorCreateInput struct {
 	TerminalID     string `json:"terminal_id"`
 	Until          string `json:"until"`
 	Pattern        string `json:"pattern"`
+	Branch         string `json:"branch"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
 	DelaySeconds   int    `json:"delay_seconds"`
 	// TargetSessionIDs and States apply to session monitors.
@@ -72,7 +73,7 @@ func (n *daemonNativeTools) monitorCreate(
 	created, err := service.Create(ctx, monitorpkg.Spec{
 		WorkspaceID: workspaceID, ProfileID: strings.TrimSpace(scope.ProfileID), SessionID: sessionID,
 		Kind: kind, Description: input.Description,
-		TerminalID: input.TerminalID, Until: input.Until, Pattern: input.Pattern,
+		TerminalID: input.TerminalID, Until: input.Until, Pattern: input.Pattern, Branch: input.Branch,
 		Timeout: time.Duration(input.TimeoutSeconds) * time.Second,
 		Delay:   time.Duration(input.DelaySeconds) * time.Second,
 		Targets: input.TargetSessionIDs, States: input.States,
@@ -87,11 +88,15 @@ func (n *daemonNativeTools) monitorCreate(
 			created.ID, created.Status,
 		))
 	}
+	fires := "when it fires"
+	if created.Kind == monitorpkg.KindPullRequest {
+		fires = "each time the pull request changes, until it merges or closes"
+	}
 	preview := fmt.Sprintf(
 		"Monitor %s is active until %s. Continue independent work; end your turn only when every remaining "+
 			"step waits on a monitor or subagent. This session will be woken with a "+
-			"[COMPOZY MONITOR] message when it fires. Do not poll or sleep while waiting.",
-		created.ID, created.DeadlineAt.Format(time.RFC3339),
+			"[COMPOZY MONITOR] message %s. Do not poll or sleep while waiting.",
+		created.ID, created.DeadlineAt.Format(time.RFC3339), fires,
 	)
 	return structuredResult(map[string]any{monitorResultField: created}, preview)
 }

@@ -30,6 +30,10 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 	if !record.OwnerCheckFailedAt.IsZero() {
 		checkFailedAt = record.OwnerCheckFailedAt.UTC().Format(time.RFC3339Nano)
 	}
+	lastFiredAt := ""
+	if !mon.LastFiredAt.IsZero() {
+		lastFiredAt = mon.LastFiredAt.UTC().Format(time.RFC3339Nano)
+	}
 	targetSessionIDs, states, targets, err := encodeMonitorTargets(mon)
 	if err != nil {
 		return err
@@ -41,7 +45,8 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 		CreatedAt:  mon.CreatedAt.UTC().Format(time.RFC3339Nano),
 		DeadlineAt: mon.DeadlineAt.UTC().Format(time.RFC3339Nano),
 		FiredAt:    firedAt, Reason: mon.Reason, ExitCode: exitCode, OwnerBinding: record.OwnerBinding,
-		OwnerCheckFailedAt: checkFailedAt, Version: record.Version,
+		OwnerCheckFailedAt: checkFailedAt, Version: record.Version, Branch: mon.Branch, RepoKey: record.RepoKey,
+		PrCursor: record.Cursor, FireCount: int64(mon.FireCount), LastFiredAt: lastFiredAt,
 		TargetSessionIds: targetSessionIDs, States: states, Targets: targets,
 	}); err != nil {
 		return fmt.Errorf("store: save session monitor: %w", err)
@@ -100,6 +105,12 @@ func sessionMonitorRecord(row sqlcgen.SessionMonitor) (monitor.Record, error) {
 				"store: parse session monitor %s owner_check_failed_at: %w", row.ID, err)
 		}
 	}
+	var lastFired time.Time
+	if row.LastFiredAt != "" {
+		if lastFired, err = time.Parse(time.RFC3339Nano, row.LastFiredAt); err != nil {
+			return monitor.Record{}, fmt.Errorf("store: parse session monitor %s last_fired_at: %w", row.ID, err)
+		}
+	}
 	var exitCode *int
 	if row.ExitCode.Valid {
 		exitCode = new(int(row.ExitCode.Int64))
@@ -108,6 +119,7 @@ func sessionMonitorRecord(row sqlcgen.SessionMonitor) (monitor.Record, error) {
 		ID: row.ID, SessionID: row.SessionID, Kind: monitor.Kind(row.Kind), Description: row.Description,
 		TerminalID: row.TerminalID, Until: row.Until, Pattern: row.Pattern, Status: monitor.Status(row.Status),
 		CreatedAt: created, DeadlineAt: deadline, FiredAt: fired, Reason: row.Reason, ExitCode: exitCode,
+		Branch: row.Branch, FireCount: int(row.FireCount), LastFiredAt: lastFired,
 	}
 	if err := decodeMonitorTargets(row, &mon); err != nil {
 		return monitor.Record{}, err
@@ -116,6 +128,7 @@ func sessionMonitorRecord(row sqlcgen.SessionMonitor) (monitor.Record, error) {
 		Monitor: mon, WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID,
 		Timeout:      time.Duration(row.TimeoutMs) * time.Millisecond,
 		OwnerBinding: row.OwnerBinding, OwnerCheckFailedAt: checkFailed, Version: row.Version,
+		RepoKey: row.RepoKey, Cursor: row.PrCursor,
 	}, nil
 }
 

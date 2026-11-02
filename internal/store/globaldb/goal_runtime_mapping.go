@@ -37,6 +37,7 @@ func loopSessionCleanupFromGenerated(row sqlcgen.LoopSessionCleanup) loop.Sessio
 	return obligation
 }
 
+// goalCheckpointFromGenerated restores checkpoint ownership and recovery metadata from the SQLite row.
 func goalCheckpointFromGenerated(
 	row *sqlcgen.LoopGoalCheckpoint,
 	workspaceID loop.WorkspaceID,
@@ -49,6 +50,8 @@ func goalCheckpointFromGenerated(
 			NodeID:      dsl.NodeID(row.NodeID),
 			ItemIndex:   int(row.ItemIndex),
 		},
+		WaitDeferrals:     int(row.WaitDeferrals),
+		PendingCompaction: row.PendingCompaction != 0,
 		ControlEpoch:      row.ControlEpoch,
 		Phase:             row.Phase,
 		Status:            row.GoalStatus,
@@ -59,6 +62,9 @@ func goalCheckpointFromGenerated(
 		PromptAttempt:     int(row.PromptAttempt),
 		ContextState:      row.ContextState,
 		ContextNudgeRatio: row.ContextNudgeRatio,
+	}
+	if row.WaitStartedAt.Valid {
+		checkpoint.WaitStartedAt = new(row.WaitStartedAt.Time.UTC())
 	}
 	fields := goalCheckpointScanFields{
 		workspaceID: workspaceID, controlActorKind: row.ControlActorKind, controlActorID: row.ControlActorID,

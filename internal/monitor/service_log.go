@@ -14,6 +14,9 @@ const (
 	causePersistUnavailable = "persist_unavailable"
 )
 
+// eventWakeFailed is the lifecycle event of a wake that was not admitted.
+const eventWakeFailed = "monitor.wake_failed"
+
 type lifecycleEntry struct {
 	level                                                    slog.Level
 	event, monitorID, sessionID, kind, status, reason, cause string
@@ -142,7 +145,8 @@ func (s *Service) logLifecycleCause(event string, mon Monitor, reason, cause str
 	switch reason {
 	case "registered", "requested", "session_stopped", "daemon_shutdown", "admission_retry",
 		ReasonExit, ReasonMatch, ReasonTimeout, ReasonStalled, ReasonTimerElapsed, ReasonTerminalFailed,
-		ReasonConditionMet, "sweep_only":
+		ReasonPullRequestChanged, ReasonPullRequestMerged, ReasonPullRequestClosed, ReasonForgeUnavailable,
+		ReasonFireCapReached, ReasonConditionMet, "sweep_only":
 	default:
 		// Owner restart-eligibility reasons come from a fixed vocabulary, never from user input.
 		if !strings.HasPrefix(reason, ReasonOwnerPrefix) {
@@ -150,7 +154,7 @@ func (s *Service) logLifecycleCause(event string, mon Monitor, reason, cause str
 		}
 	}
 	level := slog.LevelInfo
-	if event == "monitor.wake_failed" {
+	if event == eventWakeFailed {
 		level = slog.LevelWarn
 	}
 	entry := lifecycleEntry{

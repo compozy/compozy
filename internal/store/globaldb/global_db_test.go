@@ -7544,3 +7544,96 @@ func TestGlobalAgentSnapshotProfileMigrationConvergesUniqueKeyShapes(t *testing.
 		})
 	}
 }
+
+// Invariant: widening Goal phases preserves every existing checkpoint across upgrade and reopen.
+// Owner: global user-state migration; canonical open/reopen suite.
+func TestGlobalDBGoalWaitMigration(t *testing.T) {
+	for _, migration := range []string{"00176_schema.sql"} {
+		t.Run("Should preserve in-flight Goal checkpoints through "+migration, func(t *testing.T) {
+			t.Parallel()
+			ctx := globalMigrationTestContext(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, migration))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := prior.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if _, err := prior.ExecContext(ctx, `INSERT INTO loop_runs
+			(id, profile_id, workspace_id, loop_name, status, last_progress_at, inputs_json, origin_kind)
+			VALUES ('wait-upgrade', '00000000000000000000000000', '', 'goal-wait', 'running', '2026-11-02T12:00:00Z', '{}', 'catalog')`); err != nil {
+				t.Fatal(err)
+			}
+			const retainedColumns = `loop_run_id,generation,node_id,item_index,control_epoch,
+			control_actor_kind,control_actor_id,control_requested_at,phase,goal_status,
+			turns_used,turn_limit,broken_streak,recovery_streak,task_run_id,queue_entry_id,prompt_id,prompt_kind,prompt_attempt,
+			context_state,usage_sequence,usage_pending_after_sequence,session_id,binding_handle,binding_epoch,context_nudge_ratio,
+			control_grant_id,control_grant_kind,control_grant_cause,control_grant_turn,control_grant_scope,control_grant_consumed,
+			judge_attempt_id,compaction_cancel_prompt_id,compaction_cancel_cause,compaction_cancel_requested_at,
+			report_prompt_id,report_status,report_evidence_ref,report_binding_epoch,report_actor_kind,report_actor_id,report_recorded_at,
+			updated_at,control_cause,compaction_baseline_used,compaction_recovery_required`
+			stamp := "2026-11-02T12:00:00Z"
+			values := []any{
+				"wait-upgrade", 1, "goal", 2, 7, "user", "operator", stamp, "judging", "active",
+				3, 8, 1, 2, "task", "queue", "prompt", "continuation", 1,
+				"pending", 5, 5, "session", "goal:handle", 4, 0.7,
+				1, "turn-extension", "operator", 3, "turn-limit", 0,
+				"judge", "cancel-prompt", "timeout", stamp,
+				"report-prompt", "complete", "evidence:1", 4, "agent", "agent-1", stamp,
+				stamp, "goal_prompt_request_failed", 8, 0,
+			}
+			placeholders := strings.TrimSuffix(strings.Repeat("?,", len(values)), ",")
+			if _, err := prior.ExecContext(
+				ctx,
+				"INSERT INTO loop_goal_checkpoints ("+retainedColumns+") VALUES ("+placeholders+")",
+				values...); err != nil {
+				t.Fatal(err)
+			}
+			const retained = "SELECT json_array(" + retainedColumns + ") FROM loop_goal_checkpoints WHERE loop_run_id='wait-upgrade'"
+			var before string
+			if err := prior.QueryRowContext(ctx, retained).Scan(&before); err != nil {
+				t.Fatal(err)
+			}
+			if err := prior.Close(); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				upgraded, err := openGlobalMigrationUpgrade(t, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var after string
+				var started sql.NullTime
+				var pending bool
+				if err := upgraded.db.QueryRowContext(ctx, "SELECT pending_compaction FROM loop_goal_checkpoints WHERE loop_run_id='wait-upgrade'").
+					Scan(&pending); err != nil {
+					t.Fatal(err)
+				}
+				if pending {
+					t.Fatal("pending compaction = true, want the false default")
+				}
+				if err := upgraded.db.QueryRowContext(ctx, retained).Scan(&after); err != nil {
+					t.Fatal(err)
+				}
+				if err := upgraded.db.QueryRowContext(ctx, `SELECT wait_started_at FROM loop_goal_checkpoints WHERE loop_run_id='wait-upgrade'`).
+					Scan(&started); err != nil {
+					t.Fatal(err)
+				}
+				if after != before || started.Valid {
+					t.Fatalf("checkpoint changed: before=%s after=%s wait=%#v", before, after, started)
+				}
+				status, err := store.Status(ctx, upgraded.db, MigrationStream())
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertCompleteMigrationStream(t, status, MigrationStream())
+				if err := upgraded.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}

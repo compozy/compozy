@@ -39,6 +39,7 @@ func goalSettlementEvidenceRef(
 	return "", nil
 }
 
+// resolveGoalTurnSettlement derives the durable result and control boundary from the settled turn.
 func resolveGoalTurnSettlement(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -46,12 +47,13 @@ func resolveGoalTurnSettlement(
 	req goal.CompleteTurnRequest,
 ) (goalTurnSettlement, error) {
 	settlement := goalTurnSettlement{
-		phase:          goalCheckpointPhaseIdle,
-		status:         goalStatusActive,
-		actorKind:      "system",
-		actorID:        "goal-executor",
-		brokenStreak:   checkpoint.BrokenStreak,
-		recoveryStreak: checkpoint.RecoveryStreak,
+		pendingCompaction: req.Result.StopReason == looppkg.ActionStopMaxTokens,
+		phase:             goalCheckpointPhaseIdle,
+		status:            goalStatusActive,
+		actorKind:         "system",
+		actorID:           "goal-executor",
+		brokenStreak:      checkpoint.BrokenStreak,
+		recoveryStreak:    checkpoint.RecoveryStreak,
 	}
 	if req.Result.StopReason == looppkg.ActionStopMaxTokens {
 		settlement.recoveryStreak++
@@ -142,6 +144,7 @@ func pendingGoalPauseActor(
 		), parsedRequestedAt, nil
 }
 
+// updateGoalCheckpointAfterTurn atomically retains recovery intent and clears the completed prompt owner.
 func updateGoalCheckpointAfterTurn(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -158,6 +161,7 @@ func updateGoalCheckpointAfterTurn(
 		controlRequestedAt = goalNullableTimestampString(&settlement.pauseRequestedAt)
 	}
 	affected, err := sqlcgen.New(exec).UpdateGoalCheckpointAfterTurn(ctx, sqlcgen.UpdateGoalCheckpointAfterTurnParams{
+		PendingCompaction:  int64(boolToInt(settlement.pendingCompaction)),
 		Phase:              settlement.phase,
 		GoalStatus:         settlement.status,
 		ControlCause:       goalNullableString(string(settlement.cause)),

@@ -30,6 +30,7 @@ import {
 import { foldSettledTurns } from "./session-timeline-fold";
 import type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
+import { attachApprovals, partitionAllowedPermissions } from "./session-timeline-permissions";
 import { workRowsFromCluster } from "./session-timeline-work";
 import {
   isSubagentPart,
@@ -67,6 +68,7 @@ export type {
   SessionReasoningRow,
   SessionDataRow,
   SessionWorkingRow,
+  SessionWorkApprovals,
   SessionWorkEntry,
   SessionWorkRow,
   SessionLiveToolRow,
@@ -125,14 +127,15 @@ export function deriveSessionRows(
     attributeSessionMessageParts(markInterruptedCalls(parts, options))
   );
   const sent = partitionSessionMessageParts(owned.flow);
-  const separated =
-    sent.boundaries.size === 0
-      ? owned.boundaries
-      : new Set([...owned.boundaries, ...sent.boundaries]);
-  const rows = deriveBaseRows(
-    sent.flow,
-    { nested: owned.nested, boundaries: separated, sentTools: sent.tools },
-    options
+  const allowed = partitionAllowedPermissions(sent.flow);
+  const separated = new Set([...owned.boundaries, ...sent.boundaries, ...allowed.boundaries]);
+  const rows = attachApprovals(
+    deriveBaseRows(
+      allowed.flow,
+      { nested: owned.nested, boundaries: separated, sentTools: sent.tools },
+      options
+    ),
+    allowed.approvals
   );
   return options.foldSettledTurns
     ? foldSettledTurns(rows, options, turnRecordedTimes(parts, options.turnEndedAtMs))

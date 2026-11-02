@@ -8,6 +8,7 @@ import {
   DEFAULT_SESSION_BUSY_INPUT_MODE,
   discardSessionTerminalQuote,
   isSessionTransportDisconnected,
+  operatorQueuedCount,
   oppositeSessionBusyInputMode,
   useSessionTerminalQuote,
   useSessionTransportState,
@@ -133,7 +134,7 @@ export function useSessionComposerController({
     isRunning: !edit?.active && isRunning,
     isSessionRunning,
     queueCap,
-    queuedCount: queuedPrompts.length,
+    queuedCount: operatorQueuedCount(queuedPrompts),
     stopPhase,
     transportDisconnected,
   });

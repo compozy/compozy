@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 )
 
@@ -14,6 +15,31 @@ type SessionInputSyntheticPrompt struct {
 	Delivery string          `json:"delivery,omitempty"`
 	RunID    string          `json:"run_id"`
 	Metadata json.RawMessage `json:"metadata"`
+	// CoalesceKey marks a wake row that absorbs later wakes of the same key while it waits. Rows without
+	// it (including every row queued before coalescing shipped) stay individual entries.
+	CoalesceKey string `json:"coalesce_key,omitempty"`
+	// CoalescedMessageIDs lists the wakes merged behind the row's own message id. It is the admission
+	// ledger for those wakes, so a replayed wake finds its row across a restart.
+	CoalescedMessageIDs []string `json:"coalesced_message_ids,omitempty"`
+}
+
+// SessionInputCoalesce asks the store to merge a synthetic wake into the session's open row of the same
+// key. Such a row sits outside the capacity pools: it is one row, bounded by MaxMembers.
+type SessionInputCoalesce struct {
+	// CompactText replaces the wake's text once the row holds MaxFullBytes, so a burst drops output tails
+	// rather than outcomes.
+	CompactText  string
+	MaxFullBytes int
+	// MaxMembers refuses a further wake with ErrSessionInputQueueFull until the row is delivered.
+	MaxMembers int
+}
+
+// CoalescedWakes reports how many wakes a coalesced row carries; zero for any other row.
+func (p *SessionInputSyntheticPrompt) CoalescedWakes() int {
+	if p == nil || p.CoalesceKey == "" {
+		return 0
+	}
+	return 1 + len(p.CoalescedMessageIDs)
 }
 
 // Clone isolates queued metadata from the caller's mutable buffer.
@@ -25,6 +51,9 @@ func (p *SessionInputSyntheticPrompt) Clone() *SessionInputSyntheticPrompt {
 		Delivery: p.Delivery,
 		RunID:    strings.TrimSpace(p.RunID),
 		Metadata: append(json.RawMessage(nil), p.Metadata...),
+
+		CoalesceKey:         p.CoalesceKey,
+		CoalescedMessageIDs: slices.Clone(p.CoalescedMessageIDs),
 	}
 }
 
@@ -38,6 +67,9 @@ func (r SessionInputQueueInsert) validateSyntheticPrompt() error {
 	if r.Mode != SessionInputQueueModeQueue || r.TurnID == "" || r.SyntheticPrompt.RunID == "" ||
 		!json.Valid(r.SyntheticPrompt.Metadata) || string(r.SyntheticPrompt.Metadata) == "null" {
 		return errors.New("store: synthetic input requires queued delivery, turn id, run id, and valid metadata")
+	}
+	if r.Coalesce != nil && (r.SyntheticPrompt.CoalesceKey == "" || r.MessageID == "" || r.Coalesce.MaxMembers <= 0) {
+		return errors.New("store: coalesced input requires a coalesce key, message id, and member bound")
 	}
 	return nil
 }

@@ -48,6 +48,7 @@ const (
 
 const (
 	GoalStatusActive        GoalStatus = "active"
+	GoalStatusWaiting       GoalStatus = "waiting"
 	GoalStatusPaused        GoalStatus = "paused"
 	GoalStatusBlocked       GoalStatus = "blocked"
 	GoalStatusUsageLimited  GoalStatus = "usage-limited"
@@ -73,6 +74,9 @@ const (
 )
 
 const (
+	GoalReasonWaitDeferred               GoalReasonCode = "goal_wait_deferred"
+	GoalReasonWaitTimeout                GoalReasonCode = "goal_wait_timeout"
+	GoalReasonWaitUnavailable            GoalReasonCode = "goal_wait_unavailable"
 	GoalReasonNotActive                  GoalReasonCode = "goal_not_active"
 	GoalReasonReplaceRequired            GoalReasonCode = "goal_replace_required"
 	GoalReasonReplaceStale               GoalReasonCode = "goal_replace_stale"

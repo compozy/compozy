@@ -23,3 +23,13 @@ errors:
 inventory: Needs QA — introduced by the session transcript redesign (goal strip + head actions, 2026-07-29).
 
 Issue #756 acceptance: expand a Goal, then **Verification sessions**. The request explicitly selects `type=system` and the bound session parent, with paginated results and transcript links. Loading, failed reads/retry and empty history remain distinct. Verdict-only judges must not appear in the default sidebar/modal or produce bell/toast attention; a finished judge records completed with verified exit and no false stop escalation. Historical parentless judges remain discoverable through the explicit CLI filter.
+
+Issue #1149 QA impact (2026-11-02): a live Goal parked on a verified monitor or delegated child
+shows **Waiting**, keeps the same step count, and retains **Pause goal**. Verify the label refreshes
+from the durable status stream, then changes back to Active when the wait ends. A wait inspection
+failure or a wait exceeding 25 hours shows an attention state with its recorded reason. The
+post-fix rendered walk is pending; the canonical strip/header/control component suites cover the
+waiting label and pause affordance.
+
+For #1149 attention outcomes, verify that the paused strip displays the wait timeout or unavailable
+reason from the snapshot, with its recovery guidance, including after refresh.

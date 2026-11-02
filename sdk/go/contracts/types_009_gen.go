@@ -4,6 +4,28 @@ package contracts
 
 import "time"
 
+type GatewayIngressPayload struct {
+	SubjectKind                 string     `json:"subject_kind"`
+	SubjectID                   string     `json:"subject_id"`
+	ScopeKind                   string     `json:"scope_kind"`
+	WorkspaceID                 string     `json:"workspace_id,omitempty"`
+	URL                         string     `json:"url,omitempty"`
+	Reachability                string     `json:"reachability"`
+	EndpointGeneration          uint64     `json:"endpoint_generation"`
+	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
+	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
+	EnablePath                  string     `json:"enable_path,omitempty"`
+}
+
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
+}
+
+type GridSection struct {
+	Title string     `json:"title,omitempty"`
+	Tiles []GridTile `json:"tiles"`
+}
+
 type GridTile struct {
 	ID       string            `json:"id"`
 	Title    string            `json:"title"`
@@ -184,27 +206,4 @@ type HeartbeatStatusResponse struct {
 	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
 	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
 	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
-}
-
-type HeartbeatTimeWindowPayload struct {
-	Timezone string `json:"timezone"`
-	Start    string `json:"start"`
-	End      string `json:"end"`
-}
-
-type HeartbeatValidateRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	Body        string `json:"body"`
-}
-
-type HeartbeatWakeDecisionPayload struct {
-	WakeEventID       string                             `json:"wake_event_id,omitempty"`
-	Result            HeartbeatWakeResult                `json:"result"`
-	Reason            HeartbeatWakeReason                `json:"reason"`
-	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
-	PolicyDigest      string                             `json:"policy_digest,omitempty"`
-	ConfigDigest      string                             `json:"config_digest,omitempty"`
-	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
-	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 }

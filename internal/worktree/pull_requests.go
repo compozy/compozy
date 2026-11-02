@@ -149,6 +149,20 @@ func (s *PullRequestService) Refresh(ctx context.Context, key PullRequestKey) (P
 	}
 }
 
+// RefreshDue is Refresh for a background watcher: while a recorded failure's
+// RetryAfter still holds it returns that cached entry without contacting the forge.
+func (s *PullRequestService) RefreshDue(ctx context.Context, key PullRequestKey) (PullRequestEntry, error) {
+	entries, err := s.store.ReadPullRequests(ctx, []PullRequestKey{key})
+	if err != nil {
+		return PullRequestEntry{}, err
+	}
+	if entry, ok := entries[key]; ok && entry.RetryAfter != nil && s.now().Before(*entry.RetryAfter) {
+		entry.Stale = pullRequestStale(entry, s.now())
+		return entry, nil
+	}
+	return s.Refresh(ctx, key)
+}
+
 func (s *PullRequestService) start(key PullRequestKey, explicit bool) *pullRequestFlight {
 	s.mu.Lock()
 	defer s.mu.Unlock()

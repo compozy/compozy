@@ -137,6 +137,7 @@ func loadGoalCheckpointWithExecutor(
 	return checkpoint, nil
 }
 
+// validateGoalCheckpoint rejects incomplete lifecycle ownership, counters, and context freshness.
 func validateGoalCheckpoint(checkpoint goal.Checkpoint) error {
 	if err := checkpoint.Key.Validate(); err != nil {
 		return err
@@ -147,6 +148,11 @@ func validateGoalCheckpoint(checkpoint goal.Checkpoint) error {
 	}
 	if !goalCheckpointPhaseValid(checkpoint.Phase) || !goalStatusValid(checkpoint.Status) {
 		return fmt.Errorf("%w: goal checkpoint phase or status is invalid", loop.ErrValidation)
+	}
+	if checkpoint.Phase == goalCheckpointPhaseWaiting &&
+		(checkpoint.Status != goalStatusWaiting || checkpoint.WaitStartedAt == nil ||
+			checkpoint.PromptID != "" || checkpoint.QueueEntryID != "") {
+		return fmt.Errorf("%w: Goal wait checkpoint is incomplete", loop.ErrValidation)
 	}
 	if checkpoint.ContextNudgeRatio < 0 || checkpoint.ContextNudgeRatio > 1 {
 		return fmt.Errorf("%w: goal context_nudge_ratio must be in [0,1]", loop.ErrValidation)
@@ -163,9 +169,10 @@ func validateGoalCheckpoint(checkpoint goal.Checkpoint) error {
 	return nil
 }
 
+// goalCheckpointPhaseValid recognizes the durable Goal lifecycle phases, including suspended waits.
 func goalCheckpointPhaseValid(phase string) bool {
 	switch strings.TrimSpace(phase) {
-	case goalCheckpointPhaseIdle,
+	case goalCheckpointPhaseWaiting, goalCheckpointPhaseIdle,
 		goalCheckpointPhasePreparing,
 		goalCheckpointPhaseQueued,
 		goalCheckpointPhasePrompting,
@@ -180,9 +187,10 @@ func goalCheckpointPhaseValid(phase string) bool {
 	}
 }
 
+// goalStatusValid recognizes the persisted public Goal statuses.
 func goalStatusValid(status string) bool {
 	switch strings.TrimSpace(status) {
-	case goalStatusActive,
+	case goalStatusWaiting, goalStatusActive,
 		goalStatusPaused,
 		goalStatusBlocked,
 		goalStatusUsageLimited,

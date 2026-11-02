@@ -6,6 +6,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // newBootLoopActionRegistry wires Loop actions to daemon-owned sessions, judges, and worktree leases.
@@ -42,14 +43,18 @@ func newBootLoopActionRegistry(
 		}}),
 	}
 	if goalStore, ok := store.(loopGoalProductionStore); ok && state.sessions != nil {
-		goalRuntime := withGoalToolProjection(newLoopGoalProductionRuntime(
+		productionRuntime := newLoopGoalProductionRuntime(
 			goalStore,
 			state.sessions,
 			policyGate,
 			time.Now,
 			state.logger,
 			worktrees,
-		), goalToolProjectionInvalidator(state))
+		)
+		if manager, ok := state.sessions.(*session.Manager); ok {
+			productionRuntime.waitSources = &sessionWorkSources{state: state, manager: manager, now: time.Now}
+		}
+		goalRuntime := withGoalToolProjection(productionRuntime, goalToolProjectionInvalidator(state))
 		installGoalToolProjectionObserver(state)
 		actionOptions[1] = looppkg.WithActionSessionBinder(goalRuntime)
 		goalOption, err := composeLoopGoalExecutor(

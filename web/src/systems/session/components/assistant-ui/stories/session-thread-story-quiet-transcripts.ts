@@ -104,6 +104,25 @@ export const parallelToolsTranscript: TranscriptMessage[] = [
   } as TranscriptMessage,
 ];
 
+function permissionPart(id: string, toolCallId: string, decision: string, resource: string) {
+  return {
+    type: "data-compozy-permission",
+    id,
+    data: {
+      type: "permission",
+      request_id: id,
+      tool_call_id: toolCallId,
+      turn_id: TURN,
+      title: "Bash",
+      action: "execute",
+      resource,
+      decision,
+      timestamp: "2026-07-07T12:00:15Z",
+      raw: { tool_input: { command: resource } },
+    },
+  };
+}
+
 /** Six settled tools behind one sentence, the live row below (VC-03). */
 export const completedGroupTranscript: TranscriptMessage[] = [
   userMessage("story_group_user", "Now make the same change in the store package"),
@@ -120,6 +139,27 @@ export const completedGroupTranscript: TranscriptMessage[] = [
       readPart("g_read_3", "internal/store/schema.sql", "2026-07-07T12:00:50Z"),
       bashPart("g_bash_3", "go build ./...", "2026-07-07T12:01:00Z"),
       bashPart("g_bash_4", "go test ./... -race", "2026-07-07T12:01:10Z", { running: true }),
+    ],
+  } as TranscriptMessage,
+];
+
+/**
+ * An allowed permission between two runs of calls: the receipt stays with its call behind
+ * the group, so the run reads as one (#1155). A rejected ask still stands alone.
+ */
+export const allowedReceiptTranscript: TranscriptMessage[] = [
+  userMessage("story_receipt_user", "Run the store checks"),
+  {
+    id: "story_receipt_settled",
+    role: "assistant",
+    parts: [
+      bashPart("r_bash_1", "go test ./internal/store/...", "2026-07-07T12:00:00Z"),
+      bashPart("r_bash_2", "go vet ./internal/store/...", "2026-07-07T12:00:10Z"),
+      permissionPart("r_allowed", "r_bash_2", "allow-once", "go vet ./internal/store/..."),
+      bashPart("r_bash_3", "go build ./...", "2026-07-07T12:00:30Z"),
+      bashPart("r_bash_4", "go test ./... -race", "2026-07-07T12:00:40Z"),
+      permissionPart("r_rejected", "r_bash_5", "reject-once", "git push --force"),
+      bashPart("r_bash_5", "git push --force", "2026-07-07T12:00:50Z"),
     ],
   } as TranscriptMessage,
 ];

@@ -79,3 +79,9 @@ QA 2026-09-06 — sessions-stability selected scope: PASS for the adjacent selec
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+#1155 2026-11-02: an allowed receipt whose `tool_call_id` matches a tool in the same message and turn
+now renders with that tool, behind its work group, and no longer splits the run; a call still running
+shows it once it stops. Rejected, expired, pending and unmatched permissions stay standalone. Native
+`compozy__terminal_exec` approvals carry a synthetic id, so they stay standalone. Rendered in Chromium
+through the `AllowedReceiptInGroup` story; the dock walk above remains outstanding.

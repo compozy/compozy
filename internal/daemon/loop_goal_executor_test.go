@@ -551,6 +551,23 @@ func TestReadManagedGoalPromptOutputShouldIgnoreOnlyCorrelatedAuxiliaryEvents(t 
 }
 
 func TestLoopGoalManagedLifecycleShouldClassifyClaimCommitEvidence(t *testing.T) {
+	t.Run("Should defer a queued ticket before claim when preceding input registered a wait", func(t *testing.T) {
+		t.Parallel()
+		s, owner := newManagedLifecycleClaimStore()
+		lifecycle := &loopGoalManagedInputLifecycle{
+			store: s,
+			waits: daemonGoalWaitReaderFunc(
+				func(context.Context, looppkg.ActionSessionBinding) (bool, error) { return true, nil },
+			),
+		}
+		_, err := lifecycle.BeginSubmission(t.Context(), session.ManagedInputClaim{Owner: owner})
+		effect, ok := errors.AsType[*session.ManagedInputEffectError](err)
+		if !ok || effect.Certainty != session.EffectKnownFalse || effect.Finalized ||
+			effect.ReasonCode != string(looppkg.ReasonCodeGoalWaitDeferred) ||
+			s.claimCalls != 0 {
+			t.Fatalf("defer = %#v; claim calls=%d", err, s.claimCalls)
+		}
+	})
 	t.Run("Should recover a committed claim only from its exact durable token digest", func(t *testing.T) {
 		t.Parallel()
 
@@ -816,6 +833,7 @@ type managedLifecycleClaimStore struct {
 	run            looppkg.Run
 	checkpoint     goalpkg.Checkpoint
 	claimed        goalpkg.ClaimedPrompt
+	claimCalls     int
 	claimErr       error
 	ambiguousCalls int
 }
@@ -895,6 +913,7 @@ func (s *managedLifecycleClaimStore) ClaimPreparedWorkPrompt(
 	context.Context,
 	goalpkg.ClaimPreparedWorkPromptRequest,
 ) (goalpkg.ClaimedPrompt, error) {
+	s.claimCalls++
 	return s.claimed, s.claimErr
 }
 
@@ -1052,4 +1071,10 @@ func TestLoopSessionPolicyGateUserScope(t *testing.T) {
 			t.Fatalf("CreateOpts.CWD = %q, want empty: User sessions reject a caller directory", opts.CWD)
 		}
 	})
+}
+
+type daemonGoalWaitReaderFunc func(context.Context, looppkg.ActionSessionBinding) (bool, error)
+
+func (f daemonGoalWaitReaderFunc) HasLiveWait(ctx context.Context, binding looppkg.ActionSessionBinding) (bool, error) {
+	return f(ctx, binding)
 }

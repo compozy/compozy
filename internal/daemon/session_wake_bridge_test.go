@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 type sessionWakeManagerStub struct {
@@ -291,6 +292,113 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 	return store.SessionInputQueueEntry{ID: "inq-1"}, stub.enqueueErr
 }
 
+// Invariant: a delivered pull_request wake buys no stays-on check; other kinds keep their fired fact.
+func TestMonitorDigestFact(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave a finished pull_request monitor out of the fired bucket", func(t *testing.T) {
+		t.Parallel()
+
+		fact := monitorDigestFact(monitorpkg.Monitor{
+			ID: "mon-1", SessionID: "sess-1", Kind: monitorpkg.KindPullRequest, Status: monitorpkg.StatusFired,
+		})
+		if fact.Fired {
+			t.Fatalf("fact = %+v", fact)
+		}
+	})
+	t.Run("Should keep the fired fact of other kinds", func(t *testing.T) {
+		t.Parallel()
+
+		fact := monitorDigestFact(monitorpkg.Monitor{
+			ID: "mon-1", SessionID: "sess-1", Kind: monitorpkg.KindTerminal, Status: monitorpkg.StatusFired,
+		})
+		if !fact.Fired {
+			t.Fatalf("fact = %+v", fact)
+		}
+	})
+}
+
+// Invariant: only a current successful lookup reaches the monitor as facts.
+func TestMonitorPullRequestObservation(t *testing.T) {
+	t.Parallel()
+
+	number, open := 7, "open"
+	facts := &worktree.ForgeStatus{
+		PRNumber: &number, PRState: &open, PRURL: "https://forge.test/pull/7", HeadSHA: "head-a",
+		Checks: &worktree.ForgeChecks{State: "failing", Failed: 1, FailedNames: []string{"lint"}},
+		Reviews: &worktree.ForgeReviews{
+			Items: []worktree.ForgeReview{
+				{ID: "r1", Author: "reviewer", State: "commented", Commit: "head-a"},
+			},
+			Threads:           []worktree.ForgeReviewThread{{ID: "t1", Commit: "head-a"}},
+			UnresolvedThreads: 2, Truncated: true,
+		},
+	}
+	t.Run("Should map a current lookup", func(t *testing.T) {
+		t.Parallel()
+
+		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: facts}, nil)
+		if got.Lookup != monitorpkg.PullRequestFound || got.Number != 7 || got.Head != "head-a" ||
+			got.Checks == nil || got.Checks.Failed != 1 || got.Reviews == nil ||
+			got.Reviews.UnresolvedThreads != 2 || got.Reviews.Items[0].ID != "r1" ||
+			got.Reviews.Threads[0] != (monitorpkg.PullRequestThread{ID: "t1", Commit: "head-a"}) {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should not trust the facts an error entry retains", func(t *testing.T) {
+		t.Parallel()
+
+		got := monitorPullRequestObservation(
+			worktree.PullRequestEntry{LookupState: "error", LookupCause: "rate_limited", Facts: facts}, nil)
+		if got.Lookup != monitorpkg.PullRequestFailed || got.Cause != "rate_limited" || got.Checks != nil {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should treat a refresh error as a failed lookup", func(t *testing.T) {
+		t.Parallel()
+
+		got := monitorPullRequestObservation(
+			worktree.PullRequestEntry{LookupState: "ok", Facts: facts},
+			errors.New("boom"),
+		)
+		if got.Lookup != monitorpkg.PullRequestFailed || got.Cause != "provider_failed" {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should tell a failed review read from a forge without reviews", func(t *testing.T) {
+		t.Parallel()
+
+		partial := *facts
+		partial.Reviews, partial.ReviewsUnavailable = nil, true
+		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: &partial}, nil)
+		if got.Lookup != monitorpkg.PullRequestFound || got.Reviews != nil || !got.ReviewsFailed {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should wait while no pull request is known", func(t *testing.T) {
+		t.Parallel()
+
+		for _, entry := range []worktree.PullRequestEntry{
+			{LookupState: "pending"}, {LookupState: "incomplete"},
+			{LookupState: "ok", Facts: &worktree.ForgeStatus{}},
+		} {
+			if got := monitorPullRequestObservation(entry, nil); got.Lookup != monitorpkg.PullRequestAbsent {
+				t.Fatalf("entry %+v observed as %+v", entry, got)
+			}
+		}
+	})
+	t.Run("Should leave unknown checks and absent reviews unobservable", func(t *testing.T) {
+		t.Parallel()
+
+		partial := *facts
+		partial.Checks, partial.Reviews = &worktree.ForgeChecks{State: "unknown"}, nil
+		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: &partial}, nil)
+		if got.Lookup != monitorpkg.PullRequestFound || got.Checks != nil || got.Reviews != nil {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+}
+
 type monitorTargetManagerStub struct {
 	later    map[string]*session.Info
 	reads    map[string]int
@@ -479,6 +587,33 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}
 		if !strings.Contains(manager.opts.Message, "NOT USER INPUT") {
 			t.Fatalf("wake message = %q, want automated-wake header", manager.opts.Message)
+		}
+		coalesce := manager.opts.Coalesce
+		if manager.opts.CoalesceKey == "" || coalesce == nil || coalesce.MaxMembers <= 0 ||
+			!strings.Contains(coalesce.CompactText, "exited") || strings.Contains(coalesce.CompactText, "done") {
+			t.Fatalf("coalesce = %q %#v, want a bounded wake whose compact form keeps the outcome only",
+				manager.opts.CoalesceKey, coalesce)
+		}
+	})
+
+	t.Run("Should give every pull_request fire its own message id", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{status: &session.Info{ID: "sess-1", State: session.StateActive}}
+		wake := monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{
+				ID: "mon-0123456789ab", SessionID: "sess-1", Kind: monitorpkg.KindPullRequest,
+				Description: "watch my PR", Branch: "feat/x", FireCount: 4,
+			},
+			Outcome:     monitorpkg.Outcome{Reason: monitorpkg.ReasonPullRequestChanged},
+			PullRequest: &monitorpkg.PullRequestChanges{Wake: true, Number: 7, State: "open"},
+		}
+		if err := wakerFor(manager).WakeSession(testutil.Context(t), wake); err != nil {
+			t.Fatalf("WakeSession() error = %v", err)
+		}
+		if manager.opts.MessageID != "monitor:mon-0123456789ab:4" ||
+			manager.opts.Metadata.Reason != "monitor_pull_request_changed" {
+			t.Fatalf("admission opts = %#v", manager.opts)
 		}
 	})
 

@@ -118,23 +118,45 @@ type ForgeChecks struct {
 	FailedNames             []string
 }
 
+// ForgeReview is one submitted review; forge text in it is untrusted.
+type ForgeReview struct {
+	ID, Author, State, Commit string
+	IsBot                     bool
+	SubmittedAt               *time.Time
+}
+
+// ForgeReviewThread is one unresolved thread and the commit it was opened on.
+type ForgeReviewThread struct{ ID, Commit string }
+
+// ForgeReviews is optional provider review activity; it is never cached, so only a
+// live Refresh carries it.
+type ForgeReviews struct {
+	Items             []ForgeReview
+	Threads           []ForgeReviewThread
+	UnresolvedThreads int
+	Truncated         bool
+}
+
 type ForgeStatus struct {
-	Checks         *ForgeChecks
-	ReviewDecision string
-	Mergeable      string
-	UpdatedAt      *time.Time
-	Selection      string
-	WorktreeID     string
-	Provider       string
-	PRNumber       *int
-	PRState        *string
-	PRURL          string
-	Head           string
-	Base           string
-	HeadSHA        string
-	Draft          *bool
-	Merged         *bool
-	FetchedAt      *time.Time
+	Checks  *ForgeChecks
+	Reviews *ForgeReviews
+	// ReviewsUnavailable reports a failed review read, as opposed to a provider without reviews.
+	ReviewsUnavailable bool
+	ReviewDecision     string
+	Mergeable          string
+	UpdatedAt          *time.Time
+	Selection          string
+	WorktreeID         string
+	Provider           string
+	PRNumber           *int
+	PRState            *string
+	PRURL              string
+	Head               string
+	Base               string
+	HeadSHA            string
+	Draft              *bool
+	Merged             *bool
+	FetchedAt          *time.Time
 }
 
 // IsStale reports whether the cached forge snapshot is older than the

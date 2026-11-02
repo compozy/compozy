@@ -194,6 +194,7 @@ func (s *fakeExecutorStore) CompleteTurn(
 			s.checkpoint.BrokenStreak = 0
 		}
 	}
+	s.checkpoint.PendingCompaction = req.Result.StopReason == loop.ActionStopMaxTokens
 	if req.Result.StopReason == loop.ActionStopMaxTokens {
 		s.checkpoint.RecoveryStreak++
 	} else if req.Result.Outcome == loop.ActionPromptOutcomeCompleted {
@@ -222,6 +223,7 @@ func (s *fakeExecutorStore) CompleteCompaction(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.compactions = append(s.compactions, req)
+	s.checkpoint.PendingCompaction = false
 	s.checkpoint.Phase = checkpointPhaseIdle
 	s.checkpoint.QueueEntryID = ""
 	s.checkpoint.PromptID = ""
@@ -575,14 +577,20 @@ func (b *fakeManagedBinder) AwaitActionPrompt(
 
 	b.store.mu.Lock()
 	switch {
-	case request.Kind == promptKindCompact:
-		b.store.checkpoint.Phase = checkpointPhaseCompacting
 	case result.Outcome == loop.ActionPromptOutcomeRejectedBeforeSubmit:
 		b.store.checkpoint.PromptAttempt++
+		if result.ReasonCode == loop.ReasonCodeGoalWaitDeferred {
+			b.store.checkpoint.WaitDeferrals++
+		}
+		if request.Kind == promptKindCompact {
+			b.store.checkpoint.PendingCompaction = true
+		}
 		b.store.checkpoint.QueueEntryID = ""
 		b.store.checkpoint.PromptID = ""
 		b.store.checkpoint.PromptKind = ""
-		b.store.checkpoint.Phase = checkpointPhaseIdle
+		b.store.checkpoint.Phase = checkpointPhasePreparing
+	case request.Kind == promptKindCompact:
+		b.store.checkpoint.Phase = checkpointPhaseCompacting
 	case result.Outcome != loop.ActionPromptOutcomeBudgetFenced &&
 		result.Outcome != loop.ActionPromptOutcomeControlFenced:
 		b.store.checkpoint.TurnsUsed++
@@ -802,6 +810,7 @@ func (s *fakeExecutorStore) BindCheckpoint(_ context.Context, req BindCheckpoint
 		// belong to this binding; turn budgets and judge failure streaks do not.
 		s.checkpoint.RecoveryStreak = 0
 		s.checkpoint.CompactionRecoveryRequired = false
+		s.checkpoint.PendingCompaction = false
 		s.checkpoint.ContextState = contextStateUnknown
 		s.checkpoint.UsageSequence = nil
 		s.checkpoint.UsagePendingAfterSequence = nil
@@ -831,4 +840,46 @@ func (r *livenessSessionRecorder) sessions() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Clone(r.names)
+}
+
+// WaitReaderFunc models the daemon read port without simulating provider work.
+type waitReaderFunc func(context.Context, loop.ActionSessionBinding) (bool, error)
+
+var _ WaitReader = waitReaderFunc(nil)
+
+func (f waitReaderFunc) HasLiveWait(ctx context.Context, binding loop.ActionSessionBinding) (bool, error) {
+	return f(ctx, binding)
+}
+
+func (s *fakeExecutorStore) SetWaitState(_ context.Context, req WaitCheckpointRequest) (Checkpoint, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkpoint.ControlEpoch != req.Checkpoint.ControlEpoch ||
+		s.checkpoint.Phase != req.Checkpoint.Phase {
+		return Checkpoint{}, loop.ErrTransitionConflict
+	}
+	if !checkpointHasPendingPause(s.checkpoint) {
+		if req.Waiting {
+			if s.checkpoint.WaitStartedAt == nil {
+				s.checkpoint.WaitStartedAt = new(s.checkpoint.UpdatedAt)
+			}
+			s.checkpoint.Phase = checkpointPhaseWaiting
+			s.checkpoint.Status = goalStatusWaiting
+		} else {
+			s.checkpoint.Phase = checkpointPhaseIdle
+			s.checkpoint.Status = goalStatusActive
+			s.checkpoint.WaitStartedAt = nil
+		}
+	}
+	return cloneTestCheckpoint(s.checkpoint), nil
+}
+
+// recoveringWaitReader observes the executor's session-recovery I/O boundary.
+type recoveringWaitReader struct {
+	waitReaderFunc
+	recover func(context.Context, loop.ActionSessionBinding) error
+}
+
+func (r recoveringWaitReader) RecoverWaitSession(ctx context.Context, binding loop.ActionSessionBinding) error {
+	return r.recover(ctx, binding)
 }

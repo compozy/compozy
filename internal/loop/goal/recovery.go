@@ -321,6 +321,7 @@ func (e *Executor) ambiguousPromptBoundary(
 	return &turnBoundary{checkpoint: segment.checkpoint, result: result, control: control, completed: true}, err
 }
 
+// retryRejectedPrompt retains proven unsubmitted retries without charging daemon wait deferrals.
 func (e *Executor) retryRejectedPrompt(
 	ctx context.Context,
 	segment *segmentState,
@@ -337,11 +338,15 @@ func (e *Executor) retryRejectedPrompt(
 			loop.ErrTransitionConflict,
 		)
 	}
+	// A wait deferral is a proven unsubmitted ticket, not a failed provider attempt.
+	if result.ReasonCode == loop.ReasonCodeGoalWaitDeferred {
+		return nil, nil
+	}
 	maxAttempts := 1
 	if segment.node.Retry != nil && segment.node.Retry.MaxAttempts > 0 {
 		maxAttempts = segment.node.Retry.MaxAttempts
 	}
-	if checkpoint.PromptAttempt < maxAttempts {
+	if checkpoint.PromptAttempt-checkpoint.WaitDeferrals < maxAttempts {
 		if goalFreshSessionOnFailure(segment.node) {
 			if err := e.rotateBinding(ctx, segment); err != nil {
 				return nil, err

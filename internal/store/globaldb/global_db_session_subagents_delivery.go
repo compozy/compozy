@@ -129,3 +129,14 @@ func (g *SessionRepo) DeleteReserved(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// HasPendingSubagentWake retains the wait through terminal publication and wake delivery.
+func (g *SessionRepo) HasPendingSubagentWake(ctx context.Context, workspaceID, parentID string) (bool, error) {
+	if err := g.checkReady(ctx, "read pending subagent wake"); err != nil {
+		return false, err
+	}
+	pending, err := g.queries.HasPendingSubagentWake(ctx, sqlcgen.HasPendingSubagentWakeParams{
+		WorkspaceID: workspaceID, ParentSessionID: parentID,
+	})
+	return pending, err
+}

@@ -201,6 +201,7 @@ export {
   queueCapFromInputs,
   queuedPromptAttachmentSummary,
   queuedPromptOwner,
+  operatorQueuedCount,
   queuedPromptsFromInputs,
   withCachedInputs,
   type QueuedPrompt,

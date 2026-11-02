@@ -220,6 +220,10 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 			sessionBranchAdapter{runner: runner},
 			state.logger,
 		)
+		state.monitorPullRequests = &sessionMonitorPullRequests{
+			reader: adapter, branches: branchStore, sessions: state.sessions,
+			saveBranch: sessionBranchSaver(branchStore, adapter, sessionBranchAdapter{runner: runner}),
+		}
 	}
 	state.worktrees = service
 	state.deps.Worktrees = service

@@ -238,6 +238,21 @@ A `SOUL.md` that still carries the retired memory-policy frontmatter key from an
 valid: any value is accepted and ignored. `compozy agent soul validate` reports no diagnostic, the key is
 never rendered into a session, and CompozyOS does not rewrite the file.
 
+## Stays-On Permission Level
+
+- A stays-on agent runs at the `permissions` set on its own definition, and `approve-all` stays
+  `approve-all`. With no level on the definition it runs at `approve-reads`, or at `[permissions].mode`
+  when that is narrower. This holds for instances created by the operator or by an agent,
+  and for main sessions resumed after an older release lowered them.
+- Sessions an instance starts do not inherit its level. Each uses the `permissions` of its own
+  definition, or `[permissions].mode`. A delegation that omits `permission_mode` or sets `inherit` gets
+  that level; a lower `permission_mode` is kept; a higher one fails with `permission_escalation_denied`.
+- Only the level comes from the definition. Tool, skill, MCP server, and path ceilings still narrow
+  descendants exactly as before. Triage sessions stay read-only at every level.
+- The level is read when a session starts and has no frozen ceiling, unlike `workspace_access`. A session
+  that can write `.compozy/agents/<name>/AGENT.md` or the workspace `.compozy/config.toml` changes the
+  level of the next start. Treat write access to those files as authority over the level.
+
 ## Hidden Triage
 
 Hidden triage requires a confirmed read-only provider mode. Claude and OpenCode

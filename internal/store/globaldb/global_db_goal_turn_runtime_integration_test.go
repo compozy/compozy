@@ -189,43 +189,61 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should advance only a proven pre-submit rejection and deduplicate it", func(t *testing.T) {
-		t.Parallel()
+	for _, reason := range []looppkg.ReasonCode{looppkg.ReasonCodeGoalPromptRequestFailed, looppkg.ReasonCodeGoalWaitDeferred} {
+		t.Run("Should advance and deduplicate the proven pre-submit outcome "+string(reason), func(t *testing.T) {
+			t.Parallel()
 
-		globalDB, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-safe-rejection")
-		promptID := "goal-prompt-safe-rejection"
-		ticket := prepareGoalRuntimePrompt(t, globalDB, key, taskRunID, promptID, now)
-		request := goal.RejectPreparedPromptRequest{
-			Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1,
-			TaskRunID: taskRunID, QueueEntryID: ticket.QueueEntryID, PromptID: promptID,
-			ReasonCode: looppkg.ReasonCodeGoalPromptRequestFailed,
-		}
-		if err := globalDB.RejectPreparedGoalPrompt(testutil.Context(t), request); err != nil {
-			t.Fatalf("RejectPreparedGoalPrompt() error = %v", err)
-		}
-		if err := globalDB.RejectPreparedGoalPrompt(testutil.Context(t), request); err != nil {
-			t.Fatalf("RejectPreparedGoalPrompt(idempotent) error = %v", err)
-		}
+			globalDB, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-safe-rejection")
+			promptID := "goal-prompt-safe-rejection"
+			ticket := prepareGoalRuntimePrompt(t, globalDB, key, taskRunID, promptID, now)
+			request := goal.RejectPreparedPromptRequest{
+				Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1,
+				TaskRunID: taskRunID, QueueEntryID: ticket.QueueEntryID, PromptID: promptID,
+				ReasonCode: reason,
+			}
+			if err := globalDB.RejectPreparedGoalPrompt(testutil.Context(t), request); err != nil {
+				t.Fatalf("RejectPreparedGoalPrompt() error = %v", err)
+			}
+			if err := globalDB.RejectPreparedGoalPrompt(testutil.Context(t), request); err != nil {
+				t.Fatalf("RejectPreparedGoalPrompt(idempotent) error = %v", err)
+			}
 
-		entry, err := globalDB.GetSessionInputQueueEntryByID(testutil.Context(t), ticket.QueueEntryID)
-		if err != nil {
-			t.Fatalf("GetSessionInputQueueEntryByID() error = %v", err)
-		}
-		if entry.Status != store.SessionInputQueueStatusFailed ||
-			entry.TerminalKind != string(looppkg.ActionPromptOutcomeRejectedBeforeSubmit) ||
-			entry.TerminalReasonCode != string(looppkg.ReasonCodeGoalPromptRequestFailed) ||
-			entry.DispatchTokenHash != "" {
-			t.Fatalf("rejected queue entry = %#v", entry)
-		}
-		checkpoint, err := globalDB.LoadCheckpoint(testutil.Context(t), key)
-		if err != nil {
-			t.Fatalf("LoadCheckpoint() error = %v", err)
-		}
-		if checkpoint.Phase != "preparing" || checkpoint.PromptAttempt != 1 ||
-			checkpoint.QueueEntryID != "" || checkpoint.PromptID != "" {
-			t.Fatalf("rejected checkpoint = %#v", checkpoint)
-		}
-	})
+			entry, err := globalDB.GetSessionInputQueueEntryByID(testutil.Context(t), ticket.QueueEntryID)
+			if err != nil {
+				t.Fatalf("GetSessionInputQueueEntryByID() error = %v", err)
+			}
+			if entry.Status != store.SessionInputQueueStatusFailed ||
+				entry.TerminalKind != string(looppkg.ActionPromptOutcomeRejectedBeforeSubmit) ||
+				entry.TerminalReasonCode != string(reason) ||
+				entry.DispatchTokenHash != "" {
+				t.Fatalf("rejected queue entry = %#v", entry)
+			}
+			checkpoint, err := globalDB.LoadCheckpoint(testutil.Context(t), key)
+			if err != nil {
+				t.Fatalf("LoadCheckpoint() error = %v", err)
+			}
+			wantDeferrals := 0
+			if reason == looppkg.ReasonCodeGoalWaitDeferred {
+				wantDeferrals = 1
+			}
+			if checkpoint.WaitDeferrals != wantDeferrals || checkpoint.Phase != "preparing" || checkpoint.PromptAttempt != 1 ||
+				checkpoint.QueueEntryID != "" ||
+				checkpoint.PromptID != "" {
+				t.Fatalf("rejected checkpoint = %#v", checkpoint)
+			}
+			waiting, err := globalDB.SetWaitState(
+				t.Context(),
+				goal.WaitCheckpointRequest{Checkpoint: checkpoint, Waiting: true},
+			)
+			if err != nil || waiting.Phase != "waiting" || waiting.PromptAttempt != 1 || waiting.TurnsUsed != 0 {
+				t.Fatalf("rejected attempt wait = %#v, %v", waiting, err)
+			}
+			resumed, err := globalDB.SetWaitState(t.Context(), goal.WaitCheckpointRequest{Checkpoint: waiting})
+			if err != nil || resumed.Phase != "idle" || resumed.PromptAttempt != 1 {
+				t.Fatalf("rejected attempt resume = %#v, %v", resumed, err)
+			}
+		})
+	}
 
 	t.Run("Should recover one exact terminal without exposing the raw dispatch token", func(t *testing.T) {
 		t.Parallel()
@@ -1103,11 +1121,18 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("reactivate compact binding error = %v", err)
 		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			"UPDATE loop_goal_checkpoints SET pending_compaction = 1 WHERE loop_run_id = ?",
+			string(key.LoopRunID),
+		); err != nil {
+			t.Fatal(err)
+		}
 		completed, err := globalDB.CompleteCompaction(ctx, complete)
 		if err != nil {
 			t.Fatalf("CompleteCompaction() error = %v", err)
 		}
-		if completed.Phase != "idle" || completed.ContextState != "pending" ||
+		if completed.PendingCompaction || completed.Phase != "idle" || completed.ContextState != "pending" ||
 			completed.UsagePendingAfterSequence == nil || *completed.UsagePendingAfterSequence != usageSequence ||
 			completed.CompactionBaselineUsed == nil || *completed.CompactionBaselineUsed != usageBaselineUsed {
 			t.Fatalf("completed compaction checkpoint = %#v", completed)
@@ -2865,7 +2890,8 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CompleteTurn(approved) error = %v", err)
 		}
-		if settled.ControlGrant == nil || !settled.ControlGrant.Consumed || settled.TurnsUsed != 3 {
+		if !settled.PendingCompaction || settled.ControlGrant == nil || !settled.ControlGrant.Consumed ||
+			settled.TurnsUsed != 3 {
 			t.Fatalf("settled approved turn = %#v", settled)
 		}
 	})

@@ -71,23 +71,46 @@ func (p daemonExtensionForgeProvider) Status(
 		}
 	}
 	return &worktree.ForgeStatus{
-		Checks:         checks,
-		ReviewDecision: response.ReviewDecision,
-		Mergeable:      response.Mergeable,
-		UpdatedAt:      response.UpdatedAt,
-		Selection:      response.Selection,
-		WorktreeID:     request.WorktreeID,
-		Provider:       response.Provider,
-		PRNumber:       response.PRNumber,
-		PRState:        response.PRState,
-		PRURL:          response.PRURL,
-		Merged:         response.Merged,
-		Head:           response.Head,
-		Base:           response.Base,
-		HeadSHA:        response.HeadSHA,
-		Draft:          response.Draft,
-		FetchedAt:      &response.FetchedAt,
+		Checks:             checks,
+		Reviews:            forgeReviews(response.Reviews),
+		ReviewsUnavailable: response.ReviewsUnavailable,
+		ReviewDecision:     response.ReviewDecision,
+		Mergeable:          response.Mergeable,
+		UpdatedAt:          response.UpdatedAt,
+		Selection:          response.Selection,
+		WorktreeID:         request.WorktreeID,
+		Provider:           response.Provider,
+		PRNumber:           response.PRNumber,
+		PRState:            response.PRState,
+		PRURL:              response.PRURL,
+		Merged:             response.Merged,
+		Head:               response.Head,
+		Base:               response.Base,
+		HeadSHA:            response.HeadSHA,
+		Draft:              response.Draft,
+		FetchedAt:          &response.FetchedAt,
 	}, nil
+}
+
+func forgeReviews(reviews *extensioncontract.ForgeReviews) *worktree.ForgeReviews {
+	if reviews == nil {
+		return nil
+	}
+	items := make([]worktree.ForgeReview, 0, len(reviews.Items))
+	for i := range reviews.Items {
+		item := &reviews.Items[i]
+		items = append(items, worktree.ForgeReview{
+			ID: item.ID, Author: item.Author, IsBot: item.IsBot, State: item.State,
+			SubmittedAt: item.SubmittedAt, Commit: item.Commit,
+		})
+	}
+	threads := make([]worktree.ForgeReviewThread, 0, len(reviews.Threads))
+	for _, thread := range reviews.Threads {
+		threads = append(threads, worktree.ForgeReviewThread{ID: thread.ID, Commit: thread.Commit})
+	}
+	return &worktree.ForgeReviews{
+		Items: items, Threads: threads, UnresolvedThreads: reviews.UnresolvedThreads, Truncated: reviews.Truncated,
+	}
 }
 
 func (p daemonExtensionForgeProvider) CreatePR(

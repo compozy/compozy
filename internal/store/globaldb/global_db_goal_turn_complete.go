@@ -16,16 +16,17 @@ import (
 )
 
 type goalTurnSettlement struct {
-	phase            string
-	status           string
-	cause            looppkg.ReasonCode
-	actorKind        string
-	actorID          string
-	brokenStreak     int
-	recoveryStreak   int
-	consumeGrant     bool
-	pauseRequested   bool
-	pauseRequestedAt time.Time
+	pendingCompaction bool
+	phase             string
+	status            string
+	cause             looppkg.ReasonCode
+	actorKind         string
+	actorID           string
+	brokenStreak      int
+	recoveryStreak    int
+	consumeGrant      bool
+	pauseRequested    bool
+	pauseRequestedAt  time.Time
 }
 
 // CompleteTurn atomically terminalizes one existing turn, consumes its exact intent, and advances its checkpoint.

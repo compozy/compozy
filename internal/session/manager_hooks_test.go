@@ -416,8 +416,10 @@ func TestInstanceCeilingManagedWorktree(t *testing.T) {
 				root = t.TempDir()
 			}
 			h.manager.SetInstanceCeilingReader(
-				func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error) {
-					return &store.SessionPermissionPolicy{WorkspacePaths: []string{root}}, "", nil
+				func(context.Context, string, string) (*InstanceCeiling, error) {
+					return &InstanceCeiling{
+						Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{root}},
+					}, nil
 				},
 			)
 			created, err := h.manager.Create(

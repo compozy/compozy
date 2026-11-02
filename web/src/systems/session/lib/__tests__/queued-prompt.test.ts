@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  coalescedWakesLabel,
+  operatorQueuedCount,
   queueCapFromInputs,
   queuedPromptOwner,
   queuedPromptsFromInputs,
@@ -110,6 +112,20 @@ describe("queued prompt read model", () => {
     });
     expect(sent?.owner).toBeNull();
     expect(own).not.toHaveProperty("sender");
+  });
+
+  it("Should count only operator rows against the cap and label merged wakes", () => {
+    const input = (overrides: Record<string, unknown>) =>
+      ({ id: "row", status: "queued", text: "text", ...overrides }) as SessionInputPayload;
+    const prompts = queuedPromptsFromInputs(
+      [input({ owner_kind: "synthetic", coalesced_wakes: 12 }), input({ id: "operator" })],
+      "ws",
+      "sess"
+    );
+    expect(operatorQueuedCount(prompts)).toBe(1);
+    expect(prompts[0].coalescedWakes).toBe(12);
+    expect(coalescedWakesLabel(12)).toBe("12 monitors fired");
+    expect(coalescedWakesLabel(1)).toBe("1 monitor fired");
   });
 
   it("Should read the cap only from the daemon's queue summary and never invent one", () => {

@@ -14,6 +14,15 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// PermissionLimit returns the broadest mode a delegation from parent to target may request.
+func (s *subagentService) PermissionLimit(
+	ctx context.Context,
+	parent *Info,
+	target SubagentTarget,
+) (SubagentPermissionLimit, error) {
+	return s.runtime.PermissionLimit(ctx, parent, target)
+}
+
 func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Subagent, error) {
 	req, err := normalizeSubagentRequest(req)
 	if err != nil {
@@ -23,7 +32,11 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if err != nil {
 		return Subagent{}, err
 	}
-	mode, policy, err := subagentPermissions(snap.Info, req)
+	limit, err := s.runtime.PermissionLimit(ctx, snap.Info, req.Target)
+	if err != nil {
+		return Subagent{}, err
+	}
+	mode, policy, err := subagentPermissions(snap.Info, req, limit)
 	if err != nil {
 		return Subagent{}, &SubagentError{Code: "permission_escalation_denied", Message: err.Error(), Err: err}
 	}

@@ -84,6 +84,7 @@ func stableDigest(value any) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// renderWorkPrompt combines the objective, prior evidence, and registered-wait guidance for one work turn.
 func renderWorkPrompt(segment *segmentState, turn int, kind string) (string, error) {
 	var prompt strings.Builder
 	prompt.WriteString("You are advancing a durable Goal.\n\nObjective:\n")
@@ -92,7 +93,9 @@ func renderWorkPrompt(segment *segmentState, turn int, kind string) (string, err
 	fmt.Fprintf(&prompt, "%d of %d", turn, segment.checkpoint.TurnLimit)
 	prompt.WriteString(
 		". Make concrete progress, preserve existing correct work, " +
-			"and stop at one provider turn boundary.",
+			"and stop at one provider turn boundary. If every remaining step is blocked on a registered " +
+			"monitor or delegated child, end the turn and wait for its wake; the daemon will suspend " +
+			"Goal work and judging until the wait ends.",
 	)
 	if kind == promptKindContinuation {
 		prompt.WriteString(

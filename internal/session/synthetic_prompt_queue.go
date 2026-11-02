@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -27,8 +28,9 @@ func (m *Manager) enqueueDurableSyntheticPrompt(
 	return m.inputQueue.EnqueueSynthetic(ctx, inputqueue.InputRequest{
 		MessageID: opts.MessageID, Priority: opts.Priority,
 		SessionID: session.ID, Text: req.message, TargetTurnID: session.CurrentTurnID(), Generation: generation,
+		Coalesce: opts.Coalesce,
 	}, req.turnID, &store.SessionInputSyntheticPrompt{
-		RunID: req.runID, Metadata: metadata, Delivery: string(req.delivery),
+		RunID: req.runID, Metadata: metadata, Delivery: string(req.delivery), CoalesceKey: opts.CoalesceKey,
 	}, req.meta.Synthetic.TaskRunID)
 }
 
@@ -62,4 +64,17 @@ func (m *Manager) waitSyntheticPromptPersistence(session *Session, admitted *sto
 		case <-ticker.C:
 		}
 	}
+}
+
+// syntheticPromptMeta decodes a row's wake metadata. A row carrying several wakes names their count and a
+// neutral reason, so the transcript does not attribute every outcome to the first monitor.
+func syntheticPromptMeta(prompt *store.SessionInputSyntheticPrompt) (*acp.PromptSyntheticMeta, error) {
+	var meta *acp.PromptSyntheticMeta
+	if err := json.Unmarshal(prompt.Metadata, &meta); err != nil {
+		return nil, err
+	}
+	if wakes := prompt.CoalescedWakes(); wakes > 1 && meta != nil {
+		meta.Summary, meta.Reason = fmt.Sprintf("%d monitors", wakes), "monitor_coalesced"
+	}
+	return meta, nil
 }
