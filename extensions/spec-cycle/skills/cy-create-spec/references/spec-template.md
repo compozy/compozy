@@ -1,6 +1,6 @@
 # Spec Template
 
-Structure for `_spec.md` — the single specification consumed by LLM agents downstream (`cy-create-tasks`, `cy-execute-task`, review rounds). Part I supplies business rules, domain behavior, and product intent; Part II supplies the implementation design. Fill each section per its rules; omit a Part II section only when it does not apply, and note the reason. Leave insufficiently-known material in Open Questions rather than guessing.
+Structure for `_spec.md` — the single specification consumed by LLM agents downstream (delivery conductors, implementers, and reviewers). Part I supplies business rules, domain behavior, and product intent; Part II supplies the implementation design. Fill each section per its rules; omit a Part II section only when it does not apply, and note the reason. Leave insufficiently-known material in Open Questions rather than guessing.
 
 ---
 
@@ -193,7 +193,7 @@ For concurrency- or ownership-sensitive paths: the invariants as a numbered list
 
 ## File References
 
-The read-first index for implementing agents: every path the design depends on, each with one clause on why to read it. Use `path:line-start-line-end` when a region carries the pattern. Index an existing per-file catalog (e.g. `analysis/` reference tables) instead of inlining it, and name sources that are not navigable ("cited by concept — no path in this repo") so nobody hunts for a missing path. `cy-create-tasks` copies each task's subset from here into its `### Relevant Files` / `### Dependent Files` / `### External References`.
+The read-first index for implementing agents: every path the design depends on, each with one clause on why to read it. Use `path:line-start-line-end` when a region carries the pattern. Index an existing per-file catalog (e.g. `analysis/` reference tables) instead of inlining it, and name sources that are not navigable ("cited by concept — no path in this repo") so nobody hunts for a missing path. Slice briefs copy each slice's subset from here into its `### Relevant Files` / `### Dependent Files` / `### External References`.
 
 ### Repo Files
 

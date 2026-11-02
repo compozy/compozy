@@ -17,7 +17,7 @@ Apply repository-specific Go conventions to production files under `cmd/` and `i
 - Add a companion skill only for a distinct unresolved concern. `golang-master` supplies deeper language guidance when needed; it is not an automatic prerequisite.
 - For public behavior/contract changes, update the owning `docs/_memory/change-impact.md` audit. Cite an existing spec/task/PR audit instead of writing one per skill.
 
-Run the focused owning check and reuse current scoped lint/race evidence. Cross-build and Linux-race parity checks follow the concurrency reference's applicable branches. Root `make gate` and PR CI policy apply at the enclosing commit/push or PR-delivery stage, not after each edit.
+Run the focused owning check and reuse current scoped lint/race evidence. Cross-build and Linux-race parity checks follow the concurrency reference's applicable branches. Repository-wide gates run only in CI, per root `CLAUDE.md`.
 
 ## Specific failure cases
 

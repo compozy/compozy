@@ -23,4 +23,4 @@ For changed Go test files, run the read-only heuristic checker:
 python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py <file_path>
 ```
 
-Fix real findings; document a demonstrated false positive without weakening the convention. Run the affected repository race-enabled suite with `CGO_ENABLED=1` and the owning lint lane, reusing current evidence when those inputs are unchanged. Root `make gate` and PR CI apply once at the enclosing delivery stage; a local test change does not require opening a PR.
+Fix real findings; document a demonstrated false positive without weakening the convention. Run the affected package's race-enabled tests with `CGO_ENABLED=1` and the owning lint lane, reusing current evidence when those inputs are unchanged. Repository-wide gates run only in CI, per root `CLAUDE.md`; a local test change does not require opening a PR.

@@ -42,7 +42,7 @@ Use the applicable sections for the changed contract. Reuse the owning impact au
 - [ ] Claim-bearing HTTP contracts return `claim_token_hash`, never raw `claim_token`.
 - [ ] All redaction tests still pass after the contract change.
 - [ ] Observability fields (`claim_token_hash`, `lease_until`, etc.) updated if shape changes affect logs/metrics.
-- [ ] Root delivery policy is satisfied at the requested stage: `make gate` before commit/push; required current-head CI before PR completion.
+- [ ] Root delivery policy is satisfied at the requested stage: focused checks before commit/push; current-head CI before PR completion.
 
 ## Commit
 

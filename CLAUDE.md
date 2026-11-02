@@ -14,7 +14,8 @@ Real users run every release. Preserve the three regimes from SD-013 and L-040:
 ## Working Rules
 
 - Preserve unrelated work. Destructive Git (`restore`, `checkout`, `reset`, `clean`, `rm`, `stash`) requires explicit user permission.
-- Conversation in Brazilian Portuguese; code, docs, specs, commits, and memory artifacts in English.
+- Conversation in Brazilian Portuguese; code, docs, specs, commits, GitHub issues, and memory artifacts in English.
+- All file changes happen in a worktree and the root checkout stays clean. Gitignored runtime files such as spec directories under `.compozy/tasks` and `.compozy/work-log.md` live in the workspace root.
 - Use `go get` for Go dependencies and `bun add` for JS dependencies; generated files change through their owning generator.
 - Keep production source files cohesive and at most 500 lines; extract before growing an oversized file.
 - Before changing a test, identify its invariant, owning layer, and existing suite. Reuse that suite and suitable utilities. Add coverage for observable behavior; prose/CSS/config/snapshot assertions need an actual artifact contract without a stronger owning check. Fix production regressions without weakening tests.
@@ -35,19 +36,20 @@ Load a skill when the user names it or its procedure resolves a task-specific ne
 
 - Go conventions: `eng-code-guidelines`; Go tests: `eng-test-conventions`. Use `eng-consolidate-test-suites` when placement is unclear, and language/debugging references when the problem needs them.
 - SQLite changes: `eng-schema-migration`; wire changes: `eng-contract-codegen-coship`; authorization/pagination/cache boundaries: `eng-data-boundaries`.
-- Specs/tasks: use the requested `cy-*` entry point and its applicable branches. Reuse approved research; peer review remains opt-in after saving the approved spec. Apply only user-selected peer-review findings.
+- Dispatching or supervising sessions, filing an issue, opening or updating a PR, handling review feedback or CI, or declaring work done: `eng-delivery`.
+- Specs: `cy-create-spec` owns authoring, `_slices.md`, and opt-in peer review; `docs/_memory/spec-authoring-playbook.md` owns Compozy compatibility, contract, and lesson rules. Reuse approved research.
 - Design-system/redesign: `eng-design`; visual-reference comparison: `eng-ui-screenshot`. Use additional design skills for the dimension being changed, and delegate design work when a suitable agent is available and useful.
 - Agent instruction edits: `writing-agents-md`; skill edits: `writing-skills`; incident lessons: `lesson-learned`.
 - Resolve bundled skill helpers from the skill's actual root, such as `.agents/skills/<skill>/scripts/`; never depend on an ambiguous working directory.
 
 ## Verification and Delivery
 
-Use the cheapest check that can expose the changed behavior, plus the required delivery gates.
+Use the cheapest check that can expose the changed behavior. CI owns the delivery gates.
 
-- Before commit/push, `make gate` must pass with zero warnings/errors; docs-only changes that cannot affect test/lint/typecheck are exempt. The wrapper selects affected lanes and caches evidence under `.cache/gate/`; use `make gate-status` for current records. Missing merge bases or unclassified paths require diagnosis, not a fallback full run.
-- PR delivery requires every required CI check green for the current head. Diagnose finished failures while other jobs run. A draft PR with pending/red checks remains in progress. `make gate-full` is opt-in local diagnostics; local full/E2E runs share a machine lock, so do not kill a queued run.
+- `make gate`, `make gate-full`, repository-wide lint, full test or `-race` suites, and E2E run only in CI, unless the operator asks for that local run; concurrent local runs saturate the machine. Before commit/push, run focused tests and focused lint for what you changed, with zero warnings/errors.
+- PR delivery requires the CI checks named in `eng-delivery` green for the current head. Diagnose finished failures while other jobs run. A draft PR with pending/red checks remains in progress. Local full/E2E runs share a machine lock, so do not kill a queued run.
 - Frontend validation runs through Turborepo from the repo root, with affected-package filters during iteration. Package-local test/typecheck runs are not delivery evidence.
-- Commits: `<type>: <description>` with `feat|fix|refactor|perf|docs|test|build|ci`, no scopes. A failed pre-commit hook is repaired in a new commit, not an amend. `cy-fix-reviews` keeps one local commit per remediation batch.
+- Commits: `<type>: <description>` with `feat|fix|refactor|perf|docs|test|build|ci`, no scopes. A failed pre-commit hook is repaired in a new commit, not an amend.
 
 ## Compozy Cross-Surface Impact Audit
 
@@ -55,7 +57,7 @@ For behavior/contract changes, record the affected native tools, extensibility/h
 
 ## QA
 
-Changed user-visible behavior updates the affected `docs/qa/scenarios/` files and verifies those scenarios before delivery. Spec loops collect slice evidence and run the trailing QA pair once for remaining integration journeys; intermediate tasks flag affected scenarios.
+Changed user-visible behavior updates the affected `docs/qa/scenarios/` files and verifies those scenarios before delivery. Spec delivery collects slice evidence and verifies remaining integration journeys once, after integration; slices flag affected scenarios.
 
 For release/scenario labs, use `eng-qa-bootstrap` and the applicable `qa-report`/`qa-execution` branches; the skill owns manifest, teardown, and `make qa-reap` semantics. Parallel labs require unique homes, ports, and sockets. Failed walks require repair and re-walk; only documented external/decision blockers may remain unverified.
 

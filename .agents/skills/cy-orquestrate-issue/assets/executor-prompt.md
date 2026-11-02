@@ -57,11 +57,10 @@ diff and run the relevant real integration/E2E or app flow. UI fixes need render
 reported state and affected viewport/interaction cases. Use isolated homes, ports and sockets for
 runtime QA, and clean up only your own registered lab processes. Do not restart the user's daemon.
 
-Use repository-root frontend/Turborepo conventions when applicable. Pass `make gate` before
-commit/push, including subsequent remediation commits, subject to the repository's documented
-exceptions. Diagnose missing merge bases or unclassified paths instead of substituting a full run.
-Never kill another task's queued gate run. Reuse valid unchanged evidence; rerun checks invalidated
-by fixes. Follow repository commit conventions and hook recovery rules.
+Use repository-root frontend/Turborepo conventions when applicable. Never run `make gate`,
+`make gate-full`, repository-wide lint, full test suites or local E2E: CI on the pushed head is the
+gate. Run focused tests and lint for what you changed, including remediation commits. Reuse valid
+unchanged evidence; rerun checks invalidated by fixes. Follow repository commit conventions and hook recovery rules.
 
 ## Pull request
 
