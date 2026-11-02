@@ -126,7 +126,9 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 	t.Parallel()
 	t.Run("Should classify a definition removed between validation and resolution", func(t *testing.T) {
 		t.Parallel()
-		definition, err := loopdsl.Parse([]byte(strings.ReplaceAll(testLoopYAML("vanishing", "Vanishing loop"), "kind: cli", "kind: schedule")))
+		definition, err := loopdsl.Parse(
+			[]byte(strings.ReplaceAll(testLoopYAML("vanishing", "Vanishing loop"), "kind: cli", "kind: schedule")),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

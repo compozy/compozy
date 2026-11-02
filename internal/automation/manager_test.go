@@ -2906,18 +2906,28 @@ func TestManagerSyncRetiredLoopTargets(t *testing.T) {
 					if useResources {
 						actor := manager.resourceActorForSource(JobSourceConfig)
 						gotJob, err := manager.jobResources.Get(t.Context(), actor, job.ID)
-						if err != nil || gotJob.Spec.LoopTarget == nil || gotJob.Spec.LoopTarget.LoopName != "retained" {
+						if err != nil || gotJob.Spec.LoopTarget == nil ||
+							gotJob.Spec.LoopTarget.LoopName != "retained" {
 							t.Fatalf("retained job=%+v err=%v", gotJob, err)
 						}
 						gotTrigger, err := manager.triggerResources.Get(t.Context(), actor, trigger.ID)
-						if err != nil || gotTrigger.Spec.LoopTarget == nil || gotTrigger.Spec.LoopTarget.LoopName != "retained" {
+						if err != nil || gotTrigger.Spec.LoopTarget == nil ||
+							gotTrigger.Spec.LoopTarget.LoopName != "retained" {
 							t.Fatalf("retained trigger=%+v err=%v", gotTrigger, err)
 						}
 					} else {
-						if got, err := manager.GetJob(t.Context(), job.ID); err != nil || got.LoopTarget == nil || got.LoopTarget.LoopName != "retained" {
+						if got, err := manager.GetJob(
+							t.Context(),
+							job.ID,
+						); err != nil || got.LoopTarget == nil ||
+							got.LoopTarget.LoopName != "retained" {
 							t.Fatalf("retained job=%+v err=%v", got, err)
 						}
-						if got, err := manager.GetTrigger(t.Context(), trigger.ID); err != nil || got.LoopTarget == nil || got.LoopTarget.LoopName != "retained" {
+						if got, err := manager.GetTrigger(
+							t.Context(),
+							trigger.ID,
+						); err != nil || got.LoopTarget == nil ||
+							got.LoopTarget.LoopName != "retained" {
 							t.Fatalf("retained trigger=%+v err=%v", got, err)
 						}
 					}
