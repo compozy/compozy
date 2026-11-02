@@ -71,7 +71,7 @@ and the catalog-stream Vitest suite. Live GitHub and full desktop walks remain c
   optional family/PR facts are omitted. Owning checks: `TestManagerBoardCatalog` and
   `TestSessionPayloadOptionalRelations`.
 
-Session linked work extension (backend slice; live walk pending):
+Session linked work extension (live walk: docs/qa/reports/session-linked-work/live-walk.md):
 
 - Create a worktree through a session's native tool: it appears in `GET .../sessions/{id}/links` without binding. Soft unlink it, refresh, then manually relink; it stays removed until the manual action.
 - Link a branch or PR with `session link <id> <branch> [--pr-number N] -o json`; read it through HTTP and UDS. Reject another repository with `session_link_repository_mismatch`.
@@ -79,12 +79,12 @@ Session linked work extension (backend slice; live walk pending):
 - Link the same PR to parent and child: parent shows one item, direct wins. Archived children still contribute; child-only work never changes the parent's column.
 - Keep an unrelated open PR linked while running several turns. Working and Needs you retain precedence; queued and dispatching inputs keep Idle/Done sessions in Working only with open direct work (including their own branch PR). Stopped ignores queued input and goes to In review with open direct work; sessions without open direct work retain their existing column. An unknown session moves only under the legacy own-branch rule.
 
-Root-review regression checks (backend automated evidence; live UI walk remains pending):
+Root-review regression checks (see the live walk report for what ran live):
 
 - Mixed work lists count only fresh failing checks, requested changes or conflicts as Needs you. Ready comes next, then other open/branch items, unknown lookups and terminal PRs. Stale facts never trigger a decision; the lead follows this order.
 - Compare summary `total` and `pull_requests` with the full deduplicated list, including a known PR whose lookup failed.
 - Search a linked branch, PR number and #number with a one-item catalog page. Active and durable sessions return the same exact total and cursor results. Unlinked and child-only identities do not make a parent match; another workspace/profile stays excluded.
-- Search a known PR by number, #number and a same-repository forge URL while text search returns no matches: the first candidate must contain the requested number, branch and title. Normal search results remain after it, with the resolved PR deduplicated. A confirmed missing number stays absent; another repository is refused before provider calls. Repeat text search and page 2 to confirm normal discovery still works. Automated owner: `TestSessionPullRequestAdapters`; live provider/UI walk remains pending.
+- Search a known PR by number, #number and a same-repository forge URL while text search returns no matches: the first candidate must contain the requested number, branch and title. Normal search results remain after it, with the resolved PR deduplicated. A confirmed missing number stays absent; another repository is refused before provider calls. Repeat text search and page 2 to confirm normal discovery still works. Automated owner: `TestSessionPullRequestAdapters`; walked live against the real forge.
 - An app token may read linked work under existing session-read scope, but add, remove and candidate search return `app_token_route_forbidden`.
 
 Owning automated checks: `TestBoardColumnWithLinkedWork`, `TestSessionCatalogBoard`,
@@ -92,7 +92,7 @@ Owning automated checks: `TestBoardColumnWithLinkedWork`, `TestSessionCatalogBoa
 `TestSessionLinkedWorkSummary`, and `TestAppAccessPolicy`. These exercise backend behavior,
 including real SQLite; they do not claim the live UI or provider walk passed.
 
-Session linked work web walk (web slice; live walk pending):
+Session linked work web walk (live walk report lists the steps not yet walked):
 
 1. A session with no links offers "Link a pull request or branch…" in the composer environment menu and through the palette. Neither "Use worktree…" nor "Fork into a worktree…" changes.
 2. Let the agent create a worktree mid-turn and open a PR, then add a second through a child session. With no reload and no new turn, the chip names the most urgent item, `+N PRs` opens the list, and the child's row reads "From {child title}", opens the child, and has no Unlink.
