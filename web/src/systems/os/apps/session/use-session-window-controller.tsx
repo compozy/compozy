@@ -1,5 +1,6 @@
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
+import { useSessionLinkedWork } from "@/systems/session/hooks/use-session-linked-work";
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
@@ -128,12 +129,28 @@ export function useSessionWindowController(input: {
   });
 
   const instances = useAgentInstances();
+  const linkedWork = useSessionLinkedWork({ session, workspaceId, enabled: liveDataEnabled });
 
   useSessionTopbarSlot({
     session,
     pullRequestExit: pullRequest.pullRequestExit,
     pullRequestRefresh: pullRequest.pullRequestRefresh,
     onSendPrompt: pullRequest.onSendPrompt,
+    linkedWork,
+    runsIn: worktreeBinding.bound
+      ? {
+          kind: "worktree",
+          name: worktreeBinding.worktree?.name ?? worktreeBinding.worktreeId,
+        }
+      : { kind: "project", name: session.workspace_path ?? workspaceId },
+    worktreeAction: item => {
+      const worktree = worktreeBinding.worktrees.find(row => row.id === item.worktree_id);
+      return worktree && onOpenWorktreeContext
+        ? () => onOpenWorktreeContext(workspaceId, worktree)
+        : undefined;
+    },
+    onOpenSession: id =>
+      sidebar.openSession({ sessionId: id, agentName: "", workspaceId }, { newWindow: false }),
     worktreeBinding: worktreeBinding.bound
       ? {
           worktreeId: worktreeBinding.worktreeId,

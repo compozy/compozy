@@ -5,10 +5,15 @@ import {
   agentInstanceAvatarState,
   useAgentInstances,
 } from "@/systems/agent";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 import { PROFILE_SPRITE_URL } from "@/systems/profiles";
 import { WorkspaceBadge, useActiveWorkspace, workspaceBadgeIdentity } from "@/systems/workspace";
 
-import { SessionPullRequestChip } from "../components/session-pull-request-chip";
+import {
+  SessionLinkedWorkNarrowEntry,
+  SessionLinkedWorkStatus,
+  type SessionLinkedWorkListProps,
+} from "../components/session-linked-work/session-linked-work-header";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
@@ -21,8 +26,11 @@ import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
 import type { SessionOriginView } from "../lib/session-origin";
 import type { PullRequestExitPlanView } from "../lib/pull-request-actions";
+import { isOwnBranch, type SessionLinkedWorkItem } from "../lib/session-linked-work";
 import { sessionPullRequestFacts, sessionWaitingOn } from "../lib/session-pull-request";
 import { isUserControllableSession } from "../lib/session-running";
+import { requestSessionLinkDialog } from "./use-session-link-dialog";
+import type { SessionLinkedWorkModel } from "./use-session-linked-work";
 import type { SessionPayload } from "../types";
 import { SessionStatusLine } from "../components/session-status-line";
 import { SessionWorktreeBindingChip } from "../components/session-worktree-binding-chip";
@@ -65,6 +73,12 @@ interface UseSessionTopbarSlotInput {
   /** Absent for workspace-root sessions: commit/push/create-PR never appear there. */
   pullRequestExit?: SessionTopbarPullRequestExit;
   pullRequestRefresh?: SessionTopbarPullRequestRefresh;
+  linkedWork: SessionLinkedWorkModel;
+  /** Where the session's process runs, for the linked work list's closing line. */
+  runsIn: SessionLinkedWorkListProps["runsIn"];
+  /** Opens the worktree a linked item lives in, when this client can show it. */
+  worktreeAction?: (item: SessionLinkedWorkItem) => (() => void) | undefined;
+  onOpenSession?: (sessionId: string) => void;
   /** Sends one normal user prompt to this session; it queues while a turn runs. */
   onSendPrompt?: (text: string) => void;
   /** Undefined until Goal presence is known; stopping still explains that any Goal will pause. */
@@ -109,13 +123,28 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   // provider: it carries the window's own snapshot with the node, per window,
   // no second stream (task_06 VC-01..05).
   const transport = useSessionTransportState();
-  const { pullRequestExit, pullRequestRefresh, onSendPrompt } = input;
+  const { pullRequestExit, pullRequestRefresh, onSendPrompt, linkedWork } = input;
   const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
 
   // A main session is the agent's own conversation, so the agent names it.
   const instance = useAgentInstances().find(row => row.main_session_id === session.id);
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
+  const { label: agentLabel } = useAgentIdentityView(session.agent_name);
+  const linkedList: SessionLinkedWorkListProps = {
+    items: linkedWork.items,
+    runsIn: input.runsIn,
+    agentLabel,
+    actions: {
+      controllable: actions.lifecycleControllable,
+      refreshing: linkedWork.refreshing,
+      onLink: () => requestSessionLinkDialog(session.id),
+      onUnlink: linkedWork.unlink,
+      onOpenSession: id => input.onOpenSession?.(id),
+      onRefresh: linkedWork.refresh,
+      onPrompt: onSendPrompt,
+    },
+  };
 
   useTopbarSlot({
     leading: inWindow ? (
@@ -141,15 +170,21 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     status: (
       <span className="flex min-w-0 items-center gap-2">
         {instance ? <Pill size="sm">Stays on</Pill> : null}
-        <SessionPullRequestChip
-          controllable={actions.lifecycleControllable}
-          exitPlan={pullRequestExit?.plan}
-          exitRunning={pullRequestExit?.running ?? false}
-          facts={sessionPullRequestFacts(session)}
-          onExitAction={pullRequestExit?.onAction}
-          onPrompt={onSendPrompt ? (_kind, text) => onSendPrompt(text) : undefined}
-          onRefresh={pullRequestRefresh?.refresh}
-          refreshing={pullRequestRefresh?.refreshing ?? false}
+        <SessionLinkedWorkStatus
+          {...linkedList}
+          lead={linkedWork.lead}
+          leadIsOwn={linkedWork.lead ? isOwnBranch(linkedWork.lead, session) : false}
+          more={linkedWork.more}
+          onClippedChange={linkedWork.setClipped}
+          ownChip={{
+            exitPlan: pullRequestExit?.plan,
+            exitRunning: pullRequestExit?.running ?? false,
+            onExitAction: pullRequestExit?.onAction,
+            onRefresh: pullRequestRefresh?.refresh,
+            refreshing: pullRequestRefresh?.refreshing ?? false,
+          }}
+          ownFacts={sessionPullRequestFacts(session)}
+          worktreeAction={input.worktreeAction}
         />
         <SessionStatusLine
           onOpenOriginSource={input.onOpenOriginSource}
@@ -180,6 +215,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
+        {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
         {instance ? <StaysOnAgentMenu instance={instance} /> : null}
         <SessionPrimaryAction
           key={session.id}

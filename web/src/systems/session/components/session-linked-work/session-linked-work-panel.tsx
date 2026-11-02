@@ -7,28 +7,31 @@ import { useState } from "react";
 
 import { Button, Icon, PopoverTitle, SearchInput } from "@compozy/ui";
 
-import type { SessionLink, SessionRunsIn } from "@/systems/session/mocks/session-links-fixtures";
+import {
+  LIST_SEARCH_MIN,
+  type SessionLinkedWorkItem,
+  type SessionRunsIn,
+} from "../../lib/session-linked-work";
+import { SessionLinkList } from "./session-link-list";
+import type { SessionLinkActions } from "./session-link-row";
 
-import { LinkList } from "./link-list";
-import { LIST_SEARCH_MIN } from "./link-model";
-
-export interface LinkedWorkProps {
-  links: readonly SessionLink[];
+export interface SessionLinkedWorkPanelProps {
+  items: readonly SessionLinkedWorkItem[];
   runsIn: SessionRunsIn;
+  agentLabel: string;
+  actions: SessionLinkActions;
   openMenuFor?: string;
   openDetailFor?: string;
-  onLink: () => void;
-  onUnlink: (link: SessionLink) => void;
 }
 
-export function LinkedWork({
-  links,
+export function SessionLinkedWorkPanel({
+  items,
   runsIn,
+  agentLabel,
+  actions,
   openMenuFor,
   openDetailFor,
-  onLink,
-  onUnlink,
-}: LinkedWorkProps) {
+}: SessionLinkedWorkPanelProps) {
   const [query, setQuery] = useState("");
   return (
     <div className="flex max-h-[min(78vh,52rem)] min-h-0 flex-col" data-slot="session-linked-work">
@@ -36,13 +39,19 @@ export function LinkedWork({
         <PopoverTitle className="text-small-body font-semibold text-fg-strong">
           Linked work
         </PopoverTitle>
-        <span className="font-mono text-mono-id text-faint tabular-nums">{links.length}</span>
-        <Button className="ml-auto" onClick={onLink} size="xs" type="button" variant="secondary">
+        <span className="font-mono text-mono-id text-faint tabular-nums">{items.length}</span>
+        <Button
+          className="ml-auto"
+          onClick={actions.onLink}
+          size="xs"
+          type="button"
+          variant="secondary"
+        >
           <Icon as={Link2} data-icon="inline-start" size="sm" />
           Link…
         </Button>
       </div>
-      {links.length >= LIST_SEARCH_MIN ? (
+      {items.length >= LIST_SEARCH_MIN ? (
         <div className="px-4 pb-2">
           <SearchInput
             aria-label="Filter linked work"
@@ -54,9 +63,10 @@ export function LinkedWork({
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5">
-        <LinkList
-          links={links}
-          onUnlink={onUnlink}
+        <SessionLinkList
+          actions={actions}
+          agentLabel={agentLabel}
+          items={items}
           openDetailFor={openDetailFor}
           openMenuFor={openMenuFor}
           query={query}

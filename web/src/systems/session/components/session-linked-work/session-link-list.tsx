@@ -10,51 +10,54 @@ import {
   ListGroup,
 } from "@compozy/ui";
 
-import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
-
 import {
   LINK_GROUP_LABEL,
   LIST_FOLD_DONE_MIN,
   LIST_GROUPS_MIN,
   groupLinks,
+  linkKey,
   matchesLink,
   type LinkGroup,
-} from "./link-model";
-import { LinkRow } from "./link-row";
+  type SessionLinkedWorkItem,
+} from "../../lib/session-linked-work";
+import { SessionLinkRow, type SessionLinkActions } from "./session-link-row";
 
-export interface LinkListProps {
-  links: readonly SessionLink[];
+export interface SessionLinkListProps {
+  items: readonly SessionLinkedWorkItem[];
   query: string;
-  agentLabel?: string;
-  /** The link whose menu is pinned open for review. */
+  agentLabel: string;
+  actions: SessionLinkActions;
+  /** The item whose menu is pinned open for review, by `linkKey`. */
   openMenuFor?: string;
-  /** The link whose details are pinned open for review. */
+  /** The item whose details are pinned open for review, by `linkKey`. */
   openDetailFor?: string;
-  onUnlink: (link: SessionLink) => void;
 }
 
 const GROUP_HEADER = {
   className: "sticky top-0 z-20 border-b-0 bg-popover px-3 pt-3 pb-1.5",
 };
 
-function GroupRows({ group, list }: { group: LinkGroup; list: LinkListProps }) {
+function GroupRows({ group, list }: { group: LinkGroup; list: SessionLinkListProps }) {
   return (
     <>
-      {group.links.map(link => (
-        <LinkRow
-          agentLabel={list.agentLabel ?? "Claude"}
-          key={link.id}
-          link={link}
-          detailOpen={link.id === list.openDetailFor}
-          menuOpen={link.id === list.openMenuFor}
-          onUnlink={list.onUnlink}
-        />
-      ))}
+      {group.items.map(item => {
+        const key = linkKey(item);
+        return (
+          <SessionLinkRow
+            actions={list.actions}
+            agentLabel={list.agentLabel}
+            detailOpen={key === list.openDetailFor}
+            item={item}
+            key={key}
+            menuOpen={key === list.openMenuFor}
+          />
+        );
+      })}
     </>
   );
 }
 
-function DoneGroup({ group, list }: { group: LinkGroup; list: LinkListProps }) {
+function DoneGroup({ group, list }: { group: LinkGroup; list: SessionLinkListProps }) {
   const [open, setOpen] = useState(false);
   return (
     <Collapsible onOpenChange={setOpen} open={open}>
@@ -65,7 +68,7 @@ function DoneGroup({ group, list }: { group: LinkGroup; list: LinkListProps }) {
             {open ? "Hide" : "Show"}
           </CollapsibleTrigger>
         }
-        count={group.links.length}
+        count={group.items.length}
         label={LINK_GROUP_LABEL.done}
       />
       <CollapsibleContent>
@@ -77,10 +80,10 @@ function DoneGroup({ group, list }: { group: LinkGroup; list: LinkListProps }) {
   );
 }
 
-export function LinkList(list: LinkListProps) {
-  const { links, query } = list;
-  const groups = groupLinks(links.filter(link => matchesLink(link, query)));
-  const foldDone = links.length >= LIST_FOLD_DONE_MIN && query === "";
+export function SessionLinkList(list: SessionLinkListProps) {
+  const { items, query } = list;
+  const groups = groupLinks(items.filter(item => matchesLink(item, query)));
+  const foldDone = items.length >= LIST_FOLD_DONE_MIN && query === "";
   if (groups.length === 0) {
     return (
       <Empty
@@ -92,7 +95,7 @@ export function LinkList(list: LinkListProps) {
       />
     );
   }
-  if (links.length < LIST_GROUPS_MIN) {
+  if (items.length < LIST_GROUPS_MIN) {
     return (
       <ListGroup itemsProps={{ className: "gap-0.5" }}>
         {groups.map(group => (
@@ -106,7 +109,7 @@ export function LinkList(list: LinkListProps) {
       <DoneGroup group={group} key={group.id} list={list} />
     ) : (
       <ListGroup
-        count={group.links.length}
+        count={group.items.length}
         headerProps={GROUP_HEADER}
         itemsProps={{ className: "gap-0.5" }}
         key={group.id}

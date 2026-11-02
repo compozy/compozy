@@ -1,0 +1,152 @@
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+
+import { useDebouncedValue } from "@/hooks/use-debounced-input";
+
+import { isRepositoryMismatch } from "../adapters/session-linked-work-api";
+import type { SessionLinkDialogProps } from "../components/session-linked-work/session-link-dialog";
+import {
+  parseSessionLinkInput,
+  repositoryForgeName,
+  repositoryShortName,
+  sessionLinkExactMatch,
+  sessionLinkSearch,
+  sessionLinkSearchTerm,
+} from "../lib/session-link-input";
+import {
+  candidateKey,
+  linkedCandidateKeys,
+  linkRequest,
+  type SessionWorkCandidate,
+} from "../lib/session-linked-work";
+import {
+  sessionLinkCandidatesOptions,
+  sessionLinkedWorkOptions,
+} from "../lib/session-linked-work-options";
+import { closeSessionLinkDialog } from "./use-session-link-dialog";
+import { useSessionLinkMutations } from "./use-session-linked-work";
+
+/** The picker's two server searches for the settled query. */
+function useSessionLinkCandidates(workspaceId: string, sessionId: string, query: string) {
+  const term = sessionLinkSearchTerm(parseSessionLinkInput(query));
+  const pulls = useInfiniteQuery(
+    sessionLinkCandidatesOptions(workspaceId, sessionId, "pull_requests", term)
+  );
+  const branchReads = useInfiniteQuery(
+    sessionLinkCandidatesOptions(workspaceId, sessionId, "branches", term)
+  );
+  const pages = pulls.data?.pages ?? [];
+  const discovery = pages[0]?.supports_pr_discovery ?? true;
+  return {
+    pullRequests: discovery ? pages.flatMap(page => page.items) : [],
+    branches: branchReads.data?.pages.flatMap(page => page.items) ?? [],
+    // A forge that can't answer leaves branches linkable; it is not a dead dialog.
+    offline: pulls.isError || !discovery,
+    fetching: pulls.isFetching || branchReads.isFetching || pulls.isPlaceholderData,
+    hasMore: pulls.hasNextPage || branchReads.hasNextPage,
+    loadMore: () => {
+      if (pulls.hasNextPage) void pulls.fetchNextPage();
+      if (branchReads.hasNextPage) void branchReads.fetchNextPage();
+    },
+  };
+}
+
+/** What was picked, plus the pasted match that ticks itself until it is unticked. */
+function useSessionLinkSelection(exact: SessionWorkCandidate | null) {
+  const [picked, setPicked] = useState<readonly SessionWorkCandidate[]>([]);
+  const [declined, setDeclined] = useState<string | null>(null);
+  const exactKey = exact ? candidateKey(exact) : null;
+  const pickedExact = picked.some(candidate => candidateKey(candidate) === exactKey);
+  const selected = exact && exactKey !== declined && !pickedExact ? [...picked, exact] : picked;
+  return {
+    selected,
+    keep: setPicked,
+    toggle: (candidate: SessionWorkCandidate) => {
+      const key = candidateKey(candidate);
+      if (key === exactKey) setDeclined(current => (current === key ? null : key));
+      setPicked(current =>
+        current.some(item => candidateKey(item) === key) || key === exactKey
+          ? current.filter(item => candidateKey(item) !== key)
+          : [...current, candidate]
+      );
+    },
+  };
+}
+
+interface UseSessionLinkDialogModelInput {
+  sessionId: string;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export function useSessionLinkDialogModel({
+  sessionId,
+  workspaceId,
+  workspaceName,
+}: UseSessionLinkDialogModelInput): SessionLinkDialogProps {
+  const [query, setQuery] = useState("");
+  const [refused, setRefused] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const debounced = useDebouncedValue(query.trim());
+  const list = useQuery(sessionLinkedWorkOptions(workspaceId, sessionId));
+  const candidates = useSessionLinkCandidates(workspaceId, sessionId, debounced);
+  const { add } = useSessionLinkMutations(workspaceId, sessionId);
+
+  const { pullRequests, branches } = candidates;
+  const items = list.data?.items ?? [];
+  const repository = items[0]?.repository ?? pullRequests[0]?.repository ?? null;
+  const searching = query.trim() !== debounced || candidates.fetching;
+  const exact = searching ? null : sessionLinkExactMatch(debounced, pullRequests);
+  const selection = useSessionLinkSelection(exact);
+
+  const confirm = async () => {
+    setPending(true);
+    setError(null);
+    const remaining: SessionWorkCandidate[] = [];
+    for (const candidate of selection.selected) {
+      try {
+        await add.mutateAsync(linkRequest(candidate));
+      } catch (cause) {
+        remaining.push(candidate);
+        if (isRepositoryMismatch(cause)) setRefused(true);
+        else setError(cause instanceof Error ? cause.message : "Couldn't link this to the session");
+      }
+    }
+    setPending(false);
+    selection.keep(remaining);
+    if (remaining.length === 0) closeSessionLinkDialog();
+  };
+
+  return {
+    error,
+    forge: repositoryForgeName(repository),
+    hasMore: candidates.hasMore,
+    linked: linkedCandidateKeys(items),
+    loading: searching && pullRequests.length + branches.length === 0,
+    offline: candidates.offline,
+    onConfirm: () => void confirm(),
+    onLoadMore: candidates.loadMore,
+    onOpenChange: open => {
+      if (!open) closeSessionLinkDialog();
+    },
+    onQueryChange: value => {
+      setQuery(value);
+      setRefused(false);
+      setError(null);
+    },
+    onToggle: selection.toggle,
+    pending,
+    project: repository ? repositoryShortName(repository) : workspaceName,
+    query,
+    search: sessionLinkSearch({
+      query: debounced,
+      repository,
+      pullRequests,
+      branches,
+      searching,
+      refused,
+    }),
+    selected: selection.selected,
+  };
+}

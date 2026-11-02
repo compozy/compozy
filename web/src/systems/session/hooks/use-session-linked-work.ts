@@ -5,13 +5,12 @@ import { toast } from "@compozy/ui";
 
 import { addSessionWorkLink, removeSessionWorkLink } from "../adapters/session-linked-work-api";
 import { sessionKeys } from "../lib/query-keys";
-import { repositoryForgeName } from "../lib/session-link-input";
 import {
   leadLink,
   linkKey,
-  linkNumber,
   linkRequest,
   linkShortName,
+  linkUnlinkedNote,
   moreLabel,
   summaryMoreLabel,
   type SessionLinkedWorkItem,
@@ -62,13 +61,6 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
   return { add, remove };
 }
 
-/** Says what did not happen, because that is what a person worries about after unlinking. */
-function unlinkedDescription(item: SessionLinkedWorkItem): string {
-  return linkNumber(item) !== null
-    ? `It's still on ${repositoryForgeName(item.repository)}. Only the link to this session is gone.`
-    : "Its files are untouched. Only the link to this session is gone.";
-}
-
 export interface SessionLinkedWorkModel {
   items: readonly SessionLinkedWorkItem[];
   lead: SessionLinkedWorkItem | null;
@@ -106,7 +98,7 @@ export function useSessionLinkedWork({
     remove.mutate(item, {
       onSuccess: () => {
         toast.message(`Unlinked ${linkShortName(item)}`, {
-          description: unlinkedDescription(item),
+          description: linkUnlinkedNote(item),
           action: { label: "Undo", onClick: () => add.mutate(linkRequest(item)) },
         });
       },

@@ -1,5 +1,5 @@
 import { notifyUser } from "@/lib/user-feedback";
-import { consumeChooseSessionTerminalQuote } from "@/systems/session";
+import { consumeChooseSessionTerminalQuote, requestSessionLinkDialog } from "@/systems/session";
 import {
   DESTINATION_COPY,
   ownerDataScope,
@@ -97,6 +97,10 @@ export function useOsPaletteLandingActions({
       }
       landSession(session);
       close();
+    },
+    linkSession: (sessionId: string) => {
+      close();
+      requestSessionLinkDialog(sessionId);
     },
     pickDestination,
     selectWorktree: (entry: OsPaletteWorktreeResult) => {

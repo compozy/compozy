@@ -2,7 +2,12 @@ import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
-import { getSessionDisplayTitle, useSessionCatalog, type SessionPayload } from "@/systems/session";
+import {
+  getSessionDisplayTitle,
+  linkNumber,
+  useSessionCatalog,
+  type SessionPayload,
+} from "@/systems/session";
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
@@ -51,6 +56,8 @@ export interface OsPaletteSessionResult {
   workspaceId: string;
   workspaceLabel?: string;
   owner?: ProfileOwner;
+  /** `#944` when the search named this session's lead pull request. */
+  pullRequestLabel?: string;
   route: OsWindowRoute;
 }
 
@@ -64,6 +71,8 @@ export interface OsPaletteEntities {
   readonly worktrees: readonly OsPaletteWorktreeResult[];
   readonly worktreeTotal: number;
   selectWorktree(entry: OsPaletteWorktreeResult): void;
+  /** The focused session, when the query reaches its link command. */
+  readonly linkSessionId?: string | null;
 }
 
 export interface OsPaletteWorktreeResult extends WorktreeNestEntry {
@@ -135,6 +144,32 @@ function rankEntityRows<T>(
 }
 
 /**
+ * The server searched facts the ranker can't see, such as a linked PR number or branch. Ranking
+ * orders the rows it can read; every other row the server returned follows it, never dropped.
+ */
+function keepServerSessions(
+  ranked: { rows: readonly OsPaletteSessionResult[]; total: number },
+  rows: readonly OsPaletteSessionResult[],
+  signals: CmdPaletteRankSignals | null
+): { rows: readonly OsPaletteSessionResult[]; total: number } {
+  if (signals === null) return ranked;
+  const seen = new Set(ranked.rows.map(row => row.sessionId));
+  const rest = rows.filter(row => !seen.has(row.sessionId));
+  return {
+    rows: [...ranked.rows, ...rest].slice(0, signals.weights.entity_section_visible_cap),
+    total: ranked.total + rest.length,
+  };
+}
+
+const LINK_COMMAND_LABEL = "Link a pull request or branch";
+
+/** The session the focused window shows, for commands that act on it. */
+function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "windows">) {
+  const focused = state.focusedId === null ? undefined : state.windows[state.focusedId];
+  return focused && osAppId(focused.app) === "session" ? focused.instanceKey : null;
+}
+
+/**
  * Entity rows the palette has always carried — sessions, open tabs and ready
  * worktrees — sourced for the projection.
  *
@@ -183,7 +218,11 @@ export function useOsPaletteEntities({
   const sessionRows = projectPaletteSessions(sessions.sessions, profile, {
     dataScope,
     workspaces,
+    query: remoteQuery,
   });
+  const sessionSearchRan =
+    remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
+  const focusedSession = useDesktop(focusedSessionId);
   const tabs = usePaletteTabs(open, destinationWindowId, sessions.sessions);
 
   const worktrees = projectPaletteWorktrees(
@@ -192,7 +231,7 @@ export function useOsPaletteEntities({
     worktreeListings,
     worktreesQuery.data
   );
-  const rankedSessions = rankEntityRows(
+  const rankedRows = rankEntityRows(
     sessionRows,
     row => ({
       id: row.sessionId,
@@ -203,6 +242,17 @@ export function useOsPaletteEntities({
     remoteQuery,
     signals,
     destination
+  );
+  const rankedSessions = sessionSearchRan
+    ? keepServerSessions(rankedRows, sessionRows, signals)
+    : rankedRows;
+  const linkCommand = rankEntityRows(
+    !destination && focusedSession ? [focusedSession] : [],
+    id => ({ id, label: LINK_COMMAND_LABEL, keywords: ["pull request", "branch", "link"] }),
+    "Session",
+    query,
+    signals,
+    false
   );
   const rankedTabs = rankEntityRows(
     tabs,
@@ -226,6 +276,7 @@ export function useOsPaletteEntities({
     tabTotal: rankedTabs.total,
     worktrees: rankedWorktrees.rows,
     worktreeTotal: rankedWorktrees.total,
+    linkSessionId: linkCommand.rows[0] ?? null,
     selectWorktree: entry =>
       applyPaletteWorktreeSelection({
         worktreeScopeId,
@@ -249,10 +300,21 @@ function paletteEntityQueryEnabled(
   );
 }
 
+/** `#944` when the query is that number and the session's lead carries it; never a guess. */
+function namedPullRequest(session: SessionPayload, query: string): string | undefined {
+  const lead = session.linked_work?.lead;
+  const number = lead ? linkNumber(lead) : null;
+  return number !== null && query.replace(/^#/, "") === String(number) ? `#${number}` : undefined;
+}
+
 function projectPaletteSessions(
   sessions: readonly SessionPayload[],
   profile: ReturnType<typeof useProfileReadScope>,
-  { dataScope, workspaces }: Pick<UseOsPaletteEntitiesOptions, "dataScope" | "workspaces">
+  {
+    dataScope,
+    workspaces,
+    query,
+  }: Pick<UseOsPaletteEntitiesOptions, "dataScope" | "workspaces" | "query">
 ): OsPaletteSessionResult[] {
   const scopedSessions = sessions.map(session => ({
     session,
@@ -276,6 +338,7 @@ function projectPaletteSessions(
             : (workspaceNameById.get(workspaceId) ?? workspaceId)
           : undefined,
       owner: profile.aggregate ? profile.ownerOf(session) : undefined,
+      pullRequestLabel: namedPullRequest(session, query),
       route: {
         pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}`,
         search: {},

@@ -10,10 +10,12 @@ import { useSessionHasDraft } from "../../hooks/use-session-store";
 import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-view-selection";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
+import { linkedSessionFacts, summaryMoreLabel } from "../../lib/session-linked-work";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
 import { StaysOnCreatorBadge } from "../stays-on/stays-on-signals";
 import { SessionBoardCardView } from "./session-board-card-view";
+import { SessionBoardLinkedWorkCount } from "./session-board-linked-work-count";
 import { SessionsBoardSelectionMenu } from "./sessions-board-selection-menu";
 import { SESSION_BOARD_CARD_CHECKBOX } from "./sessions-board-frame";
 
@@ -104,9 +106,14 @@ function SessionBoardCardButton({
   const runtime = useSessionRowRuntimeLabel(props.session);
   const creator = useSessionCreator(props.session);
   const draft = useSessionHasDraft(props.session.id);
+  const links = props.session.linked_work;
+  const more = links ? summaryMoreLabel(links) : null;
   return (
     <SessionBoardCardView
       {...props}
+      metaExtra={more ? <SessionBoardLinkedWorkCount label={more} /> : undefined}
+      onOpen={() => props.onOpen(props.session)}
+      session={linkedSessionFacts(props.session)}
       creatorBadge={
         creator ? <StaysOnCreatorBadge creator={creator} surface="ring-card" /> : undefined
       }

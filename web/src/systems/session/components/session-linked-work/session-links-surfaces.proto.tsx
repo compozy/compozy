@@ -1,10 +1,11 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { SESSION_LINK_SETS } from "@/systems/session/mocks/session-links-fixtures";
-
-import { BoardSurface } from "./board-surface";
-import { DialogSurface } from "./dialog-surface";
-import { PaletteSurface } from "./palette-surface";
+import {
+  SessionLinksBoardStage,
+  SessionLinksDialogStage,
+  SessionLinksPaletteStage,
+  type LinkDialogPreset,
+} from "@/drafts/stays-on-agents-shared/session-links-stage";
 
 export const meta = definePrototype({
   title: "Session links · Board, palette and link dialog",
@@ -22,22 +23,19 @@ export const meta = definePrototype({
   ],
 });
 
-const DIALOGS: Record<string, Parameters<typeof DialogSurface>[0]["preset"]> = {
-  "dialog-pick": { selected: ["pr-962", "pr-948"] },
+const DIALOGS: Record<string, LinkDialogPreset> = {
+  "dialog-pick": { selected: [962, 948] },
   "dialog-search": { query: "login" },
-  "dialog-paste": {
-    query: "https://github.com/compozy/compozy/pull/963",
-    selected: ["pr-963"],
-  },
+  "dialog-paste": { query: "https://github.com/compozy/compozy/pull/963" },
   "dialog-unknown": { query: "#99999" },
   "dialog-other-project": { query: "https://github.com/acme/billing/pull/212" },
   "dialog-offline": { offline: true },
 };
 
-export default function SessionLinksSurfacesDraft({ state }: PrototypeProps) {
-  if (state === "board") return <BoardSurface />;
+export default function SessionLinksSurfacesPrototype({ state }: PrototypeProps) {
+  if (state === "board") return <SessionLinksBoardStage />;
   if (state === "palette-find" || state === "palette-link") {
-    return <PaletteSurface mode={state === "palette-find" ? "find" : "link"} />;
+    return <SessionLinksPaletteStage mode={state === "palette-find" ? "find" : "link"} />;
   }
-  return <DialogSurface linked={SESSION_LINK_SETS.mixed} preset={DIALOGS[state] ?? {}} />;
+  return <SessionLinksDialogStage preset={DIALOGS[state] ?? {}} />;
 }

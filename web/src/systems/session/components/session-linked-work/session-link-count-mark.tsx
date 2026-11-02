@@ -1,15 +1,13 @@
-/** A session's links at rest on a row or card: a count, with a dot when one needs you. */
+/** A session's links at rest on a row: a count, with a dot when one needs you. */
 import { GitPullRequest } from "@compozy/ui/icons";
 
 import { Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
-import type { SessionLink } from "@/systems/session/mocks/session-links-fixtures";
+import { needsYouLabel, type SessionLinkedWorkSummary } from "../../lib/session-linked-work";
 
-import { needsYouCount, needsYouLabel } from "./link-model";
-
-export function LinkCountMark({ links }: { links: readonly SessionLink[] }) {
-  const needsYou = needsYouCount(links);
-  if (links.length === 0) return null;
+export function SessionLinkCountMark({ summary }: { summary: SessionLinkedWorkSummary }) {
+  const { total, needs_you: needsYou } = summary;
+  if (total === 0) return null;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -21,11 +19,11 @@ export function LinkCountMark({ links }: { links: readonly SessionLink[] }) {
         }
       >
         <GitPullRequest aria-hidden="true" className="size-3 text-subtle" />
-        {links.length}
+        {total}
         {needsYou > 0 ? <Pill.Dot className="ml-px" tone="brand" /> : null}
       </TooltipTrigger>
       <TooltipContent>
-        {links.length} linked{needsYou > 0 ? ` · ${needsYouLabel(needsYou)}` : ""}
+        {total} linked{needsYou > 0 ? ` · ${needsYouLabel(needsYou)}` : ""}
       </TooltipContent>
     </Tooltip>
   );

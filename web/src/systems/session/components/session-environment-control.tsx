@@ -4,11 +4,14 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  Icon,
 } from "@compozy/ui";
+import { Link2 } from "@compozy/ui/icons";
 import { SessionWorktreeBindingDialog } from "./session-worktree-binding-dialog";
 
 import type { SessionWorktreeBinding } from "../hooks/use-session-worktree-binding";
 import { useSessionEnvironmentControl } from "../hooks/use-session-environment-control";
+import { requestSessionLinkDialog } from "../hooks/use-session-link-dialog";
 import { SessionEnvironmentChip } from "./session-environment-chip";
 import { SessionWorktreeForkDialog } from "./session-worktree-fork-dialog";
 
@@ -73,6 +76,14 @@ export function SessionEnvironmentControl({
               title={binding.forkUnavailableReason}
             >
               Fork into a worktree…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="whitespace-nowrap"
+              onClick={() => requestSessionLinkDialog(sessionId)}
+            >
+              <Icon as={Link2} size="sm" />
+              Link a pull request or branch…
             </DropdownMenuItem>
           </>
         }

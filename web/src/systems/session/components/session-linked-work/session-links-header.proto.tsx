@@ -1,6 +1,6 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { HeaderDirection } from "./header-direction";
+import { SessionLinksHeaderStage } from "@/drafts/stays-on-agents-shared/session-links-stage";
 
 export const meta = definePrototype({
   title: "Session links · In the header",
@@ -16,6 +16,7 @@ export const meta = definePrototype({
     { id: "added-by", label: "Added by you, by the agent, by the session" },
     { id: "runs-here", label: "Runs here vs. linked" },
     { id: "unlink", label: "Unlink" },
+    { id: "rolled-up", label: "Rolled up from child sessions" },
     { id: "details-failing", label: "Details, checks failing" },
     { id: "details-pending", label: "Details, checks running" },
     { id: "details-ready", label: "Details, ready to merge" },
@@ -28,6 +29,6 @@ export const meta = definePrototype({
   ],
 });
 
-export default function SessionLinksHeaderDraft({ state }: PrototypeProps) {
-  return <HeaderDirection key={state} state={state} />;
+export default function SessionLinksHeaderPrototype({ state }: PrototypeProps) {
+  return <SessionLinksHeaderStage key={state} state={state} />;
 }

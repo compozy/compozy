@@ -1,28 +1,12 @@
-/**
- * What a session's linked work looks like at every scale, for the `session-links-*` drafts.
- * A title on a pull request is a new fact: the forge status read does not return one yet.
- */
-import type {
-  SessionPullRequest,
-  SessionPullRequestFacts,
-  SessionPullRequestLookup,
-} from "../lib/session-pull-request";
+/** What a session's linked work looks like at every scale, in the daemon's own DTOs. */
+import {
+  linkKey,
+  type SessionLinkedWorkItem,
+  type SessionWorkCandidate,
+} from "../lib/session-linked-work";
+import type { SessionPullRequest, SessionPullRequestLookup } from "../lib/session-pull-request";
 
-/** `created`: the session made it. `you`: the user linked it. `agent`: the agent linked it. */
-export type SessionLinkSource = "created" | "you" | "agent";
-
-export interface SessionLink {
-  id: string;
-  /** The pull request's title; `null` for a branch or worktree with no pull request. */
-  title: string | null;
-  facts: SessionPullRequestFacts;
-  worktree?: { name: string; state: "ready" | "missing" };
-  source: SessionLinkSource;
-  /** The agent's process runs in this worktree. Only one link at most. */
-  runsHere?: boolean;
-}
-
-export type SessionRunsIn = { kind: "project" | "worktree"; name: string };
+const REPOSITORY = "github.com/compozy/compozy";
 
 const OBSERVED = "2026-11-02T17:40:00Z";
 const OK: SessionPullRequestLookup = {
@@ -43,11 +27,32 @@ const failing = (failed: number, names: string[]): Checks => ({
   failed_names: names,
 });
 
-interface PrOptions {
-  worktree?: SessionLink["worktree"];
-  source?: SessionLinkSource;
+interface LinkOptions {
+  worktree?: { name: string; removed?: boolean };
+  provenance?: "created" | "user" | "agent";
   runsHere?: boolean;
   lookup?: SessionPullRequestLookup;
+  /** The child session this rolled up from. */
+  source?: { id: string; title: string };
+}
+
+function link(
+  branch: string,
+  pullRequest: SessionPullRequest | null,
+  { worktree, provenance = "created", runsHere = false, lookup = OK, source }: LinkOptions
+): SessionLinkedWorkItem {
+  return {
+    repository: REPOSITORY,
+    branch,
+    provenance,
+    runs_here: runsHere,
+    worktree_removed: worktree?.removed ?? false,
+    ...(worktree ? { worktree_id: `wt-${worktree.name}`, worktree_name: worktree.name } : {}),
+    ...(pullRequest ? { pr_number: pullRequest.number } : {}),
+    ...(source ? { source_session_id: source.id, source_session_title: source.title } : {}),
+    pull_request: pullRequest,
+    pull_request_lookup: lookup,
+  };
 }
 
 function pr(
@@ -55,49 +60,36 @@ function pr(
   title: string,
   branch: string,
   patch: Partial<SessionPullRequest> = {},
-  options: PrOptions = {}
-): SessionLink {
-  const { lookup = OK, source = "created", ...rest } = options;
-  return {
-    id: `pr-${number}`,
-    title,
-    source,
-    ...rest,
-    facts: {
-      branch,
-      pull_request_lookup: lookup,
-      pull_request: {
-        provider: "github",
-        number,
-        url: `https://github.com/compozy/compozy/pull/${number}`,
-        state: "open",
-        draft: false,
-        head_sha: "c1d9e07b2a",
-        checks: PASSING as Checks,
-        review_decision: "review_required",
-        mergeable: "mergeable",
-        ready_to_merge: false,
-        ...patch,
-      },
+  options: LinkOptions = {}
+): SessionLinkedWorkItem {
+  return link(
+    branch,
+    {
+      provider: "github",
+      number,
+      title,
+      url: `https://github.com/compozy/compozy/pull/${number}`,
+      state: "open",
+      draft: false,
+      head_sha: "c1d9e07b2a",
+      checks: PASSING as Checks,
+      review_decision: "review_required",
+      mergeable: "mergeable",
+      ready_to_merge: false,
+      ...patch,
     },
-  };
+    options
+  );
 }
 
-function branchOnly(
-  branch: string,
-  options: PrOptions & { lookup?: SessionPullRequestLookup } = {}
-): SessionLink {
-  const { lookup = OK, source = "created", ...rest } = options;
-  return {
-    id: `branch-${branch}`,
-    title: null,
-    source,
-    ...rest,
-    facts: { branch, pull_request: null, pull_request_lookup: lookup },
-  };
+function branchOnly(branch: string, options: LinkOptions = {}): SessionLinkedWorkItem {
+  return link(branch, null, options);
 }
 
-const worktree = (name: string, state: "ready" | "missing" = "ready") => ({ name, state });
+const worktree = (name: string, state: "ready" | "missing" = "ready") => ({
+  name,
+  removed: state === "missing",
+});
 
 const HEADER_PR = pr(
   944,
@@ -134,7 +126,7 @@ const CLOSED_PR = pr(936, "Try a second layout for the chip", "proto/chip-layout
 const NO_PR = branchOnly("proto/session-links", { worktree: worktree("session-links") });
 
 export const SESSION_LINK_SETS = {
-  none: [] as SessionLink[],
+  none: [] as SessionLinkedWorkItem[],
   onePr: [HEADER_PR],
   mixed: [FAILING_PR, REVIEW_PR, MERGED_PR, CLOSED_PR],
   worktreeNoPr: [NO_PR],
@@ -164,16 +156,16 @@ export const SESSION_LINK_SETS = {
     ),
   ],
   addedBy: [
-    pr(952, "Move the billing tables", "feat/billing-tables", {}, { source: "you" }),
+    pr(952, "Move the billing tables", "feat/billing-tables", {}, { provenance: "user" }),
     pr(
       950,
       "Update the migration guide",
       "docs/migration-guide",
       { review_decision: "approved" },
-      { source: "agent" }
+      { provenance: "agent" }
     ),
     HEADER_PR,
-    branchOnly("spike/forge-graphql", { source: "you" }),
+    branchOnly("spike/forge-graphql", { provenance: "user" }),
   ],
   runsHere: [
     pr(
@@ -185,10 +177,35 @@ export const SESSION_LINK_SETS = {
     ),
     REVIEW_PR,
   ],
-} satisfies Record<string, SessionLink[]>;
+  rolledUp: [
+    pr(
+      944,
+      "Show the pull request in the session header",
+      "feat/session-pr-chip",
+      {
+        draft: true,
+      },
+      { worktree: worktree("session-pr-chip") }
+    ),
+    pr(
+      951,
+      "Fix the login redirect loop",
+      "fix/login-redirect",
+      { checks: failing(2, ["lint", "test-web"]) },
+      { source: { id: "s2", title: "Login redirect fix" } }
+    ),
+    pr(
+      948,
+      "Retry when GitHub is slow to answer",
+      "feat/forge-retry",
+      { checks: RUNNING as Checks },
+      { source: { id: "s9", title: "Forge retry" } }
+    ),
+  ],
+} satisfies Record<string, SessionLinkedWorkItem[]>;
 
 /** An orchestrator's dozen: everything a real delivery day leaves on one session. */
-export const SESSION_LINKS_DOZEN: SessionLink[] = [
+export const SESSION_LINKS_DOZEN: SessionLinkedWorkItem[] = [
   FAILING_PR,
   pr(
     957,
@@ -256,7 +273,7 @@ const FIFTY_PATCHES: Partial<SessionPullRequest>[] = [
 ];
 
 /** Fifty links: the size the list has to survive, with a real mix of states. */
-export const SESSION_LINKS_FIFTY: SessionLink[] = [
+export const SESSION_LINKS_FIFTY: SessionLinkedWorkItem[] = [
   ...SESSION_LINKS_DOZEN,
   ...Array.from({ length: 38 }, (_, index) => {
     const number = 900 - index;
@@ -268,12 +285,64 @@ export const SESSION_LINKS_FIFTY: SessionLink[] = [
   }),
 ];
 
-/** What the picker offers: this project's pull requests and branches, newest first. */
-export const SESSION_LINK_CANDIDATES: SessionLink[] = [
-  pr(963, "Add a monthly usage report", "feat/usage-report", {}, { source: "you" }),
-  pr(962, "Fix the login redirect on Safari", "fix/safari-login", {}, { source: "you" }),
-  ...SESSION_LINKS_FIFTY.filter(link => link.title !== null).slice(0, 34),
-  ...["feat/usage-export", "spike/forge-graphql", "docs/agent-guide"].map(branch =>
-    branchOnly(branch, { source: "you" })
-  ),
+function candidate(
+  number: number,
+  title: string,
+  branch: string,
+  state = "open"
+): SessionWorkCandidate {
+  return {
+    repository: REPOSITORY,
+    branch,
+    pr_number: number,
+    title,
+    state,
+    url: `https://github.com/compozy/compozy/pull/${number}`,
+  };
+}
+
+/** What the picker's search returns: this project's pull requests, newest first. */
+export const SESSION_LINK_PULL_REQUESTS: SessionWorkCandidate[] = [
+  candidate(963, "Add a monthly usage report", "feat/usage-report"),
+  candidate(962, "Fix the login redirect on Safari", "fix/safari-login"),
+  ...SESSION_LINKS_FIFTY.flatMap(item =>
+    item.pull_request
+      ? [
+          candidate(
+            item.pull_request.number,
+            item.pull_request.title ?? item.branch,
+            item.branch,
+            item.pull_request.state
+          ),
+        ]
+      : []
+  ).slice(0, 34),
 ];
+
+/** The local branches the picker offers, including while the forge can't be reached. */
+export const SESSION_LINK_BRANCHES: SessionWorkCandidate[] = [
+  "feat/usage-export",
+  "spike/forge-graphql",
+  "docs/agent-guide",
+].map(branch => ({ repository: REPOSITORY, branch }));
+
+/** The list's identity for an item, for pinning its menu or details open in a review. */
+export const sessionLinkFixtureKey = (branch: string): string => {
+  const item = SESSION_LINKS_FIFTY.find(entry => entry.branch === branch);
+  return item ? linkKey(item) : `${REPOSITORY}:${branch}`;
+};
+
+/** The catalog summary a list reads as. */
+export function sessionLinkSummaryFixture(items: readonly SessionLinkedWorkItem[]) {
+  const pullRequests = items.filter(item => item.pull_request).length;
+  return { total: items.length, needs_you: 0, pull_requests: pullRequests, lead: items[0] ?? null };
+}
+
+/** The item a picked candidate reads as once linked. */
+export function sessionLinkFromCandidate(picked: SessionWorkCandidate): SessionLinkedWorkItem {
+  const known = SESSION_LINKS_FIFTY.find(item => item.branch === picked.branch);
+  if (known) return known;
+  return picked.pr_number
+    ? pr(picked.pr_number, picked.title ?? picked.branch, picked.branch, {}, { provenance: "user" })
+    : branchOnly(picked.branch, { provenance: "user" });
+}

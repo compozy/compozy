@@ -18,6 +18,7 @@ import type { SessionPayload } from "../../types";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { SessionWindowPresentationContext } from "../../contexts/session-window-presentation-context";
+import type { SessionLinkedWorkModel } from "../use-session-linked-work";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 import { SessionTransportChip } from "../../components/session-transport-chip";
 import { SESSION_TRANSPORT_LIVE } from "../../lib/session-transport";
@@ -25,6 +26,22 @@ import {
   SessionTransportContext,
   type SessionTransportState,
 } from "../../lib/session-transcript-thread-context-value";
+
+const NO_LINKED_WORK: SessionLinkedWorkModel = {
+  items: [],
+  lead: null,
+  more: null,
+  refreshing: false,
+  clipped: false,
+  setClipped: () => undefined,
+  refresh: () => undefined,
+  unlink: () => undefined,
+};
+
+const LINKED_WORK = {
+  linkedWork: NO_LINKED_WORK,
+  runsIn: { kind: "project", name: "compozy" },
+} as const;
 
 function SessionPublisher({
   onStop,
@@ -37,7 +54,9 @@ function SessionPublisher({
   onSendPrompt,
   onRefresh,
   hasLiveGoal = false,
+  linkedWork = NO_LINKED_WORK,
 }: {
+  linkedWork?: SessionLinkedWorkModel;
   onSendPrompt?: (text: string) => void;
   onRefresh?: () => void;
   hasLiveGoal?: boolean;
@@ -50,6 +69,8 @@ function SessionPublisher({
   transportChip?: ReactNode;
 }) {
   useSessionTopbarSlot({
+    ...LINKED_WORK,
+    linkedWork,
     session,
     transportChip,
     hasLiveGoal,
@@ -147,6 +168,7 @@ describe("useSessionTopbarSlot", () => {
     const onStop = vi.fn();
     const UnknownGoalPublisher = () => {
       useSessionTopbarSlot({
+        ...LINKED_WORK,
         session: primarySessionFixture,
         isStopping: false,
         isUnarchiving: false,
@@ -394,6 +416,7 @@ describe("useSessionTopbarSlot", () => {
 
     function IdlePublisher() {
       useSessionTopbarSlot({
+        ...LINKED_WORK,
         hasLiveGoal: false,
         session: { ...primarySessionFixture, badge: "idle" },
         isStopping: false,
@@ -445,6 +468,7 @@ describe("useSessionTopbarSlot", () => {
 
     function ArchivedPublisher() {
       useSessionTopbarSlot({
+        ...LINKED_WORK,
         session: {
           ...primarySessionFixture,
           state: "stopped",

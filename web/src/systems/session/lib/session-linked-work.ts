@@ -6,6 +6,7 @@ import type { components } from "@compozy/client";
 
 import type { SessionPayload } from "../types";
 
+import { repositoryForgeName } from "./session-link-input";
 import {
   pullRequestChipModel,
   pullRequestPill,
@@ -166,6 +167,13 @@ export function linkShortName(item: SessionLinkedWorkItem): string {
   return item.worktree_name ? `worktree ${item.worktree_name}` : `branch ${item.branch}`;
 }
 
+/** Says what did not happen, because that is what a person worries about after unlinking. */
+export function linkUnlinkedNote(item: SessionLinkedWorkItem): string {
+  return linkNumber(item) !== null
+    ? `It's still on ${repositoryForgeName(item.repository)}. Only the link to this session is gone.`
+    : "Its files are untouched. Only the link to this session is gone.";
+}
+
 /** What a row calls the item: its title, else the worktree, else the branch. */
 export function linkTitle(item: SessionLinkedWorkItem): string {
   const title = item.pull_request?.title?.trim();
@@ -254,4 +262,34 @@ export function linkRequest(item: {
     ...(item.repository ? { repository: item.repository } : {}),
     ...(item.pr_number ? { pr_number: item.pr_number } : {}),
   };
+}
+
+/** The candidate's identity, comparable with what `linkedCandidateKeys` collects. */
+export function candidateKey(candidate: SessionWorkCandidate): string {
+  return candidate.pr_number
+    ? `${candidate.repository}:#${candidate.pr_number}`
+    : `${candidate.repository}:${candidate.branch}`;
+}
+
+/**
+ * What the picker marks as already linked: both identities of the session's direct items. A
+ * rolled-up item stays pickable, because a direct link is a different statement about the session.
+ */
+export function linkedCandidateKeys(items: readonly SessionLinkedWorkItem[]): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (const item of items) {
+    if (isRolledUp(item)) continue;
+    keys.add(linkKey(item));
+    keys.add(`${item.repository}:${item.branch}`);
+  }
+  return keys;
+}
+
+export function candidateIsLinked(
+  candidate: SessionWorkCandidate,
+  linked: ReadonlySet<string>
+): boolean {
+  return (
+    linked.has(candidateKey(candidate)) || linked.has(`${candidate.repository}:${candidate.branch}`)
+  );
 }
