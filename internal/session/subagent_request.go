@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/v2"
@@ -157,16 +158,21 @@ func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) Subage
 func subagentPermissions(
 	info *Info,
 	req SubagentRequest,
+	limit SubagentPermissionLimit,
 ) (compozyconfig.PermissionMode, store.SessionPermissionPolicy, error) {
 	mode := req.PermissionMode
 	if mode == "" || mode == "inherit" {
-		mode = permissionMode(info)
+		mode = limit.Mode
 	}
-	if mode.Rank() < 0 || mode.Rank() > permissionMode(info).Rank() {
+	if mode.Rank() < 0 || mode.Rank() > limit.Mode.Rank() {
 		return mode, store.SessionPermissionPolicy{}, fmt.Errorf(
 			"%w: permission mode escalation denied",
 			ErrSpawnPermissionDenied,
 		)
+	}
+	if limit.ChildOwnsLevel && (req.PermissionMode == "" || req.PermissionMode == "inherit") {
+		// An unset mode leaves the child on its own resolved level, not a copy of the limit.
+		mode = ""
 	}
 	ceiling := store.NormalizeSessionLineage(info.ID, info.Lineage).PermissionPolicy
 	policy := ceiling
@@ -210,7 +216,7 @@ func subagentFirstLine(text string, limit int) string {
 	return line
 }
 
-func (m *Manager) validateSubagentSpawn(parent *Info, opts *SpawnOpts) error {
+func (m *Manager) validateSubagentSpawn(ctx context.Context, parent *Info, opts *SpawnOpts) error {
 	active, ok := m.Get(parent.ID)
 	if !ok || !active.IsPrompting() || active.promptCancellationRequested(active.CurrentTurnID()) ||
 		(opts.ParentTurnID != "" && active.CurrentTurnID() != opts.ParentTurnID) {
@@ -218,6 +224,16 @@ func (m *Manager) validateSubagentSpawn(parent *Info, opts *SpawnOpts) error {
 	}
 	if opts.Subagent == nil {
 		return ErrSubagentCapabilityDenied
+	}
+	if m.instanceCeiling != nil {
+		instance, err := m.instanceCeiling(ctx, parent.ID, "")
+		if err != nil {
+			return err
+		}
+		if instance != nil {
+			// Delegate already bounded the mode by the child's level; the start clamps it again.
+			return nil
+		}
 	}
 	ceiling := permissionMode(parent)
 	if opts.Permissions == "" {

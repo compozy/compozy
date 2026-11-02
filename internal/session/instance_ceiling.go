@@ -16,7 +16,16 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-type InstanceCeilingReader func(context.Context, string, string) (*store.SessionPermissionPolicy, string, error)
+// InstanceCeiling is the authority an instance lineage imposes on one session.
+type InstanceCeiling struct {
+	Policy store.SessionPermissionPolicy
+	Grant  string
+	// Main marks the instance's own session, which always runs at its configured level.
+	Main bool
+}
+
+// InstanceCeilingReader resolves the ceiling for a session, or nil outside an instance lineage.
+type InstanceCeilingReader func(ctx context.Context, sessionID, instanceID string) (*InstanceCeiling, error)
 
 func (m *Manager) SetInstanceCeilingReader(reader InstanceCeilingReader) { m.instanceCeiling = reader }
 
@@ -28,9 +37,12 @@ func (m *Manager) applyInstanceCeiling(
 	if m.instanceCeiling == nil {
 		return nil
 	}
-	ceiling, grant, err := m.instanceCeiling(ctx, spec.sessionID, spec.instanceID)
+	ceiling, err := m.instanceCeiling(ctx, spec.sessionID, spec.instanceID)
 	if err == nil && ceiling == nil && spec.lineage != nil && spec.lineage.ParentSessionID != "" {
-		ceiling, grant, err = m.instanceCeiling(ctx, spec.lineage.ParentSessionID, "")
+		ceiling, err = m.instanceCeiling(ctx, spec.lineage.ParentSessionID, "")
+		if ceiling != nil {
+			ceiling.Main = false
+		}
 	}
 	if err != nil || ceiling == nil {
 		return err
@@ -39,9 +51,9 @@ func (m *Manager) applyInstanceCeiling(
 	if err != nil {
 		return err
 	}
-	policy := *ceiling
-	policy.Tools = agentinstance.IntersectPermissions(*ceiling, store.SessionPermissionPolicy{Tools: tools}).Tools
-	if err := ValidatePermissionSubset(*ceiling, policy); err != nil {
+	policy := ceiling.Policy
+	policy.Tools = agentinstance.IntersectPermissions(ceiling.Policy, store.SessionPermissionPolicy{Tools: tools}).Tools
+	if err := ValidatePermissionSubset(ceiling.Policy, policy); err != nil {
 		return err
 	}
 	resolved.ToolPolicyEnforced = true
@@ -54,9 +66,7 @@ func (m *Manager) applyInstanceCeiling(
 		},
 	)
 	spec.instancePermissionCeiling = &policy
-	if m.startPermissions(startSpecPermissions(spec, resolved.Permissions)) == compozyconfig.PermissionModeApproveAll {
-		spec.permissions = compozyconfig.PermissionModeApproveReads
-	}
+	spec.permissions = m.instanceLevel(spec, *resolved, ceiling.Main)
 	spec.workspace.Skills = slices.DeleteFunc(
 		slices.Clone(spec.workspace.Skills),
 		func(skill workspacepkg.SkillPath) bool {
@@ -69,9 +79,25 @@ func (m *Manager) applyInstanceCeiling(
 	)
 	spec.lineage = store.NormalizeSessionLineage(spec.sessionID, spec.lineage)
 	spec.lineage.PermissionPolicy = policy
-	spec.origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, Ceiling: grant}
-	spec.effectiveWorkspaceAccess = workspaceaccess.NarrowGrant(spec.effectiveWorkspaceAccess, grant)
+	spec.origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, Ceiling: ceiling.Grant}
+	spec.effectiveWorkspaceAccess = workspaceaccess.NarrowGrant(spec.effectiveWorkspaceAccess, ceiling.Grant)
 	return nil
+}
+
+// instanceLevel keeps every instance-lineage session at or below the level configured for its own
+// agent. The instance's main session always uses that level, so a level persisted by an older
+// daemon does not survive a resume; a descendant keeps any narrower level it was started with.
+func (m *Manager) instanceLevel(
+	spec *sessionStartSpec,
+	resolved compozyconfig.ResolvedAgent,
+	main bool,
+) compozyconfig.PermissionMode {
+	configured := m.startPermissions(resolved.Permissions)
+	requested := m.startPermissions(startSpecPermissions(spec, resolved.Permissions))
+	if main || requested.Rank() > configured.Rank() {
+		return configured
+	}
+	return requested
 }
 
 func validateInstanceLaunch(spec *sessionStartSpec, before, after acp.StartOpts) error {

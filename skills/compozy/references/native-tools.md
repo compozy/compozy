@@ -313,7 +313,7 @@ by another agent, provider, or model while you keep working:
    needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,
    `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
    fields inherit from the caller, and the model is inherited only when the provider is unchanged),
-   `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode`, and
+   `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode` (in a stays-on lineage it is bounded by the child's configured level, and `inherit` uses that level), and
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.

@@ -1651,7 +1651,7 @@ func TestDeriveLineageReadModel(t *testing.T) {
 			if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
 				t.Fatalf("derived delegation budget = %v, want %v", got, want)
 			}
-			_, policy, err := subagentPermissions(info, SubagentRequest{})
+			_, policy, err := subagentPermissions(info, SubagentRequest{}, SubagentPermissionLimit{Mode: permissionMode(info)})
 			if err != nil || !testutil.EqualStringSlices(policy.Tools, want) {
 				t.Fatalf("inherited subagent policy = %+v, error = %v", policy, err)
 			}
