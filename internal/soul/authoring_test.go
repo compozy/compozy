@@ -830,7 +830,7 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			SoulSnapshotID: first.Snapshot.ID,
 			SoulDigest:     first.Soul.Digest,
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, session); err != nil {
+		if err := fixture.db.RegisterSession(fixture.ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		claimedBy := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: session.ID}
