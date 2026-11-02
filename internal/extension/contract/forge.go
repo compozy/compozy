@@ -147,11 +147,12 @@ type ForgePRReadRequest struct {
 	Number     int      `json:"number"`
 }
 type ForgePRCandidate struct {
-	Number int    `json:"number"`
-	Title  string `json:"title,omitempty"`
-	URL    string `json:"url"`
-	Branch string `json:"branch"`
-	State  string `json:"state"`
+	HeadRepository string `json:"head_repository,omitempty"`
+	Number         int    `json:"number"`
+	Title          string `json:"title,omitempty"`
+	URL            string `json:"url"`
+	Branch         string `json:"branch"`
+	State          string `json:"state"`
 }
 type ForgePRSearchResponse struct {
 	Items   []ForgePRCandidate `json:"items"`

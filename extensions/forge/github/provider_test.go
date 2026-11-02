@@ -286,25 +286,67 @@ func TestProvider(t *testing.T) {
 		t.Parallel()
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
-			case "/search/issues":
-				if r.URL.Query().Get("q") != `repo:acme/repo is:pr "review"` || r.URL.Query().Get("page") != "2" || r.URL.Query().Get("per_page") != "1" {
-					t.Errorf("query=%s", r.URL.RawQuery)
+			case "/graphql":
+				var body struct {
+					Variables struct {
+						Query string
+						First int
+						After string
+					}
 				}
-				writeJSON(t, w, http.StatusOK, map[string]any{"total_count": 3, "items": []map[string]any{{"number": 42}}})
-			case "/repos/acme/repo/pulls/42":
-				writeJSON(t, w, http.StatusOK, map[string]any{"number": 42, "title": "Linked work", "html_url": "https://github.com/acme/repo/pull/42", "state": "open", "head": map[string]any{"ref": "topic"}})
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if body.Variables.Query != `repo:acme/repo is:pr "review" sort:updated-desc` ||
+					body.Variables.First != 1 ||
+					body.Variables.After != "Y3Vyc29yOjE=" {
+					t.Errorf("variables=%+v", body.Variables)
+				}
+				writeJSON(
+					t,
+					w,
+					http.StatusOK,
+					map[string]any{
+						"data": map[string]any{
+							"search": map[string]any{
+								"nodes": []any{
+									nil,
+									map[string]any{
+										"number":         42,
+										"title":          "Linked work",
+										"url":            "https://github.com/acme/repo/pull/42",
+										"state":          "OPEN",
+										"headRefName":    "topic",
+										"headRepository": map[string]any{"nameWithOwner": "contributor/repo"},
+									},
+								},
+								"pageInfo": map[string]any{"hasNextPage": true},
+							},
+						},
+						"errors": []any{map[string]any{"type": "NOT_FOUND"}},
+					},
+				)
 			default:
 				t.Errorf("unexpected path=%s", r.URL.Path)
 				w.WriteHeader(http.StatusNotFound)
 			}
 		})
 		defer closeServer()
-		result, err := provider.SearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{RemoteURLs: []string{"https://github.com/acme/repo.git"}, Query: "review", Page: 2, Limit: 1})
+		result, err := provider.SearchPRs(
+			t.Context(),
+			extensioncontract.ForgePRSearchRequest{
+				RemoteURLs: []string{"https://github.com/acme/repo.git"},
+				Query:      "review",
+				Page:       2,
+				Limit:      1,
+			},
+		)
 		if err != nil || len(result.Items) != 1 || !result.HasMore {
 			t.Fatalf("result=%+v error=%v", result, err)
 		}
 		item := result.Items[0]
-		if item.Number != 42 || item.Title != "Linked work" || item.Branch != "topic" {
+		if item.Number != 42 || item.Title != "Linked work" || item.Branch != "topic" ||
+			item.HeadRepository != "github.com/contributor/repo" {
 			t.Fatalf("candidate=%+v", item)
 		}
 	})

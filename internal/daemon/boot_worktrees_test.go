@@ -919,6 +919,42 @@ func (s *subagentWorktreeServiceStub) ObserveForgeStatus(
 // Owner: daemon Git and forge adapters; canonical worktree composition suite.
 func TestSessionPullRequestAdapters(t *testing.T) {
 	t.Parallel()
+	// Invariant: local repository identity and substring paging cross branch slashes without forge access.
+	t.Run("Should search local branches across path separators", func(t *testing.T) {
+		t.Parallel()
+		runner, err := worktree.NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		for _, args := range [][]string{{"init", "--initial-branch=main"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "init"}, {"branch", "feat/find-one"}, {"branch", "fix/find-two"}} {
+			if _, _, err := runner.Run(t.Context(), root, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		paths := testHomePaths(t)
+		resolver := daemonWorktreeWorkspaceResolver{
+			homePaths: paths,
+			resolver: &daemonWorktreeResolverStub{
+				resolved: workspacepkg.ResolvedWorkspace{
+					ID:      "ws",
+					RootDir: root,
+					Config:  config.DefaultWithHome(paths),
+				},
+			},
+		}
+		service := worktree.NewPullRequestService(t.Context(), nil, nil, runner, nil)
+		t.Cleanup(service.Close)
+		adapter := sessionPullRequestAdapter{service: service, resolver: resolver, runner: runner}
+		for page := 1; page <= 2; page++ {
+			got, err := adapter.WorkCandidates(t.Context(), "ws", "find", "branches", page, 1)
+			if err != nil || len(got.Items) != 1 || got.Items[0].Repository != "local:ws" ||
+				got.HasMore != (page == 1) {
+				t.Fatalf("page=%d got=%+v err=%v", page, got, err)
+			}
+		}
+	})
+
 	// Invariant: exact PR identities resolve independently of text search in this repository.
 	for _, tc := range []struct {
 		name, query string
@@ -939,6 +975,7 @@ func TestSessionPullRequestAdapters(t *testing.T) {
 		{name: "Should keep a missing number absent", query: "404", readErr: errors.New("not found")},
 		{name: "Should retain search matches after a failed read", query: "42", readErr: errors.New("read unavailable"), search: []extensioncontract.ForgePRCandidate{{Number: 7}, {Number: 42}}, want: []int{7, 42}},
 		{name: "Should preserve direct resolution when search fails", query: "42", searchErr: errors.New("search unavailable"), want: []int{42}},
+		{name: "Should remove the resolved number from later pages", query: "42", page: 2, search: []extensioncontract.ForgePRCandidate{{Number: 42}, {Number: 7}}, want: []int{7}},
 		{name: "Should preserve later search pages", query: "42", page: 2, search: []extensioncontract.ForgePRCandidate{{Number: 7}}, want: []int{7}},
 		{name: "Should refuse another repository before discovery", query: "https://forge.test/acme/other/pull/42", foreign: true},
 	} {

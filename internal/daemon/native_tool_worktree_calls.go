@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/store"
@@ -105,8 +107,30 @@ func (n *daemonNativeTools) worktreeCreate(
 	}
 	if scope.SessionID != "" && scope.WorkspaceID == workspaceID {
 		if manager, ok := n.deps.Sessions.(core.SessionLinkedWorkManager); ok {
-			if err := manager.LinkSessionWork(ctx, scope.SessionID, store.SessionWorkLink{WorkspaceID: workspaceID, Branch: item.Branch, WorktreeID: item.ID, WorktreeName: item.Name, Provenance: "created"}, true); err != nil {
-				return toolspkg.ToolResult{}, err
+			linkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			if err := manager.LinkSessionWork(
+				linkCtx,
+				scope.SessionID,
+				store.SessionWorkLink{
+					WorkspaceID:  workspaceID,
+					Branch:       item.Branch,
+					WorktreeID:   item.ID,
+					WorktreeName: item.Name,
+					Provenance:   "created",
+				},
+				true,
+			); err != nil {
+				slog.WarnContext(
+					linkCtx,
+					"accepted worktree automatic link failed",
+					"session_id",
+					scope.SessionID,
+					"worktree_id",
+					item.ID,
+					"error",
+					err,
+				)
 			}
 		}
 	}

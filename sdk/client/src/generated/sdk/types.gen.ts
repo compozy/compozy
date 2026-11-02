@@ -12308,6 +12308,7 @@ export type WindowManagerWindow = {
 
 export type WorkCandidate = {
   branch: string;
+  head_repository?: string;
   pr_number?: number;
   repository: string;
   state?: string;
@@ -36774,7 +36775,7 @@ export type SearchSessionWorkCandidatesData = {
      */
     page?: string;
     /**
-     * Page size, at most 100
+     * Page size, at most 100; page 1 may include one additional exact PR match, which is omitted from later pages
      */
     limit?: string;
   };

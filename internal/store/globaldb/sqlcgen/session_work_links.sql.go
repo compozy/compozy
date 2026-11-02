@@ -12,7 +12,7 @@ import (
 
 const readSessionPendingWork = `-- name: ReadSessionPendingWork :many
 SELECT DISTINCT session_id FROM session_input_queue JOIN json_each(?1) i ON session_id = i.value
-WHERE status IN ('queued', 'dispatching')
+WHERE status = 'dispatching' OR (status = 'queued' AND dispatchable = 1)
 `
 
 func (q *Queries) ReadSessionPendingWork(ctx context.Context, ids any) ([]string, error) {
@@ -43,19 +43,21 @@ WITH RECURSIVE family(root_id, id, workspace_id, profile_id) AS (
  SELECT s.id AS root_id, s.id AS id, s.workspace_id AS workspace_id, s.profile_id AS profile_id FROM sessions s JOIN json_each(?1) i ON i.value = s.id
  UNION
  SELECT f.root_id, s.id, s.workspace_id, s.profile_id FROM sessions s JOIN family f ON s.parent_session_id = f.id
- WHERE s.workspace_id = f.workspace_id AND s.profile_id = f.profile_id
+ WHERE s.workspace_id = f.workspace_id AND s.profile_id = f.profile_id AND COALESCE(s.lineage_kind, '') NOT IN ('fork', 'continue')
 )
-SELECT f.root_id, s.id, s.workspace_id, s.profile_id, s.name, COALESCE(s.worktree_id, '') AS worktree_id
+SELECT f.root_id, s.id, s.workspace_id, s.profile_id, s.name, COALESCE(s.worktree_id, '') AS worktree_id, COALESCE(w.name, '') AS worktree_name
 FROM family f JOIN sessions s ON s.id = f.id
+LEFT JOIN worktrees w ON w.id = s.worktree_id AND w.workspace_id = s.workspace_id
 `
 
 type ReadSessionWorkFamilyRow struct {
-	RootID      string         `json:"root_id"`
-	ID          string         `json:"id"`
-	WorkspaceID string         `json:"workspace_id"`
-	ProfileID   string         `json:"profile_id"`
-	Name        sql.NullString `json:"name"`
-	WorktreeID  string         `json:"worktree_id"`
+	RootID       string         `json:"root_id"`
+	ID           string         `json:"id"`
+	WorkspaceID  string         `json:"workspace_id"`
+	ProfileID    string         `json:"profile_id"`
+	Name         sql.NullString `json:"name"`
+	WorktreeID   string         `json:"worktree_id"`
+	WorktreeName string         `json:"worktree_name"`
 }
 
 func (q *Queries) ReadSessionWorkFamily(ctx context.Context, ids any) ([]ReadSessionWorkFamilyRow, error) {
@@ -74,6 +76,7 @@ func (q *Queries) ReadSessionWorkFamily(ctx context.Context, ids any) ([]ReadSes
 			&i.ProfileID,
 			&i.Name,
 			&i.WorktreeID,
+			&i.WorktreeName,
 		); err != nil {
 			return nil, err
 		}
@@ -217,15 +220,20 @@ func (q *Queries) SaveSessionWorkLink(ctx context.Context, arg SaveSessionWorkLi
 }
 
 const unlinkSessionWork = `-- name: UnlinkSessionWork :execrows
-UPDATE session_work_links SET unlinked = 1 WHERE session_id = ?1
- AND workspace_id = ?2 AND repo_key = ?3 AND branch = ?4
+INSERT INTO session_work_links(session_id, workspace_id, repo_key, branch, pr_number, worktree_id, worktree_name, provenance, unlinked)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1)
+ON CONFLICT(session_id, repo_key, branch) DO UPDATE SET unlinked = 1
 `
 
 type UnlinkSessionWorkParams struct {
-	SessionID   string `json:"session_id"`
-	WorkspaceID string `json:"workspace_id"`
-	RepoKey     string `json:"repo_key"`
-	Branch      string `json:"branch"`
+	SessionID    string        `json:"session_id"`
+	WorkspaceID  string        `json:"workspace_id"`
+	RepoKey      string        `json:"repo_key"`
+	Branch       string        `json:"branch"`
+	PrNumber     sql.NullInt64 `json:"pr_number"`
+	WorktreeID   string        `json:"worktree_id"`
+	WorktreeName string        `json:"worktree_name"`
+	Provenance   string        `json:"provenance"`
 }
 
 func (q *Queries) UnlinkSessionWork(ctx context.Context, arg UnlinkSessionWorkParams) (int64, error) {
@@ -234,6 +242,10 @@ func (q *Queries) UnlinkSessionWork(ctx context.Context, arg UnlinkSessionWorkPa
 		arg.WorkspaceID,
 		arg.RepoKey,
 		arg.Branch,
+		arg.PrNumber,
+		arg.WorktreeID,
+		arg.WorktreeName,
+		arg.Provenance,
 	)
 	if err != nil {
 		return 0, err

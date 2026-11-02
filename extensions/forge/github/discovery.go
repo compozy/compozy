@@ -2,10 +2,11 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
+	"strconv"
 	"strings"
 
 	c "github.com/compozy/compozy/internal/extension/contract"
@@ -29,28 +30,72 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		limit = 30
 	}
 	page := max(1, request.Page)
-	q := url.Values{"q": {fmt.Sprintf("repo:%s/%s is:pr %q", repo.owner, repo.name, strings.TrimSpace(request.Query))}, "per_page": {fmt.Sprint(limit)}, "page": {fmt.Sprint(page)}, "sort": {"updated"}, "order": {"desc"}}
+	// GraphQL returns the complete bounded page in one request. Preserve usable
+	// nodes when GitHub reports an error on another node.
+	const queryKey = "query"
+	const query = `query($query:String!,$first:Int!,$after:String){search(query:$query,type:ISSUE,first:$first,after:$after){nodes{... on PullRequest{number title url state headRefName headRepository{nameWithOwner}}} pageInfo{hasNextPage}}}`
 	var response struct {
-		Total int `json:"total_count"`
-		Items []struct {
-			Number int    `json:"number"`
-			Title  string `json:"title"`
-			URL    string `json:"html_url"`
-			State  string `json:"state"`
-		} `json:"items"`
+		Data struct {
+			Search struct {
+				Nodes []struct {
+					Number                         int
+					Title, URL, State, HeadRefName string
+					HeadRepository                 *struct{ NameWithOwner string }
+				}
+				PageInfo struct{ HasNextPage bool }
+			}
+		}
+		Errors []graphError
 	}
-	if err := p.api.request(ctx, http.MethodGet, "/search/issues?"+q.Encode(), credential.token, nil, &response); err != nil {
+	var after *string
+	if page > 1 {
+		cursor := base64.StdEncoding.EncodeToString([]byte("cursor:" + strconv.Itoa((page-1)*limit)))
+		after = &cursor
+	}
+	variables := map[string]any{
+		queryKey: fmt.Sprintf(
+			"repo:%s/%s is:pr %q sort:updated-desc",
+			repo.owner,
+			repo.name,
+			strings.TrimSpace(request.Query),
+		),
+		"first": limit,
+		"after": after,
+	}
+	if err := p.api.request(
+		ctx,
+		http.MethodPost,
+		"/graphql",
+		credential.token,
+		map[string]any{queryKey: query, "variables": variables},
+		&response,
+	); err != nil {
 		return result, err
 	}
-	// Search returns issue identities; resolve branches only for this bounded page.
-	for _, item := range response.Items {
-		candidate, err := p.ReadPR(ctx, c.ForgePRReadRequest{RemoteURLs: request.RemoteURLs, Number: item.Number})
-		if err != nil {
-			return result, err
+	for _, node := range response.Data.Search.Nodes {
+		if node.Number < 1 || node.HeadRefName == "" {
+			continue
 		}
-		result.Items = append(result.Items, candidate)
+		head := ""
+		if node.HeadRepository != nil {
+			head = "github.com/" + strings.ToLower(node.HeadRepository.NameWithOwner)
+		}
+		result.Items = append(
+			result.Items,
+			c.ForgePRCandidate{
+				Number:         node.Number,
+				Title:          node.Title,
+				URL:            node.URL,
+				State:          strings.ToLower(node.State),
+				Branch:         node.HeadRefName,
+				HeadRepository: head,
+			},
+		)
 	}
-	result.HasMore = page*limit < response.Total
+	result.HasMore = response.Data.Search.PageInfo.HasNextPage
+	if len(response.Errors) > 0 && len(result.Items) == 0 {
+		return result, errors.New("forge pull request search failed")
+	}
 	return result, nil
 }
 
@@ -67,12 +112,30 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 		return c.ForgePRCandidate{}, errors.New("forge credentials unavailable")
 	}
 	var pull pullPayload
-	if err := p.api.request(ctx, http.MethodGet, repositoryAPIPath(repo, fmt.Sprintf("/pulls/%d", request.Number)), credential.token, nil, &pull); err != nil {
+	if err := p.api.request(
+		ctx,
+		http.MethodGet,
+		repositoryAPIPath(repo, fmt.Sprintf("/pulls/%d", request.Number)),
+		credential.token,
+		nil,
+		&pull,
+	); err != nil {
 		return c.ForgePRCandidate{}, err
 	}
 	state := pull.State
 	if pull.MergedAt != nil {
 		state = "merged"
 	}
-	return c.ForgePRCandidate{Number: pull.Number, Title: pull.Title, URL: pull.HTMLURL, Branch: pull.Head.Ref, State: state}, nil
+	head := ""
+	if pull.Head.Repo != nil {
+		head = "github.com/" + strings.ToLower(pull.Head.Repo.FullName)
+	}
+	return c.ForgePRCandidate{
+		HeadRepository: head,
+		Number:         pull.Number,
+		Title:          pull.Title,
+		URL:            pull.HTMLURL,
+		Branch:         pull.Head.Ref,
+		State:          state,
+	}, nil
 }

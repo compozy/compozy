@@ -19,6 +19,9 @@ type SessionLinkedWorkManager interface {
 }
 
 func LinkedWorkErrorCode(err error) string {
+	if errors.Is(err, session.ErrLinkedWorkForkUnsupported) {
+		return "session_link_fork_unsupported"
+	}
 	if errors.Is(err, session.ErrLinkedWorkRepository) {
 		return "session_link_repository_mismatch"
 	}
@@ -30,10 +33,28 @@ func LinkedWorkErrorCode(err error) string {
 
 func linkedWorkItemPayload(item session.LinkedWorkItem) contract.SessionLinkedWorkItem {
 	pr, lookup := pullRequestPayload(item.PullRequestView)
-	return contract.SessionLinkedWorkItem{Repository: item.Repository, Branch: item.Branch, PRNumber: item.PRNumber, WorktreeID: item.WorktreeID, WorktreeName: item.WorktreeName, WorktreeRemoved: item.WorktreeRemoved, Provenance: item.Provenance, RunsHere: item.RunsHere, SourceSessionID: item.SourceSessionID, SourceSessionTitle: item.SourceSessionTitle, PullRequest: pr, PullRequestLookup: lookup}
+	return contract.SessionLinkedWorkItem{
+		Repository:         item.Repository,
+		Branch:             item.Branch,
+		PRNumber:           item.PRNumber,
+		WorktreeID:         item.WorktreeID,
+		WorktreeName:       item.WorktreeName,
+		WorktreeRemoved:    item.WorktreeRemoved,
+		Provenance:         item.Provenance,
+		RunsHere:           item.RunsHere,
+		SourceSessionID:    item.SourceSessionID,
+		SourceSessionTitle: item.SourceSessionTitle,
+		PullRequest:        pr,
+		PullRequestLookup:  lookup,
+	}
 }
 
-func DecorateSessionLinkedWork(ctx context.Context, reader any, infos []*session.Info, payloads []contract.SessionPayload) error {
+func DecorateSessionLinkedWork(
+	ctx context.Context,
+	reader any,
+	infos []*session.Info,
+	payloads []contract.SessionPayload,
+) error {
 	manager, ok := reader.(SessionLinkedWorkManager)
 	if !ok {
 		return nil
@@ -45,7 +66,11 @@ func DecorateSessionLinkedWork(ctx context.Context, reader any, infos []*session
 	for i := range payloads {
 		p := &payloads[i]
 		view := views[p.ID]
-		summary := &contract.SessionLinkedWorkSummary{Total: view.Summary.Total, PullRequests: view.Summary.PullRequests, NeedsYou: view.Summary.NeedsYou}
+		summary := &contract.SessionLinkedWorkSummary{
+			Total:        view.Summary.Total,
+			PullRequests: view.Summary.PullRequests,
+			NeedsYou:     view.Summary.NeedsYou,
+		}
 		if view.Summary.Lead != nil {
 			lead := linkedWorkItemPayload(*view.Summary.Lead)
 			summary.Lead = &lead
@@ -103,7 +128,17 @@ func (h *BaseHandlers) sessionLinkedWork(c *gin.Context, mutate, unlink bool) {
 		if unlink {
 			err = manager.UnlinkSessionWork(c.Request.Context(), id, request.Repository, request.Branch)
 		} else {
-			err = manager.LinkSessionWork(c.Request.Context(), id, store.SessionWorkLink{Repository: request.Repository, Branch: request.Branch, PRNumber: request.PRNumber, Provenance: "user"}, false)
+			err = manager.LinkSessionWork(
+				c.Request.Context(),
+				id,
+				store.SessionWorkLink{
+					Repository: request.Repository,
+					Branch:     request.Branch,
+					PRNumber:   request.PRNumber,
+					Provenance: userScopeValue,
+				},
+				false,
+			)
 		}
 		if err != nil {
 			c.JSON(http.StatusBadRequest, contract.ErrorPayload{Code: LinkedWorkErrorCode(err), Error: err.Error()})

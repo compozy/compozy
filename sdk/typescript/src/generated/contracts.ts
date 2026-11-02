@@ -1792,6 +1792,7 @@ export interface ForgeCapabilitiesResponse {
 }
 
 export interface ForgePRCandidate {
+  head_repository?: string;
   number: number;
   title?: string;
   url: string;

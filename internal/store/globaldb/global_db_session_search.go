@@ -8,11 +8,20 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func appendSessionCatalogSearch(where []string, args []any, query store.SessionCatalogPageQuery) ([]string, []any, error) {
+func appendSessionCatalogSearch(
+	where []string,
+	args []any,
+	query store.SessionCatalogPageQuery,
+) ([]string, []any, error) {
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
+		repos, err := json.Marshal(query.RepositoryKeys)
+		if err != nil {
+			return nil, nil, fmt.Errorf("store: encode search repositories: %w", err)
+		}
 		linked := ` OR EXISTS (SELECT 1 FROM session_work_links AS search_link
  LEFT JOIN forge_pull_requests AS search_pr ON search_pr.workspace_id = search_link.workspace_id
  AND search_pr.repo_key = search_link.repo_key AND search_pr.branch = search_link.branch
+ AND search_pr.repo_key = json_extract(?, '$.' || json_quote(search_link.workspace_id))
  WHERE search_link.session_id = sessions.id AND search_link.workspace_id = sessions.workspace_id
  AND search_link.unlinked = 0 AND (instr(lower(search_link.branch), ?) > 0
  OR instr(CAST(COALESCE(search_link.pr_number, search_pr.pr_number) AS TEXT), ?) > 0))`
@@ -28,7 +37,14 @@ func appendSessionCatalogSearch(where []string, args []any, query store.SessionC
 				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
 					"instr(compozy_unicode_lower(agent_name), ?) > 0"+linked+")",
 			)
-			args = append(args, search, search, strings.ToLower(strings.TrimSpace(query.Search)), strings.TrimPrefix(strings.TrimSpace(query.Search), "#"))
+			args = append(
+				args,
+				search,
+				search,
+				string(repos),
+				strings.ToLower(strings.TrimSpace(query.Search)),
+				strings.TrimPrefix(strings.TrimSpace(query.Search), "#"),
+			)
 		} else {
 			where = append(where, `(instr(lower(id), ?) > 0 OR
 			instr(lower(COALESCE(name, '')), ?) > 0 OR
@@ -37,7 +53,7 @@ func appendSessionCatalogSearch(where []string, args []any, query store.SessionC
 			for range 4 {
 				args = append(args, search)
 			}
-			args = append(args, search, strings.TrimPrefix(search, "#"))
+			args = append(args, string(repos), search, strings.TrimPrefix(search, "#"))
 		}
 		args = append(args, ownArgs...)
 	}

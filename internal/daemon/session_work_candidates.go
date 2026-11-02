@@ -25,7 +25,7 @@ func (a sessionPullRequestAdapter) candidateRepository(ctx context.Context, work
 	if err != nil {
 		return "", err
 	}
-	return a.service.RepoKey(ctx, ws.Root)
+	return a.linkRepository(ctx, workspaceID, ws.Root)
 }
 
 func (a sessionPullRequestAdapter) WorkPR(
@@ -36,6 +36,9 @@ func (a sessionPullRequestAdapter) WorkPR(
 	repo, err := a.candidateRepository(ctx, workspaceID)
 	if err != nil {
 		return session.WorkCandidate{}, err
+	}
+	if strings.HasPrefix(repo, "local:") {
+		return session.WorkCandidate{}, session.ErrLinkedWorkInvalid
 	}
 	if a.runtime == nil {
 		return session.WorkCandidate{}, errors.New("forge discovery unavailable")
@@ -52,12 +55,13 @@ func (a sessionPullRequestAdapter) WorkPR(
 		return session.WorkCandidate{}, err
 	}
 	return session.WorkCandidate{
-		Repository: repo,
-		Branch:     pr.Branch,
-		PRNumber:   pr.Number,
-		Title:      pr.Title,
-		URL:        pr.URL,
-		State:      pr.State,
+		Repository:     repo,
+		HeadRepository: pr.HeadRepository,
+		Branch:         pr.Branch,
+		PRNumber:       pr.Number,
+		Title:          pr.Title,
+		URL:            pr.URL,
+		State:          pr.State,
 	}, nil
 }
 
@@ -78,7 +82,7 @@ func (a sessionPullRequestAdapter) WorkCandidates(
 	if err != nil {
 		return result, err
 	}
-	if a.runtime != nil {
+	if a.runtime != nil && !strings.HasPrefix(repo, "local:") {
 		if runtime, ok := a.runtime().(forgeDiscoveryRuntime); ok {
 			capabilities, err := runtime.ForgeCapabilities(ctx, []string{"https://" + repo + ".git"})
 			if err == nil && capabilities.Available && capabilities.SupportsPRDiscovery && kind != "branches" {
@@ -88,7 +92,7 @@ func (a sessionPullRequestAdapter) WorkCandidates(
 			}
 		}
 	}
-	// Git performs filtering and paging before candidate materialization.
+	// Enumerate local refs once; substring filtering must cross branch path separators.
 	ws, err := a.resolver.ResolveWorktreeWorkspace(ctx, workspaceID, "")
 	if err != nil {
 		return result, err
@@ -102,13 +106,20 @@ func (a sessionPullRequestAdapter) WorkCandidates(
 		ws.Root,
 		"for-each-ref",
 		"--format=%(refname:short)",
-		"--count="+fmt.Sprint(page*limit+1),
-		"refs/heads/*"+query+"*",
+		"refs/heads/",
 	)
 	if err != nil {
 		return result, err
 	}
-	branches := strings.Fields(string(output))
+	branches := make([]string, 0, page*limit+1)
+	for branch := range strings.FieldsSeq(string(output)) {
+		if strings.Contains(strings.ToLower(branch), strings.ToLower(query)) {
+			branches = append(branches, branch)
+			if len(branches) >= page*limit+1 {
+				break
+			}
+		}
+	}
 	start := min((page-1)*limit, len(branches))
 	end := min(start+limit, len(branches))
 	for _, branch := range branches[start:end] {
@@ -138,18 +149,20 @@ func (a sessionPullRequestAdapter) searchWorkPRs(
 		return result, err
 	}
 	for _, pr := range response.Items {
-		if len(result.Items) > 0 && result.Items[0].PRNumber == number && pr.Number == number && request.Page == 1 {
+		if number > 0 && pr.Number == number &&
+			(request.Page > 1 || len(result.Items) > 0 && result.Items[0].PRNumber == number) {
 			continue
 		}
 		result.Items = append(
 			result.Items,
 			session.WorkCandidate{
-				Repository: repo,
-				Branch:     pr.Branch,
-				PRNumber:   pr.Number,
-				Title:      pr.Title,
-				URL:        pr.URL,
-				State:      pr.State,
+				Repository:     repo,
+				HeadRepository: pr.HeadRepository,
+				Branch:         pr.Branch,
+				PRNumber:       pr.Number,
+				Title:          pr.Title,
+				URL:            pr.URL,
+				State:          pr.State,
 			},
 		)
 	}

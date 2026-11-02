@@ -234,3 +234,87 @@ go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allo
 ```
 
 Only the five owned backend/QA paths were staged. The commit disables hooks for that invocation because lint-staged may stash unrelated work, which the task forbids; the focused tests, build, vet, formatter, lint and whitespace checks above were executed directly. The unrelated `web/proto.config.ts` change remains unstaged and uncommitted.
+
+
+## Consolidated review round (items 1–17)
+
+Checkout verified: `/Users/pedronauck/.compozy/worktrees/compozy/proto-session-links`, branch `proto/session-links`. No commits, staging, push, or PR operation was attempted. The root agent owns commits. `web/proto.config.ts` was already modified and was preserved; concurrent frontend edits are outside this report. `extensions/open-design/lint.gen.mjs` is incidental Bun-version generation drift and must be excluded, as must any `tmp-sqlc-helper/`.
+
+### Implementation and owning regressions
+
+The following paths are the exact logical groups; shared files intentionally occur in more than one group. All tests reuse existing files. The regression suite is the owning layer named below; not every case has an independently recorded pre-fix red run. Recorded red evidence includes atomic derived unlink returning no row, the detail fallback regression, and Undo restoring metadata but losing Runs here. The initial branch-only test fixture accidentally synthesized a PR and was corrected to return no PR before relying on its result. No production regression was repaired by weakening an assertion.
+
+| Item | Fix and regression | Exact files |
+| --- | --- | --- |
+| 1 | Accepted worktree creation returns success even if automatic linking fails. Linking uses a detached context bounded to 10 seconds and logs failure. Native suite: `TestNativeWorktreeTools/Should return accepted worktree when automatic linking fails` checks cancellation, deadline, failure and success. | `internal/daemon/native_tool_worktree_calls.go`, `internal/daemon/native_worktree_tools_test.go` |
+| 2 | Workspace-scoped `local:<workspace_id>` identity permits local branch links; local discovery does not invoke forge capabilities. Status does not enqueue forge reads for unsupported/local origins. Hosted subgroup normalization keeps its real identity. Real-Git adapter case `Should search local branches across path separators`; identity case `Should normalize hosted subgroup repositories`. | `internal/daemon/session_pull_requests.go`, `internal/daemon/session_work_candidates.go`, `internal/daemon/boot_worktrees_test.go`, `internal/worktree/pull_request_identity.go`, `internal/worktree/pull_requests_test.go` |
+| 3 | SQL family recursion excludes fork and continue. The existing active-fork roll-up case now checks the linked-work family itself. | `internal/store/globaldb/queries/session_work_links.sql`, `internal/store/globaldb/sqlcgen/session_work_links.sql.go`, `internal/session/query_test.go` |
+| 4 | A rolled-up item with neither observed PR nor stored number is skipped. Projection case `Should omit branch only child work`. | `internal/session/linked_work_projection.go`, `internal/session/query_test.go` |
+| 5 | Optional-health detail reapplies the linked-work board rule using the health badge. API case `TestSessionOptionalHealthLinkedWork/Should retain linked review after health decoration`. | `internal/api/core/authored_context_access.go`, `internal/api/core/session_workspace_internal_test.go` |
+| 6 | Detail children use linked projection; legacy readers retain their own-branch fallback. Existing fork/detail case now includes a linked child and requires In review in detail counts. | `internal/session/catalog_board.go`, `internal/session/query_test.go` |
+| 7 | Derived default branches are removed before the batch PR read and cannot set DirectOpen, including bound worktrees. Explicit links retain existing behavior. Projection case `Should keep bound default branch work branch only without cache reads`; SQL fixture in `TestSessionLinkedWorkCatalogReview`. | `internal/session/linked_work_projection.go`, `internal/session/query_test.go`, `internal/store/globaldb/global_db_session_index_test.go` |
+| 8 | Pending work requires dispatching or queued with dispatchable=1. Fenced queued rows do not affect board placement. Existing `TestSessionCatalogBoard` derivation matrix now checks fenced inputs and `SessionPendingWork`. | `internal/store/globaldb/queries/session_work_links.sql`, `internal/store/globaldb/sqlcgen/session_work_links.sql.go`, `internal/store/globaldb/global_db_session_board.go`, `internal/store/globaldb/global_db_session_index_test.go` |
+| 9 | Unlink validates repository and performs one tombstone upsert. Derived worktree ID/name/provenance survive Undo; the projection uses persisted family worktree identity. Persistence case `Should tombstone a derived link without a prior save`; manager case `Should restore runs here after unlinking derived work`; foreign repository unlink is refused. | `internal/session/linked_work.go`, `internal/session/linked_work_projection.go`, `internal/session/query_test.go`, `internal/store/session_work_links.go`, `internal/store/globaldb/queries/session_work_links.sql`, `internal/store/globaldb/sqlcgen/session_work_links.sql.go`, `internal/store/globaldb/global_db_session_work_links.go`, `internal/store/globaldb/global_db_worktree_test.go` |
+| 10 | Existing automatic-upsert logic already enriches worktree metadata without restoring tombstones or changing provenance. The canonical persistence test now starts with a dead worktree ID. | `internal/store/globaldb/global_db_worktree_test.go` |
+| 11 | Optional head_repository is populated by GitHub search/read and passed through candidates. Foreign heads are refused with session_link_fork_unsupported. A new manual PR selection on the same branch replaces the stored number. Manager case `Should reject fork PRs and replace the selected branch PR` and provider discovery case. | `internal/extension/contract/forge.go`, `extensions/forge/github/discovery.go`, `extensions/forge/github/provider_test.go`, `internal/daemon/session_work_candidates.go`, `internal/session/linked_work_candidates.go`, `internal/session/linked_work.go`, `internal/session/query_test.go`, `internal/api/core/session_linked_work.go`, `sdk/go/contracts/types_008_gen.go`, `sdk/typescript/src/generated/contracts.ts`, `sdk/go/client/types_028_gen.go`, `sdk/client/src/generated/sdk/types.gen.ts`, `sdk/client/src/generated/openapi/compozy-openapi.d.ts`, `openapi/compozy.json` |
+| 12 | Git enumerates refs without the slash-sensitive glob; Go filters substring matches and keeps at most page*limit+1 matching refs for paging. Real-Git local branch adapter case covers nested names and two pages. | `internal/daemon/session_work_candidates.go`, `internal/daemon/boot_worktrees_test.go` |
+| 13 | Cache-derived search numbers require current repository identity; explicitly stored numbers remain searchable. Real SQLite `TestSessionLinkedWorkCatalogReview` changes repository and checks both cases. | `internal/store/globaldb/global_db_session_search.go`, `internal/store/globaldb/global_db_session_index_test.go` |
+| 14 | The correlated board lookup explicitly selects the primary-key index beginning with session_id. Fresh migrated SQLite test runs EXPLAIN without ANALYZE. | `internal/store/globaldb/global_db_session_board.go`, `internal/store/globaldb/global_db_session_index_test.go` |
+| 15 | The exact resolved number is omitted from later pages as well as the first page's normal search results. Adapter case `Should remove the resolved number from later pages`; route documents at most one extra exact result on page 1. | `internal/daemon/session_work_candidates.go`, `internal/daemon/boot_worktrees_test.go`, `internal/api/spec/session_linked_work.go`, `openapi/compozy.json` |
+| 16 | One GraphQL search supplies number/title/state/branch/head repository; usable nodes survive partial GraphQL errors. Provider discovery test rejects unexpected REST calls, checks variables, preserves a good node beside a failed node, and verifies head repository. | `extensions/forge/github/discovery.go`, `extensions/forge/github/provider_test.go` |
+| 17 | Stable daemon sort orders urgency, Runs here, direct, then rolled-up. Existing ready-to-merge urgency precedes other open work. Projection case `Should order runs here then direct then rolled up within urgency`. | `internal/session/linked_work_projection.go`, `internal/session/query_test.go` |
+
+Documentation group: `docs/_memory/change-impact.md`, `docs/qa/scenarios/ET-session-pull-request-link.md`, `skills/compozy/references/native-tools.md`, and this report. No schema/migration bytes changed. Existing HTTP/UDS paths, native IDs/inputs, CLI verbs, catalog event types and supports_pr_discovery flag remain unchanged. Additive head_repository appears in forge and candidate contracts. Legacy providers may omit it. Board precedence remains Needs you, Working, Waiting, then own/direct open work; rolled-up work never controls the board. Default branches are excluded from derived PR reads in Go and from own-PR SQL joins.
+
+EXPLAIN evidence: `SEARCH l USING INDEX sqlite_autoindex_session_work_links_1 (session_id=? AND repo_key=?)`, then `SEARCH f USING INDEX sqlite_autoindex_forge_pull_requests_1 (workspace_id=? AND repo_key=? AND branch=?)`. No repository-wide link scan was selected.
+
+### Verification
+
+`make codegen` passed; `make codegen-check` passed, including module verification, manifests, generated SDK/OpenAPI/SQLC, CLI docs and migration-guide checks. The initial sandboxed generation could not acquire its mage cache lock; only that owned bootstrap was stopped and generation was rerun with cache access. A first build incorrectly named the nested SDK module from the root and was corrected to a separate module build. No Git metadata was mutated.
+
+Focused final commands and results are recorded below. Every daemon test invocation removes all inherited COMPOZY_* variables in Python before launching Go. No daemon was started and port 2123 was unused.
+
+Test-convention checker was run separately for all eight changed Go test files. `global_db_worktree_test.go`, `native_worktree_tools_test.go`, and `pull_requests_test.go` pass. Query retains nine pre-existing shape findings; index retains five after wrapping the new case; boot worktrees retains two; session workspace retains one; provider retains five pre-existing discarded-error findings. No new case remains flagged. No unrelated test reshaping was done.
+
+Not run: live GitHub/provider acceptance or the full HTTP/UDS/CLI/UI journey; repository-wide lint/tests, full race suites, E2E and make gate/gate-full (CI-owned). No migration suite was repeated because no schema changed; the real SQLite cases apply the current migration chain and exercise reopen/tombstone preservation. Live GraphQL pagination and latency still need measurement against the real provider; no four-second before/after latency claim is made. The live QA scenario remains unverified by this backend run. Pre-fix red evidence was not separately captured for every item, as noted above.
+
+
+Final verification receipts (base HEAD `d85119930546ccff63ed2e53417ff11eba077316`; changes remain uncommitted):
+
+```sh
+make codegen
+make codegen-check
+
+go build ./internal/session ./internal/store/globaldb ./internal/api/core ./internal/api/spec ./internal/daemon ./internal/worktree ./extensions/forge/github ./internal/extension/contract
+# In sdk/go (separate module):
+go build ./...
+
+go vet -tags integration ./internal/session ./internal/store/globaldb ./internal/api/core ./internal/api/spec ./internal/daemon ./internal/worktree ./extensions/forge/github ./internal/extension/contract
+
+# The exact clean-environment test launcher:
+python3 - <<'PYTEST'
+import os, subprocess
+for k in list(os.environ):
+    if k.startswith('COMPOZY_'):
+        del os.environ[k]
+raise SystemExit(subprocess.call([
+    'go', 'test', '-tags', 'integration',
+    './internal/session', './internal/store/globaldb', './internal/api/core',
+    './internal/daemon', './extensions/forge/github', './internal/worktree',
+    '-run', 'TestSessionLinkedWork|TestSessionWorkLinkPersistence|TestManagerBoardCatalog|TestSessionCatalogBoard|TestSessionOptionalHealthLinkedWork|TestSessionPullRequestAdapters|TestNativeWorktreeTools|TestProvider/Should_discover|TestPullRequest',
+    '-count=1'
+]))
+PYTEST
+
+go test ./internal/session -run 'TestSessionLinkedWorkProjection|TestManagerBoardCatalog' -count=1
+
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run --allow-parallel-runners --concurrency=2 --new-from-rev=HEAD ./internal/session ./internal/store/globaldb ./internal/api/core ./internal/api/spec ./internal/daemon ./internal/worktree ./extensions/forge/github ./internal/extension/contract
+
+git diff --check
+```
+
+Generation, codegen-check, both builds, vet and whitespace pass (exit 0). The complete focused test launcher passes (session 6.444s, globaldb 5.068s, core 1.058s, daemon 5.649s, provider 5.416s, worktree 5.578s). After the final fixture-only modernize cleanup, the session rerun also passes (3.045s). Initial lint exposed new style findings; those were repaired, including stable slices sorting, bounded SQL line lengths and fixture initialization. No test assertions were weakened.
+
+Test shape command, invoked separately for each path: `python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py <path>`. Paths: `internal/session/query_test.go`, `internal/store/globaldb/global_db_worktree_test.go`, `internal/store/globaldb/global_db_session_index_test.go`, `internal/daemon/boot_worktrees_test.go`, `internal/daemon/native_worktree_tools_test.go`, `internal/worktree/pull_requests_test.go`, `internal/api/core/session_workspace_internal_test.go`, `extensions/forge/github/provider_test.go`. Results and pre-existing diagnostics are listed above. All owned Go files were formatted using `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 fmt` with explicit owned file arguments.
+
+Final focused lint passed: exit 0, `0 issues`. Final `git diff --check` passed. No commit or staging was attempted; all requested changes are ready for the root agent to review and commit, excluding incidental `extensions/open-design/lint.gen.mjs`, `tmp-sqlc-helper/`, and unrelated frontend files.

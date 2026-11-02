@@ -20746,6 +20746,7 @@ export interface components {
     };
     WorkCandidate: {
       branch: string;
+      head_repository?: string;
       pr_number?: number;
       repository: string;
       state?: string;
@@ -52569,7 +52570,7 @@ export interface operations {
         q?: string;
         /** @description Page number, starting at 1 */
         page?: string;
-        /** @description Page size, at most 100 */
+        /** @description Page size, at most 100; page 1 may include one additional exact PR match, which is omitted from later pages */
         limit?: string;
       };
       header?: never;

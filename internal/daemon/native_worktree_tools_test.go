@@ -183,6 +183,47 @@ func (s *nativeWorktreeServiceStub) DeleteLocalBranch(
 
 func TestNativeWorktreeTools(t *testing.T) {
 	t.Parallel()
+	// Invariant: acceptance survives cancellation and failure of the automatic link I/O boundary.
+	t.Run("Should return accepted worktree when automatic linking fails", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		linked := false
+		sessions := &nativeLinkedWorkFailure{link: func(linkCtx context.Context) error {
+			linked = true
+			if linkCtx.Err() != nil {
+				t.Error("link inherited request cancellation")
+			}
+			if _, ok := linkCtx.Deadline(); !ok {
+				t.Error("link lifetime is unbounded")
+			}
+			return errors.New("link failed")
+		}}
+		n := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Workspaces: nativeWorktreeWorkspaceService(),
+				Sessions:   sessions,
+				Worktrees: &nativeWorktreeServiceStub{
+					createAccepted: func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error) {
+						cancel()
+						return &worktree.Worktree{ID: "accepted", WorkspaceID: "registry-a", Branch: "topic"}, nil
+					},
+				},
+			},
+		}
+		_, err := n.worktreeCreate(
+			ctx,
+			toolspkg.Scope{SessionID: "caller", WorkspaceID: "registry-a", Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeCreate,
+				Input:  json.RawMessage(`{"workspace":"ws-a","name":"accepted"}`),
+			},
+		)
+		if err != nil || !linked {
+			t.Fatalf("linked=%v err=%v", linked, err)
+		}
+	})
+
 	for _, tc := range []struct {
 		name   string
 		id     toolspkg.ToolID
@@ -779,4 +820,28 @@ func TestNativeSessionWorktreeBinding(t *testing.T) {
 			}
 		})
 	}
+}
+
+type nativeLinkedWorkFailure struct {
+	apitest.StubSessionManager
+	link func(context.Context) error
+}
+
+func (s *nativeLinkedWorkFailure) LinkSessionWork(
+	ctx context.Context,
+	_ string,
+	_ store.SessionWorkLink,
+	_ bool,
+) error {
+	return s.link(ctx)
+}
+func (*nativeLinkedWorkFailure) UnlinkSessionWork(context.Context, string, string, string) error {
+	return nil
+}
+
+func (*nativeLinkedWorkFailure) SessionLinkedWork(
+	context.Context,
+	[]*session.Info,
+) (map[string]session.LinkedWorkProjection, error) {
+	return nil, nil
 }

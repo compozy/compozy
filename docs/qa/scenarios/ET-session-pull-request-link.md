@@ -87,6 +87,16 @@ Root-review regression checks (see the live walk report for what ran live):
 - Search a known PR by number, #number and a same-repository forge URL while text search returns no matches: the first candidate must contain the requested number, branch and title. Normal search results remain after it, with the resolved PR deduplicated. A confirmed missing number stays absent; another repository is refused before provider calls. Repeat text search and page 2 to confirm normal discovery still works. Automated owner: `TestSessionPullRequestAdapters`; walked live against the real forge.
 - An app token may read linked work under existing session-read scope, but add, remove and candidate search return `app_token_route_forbidden`.
 
+Review-round backend checks (automated evidence is in `docs/qa/reports/session-linked-work/backend.md`; repeat the live walk separately):
+
+- Cancel a worktree-create request after acceptance; the tool still returns the accepted worktree if linking fails. In a repository with no origin or a local-path origin, automatic and manual branch links work without contacting a forge. Hosted subgroup repositories retain their hosted identity.
+- Forks and continuations never roll work into their source session. A child branch without a PR contributes neither a row nor a summary count. Within each urgency band, Runs here precedes direct work, which precedes rolled-up work.
+- Compare detail child counts, optional-health detail, active board and durable board. Bound default branches stay branch-only and do not refresh forge status. Fenced queued input with dispatchable=0 does not hold a card in Working.
+- Unlink a derived bound worktree, then Undo: Runs here, worktree name and provenance return. Automatic creation replaces a dead worktree ID on an existing link without clearing an unlink tombstone.
+- Reject PRs whose head repository differs with `session_link_fork_unsupported`; providers omitting head repository retain existing behavior. Selecting another PR on the same branch replaces the stored PR number because status follows the branch.
+- Search a nested branch substring across page boundaries. An exact PR appears once, on page 1, which may have one extra item. After changing the origin, cached numbers from the old repository do not match; explicitly stored numbers remain searchable.
+- Inspect provider search traffic: one GraphQL query supplies number, title, state, branch and head repository for a page; usable nodes remain when another node fails.
+
 Owning automated checks: `TestBoardColumnWithLinkedWork`, `TestSessionCatalogBoard`,
 `TestSessionLinkedWorkProjection`, `TestManagerBoardCatalog`,
 `TestSessionLinkedWorkSummary`, and `TestAppAccessPolicy`. These exercise backend behavior,

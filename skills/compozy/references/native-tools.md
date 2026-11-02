@@ -1067,7 +1067,11 @@ Inputs are `branch` (required), optional `repository` (normalized repository ide
 defaulting to the session project) and optional positive `pr_number`. They never bind
 or move the runtime and never delete worktrees, branches or pull requests. Link
 provenance is `agent`; automatic `compozy__worktree_create` links use `created`.
-Repository mismatch returns `session_link_repository_mismatch`. Session reads carry
+Repository mismatch returns `session_link_repository_mismatch`. A PR from another head
+repository returns `session_link_fork_unsupported`; providers that omit head repository keep
+existing behavior. Status follows the branch: selecting another PR on an already linked branch
+replaces its stored number. Local repositories support branch links without a forge.
+Candidate page 1 may include one extra exact PR match; that match is omitted from later pages. Session reads carry
 an additive `linked_work` summary (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
 resource's `links` endpoint for the full list; child items carry `source_session_id`
 and `source_session_title` and are read-only on their parent.

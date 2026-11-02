@@ -45695,6 +45695,9 @@
           "branch": {
             "type": "string"
           },
+          "head_repository": {
+            "type": "string"
+          },
           "pr_number": {
             "type": "integer"
           },
@@ -93691,7 +93694,7 @@
             }
           },
           {
-            "description": "Page size, at most 100",
+            "description": "Page size, at most 100; page 1 may include one additional exact PR match, which is omitted from later pages",
             "in": "query",
             "name": "limit",
             "schema": {

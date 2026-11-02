@@ -15,7 +15,10 @@ func sessionCatalogBoardColumnSQL(badge, prState string) string {
  THEN 'working' WHEN ` + badge + ` = 'waiting' THEN 'waiting' WHEN ` + prState + ` = 'open' THEN 'in_review' ELSE 'done' END)`
 }
 
-var sessionCatalogBoardColumnExpression = `(CASE WHEN ` + sessionCatalogBadgeExpression + ` IN ('needs-attention','waiting-for-auth','waiting-for-input','failed') THEN 'needs_you' WHEN board_pending_input = 1 AND (board_link_open = 1 OR board_pr_state = 'open') AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done') THEN 'working' WHEN board_link_open = 1 AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done','stopped') THEN 'in_review' ELSE ` + sessionCatalogBoardColumnSQL(sessionCatalogBadgeExpression, "board_pr_state") + ` END)`
+var sessionCatalogBoardColumnExpression = `(CASE WHEN ` + sessionCatalogBadgeExpression + ` IN ('needs-attention','waiting-for-auth','waiting-for-input','failed') THEN 'needs_you' WHEN board_pending_input = 1 AND (board_link_open = 1 OR board_pr_state = 'open') AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done') THEN 'working' WHEN board_link_open = 1 AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done','stopped') THEN 'in_review' ELSE ` + sessionCatalogBoardColumnSQL(
+	sessionCatalogBadgeExpression,
+	"board_pr_state",
+) + ` END)`
 
 // The derived relation preserves the existing unqualified session filter/sort
 // expressions while joining display facts with an explicit current repository key.
@@ -24,7 +27,10 @@ func sessionCatalogBoardSource(
 	defaultBranches map[string][]string,
 ) (string, []any, error) {
 	if len(repositoryKeys) == 0 {
-		return "(SELECT sessions.*, NULL AS board_pr_state, 0 AS board_link_open, EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = sessions.id AND q.status IN ('queued','dispatching')) AS board_pending_input FROM sessions) AS sessions", nil, nil
+		return `(SELECT sessions.*, NULL AS board_pr_state, 0 AS board_link_open,
+ EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = sessions.id
+ AND (q.status = 'dispatching' OR (q.status = 'queued' AND q.dispatchable = 1))) AS board_pending_input
+ FROM sessions) AS sessions`, nil, nil
 	}
 	encoded, err := json.Marshal(repositoryKeys)
 	if err != nil {
@@ -35,8 +41,9 @@ func sessionCatalogBoardSource(
 		return "", nil, fmt.Errorf("store: encode default branches: %w", err)
 	}
 	return `(SELECT sessions.*, board_pr.pr_state AS board_pr_state,
- EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = sessions.id AND q.status IN ('queued','dispatching')) AS board_pending_input,
- EXISTS (SELECT 1 FROM session_work_links l JOIN forge_pull_requests f
+ EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = sessions.id
+ AND (q.status = 'dispatching' OR (q.status = 'queued' AND q.dispatchable = 1))) AS board_pending_input,
+ EXISTS (SELECT 1 FROM session_work_links l INDEXED BY sqlite_autoindex_session_work_links_1 JOIN forge_pull_requests f
  ON f.workspace_id = l.workspace_id AND f.repo_key = l.repo_key AND f.branch = l.branch
  WHERE l.session_id = sessions.id AND l.workspace_id = sessions.workspace_id
  AND l.unlinked = 0 AND f.pr_state = 'open' AND (l.pr_number IS NULL OR l.pr_number = f.pr_number) AND l.repo_key = json_extract(?, '$.' || json_quote(sessions.workspace_id))) AS board_link_open

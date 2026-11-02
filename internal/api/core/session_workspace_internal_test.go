@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -381,4 +382,48 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 			t.Fatalf("provider %q HomePolicy = empty, want advertised home policy", payload.Name)
 		}
 	}
+}
+
+// Invariant: optional health retains direct linked-work board placement.
+// Owner: API detail decoration; canonical session workspace helper suite.
+func TestSessionOptionalHealthLinkedWork(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain linked review after health decoration", func(t *testing.T) {
+		t.Parallel()
+		h := &BaseHandlers{Sessions: healthLinkedWorkReader{}, SessionHealth: healthLinkedWorkReader{}}
+		payload, err := h.sessionPayloadWithOptionalHealth(
+			t.Context(),
+			&session.Info{ID: "linked", State: session.StateStopped},
+			true,
+		)
+		if err != nil || payload.BoardColumn != session.BoardInReview {
+			t.Fatalf("payload=%+v err=%v", payload, err)
+		}
+	})
+}
+
+type healthLinkedWorkReader struct{ SessionManager }
+
+func (healthLinkedWorkReader) InputQueueSummary(context.Context, string) (session.InputQueueSummary, error) {
+	return session.InputQueueSummary{}, nil
+}
+func (healthLinkedWorkReader) GetSessionHealth(context.Context, string) (heartbeat.SessionHealth, error) {
+	return heartbeat.SessionHealth{
+		SessionID: "linked",
+		State:     heartbeat.SessionHealthStateIdle,
+		Health:    heartbeat.SessionHealthHealthy,
+	}, nil
+}
+
+func (healthLinkedWorkReader) SessionLinkedWork(
+	context.Context,
+	[]*session.Info,
+) (map[string]session.LinkedWorkProjection, error) {
+	return map[string]session.LinkedWorkProjection{"linked": {DirectOpen: true}}, nil
+}
+func (healthLinkedWorkReader) LinkSessionWork(context.Context, string, store.SessionWorkLink, bool) error {
+	return nil
+}
+func (healthLinkedWorkReader) UnlinkSessionWork(context.Context, string, string, string) error {
+	return nil
 }

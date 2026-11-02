@@ -1,9 +1,10 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -71,10 +72,12 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 	}
 	keys := []BranchKey{}
 	seen := map[BranchKey]bool{}
+	explicit := map[BranchKey]bool{}
 	for _, member := range family {
 		for _, link := range stored[member.ID] {
 			if !link.Unlinked && link.Repository == repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
 				key := BranchKey{member.WorkspaceID, link.Branch}
+				explicit[key] = true
 				if !seen[key] {
 					seen[key] = true
 					keys = append(keys, key)
@@ -89,29 +92,49 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 			}
 		}
 	}
-	views := reader.PullRequests(ctx, keys)
 	defaults := map[BranchKey]bool{}
 	if r, ok := reader.(interface {
 		DefaultBranches(context.Context, []BranchKey) map[BranchKey]bool
 	}); ok {
 		defaults = r.DefaultBranches(ctx, keys)
 	}
+	filtered := make([]BranchKey, 0, len(keys))
+	for _, key := range keys {
+		if !defaults[key] || explicit[key] {
+			filtered = append(filtered, key)
+		}
+	}
+	views := reader.PullRequests(ctx, filtered)
 	for _, member := range family {
 		root := roots[member.RootID]
 		if root == nil || root.WorkspaceID != member.WorkspaceID || root.ProfileID != member.ProfileID {
 			continue
 		}
 		direct := member.ID == root.ID
+		currentWorktreeID := member.WorktreeID
+		if currentWorktreeID == "" && direct {
+			currentWorktreeID = root.WorktreeID
+		}
 		items := stored[member.ID]
 		branch := snapshots[member.ID]
 		found := false
 		for _, item := range items {
-			if item.Branch == branch && item.Repository == repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
+			if item.Branch == branch &&
+				item.Repository == repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
 				found = true
 			}
 		}
 		if branch != "" && !found && (!defaults[BranchKey{member.WorkspaceID, branch}] || member.WorktreeID != "") {
-			items = append(append([]store.SessionWorkLink{}, items...), store.SessionWorkLink{Repository: repos[repositoryScope{member.ProfileID, member.WorkspaceID}], Branch: branch, WorktreeID: member.WorktreeID, Provenance: "created"})
+			items = append(
+				append([]store.SessionWorkLink{}, items...),
+				store.SessionWorkLink{
+					Repository:   repos[repositoryScope{member.ProfileID, member.WorkspaceID}],
+					Branch:       branch,
+					WorktreeID:   member.WorktreeID,
+					WorktreeName: member.WorktreeName,
+					Provenance:   "created",
+				},
+			)
 		}
 		projection := out[root.ID]
 		projection.Pending = pending[root.ID]
@@ -125,13 +148,33 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 				continue
 			}
 			view := views[BranchKey{member.WorkspaceID, link.Branch}]
+			if !found && link.Branch == branch && defaults[BranchKey{member.WorkspaceID, branch}] {
+				view = PullRequestView{Lookup: PullRequestLookup{State: LookupOK}}
+			}
 			if link.PRNumber > 0 && view.PullRequest != nil && view.PullRequest.Number != link.PRNumber {
-				view = PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: "pr_identity_changed", Stale: true}}
+				view = PullRequestView{
+					Lookup: PullRequestLookup{State: LookupError, Cause: "pr_identity_changed", Stale: true},
+				}
 			}
 			if link.Repository != repos[repositoryScope{member.ProfileID, member.WorkspaceID}] {
-				view = PullRequestView{Lookup: PullRequestLookup{State: LookupError, Cause: "repository_changed", Stale: true}}
+				view = PullRequestView{
+					Lookup: PullRequestLookup{State: LookupError, Cause: "repository_changed", Stale: true},
+				}
 			}
-			item := LinkedWorkItem{Repository: link.Repository, Branch: link.Branch, PRNumber: link.PRNumber, WorktreeID: link.WorktreeID, WorktreeName: link.WorktreeName, WorktreeRemoved: link.WorktreeRemoved, Provenance: link.Provenance, RunsHere: direct && root.WorktreeID != "" && root.WorktreeID == link.WorktreeID, PullRequestView: view}
+			if !direct && view.PullRequest == nil && link.PRNumber == 0 {
+				continue
+			}
+			item := LinkedWorkItem{
+				Repository:      link.Repository,
+				Branch:          link.Branch,
+				PRNumber:        link.PRNumber,
+				WorktreeID:      link.WorktreeID,
+				WorktreeName:    link.WorktreeName,
+				WorktreeRemoved: link.WorktreeRemoved,
+				Provenance:      link.Provenance,
+				RunsHere:        direct && currentWorktreeID != "" && currentWorktreeID == link.WorktreeID,
+				PullRequestView: view,
+			}
 			if !direct {
 				item.SourceSessionID = member.ID
 				item.SourceSessionTitle = member.Name
@@ -144,12 +187,14 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 		out[root.ID] = projection
 	}
 	for id, p := range out {
-		sort.SliceStable(p.Items, func(i, j int) bool {
-			a, b := p.Items[i], p.Items[j]
+		slices.SortStableFunc(p.Items, func(a, b LinkedWorkItem) int {
 			if (a.SourceSessionID == "") != (b.SourceSessionID == "") {
-				return a.SourceSessionID == ""
+				if a.SourceSessionID == "" {
+					return -1
+				}
+				return 1
 			}
-			return a.Branch < b.Branch
+			return cmp.Compare(a.Branch, b.Branch)
 		})
 		unique := make([]LinkedWorkItem, 0, len(p.Items))
 		dedupe := map[string]bool{}
@@ -166,7 +211,24 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 				unique = append(unique, item)
 			}
 		}
-		sort.SliceStable(unique, func(i, j int) bool { return linkedWorkUrgency(unique[i]) < linkedWorkUrgency(unique[j]) })
+		slices.SortStableFunc(unique, func(a, b LinkedWorkItem) int {
+			if rank := cmp.Compare(linkedWorkUrgency(a), linkedWorkUrgency(b)); rank != 0 {
+				return rank
+			}
+			if a.RunsHere != b.RunsHere {
+				if a.RunsHere {
+					return -1
+				}
+				return 1
+			}
+			if (a.SourceSessionID == "") != (b.SourceSessionID == "") {
+				if a.SourceSessionID == "" {
+					return -1
+				}
+				return 1
+			}
+			return 0
+		})
 		p.Items = unique
 		p.Summary.Total = len(unique)
 		for _, item := range unique {
@@ -195,7 +257,8 @@ func linkedWorkUrgency(item LinkedWorkItem) int {
 		return 3
 	}
 	if pr != nil && pr.State == PullRequestOpen {
-		if pr.Checks.State == ChecksFailing || pr.ReviewDecision == ReviewChangesRequested || pr.Mergeable == MergeableConflicting {
+		if pr.Checks.State == ChecksFailing || pr.ReviewDecision == ReviewChangesRequested ||
+			pr.Mergeable == MergeableConflicting {
 			return 0
 		}
 		if pr.ReadyToMerge && pr.Draft != nil && !*pr.Draft {

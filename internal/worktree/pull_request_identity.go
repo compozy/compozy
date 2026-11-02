@@ -31,9 +31,13 @@ func NormalizeRepoKey(remote string) (string, error) {
 	}
 	path := strings.TrimSuffix(strings.Trim(parsed.Path, "/"), ".git")
 	parts := strings.Split(path, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || parts[0] == "." || parts[0] == ".." || parts[1] == "." ||
-		parts[1] == ".." {
+	if len(parts) < 2 {
 		return "", errors.New("worktree: invalid origin repository")
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", errors.New("worktree: invalid origin repository")
+		}
 	}
 	return strings.ToLower(parsed.Hostname() + "/" + path), nil
 }

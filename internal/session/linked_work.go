@@ -10,6 +10,7 @@ import (
 )
 
 var ErrLinkedWorkRepository = errors.New("linked work belongs to another repository")
+var ErrLinkedWorkForkUnsupported = errors.New("pull requests from another head repository cannot be linked")
 var ErrLinkedWorkInvalid = errors.New("linked work requires a branch and repository")
 
 type WorkLinkStore interface {
@@ -106,15 +107,21 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 	if strings.TrimSpace(branch) == "" {
 		return ErrLinkedWorkInvalid
 	}
-	if repository == "" {
-		m.mu.RLock()
-		reader, configured := m.pullRequestReader.(PullRequestRepositoryReader)
-		m.mu.RUnlock()
-		if !configured {
-			return ErrLinkedWorkInvalid
-		}
-		repository = reader.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID})[info.WorkspaceID]
+	m.mu.RLock()
+	reader, configured := m.pullRequestReader.(PullRequestRepositoryReader)
+	m.mu.RUnlock()
+	if !configured {
+		return ErrLinkedWorkInvalid
 	}
+	repoKeys := reader.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID})
+	repo := repoKeys[info.WorkspaceID]
+	if repository == "" {
+		repository = repo
+	}
+	if repo == "" || repository != repo {
+		return ErrLinkedWorkRepository
+	}
+	branch = strings.TrimSpace(branch)
 	link := store.SessionWorkLink{
 		SessionID:   info.ID,
 		WorkspaceID: info.WorkspaceID,
@@ -122,9 +129,16 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 		Branch:      branch,
 		Provenance:  "user",
 	}
-	// Persist a tombstone even for the derived current branch.
-	if err := links.SaveSessionWorkLink(ctx, link, true); err != nil {
-		return fmt.Errorf("session: prepare unlink: %w", err)
+	// Carry derived metadata into the atomic tombstone so Undo restores runs-here.
+	projection, err := m.SessionLinkedWork(ctx, []*Info{info})
+	if err != nil {
+		return err
+	}
+	for _, item := range projection[info.ID].Items {
+		if item.SourceSessionID == "" && item.Repository == repository && item.Branch == branch {
+			link.WorktreeID, link.WorktreeName = item.WorktreeID, item.WorktreeName
+			link.Provenance, link.PRNumber = item.Provenance, item.PRNumber
+		}
 	}
 	if err := links.UnlinkSessionWork(ctx, link); err != nil {
 		return err

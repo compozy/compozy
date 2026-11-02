@@ -39,7 +39,7 @@ func (a sessionPullRequestAdapter) PullRequests(
 		}
 		if repo == "" {
 			out[key] = session.PullRequestView{
-				Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "unsupported_remote", Stale: true},
+				Lookup: session.PullRequestLookup{State: session.LookupOK},
 			}
 			continue
 		}
@@ -171,7 +171,7 @@ func (a sessionPullRequestAdapter) RepositoryKeys(
 ) map[string]string {
 	result := make(map[string]string)
 	for id, root := range a.workspaceRoots(ctx, scope, workspaceIDs) {
-		if key, err := a.service.RepoKey(ctx, root); err == nil {
+		if key, err := a.linkRepository(ctx, id, root); err == nil {
 			result[id] = key
 		}
 	}
@@ -244,4 +244,16 @@ func (a sessionPullRequestAdapter) DefaultBranches(
 		result[key] = a.service.IsDefaultBranch(ctx, root, key.Branch)
 	}
 	return result
+}
+
+// Local identities are workspace-scoped and never passed to forge providers.
+func (a sessionPullRequestAdapter) linkRepository(ctx context.Context, workspaceID, root string) (string, error) {
+	key, err := a.service.RepoKey(ctx, root)
+	if err == nil && key != "" {
+		return key, nil
+	}
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	return "local:" + workspaceID, nil
 }

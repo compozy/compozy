@@ -15,4 +15,4 @@ type SessionWorkLink struct {
 	WorktreeRemoved bool
 }
 
-type SessionWorkMember struct{ RootID, ID, WorkspaceID, ProfileID, Name, WorktreeID string }
+type SessionWorkMember struct{ RootID, ID, WorkspaceID, ProfileID, Name, WorktreeID, WorktreeName string }

@@ -15,7 +15,9 @@ func (g *SessionRepo) SaveSessionWorkLink(ctx context.Context, link store.Sessio
 		return err
 	}
 	var belongs bool
-	if err := g.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND workspace_id = ?)", link.SessionID, link.WorkspaceID).Scan(&belongs); err != nil {
+	const belongsQuery = "SELECT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND workspace_id = ?)"
+	if err := g.db.QueryRowContext(ctx, belongsQuery, link.SessionID, link.WorkspaceID).
+		Scan(&belongs); err != nil {
 		return fmt.Errorf("store: validate linked session: %w", err)
 	}
 	if !belongs {
@@ -45,7 +47,19 @@ func (g *SessionRepo) UnlinkSessionWork(ctx context.Context, link store.SessionW
 	if err := g.checkReady(ctx, "unlink session work"); err != nil {
 		return err
 	}
-	_, err := g.queries.UnlinkSessionWork(ctx, sqlcgen.UnlinkSessionWorkParams{SessionID: link.SessionID, WorkspaceID: link.WorkspaceID, RepoKey: link.Repository, Branch: link.Branch})
+	_, err := g.queries.UnlinkSessionWork(
+		ctx,
+		sqlcgen.UnlinkSessionWorkParams{
+			SessionID:    link.SessionID,
+			WorkspaceID:  link.WorkspaceID,
+			RepoKey:      link.Repository,
+			Branch:       link.Branch,
+			PrNumber:     sql.NullInt64{Int64: int64(link.PRNumber), Valid: link.PRNumber > 0},
+			WorktreeID:   link.WorktreeID,
+			WorktreeName: link.WorktreeName,
+			Provenance:   link.Provenance,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: unlink session work: %w", err)
 	}
@@ -66,7 +80,21 @@ func (g *SessionRepo) SessionWorkLinks(ctx context.Context, ids []string) (map[s
 	}
 	out := make(map[string][]store.SessionWorkLink)
 	for _, r := range rows {
-		out[r.SessionID] = append(out[r.SessionID], store.SessionWorkLink{SessionID: r.SessionID, WorkspaceID: r.WorkspaceID, Repository: r.RepoKey, Branch: r.Branch, PRNumber: int(r.PrNumber.Int64), WorktreeID: r.WorktreeID, WorktreeName: r.WorktreeName, Provenance: r.Provenance, Unlinked: r.Unlinked != 0, WorktreeRemoved: r.WorktreeRemoved != 0})
+		out[r.SessionID] = append(
+			out[r.SessionID],
+			store.SessionWorkLink{
+				SessionID:       r.SessionID,
+				WorkspaceID:     r.WorkspaceID,
+				Repository:      r.RepoKey,
+				Branch:          r.Branch,
+				PRNumber:        int(r.PrNumber.Int64),
+				WorktreeID:      r.WorktreeID,
+				WorktreeName:    r.WorktreeName,
+				Provenance:      r.Provenance,
+				Unlinked:        r.Unlinked != 0,
+				WorktreeRemoved: r.WorktreeRemoved != 0,
+			},
+		)
 	}
 	return out, nil
 }
@@ -104,7 +132,18 @@ func (g *SessionRepo) SessionWorkFamily(ctx context.Context, ids []string) ([]st
 	}
 	out := make([]store.SessionWorkMember, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, store.SessionWorkMember{RootID: r.RootID, ID: r.ID, WorkspaceID: r.WorkspaceID, ProfileID: r.ProfileID, Name: r.Name.String, WorktreeID: r.WorktreeID})
+		out = append(
+			out,
+			store.SessionWorkMember{
+				RootID:       r.RootID,
+				ID:           r.ID,
+				WorkspaceID:  r.WorkspaceID,
+				ProfileID:    r.ProfileID,
+				Name:         r.Name.String,
+				WorktreeID:   r.WorktreeID,
+				WorktreeName: r.WorktreeName,
+			},
+		)
 	}
 	return out, nil
 }

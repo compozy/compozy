@@ -1829,6 +1829,36 @@ func (s *worktreeInspectionStore) GetStatus(ctx context.Context, workspaceID, id
 // Owner: durable session work links; canonical worktree store suite.
 func TestSessionWorkLinkPersistence(t *testing.T) {
 	t.Parallel()
+	// Invariant: unlink creates a durable tombstone atomically, including derived metadata.
+	t.Run("Should tombstone a derived link without a prior save", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		ws := registerWorkspaceForGlobalTests(t, db, "derived", t.TempDir())
+		info := sessionInfoForWorkspaceStateIndexTest("derived", ws, "stopped", time.Now())
+		if err := db.RegisterSession(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		link := store.SessionWorkLink{
+			SessionID:    info.ID,
+			WorkspaceID:  ws,
+			Repository:   "example.com/a/b",
+			Branch:       "topic",
+			WorktreeID:   "dead",
+			WorktreeName: "original",
+			Provenance:   "created",
+		}
+		if err := db.UnlinkSessionWork(ctx, link); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.SessionWorkLinks(ctx, []string{info.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got[info.ID]) != 1 || !got[info.ID][0].Unlinked || got[info.ID][0].WorktreeName != "original" {
+			t.Fatalf("links=%+v", got)
+		}
+	})
 	t.Run("Should enrich a manual link automatically without restoring an unlink", func(t *testing.T) {
 		t.Parallel()
 		db, err := OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), GlobalDatabaseName))
@@ -1858,6 +1888,7 @@ func TestSessionWorkLinkPersistence(t *testing.T) {
 			Branch:      "topic",
 			Provenance:  "user",
 			PRNumber:    42,
+			WorktreeID:  "dead-tree",
 		}
 		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
 			t.Fatal(err)
