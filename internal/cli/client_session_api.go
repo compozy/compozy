@@ -25,14 +25,14 @@ type sessionClientAPI interface {
 	InspectSession(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	RefreshSessionSoul(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
-	ArchiveSession(context.Context, string, bool, contract.SessionProcessPolicy) (SessionRecord, error)
+	ArchiveSession(context.Context, string, bool, bool, contract.SessionProcessPolicy) (SessionRecord, error)
 	MoveSessionToLater(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
 	ResumeSessionFromLater(context.Context, string, bool) (SessionRecord, error)
 	UnarchiveSession(context.Context, string) (SessionRecord, error)
 	RenameSession(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	SetSessionParent(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	ClearSessionParent(context.Context, string) (SessionRecord, error)
-	DeleteSession(context.Context, string, contract.SessionProcessPolicy) error
+	DeleteSession(context.Context, string, bool, contract.SessionProcessPolicy) error
 	ResumeSession(context.Context, string) (SessionRecord, error)
 	UploadSessionAttachment(context.Context, string, string) (SessionAttachmentRecord, error)
 	SetSessionRuntime(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)

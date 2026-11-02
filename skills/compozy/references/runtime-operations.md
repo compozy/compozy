@@ -468,8 +468,10 @@ cannot be validated fail closed.
     compozy session stop <session-id>
     compozy session archive <session-id>
     compozy session archive <session-id> --stop
+    compozy session archive <session-id> --stop --with-children
     compozy session unarchive <session-id>
     compozy session remove <session-id>
+    compozy session remove <session-id> --with-children
     compozy session repair <session-id> --dry-run -o json
     compozy session soul refresh <session-id> --expected-digest sha256:old -o json
     compozy session approve <session-id> --request-id req_123 --turn-id turn_123 --decision allow-once

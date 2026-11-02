@@ -18,6 +18,7 @@ compozy session archive <id> [flags]
       --keep-processes        Keep session-owned processes running (default)
       --stop                  Stop a live session through the normal stop path (canceling any active turn) before archiving it
       --terminate-processes   Terminate session-owned background processes and terminals
+      --with-children         Also archive the session's child sessions, recursively; with --stop a failed stop archives nothing
 ```
 
 ### Options inherited from parent commands

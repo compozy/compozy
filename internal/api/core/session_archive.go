@@ -51,6 +51,17 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 	if archived && !h.prepareProcessPolicy(c, policy) {
 		return
 	}
+	withChildren := false
+	if archived {
+		if withChildren, err = parseBoolQuery(c, withChildrenQuery); err != nil {
+			h.respondError(c, http.StatusBadRequest, err)
+			return
+		}
+	}
+	if withChildren {
+		h.archiveSessionTree(c, scope.SessionWorkspaceID(), existing, policy)
+		return
+	}
 	var info *session.Info
 	if archived {
 		var stop bool
@@ -77,6 +88,10 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 	if archived && !h.finishProcessPolicy(c, existing, policy) {
 		return
 	}
+	h.respondArchivedSession(c, info)
+}
+
+func (h *BaseHandlers) respondArchivedSession(c *gin.Context, info *session.Info) {
 	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)

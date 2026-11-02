@@ -12,9 +12,8 @@ import {
   fetchSessionUsage,
   fetchSessionUsageTurns,
   fetchSessions,
-  SessionApiError,
 } from "../adapters/session-api";
-import { isSessionUnavailable } from "../adapters/session-api-errors";
+import { isSessionUnavailable, isTerminalInputReadError } from "../adapters/session-api-errors";
 import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
 import { fetchSessionCommands } from "../adapters/session-command-api";
 import {
@@ -22,14 +21,15 @@ import {
   searchSessionTranscript,
   SESSION_TRANSCRIPT_SEARCH_LIMIT,
 } from "../adapters/session-navigation-api";
+import { listSessionDescendants } from "../adapters/session-archive-api";
 import { fetchSessionOwner } from "../adapters/session-owner-api";
+import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionPayload, SessionState } from "../types";
 import { withPullRequestReread } from "./session-pull-request";
 import { sessionKeys } from "./query-keys";
 import { EMPTY_SUBAGENT_ROSTER } from "./subagent-roster";
-import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
 import { normalizeTranscriptSearchQuery } from "./session-navigation";
 import {
@@ -277,13 +277,6 @@ export function sessionInputsOptions(
   });
 }
 
-function isTerminalInputReadError(error: unknown): boolean {
-  return (
-    error instanceof SessionApiError &&
-    (error.status === 404 || error.status === 410 || error.code === "session_not_promptable")
-  );
-}
-
 export { sessionTranscriptOptions } from "./session-transcript-options";
 
 // Navigation reads (S8/S9) sit under the detail key: mutation invalidation
@@ -443,6 +436,18 @@ export function sessionUsageTurnsOptions(
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
+  });
+}
+
+/** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
+export function sessionDescendantsOptions(
+  session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
+) {
+  return queryOptions({
+    queryKey: sessionKeys.descendants(session.id, session.profile_name),
+    queryFn: ({ signal }) =>
+      listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
+    staleTime: 0,
   });
 }
 

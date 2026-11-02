@@ -110,47 +110,49 @@ type stubClient struct {
 		SettingsMCPAuthTarget,
 		SettingsMCPAuthBeginRequest,
 	) (SettingsMCPAuthBeginRecord, error)
-	exchangeSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
-	logoutSettingsMCPAuthFn      func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-	installExtensionFn           func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	previewExtensionInstallFn    func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
-	updateExtensionFn            func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
-	updateExtensionsFn           func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
-	removeExtensionFn            func(context.Context, string) (ManagedExtensionRemoveRecord, error)
-	enableExtensionFn            func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
-	disableExtensionFn           func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusFn            func(context.Context, string) (ExtensionRecord, error)
-	extensionStatusScopedFn      func(context.Context, string, string) (ExtensionRecord, error)
-	extensionProvenanceFn        func(context.Context, string) (ExtensionProvenanceRecord, error)
-	extensionInventoryFn         func(context.Context, string) (ExtensionInventoryRecord, error)
-	previewExtensionEnableFn     func(context.Context, string) (ExtensionEnablePreviewRecord, error)
-	devExtensionFn               func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
-	reloadDevExtensionFn         func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
-	extensionLogsFn              func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
-	streamExtensionLogsFn        func(context.Context, string, string, int64, string, SSEHandler) error
-	removeDevExtensionFn         func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
-	listProfilesFn               func(context.Context) ([]contract.Profile, error)
-	listProfileSelectionsFn      func(context.Context) ([]contract.ProfileSelection, error)
-	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
-	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
-	mutateSessionGoalFn          func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
-	listSessionCommandsFn        func(context.Context, string) (SessionCommandsRecord, error)
-	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
-	getSessionFn                 func(context.Context, string) (SessionRecord, error)
-	getSessionHealthFn           func(context.Context, string) (SessionHealthRecord, error)
-	getSessionStatusFn           func(context.Context, string) (SessionStatusRecord, error)
-	getSessionUsageFn            func(context.Context, string) (SessionUsageRecord, error)
-	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
-	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
-	stopSessionFn                func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
-	archiveSessionFn             func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionRecord, error)
+	exchangeSettingsMCPAuthFn func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	previewExtensionInstallFn func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	updateExtensionFn         func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	updateExtensionsFn        func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
+	removeExtensionFn         func(context.Context, string) (ManagedExtensionRemoveRecord, error)
+	enableExtensionFn         func(context.Context, string, EnableExtensionRequest) (ExtensionEnableRecord, error)
+	disableExtensionFn        func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusFn         func(context.Context, string) (ExtensionRecord, error)
+	extensionStatusScopedFn   func(context.Context, string, string) (ExtensionRecord, error)
+	extensionProvenanceFn     func(context.Context, string) (ExtensionProvenanceRecord, error)
+	extensionInventoryFn      func(context.Context, string) (ExtensionInventoryRecord, error)
+	previewExtensionEnableFn  func(context.Context, string) (ExtensionEnablePreviewRecord, error)
+	devExtensionFn            func(context.Context, string, DevLinkExtensionRequest) (ExtensionRecord, error)
+	reloadDevExtensionFn      func(context.Context, string, string, ReloadExtensionRequest) (ExtensionRecord, error)
+	extensionLogsFn           func(context.Context, string, string, int64, string) (ExtensionLogsRecord, error)
+	streamExtensionLogsFn     func(context.Context, string, string, int64, string, SSEHandler) error
+	removeDevExtensionFn      func(context.Context, string, string) (ManagedExtensionRemoveRecord, error)
+	listProfilesFn            func(context.Context) ([]contract.Profile, error)
+	listProfileSelectionsFn   func(context.Context) ([]contract.ProfileSelection, error)
+	listSessionsFn            func(context.Context, SessionListQuery) ([]SessionRecord, error)
+	listSessionPageFn         func(context.Context, SessionListQuery) (SessionListPage, error)
+	mutateSessionGoalFn       func(context.Context, string, contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error)
+	listSessionCommandsFn     func(context.Context, string) (SessionCommandsRecord, error)
+	createSessionFn           func(context.Context, CreateSessionRequest) (SessionRecord, error)
+	getSessionFn              func(context.Context, string) (SessionRecord, error)
+	getSessionHealthFn        func(context.Context, string) (SessionHealthRecord, error)
+	getSessionStatusFn        func(context.Context, string) (SessionStatusRecord, error)
+	getSessionUsageFn         func(context.Context, string) (SessionUsageRecord, error)
+	inspectSessionFn          func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
+	refreshSessionSoulFn      func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
+	stopSessionFn             func(context.Context, string, bool, contract.SessionProcessPolicy) (SessionStopRecord, error)
+	archiveSessionFn          func(
+		context.Context, string, bool, bool, contract.SessionProcessPolicy,
+	) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	moveSessionToLaterFn         func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
 	resumeSessionFromLaterFn     func(context.Context, string, bool) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn           func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn         func(context.Context, string) (SessionRecord, error)
-	deleteSessionFn              func(context.Context, string, contract.SessionProcessPolicy) error
+	deleteSessionFn              func(context.Context, string, bool, contract.SessionProcessPolicy) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	uploadSessionAttachmentFn    func(context.Context, string, string) (SessionAttachmentRecord, error)
 	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
@@ -1323,10 +1325,11 @@ func (s *stubClient) ArchiveSession(
 	ctx context.Context,
 	id string,
 	stop bool,
+	withChildren bool,
 	policy contract.SessionProcessPolicy,
 ) (SessionRecord, error) {
 	if s.archiveSessionFn != nil {
-		return s.archiveSessionFn(ctx, id, stop, policy)
+		return s.archiveSessionFn(ctx, id, stop, withChildren, policy)
 	}
 	return SessionRecord{}, errors.New("unexpected ArchiveSession call")
 }
@@ -1385,9 +1388,14 @@ func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (Session
 	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
 }
 
-func (s *stubClient) DeleteSession(ctx context.Context, id string, policy contract.SessionProcessPolicy) error {
+func (s *stubClient) DeleteSession(
+	ctx context.Context,
+	id string,
+	withChildren bool,
+	policy contract.SessionProcessPolicy,
+) error {
 	if s.deleteSessionFn != nil {
-		return s.deleteSessionFn(ctx, id, policy)
+		return s.deleteSessionFn(ctx, id, withChildren, policy)
 	}
 	return errors.New("unexpected DeleteSession call")
 }

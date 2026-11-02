@@ -2,10 +2,19 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// SettingsWindowDragModifier is a daemon API value.
+type SettingsWindowDragModifier string
+
+// SettingsWindowFocusPolicy is a daemon API value.
+type SettingsWindowFocusPolicy string
+
+// SettingsWindowManagerBindingPayload is a daemon API value.
+type SettingsWindowManagerBindingPayload struct {
+	TopCenter    SettingsWindowBindingAction `json:"top_center"`
+	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
+}
 
 // SettingsWindowManagerCommandPayload is a daemon API value.
 type SettingsWindowManagerCommandPayload struct {
@@ -436,14 +445,3 @@ type StopSessionRequest struct {
 	Processes SessionProcessPolicy `json:"processes,omitempty"`
 	Wait      *bool                `json:"wait,omitzero"`
 }
-
-// StopWhenSpec is a daemon API value.
-// StopWhenSpec preserves its custom JSON wire representation.
-type StopWhenSpec = json.RawMessage
-
-// StrategyKind is a daemon API value.
-type StrategyKind string
-
-// StrategySpec is a daemon API value.
-// StrategySpec preserves its custom JSON wire representation.
-type StrategySpec = json.RawMessage

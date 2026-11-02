@@ -289,6 +289,14 @@ Project folders group projects in All projects (grouped by project) for one prof
 - Group by → Project adds the checkable "Show empty projects" (off by default, remembered per window). Off, a project with no sessions in the current view — and a project folder holding only such projects — stays out of the list; on, every registered project shows with its count. An empty group names itself, never the profile: "No sessions in {project} yet." (on the Later or Archive views, "No sessions in Later in {project} yet." / "No archived sessions in {project} yet.").
 - Totals footer (aria "Session totals"): "{n} needs you · {n} working · {n} idle", each beside its state glyph; only non-zero states show, and nothing renders when all are zero. It never filters.
 
+### Session Children in Archive and Delete
+
+A session's child sessions are the rows nested under it in the session list; continued and forked sessions are not children. With no children, archive stays one click and the delete dialog is unchanged.
+
+- Archive confirmation: title "Archive this session?" or "Archive {N} sessions?"; body "This session has {N} child session(s)." or "These sessions have {N} child session(s)."; button "Archive session" or "Archive {N} sessions". While processes run, the process choice asks instead and carries the same checkbox.
+- Checkbox: "Also archive {N} child session(s)", checked by default. In the delete dialogs "Also delete {N} child session(s)", unchecked by default because deletion cannot be undone. Subagents always follow an archived parent, so archive does not count them.
+- Failed count read: "Couldn't read child sessions." with "Try again". Archive reports the read error and does not run.
+
 ### Session Later Terms
 
 **Later** parks a session the operator will come back to: it stops, leaves the normal lists and the board columns, and comes back on its own on an optional return date. The noun is always capitalized "Later"; never "snooze", "park", "shelve", "defer", or "backlog" in UI copy ("Parked {relative}" is the only use of "park", as a timestamp).

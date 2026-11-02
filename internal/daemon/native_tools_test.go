@@ -1844,6 +1844,54 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny an archive with children whose tree contains the caller", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// Adopted children do not stop with their parent, but they are in its tree.
+		lineages := map[string]*store.SessionLineage{
+			"sess-adopted":   {ParentSessionID: "sess-parent", Kind: store.LineageKindProvenance},
+			"sess-continued": {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+		}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil {
+				info.Lineage = lineages[id]
+			}
+			return info, err
+		}
+		tree := &nativeTreeSessions{StubSessionManager: manager}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: tree, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		input := json.RawMessage(`{"session_id":"sess-parent","stop":true,"with_children":true}`)
+		_, err := registry.Call(t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-adopted", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if len(tree.calls) != 0 {
+			t.Fatalf("archive calls after denial = %v, want none", tree.calls)
+		}
+		if _, err := registry.Call(t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-continued", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+		); err != nil || len(tree.calls) != 1 {
+			t.Fatalf("archive from a continued session = %v, calls=%v, want one archive", err, tree.calls)
+		}
+		if got := tree.calls[0]; !got.Stop || got.RefuseMember != "sess-continued" {
+			t.Fatalf("archive options = %#v, want stop and the caller fenced", got)
+		}
+		// Adoption after the first check is caught by the manager's locked walk.
+		tree.err = session.ErrSessionTreeContainsCaller
+		_, err = registry.Call(t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-continued", AgentName: "coder"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionArchive, Input: input},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+	})
+
 	t.Run("Should park through session_later and deny parking the caller's own tree", func(t *testing.T) {
 		t.Parallel()
 
@@ -16012,4 +16060,29 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 			}
 		})
 	}
+}
+
+// nativeTreeSessions adds the tree operations to the native session stub.
+type nativeTreeSessions struct {
+	apitest.StubSessionManager
+	calls []session.ArchiveTreeOptions
+	err   error
+}
+
+func (m *nativeTreeSessions) Descendants(context.Context, string, string) ([]*session.Info, error) {
+	return nil, nil
+}
+
+func (m *nativeTreeSessions) ArchiveWithChildren(
+	_ context.Context, _ string, id string, opts session.ArchiveTreeOptions,
+) (*session.Tree, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.calls = append(m.calls, opts)
+	return &session.Tree{Root: &session.Info{ID: id, WorkspaceID: "ws-native"}}, nil
+}
+
+func (m *nativeTreeSessions) DeleteWithChildren(context.Context, string, string) ([]string, error) {
+	return nil, nil
 }

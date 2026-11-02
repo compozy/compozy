@@ -7,6 +7,10 @@ import type { SessionProcessChoiceCopy } from "../lib/session-process-choice";
 
 export interface SessionDeleteActionsProps {
   isDeleting: boolean;
+  /** Included children are still being read, so the confirm waits for their count. */
+  childrenPending?: boolean;
+  /** Included children add processes the earlier answer never covered, so a retry asks again. */
+  askOnRetry?: boolean;
   /** A failed attempt is on screen: Close and Retry replace Cancel and Delete. */
   retrying: boolean;
   /** Present while the targets have processes running; adds Keep processes running. */
@@ -26,6 +30,8 @@ export interface SessionDeleteActionsProps {
  */
 export function SessionDeleteActions({
   isDeleting,
+  childrenPending = false,
+  askOnRetry = false,
   retrying,
   processChoice,
   deleteLabel,
@@ -35,7 +41,8 @@ export function SessionDeleteActions({
   onConfirm,
   onRetry,
 }: SessionDeleteActionsProps) {
-  const choice = retrying ? null : processChoice;
+  const choice = retrying && !askOnRetry ? null : processChoice;
+  const showRetry = retrying && choice === null;
   let confirmContent = (
     <>
       <Trash2 className="size-3" />
@@ -49,7 +56,7 @@ export function SessionDeleteActions({
         {deletingLabel}
       </>
     );
-  } else if (retrying) {
+  } else if (showRetry) {
     confirmContent = (
       <>
         <RotateCcw className="size-3" />
@@ -73,7 +80,7 @@ export function SessionDeleteActions({
           type="button"
           variant="outline"
           onClick={() => onConfirm("keep")}
-          disabled={isDeleting}
+          disabled={isDeleting || childrenPending}
           data-testid="delete-dialog-keep-processes"
         >
           {choice.keepLabel}
@@ -82,9 +89,9 @@ export function SessionDeleteActions({
       <Button
         type="button"
         variant="destructive"
-        onClick={retrying ? onRetry : () => onConfirm(choice ? "terminate" : undefined)}
-        disabled={isDeleting}
-        data-testid={retrying ? "delete-dialog-retry" : "delete-dialog-confirm"}
+        onClick={showRetry ? onRetry : () => onConfirm(choice ? "terminate" : undefined)}
+        disabled={isDeleting || childrenPending}
+        data-testid={showRetry ? "delete-dialog-retry" : "delete-dialog-confirm"}
       >
         {confirmContent}
       </Button>

@@ -7219,6 +7219,10 @@ export type SessionWorkspaceFacetsPayload = {
   workspace_id: string;
 };
 
+export type SessionsResponse = {
+  sessions: Array<SessionPayload>;
+};
+
 export type SetExtensionEnablementRequest = {
   enabled: boolean;
   profile: string;
@@ -32996,6 +33000,10 @@ export type DeleteSessionData = {
      */
     processes?: "keep" | "terminate";
     /**
+     * Also delete the session's child sessions, recursively, deepest first; a failure leaves the rest in place
+     */
+    with_children?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -33005,7 +33013,7 @@ export type DeleteSessionData = {
 
 export type DeleteSessionErrors = {
   /**
-   * Invalid process policy
+   * Invalid process policy or with_children value
    */
   400: ErrorPayload;
   /**
@@ -33208,6 +33216,10 @@ export type ArchiveSessionData = {
      * Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived
      */
     stop?: boolean;
+    /**
+     * Also archive the session's child sessions, recursively, in one transaction; with stop=true their live members stop first and a failed stop archives nothing
+     */
+    with_children?: boolean;
     /**
      * Act as this profile by name
      */
@@ -33816,6 +33828,59 @@ export type PreviewSessionDeriveResponses = {
 
 export type PreviewSessionDeriveResponse =
   PreviewSessionDeriveResponses[keyof PreviewSessionDeriveResponses];
+
+export type ListSessionDescendantsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants";
+};
+
+export type ListSessionDescendantsErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionDescendantsError =
+  ListSessionDescendantsErrors[keyof ListSessionDescendantsErrors];
+
+export type ListSessionDescendantsResponses = {
+  /**
+   * OK
+   */
+  200: SessionsResponse;
+};
+
+export type ListSessionDescendantsResponse =
+  ListSessionDescendantsResponses[keyof ListSessionDescendantsResponses];
 
 export type ListSessionEventsData = {
   body?: never;

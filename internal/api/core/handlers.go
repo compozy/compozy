@@ -267,6 +267,15 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 	if !h.prepareProcessPolicy(c, policy) {
 		return
 	}
+	withChildren, err := parseBoolQuery(c, withChildrenQuery)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if withChildren {
+		h.deleteSessionTree(c, info, policy)
+		return
+	}
 	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
 		if errors.Is(err, session.ErrDeleteStopAccepted) {
 			h.continueProcessCleanup(sessionID, policy, err)

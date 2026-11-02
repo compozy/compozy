@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -153,6 +154,77 @@ func (f sessionWindowReconcilerFunc) ReconcileDeletedSession(
 
 func TestManagerDelete(t *testing.T) {
 	t.Parallel()
+	// Invariant: with the opt-in the tree goes deepest first, so a failure leaves
+	// what remains reachable from the root; without it only the target goes.
+	t.Run("Should delete descendants deepest first, then the root", func(t *testing.T) {
+		t.Parallel()
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &sessionTreeCatalog{familyArchiveCatalog: &familyArchiveCatalog{
+			pagedRecordingSessionCatalog: paged, members: map[string][]string{},
+		}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		parent := createSession(t, h)
+		child := createSession(t, h)
+		grandchild := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID, grandchild.ID)
+
+		deleted, err := h.manager.DeleteWithChildren(t.Context(), h.workspaceID, parent.ID)
+		if err != nil {
+			t.Fatalf("DeleteWithChildren() error = %v", err)
+		}
+		if want := []string{grandchild.ID, child.ID, parent.ID}; !slices.Equal(deleted, want) {
+			t.Fatalf("deleted = %v, want %v", deleted, want)
+		}
+		for _, id := range deleted {
+			if _, err := h.manager.Status(t.Context(), id); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("Status(%s) after tree delete = %v, want not found", id, err)
+			}
+		}
+	})
+
+	t.Run("Should keep the root and name the child when a descendant delete fails", func(t *testing.T) {
+		t.Parallel()
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &sessionTreeCatalog{familyArchiveCatalog: &familyArchiveCatalog{
+			pagedRecordingSessionCatalog: paged, members: map[string][]string{},
+		}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		parent := createSession(t, h)
+		child := createSession(t, h)
+		grandchild := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID, grandchild.ID)
+		catalog.failDelete = child.ID
+
+		deleted, err := h.manager.DeleteWithChildren(t.Context(), h.workspaceID, parent.ID)
+		if err == nil || !strings.Contains(err.Error(), child.ID) {
+			t.Fatalf("DeleteWithChildren() error = %v, want it to name %s", err, child.ID)
+		}
+		if !slices.Equal(deleted, []string{grandchild.ID}) {
+			t.Fatalf("deleted = %v, want only %s", deleted, grandchild.ID)
+		}
+		if _, err := h.manager.Status(t.Context(), parent.ID); err != nil {
+			t.Fatalf("Status(root) after failed child = %v, want reachable", err)
+		}
+	})
+
+	t.Run("Should leave children in place when the plain delete targets their parent", func(t *testing.T) {
+		t.Parallel()
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &sessionTreeCatalog{familyArchiveCatalog: &familyArchiveCatalog{
+			pagedRecordingSessionCatalog: paged, members: map[string][]string{},
+		}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		parent := createSession(t, h)
+		child := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID)
+		if err := h.manager.Delete(t.Context(), parent.ID); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+		if _, err := h.manager.Status(t.Context(), child.ID); err != nil {
+			t.Fatalf("Status(child) after parent delete = %v, want reachable", err)
+		}
+	})
+
 	// Invariant: failed Goal settlement preserves stopped history and attachments for a safe retry.
 	// Owner: session deletion; canonical manager lifecycle suite with the Goal I/O boundary injected.
 	for _, restart := range []bool{false, true} {

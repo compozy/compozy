@@ -161,6 +161,18 @@ WITH RECURSIVE family(id,state) AS (
 )
 SELECT id,state FROM family ORDER BY id;
 
+-- name: ListSessionTreeDescendantIDs :many
+WITH RECURSIVE tree(id,profile_id) AS (
+ SELECT sessions.id,sessions.profile_id FROM sessions WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.id = sqlc.arg(session_id)
+ UNION
+ SELECT child.id,child.profile_id FROM sessions child JOIN tree parent ON child.parent_session_id = parent.id
+ WHERE child.workspace_id = sqlc.arg(workspace_id) AND child.profile_id = parent.profile_id
+  AND child.lineage_kind NOT IN ('continue','fork') AND LOWER(TRIM(COALESCE(child.spawn_role,''))) <> 'auto-title'
+)
+SELECT member.id FROM sessions member JOIN tree ON tree.id = member.id
+WHERE member.id <> sqlc.arg(session_id)
+ORDER BY member.spawn_depth,member.id;
+
 -- name: SetSubagentFamilyArchived :exec
 UPDATE sessions SET archived_at = sqlc.narg(archived_at),updated_at = sqlc.arg(now),
  parked_at = CASE WHEN sqlc.narg(archived_at) IS NULL THEN parked_at END,

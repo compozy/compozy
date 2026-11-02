@@ -8,12 +8,14 @@ import {
 } from "@compozy/ui";
 
 import { SessionDeleteActions } from "./session-delete-actions";
+import { SessionChildrenCheckbox } from "./session-children-checkbox";
 import { SessionDeleteDialogSet } from "./session-delete-dialog-set";
 import type { SessionBatchResult } from "../lib/session-batch";
 
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { sessionProcessChoiceCopy } from "../lib/session-process-choice";
 import { sessionRunningProcesses } from "../lib/session-processes";
+import type { SessionChildrenChoice } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
 
 export interface SessionDeleteDialogProps {
@@ -24,6 +26,8 @@ export interface SessionDeleteDialogProps {
   results?: readonly SessionBatchResult[];
   onRetry?: () => void;
   isDeleting: boolean;
+  /** Present when the targets have child sessions; absent keeps the dialog unchanged. */
+  childSessions?: SessionChildrenChoice;
   /** `processes` answers what happens to running processes; absent when none run. */
   onConfirm: (processes?: SessionProcessPolicy) => void;
 }
@@ -37,6 +41,7 @@ export function SessionDeleteDialog({
   results,
   onRetry,
   isDeleting,
+  childSessions,
   onConfirm,
 }: SessionDeleteDialogProps) {
   if (sessions && sessions.length > 1) {
@@ -48,6 +53,7 @@ export function SessionDeleteDialog({
         results={results}
         onRetry={onRetry}
         isDeleting={isDeleting}
+        childSessions={childSessions}
         onConfirm={onConfirm}
       />
     );
@@ -56,7 +62,8 @@ export function SessionDeleteDialog({
   if (!session) return null;
   const failure = results?.find(result => result.id === session.id && result.status === "failed");
   const retrying = failure !== undefined && !isDeleting;
-  const processCount = sessionRunningProcesses(session);
+  const processCount =
+    sessionRunningProcesses(session) + (childSessions?.includedProcessCount ?? 0);
   const processChoice =
     processCount > 0 ? sessionProcessChoiceCopy("delete", 1, processCount) : null;
   return (
@@ -76,6 +83,9 @@ export function SessionDeleteDialog({
             {processChoice ? ` ${processChoice.description}` : null}
           </DialogDescription>
         </DialogHeader>
+        {childSessions ? (
+          <SessionChildrenCheckbox action="delete" choice={childSessions} disabled={isDeleting} />
+        ) : null}
         {retrying ? (
           <p role="alert" className="text-small-body text-destructive">
             Couldn't delete: {failure.error}
@@ -83,6 +93,8 @@ export function SessionDeleteDialog({
         ) : null}
         <DialogFooter className="flex-wrap gap-2">
           <SessionDeleteActions
+            childrenPending={childSessions?.included === true && childSessions.pending}
+            askOnRetry={(childSessions?.includedProcessCount ?? 0) > 0}
             isDeleting={isDeleting}
             retrying={retrying}
             processChoice={processChoice}

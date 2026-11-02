@@ -6,6 +6,7 @@ import {
   type BatchVerb,
 } from "../lib/session-batch-feedback";
 import { useQueryClient } from "@tanstack/react-query";
+
 import { useRef, useState } from "react";
 import { toast } from "@compozy/ui";
 
@@ -17,6 +18,16 @@ import {
 } from "../lib/session-batch";
 
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
+import {
+  readArchivedDescendants,
+  readSessionChoiceTargets,
+  sessionBatchCoverage,
+  sessionChildrenChoice,
+  sessionChildrenScope,
+  sessionTreeBatchOrder,
+  type SessionChildrenScope,
+  type SessionTrees,
+} from "../lib/session-tree";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import type { SessionPayload } from "../types";
 import {
@@ -27,110 +38,30 @@ import {
   useUnarchiveSession,
 } from "./use-session-actions";
 import { useCurrentDeleteSessions } from "./use-current-delete-sessions";
+import { useSessionDeleteTrees } from "./use-session-delete-trees";
+import {
+  archiveTarget,
+  descendantsOf,
+  sessionArchiveChoiceState,
+  reportActionError,
+  reportDeletedSessions,
+  settleTreeTarget,
+} from "./session-lifecycle-helpers";
 import { useSessionReparent } from "./use-session-reparent";
-import { useSessionLaterActions, type SessionLaterConfirmation } from "./use-session-later-actions";
+import { useSessionLaterActions } from "./use-session-later-actions";
+import type {
+  SessionLifecycleAction,
+  UseSessionLifecycleActionsResult,
+} from "./session-lifecycle-types";
 
-export type SessionLifecycleAction =
-  | "rename"
-  | "stop"
-  | "archive"
-  | "unarchive"
-  | "delete"
-  | "later"
-  | "back-from-later";
-
-export interface SessionLifecycleActionHandlers {
-  pendingAction: SessionLifecycleAction | null;
-  pendingSessionId: string | null;
-  onStop: (session: SessionPayload) => void;
-  onRename: (session: SessionPayload) => void;
-  onArchive: (session: SessionPayload) => void;
-  onUnarchive: (session: SessionPayload) => void;
-  onDelete: (session: SessionPayload) => void;
-  onStopMany?: (sessions: readonly SessionPayload[]) => void;
-  onArchiveMany?: (sessions: readonly SessionPayload[]) => void;
-  onUnarchiveMany?: (sessions: readonly SessionPayload[]) => void;
-  /** Opens Move to Later; absent where the host renders no Later dialog. */
-  onMoveToLater?: (session: SessionPayload) => void;
-  onMoveToLaterMany?: (sessions: readonly SessionPayload[]) => void;
-  onBackFromLater?: (session: SessionPayload) => void;
-  onBackFromLaterMany?: (sessions: readonly SessionPayload[]) => void;
-  onDeleteMany?: (
-    sessions: readonly SessionPayload[],
-    onSelectionChange?: (remainingIds: readonly string[]) => void
-  ) => void;
-  /** Nests a top-level session under `parent` (dropped onto its row); absent where unsupported. */
-  /** Loaded rows offered by the owning list as candidate parents. */
-  nestParents?: readonly SessionPayload[];
-  onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
-  /** Returns a nested child to the top level; the row menu's Make top-level. */
-  onMakeTopLevel?: (session: SessionPayload) => void;
-}
-
-export interface SessionDeleteConfirmation {
-  sessions?: readonly SessionPayload[];
-  results?: readonly SessionBatchResult[];
-  onRetry?: () => void;
-  open: boolean;
-  session: SessionPayload | null;
-  isDeleting: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** `processes` answers what happens to running processes; absent when none run. */
-  onConfirm: (processes?: SessionProcessPolicy) => void;
-}
-
-/**
- * The stop/archive question a list asks while its targets have processes
- * running: stop them too, keep them, or cancel. Hosts render it with
- * `SessionProcessChoiceDialog`.
- */
-export interface SessionProcessChoiceConfirmation {
-  open: boolean;
-  action: "stop" | "archive";
-  sessionCount: number;
-  processCount: number;
-  ports: readonly number[];
-  onOpenChange: (open: boolean) => void;
-  onChoose: (processes: SessionProcessPolicy) => void;
-}
-
-export interface SessionRenameConfirmation {
-  open: boolean;
-  session: SessionPayload | null;
-  isRenaming: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: (name: string) => void;
-}
-
-export interface UseSessionLifecycleActionsResult {
-  actions: SessionLifecycleActionHandlers;
-  batchResults: readonly SessionBatchResult[];
-  deleteDialog: SessionDeleteConfirmation;
-  processDialog: SessionProcessChoiceConfirmation;
-  renameDialog: SessionRenameConfirmation;
-  laterDialog: SessionLaterConfirmation;
-}
-
-/**
- * Archive always uses the daemon's stop-first operation: a live session stops
- * first, and a stopped parent whose subagent session is still live (until the
- * reaper stops it) archives too. A fully stopped family archives as before.
- */
-function archiveTarget(session: SessionPayload, processes?: SessionProcessPolicy) {
-  return { ...session, stop: true, ...(processes ? { processes } : {}) };
-}
-
-/** Preserve the daemon message, falling back only when the failure has no useful text. */
-function reportActionError(action: SessionLifecycleAction, error: unknown): void {
-  const fallback = `Failed to ${action} session.`;
-  toast.error(error instanceof Error && error.message ? error.message : fallback);
-}
-
-/** Report all successful deletes once, when the result dialog closes. */
-function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
-  const count = results.filter(result => result.status === "done").length;
-  if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
-}
+export type {
+  SessionDeleteConfirmation,
+  SessionLifecycleAction,
+  SessionLifecycleActionHandlers,
+  SessionProcessChoiceConfirmation,
+  SessionRenameConfirmation,
+  UseSessionLifecycleActionsResult,
+} from "./session-lifecycle-types";
 
 /**
  * Owns the mutation and confirmation state behind session-list lifecycle menus.
@@ -162,17 +93,30 @@ export function useSessionLifecycleActions(
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useRef(false);
   const deleteConfirmation = useRef(0);
+  const [deleteChildren, setDeleteChildren] = useState(false);
   const deleteSessions = useCurrentDeleteSessions(
     deleteTarget?.sessions,
     deleteTarget?.openedAt ?? Infinity
   );
   const deleteSession = deleteSessions?.[0] ?? null;
+  // A target the batch already deleted has no tree left to read or to ask about.
+  const remainingDeleteTargets = deleteTarget?.sessions.filter(
+    session => !batchResults.some(result => result.id === session.id && result.status === "done")
+  );
+  const deleteRead = useSessionDeleteTrees(remainingDeleteTargets);
+  const deleteTrees = deleteRead.trees;
+  const deleteScope = sessionChildrenScope("delete", remainingDeleteTargets ?? [], deleteTrees);
+  // Only what the dialog shows is sent: with no choice on screen, a delete stays single-session.
+  const includedDeleteTrees =
+    deleteChildren && deleteScope.members.length > 0 ? deleteTrees : undefined;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
   const [processChoice, setProcessChoice] = useState<{
     action: "stop" | "archive";
     sessions: readonly SessionPayload[];
-    run: (processes: SessionProcessPolicy) => void;
+    scope?: SessionChildrenScope;
+    run: (processes?: SessionProcessPolicy, withChildren?: boolean) => void;
   } | null>(null);
+  const [archiveChildren, setArchiveChildren] = useState(true);
   // The answer a delete got, so a retry of its failures repeats it.
   const deletePolicy = useRef<SessionProcessPolicy | undefined>(undefined);
 
@@ -199,32 +143,52 @@ export function useSessionLifecycleActions(
     laterSessionId: later.pendingSessionId,
   });
 
+  /** A host's follow-up failing does not undo an archive the daemon confirmed. */
+  const notifyArchived = async (session: SessionPayload, trees?: SessionTrees) => {
+    const children = await readArchivedDescendants(queryClient, trees?.get(session.id) ?? []);
+    const results = await Promise.allSettled(
+      [session, ...children].map(target => onArchiveSuccess?.(target))
+    );
+    for (const result of results) {
+      if (result.status === "rejected") reportActionError("archive", result.reason);
+    }
+  };
+
   /** Lock lifecycle controls until the sequential batch has settled every target. */
   const runBatch = async (
     action: "stop" | "archive" | "unarchive" | "delete",
     sessions: readonly SessionPayload[],
     previous: readonly SessionBatchResult[] = [],
     processes?: SessionProcessPolicy,
-    readErrors: ReadonlyMap<string, unknown> = new Map()
+    readErrors: ReadonlyMap<string, unknown> = new Map(),
+    trees?: SessionTrees
   ): Promise<SessionBatchResult[] | null> => {
     const policy = processes ? { processes } : {};
     if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
     batchRunning.current = true;
     setBatchAction(action);
+    const coveredBy = sessionBatchCoverage(action, sessions, trees);
     return runSessionBatch({
       action,
-      ids: sessions.map(session => session.id),
+      ids: sessionTreeBatchOrder(sessions, coveredBy).map(session => session.id),
       previous,
       onProgress: setBatchResults,
       execute: async id => {
+        const session = sessions.find(candidate => candidate.id === id)!;
+        if (action === "delete" || action === "archive") {
+          await settleTreeTarget(action, coveredBy.has(id), async () => {
+            if (readErrors.has(id)) throw readErrors.get(id);
+            if (action === "delete")
+              await remove.mutateAsync({ ...session, ...policy, ...descendantsOf(session, trees) });
+            else {
+              await archive.mutateAsync(archiveTarget(session, processes, trees));
+              await notifyArchived(session, trees);
+            }
+          });
+          return;
+        }
         if (readErrors.has(id)) throw readErrors.get(id);
-        if (action === "delete")
-          await remove.mutateAsync({ ...sessions.find(session => session.id === id)!, ...policy });
-        else if (action === "archive") {
-          const session = sessions.find(candidate => candidate.id === id)!;
-          await archive.mutateAsync(archiveTarget(session, processes));
-          await onArchiveSuccess?.(session);
-        } else if (action === "unarchive")
+        if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
           const outcome = await stop.mutateAsync({
@@ -259,8 +223,12 @@ export function useSessionLifecycleActions(
       if (skipNote) toast.info(`No sessions ${batchVerbPast(action)}`, { description: skipNote });
       return;
     }
-    const run = (processes?: SessionProcessPolicy, readErrors?: ReadonlyMap<string, unknown>) => {
-      void runBatch(action, eligible, [], processes, readErrors).then(results => {
+    const run = (
+      processes?: SessionProcessPolicy,
+      readErrors?: ReadonlyMap<string, unknown>,
+      trees?: SessionTrees
+    ) => {
+      void runBatch(action, eligible, [], processes, readErrors, trees).then(results => {
         if (results) reportBatch(action, results, eligible, skipped);
       });
     };
@@ -271,12 +239,17 @@ export function useSessionLifecycleActions(
   /**
    * Stop and archive ask first while their targets have processes running;
    * at zero they run as they always did, with the daemon default (keep).
+   * Archive also asks while its targets have child sessions to include.
    */
   const checkingProcesses = useRef(false);
   const askAboutProcesses = (
     action: "stop" | "archive",
     sessions: readonly SessionPayload[],
-    run: (processes?: SessionProcessPolicy, readErrors?: ReadonlyMap<string, unknown>) => void
+    run: (
+      processes?: SessionProcessPolicy,
+      readErrors?: ReadonlyMap<string, unknown>,
+      trees?: SessionTrees
+    ) => void
   ) => {
     if (
       sessions.length === 0 ||
@@ -287,12 +260,17 @@ export function useSessionLifecycleActions(
     )
       return;
     checkingProcesses.current = true;
-    void readCurrentSessions(queryClient, sessions)
-      .then(currentSessions => {
-        const runChecked = (processes?: SessionProcessPolicy) =>
-          run(processes, currentSessions.errors);
-        if (sessionsRunningProcesses(currentSessions.sessions) === 0) runChecked();
-        else setProcessChoice({ action, sessions: currentSessions.sessions, run: runChecked });
+    void readSessionChoiceTargets(queryClient, action, sessions)
+      .then(({ current, trees }) => {
+        const runChecked = (processes?: SessionProcessPolicy, withChildren = false) =>
+          run(processes, current.errors, withChildren ? trees : undefined);
+        const scope = sessionChildrenScope("archive", current.sessions, trees);
+        if (sessionsRunningProcesses(current.sessions) === 0 && scope.members.length === 0) {
+          runChecked();
+          return;
+        }
+        setArchiveChildren(true);
+        setProcessChoice({ action, sessions: current.sessions, scope, run: runChecked });
       })
       .catch(error => reportActionError(action, error))
       .finally(() => {
@@ -315,7 +293,8 @@ export function useSessionLifecycleActions(
       targets,
       batchResults,
       deletePolicy.current,
-      readErrors
+      readErrors,
+      includedDeleteTrees
     );
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
@@ -340,7 +319,7 @@ export function useSessionLifecycleActions(
     const { id } = deleteSession;
     const policy = deletePolicy.current ? { processes: deletePolicy.current } : {};
     remove.mutate(
-      { ...deleteSession, ...policy },
+      { ...deleteSession, ...policy, ...descendantsOf(deleteSession, includedDeleteTrees) },
       {
         onError: error => reportActionError("delete", error),
         onSuccess: () => {
@@ -395,6 +374,12 @@ export function useSessionLifecycleActions(
     );
   };
 
+  const { archiveChoice, processTargets } = sessionArchiveChoiceState(
+    processChoice,
+    archiveChildren,
+    setArchiveChildren
+  );
+
   return {
     batchResults,
     actions: {
@@ -411,10 +396,10 @@ export function useSessionLifecycleActions(
           )
         ),
       onArchive: session =>
-        void askAboutProcesses("archive", [session], processes =>
-          archive.mutate(archiveTarget(session, processes), {
+        void askAboutProcesses("archive", [session], (processes, _readErrors, trees) =>
+          archive.mutate(archiveTarget(session, processes, trees), {
             onError: error => reportActionError("archive", error),
-            onSuccess: () => void onArchiveSuccess?.(session),
+            onSuccess: () => void notifyArchived(session, trees),
           })
         ),
       onUnarchive: session =>
@@ -423,6 +408,7 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current) {
           deleteConfirmation.current++;
           deletePolicy.current = undefined;
+          setDeleteChildren(false);
           setBatchResults([]);
           setDeleteTarget({ sessions: [session], bulk: false, openedAt: Date.now() });
         }
@@ -437,6 +423,7 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
           deleteConfirmation.current++;
           deletePolicy.current = undefined;
+          setDeleteChildren(false);
           setBatchResults([]);
           setDeleteTarget({
             sessions: [...sessions],
@@ -453,6 +440,10 @@ export function useSessionLifecycleActions(
       sessions: deleteSessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
+      childSessions: sessionChildrenChoice(deleteScope, deleteChildren, setDeleteChildren, {
+        pending: !deleteRead.settled,
+        onRetry: deleteRead.onRetry,
+      }),
       onOpenChange: open => {
         if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
           deleteConfirmation.current++;
@@ -472,15 +463,16 @@ export function useSessionLifecycleActions(
       open: processChoice !== null,
       action: processChoice?.action ?? "stop",
       sessionCount: processChoice?.sessions.length ?? 0,
-      processCount: sessionsRunningProcesses(processChoice?.sessions ?? []),
-      ports: (processChoice?.sessions ?? []).flatMap(session => sessionProcessPorts(session)),
+      processCount: sessionsRunningProcesses(processTargets),
+      ports: processTargets.flatMap(session => sessionProcessPorts(session)),
+      childSessions: archiveChoice,
       onOpenChange: open => {
         if (!open) setProcessChoice(null);
       },
       onChoose: processes => {
         const choice = processChoice;
         setProcessChoice(null);
-        choice?.run(processes);
+        choice?.run(processes, archiveChoice?.included ?? false);
       },
     },
     laterDialog: later.laterDialog,

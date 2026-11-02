@@ -121,11 +121,15 @@ func (c *daemonClient) ArchiveSession(
 	ctx context.Context,
 	id string,
 	stop bool,
+	withChildren bool,
 	processes contract.SessionProcessPolicy,
 ) (SessionRecord, error) {
 	query := url.Values{}
 	if processes != "" {
 		query.Set("processes", string(processes))
+	}
+	if withChildren {
+		query.Set("with_children", strconv.FormatBool(withChildren))
 	}
 	if stop {
 		query.Set("stop", strconv.FormatBool(stop))
@@ -154,7 +158,12 @@ func (c *daemonClient) setSessionArchived(
 	return response.Session, nil
 }
 
-func (c *daemonClient) DeleteSession(ctx context.Context, id string, processes contract.SessionProcessPolicy) error {
+func (c *daemonClient) DeleteSession(
+	ctx context.Context,
+	id string,
+	withChildren bool,
+	processes contract.SessionProcessPolicy,
+) error {
 	path, err := c.sessionScopedPath(ctx, id, "")
 	if err != nil {
 		return err
@@ -162,6 +171,9 @@ func (c *daemonClient) DeleteSession(ctx context.Context, id string, processes c
 	query := url.Values{}
 	if processes != "" {
 		query.Set("processes", string(processes))
+	}
+	if withChildren {
+		query.Set("with_children", strconv.FormatBool(withChildren))
 	}
 	return c.doJSON(
 		ctx,

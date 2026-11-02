@@ -370,11 +370,12 @@ func (c *Client) ArchiveProfile(ctx context.Context, params ArchiveProfileParams
 
 // ArchiveSessionParams carries the path, query, and header parameters.
 type ArchiveSessionParams struct {
-	Processes   *string `url:"processes"`
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Stop        *bool   `url:"stop"`
-	Profile     *string `url:"profile"`
+	Processes    *string `url:"processes"`
+	WorkspaceID  string  `url:"workspace_id"`
+	SessionID    string  `url:"session_id"`
+	Stop         *bool   `url:"stop"`
+	WithChildren *bool   `url:"with_children"`
+	Profile      *string `url:"profile"`
 }
 
 // ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
@@ -388,6 +389,9 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	if params.Stop != nil {
 		query.Set("stop", strconv.FormatBool(*params.Stop))
+	}
+	if params.WithChildren != nil {
+		query.Set("with_children", strconv.FormatBool(*params.WithChildren))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -440,10 +444,4 @@ func (c *Client) ArchiveWorkspace(ctx context.Context, params ArchiveWorkspacePa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// AttachSessionParams carries the path, query, and header parameters.
-type AttachSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

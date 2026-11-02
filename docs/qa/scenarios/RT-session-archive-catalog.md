@@ -68,3 +68,15 @@ composer is one way back (RT-session-later).
 Native archival refusals (#1012): a subagent child returns `subagent_archive_follows_parent` through both CLI and native tools. A runtime-detached but lifecycle-active session returns `session_archive_requires_stopped`. After stopping, native archive succeeds. Verify retained state after each refusal.
 
 The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.
+
+## Child sessions — #1130
+
+Create a parent with a stopped child and a live grandchild (`compozy session new --parent <id>`),
+plus a session continued from the parent. `compozy session archive <parent>` leaves every child
+active and listed under the top level. `compozy session archive <parent> --stop --with-children`
+stops the grandchild and archives the tree, while the continued session stays. A native
+`compozy__session_archive` with `with_children: true` from inside the tree is denied.
+`GET .../sessions/<parent>/descendants` lists the tree whatever the catalog filter or page.
+A stop that fails archives nothing and reports `session_archive_stop_failed`. Unarchiving the parent
+leaves non-subagent children archived; restore them one by one. In the web, archive shows a
+confirmation only when the target has children, with the checkbox checked and the count.
