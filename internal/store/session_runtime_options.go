@@ -68,7 +68,7 @@ func (m *SessionMeta) SetACPOptions(selections []SessionACPOptionSelection) {
 }
 
 // ACPOptionsValue returns the indexed session option selections.
-func (s SessionInfo) ACPOptionsValue() []SessionACPOptionSelection {
+func (s *SessionInfo) ACPOptionsValue() []SessionACPOptionSelection {
 	if s.SessionRuntimeDetails == nil {
 		return nil
 	}
@@ -94,7 +94,7 @@ func (m *SessionMeta) SetRuntimeRecovery(recovery *SessionRuntimeRecovery) {
 }
 
 // RuntimeRecoveryValue returns independent indexed recovery metadata.
-func (s SessionInfo) RuntimeRecoveryValue() *SessionRuntimeRecovery {
+func (s *SessionInfo) RuntimeRecoveryValue() *SessionRuntimeRecovery {
 	if s.SessionRuntimeDetails == nil {
 		return nil
 	}

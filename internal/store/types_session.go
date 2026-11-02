@@ -130,7 +130,7 @@ func (f SessionArchiveFilter) Validate() error {
 }
 
 // Validate accepts persisted Global sessions without a workspace and validates their remaining identity.
-func (s SessionInfo) Validate() error {
+func (s *SessionInfo) Validate() error {
 	if err := requireField(s.ID, "session id"); err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func validateSessionStopReason(reason StopReason) error {
 // EventSummary is the global, cross-session observability record for one event.
 
 // AttachedToValue returns the optional attach owner without exposing nil embedding details.
-func (s SessionInfo) AttachedToValue() string {
+func (s *SessionInfo) AttachedToValue() string {
 	if s.SessionAttachState == nil {
 		return ""
 	}
@@ -406,7 +406,7 @@ func (s SessionInfo) AttachedToValue() string {
 }
 
 // AttachExpiresAtValue returns the optional attach expiry without exposing nil embedding details.
-func (s SessionInfo) AttachExpiresAtValue() *time.Time {
+func (s *SessionInfo) AttachExpiresAtValue() *time.Time {
 	if s.SessionAttachState == nil {
 		return nil
 	}

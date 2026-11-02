@@ -148,7 +148,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info valid",
 			validate: func() error {
-				return (SessionInfo{
+				return (&SessionInfo{
 					ID:            "sess-1",
 					AgentName:     "coder",
 					WorkspaceID:   "ws-1",
@@ -161,14 +161,14 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info invalid",
 			validate: func() error {
-				return (SessionInfo{}).Validate()
+				return (&SessionInfo{}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "Should reject SessionInfo without a runtime status",
 			validate: func() error {
-				return (SessionInfo{
+				return (&SessionInfo{
 					ID:          "sess-1",
 					AgentName:   "coder",
 					WorkspaceID: "ws-1",
@@ -182,21 +182,21 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "session info missing agent",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", RuntimeStatus: SessionRuntimeReady}).Validate()
+				return (&SessionInfo{ID: "sess-1", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "session info missing workspace",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", RuntimeStatus: SessionRuntimeReady}).Validate()
+				return (&SessionInfo{ID: "sess-1", AgentName: "coder", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
 		{
 			name: "session info missing state",
 			validate: func() error {
-				return (SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", RuntimeStatus: SessionRuntimeReady}).Validate()
+				return (&SessionInfo{ID: "sess-1", AgentName: "coder", WorkspaceID: "ws-1", RuntimeStatus: SessionRuntimeReady}).Validate()
 			},
 			wantError: true,
 		},
@@ -244,7 +244,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "Should reject failed session metadata without failure evidence",
 			validate: func() error {
-				return (SessionInfo{
+				return (&SessionInfo{
 					ID:                "sess-1",
 					AgentName:         "coder",
 					WorkspaceID:       "ws-1",
