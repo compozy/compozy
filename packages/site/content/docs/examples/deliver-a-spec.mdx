@@ -117,7 +117,7 @@ happens after that, such as opening a pull request. Without them, you get a veri
 | ----------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
 | The conductor proposes a `_slices.md`     | The spec had no slices file              | Review the proposal and accept it so dispatch can start     |
 | It reports another active owner and stops | A conductor is already running this spec | Keep that session, or stop it before starting a replacement |
-| `agent_not_found` for `spec_conductor`    | `spec-cycle` is disabled                 | Enable the extension, then start the session again          |
+| A not found error for `spec_conductor`    | `spec-cycle` is disabled                 | Enable the extension, then start the session again          |
 
 ## Next steps
 

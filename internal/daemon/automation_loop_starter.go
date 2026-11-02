@@ -249,7 +249,8 @@ func automationStartKindToLoopStartKind(kind automationpkg.LoopStartKind) (loopd
 	}
 }
 
-// Only removed dependencies are deferred during saved automation loading.
+// Only removed dependencies are deferred during saved automation loading. This
+// has no removal release: a saved definition stays invalid forever without it.
 func classifyRetiredLoopTarget(err error) error {
 	failure, ok := errors.AsType[*looppkg.LintFailedError](err)
 	if !ok || len(failure.Errors) == 0 {

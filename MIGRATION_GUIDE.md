@@ -54,7 +54,7 @@ compozy session prompt <main-session-id> "Fix the login redirect on expired sess
   its own run fails with a clear error. Sessions on a removed agent stay readable, and resuming one
   fails with a clear error.
 - **Loop overrides stay.** A stored override for a removed Loop is kept and never read.
-- **Active runs finish.** A Loop run active during the upgrade continues from its saved definition.
+- **Removed Loop runs stop.** A run of a removed Loop that is active during the upgrade fails at its first removed step with a clear error. Its history stays, and other runs are unaffected.
 - **Same-name workspace Loops keep working.** Only the bundled definitions left.
 - **Stays-on instances pause.** An instance of a removed agent pauses as `definition_missing`.
 - **Batuta leaves the catalog.** An installed copy keeps loading, and only `batuta-deliver` fails when
