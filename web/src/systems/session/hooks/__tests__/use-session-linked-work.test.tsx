@@ -79,7 +79,11 @@ function openDialog() {
   const { wrapper } = harness();
   sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
   return render(
-    <SessionLinkDialogHost sessionId={session.id} workspaceId={WORKSPACE} workspaceName="compozy" />,
+    <SessionLinkDialogHost
+      sessionId={session.id}
+      workspaceId={WORKSPACE}
+      workspaceName="compozy"
+    />,
     { wrapper }
   );
 }
@@ -160,6 +164,71 @@ describe("useSessionLinkedWork", () => {
         pr_number: 951,
       })
     );
+  });
+
+  it("Should toast and undo every unlink of a burst", async () => {
+    const answers = new Map<string, (value: { items: typeof items }) => void>();
+    vi.mocked(removeSessionWorkLink).mockImplementation(
+      (_workspace, _session, request) =>
+        new Promise(resolve => answers.set(request.branch, resolve))
+    );
+    vi.mocked(addSessionWorkLink).mockResolvedValue({ items });
+    const { wrapper } = harness();
+    const { result } = renderHook(
+      () => useSessionLinkedWork({ session, workspaceId: WORKSPACE, enabled: true }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(4));
+
+    act(() => result.current.unlink(first!));
+    await waitFor(() => expect(answers.has(first!.branch)).toBe(true));
+    act(() => result.current.unlink(second!));
+    await waitFor(() => expect(answers.has(second!.branch)).toBe(true));
+    await act(async () => answers.get(first!.branch)?.({ items: items.slice(2) }));
+    await act(async () => answers.get(second!.branch)?.({ items: items.slice(2) }));
+
+    await waitFor(() => expect(toast.message).toHaveBeenCalledTimes(2));
+    const calls = vi.mocked(toast.message).mock.calls;
+    expect(calls.map(([title]) => title)).toEqual(["Unlinked #951", "Unlinked #948"]);
+    const undo = calls[0]?.[1]?.action as { onClick: () => void };
+    act(() => undo.onClick());
+    await waitFor(() =>
+      expect(addSessionWorkLink).toHaveBeenCalledWith(
+        WORKSPACE,
+        session.id,
+        expect.objectContaining({ branch: first!.branch })
+      )
+    );
+  });
+
+  it("Should settle on the daemon's list when one unlink of a burst fails", async () => {
+    const answers = new Map<
+      string,
+      { resolve: (value: { items: typeof items }) => void; reject: (cause: Error) => void }
+    >();
+    vi.mocked(removeSessionWorkLink).mockImplementation(
+      (_workspace, _session, request) =>
+        new Promise((resolve, reject) => answers.set(request.branch, { resolve, reject }))
+    );
+    const { client, wrapper } = harness();
+    const { result } = renderHook(
+      () => useSessionLinkedWork({ session, workspaceId: WORKSPACE, enabled: true }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(4));
+
+    act(() => result.current.unlink(first!));
+    await waitFor(() => expect(answers.has(first!.branch)).toBe(true));
+    act(() => result.current.unlink(second!));
+    await waitFor(() => expect(answers.has(second!.branch)).toBe(true));
+    const remaining = items.filter(item => item !== second);
+    await act(async () => answers.get(second!.branch)?.resolve({ items: remaining }));
+    vi.mocked(fetchSessionLinkedWork).mockResolvedValue({ items: remaining });
+    await act(async () => answers.get(first!.branch)?.reject(new SessionApiError("no", 500)));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Couldn't unlink #951."));
+    await waitFor(() => expect(list(client)?.items).toEqual(remaining));
+    expect(toast.message).toHaveBeenCalledTimes(1);
   });
 
   it("Should restore the whole envelope when the unlink fails", async () => {

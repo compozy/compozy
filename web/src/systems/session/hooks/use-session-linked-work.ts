@@ -21,18 +21,22 @@ import { sessionLinkedWorkOptions } from "../lib/session-linked-work-options";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import type { SessionPayload } from "../types";
 
-/** The two list writes: the response replaces the list, and the catalog rereads its summary. */
+/**
+ * The two list writes: the response replaces the list, and the catalog rereads its summary. An
+ * unlink says how it went from here, not from the caller: `mutate` keeps only the latest call's
+ * callbacks, and a burst must not lose an earlier row's toast and Undo.
+ */
 export function useSessionLinkMutations(workspaceId: string, sessionId: string) {
   const queryClient = useQueryClient();
   const queryKey = sessionKeys.linkedWork(workspaceId, sessionId);
-  const settle = (response: SessionLinkedWorkResponse) => {
-    queryClient.setQueryData(queryKey, response);
-    return invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
-  };
+  const reread = () => invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
   const add = useMutation({
     mutationFn: (request: SessionWorkLinkRequest) =>
       addSessionWorkLink(workspaceId, sessionId, request),
-    onSuccess: settle,
+    onSuccess: response => {
+      queryClient.setQueryData(queryKey, response);
+      return reread();
+    },
   });
   const remove = useMutation({
     mutationFn: (item: SessionLinkedWorkItem) =>
@@ -53,10 +57,26 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
       }
       return { previous };
     },
-    onError: (_error, _item, context) => {
+    onError: (_error, item, context) => {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      toast.error(`Couldn't unlink ${linkShortName(item)}.`);
     },
-    onSuccess: settle,
+    onSuccess: (response, item) => {
+      queryClient.setQueryData(queryKey, response);
+      toast.message(`Unlinked ${linkShortName(item)}`, {
+        description: linkUnlinkedNote(item),
+        action: {
+          label: "Undo",
+          onClick: () => {
+            add.mutateAsync(linkRequest(item)).catch(() => {
+              toast.error(`Couldn't link ${linkShortName(item)} again.`);
+            });
+          },
+        },
+      });
+    },
+    // A snapshot predates the unlinks after it, so only the daemon's list can settle a burst.
+    onSettled: reread,
   });
   return { add, remove };
 }
@@ -91,31 +111,9 @@ export function useSessionLinkedWork({
     ...sessionLinkedWorkOptions(workspaceId, session.id),
     enabled: enabled && !!session.id,
   });
-  const { add, remove } = useSessionLinkMutations(workspaceId, session.id);
+  const { remove } = useSessionLinkMutations(workspaceId, session.id);
   const summary = session.linked_work;
   const items = list.data?.items ?? (summary?.lead ? [summary.lead] : []);
-
-  const unlink = (item: SessionLinkedWorkItem) => {
-    remove.mutate(item, {
-      onSuccess: () => {
-        toast.message(`Unlinked ${linkShortName(item)}`, {
-          description: linkUnlinkedNote(item),
-          action: {
-            label: "Undo",
-            onClick: () =>
-              add.mutate(linkRequest(item), {
-                onError: () => {
-                  toast.error(`Couldn't link ${linkShortName(item)} again.`);
-                },
-              }),
-          },
-        });
-      },
-      onError: () => {
-        toast.error(`Couldn't unlink ${linkShortName(item)}.`);
-      },
-    });
-  };
 
   return {
     items,
@@ -129,6 +127,6 @@ export function useSessionLinkedWork({
       setRefreshing(true);
       void list.refetch().finally(() => setRefreshing(false));
     },
-    unlink,
+    unlink: item => remove.mutate(item),
   };
 }
