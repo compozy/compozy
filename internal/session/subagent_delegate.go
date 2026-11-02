@@ -347,8 +347,7 @@ func (s *subagentService) reserveDelegation(
 		Isolation: req.Isolation, ID: id, WorkspaceID: req.Caller.WorkspaceID, ParentSessionID: req.Caller.SessionID,
 		ParentTurnID: req.Caller.TurnID, ParentToolCallID: req.Caller.ToolCallID,
 		Origin: store.SubagentOriginDelegated, IdempotencyKey: req.IdempotencyKey, RequestFingerprint: fingerprint,
-		Title: req.Title, Role: req.Role, TaskChars: int32(utf8.RuneCountInString(req.Task)), //nolint:gosec // task is capped far below 2^31
-		PendingTask:  &req.Task,
+		Title: req.Title, Role: req.Role, TaskChars: taskChars, PendingTask: &req.Task,
 		RuntimeAgent: target.Agent, RuntimeProvider: target.Provider, RuntimeModel: target.Model,
 		RuntimeEffort: target.ReasoningEffort, RuntimeSpeed: target.Speed, Depth: depth + 1,
 		Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,

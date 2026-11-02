@@ -4736,6 +4736,7 @@ func addSubagentUsage(node any) int {
 			properties["subagent_id"] != nil && properties["work_state"] != nil {
 			properties["usage"] = map[string]any{
 				"type":     "object",
+				"nullable": true,
 				"required": []any{"tool_uses", "total_tokens"},
 				"properties": map[string]any{
 					"total_tokens": map[string]any{"type": "integer", "format": "int64"},
