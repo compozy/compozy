@@ -41,7 +41,7 @@ func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error
 		RequestFingerprint: row.RequestFingerprint,
 		Title:              row.Title,
 		Role:               row.Role,
-		TaskChars:          int(row.TaskChars),
+		TaskChars:          int32(row.TaskChars), //nolint:gosec // written from an int32
 		PendingTask:        subagentStringPointer(row.PendingTask),
 		RuntimeAgent:       row.RuntimeAgent,
 		RuntimeProvider:    row.RuntimeProvider,
@@ -60,9 +60,7 @@ func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error
 		WakeMessageID:      subagentStringPointer(row.WakeMessageID),
 		AcknowledgedTurnID: row.AcknowledgedTurnID,
 	}
-	if row.UsageTotalTokens.Valid || row.UsageToolUses.Valid {
-		out.Usage = &store.SubagentUsage{TotalTokens: row.UsageTotalTokens.Int64, ToolUses: row.UsageToolUses.Int64}
-	}
+	out.Usage = subagentUsage(row.UsageTotalTokens, row.UsageToolUses)
 	var err error
 	if out.ChildActivity, err = store.ParseSubagentChildActivity(row.ChildActivity); err != nil {
 		return out, err
@@ -187,4 +185,11 @@ func subagentInsertParams(row store.SessionSubagent) sqlcgen.ReserveSubagentPara
 		CreatedAt:              store.FormatTimestamp(row.CreatedAt),
 		UpdatedAt:              store.FormatTimestamp(row.UpdatedAt),
 	}
+}
+
+func subagentUsage(tokens, tools sql.NullInt64) *store.SubagentUsage {
+	if !tokens.Valid && !tools.Valid {
+		return nil
+	}
+	return &store.SubagentUsage{TotalTokens: tokens.Int64, ToolUses: tools.Int64}
 }

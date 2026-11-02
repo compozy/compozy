@@ -1618,7 +1618,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 			ParentTurnID: caller.TurnID, ParentToolCallID: caller.ToolCallID,
 			Origin: store.SubagentOriginDelegated, IdempotencyKey: "first-admission",
 			RequestFingerprint: "first-admission", Title: "Recover first admission", Role: "general",
-			TaskChars: len("slow child"), PendingTask: new("slow child"),
+			TaskChars: int32(len("slow child")), PendingTask: new("slow child"),
 			RuntimeAgent: "subagent-test", RuntimeProvider: acpmock.ProviderName,
 			Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,
 			WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryNone,

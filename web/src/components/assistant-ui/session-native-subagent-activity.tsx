@@ -16,14 +16,21 @@ import { SessionTimelineRows } from "./session-timeline-render";
 export function SessionNativeSubagentActivity({
   subagent,
   workspaceId,
+  embedded = false,
 }: {
   subagent: SubagentView;
   workspaceId: string;
+  /** Inside the subagent's own panel, the launching call only repeats the panel's header. */
+  embedded?: boolean;
 }) {
   const transcript = useSessionTranscriptThreadState();
   const store = useStore(timelineRowLogic, undefined);
   const expansion = useSelector(store, snapshot => snapshot.context);
-  const { prompt, activity, hasInvocation } = nativeActivity(transcript.messages, subagent.id);
+  const { prompt, activity, hasInvocation } = nativeActivity(
+    transcript.messages,
+    subagent.id,
+    embedded
+  );
   const { hasOlder, isFetchingOlder, isError, loadOlder } = transcript;
   useEffect(() => {
     if (!hasInvocation && hasOlder && !isFetchingOlder && !isError) void loadOlder();
@@ -59,7 +66,7 @@ export function SessionNativeSubagentActivity({
   );
 }
 
-function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) {
+function nativeActivity(messages: readonly ThreadMessage[], subagentId: string, embedded: boolean) {
   const parts = messages.flatMap(toTimelineParts);
   const owner = parts.map(subagentPartData).find(part => part?.subagent_id === subagentId);
   const toolId = owner?.tool_call_id;
@@ -72,7 +79,11 @@ function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) 
     )
   );
   const activity = toolId
-    ? parts.filter(part => descendsFrom(part.parentToolCallId, toolId, parents))
+    ? parts.filter(
+        part =>
+          (!embedded && part.kind === "tool" && part.toolCallId === toolId) ||
+          descendsFrom(part.parentToolCallId, toolId, parents)
+      )
     : [];
   return { prompt, activity, hasInvocation: call !== undefined };
 }

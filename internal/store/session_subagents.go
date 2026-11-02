@@ -136,7 +136,9 @@ type SessionSubagent struct {
 	RequestFingerprint string
 	Title              string
 	Role               string
-	TaskChars          int
+	// TaskChars and ResultTruncated share one word: the row sits at the hugeParam limit.
+	TaskChars       int32
+	ResultTruncated bool
 	// PendingTask holds the child's first-prompt text from reserve until the
 	// first prompt is admitted (MarkFirstPromptAdmitted clears it), so boot
 	// recovery can re-admit it. NULL afterwards; the task then lives in the
@@ -153,7 +155,6 @@ type SessionSubagent struct {
 	Progress           string
 	Result             *string
 	Error              *string
-	ResultTruncated    bool
 	ChildActivity      SubagentChildActivity
 	WakePolicy         string
 	Delivery           string

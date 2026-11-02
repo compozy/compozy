@@ -26,10 +26,12 @@ function SubagentTranscript({
   subagent,
   workspaceId,
   navigation,
+  embedded,
 }: {
   subagent: SubagentView;
   workspaceId: string;
   navigation: SubagentNavigation;
+  embedded: boolean;
 }) {
   const childId =
     subagent.origin === "provider_native"
@@ -72,6 +74,7 @@ function SubagentTranscript({
       >
         <SessionNativeSubagentActivity
           key={subagent.id}
+          embedded={embedded}
           subagent={subagent}
           workspaceId={workspaceId}
         />
@@ -105,14 +108,21 @@ function SubagentContent({
   subagent,
   workspaceId,
   navigation,
+  embedded = false,
 }: {
   subagent: SubagentView;
   workspaceId: string;
   navigation: SubagentNavigation;
+  embedded?: boolean;
 }) {
   return (
     <AuiProvider extends={null} config={AuiConfig({})}>
-      <SubagentTranscript subagent={subagent} workspaceId={workspaceId} navigation={navigation} />
+      <SubagentTranscript
+        embedded={embedded}
+        navigation={navigation}
+        subagent={subagent}
+        workspaceId={workspaceId}
+      />
     </AuiProvider>
   );
 }
@@ -225,6 +235,7 @@ export function SessionSubagentDrawer({
               subagent={subagent}
               workspaceId={workspaceId}
               navigation={{ openSession }}
+              embedded
             />
           </div>
         ),
