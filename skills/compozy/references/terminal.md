@@ -105,11 +105,12 @@ still fail with `terminal_exited`.
 Never wait on external work from a shell, inside or outside your turn. That covers CI, deploys, builds,
 release workflows, polling remote state, and delays. `gh pr checks --watch`, `gh run watch`, `sleep`,
 and `while`, `until`, or `for` polling loops keep the turn busy where CompozyOS cannot supervise them,
-and provider-internal background tasks and monitors cannot wake a CompozyOS session. Run the command with
-`exec`, with the executable in `command` and the rest in `args`:
+and provider-internal background tasks and monitors cannot wake a CompozyOS session. To wait on a pull
+request, register `compozy__monitor_create` with `kind="pull_request"` instead; no terminal is involved.
+For other work, run the command with `exec`, with the executable in `command` and the rest in `args`:
 
 ```json
-{ "command": "gh", "args": ["pr", "checks", "123", "--watch"] }
+{ "command": "gh", "args": ["run", "watch", "123", "--exit-status"] }
 ```
 
 When the result reports `still_running`, register `compozy__monitor_create` with `kind="terminal"` on
@@ -123,7 +124,8 @@ these waits in provider shells and the refusal names the exact replacement call.
 checks --watch`, `gh run watch`, `watch`, `tail -f`, a `sleep` of 5 seconds or more, and polling loops,
 including behind `timeout`, `env`, `nohup`, `bash -c`, or an absolute path such as `/bin/sleep`. A
 shorter `sleep`, `gh pr checks` without `--watch`, and text that only mentions these commands stay
-allowed. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell, including inside its
+allowed. A plain `gh pr checks --watch` is redirected to a `kind="pull_request"` monitor; one that selects
+another repository, or that depends on its directory or environment, is redirected to a terminal. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell, including inside its
 Agent subagents. Other providers have no such hook here: CompozyOS can only refuse a wait when the
 provider asks permission for a shell command or creates an ACP terminal. Codex runs sandbox-allowed
 commands without either step, so for Codex the runtime guidance is normally the only redirect. When

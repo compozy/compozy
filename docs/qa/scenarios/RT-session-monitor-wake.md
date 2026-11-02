@@ -27,7 +27,7 @@ story: As an operator I ask an agent to run something slow and report back, and 
 7. **Claude provider tools.** In a Claude session, Monitor, ScheduleWakeup, and CronCreate/CronDelete/CronList are absent; a Bash or PowerShell call with `run_in_background: true` is denied with guidance to use `compozy__terminal_exec` + `compozy__monitor_create`; a background Agent subagent still runs and returns inside its turn.
 8. **Operator visibility and cancel.** Register a 10-minute timer monitor and let the turn end. The session row's mark reads `monitoring` (amber radar), not `done`; the composer shows "Monitors, 1 active". Open the popover: the row shows the description and "Timer · fires in 10m". Click × : the row disappears, the button goes away, the list row returns to `done`, and no wake turn ever starts. `GET …/monitors` then reports the monitor as `canceled`.
 9. **Other profile and All profiles lens (#956).** With two profiles, give a session in the non-default profile an active monitor. Switch to All projects and the All profiles lens, open that session, and open the composer monitor popover: it lists the monitor instead of "Couldn't load monitors.". The list request carries `all_profiles=true`. Click × : the cancel request carries `profile=<owner>`, returns 200, and the button goes away. Without either selector the HTTP list still returns 404 for that session, and `all_profiles=true` on cancel returns 400. If the session itself is gone, the popover reads "This session is no longer available." and offers no retry.
-10. **Shell-wait redirect (#1122).** In a Claude session, ask for `gh pr checks <n> --watch`, `timeout 570 gh pr checks <n> --watch`, a `for … sleep 20` polling loop, and `/bin/sleep 6`. Each Bash call is denied before it runs and the reason names `compozy__terminal_exec` with the exact `command` and `args` plus `compozy__monitor_create` (`kind: "timer"` for the delay). `sleep 1`, `git log`, `gh pr checks <n>`, and `git commit -m "use gh run watch"` run. The redirected path works end to end: `terminal_exec` returns `still_running`, `monitor_create` registers on it, the turn ends, and a `monitor` wake arrives on exit. A session whose agent denies `compozy__monitor_create` or `compozy__terminal_exec` keeps a working `sleep 6`.
+10. **Shell-wait redirect (#1122).** In a Claude session, ask for `gh run watch <id>`, `timeout 570 gh run watch <id>`, a `for … sleep 20` polling loop, and `/bin/sleep 6`. Each Bash call is denied before it runs and the reason names `compozy__terminal_exec` with the exact `command` and `args` plus `compozy__monitor_create` (`kind: "timer"` for the delay). `gh pr checks <n> --watch` is denied with a `compozy__monitor_create` `kind: "pull_request"` call instead. `sleep 1`, `git log`, `gh pr checks <n>`, and `git commit -m "use gh run watch"` run. The redirected path works end to end: `terminal_exec` returns `still_running`, `monitor_create` registers on it, the turn ends, and a `monitor` wake arrives on exit. A session whose agent denies `compozy__monitor_create` or `compozy__terminal_exec` keeps a working `sleep 6`.
 11. **Long external wait and idempotent registration (#1128).** Start a terminal whose command polls an external condition for minutes (`terminal exec -- sh -c 'until [ -s <marker> ]; do sleep 2; done; echo done'`), have the agent register `compozy__monitor_create` on it twice with the same `terminal_id`, `until`, and `pattern`, and let the turn end. Expect one `active` monitor (the second call reports it already watches the condition), an idle session, and, once the condition flips and the process exits, exactly one `monitor` wake whose status line reads `exited with code 0`, followed by the agent's report. `monitor_list` then shows one `fired` monitor. A different `until` or `pattern` on the same terminal registers a separate monitor.
 
 12. **Durable monitors across a daemon restart (#1128).** In an isolated lab, register a 150 s timer and a terminal
@@ -39,6 +39,18 @@ story: As an operator I ask an agent to run something slow and report back, and 
     the monitors of a restart-interrupted session read `interrupted` with reason `owner_disabled` in
     `monitor_list` and over HTTP, and no wake or resume ever happens. Saved evidence:
     `docs/qa/reports/artifacts/2026-11-01-issue-1128/`.
+
+13. **Pull request monitor.** In an isolated lab with a forge that serves one open pull request on the session's
+    branch, have the agent call `compozy__monitor_create {kind:"pull_request", description:…}` on that branch. Expect
+    one `active` monitor with `branch` set; a second identical call reports it already watches the branch; a call on a
+    default branch is refused with `tool_invalid_input`. With checks pending, no wake arrives. When a check fails, a
+    `monitor` wake arrives within about a minute (metadata reason `monitor_pull_request_changed`, message id
+    `monitor:<id>:1`), naming the head and the failed check inside the `untrusted="true"` block, and the monitor returns
+    to `active` with `fire_count: 1`. When a new review arrives, a second wake (`monitor:<id>:2`) follows after 2 minutes
+    of quiet and names the author and state, with no review text. A push wakes nothing by itself. A daemon restart keeps
+    the monitor armed with its count, and a change during the downtime still wakes. Merging fires a final wake and
+    `monitor_list` shows `fired` with reason `pull_request_merged`. The Web composer popover shows "Pull request on
+    <branch>", and the transcript divider reads "Monitor fired · <description> · Pull request changed".
 
 Sessions Kanban regression (pending integrated re-walk): open a monitor immediately before the turn
 settles, without waiting for a supervision sweep. Read the session over CLI and HTTP: expect
@@ -74,3 +86,9 @@ and a restart-interrupted owner is readmitted only through the restart-continuat
 the monitor is `interrupted` (visible, no wake). Owning automated evidence: `TestServiceRecoversDurableMonitorsAfterRestart`,
 `TestServiceRecoveryHonorsOwnerAuthority`, `TestServiceDurabilityOfDecisions`, `TestResumeMonitorOwner`,
 `TestGlobalDBSessionMonitors`, and step 12.
+
+QA impact 2026-11-02 (`pull_request` monitor): a third monitor kind reads the forge through `PullRequestService`, stays
+armed across wakes on one durable row (migration `00173`), and wakes under `monitor:<id>:<seq>`. Terminal and timer
+monitors keep their exact behavior and message id. `gh pr checks --watch` now redirects to this kind. Owning automated
+evidence: `TestDetectPullRequest`, `TestServicePullRequestMonitor`, `TestServicePullRequestMonitorRestart`,
+`TestProviderGraphQL`, `TestMonitorPullRequestObservation`, `TestGlobalDBSessionMonitorKindMigration`, and step 13.

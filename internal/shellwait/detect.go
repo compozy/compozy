@@ -56,6 +56,8 @@ type Finding struct {
 	Exact bool
 	// DelaySeconds is the delay for KindSleep.
 	DelaySeconds int
+	// PullRequest marks a KindWatch on a pull request, which has a daemon-owned monitor of its own.
+	PullRequest bool
 }
 
 // Detect reports the first wait in a POSIX shell command line. An unparsable
@@ -176,7 +178,7 @@ func detectCall(argv []string, depth int) (Finding, bool) {
 		}
 	}
 	if isWatchCommand(argv) {
-		return Finding{Kind: KindWatch, Argv: argv}, true
+		return Finding{Kind: KindWatch, Argv: argv, PullRequest: isPullRequestWatch(argv)}, true
 	}
 	if seconds, known, ok := sleepSeconds(argv); ok && known && seconds >= MinDelaySeconds {
 		return Finding{Kind: KindSleep, DelaySeconds: clampDelay(seconds)}, true
@@ -300,6 +302,24 @@ func isWatchCommand(argv []string) bool {
 		return tailFollows(argv[1:])
 	}
 	return false
+}
+
+// isPullRequestWatch reports a checks watch on this workspace's repository; another repository, which a
+// pull_request monitor cannot select, keeps the terminal redirect.
+func isPullRequestWatch(argv []string) bool {
+	if executableName(argv[0]) != "gh" {
+		return false
+	}
+	positional := make([]string, 0, 2)
+	for _, arg := range argv[1:] {
+		switch {
+		case arg == "-R", arg == "--repo", strings.HasPrefix(arg, "--repo="):
+			return false
+		case !strings.HasPrefix(arg, "-") && len(positional) < 2:
+			positional = append(positional, arg)
+		}
+	}
+	return slices.Equal(positional, []string{"pr", "checks"})
 }
 
 func isGitHubWatch(args []string) bool {
