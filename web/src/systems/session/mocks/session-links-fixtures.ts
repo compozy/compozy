@@ -1,6 +1,8 @@
 /** What a session's linked work looks like at every scale, in the daemon's own DTOs. */
 import {
+  leadLink,
   linkKey,
+  needsYouCount,
   type SessionLinkedWorkItem,
   type SessionWorkCandidate,
 } from "../lib/session-linked-work";
@@ -335,7 +337,12 @@ export const sessionLinkFixtureKey = (branch: string): string => {
 /** The catalog summary a list reads as. */
 export function sessionLinkSummaryFixture(items: readonly SessionLinkedWorkItem[]) {
   const pullRequests = items.filter(item => item.pull_request).length;
-  return { total: items.length, needs_you: 0, pull_requests: pullRequests, lead: items[0] ?? null };
+  return {
+    total: items.length,
+    needs_you: needsYouCount(items),
+    pull_requests: pullRequests,
+    lead: leadLink(items),
+  };
 }
 
 /** The item a picked candidate reads as once linked. */

@@ -357,10 +357,8 @@ const LINKS_BY_SESSION: Record<string, readonly SessionLinkedWorkItem[]> = {
 function LinksCard({ actions: _actions, session, ...props }: SessionBoardCardProps) {
   const items = LINKS_BY_SESSION[session.id] ?? [];
   const summary = items.length > 0 ? sessionLinkSummaryFixture(items) : null;
-  const more = summary ? summaryMoreLabel({ ...summary, lead: leadLink(items) }) : null;
-  const linked = summary
-    ? { ...session, linked_work: { ...summary, lead: leadLink(items) } }
-    : session;
+  const more = summary ? summaryMoreLabel(summary) : null;
+  const linked = summary ? { ...session, linked_work: summary } : session;
   return (
     <SessionBoardCardView
       {...props}
