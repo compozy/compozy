@@ -46,5 +46,7 @@ Pinned lint on automation and Goal also passed with zero issues. The focused aut
 command above also passed with `-race` and `CGO_ENABLED=1`.
 
 Codegen initially failed because local JS dependencies lacked the locked stream cancellation patch.
-`bun install --frozen-lockfile` restored the dependencies; codegen/drift checks and the final
-CI/reviewer result remain pending.
+`bun install --frozen-lockfile` restored the dependencies; `make codegen codegen-check` then passed.
+Bun 1.4.4 changed a minified local variable in the unrelated OpenDesign artifact; regenerating and
+checking it with the repository-pinned Bun 1.4.0 preserved the committed bytes. No generated contract
+drift remains. The final CI/reviewer result is recorded on PR #1152.
