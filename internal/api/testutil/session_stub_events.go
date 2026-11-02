@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -26,4 +27,11 @@ func (s *StubSessionManager) EventMetadata(
 		})
 	}
 	return metadata, nil
+}
+
+func (s *StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (session.SettledTurn, error) {
+	if s.LatestSettledTurnFn != nil {
+		return s.LatestSettledTurnFn(ctx, id)
+	}
+	return session.SettledTurn{}, nil
 }

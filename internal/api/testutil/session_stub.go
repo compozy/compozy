@@ -21,9 +21,9 @@ type StubSessionManager struct {
 	CompactionsFn                func(context.Context, string) ([]session.CompactionEnvelope, error)
 	LatestSettledTurnFn          func(context.Context, string) (session.SettledTurn, error)
 	Attention                    StubSessionAttention
-	CreateFn                     func(context.Context, session.CreateOpts) (*session.Session, error)
-	CreateAcceptedFn             func(context.Context, session.CreateAcceptedOpts) (*session.Info, error)
-	CreateWorktreeForkAcceptedFn func(context.Context, string, session.CreateAcceptedOpts) (*session.Info, error)
+	CreateFn                     func(context.Context, *session.CreateOpts) (*session.Session, error)
+	CreateAcceptedFn             func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error)
+	CreateWorktreeForkAcceptedFn func(context.Context, string, *session.CreateAcceptedOpts) (*session.Info, error)
 	ListFn                       func() []*session.Info
 	ListAllFn                    func(context.Context) ([]*session.Info, error)
 	ListForWorkspaceFn           func(context.Context, string) ([]*session.Info, error)
@@ -90,21 +90,25 @@ type StubSessionManager struct {
 	WorkingDirFn   func(context.Context, string) (string, error)
 }
 
-func (s *StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (s *StubSessionManager) Create(ctx context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
 	if s.CreateFn != nil {
-		return s.CreateFn(ctx, opts)
+		return s.CreateFn(ctx, &(opts))
 	}
 	return nil, session.ErrSessionNotFound
 }
 
 func (s *StubSessionManager) CreateAccepted(
 	ctx context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	if s.CreateAcceptedFn != nil {
-		return s.CreateAcceptedFn(ctx, opts)
+		return s.CreateAcceptedFn(ctx, &(opts))
 	}
-	created, err := s.Create(ctx, opts.Session)
+	created, err := s.Create(ctx, &(opts.Session))
 	if created == nil || err != nil {
 		return nil, err
 	}
@@ -114,12 +118,14 @@ func (s *StubSessionManager) CreateAccepted(
 func (s *StubSessionManager) CreateWorktreeForkAccepted(
 	ctx context.Context,
 	originSessionID string,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	if s.CreateWorktreeForkAcceptedFn != nil {
-		return s.CreateWorktreeForkAcceptedFn(ctx, originSessionID, opts)
+		return s.CreateWorktreeForkAcceptedFn(ctx, originSessionID, &(opts))
 	}
-	return s.CreateAccepted(ctx, opts)
+	return s.CreateAccepted(ctx, &(opts))
 }
 
 func (s *StubSessionManager) List() []*session.Info {
@@ -476,13 +482,6 @@ func (s *StubSessionManager) Compactions(ctx context.Context, id string) ([]sess
 		return s.CompactionsFn(ctx, id)
 	}
 	return nil, nil
-}
-
-func (s *StubSessionManager) LatestSettledTurn(ctx context.Context, id string) (session.SettledTurn, error) {
-	if s.LatestSettledTurnFn != nil {
-		return s.LatestSettledTurnFn(ctx, id)
-	}
-	return session.SettledTurn{}, nil
 }
 
 func (s *StubSessionManager) CatalogFacets(
