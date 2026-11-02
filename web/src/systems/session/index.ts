@@ -488,10 +488,7 @@ export * from "./context";
 export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
 
-export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
-export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter";
-export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
 export * from "./subagents";

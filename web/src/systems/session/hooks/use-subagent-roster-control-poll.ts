@@ -3,7 +3,7 @@ import { useEffect } from "react";
 
 import { SessionApiError } from "../adapters/session-api-errors";
 import { sessionKeys } from "../lib/query-keys";
-import { sessionSubagentRosterPollOptions } from "../lib/query-options";
+import { sessionSubagentRosterPollOptions } from "../lib/subagent-query-options";
 import { applySubagentsSnapshot, type SubagentRoster } from "../lib/subagent-roster";
 
 /**

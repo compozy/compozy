@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -253,6 +253,7 @@ describe("WorkspaceCommandSelect", () => {
 
     await user.click(screen.getByTestId("workspace-switcher"));
     const input = screen.getByTestId("workspace-command-input");
+    await waitFor(() => expect(input).toHaveFocus());
     await user.keyboard("{ArrowRight}");
 
     const create = await screen.findByTestId("workspace-command-worktree-create-ws_alpha");
