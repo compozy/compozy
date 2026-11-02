@@ -34,7 +34,7 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AddSessionWorkLink(ctx, client.AddSessionWorkLinkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionWorkLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
-            "app_access": "allowed"
+            "app_access": "denied"
         },
         "addTaskDependency": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.addTaskDependency({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
@@ -2883,7 +2883,7 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RemoveSessionWorkLink(ctx, client.RemoveSessionWorkLinkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionWorkLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
-            "app_access": "allowed"
+            "app_access": "denied"
         },
         "removeTaskDependency": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.removeTaskDependency({ path: { \"id\": \"id\", \"depends_on_id\": \"depends_on_id\" } });",
@@ -3205,7 +3205,7 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchSessionWorkCandidates(ctx, client.SearchSessionWorkCandidatesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
-            "app_access": "allowed"
+            "app_access": "denied"
         },
         "searchTools": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tools.searchTools({ body: { /* request fields */ } });",

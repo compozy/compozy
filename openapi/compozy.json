@@ -93765,7 +93765,7 @@
         "tags": [
           "sessions"
         ],
-        "x-compozy-app-access": "allowed",
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"
@@ -93870,7 +93870,7 @@
         "tags": [
           "sessions"
         ],
-        "x-compozy-app-access": "allowed",
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"
@@ -94065,7 +94065,7 @@
         "tags": [
           "sessions"
         ],
-        "x-compozy-app-access": "allowed",
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"
