@@ -56,7 +56,7 @@ export interface SessionLinkActions {
   onUnlink: (item: SessionLinkedWorkItem) => void;
   /** Opens the child session a rolled-up item came from. */
   onOpenSession: (sessionId: string) => void;
-  onRefresh: () => void;
+  onRefresh: (item: SessionLinkedWorkItem) => void;
   onPrompt?: (text: string) => void;
 }
 
@@ -159,7 +159,7 @@ function SessionLinkRowMenu({
         }
         observedAt={item.pull_request_lookup?.observed_at}
         onPrompt={onPrompt ? (_kind, text) => onPrompt(text) : undefined}
-        onRefresh={actions.onRefresh}
+        onRefresh={() => actions.onRefresh(item)}
         pullRequest={item.pull_request}
         refreshing={actions.refreshing}
       />

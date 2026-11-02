@@ -74,8 +74,6 @@ interface UseSessionTopbarSlotInput {
   pullRequestExit?: SessionTopbarPullRequestExit;
   pullRequestRefresh?: SessionTopbarPullRequestRefresh;
   linkedWork: SessionLinkedWorkModel;
-  /** Where the session's process runs, for the linked work list's closing line. */
-  runsIn: SessionLinkedWorkListProps["runsIn"];
   /** Opens the worktree a linked item lives in, when this client can show it. */
   worktreeAction?: (item: SessionLinkedWorkItem) => (() => void) | undefined;
   onOpenSession?: (sessionId: string) => void;
@@ -133,7 +131,16 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { label: agentLabel } = useAgentIdentityView(session.agent_name);
   const linkedList: SessionLinkedWorkListProps = {
     items: linkedWork.items,
-    runsIn: input.runsIn,
+    runsIn: worktreeBinding
+      ? { kind: "worktree", name: worktreeBinding.worktree?.name ?? worktreeBinding.worktreeId }
+      : {
+          kind: "project",
+          name:
+            workspaceNames.get(session.workspace_id ?? "") ??
+            session.workspace_path ??
+            session.workspace_id ??
+            "",
+        },
     agentLabel,
     actions: {
       controllable: actions.lifecycleControllable,
@@ -141,7 +148,11 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
       onLink: () => requestSessionLinkDialog(session.id),
       onUnlink: linkedWork.unlink,
       onOpenSession: id => input.onOpenSession?.(id),
-      onRefresh: linkedWork.refresh,
+      onRefresh: item => {
+        // The explicit refresh reaches the forge for the session's own branch only.
+        if (pullRequestRefresh && isOwnBranch(item, session)) pullRequestRefresh.refresh();
+        else linkedWork.refresh();
+      },
       onPrompt: onSendPrompt,
     },
   };

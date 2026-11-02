@@ -120,3 +120,58 @@ test("E2E-003: failing checks lead the chip menu and send one prompt naming the 
   await expect(message).toContainText("lint");
   await expect(frame.getByText("I will inspect the failing PR checks.")).toBeVisible();
 });
+
+// Invariant: a session shows its linked work in the head: the urgent item on the chip, the rest one
+// step away at every width, and an unlink that touches nothing else and can be undone.
+// Owner: public session window + daemon link resources. The second item is added through the same
+// route the link dialog uses; list ordering and copy are owned by the Vitest suites.
+test("E2E-006: the head lists linked work and an unlink can be undone", async ({
+  appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const workspace = await resolveWorkspace(runtime);
+  const sessionId = await createSession(appPage, runtime, workspace.id);
+  await seedSessionPullRequest(runtime, {
+    workspaceId: workspace.id,
+    sessionId,
+    branch: "feat/linked-work",
+    number: 940,
+    checks: "failing",
+    review: "review_required",
+  });
+  await runtime.requestJSON(`/api/workspaces/${workspace.id}/sessions/${sessionId}/links`, {
+    method: "POST",
+    body: JSON.stringify({ branch: "spike/second-item" }),
+  });
+  const frame = await openSession(appPage, runtime, sessionId);
+
+  await expect(frame.getByTestId("session-pull-request-chip")).toContainText("#940");
+  const more = frame.getByTestId("session-links-more");
+  await expect(more).toHaveText("+1 more");
+  await more.click();
+  const rows = appPage.locator('[data-slot="session-link-row"]');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("Checks failing");
+  await expect(appPage.locator('[data-slot="session-runs-in"]')).toContainText(
+    "Linking never moves it."
+  );
+  await browserArtifacts.captureScreenshot("session-linked-work-list", appPage);
+
+  const branchRow = rows.filter({ hasText: "spike/second-item" });
+  await branchRow.hover();
+  await branchRow.getByRole("button", { name: "Actions for spike/second-item" }).click();
+  await appPage.getByRole("menuitem", { name: "Unlink from this session" }).click();
+  await expect(rows).toHaveCount(1);
+  const toast = appPage.getByText(
+    "Its files are untouched. Only the link to this session is gone."
+  );
+  await expect(toast).toBeVisible();
+  await appPage.getByRole("button", { name: "Undo" }).click();
+  await expect(rows).toHaveCount(2);
+
+  await appPage.keyboard.press("Escape");
+  await appPage.setViewportSize({ width: 480, height: 800 });
+  await expect(frame.getByRole("button", { name: "2 linked to this session" })).toBeVisible();
+  await browserArtifacts.captureScreenshot("session-linked-work-narrow", appPage);
+});

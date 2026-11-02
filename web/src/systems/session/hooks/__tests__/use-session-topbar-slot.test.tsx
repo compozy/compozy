@@ -40,10 +40,7 @@ const NO_LINKED_WORK: SessionLinkedWorkModel = {
   unlink: () => undefined,
 };
 
-const LINKED_WORK = {
-  linkedWork: NO_LINKED_WORK,
-  runsIn: { kind: "project", name: "compozy" },
-} as const;
+const LINKED_WORK = { linkedWork: NO_LINKED_WORK } as const;
 
 function SessionPublisher({
   onStop,
@@ -573,7 +570,9 @@ describe("useSessionTopbarSlot", () => {
       fireEvent.click(screen.getByTestId("session-links-more"));
       const list = await screen.findByRole("dialog");
       expect(list).toHaveTextContent("Linked work");
-      expect(list).toHaveTextContent("This session runs in compozy. Linking never moves it.");
+      expect(list).toHaveTextContent(
+        `This session runs in ${primarySessionFixture.workspace_path}. Linking never moves it.`
+      );
       expect(list.querySelectorAll('[data-slot="session-link-row"]')).toHaveLength(4);
     });
 

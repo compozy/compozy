@@ -137,7 +137,9 @@ export function useSessionLinkDialogModel({
     },
     onToggle: selection.toggle,
     pending,
-    project: repository ? repositoryShortName(repository) : workspaceName,
+    project: repository
+      ? repositoryShortName(repository)
+      : workspaceName.split("/").at(-1) || workspaceName,
     query,
     search: sessionLinkSearch({
       query: debounced,

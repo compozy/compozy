@@ -137,7 +137,9 @@ export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
   return (
     <span className="flex min-w-0 shrink-0 items-center gap-1" ref={anchor}>
       <SessionPullRequestChip
-        {...(own ? ownChip : { onRefresh: actions.onRefresh, refreshing: actions.refreshing })}
+        {...(own
+          ? ownChip
+          : { onRefresh: () => actions.onRefresh(lead), refreshing: actions.refreshing })}
         controllable={actions.controllable}
         defaultMenuOpen={props.chipMenuOpen}
         facts={lead ? linkFacts(lead) : ownFacts}

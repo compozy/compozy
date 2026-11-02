@@ -86,6 +86,7 @@ export function useSessionLinkedWork({
   enabled,
 }: UseSessionLinkedWorkInput): SessionLinkedWorkModel {
   const [clipped, setClipped] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const list = useQuery({
     ...sessionLinkedWorkOptions(workspaceId, session.id),
     enabled: enabled && !!session.id,
@@ -112,11 +113,13 @@ export function useSessionLinkedWork({
     items,
     lead: list.data ? leadLink(list.data.items) : (summary?.lead ?? null),
     more: list.data ? moreLabel(list.data.items) : summary ? summaryMoreLabel(summary) : null,
-    refreshing: list.isFetching,
+    // Only what the person asked for: background rereads must not spin the chip every minute.
+    refreshing,
     clipped,
     setClipped,
     refresh: () => {
-      void list.refetch();
+      setRefreshing(true);
+      void list.refetch().finally(() => setRefreshing(false));
     },
     unlink,
   };

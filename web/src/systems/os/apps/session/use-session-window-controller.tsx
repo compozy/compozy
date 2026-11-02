@@ -137,12 +137,6 @@ export function useSessionWindowController(input: {
     pullRequestRefresh: pullRequest.pullRequestRefresh,
     onSendPrompt: pullRequest.onSendPrompt,
     linkedWork,
-    runsIn: worktreeBinding.bound
-      ? {
-          kind: "worktree",
-          name: worktreeBinding.worktree?.name ?? worktreeBinding.worktreeId,
-        }
-      : { kind: "project", name: session.workspace_path ?? workspaceId },
     worktreeAction: item => {
       const worktree = worktreeBinding.worktrees.find(row => row.id === item.worktree_id);
       return worktree && onOpenWorktreeContext
