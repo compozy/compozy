@@ -762,14 +762,13 @@ func TestInstanceHookDispatch(t *testing.T) {
 				t.Fatal(err)
 			}
 			payload := AgentInstancePayload{
-				PayloadBase: PayloadBase{Event: event, Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
-				SessionContext: SessionContext{
-					ProfileID:   "default",
-					WorkspaceID: "workspace",
-					AgentName:   "coder",
-					SessionID:   "main",
-					State:       "paused",
-				},
+				Event:         event,
+				Timestamp:     time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+				ProfileID:     "default",
+				WorkspaceID:   "workspace",
+				AgentName:     "coder",
+				SessionID:     "main",
+				State:         "paused",
 				InstanceID:    "instance",
 				MainSessionID: "main",
 				Reason:        "manual",
