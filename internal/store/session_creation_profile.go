@@ -188,7 +188,7 @@ func (p SessionCreationProfile) CreationDigest(opts SessionCreationOptions) (str
 type SessionCreationIdentityStore interface {
 	RegisterSessionWithCreationIdentity(
 		context.Context,
-		SessionInfo,
+		*SessionInfo,
 		SessionCreationIdentity,
 	) (SessionCreationRegistration, error)
 	GetSessionCreationIdentity(context.Context, string) (SessionCreationIdentity, error)
