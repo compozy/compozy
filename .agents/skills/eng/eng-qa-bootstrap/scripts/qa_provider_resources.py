@@ -1,11 +1,53 @@
 """Manage disposable provider resources without reading credential contents."""
 
 from pathlib import Path
+import json
 import re
 import shutil
+import tomllib
 
 ALLOWED_PROVIDER_FILES = ("auth.json", "installation_id", "version.json")
 PROVIDER_FILES = (*ALLOWED_PROVIDER_FILES, "skills", "plugins/cache")
+SAFE_ROOT_MARKERS = ("/qa-labs/", "/compozyqa-", "/compozy-iso-", "/_worktrees/")
+
+
+def is_safe_root(path: Path) -> bool:
+    text = str(path)
+    if len(text) < 8 or text == "/":
+        return False
+    return any(marker in text + "/" for marker in SAFE_ROOT_MARKERS)
+
+
+def manifest_owns_provider_home(manifest_path: Path | None, provider_home: Path) -> bool:
+    """Accept the bootstrap layout under any caller-selected workspace parent."""
+    if manifest_path is None:
+        return False
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    workspace = manifest.get("env", {}).get("WORKSPACE_PATH") or manifest.get("workspace_path")
+    if not workspace:
+        return False
+    root = Path(workspace).resolve()
+    expected_manifest = root / "qa-artifacts" / "qa" / "bootstrap-manifest.json"
+    return (
+        root.name.startswith("compozy-") and root.name.endswith("-lab")
+        and manifest_path.resolve() == expected_manifest
+        and provider_home.resolve() == root / ".provider-home"
+    )
+
+
+def clean_provider_resources(
+    homes: list[Path], manifest_path: Path | None, dry_run: bool,
+) -> tuple[list[str], list[str]]:
+    removed: list[str] = []
+    errors: list[str] = []
+    for provider_home in homes:
+        try:
+            if not is_safe_root(provider_home.resolve()) and not manifest_owns_provider_home(manifest_path, provider_home):
+                raise RuntimeError(f"refusing non-lab provider home: {provider_home}")
+            removed.extend(remove_provider_resources(provider_home, dry_run))
+        except (OSError, RuntimeError, ValueError) as err:
+            errors.append(str(err))
+    return removed, errors
 
 
 def prepare_provider_home(global_codex_home: Path, provider_home: Path, live_provider: bool = False) -> Path:
@@ -52,15 +94,19 @@ def remove_provider_resources(provider_home: Path, dry_run: bool = False) -> lis
 
 def set_provider_usage(config_path: Path, enabled: bool) -> None:
     text = config_path.read_text(encoding="utf-8")
-    section = re.search(r"(?m)^\[provider_usage\][^\n]*\n(?:(?!\[).*(?:\n|$))*", text)
+    section = re.search(r"(?m)^[ \t]*\[provider_usage\][^\n]*\n(?:(?![ \t]*\[).*(?:\n|$))*", text)
     value = f"enabled = {str(enabled).lower()}\n"
     if section:
         body = section.group()
-        if re.search(r"(?m)^enabled\s*=", body):
-            body = re.sub(r"(?m)^enabled\s*=.*$", value.rstrip(), body)
+        key = r"(?m)^([ \t]*)enabled[ \t]*=.*$"
+        if re.search(key, body):
+            body = re.sub(key, r"\g<1>" + value.rstrip(), body)
         else:
             body += value
         text = text[:section.start()] + body + text[section.end():]
     else:
         text += "\n[provider_usage]\n" + value
+    parsed = tomllib.loads(text)
+    if parsed.get("provider_usage", {}).get("enabled") is not enabled:
+        raise RuntimeError("provider usage setting did not match the requested policy")
     config_path.write_text(text, encoding="utf-8")

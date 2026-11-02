@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Stop one manifest-owned QA lab with verified process identities.
-
-Use --manifest <path> for normal teardown; --root <path> for a bare isolation
-root. --all is reserved for intentional stale-lab recovery. Evidence is written
-to qa/teardown.json. Exit 0 means clean, 1 means survivors/errors, 2 means usage.
-"""
+"""Stop a verified QA lab: --manifest for normal teardown, --root for bare roots.
+Use --all only for intentional stale-lab recovery. Evidence: qa/teardown.json.
+Exit 0 means clean, 1 means survivors/errors, 2 means usage."""
 
 from __future__ import annotations
 
@@ -20,6 +17,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from qa_provider_resources import clean_provider_resources, is_safe_root
 
 from qa_process_identity import (
     SignalTarget, list_processes, lsof_pids, matches_identity, pid_alive,
@@ -28,7 +26,6 @@ from qa_process_identity import (
 
 GRACE_DEFAULT_SEC = 10.0
 DAEMON_STOP_TIMEOUT_SEC = 20.0
-SAFE_ROOT_MARKERS = ("/qa-labs/", "/compozyqa-", "/compozy-iso-", "/_worktrees/")
 
 
 @dataclass
@@ -71,13 +68,6 @@ def utc_now() -> str:
 def load_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
-
-
-def is_safe_root(path: Path) -> bool:
-    text = str(path)
-    if len(text) < 8 or text == "/":
-        return False
-    return any(marker in text + "/" for marker in SAFE_ROOT_MARKERS)
 
 
 def read_pid_file(path: Path) -> int:
@@ -402,14 +392,8 @@ def teardown_target(
     kill_tmux_server(target.tmux_socket, result, dry_run)
     pids = collect_target_pids(target, result, dry_run)
     signal_pids(pids, grace_sec, result, dry_run)
-    from qa_provider_resources import remove_provider_resources
-    for provider_home in target.provider_homes:
-        try:
-            if not is_safe_root(provider_home.resolve()):
-                raise RuntimeError(f"refusing non-lab provider home: {provider_home}")
-            result.provider_resources_removed.extend(remove_provider_resources(provider_home, dry_run))
-        except (OSError, RuntimeError) as err:
-            result.provider_resource_errors.append(str(err))
+    result.provider_resources_removed, result.provider_resource_errors = clean_provider_resources(
+        target.provider_homes, target.manifest_path, dry_run)
     for pid_file in (target.qa_root / "pids").glob("*.pid") if target.qa_root else []:
         record = registered_identity(pid_file)
         if not dry_run and record is not None and not pid_alive(record.pid):

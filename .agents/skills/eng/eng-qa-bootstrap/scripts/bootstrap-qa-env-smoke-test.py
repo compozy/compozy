@@ -507,8 +507,12 @@ def check_provider_resource_lifecycle(repo_root: Path) -> None:
             if not live:
                 (home / "auth.json").write_text("legacy fixture")
                 (home / "skills").symlink_to(source / "skills")
+            config.write_text(config.read_text().replace("enabled = false", "  enabled = true"))
             subprocess.run(command + ["--reuse-manifest", str(manifest_path)],
                            env=env, capture_output=True, text=True, check=True)
+            reused_config = tomllib.loads(config.read_text())
+            if reused_config["provider_usage"]["enabled"]:
+                raise AssertionError("reuse did not disable an indented legacy usage setting")
             if (home / "auth.json").exists() != live:
                 raise AssertionError("reuse violated provider resource policy")
             if live:
@@ -546,6 +550,30 @@ def check_provider_resource_lifecycle(repo_root: Path) -> None:
         failed = subprocess.run(command, capture_output=True, text=True)
         if failed.returncode != 1 or json.loads(failed.stdout)["clean"]:
             raise AssertionError("resource removal failure was not blocking")
+
+    # A manifest proves ownership even when its workspace parent has no safe-root marker.
+    with tempfile.TemporaryDirectory(prefix="qa-custom-", dir=temp_root) as raw:
+        workspace = Path(raw) / "compozy-x-lab"
+        home = workspace / ".provider-home"
+        credential = home / ".codex" / "auth.json"
+        credential.parent.mkdir(parents=True)
+        credential.write_text("custom-root fixture")
+        qa_root = workspace / "qa-artifacts" / "qa"
+        qa_root.mkdir(parents=True)
+        manifest = qa_root / "bootstrap-manifest.json"
+        manifest.write_text(json.dumps({"env": {
+            "WORKSPACE_PATH": str(workspace), "QA_OUTPUT_PATH": str(qa_root.parent),
+            "PROVIDER_HOME": str(home),
+        }}))
+        command = [sys.executable, str(scripts / "teardown-qa-env.py"),
+                   "--manifest", str(manifest), "--json"]
+        for populated in (True, False):
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            payload = json.loads(result.stdout)
+            if not payload["clean"] or credential.exists():
+                raise AssertionError("manifest-owned custom lab did not clean up")
+            if bool(payload["labs"][0]["provider_resources_removed"]) != populated:
+                raise AssertionError("custom-root removal evidence did not match fixture state")
 
 
 if __name__ == "__main__":
