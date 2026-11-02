@@ -144,6 +144,8 @@ the replacement head must pass fresh required CI before delivery.
 | [PR-fact batch failure isolation](https://github.com/compozy/compozy/pull/1141#discussion_r4439472334) | Fixed after a real SQLite reproduction. One schema-valid but undecodable row made the batch omit all five valid siblings; the baseline retained them. Only a failed multi-key batch falls back once per key, respecting cancellation. Nine canonical cases pass under race; the normal 64-row guard still uses one PR batch. | [Worktree/workspace](worktree-workspace.md) |
 | [Same-query Loop recovery](https://github.com/compozy/compozy/pull/1141#discussion_r4439472344) | Fixed. The first pending wake arms one recovery timer using the existing 15-second Loop interval. Only the captured, still-current active cached read can be canceled; its existing drain starts one trailing read. Later frames do not postpone the timer. Initial, disabled, static and replaced reads retain their boundaries. All 39 canonical cases pass. | [Loop/scheduler](loop-loops.md) |
 | [Home aggregate barrier](https://github.com/compozy/compozy/pull/1141#pullrequestreview-5732161953) | Confirmed from the earlier unverified review hypothesis and fixed. A stalled overview kept the current inbox at revision 1 after later events; baseline reached revision 2. Real polling callbacks refreshed only the separately polled sibling. Home now uses the shared per-query coordinator with its existing 30-second interval; 16 canonical cases pass, including variants under one prefix and scope retirement. | [Usage/dashboard](usage-dashboard.md) |
+| [Fallback query tradeoff](https://github.com/compozy/compozy/pull/1141#discussion_r4439726486) | Declined after comparing the actual fault receipts. A persistently malformed row recovers the same five valid facts with seven reads versus six on the baseline: one failed batch plus the original per-key behavior. Normal 64-row listings retain 64 to one PR read; canceled and single-key requests remain bounded. No normal-path gain supports changing shared store/Refresh error semantics or introducing recursive reads/caps. The exceptional extra batch is recorded as a tradeoff. | [Worktree/workspace](worktree-workspace.md) |
+| [Malformed-row error identity](https://github.com/compozy/compozy/pull/1141#discussion_r4439726475) | Accepted in the existing canonical case. `errors.AsType` now requires `*json.UnmarshalTypeError` while preserving all existing assertions. A same-text error without the typed cause fails the new assertion and passes with only that assertion removed. The real SQLite case and four focused race cases pass; production and benchmark code are unchanged. | [Worktree/workspace](worktree-workspace.md) |
 
 The credential follow-up preserves unrelated-profile isolation and cached-read allocation
 counts; overlapping timing ranges do not establish an additional speedup. The Loop burst
@@ -306,3 +308,11 @@ Final integrated local checks after the source freeze:
   separate from this failed dependency attempt; broad generation checks remain in CI.
 
 All local receipts above are under `.cache/performance/`. Full local gates were not run.
+
+The final assertion-only follow-up adds three lines to the existing malformed-PR case.
+The real case passed in 0.906 s; four focused race cases passed in 4.417 s. Removing the
+typed JSON cause failed the new assertion in 0.870 s, while the same control without that
+assertion passed in 0.880 s. Scoped canonical GlobalDB lint passed both normal and
+integration-tag lanes with zero issues (`pr-error-type-go-lint.log`). Production and
+benchmark sources remain byte-identical to `bfb1cc476`; their completed focused evidence
+is reused, while CI must still validate the newly published head.

@@ -267,6 +267,11 @@ behavior; diagnostic panels keep the complete status operation.
   root under its singleton lock. Neither version provides an atomic count limit between
   independent Stores writing the same root; the [attachment review](../docs/qa/reports/2026-11-01-performance/terminal-terminal.md)
   records the widened unsupported window and both baseline/current interleavings.
+- A persistently undecodable PR row adds the failed batch before per-key recovery:
+  the six-key fault fixture uses seven PR reads versus six on the baseline, preserving
+  the same five valid facts. Successful 64-row listings still improve from 64 to one
+  PR read. Cancellation bounds the error path; partial-store semantics or a read cap
+  were not introduced to optimize that exceptional case.
 - Single-toolset timings overlapped host noise and did not improve; all-workspace session
   timings also varied too much for a latency claim. Allocation measures remain separately reported.
 - Fault-injection checks also identified pre-existing Task coordination limits: a suspended

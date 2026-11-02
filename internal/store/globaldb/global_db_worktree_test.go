@@ -58,6 +58,9 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			if readErr == nil {
 				t.Fatal("malformed cached PR must fail decoding")
 			}
+			if _, ok := errors.AsType[*json.UnmarshalTypeError](readErr); !ok {
+				t.Fatalf("malformed cached PR error = %T: %v, want *json.UnmarshalTypeError", readErr, readErr)
+			}
 			t.Logf("real batch decode error = %v; returned entries = %d", readErr, len(entries))
 			rows, err := fixture.ListAggregate(ctx)
 			if err != nil {
