@@ -30,7 +30,7 @@ func generateLifecycleMatrixMDX() []byte {
 		lifecycle.RestartRequired,
 	} {
 		lifecycleRows = append(lifecycleRows, []string{
-			fmt.Sprintf("`%s`", value),
+			fmt.Sprintf("%#q", value),
 			lifecycleDescription(value),
 		})
 	}
@@ -39,10 +39,10 @@ func generateLifecycleMatrixMDX() []byte {
 	matrixRows := make([][]string, 0, len(lifecycle.SortedMatrix()))
 	for _, rule := range lifecycle.SortedMatrix() {
 		matrixRows = append(matrixRows, []string{
-			fmt.Sprintf("`%s`", rule.Pattern),
-			fmt.Sprintf("`%s`", rule.Lifecycle),
-			fmt.Sprintf("`%s`", rule.DiffClass),
-			fmt.Sprintf("`%s`", nextActionForDocs(rule.Lifecycle)),
+			fmt.Sprintf("%#q", rule.Pattern),
+			fmt.Sprintf("%#q", rule.Lifecycle),
+			fmt.Sprintf("%#q", rule.DiffClass),
+			fmt.Sprintf("%#q", nextActionForDocs(rule.Lifecycle)),
 		})
 	}
 	writeMarkdownTable(

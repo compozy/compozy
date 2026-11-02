@@ -9,7 +9,7 @@ import (
 
 func taskClaimNativeInstruction(runID string, capabilities []string) string {
 	instruction := fmt.Sprintf(
-		"Call the hosted native tool `%s` with `run_id` set to %q",
+		"Call the hosted native tool %#q with `run_id` set to %q",
 		toolspkg.ToolIDTaskRunClaimNext,
 		strings.TrimSpace(runID),
 	)
@@ -21,7 +21,7 @@ func taskClaimNativeInstruction(runID string, capabilities []string) string {
 
 func taskLeaseNativeInstruction() string {
 	return fmt.Sprintf(
-		"Maintain and settle the lease from this same session with `%s`, `%s`, `%s`, or `%s`.",
+		"Maintain and settle the lease from this same session with %#q, %#q, %#q, or %#q.",
 		toolspkg.ToolIDTaskRunHeartbeat,
 		toolspkg.ToolIDTaskRunComplete,
 		toolspkg.ToolIDTaskRunFail,

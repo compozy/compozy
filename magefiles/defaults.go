@@ -5,7 +5,7 @@ package main
 import "errors"
 
 const (
-	golangciLintVersion       = "v2.13.1"
+	golangciLintVersion       = "v2.15.0"
 	golangciLintTimeout       = "40m"
 	goUnitTestTimeout         = "30m"
 	goIntegrationPackageLimit = "2"
