@@ -301,6 +301,25 @@ func TestWaitingBadgePrecedenceAndReasons(t *testing.T) {
 // Owner: session board derivation; canonical badge suite.
 func TestBoardColumnWithLinkedWork(t *testing.T) {
 	t.Parallel()
+	for _, badge := range []Badge{BadgeRunning, BadgeIdle, BadgeDone, BadgeStopped, BadgeUnknown, BadgeWaiting} {
+		for _, linked := range []bool{false, true} {
+			for _, own := range []PullRequestState{"", PullRequestOpen} {
+				for _, pending := range []bool{false, true} {
+					want := BoardColumnFor(badge, own)
+					if (linked || own == PullRequestOpen) && (badge == BadgeIdle || badge == BadgeDone || badge == BadgeStopped) {
+						want = BoardInReview
+						if pending && badge != BadgeStopped {
+							want = BoardWorking
+						}
+					}
+					if got := BoardColumnWithLinkedWork(badge, own, linked, pending); got != want {
+						t.Errorf("badge=%s linked=%v own=%s pending=%v got=%s want=%s", badge, linked, own, pending, got, want)
+					}
+				}
+			}
+		}
+	}
+
 	for _, tt := range []struct {
 		name    string
 		badge   Badge

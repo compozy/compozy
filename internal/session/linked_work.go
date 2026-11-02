@@ -127,7 +127,7 @@ func BoardColumnWithLinkedWork(badge Badge, own PullRequestState, linkedOpen, pe
 	if ClassForBadge(badge) == AttentionNeedsYou {
 		return BoardNeedsYou
 	}
-	if pending {
+	if pending && (linkedOpen || own == PullRequestOpen) && (badge == BadgeIdle || badge == BadgeDone) {
 		return BoardWorking
 	}
 	column := BoardColumnFor(badge, own)

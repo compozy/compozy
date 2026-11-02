@@ -2950,22 +2950,55 @@ func TestSessionCatalogBoard(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				for _, queueState := range []string{"", "queued", "dispatching"} {
-					pending := queueState != ""
-					if pending {
-						if _, err := db.db.ExecContext(ctx, `INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('queue',?,?,'queue','next','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z') ON CONFLICT(id) DO UPDATE SET status=excluded.status`, info.ID, queueState); err != nil {
+				for _, linkedOpen := range []bool{false, true} {
+					for _, ownOpen := range []bool{false, true} {
+						linkState, ownState := "closed", "closed"
+						if linkedOpen {
+							linkState = "open"
+						}
+						if ownOpen {
+							ownState = "open"
+						}
+						if _, err := db.db.ExecContext(ctx, "UPDATE forge_pull_requests SET pr_state = ? WHERE branch = 'linked'", linkState); err != nil {
 							t.Fatal(err)
 						}
-					}
-					var badge, column string
-					if err := db.db.QueryRowContext(ctx, "SELECT "+sessionCatalogBadgeExpression+","+sessionCatalogBoardColumnExpression+" FROM "+source, args...).Scan(&badge, &column); err != nil {
-						t.Fatal(err)
-					}
-					runtime := &session.Info{State: session.State(info.State)}
-					wantBadge := session.BadgeForInfo(runtime)
-					want := session.BoardColumnWithLinkedWork(wantBadge, "", true, pending)
-					if badge != string(wantBadge) || column != string(want) {
-						t.Fatalf("pending=%v SQL=%s/%s Go=%s/%s", pending, badge, column, wantBadge, want)
+						if _, err := db.db.ExecContext(ctx, "UPDATE sessions SET branch = 'own' WHERE id = ?", info.ID); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := db.db.ExecContext(ctx, "INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?,?,'own',?) ON CONFLICT(workspace_id,repo_key,branch) DO UPDATE SET pr_state=excluded.pr_state", ws, link.Repository, ownState); err != nil {
+							t.Fatal(err)
+						}
+						for _, queueState := range []string{"", "queued", "dispatching"} {
+							pending := queueState != ""
+							if _, err := db.db.ExecContext(ctx, "DELETE FROM session_input_queue WHERE session_id = ?", info.ID); err != nil {
+								t.Fatal(err)
+							}
+							if pending {
+								if _, err := db.db.ExecContext(ctx, `INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('queue',?,?,'queue','next','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z') ON CONFLICT(id) DO UPDATE SET status=excluded.status`, info.ID, queueState); err != nil {
+									t.Fatal(err)
+								}
+							}
+							var badge, column string
+							if err := db.db.QueryRowContext(ctx, "SELECT "+sessionCatalogBadgeExpression+","+sessionCatalogBoardColumnExpression+" FROM "+source, args...).Scan(&badge, &column); err != nil {
+								t.Fatal(err)
+							}
+							runtime := &session.Info{State: session.State(info.State)}
+							wantBadge := session.BadgeForInfo(runtime)
+							own := session.PullRequestState("")
+							if ownOpen {
+								own = session.PullRequestOpen
+							}
+							want := session.BoardColumnFor(wantBadge, own)
+							if (linkedOpen || ownOpen) && (wantBadge == session.BadgeIdle || wantBadge == session.BadgeDone || wantBadge == session.BadgeStopped) {
+								want = session.BoardInReview
+								if pending && wantBadge != session.BadgeStopped {
+									want = session.BoardWorking
+								}
+							}
+							if badge != string(wantBadge) || column != string(want) {
+								t.Fatalf("pending=%v SQL=%s/%s Go=%s/%s", pending, badge, column, wantBadge, want)
+							}
+						}
 					}
 				}
 			})

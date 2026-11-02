@@ -15,7 +15,7 @@ func sessionCatalogBoardColumnSQL(badge, prState string) string {
  THEN 'working' WHEN ` + badge + ` = 'waiting' THEN 'waiting' WHEN ` + prState + ` = 'open' THEN 'in_review' ELSE 'done' END)`
 }
 
-var sessionCatalogBoardColumnExpression = `(CASE WHEN ` + sessionCatalogBadgeExpression + ` IN ('needs-attention','waiting-for-auth','waiting-for-input','failed') THEN 'needs_you' WHEN board_pending_input = 1 THEN 'working' WHEN board_link_open = 1 AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done','stopped') THEN 'in_review' ELSE ` + sessionCatalogBoardColumnSQL(sessionCatalogBadgeExpression, "board_pr_state") + ` END)`
+var sessionCatalogBoardColumnExpression = `(CASE WHEN ` + sessionCatalogBadgeExpression + ` IN ('needs-attention','waiting-for-auth','waiting-for-input','failed') THEN 'needs_you' WHEN board_pending_input = 1 AND (board_link_open = 1 OR board_pr_state = 'open') AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done') THEN 'working' WHEN board_link_open = 1 AND ` + sessionCatalogBadgeExpression + ` IN ('idle','done','stopped') THEN 'in_review' ELSE ` + sessionCatalogBoardColumnSQL(sessionCatalogBadgeExpression, "board_pr_state") + ` END)`
 
 // The derived relation preserves the existing unqualified session filter/sort
 // expressions while joining display facts with an explicit current repository key.
