@@ -283,6 +283,7 @@ func assertGoalDurableStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"ended_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_goal_checkpoints", []string{
+		"wait_started_at", "wait_deferrals", "pending_compaction",
 		"loop_run_id", "generation", "node_id", "item_index", "control_epoch",
 		"control_actor_kind", "control_actor_id", "control_requested_at", "phase", "goal_status",
 		"turns_used", "turn_limit", "broken_streak", "recovery_streak", "task_run_id",

@@ -1634,10 +1634,18 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		child, err := manager.Spawn(t.Context(), session.SpawnOpts{
-			ParentSessionID: parent.ID, ParentTurnID: caller.TurnID, AgentName: "subagent-test",
-			SpawnRole: "subagent", AutoStopOnParent: true, NotifyCreatorSet: true,
-			IdempotencyKey: row.ID,
-			Subagent:       &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: int(row.TaskChars)},
+			ParentSessionID:  parent.ID,
+			ParentTurnID:     caller.TurnID,
+			AgentName:        "subagent-test",
+			SpawnRole:        "subagent",
+			AutoStopOnParent: true,
+			NotifyCreatorSet: true,
+			IdempotencyKey:   row.ID,
+			Subagent: &hookspkg.SubagentSpawnPayload{
+				Title:     row.Title,
+				Role:      row.Role,
+				TaskChars: int(row.TaskChars),
+			},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -4750,8 +4758,9 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if info.EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
-				t.Fatal("instance bypasses approvals")
+			// The main session runs at its agent's authored level (ADR-003); the ceiling above narrows its reach.
+			if info.EffectivePermissions != string(compozyconfig.PermissionModeApproveAll) {
+				t.Fatalf("instance level = %s, want the authored approve-all", info.EffectivePermissions)
 			}
 			persistedCaller, callerErr := d.registry.(*globaldb.GlobalDB).Instances().InstanceCaller(t.Context(), id)
 			if callerErr != nil {
@@ -5161,11 +5170,23 @@ func TestWorkLogCollectorIntegration(t *testing.T) {
 					t.Fatal(err)
 				}
 				database := d.registry.(*globaldb.GlobalDB)
-				if _, err := database.DB().ExecContext(t.Context(), `INSERT INTO automation_runs (id,profile_id,workspace_id,status,ended_at) VALUES ('work-log-resolver-failure',?,?,'failed',?)`, parent.ProfileID, ws, store.FormatTimestamp(d.now())); err != nil {
+				if _, err := database.DB().
+					ExecContext(t.Context(), `INSERT INTO automation_runs (id,profile_id,workspace_id,status,ended_at) VALUES ('work-log-resolver-failure',?,?,'failed',?)`, parent.ProfileID, ws, store.FormatTimestamp(d.now())); err != nil {
 					t.Fatal(err)
 				}
-				collector := instanceDigestCollector{instances: repo, workspaces: &loopAPIWorkspaceResolverErrorStub{err: errors.New("workspace unavailable")}, logger: discardLogger()}
-				digest, err := collector.Collect(t.Context(), instance.ID, heartbeat.CollectorScope{Now: d.now()}, []string{"automations_failed", "work_log"}, "", "")
+				collector := instanceDigestCollector{
+					instances:  repo,
+					workspaces: &loopAPIWorkspaceResolverErrorStub{err: errors.New("workspace unavailable")},
+					logger:     discardLogger(),
+				}
+				digest, err := collector.Collect(
+					t.Context(),
+					instance.ID,
+					heartbeat.CollectorScope{Now: d.now()},
+					[]string{"automations_failed", "work_log"},
+					"",
+					"",
+				)
 				if err != nil || len(digest.Items) != 1 || digest.Items[0].Key != "auto:work-log-resolver-failure" {
 					t.Fatalf("unrelated facts after workspace resolution failure=%+v err=%v", digest, err)
 				}
