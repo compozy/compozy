@@ -1485,8 +1485,32 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 			const name = "encoded-owner"
 			harness := newExtensionSecretIntegrationHarness(
 				t,
-				extensionSecretIntegrationHarnessOptions{actorReason: "generic vault retirement isolation"},
+				extensionSecretIntegrationHarnessOptions{
+					actorReason:     "generic vault retirement isolation",
+					allowUnverified: true,
+				},
 			)
+			fixture := writeBoundSecretExtensionFixtureWithEnv(t, t.TempDir(), name, []string{"TOKEN"})
+			if _, err := harness.service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceLocalPath, Ref: fixture, AllowUnverified: true,
+			}, harness.actor); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.db.DB().ExecContext(t.Context(),
+				`DELETE FROM extension_installations WHERE extension_name = ?`, name); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.db.ExtensionMCP.Reserve(t.Context(), extensionmcp.Target{
+				Extension: name, ProfileID: store.DefaultProfileID, ServerName: "retirement-fixture",
+			}, "retirement-fixture", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.db.DB().ExecContext(t.Context(),
+				`CREATE TRIGGER fail_vault_isolation BEFORE DELETE ON extension_mcp_overrides
+                 BEGIN SELECT RAISE(ABORT, 'vault-isolation-removal-failure'); END`); err != nil {
+				t.Fatal(err)
+			}
+
 			ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, "ws-guard", "TOKEN")
 			if _, err := harness.vault.PutSecret(
 				t.Context(),
@@ -1502,20 +1526,15 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 			entered, release := make(chan struct{}), make(chan struct{})
 			var releaseOnce sync.Once
 			defer releaseOnce.Do(func() { close(release) })
+			harness.service.secretVault = &extensionRetirementBarrierVault{
+				extensionSecretVault: harness.vault, entered: entered, release: release,
+			}
 			retired := make(chan error, 1)
 			go func() {
-				retired <- harness.service.lifecycle.withPackageMutation(ctx, []string{name}, func() error {
-					close(entered)
-					select {
-					case <-release:
-					case <-ctx.Done():
-						return ctx.Err()
-					}
-					// Model the final restoration while still holding the same production removal lock.
-					_, err := harness.vault.PutSecret(ctx, ref, extensionpkg.ExtensionEnvBindingKind, "restored-value")
-					return err
-				})
+				_, err := harness.service.Remove(ctx, name, harness.actor)
+				retired <- err
 			}()
+
 			<-entered
 			body, err := json.Marshal(
 				contract.PutVaultSecretRequest{
@@ -1540,9 +1559,13 @@ func testExtensionVaultMutationIsolation(t *testing.T) {
 				t.Fatalf("generic mutation escaped retirement lock: %v", err)
 			}
 			releaseOnce.Do(func() { close(release) })
-			if err := <-retired; err != nil {
-				t.Fatal(err)
+			if err := <-retired; err == nil || !strings.Contains(err.Error(), "vault-isolation-removal-failure") {
+				t.Fatalf("production removal compensation = %v", err)
 			}
+			if _, err := harness.service.registry.Get(name); err != nil {
+				t.Fatalf("package not restored after failed removal: %v", err)
+			}
+
 			select {
 			case <-completed:
 			case <-ctx.Done():
@@ -1625,4 +1648,28 @@ func newExtensionVaultProductionEngine(
 		}
 	}
 	return engine
+}
+
+// extensionRetirementBarrierVault pauses only the Vault I/O boundary while production removal owns its lock.
+type extensionRetirementBarrierVault struct {
+	extensionSecretVault
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (v *extensionRetirementBarrierVault) ListExtensionMetadata(
+	ctx context.Context,
+	name string,
+) ([]vault.Metadata, error) {
+	rows, err := v.extensionSecretVault.ListExtensionMetadata(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	close(v.entered)
+	select {
+	case <-v.release:
+		return rows, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }

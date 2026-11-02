@@ -126,3 +126,12 @@ each option set while the package lock is held; dropping either production wrapp
 scenario fail. No TCP or UDS listener is opened. Existing minimum session/task/observer/workspace
 fixtures supply unrelated server dependencies. The package-health regression additionally proves
 a second-workspace failure exists before retirement and rejects a late resolved call there.
+
+The final Vault scenario calls the real operator `Remove` entry point on an installed package
+seeded into the historical orphan state. A barrier at the Vault metadata I/O boundary pauses
+retirement while generic HTTP/UDS mutations queue. A real SQLite trigger then fails MCP retirement,
+forcing production registry/credential compensation. The scenario requires the injected error,
+restored package registration, and the later PUT/DELETE outcome. This replaces modeled restoration
+with the production removal path; the focused race-enabled integration passed for all four cases.
+The MCP registry suite also passed with both stale workspace keys replayed after fresh same-bundle
+resolution, preserving only the new installation's outcome.

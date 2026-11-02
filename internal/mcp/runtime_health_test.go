@@ -134,6 +134,15 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 
 		fresh := registry.ResolveKey(key)
 		registry.RecordFailure(registry.Begin(fresh), errors.New("new install failure"))
+		registry.RecordFailure(
+			registry.Begin(otherResolved),
+			errors.New("late other workspace failure after reinstall"),
+		)
+		registry.RecordFailure(registry.Begin(staleResolved), errors.New("late resolved failure after reinstall"))
+		if entries := registry.Entries("kit", "ws-other", "same-bundle"); len(entries) != 0 {
+			t.Fatalf("other workspace health after reinstall = %v", entries)
+		}
+
 		if entries := registry.Entries(
 			"kit",
 			"ws-old",
