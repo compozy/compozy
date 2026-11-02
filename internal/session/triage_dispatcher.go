@@ -78,7 +78,7 @@ func (d *TriageDispatcher) Dispatch(
 	if opts.Workspace == "" {
 		opts.Scope = workspacepkg.ScopeUser
 	}
-	child, err := d.Manager.Create(ctx, opts)
+	child, err := d.Manager.Create(ctx, &(opts))
 	if err != nil {
 		if errors.Is(err, acp.ErrTriageUnsupported) {
 			return heartbeat.TriageOutcome{

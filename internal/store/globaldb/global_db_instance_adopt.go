@@ -22,26 +22,8 @@ func (r *InstanceRepo) Adopt(
 	var result agentinstance.Instance
 	err := store.ExecuteWriteOperation(ctx, r.db, "adopt instance", func(ctx context.Context, tx *store.WriteTx) error {
 		q := sqlcgen.New(tx)
-		_, err := q.FindLiveAgentInstance(
-			ctx,
-			sqlcgen.FindLiveAgentInstanceParams{
-				ProfileID:   input.ProfileID,
-				AgentName:   input.AgentName,
-				WorkspaceID: input.WorkspaceID,
-			},
-		)
-		if err == nil {
-			return agentinstance.ErrExists
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
+		if err := validateInstanceAdoption(ctx, q, &input, limit); err != nil {
 			return err
-		}
-		count, err := q.CountActiveAgentInstances(ctx, input.ProfileID)
-		if err != nil {
-			return err
-		}
-		if count >= int64(limit) {
-			return agentinstance.ErrLimit
 		}
 		id, err := store.NewID("ainst")
 		if err != nil {
@@ -105,4 +87,29 @@ func (r *InstanceRepo) Adopt(
 		return err
 	})
 	return result, err
+}
+
+func validateInstanceAdoption(ctx context.Context, q *sqlcgen.Queries, input *agentinstance.Instance, limit int) error {
+	_, err := q.FindLiveAgentInstance(
+		ctx,
+		sqlcgen.FindLiveAgentInstanceParams{
+			ProfileID:   input.ProfileID,
+			AgentName:   input.AgentName,
+			WorkspaceID: input.WorkspaceID,
+		},
+	)
+	if err == nil {
+		return agentinstance.ErrExists
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	count, err := q.CountActiveAgentInstances(ctx, input.ProfileID)
+	if err != nil {
+		return err
+	}
+	if count >= int64(limit) {
+		return agentinstance.ErrLimit
+	}
+	return nil
 }

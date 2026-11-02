@@ -478,7 +478,7 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback} {
 			t.Run("Should return "+string(delivery), func(t *testing.T) {
 				t.Parallel()
-				manager := testutil.StubSessionManager{
+				manager := &testutil.StubSessionManager{
 					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 						return &session.Info{ID: id, WorkspaceID: "ws-workspace"}, nil
 					},
@@ -546,7 +546,7 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 		executionContexts := make(chan context.Context, 1)
 		deliveryContexts := make(chan context.Context, 1)
 		var gotOpts session.SendPromptOpts
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{ID: id, WorkspaceID: "ws-workspace"}, nil
 			},
@@ -618,7 +618,7 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 		t.Parallel()
 
 		managerCalled := false
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			SendPromptFn: func(
 				context.Context,
 				string,
@@ -671,7 +671,7 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 	t.Run("Should return not found when prompt attachment resolution fails", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return &session.Info{ID: id, WorkspaceID: "ws-workspace"}, nil
 			},
@@ -713,7 +713,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	t.Parallel()
 
 	var listQuery session.ListQuery
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 			listQuery = query
 			return session.ListPage{}, nil
@@ -805,7 +805,7 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 	lastCutoffAt := lastSweepAt.AddDate(0, 0, -14)
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{
 			HealthFn: func(context.Context) (observe.Health, error) {
 				return observe.Health{
@@ -911,7 +911,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	t.Run("Should health automation failure", func(t *testing.T) {
 		fixture := newHandlerFixtureWithAutomation(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{
 				HealthFn: func(context.Context) (observe.Health, error) {
 					return observe.Health{Status: "ok", Version: "dev"}, nil
@@ -939,7 +939,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	t.Run("Should daemon status session list failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) {
 					return nil, errors.New("list failed")
 				},
@@ -966,7 +966,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 	t.Run("Should daemon status observer failure", func(t *testing.T) {
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{
 				HealthFn: func(context.Context) (observe.Health, error) {
 					return observe.Health{}, errors.New("observer failed")
@@ -1017,7 +1017,7 @@ func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
 	}
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{
 			HealthFn: func(context.Context) (observe.Health, error) {
 				return observe.Health{Status: "ok", Version: "dev"}, nil
@@ -1063,7 +1063,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 			),
 			func(t *testing.T) {
 				t.Parallel()
-				manager := testutil.StubSessionManager{
+				manager := &testutil.StubSessionManager{
 					ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 						if query.AttentionOnly != tc.attention {
 							t.Fatalf("attention = %v", query.AttentionOnly)
@@ -1121,7 +1121,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -1136,7 +1136,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	})
 	t.Run("Should pass board and child selectors to the catalog owner", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 				if len(query.Columns) != 2 || query.Columns[0] != "working" || query.Columns[1] != "in_review" ||
 					!query.HideChildren {
@@ -1171,7 +1171,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 
 	t.Run("Should expose metadata facets with operator scope and explicit search semantics", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			CatalogFacetsFn: func(_ context.Context, query session.ListQuery) (store.SessionCatalogFacetResult, error) {
 				if !query.AllWorkspaces || query.Archive != store.SessionArchiveOnly {
 					t.Fatalf("facet query=%#v", query)
@@ -1213,7 +1213,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 
 	t.Run("Should omit total only for an explicit count-free cursor read", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 				if !query.SkipTotal {
 					t.Fatal("skip_total did not reach the catalog owner")
@@ -1248,7 +1248,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Run("Should return the bounded visible session page", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 				if query.Limit != 0 {
 					t.Fatalf("session page limit = %d, want server default request", query.Limit)
@@ -1304,7 +1304,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Run("Should preserve the page contract for resumable lists", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
 				if !query.Resumable {
 					t.Fatalf("resumable query = false, want true")
@@ -1374,7 +1374,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Run("Should hydrate health only for sessions returned by the page", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListPageFn: func(_ context.Context, _ session.ListQuery) (session.ListPage, error) {
 				return session.ListPage{
 					Sessions: []*session.Info{{
@@ -1453,7 +1453,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
 					return session.ListPage{}, errors.New("list failed")
 				},
@@ -1478,7 +1478,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
 					t.Fatal("ListPage() called for invalid session type")
 					return session.ListPage{}, nil
@@ -1504,7 +1504,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
 					t.Fatal("ListPage() called for unsupported session type")
 					return session.ListPage{}, nil
@@ -1528,7 +1528,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 	t.Run("Should report an unavailable paged catalog", func(t *testing.T) {
 		t.Parallel()
 
-		manager := unpagedSessionManager{SessionManager: testutil.StubSessionManager{}}
+		manager := unpagedSessionManager{SessionManager: &testutil.StubSessionManager{}}
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			TransportName:      "api-core-test",
 			MaskInternalErrors: false,
@@ -1550,7 +1550,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 	t.Run("Should reject per-session health fallback for a catalog page", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
 				return session.ListPage{Sessions: []*session.Info{{ID: "sess-returned"}}, Total: 1, Limit: 1}, nil
 			},
@@ -1586,7 +1586,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) {
 					return []*session.Info{{ID: "sess-1", WorkspaceID: "ws_alpha"}}, nil
 				},
@@ -1610,7 +1610,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
@@ -1634,7 +1634,7 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -1701,7 +1701,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			events <- session.CatalogEvent{Sequence: 1, InstanceID: foreign.ID, ProfileID: store.DefaultProfileID}
 			events <- session.CatalogEvent{Sequence: 2, InstanceID: own.ID, ProfileID: store.DefaultProfileID}
 			close(events)
-			manager := testutil.StubSessionManager{
+			manager := &testutil.StubSessionManager{
 				StatusFn: func(context.Context, string) (*session.Info, error) {
 					return &session.Info{
 						ID:        "caller",
@@ -1753,7 +1753,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 			Sequence: 18, Kind: session.CatalogEventUpserted, ExecutionLocationChanged: true,
 			ProfileID: store.DefaultProfileID, WorkspaceID: "ws_beta", SessionID: "sess_beta",
 		}
-		manager := testutil.StubSessionManager{SubscribeCatalogFn: func(
+		manager := &testutil.StubSessionManager{SubscribeCatalogFn: func(
 			_ context.Context, scope session.CatalogScope,
 		) (<-chan session.CatalogEvent, func(), error) {
 			scopes <- scope
@@ -1834,7 +1834,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		close(events)
 		canceled := false
 		var subscribedScope session.CatalogScope
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			SubscribeCatalogFn: func(
 				_ context.Context,
 				scope session.CatalogScope,
@@ -1896,7 +1896,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		events := make(chan session.CatalogEvent)
 		close(events)
 		var subscribedScope session.CatalogScope
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			SubscribeCatalogFn: func(
 				_ context.Context,
 				scope session.CatalogScope,
@@ -1944,7 +1944,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		t.Parallel()
 
 		subscribeCalls := 0
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			SubscribeCatalogFn: func(
 				context.Context,
 				session.CatalogScope,
@@ -2017,7 +2017,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 		}}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			observer,
 			testutil.StubWorkspaceService{},
 		)
@@ -2074,7 +2074,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 			}
 		},
 	}
-	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+	fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 	fixture.Handlers.SetStreamDone(done)
 
 	resp := performRequest(
@@ -2136,12 +2136,12 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 	} {
 		t.Run("Should return "+testCase.name, func(t *testing.T) {
 			t.Parallel()
-			manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			manager := &testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 				return &session.Info{ID: "session-pr", ProfileID: store.DefaultProfileID}, nil
 			}}
 			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 			fixture.Handlers.Sessions = &pullRequestHandlerManager{
-				StubSessionManager: manager,
+				StubSessionManager: *manager,
 				view:               testCase.view,
 				err:                testCase.err,
 			}
@@ -2239,7 +2239,7 @@ func TestBaseHandlersHiddenTriage(t *testing.T) {
 	} {
 		t.Run("Should refuse triage through "+route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()
-			manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			manager := &testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 				return &session.Info{
 					ID:          "hidden",
 					ProfileID:   store.DefaultProfileID,

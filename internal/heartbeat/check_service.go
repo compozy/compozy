@@ -142,24 +142,19 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if state.OccurrenceID != "" || len(inflight) >= s.config.MaxConcurrent {
 		return CheckResult{Gate: "no_slot"}, nil
 	}
+	return s.checkTarget(ctx, state, &target, manual, dryRun)
+}
+
+func (s *CheckService) checkTarget(
+	ctx context.Context,
+	state InstanceWakeState,
+	target *CheckTarget,
+	manual, dryRun bool,
+) (CheckResult, error) {
 	now := s.now()
-	cadence := s.checkInterval(target.Policy)
-	if !manual && state.NextWakeAt == "" && state.LastWakeAt == "" {
-		firstCheck := target.Instance.CreatedAt.Add(cadence)
-		if firstCheck.After(now) {
-			_, err := s.store.Skip(
-				ctx,
-				SkipRequest{
-					InstanceID:  state.InstanceID,
-					ExpectedDue: state.NextWakeAt,
-					Reason:      "cooldown_active",
-					Now:         now,
-					NextWakeAt:  firstCheck,
-					ExpiresAt:   now.Add(s.config.Retention),
-				},
-			)
-			return CheckResult{Gate: "cooldown_active"}, err
-		}
+	cadence := s.checkInterval(&target.Policy)
+	if skipped, err := s.skipInitialCheck(ctx, state, target, manual, cadence, now); skipped {
+		return CheckResult{Gate: "cooldown_active"}, err
 	}
 	skip := func(reason, detail string) (CheckResult, error) {
 		if manual || dryRun {
@@ -179,33 +174,19 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 		)
 		return CheckResult{Gate: reason}, err
 	}
-	if !s.config.Enabled {
-		return skip("heartbeat_disabled", "")
-	}
-	if (!dryRun && target.Instance.State != "active") || target.Instance.ArchivedAt != nil ||
-		!target.Instance.ChecksEnabled {
-		return skip("heartbeat_disabled", "")
-	}
-	if target.Gate != "" {
-		return skip(target.Gate, "")
-	}
-	if !target.Policy.Enabled {
-		return skip("policy_disabled", "")
-	}
-	if allowed, err := target.Policy.Preferences.AllowsAt(now); err != nil {
+	gate, err := s.checkGate(target, dryRun, now)
+	if err != nil {
 		return CheckResult{}, err
-	} else if !allowed {
-		return skip("quiet_window", "")
 	}
-	if target.MainPrompting {
-		return skip("session_prompt_active", "")
+	if gate != "" {
+		return skip(gate, "")
 	}
 	source := "timer"
 	if manual {
 		source = "instance_check"
 	}
 	if !dryRun {
-		reason, err := s.environment.BeforeCheck(ctx, &target, source)
+		reason, err := s.environment.BeforeCheck(ctx, target, source)
 		if err != nil {
 			return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
 		}
@@ -232,39 +213,19 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 	if err != nil {
 		return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
 	}
-	if len(digest.Items) == 0 && strings.TrimSpace(target.Policy.GuidanceMarkdown) == "" {
-		return skip("digest_empty", "")
-	}
-	if !manual && digest.Fingerprint == state.LastDigest &&
-		now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval {
-		return skip("digest_unchanged", "")
+	if gate := s.checkDigestGate(target, &digest, state, manual, now); gate != "" {
+		return skip(gate, "")
 	}
 	if dryRun {
 		return CheckResult{Gate: "would_run", Digest: &digest}, nil
 	}
-	occurrence, err := store.NewID(source)
-	if err != nil {
-		return CheckResult{}, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return CheckResult{}, errors.New("heartbeat: checks are stopped")
-	}
-	admitted, err := s.store.Admit(ctx, AdmitRequest{
-		InstanceID: state.InstanceID, OccurrenceID: occurrence, Now: now,
+	return s.admitCheck(ctx, target, digest, AdmitRequest{
+		InstanceID: state.InstanceID, Now: now,
 		NextWakeAt:  NextCheckTime(now, cadence, state.InstanceID),
 		ManualCheck: manual, MaxConcurrent: s.config.MaxConcurrent,
-	})
-	if err != nil {
-		return CheckResult{}, err
-	}
-	if !admitted {
-		return CheckResult{Gate: "no_slot"}, nil
-	}
-	s.wg.Go(func() { s.dispatch(&target, digest, occurrence, source) })
-	return CheckResult{OccurrenceID: occurrence}, nil
+	}, source)
 }
+
 func NextCheckTime(now time.Time, cadence time.Duration, id string) time.Time {
 	hash := sha256.Sum256([]byte(id))
 	return now.Add(cadence + time.Duration(binary.LittleEndian.Uint64(hash[:8])%1000)*(cadence/10000))
@@ -310,4 +271,72 @@ func (s *CheckService) rescheduleCheckFailure(
 		ExpiresAt:   now.Add(s.config.Retention),
 	})
 	return errors.Join(cause, err)
+}
+
+func (s *CheckService) checkGate(target *CheckTarget, dryRun bool, now time.Time) (string, error) {
+	if !s.config.Enabled {
+		return "heartbeat_disabled", nil
+	}
+	if (!dryRun && target.Instance.State != "active") || target.Instance.ArchivedAt != nil ||
+		!target.Instance.ChecksEnabled {
+		return "heartbeat_disabled", nil
+	}
+	if target.Gate != "" {
+		return target.Gate, nil
+	}
+	if !target.Policy.Enabled {
+		return "policy_disabled", nil
+	}
+	if allowed, err := target.Policy.Preferences.AllowsAt(now); err != nil {
+		return "", err
+	} else if !allowed {
+		return "quiet_window", nil
+	}
+	if target.MainPrompting {
+		return "session_prompt_active", nil
+	}
+	return "", nil
+}
+
+func (s *CheckService) checkDigestGate(
+	target *CheckTarget,
+	digest *CheckDigest,
+	state InstanceWakeState,
+	manual bool,
+	now time.Time,
+) string {
+	if len(digest.Items) == 0 && strings.TrimSpace(target.Policy.GuidanceMarkdown) == "" {
+		return "digest_empty"
+	}
+	if !manual && digest.Fingerprint == state.LastDigest &&
+		now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval {
+		return "digest_unchanged"
+	}
+	return ""
+}
+
+func (s *CheckService) skipInitialCheck(
+	ctx context.Context,
+	state InstanceWakeState,
+	target *CheckTarget,
+	manual bool,
+	cadence time.Duration,
+	now time.Time,
+) (bool, error) {
+	if manual || state.NextWakeAt != "" || state.LastWakeAt != "" {
+		return false, nil
+	}
+	firstCheck := target.Instance.CreatedAt.Add(cadence)
+	if !firstCheck.After(now) {
+		return false, nil
+	}
+	_, err := s.store.Skip(ctx, SkipRequest{
+		InstanceID:  state.InstanceID,
+		ExpectedDue: state.NextWakeAt,
+		Reason:      "cooldown_active",
+		Now:         now,
+		NextWakeAt:  firstCheck,
+		ExpiresAt:   now.Add(s.config.Retention),
+	})
+	return true, err
 }

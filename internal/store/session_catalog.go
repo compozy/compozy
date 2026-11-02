@@ -33,7 +33,7 @@ func (e *SessionArchiveLiveMemberError) Unwrap() error {
 
 // SessionCatalog manages global session index records.
 type SessionCatalog interface {
-	RegisterSession(ctx context.Context, session SessionInfo) error
+	RegisterSession(ctx context.Context, session *SessionInfo) error
 	UpdateSessionState(ctx context.Context, update SessionStateUpdate) error
 	DeleteSession(ctx context.Context, sessionID string) error
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error)

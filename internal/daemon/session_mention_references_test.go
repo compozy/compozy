@@ -75,8 +75,8 @@ func (f *mentionTestFixture) addTurns(id string, turns int, text func(turn int, 
 	}
 }
 
-func (f *mentionTestFixture) manager() apitest.StubSessionManager {
-	return apitest.StubSessionManager{
+func (f *mentionTestFixture) manager() *apitest.StubSessionManager {
+	return &apitest.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			info, ok := f.infos[id]
 			if !ok {

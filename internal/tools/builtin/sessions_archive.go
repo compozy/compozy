@@ -33,7 +33,7 @@ func sessionArchiveDescriptor(archived bool) toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "archive"},
+		[]string{sessionsSessionsKey, descriptorKeywordArchive},
 		keywords,
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)

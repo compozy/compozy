@@ -1689,7 +1689,7 @@ func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *te
 		spy := &spyTerminalSessionRunEnder{}
 		observer := &terminalRunLifecycleObserver{
 			terminals: spy,
-			sessions: apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			sessions: &apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 				t.Fatal("sessionless run must not look up a session")
 				return nil, nil
 			}},
@@ -1706,7 +1706,7 @@ func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *te
 	spy := &spyTerminalSessionRunEnder{}
 	observer := &terminalRunLifecycleObserver{
 		terminals: spy,
-		sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+		sessions: &apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			return &session.Info{ID: id, RuntimeGeneration: 7}, nil
 		}},
 	}

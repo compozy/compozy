@@ -34,7 +34,7 @@ func TestDoctorProviderFilterIncludesProviderDiagnostics(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config:   cfg,
 			Observer: apitestutil.StubObserver{},
-			Sessions: apitestutil.StubSessionManager{},
+			Sessions: &apitestutil.StubSessionManager{},
 		})
 		router := gin.New()
 		router.GET("/doctor", handlers.GetDoctor)

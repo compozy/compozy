@@ -22,7 +22,10 @@ func (r *instanceMainRotator) recordRotationDeferral(
 		return err
 	}
 	payload, err := json.Marshal(
-		map[string]string{"reason": "dependencies_pending", "since": since.UTC().Format(time.RFC3339Nano)},
+		map[string]string{
+			loopActionRuntimeReasonKey: "dependencies_pending",
+			"since":                    since.UTC().Format(time.RFC3339Nano),
+		},
 	)
 	if err != nil {
 		return err

@@ -49,11 +49,11 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		})
 		h.manager = newManagerWithHarness(t, h)
 
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:   "coder",
 			Workspace:   h.workspaceID,
 			Permissions: compozyconfig.PermissionModeApproveAll,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -127,7 +127,7 @@ func TestInstancePermissionMode(t *testing.T) {
 				return nil, "", nil
 			},
 		)
-		child, err := h.manager.Create(t.Context(), CreateOpts{
+		child, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName:   "coder",
 			Workspace:   h.workspaceID,
 			Permissions: compozyconfig.PermissionModeApproveAll,
@@ -136,7 +136,7 @@ func TestInstancePermissionMode(t *testing.T) {
 				Kind:            store.LineageKindFork,
 				OriginAgentName: "coder",
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +170,7 @@ func TestInstancePermissionMode(t *testing.T) {
 				)
 				created, err := h.manager.Create(
 					t.Context(),
-					CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Permissions: tc.mode},
+					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Permissions: tc.mode}),
 				)
 				if err != nil {
 					t.Fatal(err)
@@ -222,10 +222,10 @@ func TestTriageSessionPermissions(t *testing.T) {
 	t.Run("Should preserve triage restrictions across stop and resume", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
-		created, err := h.manager.Create(t.Context(), CreateOpts{
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeTriage,
 			Permissions: compozyconfig.PermissionModeApproveAll,
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -433,9 +433,9 @@ func TestTriageDispatcher(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t).harness
 		ordinary := createSession(t, h)
-		triage, err := h.manager.Create(t.Context(), CreateOpts{
+		triage, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeTriage,
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}

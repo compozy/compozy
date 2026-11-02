@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/managedsidecar"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -39,7 +40,7 @@ func resolveInstanceCheckPolicy(
 	if err != nil {
 		return err
 	}
-	if agent.Kind != "stays_on" {
+	if agent.Kind != compozyconfig.AgentKindStaysOn {
 		target.Gate = "definition_not_stays_on"
 		return nil
 	}

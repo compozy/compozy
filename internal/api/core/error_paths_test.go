@@ -22,8 +22,8 @@ import (
 func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 	t.Parallel()
 
-	manager := testutil.StubSessionManager{
-		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+	manager := &testutil.StubSessionManager{
+		CreateFn: func(context.Context, *session.CreateOpts) (*session.Session, error) {
 			return nil, os.ErrNotExist
 		},
 		StatusFn: func(context.Context, string) (*session.Info, error) {
@@ -185,7 +185,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			return testutil.NewSessionInfo("sess-a"), nil
 		},
@@ -221,7 +221,7 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			info := testutil.NewSessionInfo("sess-a")
 			info.State = session.StateStopped
@@ -264,7 +264,7 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 
 	observeFixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
 	)
@@ -292,7 +292,7 @@ func TestStreamSessionInitialEventsErrorWithoutLiveSubscription(t *testing.T) {
 		t.Parallel()
 
 		initialErr := errors.New("events unavailable")
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return testutil.NewSessionInfo(id), nil
 			},
@@ -328,7 +328,7 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
 	)
@@ -352,7 +352,7 @@ func TestListAgentsWorkspaceResolverUnavailable(t *testing.T) {
 
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -387,7 +387,7 @@ func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {
 
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		testutil.StubWorkspaceService{},
 	)
@@ -413,7 +413,7 @@ func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 		t.Helper()
 		return newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			workspaces,
 		)
@@ -492,7 +492,7 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 	}
 	fixture := newHandlerFixture(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		workspaces,
 	)

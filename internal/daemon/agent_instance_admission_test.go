@@ -38,7 +38,7 @@ type instanceAdmissionInputs struct {
 	policy     store.SessionPermissionPolicy
 }
 
-func (i instanceAdmissionInputs) AdoptionSession(
+func (i *instanceAdmissionInputs) AdoptionSession(
 	context.Context,
 	string,
 ) (store.SessionInfo, store.SessionPermissionPolicy, error) {
@@ -62,7 +62,7 @@ func TestInstanceAdoptAdmission(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			inputs := instanceAdmissionInputs{
+			inputs := &instanceAdmissionInputs{
 				definition: instanceDefinition{
 					Kind:   tc.kind,
 					Policy: store.SessionPermissionPolicy{Tools: []string{"read"}},
@@ -77,8 +77,8 @@ func TestInstanceAdoptAdmission(t *testing.T) {
 			}
 			admission := &instanceAdmission{definitions: inputs, sessions: inputs, reach: inputs}
 			got, err := admission.ResolveAdopt(t.Context(), agentinstance.AdoptRequest{
-				CreateRequest: agentinstance.CreateRequest{Agent: "coder", Profile: "profile", Workspace: "workspace",
-					Actor: workspaceaccess.ActorRef{Operator: tc.operator}}, SessionID: "candidate",
+				Agent: "coder", Profile: "profile", Workspace: "workspace",
+				Actor: workspaceaccess.ActorRef{Operator: tc.operator}, SessionID: "candidate",
 			})
 			if tc.want != "" {
 				if err == nil || err.Error() != tc.want {
@@ -93,7 +93,7 @@ func TestInstanceAdoptAdmission(t *testing.T) {
 	}
 }
 
-func (i instanceAdmissionInputs) InstanceDefinition(
+func (i *instanceAdmissionInputs) InstanceDefinition(
 	context.Context,
 	string,
 	string,
@@ -101,11 +101,11 @@ func (i instanceAdmissionInputs) InstanceDefinition(
 ) (instanceDefinition, error) {
 	return i.definition, nil
 }
-func (i instanceAdmissionInputs) InstanceCaller(context.Context, string) (agentinstance.Caller, error) {
+func (i *instanceAdmissionInputs) InstanceCaller(context.Context, string) (agentinstance.Caller, error) {
 	return i.caller, nil
 }
 
-func (i instanceAdmissionInputs) AuthorizeInstanceWorkspace(
+func (i *instanceAdmissionInputs) AuthorizeInstanceWorkspace(
 	context.Context,
 	workspaceaccess.ActorRef,
 	string,
@@ -126,7 +126,7 @@ func TestInstanceCreateAdmission(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			inputs := instanceAdmissionInputs{
+			inputs := &instanceAdmissionInputs{
 				definition: instanceDefinition{Kind: "stays_on", Grant: workspaceaccess.Unrestricted},
 				caller: agentinstance.Caller{
 					AgentName: "coder",
@@ -174,7 +174,7 @@ func TestInstanceCreateAdmission(t *testing.T) {
 				Tools: []string{"read"}, Skills: []string{"review"},
 				MCPServers: []string{"docs"}, WorkspacePaths: []string{"/project"},
 			}
-			inputs := instanceAdmissionInputs{
+			inputs := &instanceAdmissionInputs{
 				definition: instanceDefinition{
 					Kind:  tc.kind,
 					Grant: "unrestricted",
@@ -238,7 +238,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 					target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"},
 				},
 				Authority: agentinstance.Authority{
-					Callers: instanceAdmissionInputs{
+					Callers: &instanceAdmissionInputs{
 						caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
 					},
 				},
@@ -250,7 +250,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 				t,
 				&daemonNativeToolsDeps{
 					AgentInstances: func() *core.AgentInstanceAPI { return api },
-					Sessions: testutil.StubSessionManager{
+					Sessions: &testutil.StubSessionManager{
 						StatusFn: func(context.Context, string) (*session.Info, error) {
 							return &session.Info{ID: "caller", ProfileID: "profile", AgentName: "coder"}, nil
 						},
@@ -278,14 +278,14 @@ func TestNativeInstanceAuthority(t *testing.T) {
 						target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"},
 					},
 					Authority: agentinstance.Authority{
-						Callers: instanceAdmissionInputs{
+						Callers: &instanceAdmissionInputs{
 							caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
 						},
 					},
 				}
 				native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 					AgentInstances: func() *core.AgentInstanceAPI { return api },
-					Sessions: testutil.StubSessionManager{
+					Sessions: &testutil.StubSessionManager{
 						StatusFn: func(context.Context, string) (*session.Info, error) {
 							return &session.Info{EffectivePermissions: "approve-all"}, nil
 						},
@@ -329,7 +329,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 					target: agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "profile"},
 				},
 				Authority: agentinstance.Authority{
-					Callers: instanceAdmissionInputs{
+					Callers: &instanceAdmissionInputs{
 						caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
 					},
 				},
@@ -377,7 +377,7 @@ func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 			api := &core.AgentInstanceAPI{
 				Store: nativeInstanceTargetStore{target: target},
 				Authority: agentinstance.Authority{
-					Callers: instanceAdmissionInputs{
+					Callers: &instanceAdmissionInputs{
 						caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
 					},
 				},
@@ -415,7 +415,7 @@ func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 				},
 			},
 			Authority: agentinstance.Authority{
-				Callers: instanceAdmissionInputs{
+				Callers: &instanceAdmissionInputs{
 					caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
 				},
 			},
@@ -715,14 +715,14 @@ func TestInstanceRotationDeferral(t *testing.T) {
 		}
 		_, err = db.RegisterInstanceSession(
 			t.Context(),
-			store.SessionInfo{
+			new(store.SessionInfo{
 				ID:            "main",
 				ProfileID:     store.DefaultProfileID,
 				AgentName:     "coder",
 				State:         "active",
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				SessionType:   "user",
-			},
+			}),
 			instance.ID,
 			nil,
 		)
@@ -791,10 +791,10 @@ func TestInstanceLateChildReentry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = db.RegisterInstanceSession(t.Context(), store.SessionInfo{
+		_, err = db.RegisterInstanceSession(t.Context(), new(store.SessionInfo{
 			ID: "successor", ProfileID: store.DefaultProfileID, AgentName: "coder",
 			State: "active", RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user",
-		}, instance.ID, nil)
+		}), instance.ID, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

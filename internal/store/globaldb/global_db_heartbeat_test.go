@@ -691,11 +691,11 @@ func TestGlobalDBHeartbeatWakeAuditStore(t *testing.T) {
 			VALUES (?, 'design', '#E8572A', 'briefcase', 'active', ?)`, profileID, store.FormatTimestamp(baseAt)); err != nil {
 			t.Fatalf("Insert profile error = %v", err)
 		}
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(store.SessionInfo{
 			ID: "sess-design", ProfileID: profileID, AgentName: "coder", Provider: "claude",
 			WorkspaceID: workspaceID, RuntimeStatus: store.SessionRuntimeUnbound,
 			State: "active", CreatedAt: baseAt, UpdatedAt: baseAt,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(design) error = %v", err)
 		}
 		for index, sessionID := range []string{defaultSessionID, "sess-design"} {
@@ -1136,7 +1136,7 @@ func registerHeartbeatWorkspaceAndSession(
 
 	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, workspaceName, t.TempDir())
 	now := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
-	if err := globalDB.RegisterSession(testutil.Context(t), store.SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
@@ -1146,7 +1146,7 @@ func registerHeartbeatWorkspaceAndSession(
 		State:         "active",
 		CreatedAt:     now,
 		UpdatedAt:     now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}
 	return workspaceID, sessionID

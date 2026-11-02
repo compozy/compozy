@@ -3,7 +3,25 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func agentInstanceOperations() []OperationSpec {
-	operations := []OperationSpec{
+	operations := append(agentInstanceCheckOperations(), agentInstanceCatalogOperations()...)
+	operations = append(operations, agentInstanceDetailOperations()...)
+	for i := range operations {
+		operations[i].AppAccess = AppAccessDenied
+		operations[i].Tags = []string{specAgentsKey}
+		operations[i].Transports = []Transport{TransportHTTP, TransportUDS}
+		operations[i].Parameters = withProfileSelector(operations[i].Parameters...)
+		for _, status := range []int{403, 404, 409, 422, 429, 500, 503} {
+			operations[i].Responses = append(
+				operations[i].Responses,
+				ResponseSpec{Status: status, Description: "Request failed", Body: contract.ErrorPayload{}},
+			)
+		}
+	}
+	return operations
+}
+
+func agentInstanceCheckOperations() []OperationSpec {
+	return []OperationSpec{
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/agent-instances/{id}/occurrences/{occurrence}",
@@ -48,6 +66,11 @@ func agentInstanceOperations() []OperationSpec {
 				{Status: 200, Description: "Scoped activity", Body: contract.AgentActivityResponse{}},
 			},
 		},
+	}
+}
+
+func agentInstanceCatalogOperations() []OperationSpec {
+	return []OperationSpec{
 		{
 			Method:      httpMethodPost,
 			Path:        "/api/agent-instances",
@@ -83,6 +106,10 @@ func agentInstanceOperations() []OperationSpec {
 			Responses:   []ResponseSpec{{Status: 201, Description: "Created", Body: contract.AgentInstanceResponse{}}},
 		},
 	}
+}
+
+func agentInstanceDetailOperations() []OperationSpec {
+	var operations []OperationSpec
 	for _, verb := range []struct{ method, path, id, summary string }{
 		{httpMethodGet, "", "getAgentInstance", "Get an agent instance"},
 		{httpMethodPost, "/pause", "pauseAgentInstance", "Pause an agent instance"},
@@ -139,18 +166,6 @@ func agentInstanceOperations() []OperationSpec {
 			}
 		}
 		operations = append(operations, operation)
-	}
-	for i := range operations {
-		operations[i].AppAccess = AppAccessDenied
-		operations[i].Tags = []string{specAgentsKey}
-		operations[i].Transports = []Transport{TransportHTTP, TransportUDS}
-		operations[i].Parameters = withProfileSelector(operations[i].Parameters...)
-		for _, status := range []int{403, 404, 409, 422, 429, 500, 503} {
-			operations[i].Responses = append(
-				operations[i].Responses,
-				ResponseSpec{Status: status, Description: "Request failed", Body: contract.ErrorPayload{}},
-			)
-		}
 	}
 	return operations
 }

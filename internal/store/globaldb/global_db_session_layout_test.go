@@ -265,7 +265,7 @@ func registerLayoutSession(ctx context.Context, t *testing.T, db *GlobalDB, work
 		globalDBSessionStateStopped,
 		time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
 	)
-	if err := db.RegisterSession(ctx, info); err != nil {
+	if err := db.RegisterSession(ctx, &(info)); err != nil {
 		t.Fatalf("RegisterSession(%s) error = %v", id, err)
 	}
 }
@@ -393,7 +393,7 @@ func TestSessionLayoutUserScope(t *testing.T) {
 			time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
 		)
 		foreign.ProfileID = other
-		if err := db.RegisterSession(ctx, foreign); err != nil {
+		if err := db.RegisterSession(ctx, &(foreign)); err != nil {
 			t.Fatal(err)
 		}
 		sessions, err := db.ListSessions(

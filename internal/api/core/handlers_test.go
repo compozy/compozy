@@ -247,7 +247,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 						ID: "ev-global", SessionID: "sess-global", Sequence: 12,
 						Type: session.EventTypeSessionStopped,
 					}
-					manager := testutil.StubSessionManager{
+					manager := &testutil.StubSessionManager{
 						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 							info := testutil.NewSessionInfo(id)
 							info.WorkspaceID, info.ProfileID, info.State = tc.workspaceID, tc.profileID, session.StateStopped
@@ -332,7 +332,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	var attachResult store.SessionAttach
 	var attachTTL time.Duration
 	var repairSeen session.RepairOpts
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			defaultSession := testutil.NewSessionInfo("sess-a")
 			defaultSession.ProfileID = store.DefaultProfileID
@@ -340,7 +340,9 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			marketingSession.ProfileID = "profile-marketing"
 			return []*session.Info{defaultSession, marketingSession}, nil
 		},
-		CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
+		CreateAcceptedFn: func(_ context.Context, acceptedOptsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+			acceptedOpts := *acceptedOptsInput
+
 			createCalled.Store(true)
 			opts := acceptedOpts.Session
 			if opts.AgentName != "coder" ||
@@ -826,7 +828,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t.Run("Should "+tt.name, func(t *testing.T) {
 				t.Parallel()
 				requests, waits := 0, 0
-				base := testutil.StubSessionManager{
+				base := &testutil.StubSessionManager{
 					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 						info := testutil.NewSessionInfo(id)
 						info.State = tt.state
@@ -839,7 +841,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
 				)
-				fixture.Handlers.Sessions = &sessionStopManagerStub{StubSessionManager: base,
+				fixture.Handlers.Sessions = &sessionStopManagerStub{StubSessionManager: *base,
 					request: func(_ context.Context, id string, cause session.StopCause) error {
 						requests++
 						if id != "sess-a" || cause != session.CauseUserRequested {
@@ -956,7 +958,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	t.Run("Should move a session to Later and bring it back with its request fields", func(t *testing.T) {
 		previous := fixture.Handlers.Sessions
-		later := &laterHandlerSessionManager{StubSessionManager: manager, now: now}
+		later := &laterHandlerSessionManager{StubSessionManager: *manager, now: now}
 		fixture.Handlers.Sessions = later
 		defer func() { fixture.Handlers.Sessions = previous }()
 		resp := performRequest(
@@ -1383,7 +1385,7 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 
 	t.Run("Should return Global ownership without resolving a removed project", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				t.Fatal("owner lookup must not repair the session")
 				return nil, nil
@@ -1410,7 +1412,7 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 	t.Run("Should resolve the owner through the non-repairing owner read", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				t.Fatal("Status() called: an owner lookup must not repair the session")
 				return nil, nil
@@ -1441,7 +1443,7 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 	base := testutil.NewSessionInfo("sess-runtime")
 	base.WorkspaceID = "ws-runtime"
 	base.State = session.StateStopped
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{base}, nil
 		},
@@ -1567,7 +1569,7 @@ func TestSessionLifecycleProfileScope(t *testing.T) {
 					}
 					return &updated, nil
 				}
-				manager := testutil.StubSessionManager{
+				manager := &testutil.StubSessionManager{
 					StatusFn:  func(context.Context, string) (*session.Info, error) { return info, nil },
 					ArchiveFn: mutate, UnarchiveFn: mutate,
 					RenameFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
@@ -1633,7 +1635,7 @@ func TestRenameSessionHandler(t *testing.T) {
 	base.WorkspaceID = "ws-rename"
 	base.Type = session.SessionTypeUser
 	renameCalls := 0
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{base}, nil
 		},
@@ -1716,7 +1718,7 @@ func TestSessionParentHandlers(t *testing.T) {
 	base.WorkspaceID = "ws-parent"
 	base.Type = session.SessionTypeUser
 	adoptCalls := 0
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		ListAllFn: func(context.Context) ([]*session.Info, error) {
 			return []*session.Info{base}, nil
 		},
@@ -1869,7 +1871,7 @@ func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 		}
 
 		var transcriptPageCalls atomic.Int64
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
@@ -1991,7 +1993,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 	t.Run("Should read context through one snapshot per usage request", func(t *testing.T) {
 		t.Parallel()
 		reads := 0
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
 			ContextEventsFn: func(_ context.Context, id string) (session.ContextEvents, error) {
 				if id != "sess-a" {
@@ -2035,7 +2037,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			for _, fresh := range []bool{false, true} {
 				t.Run(fmt.Sprintf("Should preserve optional fields when fresh=%t", fresh), func(t *testing.T) {
 					t.Parallel()
-					manager := usageBoundarySessionManager{
+					manager := &usageBoundarySessionManager{
 						StatusFn: func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
 						UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) {
 							rows := []session.UsageEventEnvelope{
@@ -2069,7 +2071,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 					}
 					fixture := newHandlerFixture(
 						t,
-						manager.StubSessionManager,
+						&manager.StubSessionManager,
 						testutil.StubObserver{},
 						testutil.StubWorkspaceService{},
 					)
@@ -2157,7 +2159,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
-					manager := testutil.StubSessionManager{
+					manager := &testutil.StubSessionManager{
 						StatusFn:      func(context.Context, string) (*session.Info, error) { return testutil.NewSessionInfo("sess-a"), nil },
 						UsageEventsFn: func(context.Context, string) ([]session.UsageEventEnvelope, error) { return tc.usage, tc.failure },
 					}
@@ -2206,7 +2208,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 	)
 	t.Run("Should fill only the missing window from the catalog without enabling compaction", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+		manager := &testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
 			info := testutil.NewSessionInfo("sess-a")
 			info.Provider = "claude"
 			info.Model = "model-a"
@@ -2248,7 +2250,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 	t.Run("Should expose usage and delivery turn union with native compaction lifecycle facts", func(t *testing.T) {
 		t.Parallel()
 		at := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				info := testutil.NewSessionInfo("sess-a")
 				info.State = session.StateStopped
@@ -2353,7 +2355,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		t.Parallel()
 
 		var usageCalls atomic.Int64
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
@@ -2442,7 +2444,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 	t.Run("Should omit aggregate cost when token stats use mixed currencies", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
@@ -2519,7 +2521,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 	t.Run("Should return included without fabricating an amount for native CLI usage", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
@@ -2562,7 +2564,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 	t.Run("Should return an empty usage summary when no token stats exist", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
@@ -2602,7 +2604,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 		t.Parallel()
 
 		var usageCalls atomic.Int64
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return nil, session.ErrSessionNotFound
 			},
@@ -2639,7 +2641,7 @@ func TestLogsEndpointsRequireObserver(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -2673,7 +2675,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
 		var calls atomic.Int32
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) { return testutil.NewSessionInfo(id), nil },
 			EventsFn: func(_ context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
 				if calls.Add(1) != 1 {
@@ -2720,7 +2722,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		done := make(chan struct{})
 		var sessionCalls atomic.Int32
 		var observeCalls atomic.Int32
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return testutil.NewSessionInfo(id), nil
 			},
@@ -2823,7 +2825,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 
 		done := make(chan struct{})
 		close(done)
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return testutil.NewSessionInfo(id), nil
 			},
@@ -2891,7 +2893,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		close(done)
 		var eventsCalls atomic.Int32
 		emitted := make([]acp.AgentEvent, 0, 1)
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				info := testutil.NewSessionInfo(id)
 				info.TranscriptEpoch = 3
@@ -2996,7 +2998,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		done := make(chan struct{})
 		close(done)
 		var eventsCalls atomic.Int32
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				// Idle background session: still active, no in-flight turn.
 				info := testutil.NewSessionInfo(id)
@@ -3076,7 +3078,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	t.Run("Should reject negative transcript stream query cursors", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return testutil.NewSessionInfo(id), nil
 			},
@@ -3118,7 +3120,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 	t.Run("Should reject negative transcript stream last event ids", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return testutil.NewSessionInfo(id), nil
 			},
@@ -3163,7 +3165,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3189,7 +3191,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3217,7 +3219,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		var calls atomic.Int32
 		initialSeen := make(chan store.EventQuery, 1)
 		pollSeen := make(chan store.EventQuery, 1)
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				return testutil.NewSessionInfo(id), nil
 			},
@@ -3274,7 +3276,7 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3322,7 +3324,7 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3367,7 +3369,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3456,7 +3458,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveForProfileFn: func(
@@ -3533,7 +3535,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3568,7 +3570,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3603,7 +3605,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3630,7 +3632,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3665,7 +3667,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3693,7 +3695,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3736,7 +3738,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3829,7 +3831,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				t.Parallel()
 				fixture := newHandlerFixture(
 					t,
-					testutil.StubSessionManager{},
+					&testutil.StubSessionManager{},
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
 				)
@@ -3851,7 +3853,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -3878,7 +3880,7 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -3924,7 +3926,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadFile(source) error = %v", err)
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveForProfileFn: func(_ context.Context, ref, profile string) (workspacepkg.ResolvedWorkspace, error) {
 					if ref != "alpha" || profile != "marketing" {
@@ -4031,7 +4033,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -4092,7 +4094,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -4163,7 +4165,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -4223,7 +4225,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -4293,7 +4295,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -4387,7 +4389,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -4505,7 +4507,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -4554,7 +4556,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -4600,7 +4602,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -4641,7 +4643,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			t.Parallel()
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -4778,7 +4780,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -4859,7 +4861,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -4899,7 +4901,7 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -5003,7 +5005,7 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -5087,7 +5089,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		const workspaceRef = "alpha"
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
@@ -5253,7 +5255,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 
 		const workspaceRef = "alpha"
 		lastActivityAt := time.Date(2026, 7, 12, 9, 30, 0, 0, time.UTC)
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			MetricsByAgentFn: func(
 				_ context.Context,
 				readScope store.ReadScope,
@@ -5373,7 +5375,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			t.Fatalf("mismatched agent cursor status = %d, want %d", mismatch.Code, http.StatusBadRequest)
 		}
 
-		fixture.Handlers.Sessions = testutil.StubSessionManager{
+		fixture.Handlers.Sessions = &testutil.StubSessionManager{
 			MetricsByAgentFn: func(
 				context.Context,
 				store.ReadScope,
@@ -5416,7 +5418,7 @@ func TestBaseHandlersWorkspaceProfileHintsTrackTeamAdoptionIT042(t *testing.T) {
 		}}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -5517,7 +5519,7 @@ func TestDoctorProjectsProfileLayerDiagnostics(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -5563,7 +5565,7 @@ func TestDoctorLogTailDiagnosticIncludesCapabilityEvidence(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -5652,7 +5654,7 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			manager.StubSessionManager,
+			&manager.StubSessionManager,
 			observer,
 			testutil.StubWorkspaceService{},
 		)
@@ -5739,7 +5741,7 @@ func TestDaemonStatusProjectsWorkspaceSkills(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			workspaces,
 		)
@@ -5787,7 +5789,7 @@ func TestDaemonDrainProjectsStatusAndDoctor(t *testing.T) {
 	t.Run("Should project drain state through status and doctor", func(t *testing.T) {
 		t.Parallel()
 
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{testutil.NewSessionInfo("sess-admitted")}, nil
 			},
@@ -5932,7 +5934,7 @@ func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {
 
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -5958,11 +5960,11 @@ func TestDoctorSessionMetadataProbe(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
-		fixture.Handlers.Sessions = metadataDoctorSessions{}
+		fixture.Handlers.Sessions = &metadataDoctorSessions{}
 		response := performRequest(t, fixture.Engine, http.MethodGet, "/doctor?only=runtime.session_metadata", nil)
 		if response.Code != http.StatusOK {
 			t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
@@ -5979,7 +5981,7 @@ func TestDoctorSessionMetadataProbe(t *testing.T) {
 
 type metadataDoctorSessions struct{ testutil.StubSessionManager }
 
-func (metadataDoctorSessions) SessionMetadataHealth(context.Context) (int, loggerpkg.FailureSummary, error) {
+func (*metadataDoctorSessions) SessionMetadataHealth(context.Context) (int, loggerpkg.FailureSummary, error) {
 	var failures loggerpkg.FailureSummary
 	failures.Add("session-unreadable", errors.New("unsupported session creation profile version 6"))
 	return 1, failures, nil
@@ -6014,8 +6016,10 @@ func TestCreateSessionLineageKind(t *testing.T) {
 
 	newFixture := func(t *testing.T, captured *atomic.Pointer[session.CreateOpts]) handlerFixture {
 		t.Helper()
-		manager := testutil.StubSessionManager{
-			CreateAcceptedFn: func(_ context.Context, acceptedOpts session.CreateAcceptedOpts) (*session.Info, error) {
+		manager := &testutil.StubSessionManager{
+			CreateAcceptedFn: func(_ context.Context, acceptedOptsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				acceptedOpts := *acceptedOptsInput
+
 				opts := acceptedOpts.Session
 				captured.Store(&opts)
 				created := testutil.NewSessionInfo("sess-created")
@@ -6152,7 +6156,7 @@ func TestEventsRejectInvalidComponentsIT014(t *testing.T) {
 // The richer reader preserves the first terminal boundary even when a marker is corrected.
 type usageBoundarySessionManager struct{ testutil.StubSessionManager }
 
-func (s usageBoundarySessionManager) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
+func (s *usageBoundarySessionManager) ContextEvents(ctx context.Context, id string) (session.ContextEvents, error) {
 	snapshot, err := s.StubSessionManager.ContextEvents(ctx, id)
 	snapshot.ClearedBy = &contextusage.ClearedBy{CompactionID: "c1", Sequence: 12}
 	return snapshot, err
@@ -6302,7 +6306,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -6377,9 +6381,9 @@ type draftInstructionsSessions struct {
 	err error
 }
 
-var _ core.AgentInstructionsDrafter = draftInstructionsSessions{}
+var _ core.AgentInstructionsDrafter = &draftInstructionsSessions{}
 
-func (s draftInstructionsSessions) DraftInstructions(
+func (s *draftInstructionsSessions) DraftInstructions(
 	_ context.Context,
 	req session.DraftInstructionsRequest,
 ) (string, error) {
@@ -6405,11 +6409,11 @@ func TestDraftAgentInstructionsEndpoint(t *testing.T) {
 			t.Parallel()
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
-			fixture.Handlers.Sessions = draftInstructionsSessions{err: tc.err}
+			fixture.Handlers.Sessions = &draftInstructionsSessions{err: tc.err}
 			fixture.Engine.POST("/agents/draft-instructions", fixture.Handlers.DraftAgentInstructions)
 			response := httptest.NewRecorder()
 			request := httptest.NewRequestWithContext(

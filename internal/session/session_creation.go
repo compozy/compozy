@@ -59,13 +59,15 @@ func (e *CreationError) Unwrap() error {
 
 // IdempotentSessionCreator creates one preallocated session or reuses its exact identity.
 type IdempotentSessionCreator interface {
-	EnsureCreated(context.Context, CreateOpts) (EnsureCreatedResult, error)
+	EnsureCreated(context.Context, *CreateOpts) (EnsureCreatedResult, error)
 }
 
 var _ IdempotentSessionCreator = (*Manager)(nil)
 
 // EnsureCreated creates one preallocated session exactly once by immutable creation identity.
-func (m *Manager) EnsureCreated(ctx context.Context, opts CreateOpts) (EnsureCreatedResult, error) {
+func (m *Manager) EnsureCreated(ctx context.Context, optsInput *CreateOpts) (EnsureCreatedResult, error) {
+	opts := *optsInput
+
 	if ctx == nil {
 		return EnsureCreatedResult{}, creationError(
 			EffectKnownFalse,

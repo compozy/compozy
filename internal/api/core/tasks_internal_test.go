@@ -691,7 +691,7 @@ func TestInheritedUserAgentWithoutProjectWork(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			metrics := map[string]session.AgentSessionMetrics{tc.entry.Def.Name: {Total: tc.total}}
-			if got := inheritedUserAgentWithoutProjectWork(tc.entry, user, metrics); got != tc.want {
+			if got := inheritedUserAgentWithoutProjectWork(&tc.entry, user, metrics); got != tc.want {
 				t.Fatalf("inheritedUserAgentWithoutProjectWork() = %t, want %t", got, tc.want)
 			}
 		})

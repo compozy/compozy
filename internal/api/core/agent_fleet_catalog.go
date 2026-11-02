@@ -87,7 +87,8 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 	}
 
 	agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
-	for _, entry := range resolved.Entries {
+	for i := range resolved.Entries {
+		entry := &resolved.Entries[i]
 		agents = append(agents, AgentPayloadFromEntryWithConfig(entry, &resolved.Config))
 	}
 	for _, diagnostic := range resolved.Diagnostics {

@@ -23,6 +23,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+const hookCanceledReason = "hook_cancelled" //nolint:misspell // Matches the persisted wake reason.
+
 func TestInstanceWorkspaceDeletion(t *testing.T) {
 	for _, staged := range []bool{false, true} {
 		name := "Should archive instances before deleting their workspace"
@@ -164,7 +166,7 @@ func TestInstanceSessionRegistration(t *testing.T) {
 			if mismatch {
 				info.AgentName = "other"
 			}
-			registration, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil)
+			registration, err := db.RegisterInstanceSession(t.Context(), &(info), instance.ID, nil)
 			if mismatch {
 				if !errors.Is(err, agentinstance.ErrScopeMismatch) {
 					t.Fatalf("registration: %v", err)
@@ -192,7 +194,7 @@ func TestInstanceSessionRegistration(t *testing.T) {
 			}
 			if repeated, err := db.RegisterInstanceSession(
 				t.Context(),
-				info,
+				&(info),
 				instance.ID,
 				nil,
 			); err != nil ||
@@ -480,7 +482,7 @@ func TestInstanceWorkspaceIsolation(t *testing.T) {
 		last := all[len(all)-1]
 		if err := db.RegisterSession(
 			t.Context(),
-			store.SessionInfo{
+			new(store.SessionInfo{
 				ID:            "sess-filter-main",
 				ProfileID:     store.DefaultProfileID,
 				AgentName:     last.AgentName,
@@ -488,7 +490,7 @@ func TestInstanceWorkspaceIsolation(t *testing.T) {
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				CreatedAt:     last.CreatedAt,
 				UpdatedAt:     last.UpdatedAt,
-			},
+			}),
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -890,7 +892,7 @@ func TestInstanceServiceRetainedFailure(t *testing.T) {
 		newMain := "sess-retained-retry"
 		if err := db.RegisterSession(
 			t.Context(),
-			store.SessionInfo{
+			new(store.SessionInfo{
 				ID:            newMain,
 				ProfileID:     store.DefaultProfileID,
 				AgentName:     "coder",
@@ -899,7 +901,7 @@ func TestInstanceServiceRetainedFailure(t *testing.T) {
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				CreatedAt:     failed.CreatedAt,
 				UpdatedAt:     failed.CreatedAt,
-			},
+			}),
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -956,7 +958,7 @@ func TestInstanceServiceRecreation(t *testing.T) {
 		nextMain = "sess-recreation-second"
 		if err := db.RegisterSession(
 			t.Context(),
-			store.SessionInfo{
+			new(store.SessionInfo{
 				ID:            nextMain,
 				ProfileID:     store.DefaultProfileID,
 				AgentName:     "coder",
@@ -965,7 +967,7 @@ func TestInstanceServiceRecreation(t *testing.T) {
 				RuntimeStatus: store.SessionRuntimeUnbound,
 				CreatedAt:     first.CreatedAt,
 				UpdatedAt:     first.CreatedAt,
-			},
+			}),
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -1158,7 +1160,7 @@ func TestInstanceCallerLineage(t *testing.T) {
 		for _, id := range []string{"sess-lineage-child", "sess-lineage-grandchild"} {
 			if err := db.RegisterSession(
 				t.Context(),
-				store.SessionInfo{
+				new(store.SessionInfo{
 					ID:            id,
 					ProfileID:     store.DefaultProfileID,
 					AgentName:     "coder",
@@ -1167,7 +1169,7 @@ func TestInstanceCallerLineage(t *testing.T) {
 					RuntimeStatus: store.SessionRuntimeUnbound,
 					CreatedAt:     instance.CreatedAt,
 					UpdatedAt:     instance.CreatedAt,
-				},
+				}),
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -1217,7 +1219,6 @@ func TestInstanceCallerLineage(t *testing.T) {
 		if err != nil || !attention {
 			t.Fatalf("failure report attention=%v, %v", attention, err)
 		}
-
 	})
 }
 
@@ -1423,8 +1424,8 @@ func TestInstanceAdoptionHooks(t *testing.T) {
 			adopted, err := service.Adopt(
 				t.Context(),
 				agentinstance.AdoptRequest{
-					CreateRequest: agentinstance.CreateRequest{Actor: workspaceaccess.ActorRef{Operator: true}},
-					SessionID:     main,
+					Actor:     workspaceaccess.ActorRef{Operator: true},
+					SessionID: main,
 				},
 			)
 			if err != nil {
@@ -1447,8 +1448,8 @@ func TestInstanceAdoptionHooks(t *testing.T) {
 			if _, err := service.Adopt(
 				t.Context(),
 				agentinstance.AdoptRequest{
-					CreateRequest: agentinstance.CreateRequest{Actor: workspaceaccess.ActorRef{Operator: true}},
-					SessionID:     main,
+					Actor:     workspaceaccess.ActorRef{Operator: true},
+					SessionID: main,
 				},
 			); !errors.Is(
 				err,
@@ -1627,7 +1628,7 @@ func TestInstanceCollectorFacts(t *testing.T) {
 			}
 			if err := db.RegisterSession(
 				t.Context(),
-				store.SessionInfo{
+				new(store.SessionInfo{
 					ID:            name,
 					ProfileID:     store.DefaultProfileID,
 					AgentName:     "coder",
@@ -1637,7 +1638,7 @@ func TestInstanceCollectorFacts(t *testing.T) {
 					State:         state,
 					CreatedAt:     now,
 					UpdatedAt:     now,
-				},
+				}),
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -1888,7 +1889,6 @@ func TestInstanceWakeTransactions(t *testing.T) {
 		if state.FailureStreak != 1 || state.LastDigest != "digest-one" || state.AutomationCursor != "cursor-one" {
 			t.Fatalf("failure state=%+v", state)
 		}
-
 	})
 }
 
@@ -2227,7 +2227,6 @@ func TestInstanceCheckBackoff(t *testing.T) {
 		})
 	}
 
-	const hookCanceledReason = "hook_cancelled" //nolint:misspell // Matches the persisted wake reason.
 	for _, tc := range []struct {
 		name, reason    string
 		quiet, failures int64
@@ -2749,7 +2748,6 @@ func TestInstanceCheckFatigue(t *testing.T) {
 		if err != nil || current.State != "active" {
 			t.Fatalf("single failure repaused=%+v %v", current, err)
 		}
-
 	})
 }
 
@@ -3172,7 +3170,7 @@ func TestInstanceCheckGates(t *testing.T) {
 	}{
 		{name: "Should skip an empty digest without dispatch", reason: "digest_empty"},
 		{name: "Should skip an on demand definition with heartbeat guidance", gate: "definition_not_stays_on", body: "Check work", reason: "definition_not_stays_on"},
-		{name: "Should honor hook cancellation for timer and manual check", hook: "denied", body: "Check work", reason: "hook_cancelled"},
+		{name: "Should honor hook cancellation for timer and manual check", hook: "denied", body: "Check work", reason: hookCanceledReason},
 		{name: "Should count dispatcher errors as failures", body: "Check work", reason: "triage_failed", failed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3235,7 +3233,7 @@ func TestInstanceCheckGates(t *testing.T) {
 			}
 			if tc.hook != "" {
 				result, err := service.Check(t.Context(), instance.ID, false)
-				if err != nil || result.Gate != "hook_cancelled" || result.OccurrenceID != "" {
+				if err != nil || result.Gate != hookCanceledReason || result.OccurrenceID != "" {
 					t.Fatalf("manual=%+v err=%v", result, err)
 				}
 			}
@@ -4186,7 +4184,6 @@ func TestInstanceActivity(t *testing.T) {
 		if err != nil || empty.ReportsByDay == nil || len(empty.ReportsByDay) != 0 {
 			t.Fatalf("empty reports=%+v error=%v", empty.ReportsByDay, err)
 		}
-
 	})
 }
 
@@ -4484,7 +4481,7 @@ func TestInstanceRotationCandidate(t *testing.T) {
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			SessionType:   "user",
 		}
-		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); err != nil {
+		if _, err := db.RegisterInstanceSession(t.Context(), &(info), instance.ID, nil); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := repo.BindMain(t.Context(), instance.ID, info.ID); err != nil {
@@ -4492,7 +4489,7 @@ func TestInstanceRotationCandidate(t *testing.T) {
 		}
 		info.ID = "candidate"
 		info.State = "starting"
-		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); err != nil {
+		if _, err := db.RegisterInstanceSession(t.Context(), &(info), instance.ID, nil); err != nil {
 			t.Fatal(err)
 		}
 		got, err := repo.Get(t.Context(), instance.ID)
@@ -4502,7 +4499,7 @@ func TestInstanceRotationCandidate(t *testing.T) {
 		info.ID = "another-candidate"
 		if _, err := db.RegisterInstanceSession(
 			t.Context(),
-			info,
+			&(info),
 			instance.ID,
 			nil,
 		); !errors.Is(
@@ -4519,7 +4516,7 @@ func TestInstanceRotationCandidate(t *testing.T) {
 			ExecContext(t.Context(), "UPDATE sessions SET state='stopped' WHERE id='candidate'"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.RegisterInstanceSession(t.Context(), info, instance.ID, nil); err != nil {
+		if _, err := db.RegisterInstanceSession(t.Context(), &(info), instance.ID, nil); err != nil {
 			t.Fatalf("retry candidate = %v", err)
 		}
 	})

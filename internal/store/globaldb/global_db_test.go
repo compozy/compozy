@@ -3363,11 +3363,11 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			{id: "sess-global-retained"},
 			{id: "sess-project-retained", workspaceID: workspaceID},
 		} {
-			if err := globalDB.RegisterSession(ctx, SessionInfo{
+			if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 				ID: entry.id, WorkspaceID: entry.workspaceID, ProfileID: store.DefaultProfileID,
 				AgentName: "general", Provider: "codex", RuntimeStatus: store.SessionRuntimeUnbound,
 				State: "stopped", CreatedAt: createdAt, UpdatedAt: createdAt,
-			}); err != nil {
+			})); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", entry.id, err)
 			}
 		}
@@ -3446,7 +3446,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			UpdatedAt:                createdAt,
 		}
 
-		if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+		if err := globalDB.RegisterSession(testutil.Context(t), &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		databasePath := globalDB.Path()
@@ -3495,7 +3495,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			"sess-global-foreign-workspace",
 			filepath.Join(t.TempDir(), "workspace-global-foreign"),
 		)
-		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 			ProfileID:         store.DefaultProfileID,
 			ID:                "sess-global-foreign",
 			AgentName:         "coder",
@@ -3507,7 +3507,7 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			State:             "stopped",
 			CreatedAt:         createdAt,
 			UpdatedAt:         createdAt,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(foreign) error = %v", err)
 		}
 
@@ -3588,13 +3588,13 @@ func TestGlobalDBRegisterSessionUpsertsProvider(t *testing.T) {
 		CreatedAt:     createdAt,
 		UpdatedAt:     createdAt,
 	}
-	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+	if err := globalDB.RegisterSession(testutil.Context(t), &(session)); err != nil {
 		t.Fatalf("RegisterSession(initial) error = %v", err)
 	}
 
 	session.Provider = "codex"
 	session.UpdatedAt = createdAt.Add(time.Minute)
-	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+	if err := globalDB.RegisterSession(testutil.Context(t), &(session)); err != nil {
 		t.Fatalf("RegisterSession(update) error = %v", err)
 	}
 
@@ -3669,7 +3669,7 @@ func TestGlobalDBRegisterSessionPersistsStopFields(t *testing.T) {
 				UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 			}
 
-			if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+			if err := globalDB.RegisterSession(testutil.Context(t), &(session)); err != nil {
 				t.Fatalf("RegisterSession() error = %v", err)
 			}
 
@@ -3720,7 +3720,7 @@ func TestGlobalDBRegisterSessionDefaultsTypeToUser(t *testing.T) {
 		UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 	}
 
-	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+	if err := globalDB.RegisterSession(testutil.Context(t), &(session)); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
@@ -4018,7 +4018,7 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 		if err != nil || len(got) != 1 || got[0].State != "idle" || got[0].WorkspaceID != id {
 			t.Fatalf("recovered row = %#v, %v", got, err)
 		}
-		if err := db.RegisterSession(t.Context(), rows[0]); !errors.Is(err, store.ErrWorkspaceArchived) {
+		if err := db.RegisterSession(t.Context(), &(rows[0])); !errors.Is(err, store.ErrWorkspaceArchived) {
 			t.Fatalf("new admission = %v", err)
 		}
 	})
@@ -4178,7 +4178,7 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 		session := SessionInfo{ID: "archive-history", ProfileID: store.DefaultProfileID,
 			AgentName: "coder", WorkspaceID: id, State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound,
 			CreatedAt: original.CreatedAt, UpdatedAt: original.UpdatedAt}
-		if err := db.RegisterSession(ctx, session); err != nil {
+		if err := db.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatal(err)
 		}
 		worktree := worktreepkg.Worktree{
@@ -4211,7 +4211,7 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 			t.Fatalf("archive is not idempotent: %#v, %v", again, err)
 		}
 		session.ID, session.State = "archive-new", "active"
-		if err := db.RegisterSession(ctx, session); !errors.Is(err, store.ErrWorkspaceArchived) {
+		if err := db.RegisterSession(ctx, &(session)); !errors.Is(err, store.ErrWorkspaceArchived) {
 			t.Fatalf("new session error = %v", err)
 		}
 		if err := db.UpdateSessionState(
@@ -4235,7 +4235,7 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 			t.Fatalf("restore lost identity: %#v", restored)
 		}
 		assertWorktreePreserved()
-		if err := db.RegisterSession(ctx, session); err != nil {
+		if err := db.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatal(err)
 		}
 		_, err = db.SetWorkspaceArchived(ctx, id, true)
@@ -4300,7 +4300,7 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 		"workspace-delete-guard",
 		filepath.Join(t.TempDir(), "workspace-delete-guard"),
 	)
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-delete-guard",
 		AgentName:     "coder",
@@ -4309,7 +4309,7 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 		State:         "stopped",
 		CreatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
@@ -4749,7 +4749,7 @@ func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
 		"ws-active-sessions",
 		filepath.Join(t.TempDir(), "ws-active-sessions"),
 	)
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-active-guard",
 		AgentName:     "coder",
@@ -4758,7 +4758,7 @@ func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
 		State:         "active",
 		CreatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
@@ -5096,7 +5096,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 	}
-	if err := globalDB.RegisterSession(testutil.Context(t), session); err != nil {
+	if err := globalDB.RegisterSession(testutil.Context(t), &(session)); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
@@ -5239,7 +5239,7 @@ func TestGlobalDBRegisterSessionRejectsStallStateWithoutReason(t *testing.T) {
 		filepath.Join(t.TempDir(), "invalid-stall-session"),
 	)
 
-	err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            "sess-invalid-stall",
 		AgentName:     "coder",
@@ -5252,7 +5252,7 @@ func TestGlobalDBRegisterSessionRejectsStallStateWithoutReason(t *testing.T) {
 		},
 		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-	})
+	}))
 	if err == nil {
 		t.Fatal("RegisterSession() error = nil, want invalid stall reason failure")
 	}
@@ -5277,7 +5277,7 @@ func TestGlobalDBRegisterSessionRejectsUnmarshalableActivity(t *testing.T) {
 		)
 		unmarshalableTime := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-		err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-invalid-activity",
 			AgentName:     "coder",
@@ -5291,7 +5291,7 @@ func TestGlobalDBRegisterSessionRejectsUnmarshalableActivity(t *testing.T) {
 			},
 			CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		})
+		}))
 		if err == nil {
 			t.Fatal("RegisterSession(unmarshalable activity) error = nil, want marshal failure")
 		}
@@ -5860,7 +5860,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			"update-stop-reason",
 			filepath.Join(t.TempDir(), "workspace"),
 		)
-		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-update-stop",
 			AgentName:     "coder",
@@ -5869,7 +5869,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			State:         "active",
 			CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 			UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
@@ -5900,7 +5900,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			"preserve-stop-reason",
 			filepath.Join(t.TempDir(), "workspace"),
 		)
-		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-preserve-stop",
 			AgentName:     "coder",
@@ -5911,7 +5911,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			StopDetail:    "deadline exceeded",
 			CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 			UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
@@ -5938,7 +5938,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			"clear-stop-reason",
 			filepath.Join(t.TempDir(), "workspace"),
 		)
-		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-clear-stop",
 			AgentName:     "coder",
@@ -5949,7 +5949,7 @@ func TestGlobalDBUpdateSessionStateHandlesStopFields(t *testing.T) {
 			StopDetail:    "deadline exceeded",
 			CreatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
 			UpdatedAt:     time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
@@ -6216,7 +6216,7 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 		sessionID+"-workspace",
 		filepath.Join(t.TempDir(), sessionID),
 	)
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ID:            sessionID,
 		ProfileID:     store.DefaultProfileID,
 		AgentName:     "coder",
@@ -6226,7 +6226,7 @@ func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID s
 		State:         "active",
 		CreatedAt:     now,
 		UpdatedAt:     now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}
 	return workspaceID
@@ -7295,12 +7295,10 @@ func TestPermissionDailyRollups(t *testing.T) {
 		foreign, err := db.PermissionEntries(
 			t.Context(),
 			store.PermissionEntriesQuery{
-				PermissionRollupQuery: store.PermissionRollupQuery{
-					ReadScope: store.ReadScope{ProfileID: "other-profile"},
-					Since:     start,
-					Until:     start.Add(24 * time.Hour),
-				},
-				Limit: 10,
+				ReadScope: store.ReadScope{ProfileID: "other-profile"},
+				Since:     start,
+				Until:     start.Add(24 * time.Hour),
+				Limit:     10,
 			},
 		)
 		if err != nil || len(foreign) != 0 {

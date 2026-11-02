@@ -49,7 +49,7 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 			sessionInfoForWorkspaceStateIndexTest("sess-alpha-stopped", alphaWorkspaceID, globalDBSessionStateStopped, baseAt),
 			sessionInfoForWorkspaceStateIndexTest("sess-beta-active", betaWorkspaceID, globalDBSessionStateActive, baseAt),
 		} {
-			if err := globalDB.RegisterSession(ctx, sessionInfo); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(sessionInfo)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", sessionInfo.ID, err)
 			}
 		}
@@ -91,7 +91,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 		for _, id := range []string{"instance-main", "instance-child"} {
 			info := sessionInfoForWorkspaceStateIndexTest(id, workspaceID, globalDBSessionStateStopped, at)
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -133,7 +133,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				info.SessionType = "user"
 			}
 			if id != "judge" {
-				if err := db.RegisterSession(ctx, info); err != nil {
+				if err := db.RegisterSession(ctx, &(info)); err != nil {
 					t.Fatal(err)
 				}
 				continue
@@ -161,7 +161,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{
+			if _, err := db.RegisterSessionWithCreationIdentity(ctx, &(info), store.SessionCreationIdentity{
 				CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest,
 			}); err != nil {
 				t.Fatal(err)
@@ -186,7 +186,9 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		if !slices.ContainsFunc(
 			page.Sessions,
-			func(info store.SessionInfo) bool { return info.ID == "judge" && info.VerdictOnly },
+			func(info store.SessionInfo) bool {
+				return info.ID == "judge" && info.VerdictOnly
+			},
 		) {
 			t.Fatalf("missing typed judge = %#v", page)
 		}
@@ -228,7 +230,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			if index == 113 {
 				info.ProfileID = foreignProfile
 			}
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 			tool := "compozy__terminal_write"
@@ -357,7 +359,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			info := sessionInfoForWorkspaceStateIndexTest(tc.id, workspaceID, tc.state, base)
 			info.Name = tc.name
 			info.AgentName = tc.agent
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -444,7 +446,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			baseAt,
 		)
 		for _, info := range []store.SessionInfo{stopped, active} {
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 			}
 		}
@@ -525,7 +527,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		parked := sessionInfoForWorkspaceStateIndexTest("sess-later", workspaceID, globalDBSessionStateStopped, baseAt)
 		active := sessionInfoForWorkspaceStateIndexTest("sess-live", workspaceID, globalDBSessionStateActive, baseAt)
 		for _, info := range []store.SessionInfo{parked, active} {
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 			}
 		}
@@ -718,7 +720,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			baseAt,
 		)
 		for _, sessionInfo := range []store.SessionInfo{normal, internal, system, dream, overlaid} {
-			if err := globalDB.RegisterSession(ctx, sessionInfo); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(sessionInfo)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", sessionInfo.ID, err)
 			}
 		}
@@ -800,7 +802,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			baseAt.Add(4*time.Minute),
 		)
 		nameBound.WorktreeID = "target"
-		if err := globalDB.RegisterSession(ctx, nameBound); !errors.Is(err, worktreepkg.ErrNotFound) {
+		if err := globalDB.RegisterSession(ctx, &(nameBound)); !errors.Is(err, worktreepkg.ErrNotFound) {
 			t.Fatalf("RegisterSession(worktree name as ID) error = %v, want ErrNotFound", err)
 		}
 
@@ -832,7 +834,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		)
 		foreign.WorktreeID = "wt-foreign"
 		for _, info := range []store.SessionInfo{bound, other, root, foreign} {
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 			}
 		}
@@ -916,7 +918,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			baseAt.Add(3*time.Minute),
 		)
 		for _, sessionInfo := range []store.SessionInfo{root, child, grandchild, foreign} {
-			if err := globalDB.RegisterSession(ctx, sessionInfo); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(sessionInfo)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", sessionInfo.ID, err)
 			}
 		}
@@ -984,7 +986,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			now,
 		)
 		for _, sessionInfo := range []store.SessionInfo{available, locked} {
-			if err := globalDB.RegisterSession(ctx, sessionInfo); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(sessionInfo)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", sessionInfo.ID, err)
 			}
 		}
@@ -1085,7 +1087,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			dream,
 			foreign,
 		} {
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 			}
 		}
@@ -1149,7 +1151,7 @@ func TestDeleteSessionRemovesDurableCatalogTruth(t *testing.T) {
 			time.Date(2026, 7, 13, 15, 0, 0, 0, time.UTC),
 		)
 		info.SessionType = "user"
-		if err := globalDB.RegisterSession(ctx, info); err != nil {
+		if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		foreign := sessionInfoForWorkspaceStateIndexTest(
@@ -1159,7 +1161,7 @@ func TestDeleteSessionRemovesDurableCatalogTruth(t *testing.T) {
 			info.UpdatedAt.Add(time.Minute),
 		)
 		foreign.SessionType = "user"
-		if err := globalDB.RegisterSession(ctx, foreign); err != nil {
+		if err := globalDB.RegisterSession(ctx, &(foreign)); err != nil {
 			t.Fatalf("RegisterSession(foreign) error = %v", err)
 		}
 		for _, sessionInfo := range []store.SessionInfo{info, foreign} {
@@ -1259,7 +1261,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 					base.Add(time.Duration(index)*time.Minute),
 				)
 				info.UpdatedAt = base.Add(48 * time.Hour)
-				if err := db.RegisterSession(ctx, info); err != nil {
+				if err := db.RegisterSession(ctx, &(info)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -1269,7 +1271,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 					info.State = "starting"
 					info.CreatedAt = base.Add(72 * time.Hour)
 				}
-				if err := db.RegisterSession(ctx, info); err != nil {
+				if err := db.RegisterSession(ctx, &(info)); err != nil {
 					t.Fatal(err)
 				}
 				if id == "needs-old" {
@@ -1400,7 +1402,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 				info.State = globalDBSessionStateActive
 				info.Attention = &store.SessionAttention{PendingClarifyCount: 1}
 			}
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession error=%v", err)
 			}
 		}
@@ -1521,7 +1523,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 		nonMatching[2].Name = "Match other agent"
 		nonMatching[2].AgentName = "reviewer"
 		for _, info := range append(matching, nonMatching...) {
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 			}
 		}
@@ -1668,7 +1670,7 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 			if seed.failureKind != "" {
 				info.Failure = &store.SessionFailure{Kind: seed.failureKind}
 			}
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", seed.id, err)
 			}
 			changedAt := store.FormatTimestamp(baseAt.Add(seed.offset))
@@ -2161,7 +2163,7 @@ func registerAttentionSession(
 	)
 	sessionID := "sess-attention"
 	now := time.Date(2026, 8, 15, 18, 0, 0, 0, time.UTC)
-	if err := globalDB.RegisterSession(testutil.Context(t), store.SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 		ProfileID: store.DefaultProfileID,
 		ID:        sessionID, Name: "Attention", AgentName: "coder",
 		RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID,
@@ -2169,7 +2171,7 @@ func registerAttentionSession(
 		Attention: store.CloneSessionAttention(&attention),
 		CreatedAt: now,
 		UpdatedAt: now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	if _, err := globalDB.db.ExecContext(
@@ -2279,8 +2281,8 @@ func assertIndexAbsent(t *testing.T, db *sql.DB, index string) {
 
 func sessionIDsForWorkspaceStateIndexTest(sessions []store.SessionInfo) []string {
 	ids := make([]string, 0, len(sessions))
-	for _, sessionInfo := range sessions {
-		ids = append(ids, sessionInfo.ID)
+	for i := range sessions {
+		ids = append(ids, sessions[i].ID)
 	}
 	return ids
 }
@@ -2527,7 +2529,7 @@ func TestPageSessionsManualOrder(t *testing.T) {
 		for index, id := range []string{"old", "pinned-a", "pinned-b", "in-x", "in-y", "new"} {
 			info := sessionInfoForWorkspaceStateIndexTest(id, scope.WorkspaceID, globalDBSessionStateStopped,
 				base.Add(time.Duration(index)*time.Minute))
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -2627,7 +2629,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 				globalDBSessionStateStopped,
 				time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC),
 			)
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 			if err := db.SaveSessionBranch(ctx, id, id, "topic"); err != nil {
@@ -2687,7 +2689,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 		}
 		info := sessionInfoForWorkspaceStateIndexTest("tree-session", workspace, globalDBSessionStateStopped, base)
 		info.WorktreeID = "board-tree"
-		if err := db.RegisterSession(ctx, info); err != nil {
+		if err := db.RegisterSession(ctx, &(info)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := db.db.ExecContext(ctx, "UPDATE sessions SET branch='feat/root' WHERE id=?", info.ID); err != nil {
@@ -2759,7 +2761,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 			if id == "foreign" {
 				info.ProfileID = foreignProfile
 			}
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 			if id != "parent" {
@@ -2851,7 +2853,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 		for _, id := range []string{"parent", "provenance", "spawn", "subagent", "recovery", "fork", "continue"} {
 			if err := db.RegisterSession(
 				ctx,
-				sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base),
+				new(sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)),
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -2991,7 +2993,7 @@ func TestSessionCatalogBoard(t *testing.T) {
 				globalDBSessionStateStopped,
 				base.Add(-time.Duration(index)*time.Minute),
 			)
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 			if index >= 100 {

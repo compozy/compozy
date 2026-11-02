@@ -45,18 +45,8 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				return err
 			}
 
-			if req.Result == "failed" && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
-				if _, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{
-					ID: req.InstanceID, PauseReason: "fatigue", UpdatedAt: store.FormatTimestamp(req.Now),
-				}); err != nil {
-					return err
-				}
-				req.Report = &agentinstance.ReportInput{
-					Kind: "failure",
-					Payload: []byte(
-						`{"reason":"fatigue","detail":"Proactive checks paused after consecutive failures."}`,
-					),
-				}
+			if err := pauseFatiguedInstance(ctx, q, &req, failures); err != nil {
+				return err
 			}
 
 			req.NextWakeAt = nextInstanceWake(&req, quiet, failures)
@@ -110,11 +100,11 @@ func validateInstanceWakeFinish(req *heartbeat.FinishRequest) error {
 
 func instanceWakeStreaks(result string, quiet, failures int64) (int, int64, int64, error) {
 	switch result {
-	case "quiet":
+	case instanceWakeQuietResult:
 		return 1, quiet + 1, 0, nil
 	case "reported":
 		return 1, 0, 0, nil
-	case "failed":
+	case loopNodeOutputFailed:
 		return 0, quiet, failures + 1, nil
 	case instanceWakeCanceledResult:
 		return 0, quiet, failures, nil
@@ -131,14 +121,14 @@ func nextInstanceWake(req *heartbeat.FinishRequest, quiet, failures int64) time.
 		return req.NextWakeAt
 	}
 	streak := int64(0)
-	if req.Result == "quiet" {
+	if req.Result == instanceWakeQuietResult {
 		streak = quiet / 3
 	}
-	if req.Result == "failed" {
+	if req.Result == loopNodeOutputFailed {
 		streak = failures
 	}
 	maximum := req.MaxInterval
-	if req.Result == "quiet" && req.QuietBackoffCap > 0 {
+	if req.Result == instanceWakeQuietResult && req.QuietBackoffCap > 0 {
 		maximum = req.QuietBackoffCap
 	}
 	return heartbeat.NextCheckTime(req.Now, heartbeat.CheckBackoff(req.Interval, maximum, streak), req.InstanceID)
@@ -174,3 +164,27 @@ func insertInstanceWakeReport(ctx context.Context, q *sqlcgen.Queries, req *hear
 }
 
 const instanceWakeCanceledResult = "cancelled" //nolint:misspell // Matches the persisted wake result.
+
+const instanceWakeQuietResult = "quiet"
+
+func pauseFatiguedInstance(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *heartbeat.FinishRequest,
+	failures int64,
+) error {
+	if req.Result == loopNodeOutputFailed && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
+		if _, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{
+			ID: req.InstanceID, PauseReason: "fatigue", UpdatedAt: store.FormatTimestamp(req.Now),
+		}); err != nil {
+			return err
+		}
+		req.Report = &agentinstance.ReportInput{
+			Kind: "failure",
+			Payload: []byte(
+				`{"reason":"fatigue","detail":"Proactive checks paused after consecutive failures."}`,
+			),
+		}
+	}
+	return nil
+}

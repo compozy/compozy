@@ -405,7 +405,7 @@ func TestGlobalDBSoulSessionProvenance(t *testing.T) {
 				t.Fatalf("UpsertSoulSnapshot() error = %v", err)
 			}
 			now := time.Date(2026, 5, 2, 15, 0, 0, 0, time.UTC)
-			if err := first.RegisterSession(ctx, store.SessionInfo{
+			if err := first.RegisterSession(ctx, new(store.SessionInfo{
 				ProfileID:        store.DefaultProfileID,
 				ID:               "sess-soul",
 				AgentName:        "coder",
@@ -418,7 +418,7 @@ func TestGlobalDBSoulSessionProvenance(t *testing.T) {
 				ParentSoulDigest: "sha256:parent",
 				CreatedAt:        now,
 				UpdatedAt:        now,
-			}); err != nil {
+			})); err != nil {
 				t.Fatalf("RegisterSession() error = %v", err)
 			}
 			assertSessionSoulProvenance(t, first, "sess-soul", saved.ID, saved.Digest, "sha256:parent")
@@ -636,7 +636,8 @@ func assertSessionSoulProvenance(
 	if err != nil {
 		t.Fatalf("ListSessions() error = %v", err)
 	}
-	for _, session := range sessions {
+	for i := range sessions {
+		session := &sessions[i]
 		if session.ID != sessionID {
 			continue
 		}

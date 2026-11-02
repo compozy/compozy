@@ -73,7 +73,7 @@ func TestLoopEffectRelayShouldDeliverNativePromptThroughDaemonWorkspaceScope(t *
 		promptID    string
 		promptOpts  session.SendPromptOpts
 	)
-	sessions := testutil.StubSessionManager{
+	sessions := &testutil.StubSessionManager{
 		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
 			if err := ctx.Err(); err != nil {
 				return nil, err

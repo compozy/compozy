@@ -24,9 +24,9 @@ func TestResumeUsesPatchedPreResumePayloadAndFiresPostResume(t *testing.T) {
 		}
 		resolver := &fakeSessionWorktreeResolver{id: "wt-resume-hook", root: worktreeRoot}
 		h := newHarness(t, WithWorktreeResolver(resolver))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-resume-hook",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(bound) error = %v", err)
 		}

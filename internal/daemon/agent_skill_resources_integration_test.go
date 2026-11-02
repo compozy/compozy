@@ -1110,12 +1110,14 @@ func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
 		})
 		catalog := agentCatalogDependency(agentCatalog)
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-			TransportName:       "agent-mutation-integration",
-			HomePaths:           homePaths,
-			Workspaces:          resolver,
-			AgentCatalog:        catalog,
-			AgentDefinitionSync: syncer,
-			Logger:              discardLogger(),
+			TransportName:          "agent-mutation-integration",
+			HomePaths:              homePaths,
+			Workspaces:             resolver,
+			AgentCatalog:           catalog,
+			AgentDefinitionSync:    syncer,
+			SoulHistoryPurger:      soulAuthoringServiceDependency(db, discardLogger()),
+			HeartbeatHistoryPurger: heartbeatAuthoringServiceDependency(db, discardLogger()),
+			Logger:                 discardLogger(),
 		})
 		gin.SetMode(gin.TestMode)
 		engine := gin.New()

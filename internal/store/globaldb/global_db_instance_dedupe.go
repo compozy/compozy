@@ -67,7 +67,7 @@ func deduplicateInstanceProposals(ctx context.Context, q *sqlcgen.Queries, req *
 		}
 	}
 	if len(retained) == 0 {
-		req.Result, req.Reason, req.Report = "quiet", "duplicate_suppressed", nil
+		req.Result, req.Reason, req.Report = instanceWakeQuietResult, "duplicate_suppressed", nil
 		return nil
 	}
 	payload, err := json.Marshal(instanceProposalPayload{Proposals: retained})

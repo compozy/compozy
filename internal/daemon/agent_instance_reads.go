@@ -60,7 +60,7 @@ func projectInstanceMain(payload *contract.AgentInstancePayload, info *session.I
 		}
 	}
 	if info.State == session.StateStarting {
-		payload.Activity = "unknown"
+		payload.Activity = daemonUnknownValue
 	}
 	// A stop the operator or daemon shutdown asked for is not a failure of the agent.
 	if info.Failure != nil && info.Failure.Kind != store.FailureCanceled {
@@ -80,7 +80,7 @@ func (r instanceDefinitions) projectInstanceDefinition(
 	var err error
 	if instance.WorkspaceID == "" {
 		resolved, err = r.workspaces.ResolveUser(ctx, instance.ProfileID)
-		payload.Scope = "Global"
+		payload.Scope = daemonGlobalLabel
 	} else {
 		name, lookupErr := r.profiles.ProfileName(ctx, instance.ProfileID)
 		if lookupErr != nil {

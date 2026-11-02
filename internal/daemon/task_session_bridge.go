@@ -17,7 +17,7 @@ import (
 )
 
 type taskBridgeSessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
@@ -178,16 +178,18 @@ func (b *taskSessionBridge) StartTaskSession(
 		opts.PromptOverlay = joinPromptOverlays(opts.PromptOverlay, overlay)
 	}
 
-	return b.createTaskSession(ctx, spec.Run, opts, materialized)
+	return b.createTaskSession(ctx, spec.Run, &(opts), materialized)
 }
 
 func (b *taskSessionBridge) createTaskSession(
 	ctx context.Context,
 	run taskpkg.Run,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 	materialized *worktree.Worktree,
 ) (*taskpkg.SessionRef, error) {
-	created, err := b.sessions.Create(ctx, opts)
+	opts := *optsInput
+
+	created, err := b.sessions.Create(ctx, &(opts))
 	if err != nil {
 		return nil, b.rollbackTaskSessionMaterialization(ctx, run, materialized, err)
 	}

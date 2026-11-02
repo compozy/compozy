@@ -874,7 +874,7 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		ledger := installFallbackAgent(t, h, claudeSeatOneRoute(h), codexRoute(h))
-		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v", err)
 		}
@@ -1213,9 +1213,9 @@ func TestCancelPrompt(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -1630,11 +1630,11 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1654,11 +1654,11 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1674,7 +1674,9 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 		releasePersistence := make(chan struct{})
 		release := sync.OnceFunc(func() { close(releasePersistence) })
 		t.Cleanup(release)
-		catalog.registerHook = func(ctx context.Context, info store.SessionInfo) error {
+		catalog.registerHook = func(ctx context.Context, infoInput *store.SessionInfo) error {
+			info := *infoInput
+
 			if info.Name != wantTitle {
 				return nil
 			}
@@ -1729,11 +1731,11 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 
 		catalog := newRecordingSessionCatalog()
 		h := newHarness(t, WithSessionCatalog(catalog))
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeUser,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1829,12 +1831,12 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 				t.Parallel()
 
 				h := newHarness(t)
-				session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 					AgentName: "coder",
 					Name:      test.sessionName,
 					Workspace: h.workspaceID,
 					Type:      test.sessionType,
-				})
+				}))
 				if err != nil {
 					t.Fatalf("Create() error = %v", err)
 				}
@@ -2793,11 +2795,11 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 		),
 	)
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "session",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -2844,11 +2846,11 @@ func TestCreateUsesConfiguredPermissionsForUserSessions(t *testing.T) {
 	})
 	h.manager = newManagerWithHarness(t, h)
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
 		Type:      SessionTypeUser,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -3309,9 +3311,9 @@ func TestPromptCompletionOwnership(t *testing.T) {
 
 func acceptFallbackReviewer(t *testing.T, h *harness) *Session {
 	t.Helper()
-	created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+	created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 		Session: CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("CreateAccepted(reviewer) error = %v", err)
 	}

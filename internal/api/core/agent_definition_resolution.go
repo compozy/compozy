@@ -65,12 +65,13 @@ func (h *BaseHandlers) resolveAgentDefinition(
 		if err != nil {
 			return resolvedAgentDefinition{}, err
 		}
-		for _, entry := range entries {
+		for i := range entries {
+			entry := &entries[i]
 			if compozyconfig.NormalizeAgentName(entry.Def.Name) != target {
 				continue
 			}
 			return resolvedAgentDefinition{
-				Entry:       entry,
+				Entry:       *entry,
 				ProfileName: strings.TrimSpace(profileName),
 				ProfileID:   profileScope.ProfileID,
 				Config:      cfg,
@@ -109,7 +110,8 @@ func (h *BaseHandlers) resolveWorkspaceAgentDefinition(
 	if err != nil {
 		return resolvedAgentDefinition{}, err
 	}
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		if compozyconfig.NormalizeAgentName(entry.Def.Name) != target {
 			continue
 		}
@@ -119,7 +121,7 @@ func (h *BaseHandlers) resolveWorkspaceAgentDefinition(
 			resolvedProfileName = strings.TrimSpace(profileName)
 		}
 		return resolvedAgentDefinition{
-			Entry:              entry,
+			Entry:              *entry,
 			OperationWorkspace: workspaceID,
 			WorkspaceRoot:      strings.TrimSpace(resolved.RootDir),
 			ProfileName:        resolvedProfileName,

@@ -3025,7 +3025,7 @@ func registerInputQueueSession(t *testing.T, globalDB *GlobalDB) string {
 		filepath.Join(t.TempDir(), "workspace"),
 	)
 	sessionID := "sess-input-queue"
-	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+	if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 		ID:            sessionID,
 		ProfileID:     store.DefaultProfileID,
 		Name:          "Input Queue",
@@ -3037,7 +3037,7 @@ func registerInputQueueSession(t *testing.T, globalDB *GlobalDB) string {
 		State:         "active",
 		CreatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	return sessionID

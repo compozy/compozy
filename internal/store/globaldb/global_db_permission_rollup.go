@@ -35,7 +35,8 @@ func (g *PermissionRepo) PermissionDailyRollups(
 		`SELECT date(p.timestamp), p.agent_name, p.decision, count(*) FROM permission_log p JOIN sessions s ON s.id=p.session_id`,
 		where,
 	)
-	sqlQuery += " GROUP BY date(p.timestamp), p.agent_name, p.decision ORDER BY date(p.timestamp), p.agent_name, p.decision"
+	sqlQuery += " GROUP BY date(p.timestamp), p.agent_name, p.decision" +
+		" ORDER BY date(p.timestamp), p.agent_name, p.decision"
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query permission rollups: %w", err)

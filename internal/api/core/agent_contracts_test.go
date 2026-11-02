@@ -116,8 +116,8 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	codexConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
 	claudeConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}}
 
-	codexPayload := core.AgentPayloadFromEntryWithConfig(entry, &codexConfig)
-	claudePayload := core.AgentPayloadFromEntryWithConfig(entry, &claudeConfig)
+	codexPayload := core.AgentPayloadFromEntryWithConfig(&entry, &codexConfig)
+	claudePayload := core.AgentPayloadFromEntryWithConfig(&entry, &claudeConfig)
 	if codexPayload.EffectiveRuntime == nil || claudePayload.EffectiveRuntime == nil {
 		t.Fatal("EffectiveRuntime = nil, want projections for both workspaces")
 	}
@@ -130,9 +130,9 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
 	}
-	for name, payload := range map[string]contract.AgentPayload{
-		"codex":  codexPayload,
-		"claude": claudePayload,
+	for name, payload := range map[string]*contract.AgentPayload{
+		"codex":  &codexPayload,
+		"claude": &claudePayload,
 	} {
 		if payload.Speed != contract.SpeedFast || len(payload.ACPOptions) != 2 {
 			t.Fatalf("%s authored runtime defaults = speed %q options %#v", name, payload.Speed, payload.ACPOptions)
@@ -302,7 +302,7 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 		totals := map[string]int{workspaceaccess.UserSelector: 1, "ws-a": 2, "ws-b": 3}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{
+			&testutil.StubSessionManager{
 				MetricsByAgentFn: func(_ context.Context, _ store.ReadScope, workspace string) (map[string]session.AgentSessionMetrics, error) {
 					return map[string]session.AgentSessionMetrics{"same": {Total: totals[workspace]}}, nil
 				},
@@ -377,7 +377,7 @@ func (r *memoryCallerReader) InstanceCaller(context.Context, string) (agentinsta
 func TestAgentMemoryRoutes(t *testing.T) {
 	t.Run("Should read Global memory as an authenticated Global agent", func(t *testing.T) {
 		t.Parallel()
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return &session.Info{
 					ID:        "global-caller",
@@ -413,7 +413,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			},
 		}
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Authority: agentinstance.Authority{Callers: reader}}
-		req := httptest.NewRequest(http.MethodGet, "/agents/triage/memory", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/agents/triage/memory", http.NoBody)
 		req.Header.Set("X-Compozy-Session-ID", "global-caller")
 		req.Header.Set("X-Compozy-Agent", "triage")
 		response := httptest.NewRecorder()
@@ -441,7 +441,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ResolveForProfileFn: resolve,
@@ -477,7 +477,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)

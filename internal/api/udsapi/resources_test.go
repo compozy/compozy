@@ -31,7 +31,7 @@ func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {
 		t,
 		newTestHandlersWithResources(
 			t,
-			stubSessionManager{},
+			&stubSessionManager{},
 			stubObserver{},
 			stubResourceService{
 				ListFn: func(_ context.Context, filter resources.ResourceFilter) ([]resources.RawRecord, error) {
@@ -110,7 +110,7 @@ func TestGetResourceHandlerPreservesKindAndID(t *testing.T) {
 		t,
 		newTestHandlersWithResources(
 			t,
-			stubSessionManager{},
+			&stubSessionManager{},
 			stubObserver{},
 			stubResourceService{
 				GetFn: func(_ context.Context, kind resources.ResourceKind, id string) (resources.RawRecord, error) {
@@ -186,7 +186,7 @@ func TestPutResourceHandlerPreservesExpectedVersionAndStatusSemantics(t *testing
 				t,
 				newTestHandlersWithResources(
 					t,
-					stubSessionManager{},
+					&stubSessionManager{},
 					stubObserver{},
 					stubResourceService{
 						PutFn: func(_ context.Context, draft resources.RawDraft) (resources.RawRecord, error) {
@@ -266,7 +266,7 @@ func TestPutResourceHandlerMapsResourceErrors(t *testing.T) {
 	// Error projection is read-only; serial cases reuse the router and home.
 	var putErr error
 	engine := newTestRouter(t, newTestHandlersWithResources(
-		t, stubSessionManager{}, stubObserver{}, stubResourceService{
+		t, &stubSessionManager{}, stubObserver{}, stubResourceService{
 			PutFn: func(context.Context, resources.RawDraft) (resources.RawRecord, error) {
 				return resources.RawRecord{}, putErr
 			},
@@ -301,7 +301,7 @@ func TestDeleteResourceHandlerPreservesExpectedVersionAndMapsConflict(t *testing
 		t,
 		newTestHandlersWithResources(
 			t,
-			stubSessionManager{},
+			&stubSessionManager{},
 			stubObserver{},
 			stubResourceService{
 				DeleteFn: func(_ context.Context, kind resources.ResourceKind, id string, expectedVersion int64) error {
@@ -336,7 +336,7 @@ func TestRegisterRoutesKeepsOperationalRuntimeEndpointsFamilySpecific(t *testing
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithResources(t, stubSessionManager{}, stubObserver{}, stubResourceService{}, homePaths),
+		newTestHandlersWithResources(t, &stubSessionManager{}, stubObserver{}, stubResourceService{}, homePaths),
 	)
 
 	routes := udsRouteSet(engine)

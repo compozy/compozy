@@ -710,11 +710,11 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 	var workers sync.WaitGroup
 	for index := range total {
 		workers.Go(func() {
-			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder",
 				Name:      fmt.Sprintf("session-%d", index),
 				Workspace: h.workspaceID,
-			})
+			}))
 			if err != nil {
 				t.Errorf("Create(%d) error = %v", index, err)
 				return
@@ -2259,7 +2259,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 			created := make(chan error, 1)
 			go func() {
-				_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				_, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 				created <- err
 			}()
 			<-entered
@@ -2301,7 +2301,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 		created := make(chan error, 1)
 		go func() {
-			_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+			_, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 			created <- err
 		}()
 		<-entered
@@ -2351,7 +2351,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		h.driver.killHook = func(*fakeProcess) error { return errors.New("kill refused") }
 		created := make(chan error, 1)
 		go func() {
-			_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+			_, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 			created <- err
 		}()
 		<-entered
@@ -2464,7 +2464,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		}
 		created := make(chan error, 1)
 		go func() {
-			_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+			_, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 			created <- err
 		}()
 		<-entered

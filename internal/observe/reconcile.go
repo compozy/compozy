@@ -78,7 +78,7 @@ func (o *Observer) reconcileRecoveredSessionCreation(
 	}
 	registration, err := creationStore.RegisterSessionWithCreationIdentity(
 		ctx,
-		recovered.SessionInfo,
+		&(recovered.SessionInfo),
 		*recovered.creationIdentity,
 	)
 	if err != nil {

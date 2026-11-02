@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
+
 	"github.com/compozy/compozy/internal/agentinstance"
 )
 
@@ -37,7 +39,7 @@ func (s *CheckService) dispatch(target *CheckTarget, digest CheckDigest, occurre
 	req := FinishRequest{
 		QuietBackoffCap:  s.config.QuietBackoffCap,
 		FatigueLimit:     int64(s.config.FatigueLimit),
-		Interval:         s.checkInterval(target.Policy),
+		Interval:         s.checkInterval(&target.Policy),
 		MaxInterval:      s.config.MaxInterval,
 		InstanceID:       target.Instance.ID,
 		OccurrenceID:     occurrence,
@@ -125,4 +127,32 @@ func (s *CheckService) Recover(ctx context.Context) error {
 	}
 	s.ready = true
 	return nil
+}
+
+func (s *CheckService) admitCheck(
+	ctx context.Context,
+	target *CheckTarget,
+	digest CheckDigest,
+	request AdmitRequest,
+	source string,
+) (CheckResult, error) {
+	occurrence, err := store.NewID(source)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	request.OccurrenceID = occurrence
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return CheckResult{}, errors.New("heartbeat: checks are stopped")
+	}
+	admitted, err := s.store.Admit(ctx, request)
+	if err != nil {
+		return CheckResult{}, err
+	}
+	if !admitted {
+		return CheckResult{Gate: "no_slot"}, nil
+	}
+	s.wg.Go(func() { s.dispatch(target, digest, occurrence, source) })
+	return CheckResult{OccurrenceID: occurrence}, nil
 }

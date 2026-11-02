@@ -58,7 +58,7 @@ func (r instanceMainSessions) StartSuccessor(
 	if instance.WorkspaceID == "" {
 		opts.Scope = workspacepkg.ScopeUser
 	}
-	child, err := r.sessions.Create(ctx, opts)
+	child, err := r.sessions.Create(ctx, &(opts))
 	if err != nil {
 		return id, err
 	}

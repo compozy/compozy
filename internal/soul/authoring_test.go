@@ -830,7 +830,7 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			SoulSnapshotID: first.Snapshot.ID,
 			SoulDigest:     first.Soul.Digest,
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, session); err != nil {
+		if err := fixture.db.RegisterSession(fixture.ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		claimedBy := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: session.ID}
@@ -1187,9 +1187,9 @@ func deterministicIDGenerator() func(prefix string) (string, error) {
 func findSession(t *testing.T, sessions []store.SessionInfo, id string) store.SessionInfo {
 	t.Helper()
 
-	for _, session := range sessions {
-		if session.ID == id {
-			return session
+	for i := range sessions {
+		if sessions[i].ID == id {
+			return sessions[i]
 		}
 	}
 	t.Fatalf("session %q not found in %#v", id, sessions)

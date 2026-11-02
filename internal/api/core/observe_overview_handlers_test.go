@@ -47,7 +47,7 @@ func TestObserveOverviewHandler(t *testing.T) {
 			},
 		}
 		fixture := newHandlerFixture(
-			t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{},
+			t, &testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{},
 		)
 
 		request := httptest.NewRequestWithContext(
@@ -86,7 +86,7 @@ func TestObserveOverviewHandler(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixture(
-			t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{},
+			t, &testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{},
 		)
 
 		request := httptest.NewRequestWithContext(
@@ -119,7 +119,7 @@ func TestObserveOverviewAllWorkspaces(t *testing.T) {
 				return observe.OverviewView{}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 		for _, tc := range []struct {
 			suffix string
 			want   taskpkg.CatalogScope
@@ -153,7 +153,7 @@ func TestPermissionRollupHandler(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 		response := httptest.NewRecorder()
 		fixture.Engine.ServeHTTP(
 			response,
@@ -185,7 +185,7 @@ func TestPermissionRollupHandler(t *testing.T) {
 				}, nil
 			},
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 		response := httptest.NewRecorder()
 		fixture.Engine.ServeHTTP(
 			response,
@@ -204,7 +204,7 @@ func TestPermissionRollupHandler(t *testing.T) {
 			t.Parallel()
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)

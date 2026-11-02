@@ -49,7 +49,7 @@ func TestHTTPHookCatalogEndpointReturnsResolvedHooksInPipelineOrder(t *testing.T
 	)
 	observer.AttachHooks(hooksRuntime)
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, observer, homePaths))
 	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/catalog", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -122,7 +122,7 @@ func TestHTTPHookCatalogEndpointFiltersWorkspaceScopedHooks(t *testing.T) {
 		},
 	}
 
-	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, stubSessionManager{}, observer, workspaces, homePaths))
+	engine := newTestRouter(t, newTestHandlersWithWorkspace(t, &stubSessionManager{}, observer, workspaces, homePaths))
 	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/catalog?workspace=alpha", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -144,7 +144,7 @@ func TestHTTPHookEventsEndpointReturnsAllEventsWithSyncEligibility(t *testing.T)
 	homePaths := newTestHomePaths(t)
 	observer := newHookIntegrationObserver(t, homePaths)
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, observer, homePaths))
 	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -206,7 +206,7 @@ func TestHTTPHookCatalogEndpointFiltersByEventSourceAndMode(t *testing.T) {
 	)
 	observer.AttachHooks(hooksRuntime)
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, observer, homePaths))
 	recorder := performRequest(
 		t,
 		engine,
@@ -271,7 +271,7 @@ func TestHTTPHookRunsEndpointFiltersByOutcomeAndLast(t *testing.T) {
 	}
 	closeHookRunSessionDB(t, db)
 
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			return newSessionInfo(id), nil
 		},
@@ -306,7 +306,7 @@ func TestHTTPHookEventsEndpointFiltersByFamilyAndSyncOnly(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	observer := newHookIntegrationObserver(t, homePaths)
 
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, observer, homePaths))
 	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/events?family=tool&sync_only=true", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -365,7 +365,7 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 		t.Fatalf("DispatchPermissionRequest() error = %v", err)
 	}
 
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			return newSessionInfo(id), nil
 		},
@@ -467,7 +467,7 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		closeErr := registry.Close(ctx)
 		t.Fatalf("InsertWorkspace() error = %v; Close() error = %v", err, closeErr)
 	}
-	if err := registry.RegisterSession(ctx, store.SessionInfo{
+	if err := registry.RegisterSession(ctx, new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
@@ -478,7 +478,7 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		State:         "stopped",
 		CreatedAt:     now,
 		UpdatedAt:     now,
-	}); err != nil {
+	})); err != nil {
 		closeErr := registry.Close(ctx)
 		t.Fatalf("RegisterSession(%q) error = %v; Close() error = %v", sessionID, err, closeErr)
 	}

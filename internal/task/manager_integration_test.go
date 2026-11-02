@@ -3567,7 +3567,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		UpdatedAt:         fixedNow.Add(5 * time.Minute),
 	}
 
-	if err := db.RegisterSession(ctx, sessionInfo); err != nil {
+	if err := db.RegisterSession(ctx, &(sessionInfo)); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 

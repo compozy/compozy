@@ -21,6 +21,8 @@ type nativeAgentMemoryInput struct {
 	IncludeSessions bool   `json:"include_sessions"`
 }
 
+const agentMemoryDigestKey = "digest"
+
 func (n *daemonNativeTools) agentMemoryToolBindings() map[toolspkg.ToolID]nativeToolBinding {
 	available := n.dependencyAvailability(
 		func() bool { return n.deps.AgentMemory != nil && n.deps.AgentCatalog != nil && n.deps.Sessions != nil },
@@ -67,7 +69,8 @@ func (n *daemonNativeTools) agentMemoryCaller(
 	if err != nil {
 		return agentmemory.Key{}, "", err
 	}
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		if entry.Def.Name != info.AgentName {
 			continue
 		}
@@ -79,7 +82,7 @@ func (n *daemonNativeTools) agentMemoryCaller(
 		}
 		source := resolved.Name
 		if source == "" {
-			source = "Global"
+			source = daemonGlobalLabel
 		}
 		return agentmemory.Key{
 			ProfileID: info.ProfileID,
@@ -108,16 +111,16 @@ func (n *daemonNativeTools) agentMemoryCall(
 	case toolspkg.ToolIDAgentMemoryAdd:
 		var doc agentmemory.Document
 		doc, err = n.deps.AgentMemory.Add(key, time.Now(), source, input.Text, input.Until)
-		result = map[string]any{"digest": doc.Digest, "budget": doc.Budget}
+		result = map[string]any{agentMemoryDigestKey: doc.Digest, "budget": doc.Budget}
 	case toolspkg.ToolIDAgentMemoryReplace:
 		var doc agentmemory.Document
 		doc, err = n.deps.AgentMemory.Replace(key, input.Match, input.Text)
-		result = map[string]any{"digest": doc.Digest}
+		result = map[string]any{agentMemoryDigestKey: doc.Digest}
 	case toolspkg.ToolIDAgentMemoryRemove:
 		var doc agentmemory.Document
 		var removed int
 		doc, removed, err = n.deps.AgentMemory.Remove(key, input.Match)
-		result = map[string]any{"digest": doc.Digest, "removed": removed}
+		result = map[string]any{agentMemoryDigestKey: doc.Digest, "removed": removed}
 	case toolspkg.ToolIDAgentMemorySearch:
 
 		var results []agentmemory.SearchResult

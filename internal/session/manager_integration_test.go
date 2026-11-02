@@ -40,7 +40,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 				fixture := newSessionWorktreeRaceFixture(t, nil)
 				h := fixture.h
 				h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
-				created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -102,7 +102,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 				opts.Lineage = &store.SessionLineage{TTLExpiresAt: new(time.Now().Add(time.Hour))}
 			}
 			if kind == SessionTypeSpawned {
-				parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				parent, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -111,7 +111,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 				opts.Lineage.RootSessionID = parent.ID
 				opts.Lineage.SpawnDepth = 1
 			}
-			created, err := h.manager.Create(t.Context(), opts)
+			created, err := h.manager.Create(t.Context(), &(opts))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,7 +149,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		fixture := newSessionWorktreeRaceFixture(t, nil)
 		h := fixture.h
 		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
-		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,7 +182,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		h := fixture.h
 		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
 		ctx := t.Context()
-		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		created, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -222,7 +222,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		}
 		created, err := h.manager.Create(
 			ctx,
-			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, CWD: subdirectory},
+			new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, CWD: subdirectory}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -324,7 +324,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		h := fixture.h
 		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
 		ctx := testutil.Context(t)
-		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		created, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -373,7 +373,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)})
 		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
 		ctx := testutil.Context(t)
-		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		created, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -445,7 +445,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		)
 		caller, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+			new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -453,7 +453,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		t.Cleanup(func() { stopActiveIntegrationSession(t, h, caller.ID) })
 		competitor, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+			new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -483,7 +483,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		defer release()
 		if _, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"},
+			new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-delivery"}),
 		); !errors.Is(
 			err,
 			ErrValidation,
@@ -492,7 +492,7 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		}
 		unrelated, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-other"},
+			new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-other"}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -560,30 +560,30 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 			})),
 		)
 
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-a",
 			Lineage: &store.SessionLineage{
 				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(bound parent) error = %v", err)
 		}
-		sameWorktree, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		sameWorktree, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-a",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(second same-worktree session) error = %v", err)
 		}
-		otherWorktree, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		otherWorktree, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-b",
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(other-worktree session) error = %v", err)
 		}
-		rootSession, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		rootSession, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(root session) error = %v", err)
 		}
@@ -681,9 +681,9 @@ func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
 	t.Run("Should let an active session binding win before removal", func(t *testing.T) {
 		fixture := newSessionWorktreeRaceFixture(t, nil)
 
-		bound, err := fixture.h.manager.Create(testutil.Context(t), CreateOpts{
+		bound, err := fixture.h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: fixture.h.workspaceID, Worktree: fixture.item.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(bound winner) error = %v", err)
 		}
@@ -730,9 +730,9 @@ func TestManagerIntegrationWorktreeRemovalBindingRace(t *testing.T) {
 			t.Fatal("timed out waiting for removal fence")
 		}
 
-		bound, err := fixture.h.manager.Create(testutil.Context(t), CreateOpts{
+		bound, err := fixture.h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: fixture.h.workspaceID, Worktree: fixture.item.ID,
-		})
+		}))
 		if bound != nil || !errors.Is(err, worktreepkg.ErrNotReady) {
 			t.Fatalf("Create(after removal fence) = (%#v, %v), want nil and %v", bound, err, worktreepkg.ErrNotReady)
 		}
@@ -961,12 +961,12 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 		t.Fatalf("MkdirAll(session CWD) error = %v", err)
 	}
 	canonicalSessionCWD := resolveIntegrationWorkspaceRoot(t, sessionCWD)
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "session",
 		Workspace: h.workspaceID,
 		CWD:       sessionCWD,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -1473,13 +1473,13 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 				opts := CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"}
 				var created *Session
 				if accepted {
-					info, createErr := h.manager.CreateAccepted(ctx, CreateAcceptedOpts{Session: opts})
+					info, createErr := h.manager.CreateAccepted(ctx, new(CreateAcceptedOpts{Session: opts}))
 					if createErr != nil {
 						t.Fatal(createErr)
 					}
 					created, _ = h.manager.Get(info.ID)
 				} else {
-					created, err = h.manager.Create(ctx, opts)
+					created, err = h.manager.Create(ctx, &(opts))
 					if err != nil {
 						t.Fatal(err)
 					}

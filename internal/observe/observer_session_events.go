@@ -161,7 +161,8 @@ func (o *Observer) recoverSessionSnapshot(ctx context.Context, sessionID string)
 		o.logger.Warn("observe: recover session snapshot failed", "session_id", id, "error", err)
 		return observedSession{}, false
 	}
-	for _, info := range sessions {
+	for i := range sessions {
+		info := &sessions[i]
 		if strings.TrimSpace(info.ID) != id {
 			continue
 		}

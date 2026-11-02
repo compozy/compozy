@@ -28,7 +28,10 @@ func (h *Hooks) DispatchAgentInstance(ctx context.Context, payload AgentInstance
 
 func instanceHookEventDescriptors() map[HookEvent]EventDescriptor {
 	result := make(map[HookEvent]EventDescriptor)
-	for _, event := range []HookEvent{HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed, HookAgentInstanceArchived, HookAgentInstanceAdopted} {
+	for _, event := range []HookEvent{
+		HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed,
+		HookAgentInstanceArchived, HookAgentInstanceAdopted,
+	} {
 		result[event] = EventDescriptor{
 			Event:         event,
 			Family:        HookEventFamilyAgent,

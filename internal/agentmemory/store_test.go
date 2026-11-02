@@ -33,7 +33,7 @@ func TestStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if "- 2026-11-01 · workspace-a · Remember preview\n" != doc.Content {
+		if doc.Content != "- 2026-11-01 · workspace-a · Remember preview\n" {
 			t.Fatalf("want %v, got %v", "- 2026-11-01 · workspace-a · Remember preview\n", doc.Content)
 		}
 		doc, err = s.Write(key, "token=sk-abcdefghijklmnopqrstuvwxyz1234567890", doc.Digest)
@@ -84,14 +84,14 @@ func TestStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if 200 != doc.Budget.Lines {
+		if doc.Budget.Lines != 200 {
 			t.Fatalf("want %v, got %v", 200, doc.Budget.Lines)
 		}
 		doc, err = s.Add(key, now, "Global", "new", "")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if 200 != doc.Budget.Lines {
+		if doc.Budget.Lines != 200 {
 			t.Fatalf("want %v, got %v", 200, doc.Budget.Lines)
 		}
 		if !strings.Contains(doc.Content, "Operator preference") {
@@ -107,7 +107,7 @@ func TestStore(t *testing.T) {
 		if len(results) != 1 {
 			t.Fatalf("unexpected length: %d", len(results))
 		}
-		if "archive.md" != results[0].File {
+		if results[0].File != "archive.md" {
 			t.Fatalf("want %v, got %v", "archive.md", results[0].File)
 		}
 	})
@@ -170,7 +170,7 @@ func TestStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if 20 != doc.Budget.Lines {
+		if doc.Budget.Lines != 20 {
 			t.Fatalf("want %v, got %v", 20, doc.Budget.Lines)
 		}
 		other := key
@@ -229,7 +229,7 @@ func TestStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if 1 != count {
+		if count != 1 {
 			t.Fatalf("want %v, got %v", 1, count)
 		}
 		if strings.Contains(doc.Content, "release") {

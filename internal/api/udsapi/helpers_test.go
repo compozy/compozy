@@ -385,7 +385,7 @@ func newTestHandlersWithSettingsAndExtensions(
 
 	cfg := testConfigForTest(homePaths)
 	return newHandlers(&handlerConfig{
-		sessions:        stubSessionManager{},
+		sessions:        &stubSessionManager{},
 		tasks:           &stubTaskManager{},
 		observer:        stubObserver{},
 		workspaces:      stubWorkspaceService{},
@@ -437,9 +437,14 @@ func newTestHandlersWithRuntime(
 }
 
 func defaultTestSessionManager(manager core.SessionManager) core.SessionManager {
-	stub, ok := manager.(stubSessionManager)
-	if !ok || stub.StatusFn != nil {
+	input, ok := manager.(*stubSessionManager)
+	if !ok {
 		return manager
+	}
+	snapshot := *input
+	stub := &snapshot
+	if stub.StatusFn != nil {
+		return stub
 	}
 	stub.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
 		trimmedID := strings.TrimSpace(id)

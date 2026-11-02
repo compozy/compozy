@@ -98,9 +98,9 @@ func setDeriveAgentB(t *testing.T, h *harness, chain []compozyconfig.RoleFallbac
 // newDeriveSource creates a logical user session on "coder" and runs two settled turns.
 func (h *deriveHarness) newDeriveSource(t *testing.T) *Session {
 	t.Helper()
-	created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+	created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 		Session: CreateOpts{AgentName: "coder", Name: "Migration cleanup", Workspace: h.workspaceID},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("CreateAccepted(source) error = %v", err)
 	}
@@ -853,9 +853,9 @@ func TestDerivePreview(t *testing.T) {
 	t.Run("Should continue an empty source with an empty carried context", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -1018,7 +1018,7 @@ type deriveFaultStore struct {
 	*globaldb.GlobalDB
 	mu     sync.Mutex
 	calls  int
-	before func(store.SessionInfo, store.SessionCreationIdentity, store.SessionDerivationReceipt) error
+	before func(*store.SessionInfo, store.SessionCreationIdentity, store.SessionDerivationReceipt) error
 }
 
 func (s *deriveFaultStore) option(db *globaldb.GlobalDB) Option {
@@ -1028,20 +1028,22 @@ func (s *deriveFaultStore) option(db *globaldb.GlobalDB) Option {
 
 func (s *deriveFaultStore) RegisterDerivedSession(
 	ctx context.Context,
-	info store.SessionInfo,
+	infoInput *store.SessionInfo,
 	identity store.SessionCreationIdentity,
 	receipt store.SessionDerivationReceipt,
 ) error {
+	info := *infoInput
+
 	s.mu.Lock()
 	s.calls++
 	hook := s.before
 	s.mu.Unlock()
 	if hook != nil {
-		if err := hook(info, identity, receipt); err != nil {
+		if err := hook(&(info), identity, receipt); err != nil {
 			return err
 		}
 	}
-	return s.GlobalDB.RegisterDerivedSession(ctx, info, identity, receipt)
+	return s.GlobalDB.RegisterDerivedSession(ctx, &(info), identity, receipt)
 }
 
 // deriveAttentionFault fails attention reads for every session except spared while armed,
@@ -1192,8 +1194,10 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 				notified    bool
 			)
 			fault.before = func(
-				info store.SessionInfo, identity store.SessionCreationIdentity, receipt store.SessionDerivationReceipt,
+				infoInput *store.SessionInfo, identity store.SessionCreationIdentity, receipt store.SessionDerivationReceipt,
 			) error {
+				info := *infoInput
+
 				gotInfo, gotIdentity, gotReceipt = info, identity, receipt
 				_, statErr := os.Stat(filepath.Join(h.homePaths.SessionsDir, info.ID, store.SessionMetaName))
 				metaExisted = statErr == nil
@@ -1220,7 +1224,7 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 				t.Fatalf("at registration: meta=%t catalog=%t session.derived=%d notified=%t, "+
 					"want only the meta written", metaExisted, catalogRow, ledgerRows, notified)
 			}
-			err = h.db.RegisterDerivedSession(testutil.Context(t), gotInfo, gotIdentity, gotReceipt)
+			err = h.db.RegisterDerivedSession(testutil.Context(t), &(gotInfo), gotIdentity, gotReceipt)
 			if !errors.Is(err, store.ErrSessionDerivationExists) {
 				t.Fatalf("RegisterDerivedSession(duplicate) error = %v, want ErrSessionDerivationExists", err)
 			}
@@ -1232,7 +1236,9 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 		h := newDeriveHarness(t, fault.option)
 		source := h.newDeriveSource(t)
 		var failedID string
-		fault.before = func(info store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
+		fault.before = func(infoInput *store.SessionInfo, _ store.SessionCreationIdentity, _ store.SessionDerivationReceipt) error {
+			info := *infoInput
+
 			if failedID == "" {
 				failedID = info.ID
 				return errDeriveInjectedCrash
@@ -1449,7 +1455,7 @@ func TestDeriveSnapshotConcurrency(t *testing.T) {
 		entered := make(chan struct{})
 		release := make(chan struct{})
 		var once sync.Once
-		fault.before = func(_ store.SessionInfo, _ store.SessionCreationIdentity, receipt store.SessionDerivationReceipt) error {
+		fault.before = func(_ *store.SessionInfo, _ store.SessionCreationIdentity, receipt store.SessionDerivationReceipt) error {
 			if receipt.IdempotencyKey == "idem_held" {
 				once.Do(func() { close(entered) })
 				<-release
@@ -1562,9 +1568,9 @@ func TestDeriveReceiptScope(t *testing.T) {
 		if err := h.db.InsertWorkspace(testutil.Context(t), resolved.Workspace); err != nil {
 			t.Fatalf("InsertWorkspace(secondary) error = %v", err)
 		}
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Name: "Other workspace", Workspace: secondaryID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted(secondary source) error = %v", err)
 		}
@@ -1794,9 +1800,9 @@ func TestDeriveCarriesAttachmentMetadata(t *testing.T) {
 			metas = append(metas, promptAttachmentMeta(t, id, name, "text/plain", content))
 		}
 		h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option { return WithAttachmentOpener(opener) })
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Name: "With files", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -2235,9 +2241,9 @@ func TestForkNativeSeed(t *testing.T) {
 			result.Seed != DeriveSeedReplay {
 			t.Fatalf("ForkSession(message cut) = %+v, %v, want replay", result, err)
 		}
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted(unbound) error = %v", err)
 		}
@@ -2529,9 +2535,9 @@ func TestForkAccountInheritance(t *testing.T) {
 	}
 	newRouteSource := func(t *testing.T, h *deriveHarness) *Session {
 		t.Helper()
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "b", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted(b) error = %v", err)
 		}

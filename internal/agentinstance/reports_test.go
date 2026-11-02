@@ -28,7 +28,7 @@ func (s *reportStoreStub) UnpublishedReports(_ context.Context, after string, li
 	}
 	return rows, nil
 }
-func (s *reportStoreStub) MarkReportPublished(_ context.Context, id, session string, seq int64) error {
+func (s *reportStoreStub) MarkReportPublished(_ context.Context, id, _ string, _ int64) error {
 	s.marked = append(s.marked, id)
 	return nil
 }

@@ -103,7 +103,7 @@ func (n *daemonNativeTools) agentCreate(
 		entry.Origin = contract.AgentOriginWorkspace
 		entry.WorkspaceID = created.WorkspaceID
 	}
-	payload := core.AgentPayloadFromEntryWithConfig(entry, &created.RuntimeConfig)
+	payload := core.AgentPayloadFromEntryWithConfig(&entry, &created.RuntimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
 }
 

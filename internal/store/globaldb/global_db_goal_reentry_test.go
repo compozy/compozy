@@ -65,7 +65,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 		); err != nil {
 			t.Fatalf("insert Goal generation output error = %v", err)
 		}
-		if err := globalDB.RegisterSession(ctx, SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 			ID:            "session-goal-reentry",
 			ProfileID:     store.DefaultProfileID,
 			AgentName:     "codex",
@@ -74,7 +74,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 			State:         "active",
 			CreatedAt:     now,
 			UpdatedAt:     now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(

@@ -16,7 +16,7 @@ func TestNewWithHomePathsRealignsDefaultConfig(t *testing.T) {
 		server, err := New(
 			WithHomePaths(homePaths),
 			WithSocketPath(socketPath),
-			WithSessionManager(stubSessionManager{}),
+			WithSessionManager(&stubSessionManager{}),
 			WithTaskService(&stubTaskManager{}),
 			WithObserver(stubObserver{}),
 			WithWorkspaceResolver(stubWorkspaceService{}),

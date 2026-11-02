@@ -16,7 +16,7 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 	session := record.session
 	session.SelectedRuntime = store.NormalizeSessionRuntimeSelection(session.SelectedRuntime)
 	speedResolutionJSON, acpOptionsJSON, selectedACPOptionsJSON, err :=
-		sessionCatalogRuntimeProjections(session)
+		sessionCatalogRuntimeProjections(&(session))
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{
 			InitiatorKind: session.InitiatorKind, InitiatorID: session.InitiatorID}, err
@@ -27,7 +27,7 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 			InitiatorKind: session.InitiatorKind, InitiatorID: session.InitiatorID}, err
 	}
 	params := newSessionUpsertParams(
-		session,
+		&(session),
 		speedResolutionJSON,
 		runtimeRecoveryJSON,
 		acpOptionsJSON,
@@ -39,13 +39,15 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 }
 
 func newSessionUpsertParams(
-	session store.SessionInfo,
+	sessionInput *store.SessionInfo,
 	speedResolutionJSON string,
 	runtimeRecoveryJSON string,
 	acpOptionsJSON string,
 	selectedACPOptionsJSON string,
 	activityJSON string,
 ) sqlcgen.UpsertSessionParams {
+	session := *sessionInput
+
 	return sqlcgen.UpsertSessionParams{
 		InitiatorKind: session.InitiatorKind, InitiatorID: session.InitiatorID,
 		EffectiveWorkspaceAccess: session.EffectiveWorkspaceAccess,
@@ -118,8 +120,10 @@ func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *ses
 }
 
 func sessionCatalogRuntimeProjections(
-	session store.SessionInfo,
+	sessionInput *store.SessionInfo,
 ) (string, string, string, error) {
+	session := *sessionInput
+
 	speedResolutionJSON, err := encodeSessionSpeedResolution(session.SpeedResolution)
 	if err != nil {
 		return "", "", "", err

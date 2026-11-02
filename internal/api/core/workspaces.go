@@ -199,7 +199,8 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 				return nil, err
 			}
 		}
-		for _, entry := range catalogAgents {
+		for i := range catalogAgents {
+			entry := &catalogAgents[i]
 			agent := entry.Def
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
@@ -212,7 +213,7 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 				merged[name] = existing
 				continue
 			}
-			merged[name] = entry
+			merged[name] = *entry
 		}
 	}
 

@@ -250,7 +250,7 @@ func TestGlobalDBSessionCatalogRejectsInconsistentSpeedResolution(t *testing.T) 
 			filepath.Join(t.TempDir(), "runtime-resolution-workspace"),
 		)
 		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(store.SessionInfo{
 			ProfileID:         store.DefaultProfileID,
 			ID:                "sess-inconsistent-runtime-resolution",
 			AgentName:         "coder",
@@ -264,7 +264,7 @@ func TestGlobalDBSessionCatalogRejectsInconsistentSpeedResolution(t *testing.T) 
 			State:             globalDBSessionStateActive,
 			CreatedAt:         now,
 			UpdatedAt:         now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		if _, err := globalDB.db.ExecContext(
@@ -536,7 +536,7 @@ func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
 			filepath.Join(t.TempDir(), "stalled-attach-workspace"),
 		)
 		now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(store.SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-stalled-attach",
 			Name:          "Stalled Attach",
@@ -553,7 +553,7 @@ func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
 			},
 			CreatedAt: now,
 			UpdatedAt: now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
@@ -608,14 +608,14 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		if err := globalDB.RegisterSession(ctx, session); err != nil {
+		if err := globalDB.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession(initial) error = %v", err)
 		}
 
 		session.TranscriptEpoch = 0
 		session.State = globalDBSessionStateStopped
 		session.UpdatedAt = now.Add(time.Minute)
-		if err := globalDB.RegisterSession(ctx, session); err != nil {
+		if err := globalDB.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession(reconstructed) error = %v", err)
 		}
 
@@ -705,11 +705,11 @@ func TestGlobalDBRegisterSessionProfileAdmission(t *testing.T) {
 			info.ProfileID = profileID
 			var err error
 			if test.identity {
-				_, err = db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{
+				_, err = db.RegisterSessionWithCreationIdentity(ctx, &(info), store.SessionCreationIdentity{
 					CreationProfileRef: "profile-v1", PolicySpecDigest: "policy-v1", CreationDigest: "creation-v1",
 				})
 			} else {
-				err = db.RegisterSession(ctx, info)
+				err = db.RegisterSession(ctx, &(info))
 			}
 			refusal, ok := errors.AsType[*store.ProfileAdmissionError](err)
 			if !ok || refusal.ProfileID != profileID || refusal.Archived != test.archived {
@@ -763,7 +763,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		if err := globalDB.RegisterSession(ctx, session); err != nil {
+		if err := globalDB.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession(primary owner) error = %v", err)
 		}
 
@@ -771,7 +771,7 @@ func TestGlobalDBRegisterSessionRejectsImmutableFieldChanges(t *testing.T) {
 		session.Name = "Foreign overwrite"
 		session.State = globalDBSessionStateStopped
 		session.UpdatedAt = now.Add(time.Minute)
-		err := globalDB.RegisterSession(ctx, session)
+		err := globalDB.RegisterSession(ctx, &(session))
 		if !errors.Is(err, store.ErrSessionWorkspaceMismatch) {
 			t.Fatalf("RegisterSession(foreign owner) error = %v, want ErrSessionWorkspaceMismatch", err)
 		}
@@ -1138,7 +1138,7 @@ func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		if err := globalDB.RegisterSession(ctx, session); err != nil {
+		if err := globalDB.RegisterSession(ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 
@@ -1194,7 +1194,7 @@ func TestGlobalDBSessionReadsIgnoreExpiredAttachLocks(t *testing.T) {
 			attachedAt := now.Add(-time.Hour)
 			info := sessionInfoForWorkspaceStateIndexTest("sess-expired-attach", workspaceID,
 				globalDBSessionStateActive, attachedAt)
-			if err := db.RegisterSession(ctx, info); err != nil {
+			if err := db.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
@@ -1271,9 +1271,9 @@ func TestGlobalDBSessionReadsIgnoreExpiredAttachLocks(t *testing.T) {
 			)
 			now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
 			for _, id := range []string{"target", "unrelated"} {
-				if err := db.RegisterSession(ctx, sessionInfoForWorkspaceStateIndexTest(
+				if err := db.RegisterSession(ctx, new(sessionInfoForWorkspaceStateIndexTest(
 					id, workspaceID, globalDBSessionStateActive, now.Add(-time.Hour),
-				)); err != nil {
+				))); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := db.AttachSession(ctx, store.SessionAttachRequest{
@@ -1542,7 +1542,7 @@ func TestGlobalDBUserSessionOwner(t *testing.T) {
 		info.ProfileID = other
 		if _, err := db.RegisterSessionWithCreationIdentity(
 			ctx,
-			info,
+			&(info),
 			store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest},
 		); err != nil {
 			t.Fatal(err)
@@ -1644,7 +1644,7 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 			if i == 3 {
 				info.ProfileID = otherProfile
 			}
-			if err := db.RegisterSession(t.Context(), info); err != nil {
+			if err := db.RegisterSession(t.Context(), &(info)); err != nil {
 				t.Fatal(err)
 			}
 		}

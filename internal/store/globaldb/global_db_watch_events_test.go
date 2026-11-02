@@ -1239,7 +1239,7 @@ func TestGlobalDBWatchEventsProfileIsolation(t *testing.T) {
 			func(event looppkg.WatchEvent) bool { return event.SessionID == "watch-profile-observe-marketing" })
 
 		registerWatchSessionForTest(ctx, t, globalDB, "watch-profile-session-default", "ws-a", "coder")
-		if err := globalDB.RegisterSession(ctx, SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 			ProfileID: marketingProfileID,
 			ID:        "watch-profile-session-marketing",
 			Name:      "watch-profile-session-marketing", AgentName: "coder", Provider: "mock",
@@ -1247,7 +1247,7 @@ func TestGlobalDBWatchEventsProfileIsolation(t *testing.T) {
 			State:     globalDBSessionStateActive,
 			Lineage:   store.NormalizeSessionLineage("watch-profile-session-marketing", nil),
 			CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(marketing) error = %v", err)
 		}
 		appendSessionWatchEventForTest(ctx, t, globalDB, "watch-profile-session-default", store.SessionEvent{
@@ -2693,7 +2693,7 @@ func registerWatchSessionForTest(
 	agentName string,
 ) {
 	t.Helper()
-	if err := globalDB.RegisterSession(ctx, SessionInfo{
+	if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		Name:          sessionID,
@@ -2706,7 +2706,7 @@ func registerWatchSessionForTest(
 		Lineage:       store.NormalizeSessionLineage(sessionID, nil),
 		CreatedAt:     time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
 		UpdatedAt:     time.Date(2026, 7, 9, 9, 30, 0, 0, time.UTC),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%s) error = %v", sessionID, err)
 	}
 }

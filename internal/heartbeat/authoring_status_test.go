@@ -726,7 +726,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 		}); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
+		if err := fixture.db.RegisterSession(fixture.ctx, new(compozystore.SessionInfo{
 			ID:            "sess-delete",
 			AgentName:     "coder",
 			Provider:      "claude",
@@ -736,7 +736,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			State:         string(heartbeat.SessionHealthStateIdle),
 			CreatedAt:     fixture.now,
 			UpdatedAt:     fixture.now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(sess-delete) error = %v", err)
 		}
 
@@ -1137,7 +1137,7 @@ func TestManagedHeartbeatAuthoringServiceSafetyBoundaries(t *testing.T) {
 			CreatedAt:     fixture.now,
 			UpdatedAt:     fixture.now,
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, session); err != nil {
+		if err := fixture.db.RegisterSession(fixture.ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		healthBefore, err := fixture.db.UpsertSessionHealth(
@@ -1919,7 +1919,7 @@ func deterministicHeartbeatIDGenerator() func(prefix string) (string, error) {
 func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, sessionID string) {
 	t.Helper()
 
-	if err := fixture.db.RegisterSession(fixture.ctx, compozystore.SessionInfo{
+	if err := fixture.db.RegisterSession(fixture.ctx, new(compozystore.SessionInfo{
 		ID:            sessionID,
 		AgentName:     "coder",
 		Provider:      "claude",
@@ -1929,7 +1929,7 @@ func registerManagedHeartbeatSession(t *testing.T, fixture heartbeatFixture, ses
 		State:         "active",
 		CreatedAt:     fixture.now,
 		UpdatedAt:     fixture.now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}
 }

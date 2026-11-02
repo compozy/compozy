@@ -45,10 +45,10 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 		}),
 	)
 
-	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err == nil {
 		t.Fatal("Create() error = nil, want non-nil")
 	}
@@ -115,7 +115,7 @@ func TestCreateErrorBranches(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID})
+		session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatalf("Create(blank agent) error = %v", err)
 		}
@@ -144,7 +144,7 @@ func TestCreateErrorBranches(t *testing.T) {
 			}},
 		})
 		h.manager = newManagerWithHarness(t, h)
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{Workspace: h.workspaceID}); err == nil {
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{Workspace: h.workspaceID})); err == nil {
 			t.Fatal("Create(blank agent with empty defaults) error = nil, want non-nil")
 		}
 	})
@@ -153,10 +153,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t, WithSessionIDGenerator(func() (string, error) { return "", nil }))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); err == nil {
+		})); err == nil {
 			t.Fatal("Create(empty session id) error = nil, want non-nil")
 		}
 	})
@@ -168,10 +168,10 @@ func TestCreateErrorBranches(t *testing.T) {
 		h := newHarness(t, WithSessionIDGenerator(func() (string, error) {
 			return "", entropyErr
 		}))
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); !errors.Is(err, entropyErr) {
+		})); !errors.Is(err, entropyErr) {
 			t.Fatalf("Create() error = %v, want entropy failure", err)
 		}
 		if sessions := h.manager.List(); len(sessions) != 0 {
@@ -190,10 +190,10 @@ func TestCreateErrorBranches(t *testing.T) {
 				return nil, errors.New("open failed")
 			}),
 		)
-		if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		}); err == nil {
+		})); err == nil {
 			t.Fatal("Create(store open failure) error = nil, want non-nil")
 		}
 	})
@@ -204,10 +204,10 @@ func TestCreateWithNilPromptAssemblerIsSafe(t *testing.T) {
 
 	h := newHarness(t, WithPromptAssembler(nil))
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -279,10 +279,10 @@ func TestCreatePassesResolvedAdditionalDirsToDriver(t *testing.T) {
 		}},
 	})
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -874,14 +874,14 @@ func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	if _, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "coder"}); err == nil {
+	if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{AgentName: "coder"})); err == nil {
 		t.Fatal("Create(blank workspace) error = nil, want non-nil")
 	}
-	if _, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	if _, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName:     "coder",
 		Workspace:     h.workspaceID,
 		WorkspacePath: h.workspace,
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("Create(workspace + workspacePath) error = nil, want non-nil")
 	}
 }
@@ -904,10 +904,10 @@ func TestCreateAndResumeRequireWorkspaceResolver(t *testing.T) {
 	}
 	cleanupTestManager(t, manager)
 
-	if _, err := manager.Create(testutil.Context(t), CreateOpts{
+	if _, err := manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Workspace: "ws-missing",
-	}); err == nil {
+	})); err == nil {
 		t.Fatal("Create(without resolver) error = nil, want non-nil")
 	}
 

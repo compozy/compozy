@@ -18,7 +18,7 @@ func TestStaticRoutesServeEmbeddedIndexForRootAndDeepLinks(t *testing.T) {
 		t.Setenv(webDistDirEnvVar, "")
 
 		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 		rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
 		if rootResp.Code != http.StatusOK {
@@ -83,7 +83,7 @@ func TestStaticRoutesServeEmbeddedAssets(t *testing.T) {
 	t.Setenv(webDistDirEnvVar, "")
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	requestPath, expected := firstEmbeddedAsset(t)
 	resp := performRequest(t, engine, http.MethodGet, requestPath, nil)
@@ -129,7 +129,7 @@ func TestStaticRoutesCachePolicy(t *testing.T) {
 			router := gin.New()
 			RegisterSurfaceRoutes(
 				router,
-				newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths),
+				newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths),
 				surfaceSet,
 			)
 			for requestPath, cacheControl := range want {
@@ -151,7 +151,7 @@ func TestStaticRoutesDoNotFallbackForMissingAssetsOrAPIRoutes(t *testing.T) {
 	t.Setenv(webDistDirEnvVar, "")
 
 	homePaths := newTestHomePaths(t)
-	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+	engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 	missingAssetResp := performRequest(t, engine, http.MethodGet, "/assets/does-not-exist.js", nil)
 	if missingAssetResp.Code != http.StatusNotFound {
@@ -188,7 +188,7 @@ func TestStaticRoutesServeLocalWebDistOverride(t *testing.T) {
 		t.Setenv(webDistDirEnvVar, distDir)
 
 		homePaths := newTestHomePaths(t)
-		engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+		engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 
 		rootResp := performRequest(t, engine, http.MethodGet, "/", nil)
 		if rootResp.Code != http.StatusOK {
@@ -256,7 +256,7 @@ func TestStaticRoutesObserveLocalWebDistRewrite(t *testing.T) {
 			}
 
 			homePaths := newTestHomePaths(t)
-			engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths))
+			engine := newTestRouter(t, newTestHandlers(t, &stubSessionManager{}, stubObserver{}, homePaths))
 			before := performRequest(t, engine, http.MethodGet, tt.requestPath, nil)
 			if got := before.Body.String(); before.Code != http.StatusOK || !strings.Contains(got, tt.before) {
 				t.Fatalf("GET %s before status = %d body = %q, want %q", tt.requestPath, before.Code, got, tt.before)

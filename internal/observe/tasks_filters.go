@@ -53,7 +53,8 @@ func (o *Observer) liveSessionIDs(ctx context.Context) (map[string]struct{}, err
 	if err != nil {
 		return nil, fmt.Errorf("observe: list sessions for task health: %w", err)
 	}
-	for _, info := range sessions {
+	for i := range sessions {
+		info := &sessions[i]
 		if !isLiveSessionState(info.State) {
 			continue
 		}

@@ -49,7 +49,7 @@ func (m *Manager) DraftInstructions(
 	if request.WorkspaceID == "" {
 		opts.Scope = workspacepkg.ScopeUser
 	}
-	child, err := m.Create(ctx, opts)
+	child, err := m.Create(ctx, &(opts))
 	if err != nil {
 		if errors.Is(err, acp.ErrTriageUnsupported) {
 			return "", err

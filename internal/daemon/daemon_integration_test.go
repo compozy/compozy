@@ -1964,10 +1964,10 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 		t.Fatalf("boot() error = %v", err)
 	}
 
-	sess, err := d.sessions.Create(testutil.Context(t), session.CreateOpts{
+	sess, err := d.sessions.Create(testutil.Context(t), new(session.CreateOpts{
 		AgentName:     "coder",
 		WorkspacePath: workspaceRoot,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -3126,7 +3126,7 @@ func seedDetachedHarnessSessionIndex(
 		if agentName == "" {
 			agentName = "daemon-test-agent"
 		}
-		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+		if err := db.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 			ProfileID:   info.ProfileID,
 			ID:          info.ID,
 			Name:        info.Name,
@@ -3138,7 +3138,7 @@ func seedDetachedHarnessSessionIndex(
 			RuntimeStatus: store.SessionRuntimeUnbound,
 			CreatedAt:     time.Now().UTC(),
 			UpdatedAt:     time.Now().UTC(),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}
@@ -3819,7 +3819,7 @@ func TestBootRecoversInstanceReports(t *testing.T) {
 		if err := d.boot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		main, err := d.sessions.Create(t.Context(), session.CreateOpts{AgentName: "coder", WorkspacePath: t.TempDir()})
+		main, err := d.sessions.Create(t.Context(), new(session.CreateOpts{AgentName: "coder", WorkspacePath: t.TempDir()}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3893,7 +3893,7 @@ func TestInstancePayloadIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		starter := instanceMainSessions{sessions: d.sessions.(*session.Manager), attempts: db.Instances()}
-		initial, err := d.sessions.Create(t.Context(), session.CreateOpts{InstanceID: instance.ID, ProfileID: instance.ProfileID, AgentName: "coder", Workspace: workspace.ID})
+		initial, err := d.sessions.Create(t.Context(), new(session.CreateOpts{InstanceID: instance.ID, ProfileID: instance.ProfileID, AgentName: "coder", Workspace: workspace.ID}))
 		if err != nil {
 			t.Fatal(err)
 		}

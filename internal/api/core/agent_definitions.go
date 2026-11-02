@@ -97,9 +97,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 	}
 	syncDuration := time.Since(syncStartedAt)
 	entry := h.agentCatalogEntryFromDef(agent, resolved.OperationWorkspace)
-	h.logAgentMutation("update", entry, startedAt, syncDuration)
+	h.logAgentMutation("update", &entry, startedAt, syncDuration)
 	c.JSON(http.StatusOK, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(entry, &resolved.Config),
+		Agent: AgentPayloadFromEntryWithConfig(&entry, &resolved.Config),
 	})
 }
 
@@ -196,7 +196,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 	if resolved.Entry.Origin == contract.AgentOriginWorkspace && unshadowGlobal {
 		response.UnshadowedOrigin = contract.AgentOriginGlobal
 	}
-	h.logAgentDeleteMutation(resolved.Entry, startedAt, syncDuration, response.UnshadowedOrigin != "")
+	h.logAgentDeleteMutation(&resolved.Entry, startedAt, syncDuration, response.UnshadowedOrigin != "")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -264,9 +264,9 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 	}
 	syncDuration := time.Since(syncStartedAt)
 	entry := AgentCatalogEntry{Def: agent, Origin: target.Origin, WorkspaceID: target.WorkspaceID}
-	h.logAgentMutation("duplicate", entry, startedAt, syncDuration)
+	h.logAgentMutation("duplicate", &entry, startedAt, syncDuration)
 	c.JSON(http.StatusCreated, contract.AgentResponse{
-		Agent: AgentPayloadFromEntryWithConfig(entry, &target.Config),
+		Agent: AgentPayloadFromEntryWithConfig(&entry, &target.Config),
 	})
 }
 
@@ -362,7 +362,7 @@ func (h *BaseHandlers) purgeAgentDefinitionHistory(
 
 func (h *BaseHandlers) logAgentMutation(
 	operation string,
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	startedAt time.Time,
 	syncDuration time.Duration,
 ) {
@@ -379,7 +379,7 @@ func (h *BaseHandlers) logAgentMutation(
 }
 
 func (h *BaseHandlers) logAgentDeleteMutation(
-	entry AgentCatalogEntry,
+	entry *AgentCatalogEntry,
 	startedAt time.Time,
 	syncDuration time.Duration,
 	unshadowed bool,
