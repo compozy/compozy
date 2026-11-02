@@ -2173,6 +2173,10 @@ describe("SessionChatRuntimeProvider", () => {
     const prompts = fetchMock.mock.calls.filter(([input]) =>
       getPathname(input).endsWith("/prompt")
     );
+    const initialBody = JSON.parse(String(prompts[0]?.[1]?.body));
+    expect(initialBody.attachments).toEqual([
+      expect.objectContaining({ id: `att_${"a".repeat(64)}`, name: "image.png" }),
+    ]);
     const retryBody = JSON.parse(String(prompts[1]?.[1]?.body));
     expect(retryBody.attachments).toEqual([
       expect.objectContaining({ id: `att_${"b".repeat(64)}`, name: "image.png" }),
