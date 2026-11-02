@@ -138,7 +138,8 @@ export function SubagentComposerControl({
       open={open}
       onOpenChange={(next, details) => {
         // Escape steps back a level first; it closes only from the list.
-        if (!next && selectedId !== null && details.reason === "escape-key") {
+        const detailOpen = subagents.some(subagent => subagent.id === selectedId);
+        if (!next && detailOpen && details.reason === "escape-key") {
           setSelectedId(null);
           return;
         }

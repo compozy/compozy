@@ -8,9 +8,6 @@ import {
   subagentDisplay,
   subagentElapsedClock,
   subagentGroupClock,
-  subagentLiveLine,
-  subagentModelLabel,
-  subagentTokenLabel,
   subagentGroupGlyph,
   subagentGroupSummary,
   subagentLocationRows,
@@ -26,6 +23,7 @@ import {
   subagentWorktreeFacts,
   SUBAGENT_BRANCH_MAX_CHARS,
 } from "../subagent-worktree-format";
+import { subagentLiveLine, subagentModelLabel, subagentTokenLabel } from "../subagent-row-format";
 import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
 
 // Suite: subagent presentation rules (pure).
@@ -114,6 +112,7 @@ describe("subagent row facts", () => {
     ["sonnet", "Sonnet"],
     ["claude-sonnet-5-5", "Sonnet 5.5"],
     ["claude-opus-5-5[1m]", "Opus 5.5"],
+    ["claude-sonnet-4-20250514", "Sonnet 4"],
     ["gpt-6-astra", "gpt-6-astra"],
   ])("Should name the model %s as %s", (model, label) => {
     expect(subagentModelLabel(model)).toBe(label);

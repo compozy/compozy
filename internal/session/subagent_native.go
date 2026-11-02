@@ -67,8 +67,7 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err != nil {
 		return false, err
 	}
-	row, err = s.updateNativeRuntime(ctx, row, ev)
-	if err != nil {
+	if err := s.updateNativeRuntime(ctx, &row, &ev); err != nil {
 		return false, err
 	}
 	call := s.rememberNativeCall(parent, ev)
@@ -224,10 +223,10 @@ func (s *subagentService) updateNativeTitle(
 // updateNativeRuntime records what the launching call names. Its input streams
 // in: the first tool_call event usually lacks `model` and a later one adds it.
 func (s *subagentService) updateNativeRuntime(
-	ctx context.Context, row store.SessionSubagent, ev NativeSubagentEvent,
-) (store.SessionSubagent, error) {
+	ctx context.Context, row *store.SessionSubagent, ev *NativeSubagentEvent,
+) error {
 	if ev.Model == "" && ev.SubagentType == "" {
-		return row, nil
+		return nil
 	}
 	at := ev.At
 	if at.IsZero() {
@@ -235,12 +234,13 @@ func (s *subagentService) updateNativeRuntime(
 	}
 	updated, changed, err := s.store.UpdateNativeSubagentRuntime(ctx, row.ID, ev.Model, ev.SubagentType, at)
 	if err != nil {
-		return row, err
+		return err
 	}
+	*row = updated
 	if changed {
 		s.publish(ctx, updated)
 	}
-	return updated, nil
+	return nil
 }
 
 func (s *subagentService) interruptNative(ctx context.Context, parent, turn string) error {

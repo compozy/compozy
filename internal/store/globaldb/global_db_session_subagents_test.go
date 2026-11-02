@@ -689,6 +689,12 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 		if err != nil || changed || stale.Usage.TotalTokens != 900 || stale.Usage.ToolUses != 4 {
 			t.Fatal(stale, changed, err)
 		}
+		mixed, changed, err := db.UpdateSubagentUsage(
+			t.Context(), row.ID, store.SubagentUsage{TotalTokens: 1000, ToolUses: 3}, at,
+		)
+		if err != nil || !changed || mixed.Usage.TotalTokens != 1000 || mixed.Usage.ToolUses != 4 {
+			t.Fatal(mixed, changed, err)
+		}
 		delegated := reserveSubagent(t, db.SessionRepo, workspace, parent, "delegated-usage", now)
 		untouched, changed, err := db.UpdateSubagentUsage(
 			t.Context(), delegated.ID, store.SubagentUsage{TotalTokens: 1, ToolUses: 1}, at,

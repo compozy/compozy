@@ -490,13 +490,43 @@ describe("SubagentComposerControl (issue #766)", () => {
     expect(screen.getByRole("heading", { name: "Map capabilities" })).toBeInTheDocument();
     expect(screen.getByText("41")).toBeInTheDocument();
     expect(screen.getByText("38.2k")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Subagents" })).toHaveFocus());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Back to subagents" })).toHaveFocus()
+    );
     await user.keyboard("{Escape}");
     const back = await screen.findByRole("button", { name: "Open Map capabilities" });
     await waitFor(() => expect(back).toHaveFocus());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(back, { metaKey: true });
     expect(onOpen).toHaveBeenCalledWith(running, { newWindow: true });
+  });
+
+  // Invariant: the list unmounts behind the detail, yet coming back finds it unfolded as it was,
+  // with focus on the row; a selection that vanished does not cost an extra Escape.
+  it("Should return to a row past the first page and close from the list", async () => {
+    const user = userEvent.setup();
+    const rows = many(8, "running");
+    const { rerender } = renderUI(
+      <SubagentComposerControl subagents={rows} counts={counts(8, 8)} onOpen={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: "Subagents, 8 running" }));
+    await user.click(await screen.findByRole("button", { name: "Show 2 more" }));
+    const last = rows.at(-1)!.title;
+    await user.click(await screen.findByRole("button", { name: `Open ${last}` }));
+    await user.click(await screen.findByRole("button", { name: "Back to subagents" }));
+    const row = await screen.findByRole("button", { name: `Open ${last}` });
+    await waitFor(() => expect(row).toHaveFocus());
+    await user.click(row);
+    await screen.findByRole("heading", { name: last });
+    rerender(
+      <SubagentComposerControl
+        subagents={rows.slice(0, 7)}
+        counts={counts(7, 7)}
+        onOpen={vi.fn()}
+      />
+    );
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("Should open previous rows when nothing runs and hold their place while they load", async () => {

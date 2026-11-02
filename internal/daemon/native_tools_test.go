@@ -13795,6 +13795,7 @@ func TestNativeSubagentBindings(t *testing.T) {
 		// The delegate/status tools advertise this payload shape; an emitted field must be declared.
 		row.Origin, row.Status = store.SubagentOriginDelegated, store.SubagentStatusCompleted
 		row.WorkState, row.Delivery = store.SubagentWorkStateResultAvailable, store.SubagentDeliveryNone
+		row.Usage = &store.SubagentUsage{TotalTokens: 900, ToolUses: 4}
 		encoded, err := json.Marshal(subagentPayload(&row))
 		if err != nil {
 			t.Fatal(err)

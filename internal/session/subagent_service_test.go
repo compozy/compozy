@@ -1038,10 +1038,10 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.OnNativeToolEvent(t.Context(), "parent", frame(1200, 6)); err != nil {
+			if err := s.OnNativeToolEvent(t.Context(), "parent", frame(1200, 3)); err != nil {
 				t.Fatal(err)
 			}
-			if usage := db.rows[id].Usage; usage == nil || usage.TotalTokens != 1200 {
+			if usage := db.rows[id].Usage; usage == nil || usage.TotalTokens != 1200 || usage.ToolUses != 4 {
 				t.Fatal(usage)
 			}
 		})

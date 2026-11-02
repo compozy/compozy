@@ -19,7 +19,6 @@ import {
   isSubagentStoppable,
   subagentDisplay,
   subagentElapsedClock,
-  subagentLiveLine,
   subagentRosterGroups,
 } from "./subagent-format";
 import {
@@ -28,6 +27,7 @@ import {
   SUBAGENT_ROSTER_ROW_FRAME,
 } from "./subagent-roster-frame";
 import { SubagentPullRequestLink } from "./subagent-row-trail";
+import { subagentLiveLine } from "./subagent-row-format";
 import { SubagentTile } from "./subagent-tile";
 import { subagentPullRequest, subagentWorktree } from "./subagent-worktree-format";
 import type { SubagentView } from "./types";
@@ -43,8 +43,16 @@ export interface SubagentRosterProps {
   /** Cancels one live delegated subagent. */
   onStop?: (subagent: SubagentView) => Promise<unknown>;
   defaultPreviousOpen?: boolean;
+  /** How far the list is unfolded, for a host that unmounts it and comes back. */
+  view?: SubagentRosterView;
+  onViewChange?: (view: SubagentRosterView) => void;
   stale?: boolean;
   className?: string;
+}
+
+export interface SubagentRosterView {
+  limit: number;
+  previousOpen: boolean;
 }
 
 interface RosterRowProps {
@@ -158,7 +166,15 @@ function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
           {label}
         </button>
       ) : (
-        <div className={SUBAGENT_ROSTER_MAIN_FRAME}>{label}</div>
+        // Not drillable, still reachable: the row names its state to the keyboard.
+        <div
+          role="group"
+          tabIndex={0}
+          aria-label={`${subagent.title}, ${display.word}`}
+          className={SUBAGENT_ROSTER_MAIN_FRAME}
+        >
+          {label}
+        </div>
       )}
       <span className="inline-flex shrink-0 items-center gap-1 pt-2">
         {pullRequest ? <SubagentPullRequestLink pr={pullRequest} size="row" /> : null}
@@ -194,11 +210,20 @@ export function SubagentRoster({
   onOpen,
   onStop,
   defaultPreviousOpen = false,
+  view,
+  onViewChange,
   stale = false,
   className,
 }: SubagentRosterProps) {
-  const [limit, setLimit] = useState(SUBAGENT_ROSTER_FIRST_PAGE);
-  const [previousOpen, setPreviousOpen] = useState(defaultPreviousOpen);
+  const [ownView, setOwnView] = useState<SubagentRosterView>({
+    limit: SUBAGENT_ROSTER_FIRST_PAGE,
+    previousOpen: defaultPreviousOpen,
+  });
+  const { limit, previousOpen } = view ?? ownView;
+  const changeView = (next: SubagentRosterView) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  };
 
   const groups = subagentRosterGroups(subagents);
   const pinned = [...groups.failed, ...groups.live];
@@ -218,12 +243,15 @@ export function SubagentRoster({
 
   return (
     <>
-      <div className={cn(SUBAGENT_ROSTER_LIST_FRAME, className)}>
+      <div className={cn(SUBAGENT_ROSTER_LIST_FRAME, className)} data-slot="subagent-roster-list">
         {shownPinned.length > 0 ? (
           <ul className="flex flex-col gap-px">{shownPinned.map(row)}</ul>
         ) : null}
         {groups.previous.length > 0 ? (
-          <Collapsible open={previousOpen} onOpenChange={setPreviousOpen}>
+          <Collapsible
+            open={previousOpen}
+            onOpenChange={open => changeView({ limit, previousOpen: open })}
+          >
             <CollapsibleTrigger
               render={
                 <button
@@ -250,7 +278,7 @@ export function SubagentRoster({
           variant="ghost"
           size="xs"
           className="self-start"
-          onClick={() => setLimit(current => current + SUBAGENT_ROSTER_PAGE)}
+          onClick={() => changeView({ limit: limit + SUBAGENT_ROSTER_PAGE, previousOpen })}
         >
           Show {Math.min(SUBAGENT_ROSTER_PAGE, remaining)} more
         </Button>

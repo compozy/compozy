@@ -1,7 +1,7 @@
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 import { SessionListProviderMark } from "../session-list/session-list-provider-mark";
-import { subagentModelLabel, subagentNativeKind } from "./subagent-format";
+import { subagentModelLabel, subagentNativeKind } from "./subagent-row-format";
 import type { SubagentView } from "./types";
 
 /** Recorded runtime only: absent metadata must not inherit the parent runtime. */

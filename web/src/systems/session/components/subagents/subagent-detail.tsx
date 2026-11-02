@@ -1,17 +1,18 @@
 import type { ReactNode } from "react";
 import { ArrowUpRight, ChevronLeft, Square } from "@compozy/ui/icons";
 
-import { Button, StateGlyph } from "@compozy/ui";
+import { Button, PopoverTitle, StateGlyph } from "@compozy/ui";
 
 import { SubagentElapsed } from "./subagent-elapsed";
+import { SubagentWorktreeFactRows } from "./subagent-hover-content";
 import {
   SUBAGENT_ROW_STOP_FAILED,
   isSubagentStoppable,
   subagentDisplay,
   subagentElapsedClock,
-  subagentTokenLabel,
 } from "./subagent-format";
 import { SubagentRuntimeMeta } from "./subagent-runtime-meta";
+import { subagentTokenLabel } from "./subagent-row-format";
 import { SubagentTile } from "./subagent-tile";
 import type { SubagentView } from "./types";
 import { useSubagentStop } from "./use-subagent-stop";
@@ -109,7 +110,14 @@ export function SubagentDetail({
       data-status={subagent.status}
     >
       <div className="flex items-center gap-1 px-2 pt-2 pb-1">
-        <Button data-subagent-back onClick={onBack} size="xs" type="button" variant="ghost">
+        <Button
+          aria-label="Back to subagents"
+          data-subagent-back
+          onClick={onBack}
+          size="xs"
+          type="button"
+          variant="ghost"
+        >
           <ChevronLeft aria-hidden="true" />
           Subagents
         </Button>
@@ -132,18 +140,19 @@ export function SubagentDetail({
           </Button>
         ) : null}
       </div>
-      <div className="flex max-h-[30rem] min-h-0 flex-col gap-4 overflow-y-auto pt-2 pb-2">
+      <div className="flex max-h-[min(30rem,calc(var(--available-height,30rem)-3rem))] min-h-0 flex-col gap-4 overflow-y-auto pt-2 pb-2">
         <div className="flex flex-col gap-4 px-4">
           <header className="flex min-w-0 items-start gap-3">
             <SubagentTile stale={stale} subagent={subagent} />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <h3 className="text-card-title font-semibold text-pretty text-fg-strong">
+              <PopoverTitle className="text-card-title font-semibold text-pretty text-fg-strong">
                 {subagent.title}
-              </h3>
+              </PopoverTitle>
               <SubagentRuntimeMeta providerMark={false} subagent={subagent} />
             </div>
           </header>
           <DetailFacts stale={stale} subagent={subagent} />
+          <SubagentWorktreeFactRows subagent={subagent} />
         </div>
         {children ?? (
           <div className="px-4 pb-2">

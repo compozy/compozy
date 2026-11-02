@@ -2311,7 +2311,7 @@ const updateNativeSubagentRuntime = `-- name: UpdateNativeSubagentRuntime :execr
 UPDATE session_subagents SET
  runtime_model = CASE WHEN ?1 <> '' THEN ?1 ELSE runtime_model END,
  role = CASE WHEN ?2 <> '' THEN ?2 ELSE role END,
- updated_at = ?3
+ updated_at = MAX(updated_at, ?3)
 WHERE id = ?4 AND origin = 'provider_native'
  AND ((?1 <> '' AND runtime_model <> ?1) OR (?2 <> '' AND role <> ?2))
 `
@@ -2319,7 +2319,7 @@ WHERE id = ?4 AND origin = 'provider_native'
 type UpdateNativeSubagentRuntimeParams struct {
 	RuntimeModel any    `json:"runtime_model"`
 	Role         any    `json:"role"`
-	UpdatedAt    string `json:"updated_at"`
+	UpdatedAt    any    `json:"updated_at"`
 	ID           string `json:"id"`
 }
 
@@ -2423,7 +2423,7 @@ const updateSubagentUsage = `-- name: UpdateSubagentUsage :execrows
 UPDATE session_subagents SET
  usage_total_tokens = MAX(COALESCE(usage_total_tokens, 0), ?1),
  usage_tool_uses = MAX(COALESCE(usage_tool_uses, 0), ?2),
- updated_at = ?3
+ updated_at = MAX(updated_at, ?3)
 WHERE id = ?4 AND origin = 'provider_native'
  AND (usage_total_tokens IS NULL OR usage_total_tokens < ?1
   OR usage_tool_uses IS NULL OR usage_tool_uses < ?2)
@@ -2432,7 +2432,7 @@ WHERE id = ?4 AND origin = 'provider_native'
 type UpdateSubagentUsageParams struct {
 	TotalTokens any    `json:"total_tokens"`
 	ToolUses    any    `json:"tool_uses"`
-	UpdatedAt   string `json:"updated_at"`
+	UpdatedAt   any    `json:"updated_at"`
 	ID          string `json:"id"`
 }
 

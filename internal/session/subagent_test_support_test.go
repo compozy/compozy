@@ -713,6 +713,10 @@ func (d *memorySubagents) UpdateSubagentUsage(
 	changed := row.Origin == store.SubagentOriginProviderNative &&
 		(row.Usage == nil || usage.TotalTokens > row.Usage.TotalTokens || usage.ToolUses > row.Usage.ToolUses)
 	if changed {
+		if row.Usage != nil {
+			usage.TotalTokens = max(usage.TotalTokens, row.Usage.TotalTokens)
+			usage.ToolUses = max(usage.ToolUses, row.Usage.ToolUses)
+		}
 		row.Usage, row.UpdatedAt = &usage, at
 		d.rows[id] = row
 	}
