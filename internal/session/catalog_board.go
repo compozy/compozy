@@ -29,16 +29,32 @@ func (m *Manager) activeBoardSessionCatalogRows(
 			visible = append(visible, info)
 		}
 	}
-	views, err := m.SessionPullRequests(ctx, visible)
+	linked, err := m.SessionLinkedWork(ctx, visible)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("session: active catalog pull requests: %w", err)
+		return nil, nil, nil, err
+	}
+	m.mu.RLock()
+	_, hasLinks := m.branchSnapshots.(WorkLinkStore)
+	m.mu.RUnlock()
+	var views map[string]PullRequestProjection
+	if !hasLinks {
+		views, err = m.SessionPullRequests(ctx, visible)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("session: active catalog pull requests: %w", err)
+		}
 	}
 	for _, info := range visible {
-		var state PullRequestState
+		info.linkedWork = linked[info.ID].Items
+		state := linked[info.ID].Own
 		if pr := views[info.ID].PullRequest; pr != nil {
 			state = pr.State
 		}
-		info.BoardColumn = BoardColumnFor(BadgeForInfo(info), state)
+		info.BoardColumn = BoardColumnWithLinkedWork(
+			BadgeForInfo(info),
+			state,
+			linked[info.ID].DirectOpen,
+			linked[info.ID].Pending,
+		)
 	}
 	active, ids, matches := m.activeSessionCatalogRowsFromInfos(query, infos, excludedIDs)
 	return active, ids, matches, nil
@@ -90,16 +106,29 @@ func (m *Manager) PopulateSessionRelations(ctx context.Context, info *Info) erro
 			children = append(children, candidate)
 		}
 	}
-	views, err := m.SessionPullRequests(ctx, children)
+	linked, err := m.SessionLinkedWork(ctx, children)
 	if err != nil {
 		return err
 	}
-	for _, child := range children {
-		var state PullRequestState
-		if pr := views[child.ID].PullRequest; pr != nil {
-			state = pr.State
+	m.mu.RLock()
+	_, hasLinks := m.branchSnapshots.(WorkLinkStore)
+	m.mu.RUnlock()
+	if !hasLinks {
+		views, readErr := m.SessionPullRequests(ctx, children)
+		if readErr != nil {
+			return readErr
 		}
-		child.BoardColumn = BoardColumnFor(BadgeForInfo(child), state)
+		for id, view := range views {
+			p := linked[id]
+			if view.PullRequest != nil {
+				p.Own = view.PullRequest.State
+			}
+			linked[id] = p
+		}
+	}
+	for _, child := range children {
+		view := linked[child.ID]
+		child.BoardColumn = BoardColumnWithLinkedWork(BadgeForInfo(child), view.Own, view.DirectOpen, view.Pending)
 	}
 	return m.populateCatalogRelations(
 		ctx,

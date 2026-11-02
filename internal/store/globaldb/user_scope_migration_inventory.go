@@ -16,6 +16,7 @@ var userScopeMigrationInventory = []string{
 	// cache afterward, preserving the workspace identity rather than merging into User scope.
 	"forge_pull_requests",
 	"worktree_exit_ops",
+	"session_work_links",
 	"session_health",
 	"session_prompt_admissions",
 	"sessions",

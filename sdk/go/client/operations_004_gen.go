@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+// ControlTerminalRecording Start or stop terminal recording
+func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTerminalRecordingParams, body TerminalRecordingRequest) (*TerminalRecordingResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/recording"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalRecordingResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAgentParams carries the path, query, and header parameters.
+type CreateAgentParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateAgent Create a global or workspace-local AGENT.md definition
 func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body CreateAgentRequest) (*AgentResponse, error) {
 	path := "/api/agents"
@@ -422,29 +446,5 @@ func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHea
 // DeleteAgentSoulParams carries the path, query, and header parameters.
 type DeleteAgentSoulParams struct {
 	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteAgentSoul Delete SOUL.md through managed authoring
-func (c *Client) DeleteAgentSoul(ctx context.Context, params DeleteAgentSoulParams, body AgentSoulDeleteByPathRequest) (*AgentSoulMutationResponse, error) {
-	path := "/api/agents/{name}/soul"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulMutationResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAutomationJobParams carries the path, query, and header parameters.
-type DeleteAutomationJobParams struct {
-	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

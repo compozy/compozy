@@ -293,6 +293,36 @@ func (c *Client) ListSessionInteractions(ctx context.Context, params ListSession
 	return &out, nil
 }
 
+// ListSessionLinkedWorkParams carries the path, query, and header parameters.
+type ListSessionLinkedWorkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionLinkedWork List session linked work
+func (c *Client) ListSessionLinkedWork(ctx context.Context, params ListSessionLinkedWorkParams) (*SessionLinkedWorkResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionLinkedWorkResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionMonitorsParams carries the path, query, and header parameters.
 type ListSessionMonitorsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -392,42 +422,4 @@ type ListSessionSubagentsParams struct {
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
 	Order       *string `url:"order"`
-}
-
-// ListSessionSubagents List a session's subagents
-func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Origin != nil {
-		query.Set("origin", *params.Origin)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Order != nil {
-		query.Set("order", *params.Order)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SubagentListPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionToolsParams carries the path, query, and header parameters.
-type ListSessionToolsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
 }

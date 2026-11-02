@@ -552,6 +552,7 @@ type ForgePullRequest struct {
 	Branch            string         `json:"branch"`
 	Provider          string         `json:"provider"`
 	PrNumber          sql.NullInt64  `json:"pr_number"`
+	Title             string         `json:"title"`
 	PrUrl             string         `json:"pr_url"`
 	PrState           sql.NullString `json:"pr_state"`
 	Merged            sql.NullInt64  `json:"merged"`
@@ -1852,6 +1853,18 @@ type SessionSubagentWake struct {
 	Attempts        int64  `json:"attempts"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
+}
+
+type SessionWorkLink struct {
+	SessionID    string        `json:"session_id"`
+	WorkspaceID  string        `json:"workspace_id"`
+	RepoKey      string        `json:"repo_key"`
+	Branch       string        `json:"branch"`
+	PrNumber     sql.NullInt64 `json:"pr_number"`
+	WorktreeID   string        `json:"worktree_id"`
+	WorktreeName string        `json:"worktree_name"`
+	Provenance   string        `json:"provenance"`
+	Unlinked     int64         `json:"unlinked"`
 }
 
 type SkillExposure struct {

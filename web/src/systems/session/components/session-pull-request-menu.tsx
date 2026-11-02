@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ExternalLinkIcon,
   GitPullRequestCreateIcon,
@@ -60,6 +61,8 @@ interface SessionPullRequestMenuProps {
   onExitAction?: (action: string) => void;
   onRefresh?: () => void;
   onPrompt?: (kind: SessionPullRequestPromptKind, text: string) => void;
+  /** Rows after every delivery action, in their own trailing group. */
+  footer?: ReactNode;
 }
 
 /**
@@ -76,6 +79,7 @@ export function SessionPullRequestMenu({
   onExitAction,
   onRefresh,
   onPrompt,
+  footer,
 }: SessionPullRequestMenuProps) {
   const model = pullRequestMenuModel({
     pullRequest,
@@ -135,6 +139,12 @@ export function SessionPullRequestMenu({
             </DropdownMenuLabel>
             {model.prompts.map(item => renderItem(item))}
           </DropdownMenuGroup>
+        </>
+      ) : null}
+      {footer ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>{footer}</DropdownMenuGroup>
         </>
       ) : null}
     </DropdownMenuContent>

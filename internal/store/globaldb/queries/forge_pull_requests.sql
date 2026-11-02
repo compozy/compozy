@@ -1,9 +1,10 @@
 -- name: UpsertForgePullRequest :exec
 INSERT INTO forge_pull_requests (
- workspace_id, repo_key, branch, provider, pr_number, pr_url, pr_state, merged, draft, head_sha, base_ref, checks_state, checks_passed, checks_failed, checks_pending, checks_failed_names, review_decision, mergeable, pr_updated_at, observed_at, lookup_state, lookup_cause, attempt_at, failure_count, retry_after
+ workspace_id, repo_key, branch, title, provider, pr_number, pr_url, pr_state, merged, draft, head_sha, base_ref, checks_state, checks_passed, checks_failed, checks_pending, checks_failed_names, review_decision, mergeable, pr_updated_at, observed_at, lookup_state, lookup_cause, attempt_at, failure_count, retry_after
 ) VALUES (
- sqlc.arg(workspace_id), sqlc.arg(repo_key), sqlc.arg(branch), sqlc.arg(provider), sqlc.narg(pr_number), sqlc.arg(pr_url), sqlc.narg(pr_state), sqlc.narg(merged), sqlc.narg(draft), sqlc.arg(head_sha), sqlc.arg(base_ref), sqlc.arg(checks_state), sqlc.arg(checks_passed), sqlc.arg(checks_failed), sqlc.arg(checks_pending), sqlc.arg(checks_failed_names), sqlc.arg(review_decision), sqlc.arg(mergeable), sqlc.narg(pr_updated_at), sqlc.narg(observed_at), sqlc.arg(lookup_state), sqlc.arg(lookup_cause), sqlc.narg(attempt_at), sqlc.arg(failure_count), sqlc.narg(retry_after)
+ sqlc.arg(workspace_id), sqlc.arg(repo_key), sqlc.arg(branch), sqlc.arg(title), sqlc.arg(provider), sqlc.narg(pr_number), sqlc.arg(pr_url), sqlc.narg(pr_state), sqlc.narg(merged), sqlc.narg(draft), sqlc.arg(head_sha), sqlc.arg(base_ref), sqlc.arg(checks_state), sqlc.arg(checks_passed), sqlc.arg(checks_failed), sqlc.arg(checks_pending), sqlc.arg(checks_failed_names), sqlc.arg(review_decision), sqlc.arg(mergeable), sqlc.narg(pr_updated_at), sqlc.narg(observed_at), sqlc.arg(lookup_state), sqlc.arg(lookup_cause), sqlc.narg(attempt_at), sqlc.arg(failure_count), sqlc.narg(retry_after)
 ) ON CONFLICT(workspace_id, repo_key, branch) DO UPDATE SET
+ title = excluded.title,
  provider = excluded.provider,
  pr_number = excluded.pr_number,
  pr_url = excluded.pr_url,

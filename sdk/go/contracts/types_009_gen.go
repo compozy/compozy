@@ -4,6 +4,60 @@ package contracts
 
 import "time"
 
+type ForgeStatusRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Branch     string   `json:"branch"`
+	Base       string   `json:"base,omitempty"`
+	HeadSHA    string   `json:"head_sha,omitempty"`
+}
+
+type ForgeStatusResponse struct {
+	Title              string        `json:"title,omitempty"`
+	Checks             *ForgeChecks  `json:"checks,omitempty"`
+	Reviews            *ForgeReviews `json:"reviews,omitempty"`
+	ReviewsUnavailable bool          `json:"reviews_unavailable,omitempty"`
+	ReviewDecision     string        `json:"review_decision,omitempty"`
+	Mergeable          string        `json:"mergeable,omitempty"`
+	UpdatedAt          *time.Time    `json:"updated_at,omitempty"`
+	Selection          string        `json:"selection,omitempty"`
+	RetryAfter         *time.Time    `json:"retry_after,omitempty"`
+	Provider           string        `json:"provider"`
+	PRNumber           *int          `json:"pr_number,omitempty"`
+	PRState            *string       `json:"pr_state,omitempty"`
+	PRURL              string        `json:"pr_url,omitempty"`
+	Head               string        `json:"head,omitempty"`
+	Base               string        `json:"base,omitempty"`
+	HeadSHA            string        `json:"head_sha,omitempty"`
+	Draft              *bool         `json:"draft,omitempty"`
+	Merged             *bool         `json:"merged,omitempty"`
+	FetchedAt          time.Time     `json:"fetched_at"`
+	Cause              string        `json:"cause,omitempty"`
+}
+
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
+}
+
+type FormField struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Label       string            `json:"label"`
+	Placeholder string            `json:"placeholder,omitempty"`
+	Required    bool              `json:"required,omitempty"`
+	Options     []string          `json:"options,omitempty"`
+	Directories bool              `json:"directories,omitempty"`
+	Default     any               `json:"default,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	EmptyHint   string            `json:"empty_hint,omitempty"`
+	OnChange    string            `json:"on_change,omitempty"`
+	OnBlur      string            `json:"on_blur,omitempty"`
+	EventCount  int64             `json:"event_count,omitempty"`
+	Requires    map[string]string `json:"requires,omitempty"`
+	Fallback    string            `json:"fallback,omitempty"`
+}
+
 type GatewayIngressPayload struct {
 	SubjectKind                 string     `json:"subject_kind"`
 	SubjectID                   string     `json:"subject_id"`
@@ -158,52 +212,3 @@ type HeartbeatPutRequest struct {
 }
 
 type HeartbeatRevisionOperation string
-
-type HeartbeatRevisionPayload struct {
-	ID             string                     `json:"id"`
-	AgentName      string                     `json:"agent_name"`
-	SourcePath     string                     `json:"source_path"`
-	Operation      HeartbeatRevisionOperation `json:"operation"`
-	PreviousDigest string                     `json:"previous_digest,omitempty"`
-	NewDigest      string                     `json:"new_digest,omitempty"`
-	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
-	Actor          HeartbeatActorPayload      `json:"actor"`
-	CreatedAt      time.Time                  `json:"created_at"`
-}
-
-type HeartbeatRollbackRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	RevisionID     string `json:"revision_id,omitempty"`
-	TargetDigest   string `json:"target_digest,omitempty"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatStatusRequest struct {
-	WorkspaceID             string `json:"workspace_id,omitempty"`
-	AgentName               string `json:"agent_name"`
-	SessionID               string `json:"session_id,omitempty"`
-	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
-	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
-}
-
-type HeartbeatStatusResponse struct {
-	AgentName        string                             `json:"agent_name"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	Summary          string                             `json:"summary,omitempty"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
-	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
-}

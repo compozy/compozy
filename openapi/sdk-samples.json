@@ -29,6 +29,13 @@
             "resource": "marketplace",
             "app_access": "denied"
         },
+        "addSessionWorkLink": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.addSessionWorkLink({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AddSessionWorkLink(ctx, client.AddSessionWorkLinkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionWorkLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "addTaskDependency": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.addTaskDependency({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AddTaskDependency(ctx, client.AddTaskDependencyParams{ID: \"id\"}, client.AddTaskDependencyRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2171,6 +2178,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "listSessionLinkedWork": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionLinkedWork({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionLinkedWork(ctx, client.ListSessionLinkedWorkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "listSessionMonitors": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionMonitors({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionMonitors(ctx, client.ListSessionMonitorsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2794,6 +2808,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "refreshSessionWorkLink": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.refreshSessionWorkLink({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RefreshSessionWorkLink(ctx, client.RefreshSessionWorkLinkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionWorkLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "registerWindowManagerClient": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.registerWindowManagerClient({ path: { \"workspace_id\": \"workspace_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RegisterWindowManagerClient(ctx, client.RegisterWindowManagerClientParams{WorkspaceID: \"workspace_id\"}, client.WindowManagerClientRegistration{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2862,6 +2883,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RemoveMarketplaceSource(ctx, client.RemoveMarketplaceSourceParams{Name: \"name\"})\nif err != nil { return err }",
             "kind": "json",
             "resource": "marketplace",
+            "app_access": "denied"
+        },
+        "removeSessionWorkLink": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.removeSessionWorkLink({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RemoveSessionWorkLink(ctx, client.RemoveSessionWorkLinkParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionWorkLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
             "app_access": "denied"
         },
         "removeTaskDependency": {
@@ -3178,6 +3206,13 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
+        },
+        "searchSessionWorkCandidates": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.searchSessionWorkCandidates({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchSessionWorkCandidates(ctx, client.SearchSessionWorkCandidatesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
         },
         "searchTools": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tools.searchTools({ body: { /* request fields */ } });",

@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+// DeleteAgentSoul Delete SOUL.md through managed authoring
+func (c *Client) DeleteAgentSoul(ctx context.Context, params DeleteAgentSoulParams, body AgentSoulDeleteByPathRequest) (*AgentSoulMutationResponse, error) {
+	path := "/api/agents/{name}/soul"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulMutationResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAutomationJobParams carries the path, query, and header parameters.
+type DeleteAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // DeleteAutomationJob Delete one automation job
 func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomationJobParams) error {
 	path := "/api/automation/jobs/{id}"
@@ -420,17 +444,4 @@ func (c *Client) DeleteWindowManagerLayoutProfile(ctx context.Context, params De
 // DeleteWorkspaceParams carries the path, query, and header parameters.
 type DeleteWorkspaceParams struct {
 	ID string `url:"id"`
-}
-
-// DeleteWorkspace Delete a registered workspace
-func (c *Client) DeleteWorkspace(ctx context.Context, params DeleteWorkspaceParams) error {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteWorkspaceFolderParams carries the path, query, and header parameters.
-type DeleteWorkspaceFolderParams struct {
-	FolderID string  `url:"folder_id"`
-	Profile  *string `url:"profile"`
 }

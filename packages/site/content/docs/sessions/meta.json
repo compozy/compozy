@@ -4,6 +4,7 @@
     "pages": [
         "lifecycle",
         "board",
+        "linked-work",
         "mentions",
         "control-plane",
         "orchestration",

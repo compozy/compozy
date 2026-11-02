@@ -15,6 +15,7 @@ import {
   useSessionCommands,
   useSessionGoalHeader,
   useSessionInspectorState,
+  useSessionLinkedWork,
   useSessionPromptRuntimeContext,
   sessionSuccessorId,
   useSessionTopbarSlot,
@@ -128,12 +129,22 @@ export function useSessionWindowController(input: {
   });
 
   const instances = useAgentInstances();
+  const linkedWork = useSessionLinkedWork({ session, workspaceId, enabled: liveDataEnabled });
 
   useSessionTopbarSlot({
     session,
     pullRequestExit: pullRequest.pullRequestExit,
     pullRequestRefresh: pullRequest.pullRequestRefresh,
     onSendPrompt: pullRequest.onSendPrompt,
+    linkedWork,
+    worktreeAction: item => {
+      const worktree = worktreeBinding.worktrees.find(row => row.id === item.worktree_id);
+      return worktree && onOpenWorktreeContext
+        ? () => onOpenWorktreeContext(workspaceId, worktree)
+        : undefined;
+    },
+    onOpenSession: id =>
+      sidebar.openSession({ sessionId: id, agentName: "", workspaceId }, { newWindow: false }),
     worktreeBinding: worktreeBinding.bound
       ? {
           worktreeId: worktreeBinding.worktreeId,

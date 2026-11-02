@@ -1,0 +1,118 @@
+---
+title: See and link a session's work
+description: See the pull requests, branches and worktrees that belong to a session, link more by hand or from the CLI, and unlink them without touching anything else.
+---
+
+A session often produces more than one thing: a worktree its agent made, a pull request from that
+worktree, another from a child session. **Linked work** is the list of those items on the session.
+Linking is about what belongs to a session. It never changes where the agent runs.
+
+At the end of this page you will have found a session's work in its header, linked a pull request by
+hand, unlinked it and undone that, and done the same from the terminal.
+
+## Before you start
+
+- CompozyOS is running and the Web UI is open on a project that has a Git remote. This page uses a
+  project named `checkout-api`.
+- To search pull requests, the project's forge is connected. Without it you can still link branches.
+  A project with no hosted remote, such as a local-only repository, links branches the same way, and
+  its rows show no pull request status.
+
+You don't turn anything on. A worktree a session creates with its tools shows up on that session by
+itself, with its branch and pull request.
+
+## Step 1: Read the header
+
+Open a session that has done some work. Its header shows a chip for the most urgent item. With more
+than one item, a count sits beside it: **+3 PRs**, or **+3 more** when the rest aren't all pull
+requests.
+
+Click the count to open **Linked work**. The list reads urgent first:
+
+- Each row shows the title, one status and the worktree. Hover a row for the checks and review.
+- With five or more items the list groups into **Needs you**, **In progress** and **Done**.
+- With seven or more, Done starts folded. With nine or more you get a filter.
+- The closing line says where the session runs. A worktree row marked **Runs here** is that place.
+
+In a narrow window the count moves next to the session's actions, so the list stays one click away.
+
+## Step 2: Link a pull request
+
+Click **Link…** in the list. With nothing linked yet, use **Link a pull request or branch…** in the
+composer's environment menu, or find the same command in the command palette.
+
+Paste a pull request link, type a number, or search by title or branch. Tick what belongs here and
+choose **Link**. The agent keeps running where it is.
+
+A pull request from another project can't be linked here: the dialog names the project it belongs
+to. Open a session in that project instead.
+
+A pull request from a fork can't be linked yet, because its branch lives in another repository and
+CompozyOS can't read its status from this one. The dialog names it, and the rest of your selection
+still links.
+
+A branch holds one pull request. Linking a second pull request on a branch that is already linked
+replaces the first, because status follows the branch.
+
+## Step 3: Unlink, and undo it
+
+Open a row's menu and choose **Unlink from this session**. The row leaves right away and a message
+offers **Undo**.
+
+Unlinking removes the association and nothing else. The pull request stays on the forge, the branch
+stays, and the files stay on disk. An item you unlink doesn't come back by itself.
+
+## Step 4: Do the same from the terminal
+
+List what is linked to a session:
+
+```bash
+compozy session link <session-id>
+```
+
+Link a pull request by number, or a branch by name:
+
+```bash
+compozy session link <session-id> --pr-number 142
+compozy session link <session-id> feat/retry-webhooks
+```
+
+Unlink a branch:
+
+```bash
+compozy session unlink <session-id> feat/retry-webhooks
+```
+
+Add `-o json` to any of these for structured output.
+
+## Work from child sessions
+
+An orchestrator's pull requests usually come from its child sessions, so they show up on the parent
+too, after the parent's own items in each group. Such a row reads **From** and the child's title, and
+clicking it opens the child. You manage it there: it has no Unlink on the parent.
+
+Only pull requests roll up. A child's branch with no pull request stays on the child until it has one.
+Forks and continued sessions aren't children, so their work stays on them.
+
+The same pull request on both sessions shows once.
+
+## How linked work moves the board
+
+A session's own activity always decides first. A session that is working, waiting or needs you stays
+in that column, whatever is linked to it.
+
+Once a session has settled, an open pull request linked directly to it keeps it in **In review**
+instead of **Done**. Pull requests from child sessions never move the parent, because each child has
+its own card. See [Sessions board](/docs/sessions/board).
+
+## Agents can link too
+
+An agent can link a pull request or branch it made outside the worktree tool to its own session, with
+`compozy__session_link`. The row reads **Added by** and the agent's name. Agents can also unlink their
+own direct items with `compozy__session_unlink`.
+
+## Related
+
+- [`compozy session link`](/docs/cli/session/link)
+- [`compozy session unlink`](/docs/cli/session/unlink)
+- [Isolated subagents](/docs/sessions/isolated-subagents)

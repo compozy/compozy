@@ -280,6 +280,77 @@ func forgeInitializeParams() map[string]any {
 
 func TestProvider(t *testing.T) {
 	t.Parallel()
+	// Invariant: discovery scopes search to the repository and preserves PR number, title and branch.
+	// Owner: forge provider I/O; canonical provider suite.
+	t.Run("Should discover a bounded page and resolve PR identity", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/graphql":
+				var body struct {
+					Variables struct {
+						Query string
+						First int
+						After string
+					}
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if body.Variables.Query != `repo:acme/repo is:pr "review" sort:updated-desc` ||
+					body.Variables.First != 1 ||
+					body.Variables.After != "Y3Vyc29yOjE=" {
+					t.Errorf("variables=%+v", body.Variables)
+				}
+				writeJSON(
+					t,
+					w,
+					http.StatusOK,
+					map[string]any{
+						"data": map[string]any{
+							"search": map[string]any{
+								"nodes": []any{
+									nil,
+									map[string]any{
+										"number":         42,
+										"title":          "Linked work",
+										"url":            "https://github.com/acme/repo/pull/42",
+										"state":          "OPEN",
+										"headRefName":    "topic",
+										"headRepository": map[string]any{"nameWithOwner": "contributor/repo"},
+									},
+								},
+								"pageInfo": map[string]any{"hasNextPage": true},
+							},
+						},
+						"errors": []any{map[string]any{"type": "NOT_FOUND"}},
+					},
+				)
+			default:
+				t.Errorf("unexpected path=%s", r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		defer closeServer()
+		result, err := provider.SearchPRs(
+			t.Context(),
+			extensioncontract.ForgePRSearchRequest{
+				RemoteURLs: []string{"https://github.com/acme/repo.git"},
+				Query:      "review",
+				Page:       2,
+				Limit:      1,
+			},
+		)
+		if err != nil || len(result.Items) != 1 || !result.HasMore {
+			t.Fatalf("result=%+v error=%v", result, err)
+		}
+		item := result.Items[0]
+		if item.Number != 42 || item.Title != "Linked work" || item.Branch != "topic" ||
+			item.HeadRepository != "github.com/contributor/repo" ||
+			item.URL != "https://github.com/acme/repo/pull/42" || item.State != "open" {
+			t.Fatalf("candidate=%+v", item)
+		}
+	})
 
 	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
 		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {

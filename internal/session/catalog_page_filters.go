@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,6 +136,26 @@ func normalizeListSearch(query *ListQuery) error {
 	return nil
 }
 
+// sessionMatchesLinkedWorkSearch finds direct work: a branch in the current repository, or a number.
+func sessionMatchesLinkedWorkSearch(info *Info, search string) bool {
+	digits := strings.TrimPrefix(search, "#")
+	for _, item := range info.linkedWork {
+		if item.SourceSessionID != "" {
+			continue
+		}
+		number := item.PRNumber
+		if number == 0 && item.PullRequest != nil {
+			number = item.PullRequest.Number
+		}
+		moved := item.Lookup.Cause == "repository_changed"
+		if !moved && strings.Contains(strings.ToLower(item.Branch), strings.ToLower(search)) ||
+			number > 0 && digits != "" && strings.Contains(strconv.Itoa(number), digits) {
+			return true
+		}
+	}
+	return false
+}
+
 func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
 		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) ||
@@ -157,6 +178,9 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	}
 	search := strings.TrimSpace(query.Search)
 	if search == "" {
+		return true
+	}
+	if sessionMatchesLinkedWorkSearch(info, search) {
 		return true
 	}
 	if query.SearchFields == sessionCatalogSearchTitleAgent {

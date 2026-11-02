@@ -59,6 +59,7 @@ export interface OsPaletteRootModel {
   runRowAction(action: PaletteRowAction): void;
   openSession(session: OsPaletteSessionResult): void;
   goToTab(windowId: string): void;
+  linkSession(sessionId: string): void;
   selectWorktree(entry: OsPaletteWorktreeResult): void;
   openDomainRow(row: OsPaletteDomainRow): void;
 }
@@ -111,6 +112,7 @@ function paletteRowSources({
     tabs: destination ? [] : entities.tabs,
     worktrees: destination ? [] : entities.worktrees,
     domainRows: domainSections.flatMap(section => section.rows),
+    linkRows: entities.linkSessionId ? ["session-link"] : [],
   };
 }
 
@@ -239,6 +241,7 @@ export function useOsPaletteRoot({
     runRowAction: commandActions.runRowAction,
     openSession: landing.openSession,
     goToTab: landing.goToTab,
+    linkSession: landing.linkSession,
     selectWorktree: landing.selectWorktree,
     openDomainRow,
   };

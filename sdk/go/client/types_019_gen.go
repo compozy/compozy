@@ -23,6 +23,13 @@ type SessionWaitResponse struct {
 	ResumeID  string   `json:"resume_id,omitempty"`
 }
 
+// SessionWorkLinkRequest is a daemon API value.
+type SessionWorkLinkRequest struct {
+	Repository string `json:"repository,omitempty"`
+	Branch     string `json:"branch"`
+	PRNumber   int    `json:"pr_number,omitempty"`
+}
+
 // SessionWorkTimePayload is a daemon API value.
 type SessionWorkTimePayload struct {
 	ActiveDurationMS    int64  `json:"active_duration_ms"`
@@ -441,6 +448,3 @@ type SettingsLogTailCapabilityPayload struct {
 type SettingsLogTailEventPayload struct {
 	Line string `json:"line"`
 }
-
-// SettingsMCPAuthBeginMode is a daemon API value.
-type SettingsMCPAuthBeginMode string

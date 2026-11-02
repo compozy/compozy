@@ -4,6 +4,32 @@ package contracts
 
 import "time"
 
+type SessionsCreateParams struct {
+	Agent     string `json:"agent"`
+	Workspace string `json:"workspace,omitempty"`
+}
+
+type SessionsListParams struct {
+	Workspace string `json:"workspace,omitempty"`
+	Archive   string `json:"archive,omitempty"`
+}
+
+type SessionsPromptParams struct {
+	WorkspaceID    string                         `json:"workspace_id"`
+	SessionID      string                         `json:"session_id"`
+	Message        string                         `json:"message"`
+	MessageID      string                         `json:"message_id"`
+	IdempotencyKey string                         `json:"idempotency_key"`
+	Mode           PromptMode                     `json:"mode,omitempty"`
+	ExpectedTurnID string                         `json:"expected_turn_id,omitempty"`
+	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
+type ShutdownRequest struct {
+	Reason     string `json:"reason"`
+	DeadlineMS int64  `json:"deadline_ms"`
+}
+
 type ShutdownResponse struct {
 	Acknowledged bool `json:"acknowledged"`
 }
@@ -260,17 +286,3 @@ type SpawnTTLExpiredPayload struct {
 }
 
 type Speed string
-
-type State string
-
-type Status string
-
-type SteerDeliveryMode string
-
-const (
-	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
-	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
-	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
-)
-
-type StopReason string

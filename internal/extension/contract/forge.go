@@ -31,20 +31,21 @@ type ForgeCapabilitiesRequest struct {
 }
 
 type ForgeCapabilitiesResponse struct {
-	Served             bool     `json:"served"`
-	Available          bool     `json:"available"`
-	Winner             string   `json:"winner,omitempty"`
-	Provider           string   `json:"provider,omitempty"`
-	ServedRemote       string   `json:"served_remote,omitempty"`
-	RequestNoun        string   `json:"request_noun,omitempty"`
-	OpenActionLabel    string   `json:"open_action_label,omitempty"`
-	ViewActionLabel    string   `json:"view_action_label,omitempty"`
-	SupportsDraft      bool     `json:"supports_draft,omitempty"`
-	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
-	TemplatePaths      []string `json:"template_paths,omitempty"`
-	CredentialSource   string   `json:"credential_source,omitempty"`
-	DefaultBranch      string   `json:"default_branch,omitempty"`
-	Cause              string   `json:"cause,omitempty"`
+	SupportsPRDiscovery bool     `json:"supports_pr_discovery,omitempty"`
+	Served              bool     `json:"served"`
+	Available           bool     `json:"available"`
+	Winner              string   `json:"winner,omitempty"`
+	Provider            string   `json:"provider,omitempty"`
+	ServedRemote        string   `json:"served_remote,omitempty"`
+	RequestNoun         string   `json:"request_noun,omitempty"`
+	OpenActionLabel     string   `json:"open_action_label,omitempty"`
+	ViewActionLabel     string   `json:"view_action_label,omitempty"`
+	SupportsDraft       bool     `json:"supports_draft,omitempty"`
+	CompareURLTemplate  string   `json:"compare_url_template,omitempty"`
+	TemplatePaths       []string `json:"template_paths,omitempty"`
+	CredentialSource    string   `json:"credential_source,omitempty"`
+	DefaultBranch       string   `json:"default_branch,omitempty"`
+	Cause               string   `json:"cause,omitempty"`
 }
 
 type ForgeStatusRequest struct {
@@ -92,6 +93,7 @@ type ForgeReviews struct {
 }
 
 type ForgeStatusResponse struct {
+	Title   string        `json:"title,omitempty"`
 	Checks  *ForgeChecks  `json:"checks,omitempty"`
 	Reviews *ForgeReviews `json:"reviews,omitempty"`
 	// ReviewsUnavailable reports a provider that serves reviews but failed to read them this time. It is
@@ -130,4 +132,29 @@ type ForgePRCreateResponse struct {
 	Number int    `json:"number,omitempty"`
 	URL    string `json:"url,omitempty"`
 	Cause  string `json:"cause,omitempty"`
+}
+
+// ForgePRSearchRequest is an optional paged discovery operation. Providers scope
+// every result to the repository selected by RemoteURLs.
+type ForgePRSearchRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Query      string   `json:"query,omitempty"`
+	Page       int      `json:"page,omitempty"`
+	Limit      int      `json:"limit,omitempty"`
+}
+type ForgePRReadRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Number     int      `json:"number"`
+}
+type ForgePRCandidate struct {
+	HeadRepository string `json:"head_repository,omitempty"`
+	Number         int    `json:"number"`
+	Title          string `json:"title,omitempty"`
+	URL            string `json:"url"`
+	Branch         string `json:"branch"`
+	State          string `json:"state"`
+}
+type ForgePRSearchResponse struct {
+	Items   []ForgePRCandidate `json:"items"`
+	HasMore bool               `json:"has_more"`
 }

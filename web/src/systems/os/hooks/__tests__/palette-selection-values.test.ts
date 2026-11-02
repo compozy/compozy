@@ -15,6 +15,7 @@ describe("palette selection values", () => {
         tabs: [{ windowId: "w1" }],
         worktrees: [{ key: "wt1" }],
         domainRows: [{ key: "task:1" }],
+        linkRows: ["session-link"],
       },
       fallback: { value: "ask:general" },
     });
@@ -22,6 +23,7 @@ describe("palette selection values", () => {
     expect(values).toEqual([
       "window.close",
       "ask:general",
+      "session-link",
       "session:s1",
       "tab:w1",
       "worktree:wt1",

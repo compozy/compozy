@@ -149,6 +149,22 @@ func worktreeHookContext(item worktree.HookWorktree) hookspkg.WorktreeContext {
 	}
 }
 
+func publishWorkspaceCatalogChange(ctx context.Context, state *bootState, workspaceID string) {
+	publisher, ok := state.sessions.(interface{ PublishWorkspaceCatalogChanged(string, []string) })
+	if !ok {
+		return
+	}
+	profiles, ok := state.registry.(interface {
+		SessionCatalogProfiles(context.Context, string) ([]string, error)
+	})
+	if !ok {
+		return
+	}
+	if owners, err := profiles.SessionCatalogProfiles(ctx, workspaceID); err == nil {
+		publisher.PublishWorkspaceCatalogChanged(workspaceID, owners)
+	}
+}
+
 func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil || state.workspaceResolver == nil {
 		return nil
@@ -170,18 +186,7 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 			cache,
 			daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime},
 			runner,
-			func(workspaceID string) {
-				if publisher, ok := state.sessions.(interface{ PublishWorkspaceCatalogChanged(string, []string) }); ok {
-					if profiles, ok := state.registry.(interface {
-						SessionCatalogProfiles(context.Context, string) ([]string, error)
-					}); ok {
-						owners, err := profiles.SessionCatalogProfiles(ctx, workspaceID)
-						if err == nil {
-							publisher.PublishWorkspaceCatalogChanged(workspaceID, owners)
-						}
-					}
-				}
-			},
+			func(workspaceID string) { publishWorkspaceCatalogChange(ctx, state, workspaceID) },
 		)
 		cleanup.add(func(context.Context) error { pulls.Close(); return nil })
 	}
@@ -210,6 +215,8 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 	}
 	if branchStore, ok := state.registry.(sessionBranchStore); ok && pulls != nil {
 		adapter := sessionPullRequestAdapter{
+			runtime:  state.currentExtensionRuntime,
+			runner:   runner,
 			service:  pulls,
 			resolver: daemonWorktreeWorkspaceResolver{resolver: state.workspaceResolver, homePaths: d.homePaths},
 		}

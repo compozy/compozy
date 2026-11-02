@@ -9,8 +9,10 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
+import type { OsPaletteSessionResult } from "../../hooks/use-os-palette-entities";
 import {
   filterPaletteSessions,
+  keepServerSessions,
   matchesPaletteSessionQuery,
   paletteSessionFilter,
   paletteSessionFilterCounts,
@@ -115,5 +117,41 @@ describe("palette session filters (UT-061)", () => {
       "s-failed",
     ]);
     expect(filterPaletteSessions(CATALOG, "finished", "codex")).toEqual([]);
+  });
+
+  // Invariant: a session the server found by a fact the ranker can't read stays in the results.
+  describe("server search results", () => {
+    const row = (sessionId: string) =>
+      ({ sessionId, title: sessionId, agentName: "claude" }) as OsPaletteSessionResult;
+
+    it("Should keep the rows ranking could not read, after the ones it could", () => {
+      const ranked = { rows: [row("title-match")], total: 1 };
+      const result = keepServerSessions(ranked, [row("pr-match"), row("title-match")], 6);
+      expect(result.rows.map(entry => entry.sessionId)).toEqual(["title-match", "pr-match"]);
+      expect(result.total).toBe(2);
+    });
+
+    it("Should hold the section's cap and still count every match", () => {
+      const rows = ["a", "b", "c"].map(row);
+      const result = keepServerSessions({ rows: [], total: 0 }, rows, 2);
+      expect(result.rows).toHaveLength(2);
+      expect(result.total).toBe(3);
+    });
+
+    it("Should keep every server row without ranking signals", () => {
+      const result = keepServerSessions(
+        { rows: [row("a")], total: 1 },
+        [row("a"), row("b")],
+        undefined
+      );
+      expect(result.rows.map(entry => entry.sessionId)).toEqual(["a", "b"]);
+      expect(result.total).toBe(2);
+    });
+
+    it("Should not count a row twice when the ranking cap cut it", () => {
+      const rows = ["a", "b", "c", "d"].map(row);
+      const result = keepServerSessions({ rows: rows.slice(0, 2), total: 4 }, rows, 2);
+      expect(result.total).toBe(4);
+    });
   });
 });

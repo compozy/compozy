@@ -115,6 +115,22 @@ export function filterPaletteSessions(
 }
 
 /** Retain the previous session page while its replacement query is pending. */
+/**
+ * The server searched facts the ranker can't see, such as a linked PR number or branch. Ranking
+ * orders the rows it can read; every other row the server returned follows it, never dropped.
+ */
+export function keepServerSessions(
+  ranked: { rows: readonly OsPaletteSessionResult[]; total: number },
+  rows: readonly OsPaletteSessionResult[],
+  /** Absent without ranking signals. */
+  cap: number | undefined
+): { rows: readonly OsPaletteSessionResult[]; total: number } {
+  const seen = new Set(ranked.rows.map(row => row.sessionId));
+  const rest = rows.filter(row => !seen.has(row.sessionId));
+  // Rows ranking cut for the cap are back in `rest`, so `ranked.total` would count them twice.
+  return { rows: [...ranked.rows, ...rest].slice(0, cap), total: ranked.rows.length + rest.length };
+}
+
 export function composePaletteSessionPage(
   previousRows: readonly OsPaletteSessionResult[],
   ranked: { rows: readonly OsPaletteSessionResult[]; total: number },

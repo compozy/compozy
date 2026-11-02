@@ -2922,6 +2922,138 @@ func sessionIDsFromInfos(infos []store.SessionInfo) []string {
 
 func TestSessionCatalogBoard(t *testing.T) {
 	t.Parallel()
+	// Invariant: independent Go and SQL derivations agree before board pagination.
+	// Owner: durable catalog SQL; canonical board suite.
+	t.Run("Should derive linked board columns from runtime inputs", func(t *testing.T) {
+		t.Parallel()
+		for _, state := range []string{"active", "starting", "stopping", "stopped", "unknown"} {
+			t.Run("Should derive "+state, func(t *testing.T) {
+				t.Parallel()
+				ctx, db := t.Context(), openTestGlobalDB(t)
+				ws := registerWorkspaceForGlobalTests(t, db, "linked-board", t.TempDir())
+				info := sessionInfoForWorkspaceStateIndexTest("linked-board", ws, state, time.Now())
+				// Unknown uses an empty state in memory; SQLite's durable enum represents it with created.
+				if state == "unknown" {
+					info.State = "created"
+				}
+				if err := db.RegisterSession(ctx, &info); err != nil {
+					t.Fatal(err)
+				}
+				link := store.SessionWorkLink{
+					SessionID:   info.ID,
+					WorkspaceID: ws,
+					Repository:  "example.com/a/b",
+					Branch:      "linked",
+					Provenance:  "user",
+				}
+				if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.db.ExecContext(
+					ctx,
+					"INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?,?,'linked','open')",
+					ws,
+					link.Repository,
+				); err != nil {
+					t.Fatal(err)
+				}
+				source, args, err := sessionCatalogBoardSource(map[string]string{ws: link.Repository}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, linkedOpen := range []bool{false, true} {
+					for _, ownOpen := range []bool{false, true} {
+						linkState, ownState := "closed", "closed"
+						if linkedOpen {
+							linkState = "open"
+						}
+						if ownOpen {
+							ownState = "open"
+						}
+						if _, err := db.db.ExecContext(
+							ctx,
+							"UPDATE forge_pull_requests SET pr_state = ? WHERE branch = 'linked'",
+							linkState,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := db.db.ExecContext(
+							ctx,
+							"UPDATE sessions SET branch = 'own' WHERE id = ?",
+							info.ID,
+						); err != nil {
+							t.Fatal(err)
+						}
+						if _, err := db.db.ExecContext(
+							ctx,
+							"INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?,?,'own',?) ON CONFLICT(workspace_id,repo_key,branch) DO UPDATE SET pr_state=excluded.pr_state",
+							ws,
+							link.Repository,
+							ownState,
+						); err != nil {
+							t.Fatal(err)
+						}
+						for _, queueState := range []string{"", "queued", "dispatching", "fenced"} {
+							pending := queueState != "" && queueState != "fenced"
+							if _, err := db.db.ExecContext(
+								ctx,
+								"DELETE FROM session_input_queue WHERE session_id = ?",
+								info.ID,
+							); err != nil {
+								t.Fatal(err)
+							}
+							if queueState != "" {
+								if _, err := db.db.ExecContext(
+									ctx,
+									`INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('queue',?,?,'queue','next','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z') ON CONFLICT(id) DO UPDATE SET status=excluded.status`,
+									info.ID,
+									strings.ReplaceAll(queueState, "fenced", "queued"),
+								); err != nil {
+									t.Fatal(err)
+								}
+							}
+							if queueState == "fenced" {
+								if _, err := db.db.ExecContext(
+									ctx,
+									"UPDATE session_input_queue SET dispatchable=0 WHERE session_id=?",
+									info.ID,
+								); err != nil {
+									t.Fatal(err)
+								}
+							}
+							pendingWork, err := db.SessionPendingWork(ctx, []string{info.ID})
+							if err != nil || pendingWork[info.ID] != pending {
+								t.Fatalf("pending=%v want=%v err=%v", pendingWork, pending, err)
+							}
+							var badge, column string
+							if err := db.db.QueryRowContext(ctx, "SELECT "+sessionCatalogBadgeExpression+","+sessionCatalogBoardColumnExpression+" FROM "+source, args...).
+								Scan(&badge, &column); err != nil {
+								t.Fatal(err)
+							}
+							runtime := &session.Info{State: session.State(info.State)}
+							wantBadge := session.BadgeForInfo(runtime)
+							own := session.PullRequestState("")
+							if ownOpen {
+								own = session.PullRequestOpen
+							}
+							want := session.BoardColumnFor(wantBadge, own)
+							if (linkedOpen || ownOpen) &&
+								(wantBadge == session.BadgeIdle || wantBadge == session.BadgeDone || wantBadge == session.BadgeStopped) {
+								want = session.BoardInReview
+								if pending && wantBadge != session.BadgeStopped {
+									want = session.BoardWorking
+								}
+							}
+							if badge != string(wantBadge) || column != string(want) {
+								t.Fatalf("pending=%v SQL=%s/%s Go=%s/%s", pending, badge, column, wantBadge, want)
+							}
+						}
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should bind repository and default branches to literal workspace IDs", func(t *testing.T) {
 		t.Parallel()
 		ctx, db := t.Context(), openTestGlobalDB(t)
@@ -3576,6 +3708,128 @@ func TestPendingInteractionDescendants(t *testing.T) {
 			if row.SessionID == "unrelated-pending" || row.ProviderRequestID != "request-"+row.SessionID {
 				t.Fatalf("unexpected interaction: %#v", row)
 			}
+		}
+	})
+}
+
+// Invariant: linked board/search reads fence cached repository facts and use a session-selective index.
+// Owner: SQLite catalog; canonical session catalog suite, on a fresh migrated database without ANALYZE.
+func TestSessionLinkedWorkCatalogReview(t *testing.T) {
+	t.Parallel()
+	t.Run("Should fence stale facts and use the session index", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		ws := registerWorkspaceForGlobalTests(t, db, "review", t.TempDir())
+		info := sessionInfoForWorkspaceStateIndexTest("review", ws, "stopped", time.Now())
+		if err := db.RegisterSession(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		link := store.SessionWorkLink{
+			SessionID:   info.ID,
+			WorkspaceID: ws,
+			Repository:  "example.com/a/old",
+			Branch:      "topic",
+			Provenance:  "user",
+		}
+		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state,pr_number) VALUES (?,?,'topic','open',733)",
+			ws,
+			link.Repository,
+		); err != nil {
+			t.Fatal(err)
+		}
+		q := store.SessionCatalogPageQuery{
+			ReadScope:      store.ReadScope{AllProfiles: true},
+			WorkspaceID:    ws,
+			Search:         "733",
+			Sort:           sessionCatalogSortRecent,
+			Limit:          10,
+			RepositoryKeys: map[string]string{ws: "example.com/a/new"},
+		}
+		page, err := db.PageSessions(ctx, q)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("stale cached search=%+v err=%v", page, err)
+		}
+		link.PRNumber = 733
+		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+			t.Fatal(err)
+		}
+		page, err = db.PageSessions(ctx, q)
+		if err != nil || page.Total != 1 {
+			t.Fatalf("explicit search=%+v err=%v", page, err)
+		}
+		// A bound default branch remains visible as branch-only work, never in review.
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO worktrees(id,profile_id,workspace_id,name,branch,path,state,origin,setup_state,created_at,updated_at) VALUES('review-main',?,?,'Main','main',?,'ready','manual','none','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z')`,
+			store.DefaultProfileID,
+			ws,
+			t.TempDir(),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"UPDATE sessions SET worktree_id='review-main',branch='main' WHERE id=?",
+			info.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state,pr_number) VALUES (?,?,'main','open',900)",
+			ws,
+			q.RepositoryKeys[ws],
+		); err != nil {
+			t.Fatal(err)
+		}
+		q.Search = ""
+		q.Columns = []string{"in_review"}
+		q.DefaultBranches = map[string][]string{ws: {"main"}}
+		page, err = db.PageSessions(ctx, q)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("default branch review=%+v err=%v", page, err)
+		}
+		// The bound branch is searchable, but the projection never shows that branch's PR.
+		for search, want := range map[string]int{"900": 0, "main": 1} {
+			found := q
+			found.Columns, found.Search = nil, search
+			page, err = db.PageSessions(ctx, found)
+			if err != nil || page.Total != want {
+				t.Fatalf("default branch search %q total=%d want=%d err=%v", search, page.Total, want, err)
+			}
+		}
+		source, args, err := sessionCatalogBoardSource(q.RepositoryKeys, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.db.QueryContext(ctx, "EXPLAIN QUERY PLAN SELECT id, board_link_open FROM "+source, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		found := false
+		for rows.Next() {
+			var id, parent, unused int
+			var detail string
+			if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+				t.Fatal(err)
+			}
+			t.Log(detail)
+			if strings.Contains(detail, "SEARCH l USING INDEX sqlite_autoindex_session_work_links_1 (session_id=") {
+				found = true
+			}
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if !found {
+			t.Fatal("linked board lookup did not select the session index")
 		}
 	})
 }

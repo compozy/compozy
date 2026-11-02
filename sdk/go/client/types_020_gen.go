@@ -4,6 +4,9 @@ package client
 
 import "time"
 
+// SettingsMCPAuthBeginMode is a daemon API value.
+type SettingsMCPAuthBeginMode string
+
 // SettingsMCPAuthBeginRequest is a daemon API value.
 type SettingsMCPAuthBeginRequest struct {
 	Mode                   SettingsMCPAuthBeginMode `json:"mode"`

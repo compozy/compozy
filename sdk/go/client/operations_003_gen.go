@@ -10,6 +10,35 @@ import (
 	"strings"
 )
 
+// CancelSessionPrompt Cancel the active session prompt
+func (c *Client) CancelSessionPrompt(ctx context.Context, params CancelSessionPromptParams) (*SessionPromptCancelResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionPromptCancelResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelSettingsUpdate Cancel and archive a dormant software update operation
+func (c *Client) CancelSettingsUpdate(ctx context.Context) (*SettingsUpdateCancelResponse, error) {
+	path := "/api/settings/update/cancel"
+	var out SettingsUpdateCancelResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelSubagentParams carries the path, query, and header parameters.
+type CancelSubagentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SubagentID  string  `url:"subagent_id"`
+	Profile     *string `url:"profile"`
+}
+
 // CancelSubagent Cancel a delegated subagent
 func (c *Client) CancelSubagent(ctx context.Context, params CancelSubagentParams, body SubagentCancelRequest) (*SubagentCancelPayload, error) {
 	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel"
@@ -413,28 +442,4 @@ type ControlTerminalRecordingParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
-}
-
-// ControlTerminalRecording Start or stop terminal recording
-func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTerminalRecordingParams, body TerminalRecordingRequest) (*TerminalRecordingResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/recording"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalRecordingResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAgentParams carries the path, query, and header parameters.
-type CreateAgentParams struct {
-	Profile *string `url:"profile"`
 }

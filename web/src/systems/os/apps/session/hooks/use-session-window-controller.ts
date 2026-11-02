@@ -19,7 +19,7 @@ export function useSessionWindowController(windowId: string) {
   // The window's own scope (its binding, else its partition): a session of
   // another scope is hidden here; a catalog window on All projects hides none.
   const focusedScope = focusedWindowScope(useWindowDataWorkspace());
-  const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
+  const { focused, liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);
   const deletedByOperator = useSessionDeletedByOperator(sessionId);
@@ -57,6 +57,7 @@ export function useSessionWindowController(windowId: string) {
     agentName,
     deletedLocally,
     effectiveLiveTailEnabled,
+    focused,
     liveTailEnabled,
     sessionId,
   };

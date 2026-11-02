@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1547,110 +1548,112 @@ func TestGlobalDBWorktreeNameReservationMigration(t *testing.T) {
 // Owner: global SQLite session branch query; canonical worktree persistence suite.
 func TestSessionBranchSnapshots(t *testing.T) {
 	t.Parallel()
-	db := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	workspace := registerWorkspaceForGlobalTests(t, db, "branches", t.TempDir())
-	const timestamp = "2026-10-23T12:00:00Z"
-	_, err := db.db.ExecContext(
-		ctx,
-		`INSERT INTO worktrees(id,profile_id,workspace_id,name,branch,path,state,origin,setup_state,created_at,updated_at) VALUES('wt-branch',?,?,'branch','managed',?,'ready','manual','none',?,?)`,
-		store.DefaultProfileID,
-		workspace,
-		t.TempDir(),
-		timestamp,
-		timestamp,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, id := range []string{"root-branch", "bound-branch"} {
-		_, err = db.db.ExecContext(
+	t.Run("Should project checked out branches and detached state", func(t *testing.T) {
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "branches", t.TempDir())
+		const timestamp = "2026-10-23T12:00:00Z"
+		_, err := db.db.ExecContext(
 			ctx,
-			`INSERT INTO sessions(id,profile_id,agent_name,provider,workspace_id,state,created_at,updated_at) VALUES(?,?,'general','codex',?,'stopped',?,?)`,
-			id,
+			`INSERT INTO worktrees(id,profile_id,workspace_id,name,branch,path,state,origin,setup_state,created_at,updated_at) VALUES('wt-branch',?,?,'branch','managed',?,'ready','manual','none',?,?)`,
 			store.DefaultProfileID,
 			workspace,
+			t.TempDir(),
 			timestamp,
 			timestamp,
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	if err = db.SaveSessionBranch(ctx, workspace, "root-branch", "topic"); err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.db.ExecContext(
-		ctx,
-		`UPDATE sessions SET worktree_id='wt-branch',branch='must-not-fallback' WHERE id='bound-branch'`,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ids := []string{"root-branch", "bound-branch"}
-	got, err := db.SessionBranches(ctx, ids)
-	if err != nil || got[ids[0]] != "topic" || got[ids[1]] != "managed" {
-		t.Fatalf("branches=%#v %v", got, err)
-	}
-	// The status snapshot owns subsequent checkouts and detached HEAD for all readers.
-	for _, detached := range []bool{false, true} {
-		if _, err := db.db.ExecContext(ctx,
-			`INSERT INTO worktree_status(worktree_id,branch,detached) VALUES('wt-branch','switched',?)
- ON CONFLICT(worktree_id) DO UPDATE SET branch=excluded.branch,detached=excluded.detached`, detached); err != nil {
+		for _, id := range []string{"root-branch", "bound-branch"} {
+			_, err = db.db.ExecContext(
+				ctx,
+				`INSERT INTO sessions(id,profile_id,agent_name,provider,workspace_id,state,created_at,updated_at) VALUES(?,?,'general','codex',?,'stopped',?,?)`,
+				id,
+				store.DefaultProfileID,
+				workspace,
+				timestamp,
+				timestamp,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err = db.SaveSessionBranch(ctx, workspace, "root-branch", "topic"); err != nil {
 			t.Fatal(err)
 		}
-		want := "switched"
-		if detached {
-			want = ""
-		}
-		got, err = db.SessionBranches(ctx, ids)
-		if err != nil || got[ids[1]] != want {
-			t.Fatalf("current branch=%#v %v", got, err)
-		}
-		query := store.SessionCatalogPageQuery{
-			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace,
-			Archive: store.SessionArchiveExclude, Sort: sessionCatalogSortRecent, Limit: 10,
-			RepositoryKeys: map[string]string{workspace: "github.com/owner/repo"},
-		}
-		keys, err := db.SessionCatalogBranches(ctx, query)
+		_, err = db.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET worktree_id='wt-branch',branch='must-not-fallback' WHERE id='bound-branch'`,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		found := false
-		for _, key := range keys {
-			if key.Branch == "switched" {
-				found = true
+		ids := []string{"root-branch", "bound-branch"}
+		got, err := db.SessionBranches(ctx, ids)
+		if err != nil || got[ids[0]] != "topic" || got[ids[1]] != "managed" {
+			t.Fatalf("branches=%#v %v", got, err)
+		}
+		// The status snapshot owns subsequent checkouts and detached HEAD for all readers.
+		for _, detached := range []bool{false, true} {
+			if _, err := db.db.ExecContext(ctx,
+				`INSERT INTO worktree_status(worktree_id,branch,detached) VALUES('wt-branch','switched',?)
+ ON CONFLICT(worktree_id) DO UPDATE SET branch=excluded.branch,detached=excluded.detached`, detached); err != nil {
+				t.Fatal(err)
+			}
+			want := "switched"
+			if detached {
+				want = ""
+			}
+			got, err = db.SessionBranches(ctx, ids)
+			if err != nil || got[ids[1]] != want {
+				t.Fatalf("current branch=%#v %v", got, err)
+			}
+			query := store.SessionCatalogPageQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace,
+				Archive: store.SessionArchiveExclude, Sort: sessionCatalogSortRecent, Limit: 10,
+				RepositoryKeys: map[string]string{workspace: "github.com/owner/repo"},
+			}
+			keys, err := db.SessionCatalogBranches(ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, key := range keys {
+				if key.Branch == "switched" {
+					found = true
+				}
+			}
+			if found == detached {
+				t.Fatalf("detached=%t refresh keys=%#v", detached, keys)
+			}
+			if _, err := db.db.ExecContext(ctx,
+				`INSERT OR REPLACE INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state)
+ VALUES (?,'github.com/owner/repo','switched','open')`, workspace); err != nil {
+				t.Fatal(err)
+			}
+			query.Columns = []string{"in_review"}
+			page, err := db.PageSessions(ctx, query)
+			wantTotal := 1
+			if detached {
+				wantTotal = 0
+			}
+			if err != nil || page.Total != wantTotal {
+				t.Fatalf("detached=%t page=%#v %v", detached, page, err)
 			}
 		}
-		if found == detached {
-			t.Fatalf("detached=%t refresh keys=%#v", detached, keys)
-		}
-		if _, err := db.db.ExecContext(ctx,
-			`INSERT OR REPLACE INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state)
- VALUES (?,'github.com/owner/repo','switched','open')`, workspace); err != nil {
+		if err = db.SaveSessionBranch(ctx, workspace, "bound-branch", "wrong"); err != nil {
 			t.Fatal(err)
 		}
-		query.Columns = []string{"in_review"}
-		page, err := db.PageSessions(ctx, query)
-		wantTotal := 1
-		if detached {
-			wantTotal = 0
+		_, err = db.db.ExecContext(ctx, `UPDATE worktrees SET state='removed' WHERE id='wt-branch'`)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if err != nil || page.Total != wantTotal {
-			t.Fatalf("detached=%t page=%#v %v", detached, page, err)
+		got, err = db.SessionBranches(ctx, ids)
+		if err != nil || got[ids[0]] != "topic" || got[ids[1]] != "" {
+			t.Fatalf("removed branches=%#v %v", got, err)
 		}
-	}
-	if err = db.SaveSessionBranch(ctx, workspace, "bound-branch", "wrong"); err != nil {
-		t.Fatal(err)
-	}
-	_, err = db.db.ExecContext(ctx, `UPDATE worktrees SET state='removed' WHERE id='wt-branch'`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err = db.SessionBranches(ctx, ids)
-	if err != nil || got[ids[0]] != "topic" || got[ids[1]] != "" {
-		t.Fatalf("removed branches=%#v %v", got, err)
-	}
+	})
 }
 
 // Benchmark the real SQLite inspection path, including its workspace and PR hydration.
@@ -1821,4 +1824,168 @@ func (s *worktreeInspectionStore) ReadPullRequests(
 func (s *worktreeInspectionStore) GetStatus(ctx context.Context, workspaceID, id string) (*worktreepkg.Status, error) {
 	s.statusReads++
 	return s.WorktreeRepo.GetStatus(ctx, workspaceID, id)
+}
+
+// Invariant: unlink survives automatic refresh, manual relink restores, and metadata survives removal/reopen.
+// Owner: durable session work links; canonical worktree store suite.
+func TestSessionWorkLinkPersistence(t *testing.T) {
+	t.Parallel()
+	// Invariant: unlink creates a durable tombstone atomically, including derived metadata.
+	t.Run("Should tombstone a derived link without a prior save", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		ws := registerWorkspaceForGlobalTests(t, db, "derived", t.TempDir())
+		info := sessionInfoForWorkspaceStateIndexTest("derived", ws, "stopped", time.Now())
+		if err := db.RegisterSession(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		link := store.SessionWorkLink{
+			SessionID:    info.ID,
+			WorkspaceID:  ws,
+			Repository:   "example.com/a/b",
+			Branch:       "topic",
+			WorktreeID:   "dead",
+			WorktreeName: "original",
+			Provenance:   "created",
+		}
+		if err := db.UnlinkSessionWork(ctx, link); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.SessionWorkLinks(ctx, []string{info.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got[info.ID]) != 1 || !got[info.ID][0].Unlinked || got[info.ID][0].WorktreeName != "original" {
+			t.Fatalf("links=%+v", got)
+		}
+	})
+	t.Run("Should enrich a manual link automatically without restoring an unlink", func(t *testing.T) {
+		t.Parallel()
+		db, err := OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		ctx := t.Context()
+		ws := registerWorkspaceForGlobalTests(t, db, "auto-links", t.TempDir())
+		info := sessionInfoForWorkspaceStateIndexTest(
+			"automatic-linked",
+			ws,
+			"stopped",
+			time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		)
+		if err := db.RegisterSession(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		link := store.SessionWorkLink{
+			SessionID:   info.ID,
+			WorkspaceID: ws,
+			Repository:  "example.com/owner/repo",
+			Branch:      "topic",
+			Provenance:  "user",
+			PRNumber:    42,
+			WorktreeID:  "dead-tree",
+		}
+		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+			t.Fatal(err)
+		}
+		for _, unlinked := range []bool{false, true} {
+			if unlinked {
+				if err := db.UnlinkSessionWork(ctx, link); err != nil {
+					t.Fatal(err)
+				}
+			}
+			automatic := link
+			automatic.WorktreeID, automatic.WorktreeName, automatic.Provenance = "tree", "new-tree", "created"
+			if err := db.SaveSessionWorkLink(ctx, automatic, true); err != nil {
+				t.Fatal(err)
+			}
+			got, err := db.SessionWorkLinks(ctx, []string{info.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got[info.ID]) != 1 {
+				t.Fatalf("links=%+v", got)
+			}
+			item := got[info.ID][0]
+			if item.WorktreeID != "tree" || item.WorktreeName != "new-tree" || item.Provenance != "user" ||
+				item.Unlinked != unlinked ||
+				item.PRNumber != 42 {
+				t.Fatalf("link=%+v", item)
+			}
+		}
+	})
+
+	t.Run("Should retain soft unlink and worktree identity across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Errorf("close: %v", err)
+			}
+		})
+		ws := registerWorkspaceForGlobalTests(t, db, "links", t.TempDir())
+		info := sessionInfoForWorkspaceStateIndexTest("linked", ws, "stopped", time.Now())
+		if err := db.RegisterSession(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		link := store.SessionWorkLink{
+			SessionID:    info.ID,
+			WorkspaceID:  ws,
+			Repository:   "example.com/owner/repo",
+			Branch:       "topic",
+			WorktreeID:   "removed-tree",
+			WorktreeName: "kept-name",
+			Provenance:   "created",
+			PRNumber:     42,
+		}
+		if err := db.SaveSessionWorkLink(ctx, link, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.UnlinkSessionWork(ctx, link); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SaveSessionWorkLink(ctx, link, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		db, err = OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.SessionWorkLinks(ctx, []string{info.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got[info.ID]) != 1 || !got[info.ID][0].Unlinked || !got[info.ID][0].WorktreeRemoved ||
+			got[info.ID][0].WorktreeName != "kept-name" ||
+			got[info.ID][0].PRNumber != 42 {
+			t.Fatalf("links=%+v", got)
+		}
+		if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+			t.Fatal(err)
+		}
+		got, err = db.SessionWorkLinks(ctx, []string{info.ID})
+		if err != nil || got[info.ID][0].Unlinked {
+			t.Fatalf("manual relink=%+v error=%v", got, err)
+		}
+		wrong := link
+		wrong.WorkspaceID = "other"
+		err = db.SaveSessionWorkLink(ctx, wrong, false)
+		if err == nil || !strings.Contains(err.Error(), "does not belong to workspace") {
+			t.Fatalf("SaveSessionWorkLink(cross-workspace) error = %v, want ownership refusal", err)
+		}
+	})
 }

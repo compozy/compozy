@@ -15,6 +15,7 @@ type SessionPullRequestChecksPayload struct {
 }
 
 type SessionPullRequestPayload struct {
+	Title          string                          `json:"title,omitempty"`
 	Provider       string                          `json:"provider"`
 	Number         int                             `json:"number"`
 	URL            string                          `json:"url"`

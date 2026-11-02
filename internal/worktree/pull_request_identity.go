@@ -3,6 +3,7 @@ package worktree
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os/exec"
 	"slices"
@@ -11,6 +12,9 @@ import (
 )
 
 // NormalizeRepoKey strips transport and credentials; identity never contains secrets.
+// ErrOriginLookupFailed means git never answered, which says nothing about the repository's origin.
+var ErrOriginLookupFailed = errors.New("worktree: origin lookup failed")
+
 func NormalizeRepoKey(remote string) (string, error) {
 	remote = strings.TrimSpace(remote)
 	if !strings.Contains(remote, "://") {
@@ -31,9 +35,13 @@ func NormalizeRepoKey(remote string) (string, error) {
 	}
 	path := strings.TrimSuffix(strings.Trim(parsed.Path, "/"), ".git")
 	parts := strings.Split(path, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || parts[0] == "." || parts[0] == ".." || parts[1] == "." ||
-		parts[1] == ".." {
+	if len(parts) < 2 {
 		return "", errors.New("worktree: invalid origin repository")
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", errors.New("worktree: invalid origin repository")
+		}
 	}
 	return strings.ToLower(parsed.Hostname() + "/" + path), nil
 }
@@ -47,7 +55,7 @@ func (s *PullRequestService) RepoKey(ctx context.Context, root string) (string, 
 	}
 	out, _, err := s.runner.Run(ctx, root, "remote", "get-url", "origin")
 	if _, isExitError := errors.AsType[*exec.ExitError](err); err != nil && !isExitError {
-		return "", err
+		return "", fmt.Errorf("%w: %w", ErrOriginLookupFailed, err)
 	}
 	key := ""
 	if err == nil {

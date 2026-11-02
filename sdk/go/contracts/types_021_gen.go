@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+type TaskDashboardActiveRunsPayload struct {
+	Total    int                             `json:"total"`
+	Running  int                             `json:"running"`
+	Starting int                             `json:"starting"`
+	Claimed  int                             `json:"claimed"`
+	Queued   int                             `json:"queued"`
+	Items    []TaskDashboardActiveRunPayload `json:"items,omitempty"`
+}
+
+type TaskDashboardBlockedCardPayload struct {
+	Tasks                int    `json:"tasks"`
+	AwaitingApproval     int    `json:"awaiting_approval"`
+	AwaitingDependencies int    `json:"awaiting_dependencies"`
+	HealthStatus         string `json:"health_status"`
+}
+
+type TaskDashboardCardsPayload struct {
+	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
+	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
+	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
+	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
+}
+
+type TaskDashboardFailedCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	FailedRuns   int    `json:"failed_runs"`
+	ForcedStops  int    `json:"forced_stops"`
+	HealthStatus string `json:"health_status"`
+}
+
 type TaskDashboardFreshnessPayload struct {
 	ObservedAt       time.Time `json:"observed_at"`
 	LatestActivityAt time.Time `json:"latest_activity_at"`
@@ -185,42 +215,4 @@ type TaskInboxLaneGroupPayload struct {
 	Count       int                    `json:"count"`
 	UnreadCount int                    `json:"unread_count"`
 	Items       []TaskInboxItemPayload `json:"items,omitempty"`
-}
-
-type TaskInboxParams struct {
-	Scope        CatalogScope  `json:"scope,omitempty"`
-	Workspace    string        `json:"workspace,omitempty"`
-	WorkspaceIDs []string      `json:"workspace_ids,omitempty"`
-	Worktree     string        `json:"worktree,omitempty"`
-	OwnerKind    OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef     string        `json:"owner_ref,omitempty"`
-	Lane         TaskInboxLane `json:"lane,omitempty"`
-	Status       Status        `json:"status,omitempty"`
-	Priority     Priority      `json:"priority,omitempty"`
-	Unread       *bool         `json:"unread,omitempty"`
-	Query        string        `json:"query,omitempty"`
-	Cursor       string        `json:"cursor,omitempty"`
-	Limit        int           `json:"limit,omitempty"`
-}
-
-type TaskInboxPriorityFacetPayload struct {
-	Priority Priority `json:"priority"`
-	Count    int      `json:"count"`
-}
-
-type TaskInboxStatusFacetPayload struct {
-	Status Status `json:"status"`
-	Count  int    `json:"count"`
-}
-
-type TaskInboxTaskPayload struct {
-	ID             string     `json:"id"`
-	Identifier     string     `json:"identifier,omitempty"`
-	Title          string     `json:"title"`
-	Status         Status     `json:"status"`
-	Priority       Priority   `json:"priority,omitempty"`
-	Owner          *Ownership `json:"owner,omitempty"`
-	Scope          TaskScope  `json:"scope"`
-	WorkspaceID    string     `json:"workspace_id,omitempty"`
-	LatestEventSeq int64      `json:"latest_event_seq"`
 }

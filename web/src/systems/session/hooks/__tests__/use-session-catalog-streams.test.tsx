@@ -666,6 +666,34 @@ describe("useSessionCatalogStreams", () => {
     queryClient.clear();
   });
 
+  // Invariant: a link added or removed anywhere refreshes an open list with no new turn.
+  // Owner: catalog stream reconciliation; canonical suite: use-session-catalog-streams.
+  it("Should reread an open linked work list on a catalog upsert", async () => {
+    const queryClient = createQueryClient();
+    const queryKey = sessionKeys.linkedWork(WORKSPACE_ID, SESSION_ID);
+    const read = vi.fn(async () => ({ items: [] }));
+    let source!: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        useQuery({ queryKey, queryFn: read, staleTime: Infinity, retry: false });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    act(() =>
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+      })
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    unmount();
+    queryClient.clear();
+  });
+
   it("Should preserve a final catalog wake after an in-flight snapshot finishes", async () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();

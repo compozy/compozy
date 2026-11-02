@@ -30,6 +30,7 @@ import {
   SessionPromptRuntimeSelector,
   SessionClearContext,
   SessionDeriveHost,
+  SessionLinkDialogHost,
   SessionOriginContext,
   SessionReportSendContext,
   SessionResumeFailure,
@@ -192,6 +193,7 @@ export function SessionWindowContent({
   session,
   workspaceId,
   liveDataEnabled,
+  focused = false,
 }: {
   windowId: string;
   agentName: string;
@@ -199,6 +201,7 @@ export function SessionWindowContent({
   session: SessionPayload;
   workspaceId: string;
   liveDataEnabled: boolean;
+  focused?: boolean;
 }) {
   const worktreeDialogs = use(WorktreeDialogActionsContext);
   const derive = useSessionWindowDerive({ session, workspaceId });
@@ -398,6 +401,13 @@ export function SessionWindowContent({
                 </Suspense>
               ) : null}
               <SessionPullRequestExitSurface model={pullRequestExitSurface} />
+              <SessionLinkDialogHost
+                focused={focused}
+                profile={session.profile_name}
+                sessionId={sessionId}
+                workspaceId={workspaceId}
+                workspaceName={session.workspace_path ?? workspaceId}
+              />
               <SessionWindowRowDialogs
                 clearDialog={clearDialog}
                 controls={controls}

@@ -1299,6 +1299,30 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	}
 	now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
 
+	t.Run("Should match direct work identities and exclude child rollups", func(t *testing.T) {
+		t.Parallel()
+		info := &Info{
+			ID:          "root",
+			WorkspaceID: "ws",
+			linkedWork: []LinkedWorkItem{
+				{Branch: "direct", PRNumber: 42},
+				{Branch: "child-work", PRNumber: 73, SourceSessionID: "child"},
+			},
+		}
+		for _, c := range []struct {
+			search string
+			want   bool
+		}{{"direct", true}, {"42", true}, {"#42", true}, {"child-work", false}, {"73", false}, {"#73", false}} {
+			if got := sessionMatchesListQuery(
+				info,
+				ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, Search: c.search},
+				benchmarkSessionTime,
+			); got != c.want {
+				t.Errorf("search=%s matched=%v want=%v", c.search, got, c.want)
+			}
+		}
+	})
+
 	t.Run("Should match visible Unicode casing for active catalog rows", func(t *testing.T) {
 		t.Parallel()
 		for _, match := range []struct{ title, agent, query string }{
@@ -4354,22 +4378,31 @@ func (b *pullRequestQueryBranches) SessionBranches(_ context.Context, ids []stri
 }
 
 type pullRequestQueryReader struct {
-	state        PullRequestState
-	repositories map[string]string
-	calls        int
-	keys         []BranchKey
+	state                   PullRequestState
+	repositories            map[string]string
+	calls                   int
+	keys                    []BranchKey
+	views                   map[BranchKey]PullRequestView
+	repoCalls, defaultCalls int
 }
 
 func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
 	r.calls++
 	r.keys = keys
+	if r.views != nil {
+		return r.views
+	}
 	result := make(map[BranchKey]PullRequestView)
 	for _, key := range keys {
-		result[key] = PullRequestView{PullRequest: &PullRequest{Number: 42, State: r.state}}
+		result[key] = PullRequestView{
+			Lookup:      PullRequestLookup{State: LookupOK},
+			PullRequest: &PullRequest{Number: 42, State: r.state},
+		}
 	}
 	return result
 }
 func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []BranchKey) map[BranchKey]bool {
+	r.defaultCalls++
 	result := make(map[BranchKey]bool)
 	for _, key := range keys {
 		result[key] = key.Branch == "main"
@@ -4378,11 +4411,288 @@ func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []Branc
 }
 
 func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope, []string) map[string]string {
+	r.repoCalls++
 	return r.repositories
 }
 
 func TestManagerBoardCatalog(t *testing.T) {
 	t.Parallel()
+	// Invariant: unlink and Undo retain derived worktree identity and original provenance.
+	t.Run("Should restore runs here after unlinking derived work", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		ctx := t.Context()
+		if _, err := catalog.DB().
+			ExecContext(ctx, `INSERT INTO worktrees(id,profile_id,workspace_id,name,branch,path,state,origin,setup_state,created_at,updated_at) VALUES('undo-tree',?,'ws-read-00','Undo tree','topic',?,'ready','manual','none','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z')`, store.DefaultProfileID, t.TempDir()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := catalog.DB().
+			ExecContext(ctx, "UPDATE sessions SET worktree_id='undo-tree' WHERE id='sess-read-000'"); err != nil {
+			t.Fatal(err)
+		}
+		manager.ConfigurePullRequests(
+			&pullRequestQueryReader{
+				repositories: map[string]string{"ws-read-00": "example.com/a/b"},
+				views:        map[BranchKey]PullRequestView{},
+			},
+			catalog,
+		)
+		if err := manager.UnlinkSessionWork(ctx, "sess-read-000", "", "topic"); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.LinkSessionWork(
+			ctx,
+			"sess-read-000",
+			store.SessionWorkLink{Branch: "topic"},
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		info, err := manager.Status(ctx, "sess-read-000")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := manager.SessionLinkedWork(ctx, []*Info{info})
+		if err != nil {
+			t.Fatal(err)
+		}
+		items := got[info.ID].Items
+		if len(items) != 1 || !items[0].RunsHere || items[0].WorktreeName != "Undo tree" ||
+			items[0].Provenance != "created" {
+			t.Fatalf("undo=%+v", items)
+		}
+	})
+	// Invariant: branch status follows the latest manually selected PR; foreign heads cannot be linked.
+	t.Run("Should reject fork PRs and replace the selected branch PR", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		reader := &linkedCandidateQueryReader{
+			candidate: WorkCandidate{
+				Repository:     "example.com/a/b",
+				HeadRepository: "example.com/fork/b",
+				Branch:         "topic",
+				PRNumber:       17,
+			},
+		}
+		reader.repositories = map[string]string{"ws-read-00": "example.com/a/b"}
+		manager.ConfigurePullRequests(reader, catalog)
+		link := store.SessionWorkLink{Branch: "topic", PRNumber: 17}
+		if err := manager.LinkSessionWork(
+			t.Context(),
+			"sess-read-000",
+			link,
+			false,
+		); !errors.Is(
+			err,
+			ErrLinkedWorkForkUnsupported,
+		) {
+			t.Fatalf("fork error=%v", err)
+		}
+		reader.candidate.HeadRepository = ""
+		if err := manager.LinkSessionWork(t.Context(), "sess-read-000", link, false); err != nil {
+			t.Fatal(err)
+		}
+		reader.candidate.PRNumber = 18
+		link.PRNumber = 18
+		if err := manager.LinkSessionWork(t.Context(), "sess-read-000", link, false); err != nil {
+			t.Fatal(err)
+		}
+		got, err := catalog.SessionWorkLinks(t.Context(), []string{"sess-read-000"})
+		if err != nil || len(got["sess-read-000"]) != 1 || got["sess-read-000"][0].PRNumber != 18 {
+			t.Fatalf("links=%+v err=%v", got, err)
+		}
+		if err := manager.UnlinkSessionWork(
+			t.Context(),
+			"sess-read-000",
+			"example.com/foreign/b",
+			"topic",
+		); !errors.Is(
+			err,
+			ErrLinkedWorkRepository,
+		) {
+			t.Fatalf("unlink foreign=%v", err)
+		}
+	})
+	t.Run("Should search derived own work consistently across runtime and durable rows", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			manager := newWorkspaceSessionReadFixture(t, 1, 1)
+			catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+			const repo = "example.com/a/b"
+			if err := catalog.SaveSessionBranch(t.Context(), "ws-read-00", "sess-read-000", "own-find"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := catalog.DB().
+				ExecContext(t.Context(), "INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state,pr_number) VALUES ('ws-read-00',?,'own-find','open',42)", repo); err != nil {
+				t.Fatal(err)
+			}
+			manager.ConfigurePullRequests(
+				&pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{"ws-read-00": repo}},
+				catalog,
+			)
+			if active {
+				manager.sessions["sess-read-000"] = &Session{
+					ID:          "sess-read-000",
+					WorkspaceID: "ws-read-00",
+					ProfileID:   store.DefaultProfileID,
+					AgentName:   "coder",
+					State:       StateActive,
+					CreatedAt:   benchmarkSessionTime,
+					UpdatedAt:   benchmarkSessionTime,
+				}
+			}
+			for _, search := range []string{"own-find", "#42", "42"} {
+				q := ListQuery{
+					ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+					WorkspaceID: "ws-read-00",
+					Search:      search,
+				}
+				page, err := manager.ListPage(t.Context(), q)
+				if err != nil || page.Total != 1 {
+					t.Fatalf("active=%v search=%s page=%+v err=%v", active, search, page, err)
+				}
+			}
+			link := store.SessionWorkLink{
+				SessionID:   "sess-read-000",
+				WorkspaceID: "ws-read-00",
+				Repository:  repo,
+				Branch:      "own-find",
+				Provenance:  "user",
+			}
+			if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := catalog.UnlinkSessionWork(t.Context(), link); err != nil {
+				t.Fatal(err)
+			}
+			page, err := manager.ListPage(
+				t.Context(),
+				ListQuery{
+					ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+					WorkspaceID: "ws-read-00",
+					Search:      "#42",
+				},
+			)
+			if err != nil || page.Total != 0 {
+				t.Fatalf("unlinked active=%v page=%+v err=%v", active, page, err)
+			}
+		}
+	})
+
+	t.Run("Should search direct linked identities before paging active and durable rows", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			manager := newWorkspaceSessionReadFixture(t, 6, 2)
+			catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+			const repo = "example.com/a/b"
+			reader := &pullRequestQueryReader{
+				state:        PullRequestOpen,
+				repositories: map[string]string{"ws-read-00": repo, "ws-read-01": repo},
+			}
+			manager.ConfigurePullRequests(reader, catalog)
+			for _, id := range []string{"sess-read-000", "sess-read-002", "sess-read-004", "sess-read-001"} {
+				ws := "ws-read-00"
+				if id == "sess-read-001" {
+					ws = "ws-read-01"
+				}
+				link := store.SessionWorkLink{
+					SessionID:   id,
+					WorkspaceID: ws,
+					Repository:  repo,
+					Branch:      "feature-find",
+					PRNumber:    42,
+					Provenance:  "user",
+				}
+				if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+					t.Fatal(err)
+				}
+				if id == "sess-read-004" {
+					if err := catalog.UnlinkSessionWork(t.Context(), link); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if active {
+				manager.sessions["sess-read-000"] = &Session{
+					ID:          "sess-read-000",
+					WorkspaceID: "ws-read-00",
+					ProfileID:   store.DefaultProfileID,
+					AgentName:   "coder",
+					State:       StateActive,
+					CreatedAt:   benchmarkSessionTime,
+					UpdatedAt:   benchmarkSessionTime,
+				}
+			}
+			for _, fields := range []string{"", sessionCatalogSearchTitleAgent} {
+				for _, search := range []string{"#42", "42", "feature-find"} {
+					q := ListQuery{
+						ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+						WorkspaceID:  "ws-read-00",
+						SearchFields: fields,
+						Search:       search,
+						Limit:        1,
+					}
+					page, err := manager.ListPage(t.Context(), q)
+					if err != nil || page.Total != 2 || len(page.Sessions) != 1 || !page.HasMore {
+						t.Fatalf("active=%v search=%s page=%+v err=%v", active, search, page, err)
+					}
+					q.Cursor = page.NextCursor
+					next, err := manager.ListPage(t.Context(), q)
+					if err != nil || len(next.Sessions) != 1 || next.Sessions[0].ID == page.Sessions[0].ID ||
+						next.HasMore {
+						t.Fatalf("next=%+v err=%v", next, err)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("Should match a linked branch only in the current repository and by its folded name", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			manager := newWorkspaceSessionReadFixture(t, 4, 1)
+			catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+			const repo = "example.com/a/b"
+			reader := &pullRequestQueryReader{repositories: map[string]string{"ws-read-00": repo}}
+			manager.ConfigurePullRequests(reader, catalog)
+			for _, link := range []store.SessionWorkLink{
+				{SessionID: "sess-read-000", Repository: repo, Branch: "FÉATURE", PRNumber: 7},
+				{SessionID: "sess-read-001", Repository: "example.com/old/repo", Branch: "moved", PRNumber: 88},
+			} {
+				link.WorkspaceID, link.Provenance = "ws-read-00", "user"
+				if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if active {
+				for _, id := range []string{"sess-read-000", "sess-read-001"} {
+					manager.sessions[id] = &Session{
+						ID:          id,
+						WorkspaceID: "ws-read-00",
+						ProfileID:   store.DefaultProfileID,
+						AgentName:   "coder",
+						State:       StateActive,
+						CreatedAt:   benchmarkSessionTime,
+						UpdatedAt:   benchmarkSessionTime,
+					}
+				}
+			}
+			for search, want := range map[string]int{"féature": 1, "moved": 0, "#": 0, "#88": 1} {
+				page, err := manager.ListPage(t.Context(), ListQuery{
+					ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+					WorkspaceID: "ws-read-00",
+					Search:      search,
+					Limit:       DefaultListLimit,
+				})
+				if err != nil || page.Total != want {
+					t.Fatalf("active=%v search=%q total=%d want=%d err=%v", active, search, page.Total, want, err)
+				}
+			}
+		}
+	})
+
 	t.Run("Should discover old stopped PR branches outside the selected column and page", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -4665,6 +4975,35 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		h.manager.ConfigurePullRequests(
+			&pullRequestQueryReader{
+				state:        PullRequestOpen,
+				repositories: map[string]string{h.workspaceID: "example.com/a/b"},
+			},
+			catalog,
+		)
+		if err := catalog.SaveSessionWorkLink(
+			ctx,
+			store.SessionWorkLink{
+				SessionID:   child.ID,
+				WorkspaceID: h.workspaceID,
+				Repository:  "example.com/a/b",
+				Branch:      "child-review",
+				Provenance:  "agent",
+			},
+			false,
+		); err != nil {
+			t.Fatal(err)
+		}
+		family, err := catalog.SessionWorkFamily(ctx, []string{parent.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, member := range family {
+			if member.ID == fork.ID {
+				t.Fatalf("fork rolled up: %+v", family)
+			}
+		}
 		query := ListQuery{
 			ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
 			WorkspaceID:  h.workspaceID,
@@ -4704,6 +5043,9 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if err := h.manager.PopulateSessionRelations(ctx, detail); err != nil {
 			t.Fatal(err)
 		}
+		if detail.Children == nil || detail.Children.InReview != 1 {
+			t.Fatalf("linked detail children=%+v", detail.Children)
+		}
 		if counts := detail.Children; counts == nil || *counts != *byID[parent.ID].Children {
 			t.Fatalf("detail rollup = %#v, want the page rollup", counts)
 		}
@@ -4730,4 +5072,420 @@ func (r *catalogBranchReadCounter) SessionCatalogBranches(
 ) ([]store.SessionBranchKey, error) {
 	r.calls++
 	return r.GlobalDB.SessionCatalogBranches(ctx, query)
+}
+
+// Invariant: lineage roll-up is read-only, deduplicated behind direct work, and never controls the parent board.
+// Owner: session projection; canonical pull-request query suite.
+func TestUnlinkRolledUpWork(t *testing.T) {
+	t.Parallel()
+	// Invariant: a rolled-up item belongs to its child, so the parent can't report it unlinked.
+	t.Run("Should refuse to unlink an item only a child owns", func(t *testing.T) {
+		t.Parallel()
+		const repo = "example.com/a/b"
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		reader := &pullRequestQueryReader{
+			repositories: map[string]string{"ws-read-00": repo},
+			views: map[BranchKey]PullRequestView{
+				{"ws-read-00", "child-work"}: {PullRequest: &PullRequest{Number: 9, State: PullRequestOpen}},
+			},
+		}
+		branches := &linkedWorkQueryStore{
+			links: map[string][]store.SessionWorkLink{
+				"child": {{SessionID: "child", WorkspaceID: "ws-read-00", Repository: repo, Branch: "child-work"}},
+			},
+			members: []store.SessionWorkMember{
+				{
+					RootID:      "sess-read-000",
+					ID:          "sess-read-000",
+					WorkspaceID: "ws-read-00",
+					ProfileID:   store.DefaultProfileID,
+				},
+				{RootID: "sess-read-000", ID: "child", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID},
+			},
+		}
+		manager.ConfigurePullRequests(reader, branches)
+		err := manager.UnlinkSessionWork(t.Context(), "sess-read-000", repo, "child-work")
+		if !errors.Is(err, ErrLinkedWorkInvalid) {
+			t.Fatalf("UnlinkSessionWork(rolled up) error = %v, want ErrLinkedWorkInvalid", err)
+		}
+	})
+}
+
+func TestUnlinkMovedRepositoryWork(t *testing.T) {
+	t.Parallel()
+	// Invariant: a link stranded by a remote change can still be removed from the session.
+	t.Run("Should unlink under the stored repository", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws-read-00": "example.com/new/repo"}}
+		manager.ConfigurePullRequests(reader, catalog)
+		const old = "example.com/old/repo"
+		link := store.SessionWorkLink{
+			SessionID: "sess-read-000", WorkspaceID: "ws-read-00", Repository: old, Branch: "topic", Provenance: "user",
+		}
+		if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.UnlinkSessionWork(t.Context(), link.SessionID, old, "topic"); err != nil {
+			t.Fatal(err)
+		}
+		err := manager.UnlinkSessionWork(t.Context(), link.SessionID, old, "never-linked")
+		if !errors.Is(err, ErrLinkedWorkRepository) {
+			t.Fatalf("unlisted link error = %v, want ErrLinkedWorkRepository", err)
+		}
+	})
+}
+
+func TestRefreshSessionWorkLink(t *testing.T) {
+	t.Parallel()
+	// Invariant: Refresh reaches the forge for an item the session lists, and only for one.
+	manager := newWorkspaceSessionReadFixture(t, 2, 1)
+	catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+	const repo = "example.com/a/b"
+	reader := &refreshingLinkedWorkReader{}
+	reader.repositories = map[string]string{"ws-read-00": repo}
+	manager.ConfigurePullRequests(reader, catalog)
+	link := store.SessionWorkLink{
+		SessionID: "sess-read-000", WorkspaceID: "ws-read-00", Repository: repo, Branch: "topic", Provenance: "user",
+	}
+	if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("Should ask the forge about a listed item", func(t *testing.T) {
+		if err := manager.RefreshSessionWorkLink(t.Context(), link.SessionID, repo, "topic"); err != nil {
+			t.Fatal(err)
+		}
+		if want := (BranchKey{"ws-read-00", "topic"}); len(reader.refreshed) != 1 || reader.refreshed[0] != want {
+			t.Fatalf("refreshed=%v want %v", reader.refreshed, want)
+		}
+	})
+	t.Run("Should refuse a branch the session does not list", func(t *testing.T) {
+		err := manager.RefreshSessionWorkLink(t.Context(), link.SessionID, repo, "elsewhere")
+		if !errors.Is(err, ErrLinkedWorkInvalid) || len(reader.refreshed) != 1 {
+			t.Fatalf("err=%v refreshed=%v", err, reader.refreshed)
+		}
+	})
+}
+
+type refreshingLinkedWorkReader struct {
+	pullRequestQueryReader
+	refreshed []BranchKey
+}
+
+func (r *refreshingLinkedWorkReader) RefreshBranch(_ context.Context, key BranchKey) (PullRequestView, error) {
+	r.refreshed = append(r.refreshed, key)
+	return PullRequestView{}, nil
+}
+
+func TestSessionLinkedWorkProjection(t *testing.T) {
+	t.Parallel()
+	// Invariant: branch-only descendants never contribute to linked-work summaries.
+	t.Run("Should keep bound default branch work branch only without cache reads", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{
+			state:        PullRequestOpen,
+			repositories: map[string]string{"ws": "example.com/a/b"},
+		}
+		branches := &linkedWorkQueryStore{
+			members: []store.SessionWorkMember{
+				{RootID: "root", ID: "root", WorkspaceID: "ws", WorktreeID: "tree", WorktreeName: "Main tree"},
+			},
+		}
+		branches.values = map[string]string{"root": "main"}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		got, err := manager.SessionLinkedWork(t.Context(), []*Info{{ID: "root", WorkspaceID: "ws", WorktreeID: "tree"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got["root"].DirectOpen || got["root"].Summary.Total != 1 || len(reader.keys) != 0 ||
+			got["root"].Items[0].WorktreeName != "Main tree" {
+			t.Fatalf("projection=%+v keys=%v", got["root"], reader.keys)
+		}
+	})
+	t.Run("Should order runs here then direct then rolled up within urgency", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{
+			repositories: map[string]string{"ws": "example.com/a/b"},
+			views:        map[BranchKey]PullRequestView{},
+		}
+		branches := &linkedWorkQueryStore{
+			links: map[string][]store.SessionWorkLink{
+				"root": {
+					{Repository: "example.com/a/b", Branch: "z-here", WorktreeID: "tree"},
+					{Repository: "example.com/a/b", Branch: "b-direct"},
+				},
+				"child": {{Repository: "example.com/a/b", Branch: "a-child", PRNumber: 17}},
+			},
+		}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		got, err := manager.SessionLinkedWork(t.Context(), []*Info{{ID: "root", WorkspaceID: "ws", WorktreeID: "tree"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		items := got["root"].Items
+		if len(items) != 3 || items[0].Branch != "z-here" || items[1].Branch != "b-direct" ||
+			items[2].Branch != "a-child" {
+			t.Fatalf("items=%+v", items)
+		}
+	})
+	t.Run("Should omit branch only child work", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{
+			repositories: map[string]string{"ws": "example.com/a/b"},
+			views:        map[BranchKey]PullRequestView{},
+		}
+		branches := &linkedWorkQueryStore{
+			links: map[string][]store.SessionWorkLink{"child": {{Repository: "example.com/a/b", Branch: "topic"}}},
+		}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		got, err := manager.SessionLinkedWork(t.Context(), []*Info{{ID: "root", WorkspaceID: "ws"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got["root"].Summary.Total != 0 {
+			t.Fatalf("projection=%+v", got["root"])
+		}
+	})
+
+	t.Run("Should resolve repositories once per profile and workspace", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws": "example.com/a/b"}}
+		branches := &linkedWorkQueryStore{}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		_, err := manager.SessionLinkedWork(
+			t.Context(),
+			[]*Info{
+				{ID: "root", WorkspaceID: "ws"},
+				{ID: "other", WorkspaceID: "ws"},
+				{ID: "third", WorkspaceID: "other"},
+				{ID: "fourth", WorkspaceID: "ws", ProfileID: "other"},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reader.repoCalls != 3 || reader.defaultCalls != 1 || reader.calls != 1 || branches.calls != 1 {
+			t.Fatalf(
+				"repos=%d defaults=%d cache=%d branches=%d",
+				reader.repoCalls,
+				reader.defaultCalls,
+				reader.calls,
+				branches.calls,
+			)
+		}
+	})
+
+	t.Run("Should sort fresh decisions before ready work and unknown lookups", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			view PullRequestView
+			rank int
+		}{
+			{
+				"failing",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestOpen, Checks: PullRequestChecks{State: ChecksFailing}},
+				},
+				0,
+			},
+			{
+				"changes",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestOpen, ReviewDecision: ReviewChangesRequested},
+				},
+				0,
+			},
+			{
+				"conflicts",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestOpen, Mergeable: MergeableConflicting},
+				},
+				0,
+			},
+			{
+				"ready",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestOpen, ReadyToMerge: true, Draft: new(false)},
+				},
+				1,
+			},
+			{
+				"open",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestOpen},
+				},
+				2,
+			},
+			{"branch", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}}, 2},
+			{
+				"stale",
+				PullRequestView{
+					Lookup: PullRequestLookup{State: LookupOK, Stale: true},
+					PullRequest: &PullRequest{
+						State:        PullRequestOpen,
+						Checks:       PullRequestChecks{State: ChecksFailing},
+						ReadyToMerge: true,
+					},
+				},
+				3,
+			},
+			{"error", PullRequestView{Lookup: PullRequestLookup{State: LookupError}}, 3},
+			{
+				"merged",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestMerged},
+				},
+				4,
+			},
+			{
+				"closed",
+				PullRequestView{
+					Lookup:      PullRequestLookup{State: LookupOK},
+					PullRequest: &PullRequest{State: PullRequestClosed},
+				},
+				4,
+			},
+		}
+		reader := &pullRequestQueryReader{
+			repositories: map[string]string{"ws": "example.com/a/b"},
+			views:        map[BranchKey]PullRequestView{},
+		}
+		branches := &linkedWorkQueryStore{links: map[string][]store.SessionWorkLink{}}
+		for i, c := range cases {
+			if c.view.PullRequest != nil {
+				c.view.PullRequest.Number = i + 1
+			}
+			reader.views[BranchKey{"ws", c.name}] = c.view
+			branches.links["root"] = append(
+				branches.links["root"],
+				store.SessionWorkLink{Repository: "example.com/a/b", Branch: c.name},
+			)
+			if got := linkedWorkUrgency(LinkedWorkItem{PullRequestView: c.view}); got != c.rank {
+				t.Errorf("%s rank=%d want=%d", c.name, got, c.rank)
+			}
+		}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		got, err := manager.SessionLinkedWork(t.Context(), []*Info{{ID: "root", WorkspaceID: "ws"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := got["root"]
+		if view.Summary.Total != len(cases) || view.Summary.NeedsYou != 3 || view.Summary.PullRequests != 8 ||
+			view.Summary.Lead.Branch != "changes" {
+			t.Fatalf("summary=%+v", view.Summary)
+		}
+		for i := 1; i < len(view.Items); i++ {
+			if linkedWorkUrgency(view.Items[i-1]) > linkedWorkUrgency(view.Items[i]) {
+				t.Fatalf("items out of order: %+v", view.Items)
+			}
+		}
+	})
+
+	t.Run("Should prefer direct work and exclude rolled up work from board state", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{
+			state:        PullRequestOpen,
+			repositories: map[string]string{"ws": "example.com/a/b"},
+		}
+		branches := &linkedWorkQueryStore{
+			links: map[string][]store.SessionWorkLink{
+				"root":  {{Repository: "example.com/a/b", Branch: "direct", PRNumber: 42, Provenance: "user"}},
+				"child": {{Repository: "example.com/a/b", Branch: "child", PRNumber: 42, Provenance: "agent"}},
+			},
+		}
+		branches.values = map[string]string{}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		infos := []*Info{{ID: "root", WorkspaceID: "ws"}}
+		got, err := manager.SessionLinkedWork(t.Context(), infos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := got["root"]
+		if view.Summary.Total != 1 || !view.DirectOpen || view.Items[0].SourceSessionID != "" || reader.calls != 1 {
+			t.Fatalf("projection=%+v reads=%d", view, reader.calls)
+		}
+		branches.links["root"][0].Unlinked = true
+		got, err = manager.SessionLinkedWork(t.Context(), infos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view = got["root"]
+		if view.DirectOpen || view.Summary.Total != 1 || view.Items[0].SourceSessionID != "child" ||
+			view.Items[0].SourceSessionTitle != "Child work" {
+			t.Fatalf("rollup=%+v", view)
+		}
+		branches.links["root"][0].Unlinked = false
+		branches.links["root"][0].PRNumber = 99
+		got, err = manager.SessionLinkedWork(t.Context(), infos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view = got["root"]
+		if view.DirectOpen || view.Summary.Total != 2 || view.Items[1].Lookup.Cause != "pr_identity_changed" ||
+			view.Items[1].PullRequest != nil {
+			t.Fatalf("identity fence=%+v", view)
+		}
+	})
+}
+
+type linkedWorkQueryStore struct {
+	pullRequestQueryBranches
+	links   map[string][]store.SessionWorkLink
+	members []store.SessionWorkMember
+}
+
+func (s *linkedWorkQueryStore) SessionWorkFamily(context.Context, []string) ([]store.SessionWorkMember, error) {
+	if s.members != nil {
+		return s.members, nil
+	}
+	return []store.SessionWorkMember{
+		{RootID: "root", ID: "root", WorkspaceID: "ws"},
+		{RootID: "root", ID: "child", WorkspaceID: "ws", Name: "Child work"},
+	}, nil
+}
+func (s *linkedWorkQueryStore) SessionWorkLinks(context.Context, []string) (map[string][]store.SessionWorkLink, error) {
+	return s.links, nil
+}
+func (s *linkedWorkQueryStore) SessionPendingWork(context.Context, []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *linkedWorkQueryStore) SaveSessionWorkLink(context.Context, store.SessionWorkLink, bool) error {
+	return nil
+}
+func (s *linkedWorkQueryStore) UnlinkSessionWork(context.Context, store.SessionWorkLink) error {
+	return nil
+}
+
+type linkedCandidateQueryReader struct {
+	pullRequestQueryReader
+	candidate WorkCandidate
+}
+
+func (r *linkedCandidateQueryReader) WorkPR(context.Context, string, int) (WorkCandidate, error) {
+	return r.candidate, nil
+}
+
+func (*linkedCandidateQueryReader) WorkCandidates(
+	context.Context,
+	string,
+	string,
+	string,
+	int,
+	int,
+) (WorkCandidates, error) {
+	return WorkCandidates{}, nil
 }

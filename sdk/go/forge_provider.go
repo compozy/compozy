@@ -37,7 +37,14 @@ type ForgePRCreateRequest = contracts.ForgePRCreateRequest
 type ForgePRCreateResponse = contracts.ForgePRCreateResponse
 
 // ForgeProviderHandlers implements the daemon-initiated forge provider services.
+type ForgePRSearchRequest = contracts.ForgePRSearchRequest
+type ForgePRReadRequest = contracts.ForgePRReadRequest
+type ForgePRCandidate = contracts.ForgePRCandidate
+type ForgePRSearchResponse = contracts.ForgePRSearchResponse
+
 type ForgeProviderHandlers struct {
+	SearchPRs    func(context.Context, ExtensionContext, ForgePRSearchRequest) (ForgePRSearchResponse, error)
+	ReadPR       func(context.Context, ExtensionContext, ForgePRReadRequest) (ForgePRCandidate, error)
 	Capabilities func(context.Context, ExtensionContext, ForgeCapabilitiesRequest) (ForgeCapabilitiesResponse, error)
 	Status       func(context.Context, ExtensionContext, ForgeStatusRequest) (ForgeStatusResponse, error)
 	CreatePR     func(context.Context, ExtensionContext, ForgePRCreateRequest) (ForgePRCreateResponse, error)
@@ -58,6 +65,18 @@ func ForgeProvider(extension *Extension, handlers ForgeProviderHandlers) error {
 		{ExtensionServiceMethodForgeCapabilities, typedForgeHandler(handlers.Capabilities)},
 		{ExtensionServiceMethodForgeStatus, typedForgeHandler(handlers.Status)},
 		{ExtensionServiceMethodForgePRCreate, typedForgeHandler(handlers.CreatePR)},
+	}
+	if handlers.SearchPRs != nil {
+		registrations = append(registrations, struct {
+			method  string
+			handler ExtensionHandler
+		}{"forge/pr_search", typedForgeHandler(handlers.SearchPRs)})
+	}
+	if handlers.ReadPR != nil {
+		registrations = append(registrations, struct {
+			method  string
+			handler ExtensionHandler
+		}{"forge/pr_read", typedForgeHandler(handlers.ReadPR)})
 	}
 	extension.mu.Lock()
 	defer extension.mu.Unlock()
@@ -115,6 +134,15 @@ func validateForgeProviderRequest(request any) error {
 		return nil
 	}
 	switch value := request.(type) {
+	case ForgePRSearchRequest:
+		return requireRemotes(value.RemoteURLs)
+	case ForgePRReadRequest:
+		if err := requireRemotes(value.RemoteURLs); err != nil {
+			return err
+		}
+		if value.Number < 1 {
+			return NewInvalidParamsError("positive PR number required", nil)
+		}
 	case ForgeCapabilitiesRequest:
 		return requireRemotes(value.RemoteURLs)
 	case ForgeStatusRequest:
@@ -138,7 +166,7 @@ func validateForgeProviderRequest(request any) error {
 
 func isForgeProviderMethod(method string) bool {
 	switch strings.TrimSpace(method) {
-	case ExtensionServiceMethodForgeCapabilities,
+	case "forge/pr_search", "forge/pr_read", ExtensionServiceMethodForgeCapabilities,
 		ExtensionServiceMethodForgeStatus,
 		ExtensionServiceMethodForgePRCreate:
 		return true

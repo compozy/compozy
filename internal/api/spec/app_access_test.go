@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"listSessionLinkedWork",
 			"listSessionPendingInteractions",
 			"listSessionProcesses", "terminateSessionProcesses",
 			"listProviderUsage", "getProviderUsage", "streamProviderUsage",
@@ -209,6 +210,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",
+			"searchSessionWorkCandidates",
 			"draftAgentInstructions",
 			"getPermissionRollup",
 			"createAgentInstance",

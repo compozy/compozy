@@ -277,6 +277,25 @@ type WindowmanagerNodeID string
 // WindowmanagerWorkspaceID is a daemon API value.
 type WindowmanagerWorkspaceID string
 
+// WorkCandidate is a daemon API value.
+type WorkCandidate struct {
+	Repository     string `json:"repository"`
+	HeadRepository string `json:"head_repository,omitempty"`
+	Branch         string `json:"branch"`
+	PRNumber       int    `json:"pr_number,omitempty"`
+	Title          string `json:"title,omitempty"`
+	URL            string `json:"url,omitempty"`
+	State          string `json:"state,omitempty"`
+}
+
+// WorkCandidates is a daemon API value.
+type WorkCandidates struct {
+	Items               []WorkCandidate `json:"items"`
+	HasMore             bool            `json:"has_more"`
+	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
+	Repository          string          `json:"repository,omitempty"`
+}
+
 // WorkSignal is a daemon API value.
 type WorkSignal struct {
 	Kind  WorkSignalKind `json:"kind"`
@@ -424,25 +443,4 @@ type WorkspacesResponse struct {
 type WorktreeBindingAvailability struct {
 	Available         bool   `json:"available"`
 	UnavailableReason string `json:"unavailable_reason,omitempty"`
-}
-
-// WorktreeBindingsPayload is a daemon API value.
-type WorktreeBindingsPayload struct {
-	AgentActivity string `json:"agent_activity"`
-}
-
-// WorktreeBranchOutcomePayload is a daemon API value.
-type WorktreeBranchOutcomePayload struct {
-	Name    string `json:"name"`
-	Deleted bool   `json:"deleted"`
-	Reason  string `json:"reason,omitempty"`
-	Detail  string `json:"detail,omitempty"`
-}
-
-// WorktreeCatalogEventPayload is a daemon API value.
-type WorktreeCatalogEventPayload struct {
-	Kind        string `json:"kind"`
-	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id"`
-	Error       string `json:"error,omitempty"`
 }

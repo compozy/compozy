@@ -139,6 +139,11 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 			prState = payload.PullRequest.State
 		}
 		payload.BoardColumn = session.BoardColumnFor(payload.Badge, prState)
+		decorated := []contract.SessionPayload{payload}
+		if err := DecorateSessionLinkedWork(ctx, h.Sessions, []*session.Info{info}, decorated); err != nil {
+			return contract.SessionPayload{}, err
+		}
+		payload = decorated[0]
 		payload.WaitingOn = sessionPayloadWaitingOn(info, payload.Badge)
 		converted, err := contract.SessionHealthPayloadFromDomain(health)
 		if err != nil {

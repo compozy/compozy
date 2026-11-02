@@ -11,7 +11,7 @@ import (
 )
 
 const readForgePullRequests = `-- name: ReadForgePullRequests :many
-SELECT f.workspace_id, f.repo_key, f.branch, f.provider, f.pr_number, f.pr_url, f.pr_state, f.merged, f.draft, f.head_sha, f.base_ref, f.checks_state, f.checks_passed, f.checks_failed, f.checks_pending, f.checks_failed_names, f.review_decision, f.mergeable, f.pr_updated_at, f.observed_at, f.lookup_state, f.lookup_cause, f.attempt_at, f.failure_count, f.retry_after FROM forge_pull_requests f JOIN json_each(?1) k
+SELECT f.workspace_id, f.repo_key, f.branch, f.provider, f.pr_number, f.title, f.pr_url, f.pr_state, f.merged, f.draft, f.head_sha, f.base_ref, f.checks_state, f.checks_passed, f.checks_failed, f.checks_pending, f.checks_failed_names, f.review_decision, f.mergeable, f.pr_updated_at, f.observed_at, f.lookup_state, f.lookup_cause, f.attempt_at, f.failure_count, f.retry_after FROM forge_pull_requests f JOIN json_each(?1) k
  ON f.workspace_id = json_extract(k.value, '$.workspace_id')
  AND f.repo_key = json_extract(k.value, '$.repo_key')
  AND f.branch = json_extract(k.value, '$.branch')
@@ -32,6 +32,7 @@ func (q *Queries) ReadForgePullRequests(ctx context.Context, keys any) ([]ForgeP
 			&i.Branch,
 			&i.Provider,
 			&i.PrNumber,
+			&i.Title,
 			&i.PrUrl,
 			&i.PrState,
 			&i.Merged,
@@ -68,10 +69,11 @@ func (q *Queries) ReadForgePullRequests(ctx context.Context, keys any) ([]ForgeP
 
 const upsertForgePullRequest = `-- name: UpsertForgePullRequest :exec
 INSERT INTO forge_pull_requests (
- workspace_id, repo_key, branch, provider, pr_number, pr_url, pr_state, merged, draft, head_sha, base_ref, checks_state, checks_passed, checks_failed, checks_pending, checks_failed_names, review_decision, mergeable, pr_updated_at, observed_at, lookup_state, lookup_cause, attempt_at, failure_count, retry_after
+ workspace_id, repo_key, branch, title, provider, pr_number, pr_url, pr_state, merged, draft, head_sha, base_ref, checks_state, checks_passed, checks_failed, checks_pending, checks_failed_names, review_decision, mergeable, pr_updated_at, observed_at, lookup_state, lookup_cause, attempt_at, failure_count, retry_after
 ) VALUES (
- ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25
+ ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26
 ) ON CONFLICT(workspace_id, repo_key, branch) DO UPDATE SET
+ title = excluded.title,
  provider = excluded.provider,
  pr_number = excluded.pr_number,
  pr_url = excluded.pr_url,
@@ -100,6 +102,7 @@ type UpsertForgePullRequestParams struct {
 	WorkspaceID       string         `json:"workspace_id"`
 	RepoKey           string         `json:"repo_key"`
 	Branch            string         `json:"branch"`
+	Title             string         `json:"title"`
 	Provider          string         `json:"provider"`
 	PrNumber          sql.NullInt64  `json:"pr_number"`
 	PrUrl             string         `json:"pr_url"`
@@ -129,6 +132,7 @@ func (q *Queries) UpsertForgePullRequest(ctx context.Context, arg UpsertForgePul
 		arg.WorkspaceID,
 		arg.RepoKey,
 		arg.Branch,
+		arg.Title,
 		arg.Provider,
 		arg.PrNumber,
 		arg.PrUrl,

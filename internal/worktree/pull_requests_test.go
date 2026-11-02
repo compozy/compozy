@@ -396,6 +396,13 @@ func TestPullRequestService(t *testing.T) {
 			t.Fatal("terminal cache remained fresh")
 		}
 	})
+	t.Run("Should normalize hosted subgroup repositories", func(t *testing.T) {
+		t.Parallel()
+		got, err := NormalizeRepoKey("git@gitlab.com:Group/Subgroup/Repo.git")
+		if err != nil || got != "gitlab.com/group/subgroup/repo" {
+			t.Fatalf("key=%s err=%v", got, err)
+		}
+	})
 	t.Run("Should normalize repository identity without retaining credentials", func(t *testing.T) {
 		t.Parallel()
 		for _, remote := range []string{"git@GitHub.com:Acme/Repo.git", "https://secret@github.com/ACME/Repo.git", "ssh://git@github.com/Acme/repo.git"} {

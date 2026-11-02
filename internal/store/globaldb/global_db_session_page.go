@@ -224,7 +224,10 @@ func sessionCatalogPageFilters(
 	if err != nil {
 		return nil, nil, err
 	}
-	where, args = appendSessionCatalogSearch(where, args, query)
+	where, args, err = appendSessionCatalogSearch(where, args, query)
+	if err != nil {
+		return nil, nil, err
+	}
 	if query.AttentionOnly {
 		where = append(
 			where,
@@ -436,27 +439,4 @@ func appendSubagentSessionFilter(where []string, filter string) []string {
 	default:
 		return where
 	}
-}
-
-func appendSessionCatalogSearch(where []string, args []any, query store.SessionCatalogPageQuery) ([]string, []any) {
-	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
-		if query.SearchFields == "title_agent" {
-			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
-			where = append(
-				where,
-				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
-					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
-			)
-			args = append(args, search, search)
-		} else {
-			where = append(where, `(instr(lower(id), ?) > 0 OR
-			instr(lower(COALESCE(name, '')), ?) > 0 OR
-			instr(lower(agent_name), ?) > 0 OR
-			instr(lower(provider), ?) > 0)`)
-			for range 4 {
-				args = append(args, search)
-			}
-		}
-	}
-	return where, args
 }

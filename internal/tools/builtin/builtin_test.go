@@ -1662,6 +1662,10 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_continue", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_link", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_unlink", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_worktree_bind", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_worktree_unbind", risk: toolspkg.RiskMutating,
@@ -3469,6 +3473,35 @@ func requireDescriptorRisk(
 }
 
 // UT-045: the native descriptor boundary enforces the public delegation input contract.
+func TestSessionWorkLinkDescriptorSchemas(t *testing.T) {
+	t.Parallel()
+	// Invariant: both tools need a branch, a positive PR number, and no unknown properties.
+	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDSessionLink, toolspkg.ToolIDSessionUnlink} {
+		t.Run("Should enforce the link input for "+string(id), func(t *testing.T) {
+			t.Parallel()
+			d := descriptorMap(NativeDescriptors())[id]
+			schema := compileNativeSchema(t, d, d.InputSchema, "input")
+			if err := schema.Validate(map[string]any{"branch": "topic", "pr_number": 7}); err != nil {
+				t.Fatal(err)
+			}
+			for _, tc := range []struct {
+				input map[string]any
+				want  string
+			}{
+				{map[string]any{}, "branch"},
+				{map[string]any{"branch": ""}, "minLength"},
+				{map[string]any{"branch": "topic", "pr_number": 0}, "minimum"},
+				{map[string]any{"branch": "topic", "extra": true}, "extra"},
+			} {
+				err := schema.Validate(tc.input)
+				if err == nil || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("Validate(%#v) error = %v, want %q", tc.input, err, tc.want)
+				}
+			}
+		})
+	}
+}
+
 func TestSubagentDescriptorSchemas(t *testing.T) {
 	t.Run("Should retain public validation and idempotency metadata through descriptor conversion", func(t *testing.T) {
 		t.Parallel()

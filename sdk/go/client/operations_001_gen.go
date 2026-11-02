@@ -159,6 +159,32 @@ func (c *Client) AddMarketplaceSource(ctx context.Context, params AddMarketplace
 	return &out, nil
 }
 
+// AddSessionWorkLinkParams carries the path, query, and header parameters.
+type AddSessionWorkLinkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// AddSessionWorkLink Link work to a session
+func (c *Client) AddSessionWorkLink(ctx context.Context, params AddSessionWorkLinkParams, body SessionWorkLinkRequest) (*SessionLinkedWorkResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionLinkedWorkResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AddTaskDependencyParams carries the path, query, and header parameters.
 type AddTaskDependencyParams struct {
 	ID      string  `url:"id"`
@@ -420,30 +446,4 @@ func (c *Client) ArchiveAgentInstance(ctx context.Context, params ArchiveAgentIn
 		path += "?" + query.Encode()
 	}
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// ArchiveProfileParams carries the path, query, and header parameters.
-type ArchiveProfileParams struct {
-	Name string `url:"name"`
-}
-
-// ArchiveProfile Archive a profile
-func (c *Client) ArchiveProfile(ctx context.Context, params ArchiveProfileParams, body ProfilePlanRequest) (*ArchiveProfileResponse, error) {
-	path := "/api/profiles/{name}/archive"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out ArchiveProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ArchiveSessionParams carries the path, query, and header parameters.
-type ArchiveSessionParams struct {
-	Processes    *string `url:"processes"`
-	WorkspaceID  string  `url:"workspace_id"`
-	SessionID    string  `url:"session_id"`
-	Stop         *bool   `url:"stop"`
-	WithChildren *bool   `url:"with_children"`
-	Profile      *string `url:"profile"`
 }

@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// ListSessionSubagents List a session's subagents
+func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Order != nil {
+		query.Set("order", *params.Order)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SubagentListPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionToolsParams carries the path, query, and header parameters.
+type ListSessionToolsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+}
+
 // ListSessionTools List session-callable registry tools
 func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
@@ -398,46 +436,6 @@ func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunRevie
 		path += "?" + query.Encode()
 	}
 	var out TaskRunReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTaskRunsParams carries the path, query, and header parameters.
-type ListTaskRunsParams struct {
-	ID          string  `url:"id"`
-	Status      *string `url:"status"`
-	SessionID   *string `url:"session_id"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListTaskRuns List runs for one task
-func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

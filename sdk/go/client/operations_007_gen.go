@@ -9,6 +9,25 @@ import (
 	"strings"
 )
 
+// EnableGatewayProvider Enable one connectivity provider for a gateway tier
+func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
+	path := "/api/gateway/providers/{name}/enable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out GatewayStatusPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// EnableSkillParams carries the path, query, and header parameters.
+type EnableSkillParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+	ForAgent  *string `url:"for_agent"`
+}
+
 // EnableSkill Enable one skill
 func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
 	path := "/api/skills/{name}/enable"

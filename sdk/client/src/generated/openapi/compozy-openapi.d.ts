@@ -6211,6 +6211,59 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search this project for link candidates */
+    get: operations["searchSessionWorkCandidates"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List session linked work */
+    get: operations["listSessionLinkedWork"];
+    put?: never;
+    /** Link work to a session */
+    post: operations["addSessionWorkLink"];
+    /** Unlink session work */
+    delete: operations["removeSessionWorkLink"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Ask the forge again about one linked item */
+    post: operations["refreshSessionWorkLink"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -14758,6 +14811,29 @@ export interface components {
       /** Format: date-time */
       ttl_expires_at?: string | null;
     };
+    SessionLinkedWorkItem: {
+      branch: string;
+      pr_number?: number;
+      provenance: string;
+      pull_request: components["schemas"]["SessionPullRequestPayload"] | null;
+      pull_request_lookup: components["schemas"]["SessionPullRequestLookupPayload"] | null;
+      repository: string;
+      runs_here: boolean;
+      source_session_id?: string;
+      source_session_title?: string;
+      worktree_id?: string;
+      worktree_name?: string;
+      worktree_removed: boolean;
+    };
+    SessionLinkedWorkResponse: {
+      items: components["schemas"]["SessionLinkedWorkItem"][];
+    };
+    SessionLinkedWorkSummary: {
+      lead?: components["schemas"]["SessionLinkedWorkItem"] | null;
+      needs_you: number;
+      pull_requests: number;
+      total: number;
+    };
     SessionMonitorPayload: {
       branch?: string;
       /** Format: date-time */
@@ -14848,6 +14924,7 @@ export interface components {
       instance_id?: string;
       later?: components["schemas"]["SessionLaterPayload"] | null;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
+      linked_work?: components["schemas"]["SessionLinkedWorkSummary"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
       parent_title?: string;
@@ -15042,6 +15119,7 @@ export interface components {
       review_decision: "approved" | "changes_requested" | "review_required" | "none" | "unknown";
       /** @enum {string} */
       state: "open" | "closed" | "merged";
+      title?: string;
       url: string;
     };
     SessionPullRequestResponse: {
@@ -15278,6 +15356,11 @@ export interface components {
       until?: string[];
       /** Format: int64 */
       waited_ms: number;
+    };
+    SessionWorkLinkRequest: {
+      branch: string;
+      pr_number?: number;
+      repository?: string;
     };
     SessionWorkTimePayload: {
       /** Format: int64 */
@@ -20677,6 +20760,21 @@ export interface components {
       search: {
         [key: string]: unknown;
       };
+    };
+    WorkCandidate: {
+      branch: string;
+      head_repository?: string;
+      pr_number?: number;
+      repository: string;
+      state?: string;
+      title?: string;
+      url?: string;
+    };
+    WorkCandidates: {
+      has_more: boolean;
+      items: components["schemas"]["WorkCandidate"][];
+      repository?: string;
+      supports_pr_discovery: boolean;
     };
     WorkSignal: {
       /** @enum {string} */
@@ -52469,6 +52567,362 @@ export interface operations {
         };
       };
       /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchSessionWorkCandidates: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+        /** @description Candidate source; defaults to pull requests with local branch fallback */
+        kind?: "branches" | "pull_requests";
+        /** @description Search repository pull requests or local branches */
+        q?: string;
+        /** @description Page number, starting at 1 */
+        page?: string;
+        /** @description Page size, at most 100; page 1 may include one additional exact PR match, which is omitted from later pages */
+        limit?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Linked work */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkCandidates"];
+        };
+      };
+      /** @description Invalid link or repository mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forge discovery failed */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Linked work unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionLinkedWork: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Linked work */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionLinkedWorkResponse"];
+        };
+      };
+      /** @description Invalid link or repository mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Linked work unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  addSessionWorkLink: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionWorkLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Linked work */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionLinkedWorkResponse"];
+        };
+      };
+      /** @description Invalid link or repository mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Linked work unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeSessionWorkLink: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionWorkLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Linked work */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionLinkedWorkResponse"];
+        };
+      };
+      /** @description Invalid link or repository mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Linked work unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  refreshSessionWorkLink: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionWorkLinkRequest"];
+      };
+    };
+    responses: {
+      /** @description Linked work */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionLinkedWorkResponse"];
+        };
+      };
+      /** @description Invalid link or repository mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Linked work unavailable */
       503: {
         headers: {
           [name: string]: unknown;

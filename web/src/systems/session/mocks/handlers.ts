@@ -81,6 +81,21 @@ export const handlers: HttpHandler[] = [
   ...sessionFolderHandlers(sessionById),
   ...workspaceLayoutHandlers(),
   ...sessionFileSearchHandlers,
+  compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/links", () =>
+    HttpResponse.json({ items: [] })
+  ),
+  compozyApiMock.post("/api/workspaces/{workspace_id}/sessions/{session_id}/links", () =>
+    HttpResponse.json({ items: [] })
+  ),
+  compozyApiMock.delete("/api/workspaces/{workspace_id}/sessions/{session_id}/links", () =>
+    HttpResponse.json({ items: [] })
+  ),
+  compozyApiMock.post("/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh", () =>
+    HttpResponse.json({ items: [] })
+  ),
+  compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates", () =>
+    HttpResponse.json({ items: [], has_more: false, supports_pr_discovery: true })
+  ),
   compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);
     const workspace = url.searchParams.get("workspace_id")?.trim();

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -919,6 +920,137 @@ func (s *subagentWorktreeServiceStub) ObserveForgeStatus(
 // Owner: daemon Git and forge adapters; canonical worktree composition suite.
 func TestSessionPullRequestAdapters(t *testing.T) {
 	t.Parallel()
+	// Invariant: local repository identity and substring paging cross branch slashes without forge access.
+	t.Run("Should search local branches across path separators", func(t *testing.T) {
+		t.Parallel()
+		runner, err := worktree.NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		for _, args := range [][]string{{"init", "--initial-branch=main"}, {"-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "--allow-empty", "-m", "init"}, {"branch", "feat/find-one"}, {"branch", "fix/find-two"}} {
+			if _, _, err := runner.Run(t.Context(), root, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		paths := testHomePaths(t)
+		resolver := daemonWorktreeWorkspaceResolver{
+			homePaths: paths,
+			resolver: &daemonWorktreeResolverStub{
+				resolved: workspacepkg.ResolvedWorkspace{
+					ID:      "ws",
+					RootDir: root,
+					Config:  config.DefaultWithHome(paths),
+				},
+			},
+		}
+		service := worktree.NewPullRequestService(t.Context(), nil, nil, runner, nil)
+		t.Cleanup(service.Close)
+		adapter := sessionPullRequestAdapter{service: service, resolver: resolver, runner: runner}
+		for page := 1; page <= 2; page++ {
+			got, err := adapter.WorkCandidates(t.Context(), "ws", "find", "branches", page, 1)
+			if err != nil || len(got.Items) != 1 || got.Items[0].Repository != "local:ws" ||
+				got.HasMore != (page == 1) {
+				t.Fatalf("page=%d got=%+v err=%v", page, got, err)
+			}
+		}
+		beyond, err := adapter.WorkCandidates(t.Context(), "ws", "find", "branches", math.MaxInt, 100)
+		if err != nil || len(beyond.Items) != 0 || beyond.HasMore {
+			t.Fatalf("page past the end got=%+v err=%v", beyond, err)
+		}
+	})
+
+	// Invariant: exact PR identities resolve independently of text search in this repository.
+	for _, tc := range []struct {
+		name, query string
+		search      []extensioncontract.ForgePRCandidate
+		readErr     error
+		want        []int
+		foreign     bool
+		page        int
+		searchErr   error
+	}{
+		{name: "Should resolve a bare number missed by search", query: "42", want: []int{42}},
+		{name: "Should resolve a hash number missed by search", query: "#42", want: []int{42}},
+		{name: "Should resolve a pull link", query: "https://forge.test/acme/repo/pull/42", want: []int{42}},
+		{name: "Should resolve a merge request link", query: "https://forge.test/acme/repo/-/merge_requests/42?view=diff#note", want: []int{42}},
+		{name: "Should resolve a pull request link", query: "https://forge.test/acme/repo/pull-requests/42/title", want: []int{42}},
+		{name: "Should prepend and deduplicate the resolved PR", query: "42", search: []extensioncontract.ForgePRCandidate{{Number: 7}, {Number: 42}}, want: []int{42, 7}},
+		{name: "Should retain normal text search", query: "review", search: []extensioncontract.ForgePRCandidate{{Number: 7}}, want: []int{7}},
+		{name: "Should keep a missing number absent", query: "404", readErr: errors.New("not found")},
+		{name: "Should retain search matches after a failed read", query: "42", readErr: errors.New("read unavailable"), search: []extensioncontract.ForgePRCandidate{{Number: 7}, {Number: 42}}, want: []int{7, 42}},
+		{name: "Should preserve direct resolution when search fails", query: "42", searchErr: errors.New("search unavailable"), want: []int{42}},
+		{name: "Should remove the resolved number from later pages", query: "42", page: 2, search: []extensioncontract.ForgePRCandidate{{Number: 42}, {Number: 7}}, want: []int{7}},
+		{name: "Should preserve later search pages", query: "42", page: 2, search: []extensioncontract.ForgePRCandidate{{Number: 7}}, want: []int{7}},
+		{name: "Should refuse another repository before discovery", query: "https://forge.test/acme/other/pull/42", foreign: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runner, err := worktree.NewRealGitRunner(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			if _, _, err := runner.Run(t.Context(), root, "init", "--initial-branch=main"); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := runner.Run(
+				t.Context(),
+				root,
+				"remote",
+				"add",
+				"origin",
+				"https://forge.test/acme/repo.git",
+			); err != nil {
+				t.Fatal(err)
+			}
+			paths := testHomePaths(t)
+			resolver := daemonWorktreeWorkspaceResolver{homePaths: paths, resolver: &daemonWorktreeResolverStub{
+				resolved: workspacepkg.ResolvedWorkspace{
+					ID:      "ws",
+					RootDir: root,
+					Config:  config.DefaultWithHome(paths),
+				},
+			}}
+			service := worktree.NewPullRequestService(t.Context(), nil, nil, runner, nil)
+			t.Cleanup(service.Close)
+			runtime := &candidateDiscoveryStub{items: tc.search, readErr: tc.readErr, searchErr: tc.searchErr}
+			adapter := sessionPullRequestAdapter{
+				service:  service,
+				resolver: resolver,
+				runner:   runner,
+				runtime:  func() extensionRuntime { return runtime },
+			}
+			got, err := adapter.WorkCandidates(t.Context(), "ws", tc.query, "pull_requests", max(1, tc.page), 2)
+			if tc.foreign {
+				if !errors.Is(err, session.ErrLinkedWorkRepository) || runtime.reads != 0 || runtime.searches != 0 {
+					t.Fatalf("foreign=%#v err=%v runtime=%#v", got, err, runtime)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Items) != len(tc.want) {
+				t.Fatalf("candidates=%#v want numbers=%v", got, tc.want)
+			}
+			for i, number := range tc.want {
+				if got.Items[i].PRNumber != number || got.Items[i].Repository != "forge.test/acme/repo" {
+					t.Fatalf("candidate=%#v want number=%d", got.Items[i], number)
+				}
+			}
+			if tc.page > 1 && runtime.reads != 0 {
+				t.Fatalf("later page direct reads=%d", runtime.reads)
+			}
+			if runtime.searches != 1 {
+				t.Fatalf("search calls=%d", runtime.searches)
+			}
+			if len(tc.want) > 0 && tc.want[0] == 42 &&
+				(runtime.reads != 1 || got.Items[0].Branch != "topic" || got.Items[0].Title != "Resolved PR") {
+				t.Fatalf("direct candidate=%#v reads=%d", got, runtime.reads)
+			}
+		})
+	}
 	t.Run("Should deliver a workspace wake from an actual PR cache change", func(t *testing.T) {
 		t.Parallel()
 		db := openDaemonTestGlobalDB(t)
@@ -1174,4 +1306,40 @@ func (f *fakeTerminalWorktreeUsage) AcquireUsage(context.Context, string, string
 	}
 	f.held++
 	return f.item, func() { f.held-- }, nil
+}
+
+type candidateDiscoveryStub struct {
+	extensionRuntime
+	items           []extensioncontract.ForgePRCandidate
+	readErr         error
+	searchErr       error
+	reads, searches int
+}
+
+func (*candidateDiscoveryStub) ForgeCapabilities(
+	context.Context,
+	[]string,
+) (extensioncontract.ForgeCapabilitiesResponse, error) {
+	return extensioncontract.ForgeCapabilitiesResponse{Available: true, SupportsPRDiscovery: true}, nil
+}
+
+func (s *candidateDiscoveryStub) ForgeReadPR(
+	_ context.Context,
+	request extensioncontract.ForgePRReadRequest,
+) (extensioncontract.ForgePRCandidate, error) {
+	s.reads++
+	return extensioncontract.ForgePRCandidate{
+		Number: request.Number,
+		Branch: "topic",
+		Title:  "Resolved PR",
+		State:  "open",
+	}, s.readErr
+}
+
+func (s *candidateDiscoveryStub) ForgeSearchPRs(
+	context.Context,
+	extensioncontract.ForgePRSearchRequest,
+) (extensioncontract.ForgePRSearchResponse, error) {
+	s.searches++
+	return extensioncontract.ForgePRSearchResponse{Items: s.items}, s.searchErr
 }

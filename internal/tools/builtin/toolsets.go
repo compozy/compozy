@@ -59,6 +59,8 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionLater.String(),
 			toolspkg.ToolIDSessionResumeLater.String(),
 			toolspkg.ToolIDSessionRename.String(),
+			toolspkg.ToolIDSessionLink.String(),
+			toolspkg.ToolIDSessionUnlink.String(),
 			toolspkg.ToolIDSessionReparent.String(),
 			toolspkg.ToolIDSessionFolderList.String(),
 			toolspkg.ToolIDSessionFolderCreate.String(),

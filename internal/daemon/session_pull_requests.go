@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
@@ -15,6 +16,8 @@ const displayFailedNames = 5
 type sessionPullRequestAdapter struct {
 	service  *worktree.PullRequestService
 	resolver worktree.WorkspaceResolver
+	runtime  func() extensionRuntime
+	runner   worktree.GitRunner
 }
 
 func (a sessionPullRequestAdapter) PullRequests(
@@ -29,8 +32,8 @@ func (a sessionPullRequestAdapter) PullRequests(
 		if !ok {
 			workspace, err := a.resolver.ResolveWorktreeWorkspace(ctx, key.WorkspaceID, "")
 			if err == nil {
-				if key, keyErr := a.service.RepoKey(ctx, workspace.Root); keyErr == nil {
-					repo = key
+				if identity, keyErr := a.linkRepository(ctx, key.WorkspaceID, workspace.Root); keyErr == nil {
+					repo = identity
 				}
 			}
 			repos[key.WorkspaceID] = repo
@@ -38,6 +41,12 @@ func (a sessionPullRequestAdapter) PullRequests(
 		if repo == "" {
 			out[key] = session.PullRequestView{
 				Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "unsupported_remote", Stale: true},
+			}
+			continue
+		}
+		if strings.HasPrefix(repo, localRepositoryPrefix) {
+			out[key] = session.PullRequestView{
+				Lookup: session.PullRequestLookup{State: session.LookupOK},
 			}
 			continue
 		}
@@ -123,6 +132,7 @@ func sessionPullRequestView(entry worktree.PullRequestEntry) session.PullRequest
 		Provider:       facts.Provider,
 		Number:         *facts.PRNumber,
 		URL:            facts.PRURL,
+		Title:          facts.Title,
 		State:          session.PullRequestState(*facts.PRState),
 		Draft:          facts.Draft,
 		HeadSHA:        facts.HeadSHA,
@@ -168,7 +178,7 @@ func (a sessionPullRequestAdapter) RepositoryKeys(
 ) map[string]string {
 	result := make(map[string]string)
 	for id, root := range a.workspaceRoots(ctx, scope, workspaceIDs) {
-		if key, err := a.service.RepoKey(ctx, root); err == nil {
+		if key, err := a.linkRepository(ctx, id, root); err == nil {
 			result[id] = key
 		}
 	}
@@ -241,4 +251,23 @@ func (a sessionPullRequestAdapter) DefaultBranches(
 		result[key] = a.service.IsDefaultBranch(ctx, root, key.Branch)
 	}
 	return result
+}
+
+// Local identities are workspace-scoped and never passed to forge providers.
+const localRepositoryPrefix = "local:"
+
+// linkRepository answers local only when git said there is no usable origin. A lookup that failed
+// or timed out must not save a link under an identity the real origin would then refuse.
+func (a sessionPullRequestAdapter) linkRepository(ctx context.Context, workspaceID, root string) (string, error) {
+	key, err := a.service.RepoKey(ctx, root)
+	if err == nil && key != "" {
+		return key, nil
+	}
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if errors.Is(err, worktree.ErrOriginLookupFailed) || errors.Is(err, context.DeadlineExceeded) {
+		return "", err
+	}
+	return localRepositoryPrefix + workspaceID, nil
 }

@@ -1,0 +1,89 @@
+{
+    "version": 3,
+    "key": "session-links-surfaces",
+    "sequence": 1,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "session-links-surfaces-1",
+            "slug": "session-links-surfaces",
+            "status": "resolved",
+            "createdAt": "2026-11-02T18:38:04.023Z",
+            "updatedAt": "2026-11-02T18:49:01.779Z",
+            "resolvedAt": "2026-11-02T18:48:42.794Z",
+            "context": {
+                "commit": "4228944b77777570133ff5a1c4c756f0b07572d0",
+                "state": "dialog-pick",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(3) > div:nth-of-type(2)",
+                "testId": null,
+                "tag": "div",
+                "text": "Pull requests Add a monthly usage report #963 Open · 14 passed · Review required feat/usage-report Fix the login redire…",
+                "source": "src/drafts/session-links-shared/link-dialog.tsx:180:9",
+                "sourceChain": [
+                    "src/drafts/session-links-shared/link-dialog.tsx:180:9",
+                    "src/drafts/session-links-shared/link-dialog.tsx:165:7",
+                    "src/drafts/session-links-shared/link-dialog.tsx:164:5",
+                    "src/drafts/session-links-shared/link-stage.tsx:150:13",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:162:5",
+                    "src/drafts/stays-on-agents-shared/session-frame.tsx:452:5",
+                    "src/drafts/session-links-shared/link-stage.tsx:144:5",
+                    "src/drafts/session-links-surfaces/dialog-surface.tsx:25:5"
+                ],
+                "rect": {
+                    "x": 778,
+                    "y": 393,
+                    "width": 528,
+                    "height": 362
+                },
+                "rectNormalized": {
+                    "x": 0.373320537428023,
+                    "y": 0.34055459272097055,
+                    "width": 0.2533589251439539,
+                    "height": 0.31369150779896016
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "dfdd8e88-9128-43f1-8b89-6944fc59ae91",
+                    "at": "2026-11-02T18:38:04.037Z",
+                    "editedAt": null,
+                    "body": "espaçamento errado, tudo apertado, densidade de informação, da pra melhorar bastante",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "d348f790-6d7f-4ef9-9114-1ad883ab07c2",
+                    "at": "2026-11-02T18:48:42.793Z",
+                    "editedAt": "2026-11-02T18:49:01.779Z",
+                    "body": "Refiz o diálogo em web/src/drafts/session-links-shared/link-dialog.tsx com o layout ruled do Dialog (cabeçalho e rodapé com hairline, gutter de 20 px), linhas de 56 px e a mesma leitura do popover: título, um status e o número. Tirei a coluna de branch e o aviso de quem adicionou, que não faz sentido antes de vincular. O rodapé agora mostra quantos itens foram selecionados. Conferi dialog-pick em 2084x1154 no escuro, mais claro e os estados de busca, link colado, número desconhecido, outro projeto e GitHub desconectado.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "b6c0b268-3d1f-46c7-8278-6787ef314c6a",
+                            "name": "surfaces-dialog-pick-dark-2084.png",
+                            "type": "image/png",
+                            "size": 133884,
+                            "width": 2084,
+                            "height": 1154,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

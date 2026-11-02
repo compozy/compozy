@@ -201,12 +201,16 @@ func validateInitializeResponse(request InitializeRequest, response InitializeRe
 	if !response.Supports.HealthCheck || !slices.Contains(response.ImplementedMethods, "health_check") {
 		return errors.New("subprocess: initialize response missing required health_check support")
 	}
-	for _, method := range extensionprotocol.CapabilityServiceMethods(response.AcceptedCapabilities.Provides) {
-		if !slices.Contains(response.ImplementedMethods, method) {
-			return fmt.Errorf("subprocess: initialize response missing required capability service method %q", method)
+	for _, provide := range response.AcceptedCapabilities.Provides {
+		for _, method := range extensionprotocol.RequiredServiceMethods(provide) {
+			if !slices.Contains(response.ImplementedMethods, method) {
+				return fmt.Errorf(
+					"subprocess: initialize response missing required capability service method %q",
+					method,
+				)
+			}
 		}
 	}
-
 	return nil
 }
 

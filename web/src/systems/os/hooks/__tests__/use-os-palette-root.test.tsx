@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // availability evaluation (cmd-palette-availability), overlay lifetime
 // (use-desktop-overlays), stack and filter mechanics (palette-view-stack,
 // palette-session-filters), and daemon command transport.
+import { sessionLinkDialogStore } from "@/systems/session/hooks/use-session-link-dialog";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -1418,6 +1419,28 @@ describe("useOsPaletteRoot", () => {
     });
 
     expect(paletteMocks.coordinator.userActivateWindow).toHaveBeenCalledWith("window:deep-task");
+  });
+
+  // Invariant: the link command reaches the focused session's one dialog, only once asked for.
+  it("Should offer linking for the focused session and open its dialog", () => {
+    const focused = windowFixture({
+      app: "session",
+      id: "window:session",
+      instanceKey: "session:focused",
+      route: { pathname: "/agents/codex/sessions/session%3Afocused", search: {} },
+    });
+    paletteMocks.desktop = desktopFixture({ [focused.id]: focused }, focused.id);
+    const onOpenChange = vi.fn();
+    const { result } = renderRoot(true, onOpenChange);
+    expect(result.current.entities.linkSessionId).toBeNull();
+
+    act(() => result.current.setQuery("link"));
+    expect(result.current.entities.linkSessionId).toBe("session:focused");
+
+    act(() => result.current.linkSession("session:focused"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(sessionLinkDialogStore.getSnapshot().context.sessionId).toBe("session:focused");
+    sessionLinkDialogStore.trigger.closed();
   });
 
   it("Should render contextual Go to tab results, attention, and no empty group [UT-100]", () => {

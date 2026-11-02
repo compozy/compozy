@@ -54,6 +54,7 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
     error,
     foreign,
     isLoading,
+    focused,
     liveTailEnabled,
     session,
     sessionId,
@@ -89,6 +90,7 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
           id={sessionId}
           workspaceId={workspaceId ?? ""}
           session={undefined}
+          focused={focused}
           liveTailEnabled={liveTailEnabled}
           isLoading
           error={null}
@@ -113,6 +115,7 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
         id={sessionId}
         workspaceId={workspaceId}
         session={session}
+        focused={focused}
         liveTailEnabled={effectiveLiveTailEnabled}
         isLoading={isLoading}
         error={error}

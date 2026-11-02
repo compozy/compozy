@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+type TaskTimelineItem struct {
+	Sequence  int64                  `json:"sequence"`
+	EventID   string                 `json:"event_id"`
+	Task      TaskReferencePayload   `json:"task"`
+	Run       *TaskRunSummaryPayload `json:"run,omitempty"`
+	EventType string                 `json:"event_type"`
+	Reason    string                 `json:"reason,omitempty"`
+	Actor     ActorIdentity          `json:"actor"`
+	Origin    Origin                 `json:"origin"`
+	Payload   json.RawMessage        `json:"payload,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+}
+
+type TaskTimelineParams struct {
+	ID            string `json:"id"`
+	AfterSequence int64  `json:"after_sequence,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
+}
+
+type TaskTree struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
+}
+
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
 type TaskTreeParams struct {
 	ID string `json:"id"`
 }
@@ -300,27 +333,3 @@ type Tool struct {
 	Tags                       []string        `json:"tags,omitempty"`
 	SearchHints                []string        `json:"search_hints,omitempty"`
 }
-
-type ToolCallPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	ToolID     *string         `json:"tool_id,omitempty"`
-	ReadOnly   *bool           `json:"read_only,omitempty"`
-	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
-}
-
-type ToolCallRef struct {
-	ToolCallID string `json:"tool_call_id,omitempty"`
-	ToolID     string `json:"tool_id,omitempty"`
-	ReadOnly   bool   `json:"read_only,omitempty"`
-}
-
-type ToolContent struct {
-	Type     string                     `json:"type"`
-	Text     string                     `json:"text,omitempty"`
-	Data     json.RawMessage            `json:"data,omitempty"`
-	MIMEType string                     `json:"mime_type,omitempty"`
-	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
-}
-
-type ToolID string

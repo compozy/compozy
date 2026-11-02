@@ -15,5 +15,9 @@ export { pullRequestPill, type PullRequestPill } from "./lib/pull-request-signal
 export { cachedSessionOpenPullRequestNumber } from "./lib/session-pull-request-cache";
 export { useSessionPullRequestRefresh } from "./hooks/use-session-pull-request-refresh";
 export { useSessionCatalog } from "./hooks/use-session-catalog";
+export { requestSessionLinkDialog } from "./hooks/use-session-link-dialog";
+export { useSessionLinkedWork } from "./hooks/use-session-linked-work";
+export { SessionLinkDialogHost } from "./components/session-linked-work/session-link-dialog-host";
+export { linkNumber } from "./lib/session-linked-work";
 export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
 export { fetchSessionFacets } from "./adapters/session-catalog-api";

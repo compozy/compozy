@@ -7069,6 +7069,32 @@ export type SessionLineagePayload = {
   ttl_expires_at?: string | null;
 };
 
+export type SessionLinkedWorkItem = {
+  branch: string;
+  pr_number?: number;
+  provenance: string;
+  pull_request: SessionPullRequestPayload | null;
+  pull_request_lookup: SessionPullRequestLookupPayload | null;
+  repository: string;
+  runs_here: boolean;
+  source_session_id?: string;
+  source_session_title?: string;
+  worktree_id?: string;
+  worktree_name?: string;
+  worktree_removed: boolean;
+};
+
+export type SessionLinkedWorkResponse = {
+  items: Array<SessionLinkedWorkItem>;
+};
+
+export type SessionLinkedWorkSummary = {
+  lead?: SessionLinkedWorkItem | null;
+  needs_you: number;
+  pull_requests: number;
+  total: number;
+};
+
 export type SessionMonitorPayload = {
   branch?: string;
   created_at: string;
@@ -7155,6 +7181,7 @@ export type SessionPayload = {
   instance_id?: string;
   later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
+  linked_work?: SessionLinkedWorkSummary | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
   parent_title?: string;
@@ -7339,6 +7366,7 @@ export type SessionPullRequestPayload = {
   ready_to_merge: boolean;
   review_decision: "approved" | "changes_requested" | "review_required" | "none" | "unknown";
   state: "open" | "closed" | "merged";
+  title?: string;
   url: string;
 };
 
@@ -7555,6 +7583,12 @@ export type SessionWaitResponse = {
   state?: string;
   until?: Array<string>;
   waited_ms: number;
+};
+
+export type SessionWorkLinkRequest = {
+  branch: string;
+  pr_number?: number;
+  repository?: string;
 };
 
 export type SessionWorkTimePayload = {
@@ -12270,6 +12304,23 @@ export type WindowManagerWindow = {
   return_anchor?: WindowManagerReturnAnchor | null;
   route: RouteIntent;
   zoomed: boolean;
+};
+
+export type WorkCandidate = {
+  branch: string;
+  head_repository?: string;
+  pr_number?: number;
+  repository: string;
+  state?: string;
+  title?: string;
+  url?: string;
+};
+
+export type WorkCandidates = {
+  has_more: boolean;
+  items: Array<WorkCandidate>;
+  repository?: string;
+  supports_pr_discovery: boolean;
 };
 
 export type WorkSignal = {
@@ -36694,6 +36745,307 @@ export type MoveSessionToLaterResponses = {
 
 export type MoveSessionToLaterResponse =
   MoveSessionToLaterResponses[keyof MoveSessionToLaterResponses];
+
+export type SearchSessionWorkCandidatesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+    /**
+     * Candidate source; defaults to pull requests with local branch fallback
+     */
+    kind?: "branches" | "pull_requests";
+    /**
+     * Search repository pull requests or local branches
+     */
+    q?: string;
+    /**
+     * Page number, starting at 1
+     */
+    page?: string;
+    /**
+     * Page size, at most 100; page 1 may include one additional exact PR match, which is omitted from later pages
+     */
+    limit?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates";
+};
+
+export type SearchSessionWorkCandidatesErrors = {
+  /**
+   * Invalid link or repository mismatch
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Forge discovery failed
+   */
+  502: ErrorPayload;
+  /**
+   * Linked work unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type SearchSessionWorkCandidatesError =
+  SearchSessionWorkCandidatesErrors[keyof SearchSessionWorkCandidatesErrors];
+
+export type SearchSessionWorkCandidatesResponses = {
+  /**
+   * Linked work
+   */
+  200: WorkCandidates;
+};
+
+export type SearchSessionWorkCandidatesResponse =
+  SearchSessionWorkCandidatesResponses[keyof SearchSessionWorkCandidatesResponses];
+
+export type RemoveSessionWorkLinkData = {
+  /**
+   * JSON request body
+   */
+  body: SessionWorkLinkRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links";
+};
+
+export type RemoveSessionWorkLinkErrors = {
+  /**
+   * Invalid link or repository mismatch
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Linked work unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveSessionWorkLinkError =
+  RemoveSessionWorkLinkErrors[keyof RemoveSessionWorkLinkErrors];
+
+export type RemoveSessionWorkLinkResponses = {
+  /**
+   * Linked work
+   */
+  200: SessionLinkedWorkResponse;
+};
+
+export type RemoveSessionWorkLinkResponse =
+  RemoveSessionWorkLinkResponses[keyof RemoveSessionWorkLinkResponses];
+
+export type ListSessionLinkedWorkData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links";
+};
+
+export type ListSessionLinkedWorkErrors = {
+  /**
+   * Invalid link or repository mismatch
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Linked work unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionLinkedWorkError =
+  ListSessionLinkedWorkErrors[keyof ListSessionLinkedWorkErrors];
+
+export type ListSessionLinkedWorkResponses = {
+  /**
+   * Linked work
+   */
+  200: SessionLinkedWorkResponse;
+};
+
+export type ListSessionLinkedWorkResponse =
+  ListSessionLinkedWorkResponses[keyof ListSessionLinkedWorkResponses];
+
+export type AddSessionWorkLinkData = {
+  /**
+   * JSON request body
+   */
+  body: SessionWorkLinkRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links";
+};
+
+export type AddSessionWorkLinkErrors = {
+  /**
+   * Invalid link or repository mismatch
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Linked work unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AddSessionWorkLinkError = AddSessionWorkLinkErrors[keyof AddSessionWorkLinkErrors];
+
+export type AddSessionWorkLinkResponses = {
+  /**
+   * Linked work
+   */
+  200: SessionLinkedWorkResponse;
+};
+
+export type AddSessionWorkLinkResponse =
+  AddSessionWorkLinkResponses[keyof AddSessionWorkLinkResponses];
+
+export type RefreshSessionWorkLinkData = {
+  /**
+   * JSON request body
+   */
+  body: SessionWorkLinkRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh";
+};
+
+export type RefreshSessionWorkLinkErrors = {
+  /**
+   * Invalid link or repository mismatch
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Linked work unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RefreshSessionWorkLinkError =
+  RefreshSessionWorkLinkErrors[keyof RefreshSessionWorkLinkErrors];
+
+export type RefreshSessionWorkLinkResponses = {
+  /**
+   * Linked work
+   */
+  200: SessionLinkedWorkResponse;
+};
+
+export type RefreshSessionWorkLinkResponse =
+  RefreshSessionWorkLinkResponses[keyof RefreshSessionWorkLinkResponses];
 
 export type ListSessionMonitorsData = {
   body?: never;

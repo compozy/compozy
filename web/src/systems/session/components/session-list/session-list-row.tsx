@@ -3,6 +3,7 @@ import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
+import { SessionLinkCountMark } from "../session-linked-work/session-link-count-mark";
 import { StaysOnCreatorBadge } from "../stays-on/stays-on-signals";
 import { SessionListRowView, type SessionListRowProps } from "./session-list-row-view";
 import { SessionSelectionContextItems } from "./session-list-selection-menu";
@@ -19,6 +20,7 @@ export function SessionListRow(props: SessionListRowProps) {
   const creator = useSessionCreator(session);
   const preloadHandlers = useSessionEntryPreload(session, !current && !selection?.mode);
   const selected = selection?.selectedIds.has(session.id) ?? false;
+  const links = session.linked_work?.total ? session.linked_work : null;
   // A row inside a multi-selection offers the selection's verbs; one selected row keeps its own.
   const verbs = selected && selection?.verbs && selection.verbs.count > 1 ? selection.verbs : null;
   return (
@@ -28,9 +30,10 @@ export function SessionListRow(props: SessionListRowProps) {
       rowActions={<SessionRowActions actions={sessionActions} session={session} />}
       runtime={runtime}
       trailing={
-        creator ? (
+        creator || links ? (
           <>
-            <StaysOnCreatorBadge creator={creator} />
+            {links ? <SessionLinkCountMark summary={links} /> : null}
+            {creator ? <StaysOnCreatorBadge creator={creator} /> : null}
             {props.trailing}
           </>
         ) : (

@@ -2,6 +2,7 @@
 export interface PaletteSelectionRoot {
   readonly rowSources: {
     readonly commands: readonly { readonly id: string }[];
+    readonly linkRows: readonly string[];
     readonly sessions: readonly { readonly sessionId: string }[];
     readonly tabs: readonly { readonly windowId: string }[];
     readonly worktrees: readonly { readonly key: string }[];
@@ -16,6 +17,7 @@ export function paletteSelectionValues(root: PaletteSelectionRoot): readonly str
   return [
     ...sources.commands.map(command => command.id),
     ...(root.fallback === null ? [] : [root.fallback.value]),
+    ...sources.linkRows,
     ...sources.sessions.map(session => `session:${session.sessionId}`),
     ...sources.tabs.map(tab => `tab:${tab.windowId}`),
     ...sources.worktrees.map(entry => `worktree:${entry.key}`),

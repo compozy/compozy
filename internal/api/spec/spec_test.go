@@ -3233,6 +3233,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		if addSessionLinkedWorkSchemas(baseline) == 0 {
+			t.Fatal("approved linked_work addition: no historical session schemas found")
+		}
 		addAgentIdentitySchemas(t, baseline)
 		addInstanceReadSchemas(t, baseline)
 		addProfileRemovalInstanceCounts(t, baseline)
@@ -5532,6 +5535,21 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 	)
 }
 
+func TestSessionLinkedWorkSummary(t *testing.T) {
+	t.Run("Should expose the pull request count in the session summary", func(t *testing.T) {
+		t.Parallel()
+		doc, err := Document()
+		if err != nil {
+			t.Fatal(err)
+		}
+		schema := doc.Components.Schemas["SessionLinkedWorkSummary"].Value
+		assertRequired(t, schema, "total", "needs_you", "pull_requests")
+		if !schema.Properties["pull_requests"].Value.Type.Is("integer") {
+			t.Fatal("pull_requests must be an integer")
+		}
+	})
+}
+
 func addGoalWaitSchemas(value any) int {
 	count := 0
 	switch node := value.(type) {
@@ -5557,6 +5575,65 @@ func addGoalWaitSchemas(value any) int {
 				count++
 			}
 		}
+	}
+	return count
+}
+
+func addSessionLinkedWorkSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionLinkedWorkSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionLinkedWorkSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["head_sha"] != nil && properties["number"] != nil && properties["provider"] != nil {
+			properties["title"] = map[string]any{"type": "string"}
+		}
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["id"] == nil {
+			return count
+		}
+		itemProperties := map[string]any{
+			"pull_request": properties["pull_request"], "pull_request_lookup": properties["pull_request_lookup"],
+		}
+		for _, key := range []string{"repository", "branch", "worktree_id", "worktree_name", "provenance", "source_session_id", "source_session_title"} {
+			itemProperties[key] = map[string]any{"type": "string"}
+		}
+		for _, key := range []string{"worktree_removed", "runs_here"} {
+			itemProperties[key] = map[string]any{"type": "boolean"}
+		}
+		itemProperties["pr_number"] = map[string]any{"type": "integer"}
+		properties["linked_work"] = map[string]any{
+			"type":     "object",
+			"nullable": true,
+			"required": []any{"needs_you", "pull_requests", "total"},
+			"properties": map[string]any{
+				"total": map[string]any{
+					"type": "integer",
+				},
+				"needs_you":     map[string]any{"type": "integer"},
+				"pull_requests": map[string]any{"type": "integer"},
+				"lead": map[string]any{
+					"type":       "object",
+					"nullable":   true,
+					"properties": itemProperties,
+					"required": []any{
+						"branch",
+						"provenance",
+						"pull_request",
+						"pull_request_lookup",
+						"repository",
+						"runs_here",
+						"worktree_removed",
+					},
+				},
+			},
+		}
+		count++
 	}
 	return count
 }

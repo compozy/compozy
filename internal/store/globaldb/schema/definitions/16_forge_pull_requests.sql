@@ -4,6 +4,7 @@ CREATE TABLE forge_pull_requests (
  branch TEXT NOT NULL CHECK (length(branch) > 0),
  provider TEXT NOT NULL DEFAULT '',
  pr_number INTEGER CHECK (pr_number IS NULL OR pr_number > 0),
+ title TEXT NOT NULL DEFAULT '',
  pr_url TEXT NOT NULL DEFAULT '',
  pr_state TEXT CHECK (pr_state IS NULL OR pr_state IN ('open', 'closed', 'merged')),
  merged INTEGER CHECK (merged IS NULL OR merged IN (0, 1)),

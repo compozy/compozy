@@ -4,6 +4,64 @@ package contracts
 
 import "time"
 
+type SessionPreCreatePayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type SessionPreResumePatch struct {
+	Deny        bool    `json:"deny,omitempty"`
+	DenyReason  string  `json:"deny_reason,omitempty"`
+	SessionName *string `json:"session_name,omitempty"`
+	SessionType *string `json:"session_type,omitempty"`
+	AgentName   *string `json:"agent_name,omitempty"`
+	WorkspaceID *string `json:"workspace_id,omitempty"`
+	Workspace   *string `json:"workspace,omitempty"`
+}
+
+type SessionPreResumePayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type SessionPreStopPatch struct {
+	Deny        bool    `json:"deny,omitempty"`
+	DenyReason  string  `json:"deny_reason,omitempty"`
+	SessionName *string `json:"session_name,omitempty"`
+	SessionType *string `json:"session_type,omitempty"`
+	AgentName   *string `json:"agent_name,omitempty"`
+	WorkspaceID *string `json:"workspace_id,omitempty"`
+	Workspace   *string `json:"workspace,omitempty"`
+}
+
 type SessionPreStopPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -246,30 +304,4 @@ type SessionSummary struct {
 type SessionTargetParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
-}
-
-type SessionsCreateParams struct {
-	Agent     string `json:"agent"`
-	Workspace string `json:"workspace,omitempty"`
-}
-
-type SessionsListParams struct {
-	Workspace string `json:"workspace,omitempty"`
-	Archive   string `json:"archive,omitempty"`
-}
-
-type SessionsPromptParams struct {
-	WorkspaceID    string                         `json:"workspace_id"`
-	SessionID      string                         `json:"session_id"`
-	Message        string                         `json:"message"`
-	MessageID      string                         `json:"message_id"`
-	IdempotencyKey string                         `json:"idempotency_key"`
-	Mode           PromptMode                     `json:"mode,omitempty"`
-	ExpectedTurnID string                         `json:"expected_turn_id,omitempty"`
-	Runtime        *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
-}
-
-type ShutdownRequest struct {
-	Reason     string `json:"reason"`
-	DeadlineMS int64  `json:"deadline_ms"`
 }

@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+type State string
+
+type Status string
+
+type SteerDeliveryMode string
+
+const (
+	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
+	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
+	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
+)
+
+type StopReason string
+
 type StuckTaskRun struct {
 	TaskID     string        `json:"task_id"`
 	RunID      string        `json:"run_id"`
@@ -286,34 +300,4 @@ type TaskDashboardActiveRunPayload struct {
 	HealthStatus   string        `json:"health_status"`
 	Stuck          bool          `json:"stuck"`
 	Error          string        `json:"error,omitempty"`
-}
-
-type TaskDashboardActiveRunsPayload struct {
-	Total    int                             `json:"total"`
-	Running  int                             `json:"running"`
-	Starting int                             `json:"starting"`
-	Claimed  int                             `json:"claimed"`
-	Queued   int                             `json:"queued"`
-	Items    []TaskDashboardActiveRunPayload `json:"items,omitempty"`
-}
-
-type TaskDashboardBlockedCardPayload struct {
-	Tasks                int    `json:"tasks"`
-	AwaitingApproval     int    `json:"awaiting_approval"`
-	AwaitingDependencies int    `json:"awaiting_dependencies"`
-	HealthStatus         string `json:"health_status"`
-}
-
-type TaskDashboardCardsPayload struct {
-	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
-	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
-	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
-	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
-}
-
-type TaskDashboardFailedCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	FailedRuns   int    `json:"failed_runs"`
-	ForcedStops  int    `json:"forced_stops"`
-	HealthStatus string `json:"health_status"`
 }

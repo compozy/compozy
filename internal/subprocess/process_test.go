@@ -1004,6 +1004,34 @@ func TestInitializeRequestValidateRejectsMissingFields(t *testing.T) {
 	}
 }
 
+func TestInitializeLegacyForgeProvider(t *testing.T) {
+	t.Parallel()
+	t.Run("Should accept a forge provider without optional discovery methods", func(t *testing.T) {
+		t.Parallel()
+		request := InitializeRequest{
+			SupportedProtocolVersion: []string{defaultProtocolVersion},
+			Capabilities: InitializeCapabilities{
+				Provides: []string{extensionprotocol.CapabilityProvideForgeProvider},
+			},
+		}
+		response := InitializeResponse{
+			ProtocolVersion:      defaultProtocolVersion,
+			AcceptedCapabilities: AcceptedCapabilities{Provides: request.Capabilities.Provides},
+			ImplementedMethods: []string{
+				"shutdown",
+				"health_check",
+				"forge/capabilities",
+				"forge/status",
+				"forge/pr_create",
+			},
+			Supports: InitializeSupports{HealthCheck: true},
+		}
+		if err := validateInitializeResponse(request, response); err != nil {
+			t.Fatalf("legacy forge rejected: %v", err)
+		}
+	})
+}
+
 func TestValidateInitializeResponseRejectsInvalidContracts(t *testing.T) {
 	t.Parallel()
 

@@ -123,6 +123,14 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "processes"] as const,
   processesForProfile: (workspace: string, id: string, profile: string) =>
     [...sessionKeys.processes(workspace, id), profile] as const,
+  /** Everything linked to the session: under `detail`, so a detail sweep reaches it. */
+  linkedWork: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "linked-work"] as const,
+  /** Server pages of what this session could link, one entry per search. */
+  linkCandidatesRoot: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "link-candidates"] as const,
+  linkCandidates: (workspace: string, id: string, kind: string, query: string) =>
+    [...sessionKeys.linkCandidatesRoot(workspace, id), { kind, q: query }] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>

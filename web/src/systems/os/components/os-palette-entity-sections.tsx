@@ -1,4 +1,4 @@
-import { ArrowRightLeft, FolderGit2 } from "@compozy/ui/icons";
+import { ArrowRightLeft, FolderGit2, Link2 } from "@compozy/ui/icons";
 
 import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
@@ -27,6 +27,7 @@ export interface OsPaletteEntitySectionsProps {
   onOpenSession: (session: OsPaletteEntities["sessions"][number]) => void;
   onGoToTab: (windowId: string) => void;
   onSelectWorktree: (entry: OsPaletteWorktreeResult) => void;
+  onLinkSession?: (sessionId: string) => void;
 }
 
 /**
@@ -43,9 +44,30 @@ export function OsPaletteEntitySections({
   onOpenSession,
   onGoToTab,
   onSelectWorktree,
+  onLinkSession,
 }: OsPaletteEntitySectionsProps) {
+  const { linkSessionId } = entities;
   return (
     <>
+      {linkSessionId && onLinkSession ? (
+        <CommandGroup
+          className={GROUP_CLASS}
+          data-testid="os-palette-section-session-link"
+          heading="This session"
+        >
+          <CommandItem
+            className={paletteRowClass}
+            data-palette-row="session-link"
+            data-testid="os-palette-session-link"
+            forceMount
+            value="session-link"
+            onSelect={() => onLinkSession(linkSessionId)}
+          >
+            <Link2 aria-hidden="true" className="size-3.5 text-muted-foreground" />
+            Link a pull request or branch…
+          </CommandItem>
+        </CommandGroup>
+      ) : null}
       {entities.sessions.length > 0 ? (
         <CommandGroup
           className={GROUP_CLASS}
@@ -74,6 +96,7 @@ export function OsPaletteEntitySections({
               <span className="min-w-0 truncate leading-none">{session.title}</span>
               <span className="ml-auto shrink-0 text-eyebrow text-subtle">
                 <AgentIdentityLabel name={session.agentName} />
+                {session.pullRequestLabel ? ` · ${session.pullRequestLabel}` : ""}
                 {session.workspaceLabel ? ` · ${session.workspaceLabel}` : ""}
               </span>
             </CommandItem>

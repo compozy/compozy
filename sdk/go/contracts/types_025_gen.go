@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+type ToolCallPatch struct {
+	Deny       bool            `json:"deny,omitempty"`
+	DenyReason string          `json:"deny_reason,omitempty"`
+	ToolID     *string         `json:"tool_id,omitempty"`
+	ReadOnly   *bool           `json:"read_only,omitempty"`
+	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
+}
+
+type ToolCallRef struct {
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	ToolID     string `json:"tool_id,omitempty"`
+	ReadOnly   bool   `json:"read_only,omitempty"`
+}
+
+type ToolContent struct {
+	Type     string                     `json:"type"`
+	Text     string                     `json:"text,omitempty"`
+	Data     json.RawMessage            `json:"data,omitempty"`
+	MIMEType string                     `json:"mime_type,omitempty"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
+}
+
+type ToolID string
+
 type ToolLocation struct {
 	Path      string `json:"path,omitempty"`
 	StartLine int    `json:"start_line,omitempty"`
@@ -272,41 +296,4 @@ type ViewChrome struct {
 	OnChip      string      `json:"on_chip,omitempty"`
 	OnSelection string      `json:"on_selection,omitempty"`
 	OnLoadMore  string      `json:"on_load_more,omitempty"`
-}
-
-type ViewCloseRequest struct {
-	ViewSession string      `json:"view_session"`
-	ProfileLens ProfileLens `json:"profile_lens"`
-	Reason      string      `json:"reason,omitempty"`
-}
-
-type ViewEvent struct {
-	ViewSession  string        `json:"view_session"`
-	Handler      string        `json:"handler"`
-	Args         []any         `json:"args,omitempty"`
-	Revision     string        `json:"revision"`
-	Seq          int64         `json:"seq"`
-	Generation   uint64        `json:"generation"`
-	AckEffects   []string      `json:"ack_effects,omitempty"`
-	EffectResult *EffectResult `json:"effect_result,omitempty"`
-}
-
-type ViewFrame struct {
-	ViewSession string       `json:"view_session"`
-	Revision    string       `json:"revision"`
-	InReplyTo   int64        `json:"in_reply_to,omitempty"`
-	Generation  uint64       `json:"generation"`
-	Payload     *ViewPayload `json:"payload,omitempty"`
-	Patch       *ViewPatch   `json:"patch,omitempty"`
-	Effects     []Effect     `json:"effects,omitempty"`
-	Handlers    []string     `json:"handlers"`
-}
-
-type ViewOpenRequest struct {
-	ViewSession string         `json:"view_session"`
-	View        string         `json:"view"`
-	ProfileLens ProfileLens    `json:"profile_lens"`
-	Workspace   WorkspaceID    `json:"workspace"`
-	Client      ClientID       `json:"client"`
-	Args        map[string]any `json:"args,omitempty"`
 }

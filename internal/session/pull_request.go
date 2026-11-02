@@ -45,6 +45,7 @@ type PullRequestChecks struct {
 }
 
 type PullRequest struct {
+	Title          string
 	Provider       string
 	Number         int
 	URL            string

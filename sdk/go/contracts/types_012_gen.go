@@ -7,6 +7,101 @@ import (
 	"time"
 )
 
+type LoopGenerationPostPayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	// OriginKind identifies the actor or task source kind that started the loop.
+	OriginKind string `json:"origin_kind,omitempty"`
+	// OriginRef identifies the actor or task source reference that started the loop.
+	OriginRef string `json:"origin_ref,omitempty"`
+	// Origin is the closed loop-generation provenance value that explains why this generation exists.
+	Origin           LoopGenerationOrigin `json:"origin"`
+	ParentGeneration int64                `json:"parent_generation"`
+	Status           string               `json:"status,omitempty"`
+	ReasonCode       string               `json:"reason_code,omitempty"`
+	Details          json.RawMessage      `json:"details,omitempty"`
+	Denied           bool                 `json:"denied,omitempty"`
+	DenyReason       string               `json:"deny_reason,omitempty"`
+}
+
+type LoopGenerationPrePatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
+type LoopGenerationPrePayload struct {
+	Event           HookEvent `json:"event"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProfileID       string    `json:"profile_id,omitempty"`
+	LoopRunID       string    `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string    `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	LoopName        string    `json:"loop_name,omitempty"`
+	Generation      int       `json:"generation,omitempty"`
+	TaskID          string    `json:"task_id,omitempty"`
+	RunID           string    `json:"run_id,omitempty"`
+	RunKind         string    `json:"run_kind,omitempty"`
+	NodeID          string    `json:"node_id,omitempty"`
+	WorkflowID      string    `json:"workflow_id,omitempty"`
+	AgentName       string    `json:"agent_name,omitempty"`
+	SessionID       string    `json:"session_id,omitempty"`
+	ActorKind       string    `json:"actor_kind,omitempty"`
+	ActorID         string    `json:"actor_id,omitempty"`
+	// OriginKind identifies the actor or task source kind that started the loop.
+	OriginKind string `json:"origin_kind,omitempty"`
+	// OriginRef identifies the actor or task source reference that started the loop.
+	OriginRef string `json:"origin_ref,omitempty"`
+	// Origin is the closed loop-generation provenance value that explains why this generation exists.
+	Origin           LoopGenerationOrigin `json:"origin"`
+	ParentGeneration int64                `json:"parent_generation"`
+	Status           string               `json:"status,omitempty"`
+	ReasonCode       string               `json:"reason_code,omitempty"`
+	Details          json.RawMessage      `json:"details,omitempty"`
+	Denied           bool                 `json:"denied,omitempty"`
+	DenyReason       string               `json:"deny_reason,omitempty"`
+}
+
+type LoopLifecyclePayload struct {
+	Event           HookEvent       `json:"event"`
+	Timestamp       time.Time       `json:"timestamp"`
+	ProfileID       string          `json:"profile_id,omitempty"`
+	LoopRunID       string          `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string          `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string          `json:"workspace_id,omitempty"`
+	LoopName        string          `json:"loop_name,omitempty"`
+	Generation      int             `json:"generation,omitempty"`
+	TaskID          string          `json:"task_id,omitempty"`
+	RunID           string          `json:"run_id,omitempty"`
+	RunKind         string          `json:"run_kind,omitempty"`
+	NodeID          string          `json:"node_id,omitempty"`
+	WorkflowID      string          `json:"workflow_id,omitempty"`
+	AgentName       string          `json:"agent_name,omitempty"`
+	SessionID       string          `json:"session_id,omitempty"`
+	ActorKind       string          `json:"actor_kind,omitempty"`
+	ActorID         string          `json:"actor_id,omitempty"`
+	OriginKind      string          `json:"origin_kind,omitempty"`
+	OriginRef       string          `json:"origin_ref,omitempty"`
+	Status          string          `json:"status,omitempty"`
+	Cause           string          `json:"cause,omitempty"`
+	ReasonCode      string          `json:"reason_code,omitempty"`
+	Details         json.RawMessage `json:"details,omitempty"`
+}
+
 type LoopNodeTerminalPayload struct {
 	Event           HookEvent       `json:"event"`
 	Timestamp       time.Time       `json:"timestamp"`
@@ -291,32 +386,4 @@ type ModelSourceListParams struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	Refresh      bool   `json:"refresh,omitempty"`
 	IncludeStale bool   `json:"include_stale,omitempty"`
-}
-
-type ModelSourceListResponse struct {
-	Rows []ModelSourceRow `json:"rows"`
-}
-
-type ModelSourceOptionDescriptor struct {
-	ID             string                   `json:"id"`
-	Label          string                   `json:"label,omitempty"`
-	Description    string                   `json:"description,omitempty"`
-	Category       string                   `json:"category,omitempty"`
-	Kind           ModelSourceOptionKind    `json:"kind"`
-	CurrentValueID string                   `json:"current_value_id,omitempty"`
-	CurrentBool    *bool                    `json:"current_bool,omitempty"`
-	Values         []ModelSourceOptionValue `json:"values,omitempty"`
-}
-
-type ModelSourceOptionKind string
-
-const (
-	ModelSourceOptionKindSelect  ModelSourceOptionKind = "select"
-	ModelSourceOptionKindBoolean ModelSourceOptionKind = "boolean"
-)
-
-type ModelSourceOptionSelection struct {
-	ID        string `json:"id"`
-	ValueID   string `json:"value_id,omitempty"`
-	BoolValue *bool  `json:"bool_value,omitempty"`
 }
