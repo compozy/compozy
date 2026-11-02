@@ -25,7 +25,10 @@ export function sessionLinkedWorkOptions(workspace: string, id: string) {
   });
 }
 
-/** The server searches and pages; a loaded page is never filtered here. */
+/**
+ * The server searches and pages; a loaded page is never filtered here. `has_more` alone continues
+ * the search, because page one may carry one extra exact match.
+ */
 export function sessionLinkCandidatesOptions(
   workspace: string,
   id: string,

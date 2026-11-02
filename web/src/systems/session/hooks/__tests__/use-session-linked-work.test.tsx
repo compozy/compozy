@@ -268,18 +268,31 @@ describe("useSessionLinkDialogModel", () => {
     });
   });
 
-  it("Should page on the server", async () => {
-    candidates(SESSION_LINK_PULL_REQUESTS.slice(0, 2), { has_more: true });
+  it("Should page on the server by its own answer, not by a page size", async () => {
+    // Page one may carry one extra exact match, and the pages after it don't repeat that match.
+    const pages = [SESSION_LINK_PULL_REQUESTS.slice(0, 31), SESSION_LINK_PULL_REQUESTS.slice(31)];
+    vi.mocked(searchSessionLinkCandidates).mockImplementation(async (_w, _s, query) =>
+      query.kind === "branches"
+        ? { items: [], has_more: false, supports_pr_discovery: false }
+        : {
+            items: pages[query.page - 1] ?? [],
+            has_more: query.page < pages.length,
+            supports_pr_discovery: true,
+          }
+    );
     const { result } = dialog();
     await waitFor(() => expect(result.current.hasMore).toBe(true));
     act(() => result.current.onLoadMore());
-    await waitFor(() =>
-      expect(searchSessionLinkCandidates).toHaveBeenCalledWith(
-        WORKSPACE,
-        session.id,
-        expect.objectContaining({ kind: "pull_requests", page: 2 }),
-        expect.anything()
-      )
+    await waitFor(() => expect(result.current.hasMore).toBe(false));
+    expect(searchSessionLinkCandidates).toHaveBeenCalledWith(
+      WORKSPACE,
+      session.id,
+      expect.objectContaining({ kind: "pull_requests", page: 2 }),
+      expect.anything()
+    );
+    const { search } = result.current;
+    expect(search.kind === "results" ? search.pullRequests : []).toEqual(
+      SESSION_LINK_PULL_REQUESTS
     );
   });
 
