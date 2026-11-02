@@ -346,7 +346,8 @@ func TestProvider(t *testing.T) {
 		}
 		item := result.Items[0]
 		if item.Number != 42 || item.Title != "Linked work" || item.Branch != "topic" ||
-			item.HeadRepository != "github.com/contributor/repo" {
+			item.HeadRepository != "github.com/contributor/repo" ||
+			item.URL != "https://github.com/acme/repo/pull/42" || item.State != "open" {
 			t.Fatalf("candidate=%+v", item)
 		}
 	})

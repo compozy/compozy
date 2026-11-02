@@ -96,5 +96,7 @@ func sessionCatalogOwnWorkSearch(query store.SessionCatalogPageQuery) (string, [
  AND NOT EXISTS (SELECT 1 FROM session_work_links l WHERE l.session_id = own_link.id
  AND l.branch = own_link.branch AND l.repo_key = json_extract(?, '$.' || json_quote(own_link.workspace_id)))
  AND (instr(compozy_unicode_lower(own_link.branch),?) > 0` + number + `))`,
-		append([]any{string(repos), string(defaults), string(repos), store.LowerSessionCatalogSearchText(text)}, numberArgs...), nil
+		append(
+			[]any{string(repos), string(defaults), string(repos), store.LowerSessionCatalogSearchText(text)},
+			numberArgs...), nil
 }

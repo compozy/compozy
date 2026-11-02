@@ -183,6 +183,15 @@ func (h *BaseHandlers) respondLinkedWorkError(c *gin.Context, err error) {
 	h.respondError(c, StatusForSessionError(err), err)
 }
 
+// linkCandidateQueryInt reads a paging value; the manager clamps whatever it receives.
+func linkCandidateQueryInt(c *gin.Context, key string, fallback int) int {
+	value, err := strconv.Atoi(c.Query(key))
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
 func (h *BaseHandlers) SearchSessionWorkCandidates(c *gin.Context) {
 	_, id, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
@@ -203,8 +212,7 @@ func (h *BaseHandlers) SearchSessionWorkCandidates(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("linked work discovery unavailable"))
 		return
 	}
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "30"))
+	page, limit := linkCandidateQueryInt(c, "page", 1), linkCandidateQueryInt(c, "limit", 30)
 	response, err := reader.SessionWorkCandidates(c.Request.Context(), id, c.Query("q"), c.Query("kind"), page, limit)
 	if err != nil {
 		if errors.Is(err, session.ErrLinkedWorkRepository) || errors.Is(err, session.ErrLinkedWorkInvalid) {

@@ -14,6 +14,13 @@ import (
 
 const linkedWorkRefreshTimeout = 10 * time.Second
 
+// Who put an item on the session: `created` work needs no attribution.
+const (
+	LinkProvenanceCreated = "created"
+	LinkProvenanceUser    = "user"
+	LinkProvenanceAgent   = "agent"
+)
+
 var ErrLinkedWorkRepository = errors.New("linked work belongs to another repository")
 var ErrLinkedWorkForkUnsupported = errors.New("pull requests from another head repository cannot be linked")
 var ErrLinkedWorkInvalid = errors.New("linked work requires a branch and repository")
@@ -67,7 +74,8 @@ func (m *Manager) LinkSessionWork(
 	if !ok || !configured {
 		return errors.New("session: linked work unavailable")
 	}
-	repo := repoReader.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID})[info.WorkspaceID]
+	repoKeys := repoReader.RepositoryKeys(ctx, store.ReadScope{ProfileID: info.ProfileID}, []string{info.WorkspaceID})
+	repo := repoKeys[info.WorkspaceID]
 	if link.Repository == "" {
 		link.Repository = repo
 	}
@@ -82,9 +90,12 @@ func (m *Manager) LinkSessionWork(
 		return ErrLinkedWorkInvalid
 	}
 	if link.Provenance == "" {
-		link.Provenance = "user"
+		link.Provenance = LinkProvenanceUser
 	}
-	if link.Provenance != "created" && link.Provenance != "user" && link.Provenance != "agent" {
+	if !slices.Contains(
+		[]string{LinkProvenanceCreated, LinkProvenanceUser, LinkProvenanceAgent},
+		link.Provenance,
+	) {
 		return ErrLinkedWorkInvalid
 	}
 	link.SessionID, link.WorkspaceID = info.ID, info.WorkspaceID
@@ -132,7 +143,7 @@ func (m *Manager) UnlinkSessionWork(ctx context.Context, sessionID, repository, 
 		WorkspaceID: info.WorkspaceID,
 		Repository:  repository,
 		Branch:      branch,
-		Provenance:  "user",
+		Provenance:  LinkProvenanceUser,
 	}
 	// Carry derived metadata into the atomic tombstone so Undo restores runs-here.
 	projection, err := m.SessionLinkedWork(ctx, []*Info{info})

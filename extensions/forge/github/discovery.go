@@ -12,6 +12,16 @@ import (
 	c "github.com/compozy/compozy/internal/extension/contract"
 )
 
+const prSearchQueryKey = "query"
+
+// One request returns the complete bounded page, so a search never reads PRs one by one.
+const prSearchQuery = `query($query:String!,$first:Int!,$after:String){
+  search(query:$query,type:ISSUE,first:$first,after:$after){
+    nodes{... on PullRequest{number title url state headRefName headRepository{nameWithOwner}}}
+    pageInfo{hasNextPage}
+  }
+}`
+
 func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest) (c.ForgePRSearchResponse, error) {
 	result := c.ForgePRSearchResponse{Items: []c.ForgePRCandidate{}}
 	repo, ok := selectRepository(request.RemoteURLs)
@@ -32,8 +42,6 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 	page := max(1, request.Page)
 	// GraphQL returns the complete bounded page in one request. Preserve usable
 	// nodes when GitHub reports an error on another node.
-	const queryKey = "query"
-	const query = `query($query:String!,$first:Int!,$after:String){search(query:$query,type:ISSUE,first:$first,after:$after){nodes{... on PullRequest{number title url state headRefName headRepository{nameWithOwner}}} pageInfo{hasNextPage}}}`
 	var response struct {
 		Data struct {
 			Search struct {
@@ -53,7 +61,7 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		after = &cursor
 	}
 	variables := map[string]any{
-		queryKey: fmt.Sprintf(
+		prSearchQueryKey: fmt.Sprintf(
 			"repo:%s/%s is:pr %q sort:updated-desc",
 			repo.owner,
 			repo.name,
@@ -67,7 +75,7 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		http.MethodPost,
 		"/graphql",
 		credential.token,
-		map[string]any{queryKey: query, "variables": variables},
+		map[string]any{prSearchQueryKey: prSearchQuery, "variables": variables},
 		&response,
 	); err != nil {
 		return result, err
@@ -124,7 +132,7 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 	}
 	state := pull.State
 	if pull.MergedAt != nil {
-		state = "merged"
+		state = prStateMerged
 	}
 	head := ""
 	if pull.Head.Repo != nil {

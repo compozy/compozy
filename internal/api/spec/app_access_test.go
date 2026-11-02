@@ -210,7 +210,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
-			"addSessionWorkLink", "removeSessionWorkLink", "searchSessionWorkCandidates",
+			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",
+			"searchSessionWorkCandidates",
 			"draftAgentInstructions",
 			"getPermissionRollup",
 			"createAgentInstance",

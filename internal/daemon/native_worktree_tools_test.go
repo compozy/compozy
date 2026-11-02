@@ -211,7 +211,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 				},
 			},
 		}
-		_, err := n.worktreeCreate(
+		result, err := n.worktreeCreate(
 			ctx,
 			toolspkg.Scope{SessionID: "caller", WorkspaceID: "registry-a", Operator: true},
 			toolspkg.CallRequest{
@@ -221,6 +221,14 @@ func TestNativeWorktreeTools(t *testing.T) {
 		)
 		if err != nil || !linked {
 			t.Fatalf("linked=%v err=%v", linked, err)
+		}
+		var created struct {
+			Worktree struct {
+				ID string `json:"id"`
+			} `json:"worktree"`
+		}
+		if err := json.Unmarshal(result.Structured, &created); err != nil || created.Worktree.ID != "accepted" {
+			t.Fatalf("structured=%s decoded=%+v err=%v", result.Structured, created, err)
 		}
 	})
 

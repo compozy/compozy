@@ -24,6 +24,7 @@ import {
 } from "../../adapters/session-linked-work-api";
 import { SessionLinkDialogHost } from "../../components/session-linked-work/session-link-dialog-host";
 import { sessionKeys } from "../../lib/query-keys";
+import { linkedCandidateKeys } from "../../lib/session-linked-work";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import {
   SESSION_LINK_BRANCHES,
@@ -582,12 +583,15 @@ describe("useSessionLinkDialogModel", () => {
     vi.mocked(addSessionWorkLink).mockResolvedValue({ items: [] });
     const { result } = dialog();
     await waitFor(() => expect(result.current.linked.size).toBeGreaterThan(0));
-    const complete = result.current.linked;
+    const daemonList = { items: SESSION_LINK_SETS.onePr };
+    vi.mocked(fetchSessionLinkedWork).mockResolvedValue(daemonList);
     act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[0]!));
     act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[1]!));
     await act(async () => result.current.onConfirm());
     await waitFor(() => expect(addSessionWorkLink).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(result.current.linked).toEqual(complete));
+    await waitFor(() =>
+      expect(result.current.linked).toEqual(linkedCandidateKeys(daemonList.items))
+    );
   });
 
   it("Should report a refused pick when no pasted link can say so", async () => {

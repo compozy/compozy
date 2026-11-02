@@ -5092,7 +5092,12 @@ func TestUnlinkRolledUpWork(t *testing.T) {
 			"child": {{SessionID: "child", WorkspaceID: "ws-read-00", Repository: repo, Branch: "child-work"}},
 		},
 		members: []store.SessionWorkMember{
-			{RootID: "sess-read-000", ID: "sess-read-000", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID},
+			{
+				RootID:      "sess-read-000",
+				ID:          "sess-read-000",
+				WorkspaceID: "ws-read-00",
+				ProfileID:   store.DefaultProfileID,
+			},
 			{RootID: "sess-read-000", ID: "child", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID},
 		},
 	}

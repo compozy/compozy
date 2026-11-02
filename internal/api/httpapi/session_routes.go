@@ -20,11 +20,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	registerSessionLayoutRoutes(api, handlers)
 	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
 	workspaceSessions.GET("", handlers.ListSessions)
-	workspaceSessions.GET("/:session_id/links", handlers.ListSessionLinkedWork)
-	workspaceSessions.GET("/:session_id/link-candidates", handlers.SearchSessionWorkCandidates)
-	workspaceSessions.POST("/:session_id/links", handlers.AddSessionWorkLink)
-	workspaceSessions.DELETE("/:session_id/links", handlers.RemoveSessionWorkLink)
-	workspaceSessions.POST("/:session_id/links/refresh", handlers.RefreshSessionWorkLink)
+	registerSessionLinkRoutes(workspaceSessions, handlers)
 	workspaceSessions.GET("/:session_id/subagents", handlers.ListSessionSubagents)
 	workspaceSessions.GET("/:session_id/monitors", handlers.ListSessionMonitors)
 	workspaceSessions.POST("/:session_id/monitors/:monitor_id/cancel", handlers.CancelSessionMonitor)
@@ -89,6 +85,14 @@ func registerSessionReadRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.GET("/:session_id/transcript", handlers.SessionTranscript)
 	sessions.GET("/:session_id/transcript/search", handlers.SessionTranscriptSearch)
 	sessions.GET("/:session_id/transcript/outline", handlers.SessionTranscriptOutline)
+}
+
+func registerSessionLinkRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/:session_id/links", handlers.ListSessionLinkedWork)
+	sessions.GET("/:session_id/link-candidates", handlers.SearchSessionWorkCandidates)
+	sessions.POST("/:session_id/links", handlers.AddSessionWorkLink)
+	sessions.DELETE("/:session_id/links", handlers.RemoveSessionWorkLink)
+	sessions.POST("/:session_id/links/refresh", handlers.RefreshSessionWorkLink)
 }
 
 func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {

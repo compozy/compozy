@@ -399,7 +399,7 @@ func TestSessionOptionalHealthLinkedWork(t *testing.T) {
 			&session.Info{ID: "linked", State: session.StateStopped},
 			true,
 		)
-		if err != nil || payload.BoardColumn != session.BoardInReview {
+		if err != nil || payload.BoardColumn != session.BoardInReview || payload.LinkedWork == nil {
 			t.Fatalf("payload=%+v err=%v", payload, err)
 		}
 	})

@@ -137,7 +137,7 @@ const SCENARIOS: Record<string, LinkScenario> = {
   fifty: {
     ...ORCHESTRATOR,
     items: SESSION_LINKS_FIFTY,
-    agent: "Fifty pull requests so far across the whole migration.",
+    agent: "Forty-nine pull requests so far across the whole migration.",
   },
   narrow: { ...ORCHESTRATOR, items: SESSION_LINKS_DOZEN, narrow: true },
 };

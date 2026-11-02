@@ -35,15 +35,26 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 
 func forgeProviderHandlers(provider *Provider) compozysdk.ForgeProviderHandlers {
 	return compozysdk.ForgeProviderHandlers{
-		SearchPRs: func(ctx context.Context, _ compozysdk.ExtensionContext, req compozysdk.ForgePRSearchRequest) (compozysdk.ForgePRSearchResponse, error) {
+		SearchPRs: func(
+			ctx context.Context,
+			_ compozysdk.ExtensionContext,
+			req compozysdk.ForgePRSearchRequest,
+		) (compozysdk.ForgePRSearchResponse, error) {
 			response, err := provider.SearchPRs(ctx, extensioncontract.ForgePRSearchRequest(req))
-			result := compozysdk.ForgePRSearchResponse{HasMore: response.HasMore, Items: make([]compozysdk.ForgePRCandidate, 0, len(response.Items))}
+			result := compozysdk.ForgePRSearchResponse{
+				HasMore: response.HasMore,
+				Items:   make([]compozysdk.ForgePRCandidate, 0, len(response.Items)),
+			}
 			for _, item := range response.Items {
 				result.Items = append(result.Items, compozysdk.ForgePRCandidate(item))
 			}
 			return result, err
 		},
-		ReadPR: func(ctx context.Context, _ compozysdk.ExtensionContext, req compozysdk.ForgePRReadRequest) (compozysdk.ForgePRCandidate, error) {
+		ReadPR: func(
+			ctx context.Context,
+			_ compozysdk.ExtensionContext,
+			req compozysdk.ForgePRReadRequest,
+		) (compozysdk.ForgePRCandidate, error) {
 			response, err := provider.ReadPR(ctx, extensioncontract.ForgePRReadRequest(req))
 			return compozysdk.ForgePRCandidate(response), err
 		},

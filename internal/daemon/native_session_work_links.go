@@ -6,17 +6,33 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-func (n *daemonNativeTools) sessionLink(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+func (n *daemonNativeTools) sessionLink(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	return n.sessionWorkLink(ctx, scope, req, false)
 }
-func (n *daemonNativeTools) sessionUnlink(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+
+func (n *daemonNativeTools) sessionUnlink(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
 	return n.sessionWorkLink(ctx, scope, req, true)
 }
-func (n *daemonNativeTools) sessionWorkLink(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest, unlink bool) (toolspkg.ToolResult, error) {
+
+func (n *daemonNativeTools) sessionWorkLink(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	unlink bool,
+) (toolspkg.ToolResult, error) {
 	var input contract.SessionWorkLinkRequest
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -35,12 +51,26 @@ func (n *daemonNativeTools) sessionWorkLink(ctx context.Context, scope toolspkg.
 	if unlink {
 		err = manager.UnlinkSessionWork(ctx, scope.SessionID, input.Repository, input.Branch)
 	} else {
-		err = manager.LinkSessionWork(ctx, scope.SessionID, store.SessionWorkLink{Repository: input.Repository, Branch: input.Branch, PRNumber: input.PRNumber, Provenance: "agent"}, false)
+		err = manager.LinkSessionWork(ctx, scope.SessionID, store.SessionWorkLink{
+			Repository: input.Repository,
+			Branch:     input.Branch,
+			PRNumber:   input.PRNumber,
+			Provenance: session.LinkProvenanceAgent,
+		}, false)
 	}
 	if err != nil {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCode(core.LinkedWorkErrorCode(err)), req.ToolID, err.Error(), err)
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCode(core.LinkedWorkErrorCode(err)),
+			req.ToolID,
+			err.Error(),
+			err,
+		)
 	}
-	result := map[string]any{"session_id": scope.SessionID, "branch": input.Branch, "unlinked": unlink}
+	result := map[string]any{
+		watchEventsPayloadSessionIDKey: scope.SessionID,
+		"branch":                       input.Branch,
+		"unlinked":                     unlink,
+	}
 	if input.PRNumber > 0 {
 		result["pr_number"] = input.PRNumber
 	}

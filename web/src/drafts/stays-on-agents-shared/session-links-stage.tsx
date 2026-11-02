@@ -51,6 +51,7 @@ import {
 import {
   candidateKey,
   leadLink,
+  candidateIsLinked,
   linkedCandidateKeys,
   linkedSessionFacts,
   moreLabel,
@@ -141,7 +142,12 @@ function FixtureLinkDialog({
       loading={false}
       offline={offline}
       onConfirm={() => {
-        onLink(selected.map(sessionLinkFromCandidate));
+        const linked = linkedCandidateKeys(items);
+        onLink(
+          selected
+            .filter(candidate => !candidateIsLinked(candidate, linked))
+            .map(sessionLinkFromCandidate)
+        );
         onOpenChange(false);
       }}
       onLoadMore={() => undefined}

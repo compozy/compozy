@@ -15,7 +15,8 @@ const sessionLinkDialogLogic = createStoreLogic({
     opened: (context, event: { sessionId: string }) => ({
       ...context,
       sessionId: event.sessionId,
-      host: null,
+      // A repeat from another window must not take the dialog from the host showing it.
+      host: context.sessionId === event.sessionId ? context.host : null,
     }),
     claimed: (context, event: { host: string }) => ({
       ...context,

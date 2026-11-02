@@ -27,6 +27,8 @@ const (
 	githubPullPageSize    = 100
 )
 
+const prStateMerged = "merged"
+
 type Provider struct {
 	credentials credentialResolver
 	api         githubClient
@@ -150,7 +152,7 @@ func (p *Provider) Status(
 	}
 	state, merged := pull.State, pull.MergedAt != nil
 	if merged {
-		state = "merged"
+		state = prStateMerged
 	}
 	response.PRNumber, response.PRState = &pull.Number, &state
 	response.PRURL, response.Merged = pull.HTMLURL, &merged

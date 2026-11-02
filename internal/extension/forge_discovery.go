@@ -26,7 +26,13 @@ func (m *Manager) ForgeReadPR(ctx context.Context, request c.ForgePRReadRequest)
 	err := m.forgeDiscoveryCall(ctx, request.RemoteURLs, p.ExtensionServiceMethodForgePRRead, request, &response)
 	return response, err
 }
-func (m *Manager) forgeDiscoveryCall(ctx context.Context, remotes []string, method p.ExtensionServiceMethod, request, response any) error {
+
+func (m *Manager) forgeDiscoveryCall(
+	ctx context.Context,
+	remotes []string,
+	method p.ExtensionServiceMethod,
+	request, response any,
+) error {
 	ctx, cancel := context.WithTimeout(ctx, forgeDiscoveryTimeout)
 	defer cancel()
 	capabilities, err := m.ForgeCapabilities(ctx, remotes)
