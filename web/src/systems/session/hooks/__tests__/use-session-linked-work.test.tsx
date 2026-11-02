@@ -2,8 +2,10 @@
 // Invariant: unlinking is immediate and undone through the add path, a failed write restores the
 // API envelope, the picker searches and pages on the server, naming a refused repository, an
 // unknown number, a fork's pull request and an unavailable forge as their own states, and a
-// multi-link confirm runs at bounded concurrency, keeping and naming only what failed.
-// Boundary IN: useSessionLinkedWork, useSessionLinkDialogModel and TanStack Query.
+// multi-link confirm runs at bounded concurrency, keeping and naming only what failed. Each row
+// exposes its ticked state.
+// Boundary IN: useSessionLinkedWork, useSessionLinkDialogModel, SessionLinkDialogHost and TanStack
+// Query.
 // Boundary OUT: the adapters, mocked at the network seam.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
@@ -357,6 +359,18 @@ describe("useSessionLinkDialogModel", () => {
       })
     );
     expect(result.current.offline).toBe(false);
+  });
+
+  it("Should tell assistive technology which rows are ticked", async () => {
+    candidates(SESSION_LINK_PULL_REQUESTS.slice(0, 3));
+    openDialog();
+    const row = await screen.findByRole("option", { name: /monthly usage report/ });
+    expect(row).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(row);
+    expect(row).toHaveAttribute("aria-checked", "true");
+    const linked = await screen.findByRole("option", { name: /Fix the login redirect loop/ });
+    expect(linked).toHaveAttribute("aria-disabled", "true");
+    expect(linked).not.toHaveAttribute("aria-checked");
   });
 
   it("Should refuse a fork's pull request by name and let the rest of the selection through", async () => {

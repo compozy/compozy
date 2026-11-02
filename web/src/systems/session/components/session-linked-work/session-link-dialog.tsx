@@ -61,6 +61,8 @@ function Candidate({
   const number = candidate.pr_number;
   return (
     <CommandItem
+      // The checkbox is decoration, and cmdk spends `aria-selected` on the highlighted row.
+      aria-checked={linked ? undefined : checked}
       className="min-h-14 gap-3 rounded-lg px-3 py-2.5"
       data-slot="session-link-candidate"
       disabled={linked}
