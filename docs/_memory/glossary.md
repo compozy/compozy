@@ -316,6 +316,14 @@ A delegated subagent started with `isolation: "worktree"` on `compozy__subagent_
 
 **UI label:** "subagent"; the card shows the branch and a "#{n}" PR link. Never "sandbox" or "workspace" for the worktree.
 
+### Linked Work
+
+The set of pull requests, branches and worktrees that belong to a session (0..N), separate from `worktree_id`, which says where its process runs. An item is **direct** when it is on the session itself: automatic (a worktree the session created, or its own branch), manual (`session link`, the link dialog), or linked by the agent through `compozy__session_link`; `provenance` records `created`, `user` or `agent`. A **rolled-up** item comes from a descendant session through live lineage, carries `source_session_id` and `source_session_title`, opens the child, and is read-only on the parent. The same pull request on parent and child shows once, and direct wins.
+
+**Unlink** removes only the association and persists a tombstone, so an automatic link does not return; it never deletes a pull request, a branch or a worktree, and adding the item again restores it. Direct open pull requests count toward In review for a settled session; rolled-up ones never change the parent's column. The catalog carries `linked_work: {total, needs_you, pull_requests, lead}`; the full list lives on `GET .../sessions/{id}/links`.
+
+**UI label:** "Linked work"; "Link…", "Unlink from this session", "Runs here", "From {child session title}". Never "attached", "bound" or "moved". Copy rules in `COPY.md` §6 "Linked Work Terms".
+
 ### Session Message
 
 A prompt one agent session sends to another with `compozy__session_prompt`. The daemon stamps the sender from the calling session's scope (no input overrides it) as a typed `origin` (`kind = "session"`, sender session/workspace/agent, `title_at_send`, `hop`, `notify_on_complete`, `reply_watch_id`) that survives queue, steer, interrupt, and restart. The receiving agent gets a provider-only sender header; transcripts, history, and the UI keep the original text with the origin as metadata. A session message is agent-authored: operators can cancel or Steer (promote) it from the queue but not edit it (`input_agent_authored`). Operator input always sorts ahead of session messages. A session cannot message itself; a chain stops at 8 forwarding hops (`message_hop_limit`), answers keep the hop (`in_reply_to`), and each sender→target pair has a rate budget (`message_rate_limited`). Operator prompts over HTTP/CLI carry no origin unless the CLI opts in with `--from-session` (HTTP: daemon-validated agent identity headers).

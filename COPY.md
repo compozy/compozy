@@ -233,6 +233,22 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - State the effect as “Continue this conversation in the selected worktree from the next turn. Files stay where they are.”
 - Reserve “Fork into a worktree…” for the separate flow that creates a new session. Do not describe the session environment as immutable or locked.
 
+### Linked Work Terms
+
+Linked work is the set of pull requests, branches and worktrees that belong to a session, separate from where its agent runs. The glossary entry **Linked Work** is authoritative. Nouns are `linked work`, `pull request` (`PR` in compact slots), `branch`, and `worktree`. "Linked" never means the session moved; "Runs here" is the only words for where it runs.
+
+- Header: the existing chip names the most urgent item; beside it "+{n} PRs" ("+1 PR") when the rest are all pull requests, "+{n} more" when they are not. A narrow head keeps an entry on the actions side, aria "{n} linked to this session".
+- List: title "Linked work" with the count and the button "Link…". Groups "Needs you" · "In progress" · "Done" from five items, with "Show" / "Hide" on Done from seven, and from nine the filter "Filter by title, number or branch…" (empty: "Nothing matches" with "Try a number, a word from the title, or a branch."). The closing line reads "This session runs in {name}. Linking never moves it."
+- Row: the title, else the branch or worktree name; line two is one status, then the worktree, then only the exceptions: "Added by you" · "Added by {agent}" · "Worktree removed" · "Runs here" · "From {child session title}". Work the session made itself never says who added it. Status words are the board card's, then "{n} checks pending" · "Approved" · "Review required" · "No pull request yet" · "PR status unknown" with the cause.
+- A rolled-up item reads "From {child session title}", opens the child, and has no Unlink.
+- Chip menu of a single item: "This session runs in {name}" · "Worktree {name}" · "Link another…" · "Unlink from this session".
+- Entries with nothing linked: the composer environment menu and the palette offer "Link a pull request or branch…" (palette group "This session").
+- Link dialog: title "Link a pull request or branch", sentence "It shows up on this session. The agent keeps running where it is.", placeholder "Paste a link, or search by number, title or branch". Groups "Pull requests" · "Branches with no pull request". "Already linked" · "{n} selected" · "Link" · "Link {n}" · "Show more".
+- Link dialog states: "#{n} belongs to {owner/name}" with "This session is in {project}. Open a session in that project to link it there."; "Can't find {query}" with "Check the number, or copy the full link from {forge} and paste it here."; "{forge} isn't connected" with "You can still link a branch. Its pull request shows up once {forge} is back." `{forge}` is the name of the repository's forge, or its host when CompozyOS doesn't know the forge; never a hardcoded GitHub.
+- Unlink toast: "Unlinked #{n}" ("Unlinked branch {name}", "Unlinked worktree {name}") with the action "Undo" and the sentence "It's still on {forge}. Only the link to this session is gone." or "Its files are untouched. Only the link to this session is gone."
+- Session list row: a count with a dot when an item needs you; tooltip "{n} linked" · "{n} needs you" / "{n} need you". Kanban card: the lead PR plus "+{n} PRs" or "+{n} more" in the branch's place.
+- Never in this feature's copy: "attached", "bound", "moved to", "No PR", or "delete" for an unlink.
+
 ### Session Continue & Fork Terms
 
 - **Continue with another agent…**: the menu and marker action that starts a new session for another agent (or runtime, or declared route) with this session's conversation carried over. The source stays unchanged. The child reads "Continued from {agent}" (status pill) and "Continued from {source title}" (transcript divider).

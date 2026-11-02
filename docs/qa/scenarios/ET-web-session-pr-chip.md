@@ -28,6 +28,12 @@ row. After switching a managed worktree's checked-out branch, the chip and board
 resolve the current status branch; detached HEAD does not retain the old PR.
 Focused evidence: pull-request menu suite and real SQLite branch/board suites pass.
 
+Linked work 2026-11-02: the chip now names the most urgent linked item, not only the
+session's branch, and a session with several items shows `+N PRs` or `+N more` beside it.
+Exit actions, Refresh and prompts on the chip stay with the session's own branch; another
+branch's lead offers Open PR and a list reread. The walk lives in
+`ET-session-pull-request-link`; `E2E-006` owns the seeded journey in CI.
+
 Release regression 2026-10-24: the Fix failing checks journey must send exactly
 one user message naming the PR and failing check, and the fixture agent must
 accept it and answer. A provider error echo is not evidence of successful prompt

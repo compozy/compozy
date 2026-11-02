@@ -90,3 +90,16 @@ Owning automated checks: `TestBoardColumnWithLinkedWork`, `TestSessionCatalogBoa
 `TestSessionLinkedWorkProjection`, `TestManagerBoardCatalog`,
 `TestSessionLinkedWorkSummary`, and `TestAppAccessPolicy`. These exercise backend behavior,
 including real SQLite; they do not claim the live UI or provider walk passed.
+
+Session linked work web walk (web slice; live walk pending):
+
+1. A session with no links offers "Link a pull request or branch…" in the composer environment menu and through the palette. Neither "Use worktree…" nor "Fork into a worktree…" changes.
+2. Let the agent create a worktree mid-turn and open a PR, then add a second through a child session. With no reload and no new turn, the chip names the most urgent item, `+N PRs` opens the list, and the child's row reads "From {child title}", opens the child, and has no Unlink.
+3. Link a PR by pasting its URL, by number, and by ticking two search results. A link from another project reads "#N belongs to owner/name"; an unknown number reads "Can't find #N". With the forge provider disabled, the dialog says the forge isn't connected and a branch can still be linked.
+4. Unlink from a row: the row leaves at once, the toast says nothing was deleted, the PR stays on the forge and the files stay on disk. Undo restores it. Unlink an automatic item and refresh: it stays gone.
+5. Remove a linked worktree: its row reads "Worktree removed" and the PR stays. Disconnect the forge: rows read "PR status unknown" with the cause, never "No PR".
+6. Narrow the window until the head clips the status zone: the list stays reachable from the actions side. Hold 50 items: the list groups, folds Done, filters, and stays usable.
+7. Session list rows show a count and a dot when an item needs you, and Kanban cards show the lead PR plus `+N`, with no per-row read in the network log. Find a session in the palette by PR number and by branch.
+8. Link an unrelated open PR to a working session and watch its card stay in Working through several turns.
+
+Owning automated checks: `lib/__tests__/pull-request.test.ts` (ordering, grouping, labels, input parsing), `use-session-topbar-slot.test.tsx` (head, rolled-up rows, narrow entry), `use-session-linked-work.test.tsx` (unlink with Undo, server search, dialog states), `use-session-catalog-streams.test.tsx` (refresh with no new turn), `palette-session-filters.test.ts` (server hits stay), and `E2E-006` in CI. Proto states: `session-links-header`, `session-links-surfaces`. Live forge and provider legs remain owned by the controller's QA walk.
