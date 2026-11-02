@@ -532,43 +532,50 @@ describe("SubagentComposerControl (issue #766)", () => {
   });
 
   // Invariant: a subagent that finishes while its detail is open is still reachable on the way
-  // back, and a child-backed row keeps showing its own error beside the host's content.
-  it("Should keep a row that finished while open in reach, with its error", async () => {
-    const user = userEvent.setup();
-    const [row, other] = many(2, "running");
-    const { rerender } = renderUI(
-      <SubagentComposerControl
-        subagents={[row!, other!]}
-        counts={counts(2, 2)}
-        onOpen={vi.fn()}
-        renderContent={() => <p>Transcript</p>}
-      />
-    );
-    await user.click(screen.getByRole("button", { name: "Subagents, 2 running" }));
-    await user.click(await screen.findByRole("button", { name: `Open ${row!.title}` }));
-    await screen.findByText("Transcript");
-    const finished = {
-      ...row!,
-      child_session_id: null,
-      origin: "provider_native" as const,
-      status: "completed" as const,
-      error: "Row failure",
-    };
-    rerender(
-      <TestUI>
+  // back, and the panel shows the row's error beside the host's content for every origin.
+  it.each([
+    ["provider_native", null],
+    ["delegated", null],
+    ["delegated", "sess-child"],
+  ] as const)(
+    "Should keep a finished %s row (child %s) in reach, with its error",
+    async (origin, child) => {
+      const user = userEvent.setup();
+      const [row, other] = many(2, "running");
+      const { rerender } = renderUI(
         <SubagentComposerControl
-          subagents={[finished, other!]}
-          counts={counts(1, 2)}
+          subagents={[row!, other!]}
+          counts={counts(2, 2)}
           onOpen={vi.fn()}
           renderContent={() => <p>Transcript</p>}
         />
-      </TestUI>
-    );
-    expect(await screen.findByText("Row failure")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    const back = await screen.findByRole("button", { name: `Open ${row!.title}` });
-    await waitFor(() => expect(back).toHaveFocus());
-  });
+      );
+      await user.click(screen.getByRole("button", { name: "Subagents, 2 running" }));
+      await user.click(await screen.findByRole("button", { name: `Open ${row!.title}` }));
+      await screen.findByText("Transcript");
+      const finished = {
+        ...row!,
+        child_session_id: child,
+        origin,
+        status: "completed" as const,
+        error: "Row failure",
+      };
+      rerender(
+        <TestUI>
+          <SubagentComposerControl
+            subagents={[finished, other!]}
+            counts={counts(1, 2)}
+            onOpen={vi.fn()}
+            renderContent={() => <p>Transcript</p>}
+          />
+        </TestUI>
+      );
+      expect(await screen.findByText("Row failure")).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      const back = await screen.findByRole("button", { name: `Open ${row!.title}` });
+      await waitFor(() => expect(back).toHaveFocus());
+    }
+  );
 
   it("Should open previous rows when nothing runs and hold their place while they load", async () => {
     const user = userEvent.setup();
