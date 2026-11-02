@@ -223,6 +223,7 @@ def main() -> None:
     check_teardown_reused_identity()
     module = load_bootstrap_module()
     repo_root = Path(__file__).resolve().parents[5]
+    check_provider_resource_lifecycle(repo_root)
     check_allocated_process_teardown(repo_root)
     loader = module.real_scenario_script(repo_root, "playbook_loader.py")
     if not loader.is_file():
@@ -468,6 +469,84 @@ def main() -> None:
                 os.environ.pop("PATH", None)
             else:
                 os.environ["PATH"] = previous_path
+
+def check_provider_resource_lifecycle(repo_root: Path) -> None:
+    """QA tooling owns opt-in provisioning, reuse policy and terminal cleanup."""
+    scripts = Path(__file__).parent
+    temp_root = "/private/tmp" if Path("/private/tmp").is_dir() else tempfile.gettempdir()
+    with tempfile.TemporaryDirectory(prefix="compozyqa-provider-", dir=temp_root) as raw:
+        root = Path(raw)
+        source = root / "operator"
+        source.mkdir()
+        (source / "auth.json").write_text("fixture credential")
+        (source / "skills").mkdir()
+        (source / "plugins" / "cache").mkdir(parents=True)
+        env = {**os.environ, "CODEX_HOME": str(source), "TMPDIR": temp_root}
+        for surfaces, live in ((["api"], False), (["provider"], True)):
+            command = [sys.executable, str(scripts / "bootstrap-qa-env.py"),
+                       "--repo-root", str(repo_root), "--workspace-root", str(root / "qa-labs"),
+                       "--scenario", "credential-policy", "--profile", "targeted"]
+            for surface in surfaces:
+                command += ["--required-surface", surface]
+            completed = subprocess.run(command, env=env, capture_output=True, text=True)
+            if completed.returncode:
+                raise AssertionError(f"fixture bootstrap failed: {completed.stderr}")
+            output = dict(line.split("=", 1) for line in completed.stdout.splitlines() if "=" in line)
+            manifest_path = Path(output["BOOTSTRAP_MANIFEST"])
+            manifest = json.loads(manifest_path.read_text())
+            home = Path(manifest["env"]["PROVIDER_CODEX_HOME"])
+            if (home / "auth.json").exists() != live or (home / "skills").is_symlink() != live:
+                raise AssertionError("provider resources do not match scenario opt-in")
+            if manifest["provider_access"]["live_provider"] != live:
+                raise AssertionError("manifest lost provider access decision")
+            config = Path(manifest["env"]["COMPOZY_HOME"]) / "config.toml"
+            import tomllib
+            if tomllib.loads(config.read_text())["provider_usage"]["enabled"]:
+                raise AssertionError("usage collection enabled without explicit request")
+            # A legacy targeted lab must shed previously copied resources on reuse.
+            if not live:
+                (home / "auth.json").write_text("legacy fixture")
+                (home / "skills").symlink_to(source / "skills")
+            subprocess.run(command + ["--reuse-manifest", str(manifest_path)],
+                           env=env, capture_output=True, text=True, check=True)
+            if (home / "auth.json").exists() != live:
+                raise AssertionError("reuse violated provider resource policy")
+            if live:
+                subprocess.run(command + ["--reuse-manifest", str(manifest_path), "--enable-provider-usage"],
+                               env=env, capture_output=True, text=True, check=True)
+                subprocess.run(command + ["--reuse-manifest", str(manifest_path)],
+                               env=env, capture_output=True, text=True, check=True)
+                if not tomllib.loads(config.read_text())["provider_usage"]["enabled"]:
+                    raise AssertionError("reuse lost explicit usage consent")
+            teardown = [sys.executable, str(scripts / "teardown-qa-env.py"),
+                        "--manifest", str(manifest_path), "--json"]
+            subprocess.run(teardown + ["--dry-run"], capture_output=True, text=True, check=True)
+            if (home / "auth.json").exists() != live:
+                raise AssertionError("dry-run removed credentials")
+            result = subprocess.run(teardown, capture_output=True, text=True, check=True)
+            evidence = json.loads(result.stdout)
+            if not evidence["clean"] or (home / "auth.json").exists() or (home / "skills").is_symlink():
+                raise AssertionError("teardown retained provider resources")
+            if live and not evidence["labs"][0]["provider_resources_removed"]:
+                raise AssertionError("teardown omitted resource removal evidence")
+            if not (source / "auth.json").is_file() or not (source / "skills").is_dir():
+                raise AssertionError("operator resources were removed")
+
+        # Bare runtime roots are the same recovery lane used by qa-reap.
+        bare = root / "compozyqa-stale"
+        credential = bare / "provider" / ".codex" / "auth.json"
+        credential.parent.mkdir(parents=True)
+        credential.write_text("stale fixture")
+        command = [sys.executable, str(scripts / "teardown-qa-env.py"),
+                   "--root", str(bare), "--json"]
+        subprocess.run(command, capture_output=True, text=True, check=True)
+        if credential.exists():
+            raise AssertionError("bare-root recovery retained stale credential")
+        credential.mkdir()
+        failed = subprocess.run(command, capture_output=True, text=True)
+        if failed.returncode != 1 or json.loads(failed.stdout)["clean"]:
+            raise AssertionError("resource removal failure was not blocking")
+
 
 if __name__ == "__main__":
     main()

@@ -42,6 +42,7 @@ class LabTarget:
     http_port: int | None
     qa_root: Path | None
     purgeable_roots: list[Path] = field(default_factory=list)
+    provider_homes: list[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -55,10 +56,12 @@ class TeardownResult:
     skipped: list[dict] = field(default_factory=list)
     purged: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    provider_resources_removed: list[str] = field(default_factory=list)
+    provider_resource_errors: list[str] = field(default_factory=list)
 
     @property
     def clean(self) -> bool:
-        return not self.survivors
+        return not self.survivors and not self.provider_resource_errors
 
 
 def utc_now() -> str:
@@ -270,6 +273,8 @@ def write_evidence(target: LabTarget, result: TeardownResult, dry_run: bool) -> 
         "skipped": result.skipped,
         "purged": result.purged,
         "notes": result.notes,
+        "provider_resources_removed": result.provider_resources_removed,
+        "provider_resource_errors": result.provider_resource_errors,
     }
     if target.qa_root is not None and target.qa_root.is_dir():
         evidence_path = target.qa_root / "teardown.json"
@@ -297,7 +302,8 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
     workspace = env.get("WORKSPACE_PATH", manifest.get("workspace_path", ""))
     qa_output = env.get("QA_OUTPUT_PATH", manifest.get("qa_output_path", ""))
     compozy_home = Path(env["COMPOZY_HOME"]).resolve() if env.get("COMPOZY_HOME") else None
-    provider_home = Path(paths["provider_home"]).resolve() if paths.get("provider_home") else None
+    provider_path = env.get("PROVIDER_HOME") or paths.get("provider_home")
+    provider_home = Path(provider_path).absolute() if provider_path else None
     if workspace:
         roots.append(Path(workspace).resolve())
     if qa_output:
@@ -325,6 +331,7 @@ def target_from_manifest(manifest_path: Path) -> LabTarget:
         http_port=http_port,
         qa_root=qa_root,
         purgeable_roots=purgeable,
+        provider_homes=[provider_home] if provider_home else [],
     )
 
 
@@ -346,6 +353,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
         http_port=None,
         qa_root=None,
         purgeable_roots=[] if worktree_scoped else [root],
+        provider_homes=[root / "provider", root / ".provider-home"],
     )
 
 
@@ -394,6 +402,14 @@ def teardown_target(
     kill_tmux_server(target.tmux_socket, result, dry_run)
     pids = collect_target_pids(target, result, dry_run)
     signal_pids(pids, grace_sec, result, dry_run)
+    from qa_provider_resources import remove_provider_resources
+    for provider_home in target.provider_homes:
+        try:
+            if not is_safe_root(provider_home.resolve()):
+                raise RuntimeError(f"refusing non-lab provider home: {provider_home}")
+            result.provider_resources_removed.extend(remove_provider_resources(provider_home, dry_run))
+        except (OSError, RuntimeError) as err:
+            result.provider_resource_errors.append(str(err))
     for pid_file in (target.qa_root / "pids").glob("*.pid") if target.qa_root else []:
         record = registered_identity(pid_file)
         if not dry_run and record is not None and not pid_alive(record.pid):
@@ -464,6 +480,8 @@ def main() -> int:
                             "skipped": result.skipped,
                             "purged": result.purged,
                             "notes": result.notes,
+                            "provider_resources_removed": result.provider_resources_removed,
+                            "provider_resource_errors": result.provider_resource_errors,
                         }
                         for result in results
                     ],
@@ -486,6 +504,8 @@ def main() -> int:
                 print(f"TEARDOWN_PURGED={path}")
             for note in result.notes:
                 print(f"TEARDOWN_NOTE={note}")
+            for error in result.provider_resource_errors:
+                print(f"TEARDOWN_PROVIDER_RESOURCE_ERROR={error}")
         print(f"TEARDOWN_TOTAL_LABS={len(results)}")
         print(f"TEARDOWN_ALL_CLEAN={'true' if all_clean else 'false'}")
 
