@@ -65,7 +65,7 @@ func (d *Daemon) newAgentSkillPublisher(
 		actor:          agentSkillSyncActor(),
 		logger:         state.logger,
 		trigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
-			if state.resourceReconcile == nil {
+			if state.resourceReconcile == nil || (kind == skillspkg.SkillResourceKind && state.skillsRegistry == nil) {
 				return nil
 			}
 			_, err := state.resourceReconcile.Trigger(ctx, kind, reason)

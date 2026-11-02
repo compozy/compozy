@@ -61,3 +61,29 @@ Validation runs the real installer twice and checks both links resolve to the re
 The first post-rebase CI lint job failed while downloading `github.com/nishanths/exhaustive` from the
 Go module proxy (HTTP/2 INTERNAL_ERROR), before lint executed. GitHub refuses retry until that
 workflow run finishes. The current-head workflow will provide the final lint result.
+
+## Current-head CI repairs
+
+- Skills-disabled boot still publishes extension skill resource records, but has no skill reconciler.
+  The publisher now skips that disabled runtime's trigger, matching projector registration. Other
+  resource reconciliation failures remain errors. Existing feature-flag, workspace-hook, model-catalog,
+  and resource-wiring boot suites passed with only the inherited restart ID removed from test processes.
+- The catalog distribution E2E expectation is now 18 (one listed existing extension and 17 MCP
+  packages), matching the source catalog and the approved Batuta removal. CI owns the E2E rerun.
+- Snapshot-profile and automation-run ownership migration regressions belong to global persistence.
+  They now live in the existing `globaldb` migration suite and reuse its real historical prefix
+  databases. Their original data checks, SQLite integrity/foreign-key checks, and three-minute
+  deadlines remain. The generic stream suite still owns fresh replay, reopen, ahead and schema
+  equivalence; it no longer repeats the historical setup for these two domain regressions.
+
+The original migration regression was reproduced locally under race: both cases exhausted their
+180-second deadline replaying migration 86 while constructing the pre-171 database, before the
+snapshot-profile migration under test. The canonical-suite change removes that repeated fixture
+construction, while retaining real historical databases and all upgrade assertions.
+
+The consolidated regressions passed with race:
+`go test -race ./internal/store/globaldb -run 'TestGlobalAutomationRunProfileMigrationTail|TestGlobalAgentSnapshotProfileMigrationConvergesUniqueKeyShapes' -count=1` (136.199s including suite setup).
+The skills-disabled boot checks passed in 7.683s with
+`go test -exec 'env -u COMPOZY_INTERNAL_RESTART_OPERATION_ID' ./internal/daemon -run 'TestWorkspaceRegistrationRefreshesHookBindings|TestBootInjectsComposedAssemblerForFeatureFlagCombinations|TestDaemonModelCatalogWiring|TestAgentDefinitionSyncRuntimeWiring' -count=1`.
+The old head's web window-performance E2E exceeded its unchanged 50ms budget by 3ms. Its gate stays
+intact; the new-head CI run determines whether that failure reproduces.

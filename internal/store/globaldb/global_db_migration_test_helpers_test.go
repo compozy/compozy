@@ -78,3 +78,15 @@ func openGlobalMigrationUpgradeWithOptions(
 
 	return OpenGlobalDB(globalMigrationTestContext(t), path, options...)
 }
+
+func assertGlobalMigrationIntegrity(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+	var integrity string
+	if err := db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&integrity); err != nil {
+		t.Fatal(err)
+	}
+	if integrity != "ok" {
+		t.Fatalf("integrity_check = %q, want ok", integrity)
+	}
+	assertNoForeignKeyViolations(ctx, t, db)
+}
