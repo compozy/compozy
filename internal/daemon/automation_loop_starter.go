@@ -107,7 +107,7 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
 		}
-		return err
+		return classifyRetiredLoopTarget(err)
 	}
 	resolved, err := s.resolver.ResolveLoop(
 		ctx,
@@ -153,7 +153,7 @@ func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(
 		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			return "", fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
 		}
-		return "", err
+		return "", classifyRetiredLoopTarget(err)
 	}
 	for _, node := range resolved.Definition.Graph.Nodes {
 		if node.Class == loopdsl.NodeClassSource && node.Kind == string(loopdsl.SourceWatchSource) {
@@ -247,4 +247,31 @@ func automationStartKindToLoopStartKind(kind automationpkg.LoopStartKind) (loopd
 	default:
 		return "", fmt.Errorf("daemon: unsupported automation loop start kind %q", kind)
 	}
+}
+
+// Only removed dependencies are deferred during saved automation loading.
+func classifyRetiredLoopTarget(err error) error {
+	failure, ok := errors.AsType[*looppkg.LintFailedError](err)
+	if !ok || len(failure.Errors) == 0 {
+		return err
+	}
+	for _, diagnostic := range failure.Errors {
+		if diagnostic.Code != looppkg.CodeUnknownActionKind {
+			return err
+		}
+		retired := false
+		for _, id := range []string{
+			"ext__spec_cycle__import_tasks",
+			"ext__spec_cycle__write_review_artifacts",
+			"ext__spec_cycle__finalize_review_round",
+		} {
+			if strings.Contains(diagnostic.Message, fmt.Sprintf("action ToolID %q ", id)) {
+				retired = true
+			}
+		}
+		if !retired {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetUnavailable, err)
 }

@@ -90,7 +90,7 @@ func (m *Manager) syncJobsForSource(ctx context.Context, source JobSource, desir
 	desiredByID := make(map[string]Job, len(desired))
 	synced := 0
 	for _, job := range desired {
-		if err := m.validateJobLoopTarget(ctx, job); err != nil && !errors.Is(err, ErrLoopTargetNotFound) {
+		if err := m.validateJobLoopTarget(ctx, job); err != nil && !isUnavailableSavedLoopTarget(err) {
 			return 0, 0, err
 		}
 		desiredByID[job.ID] = job
@@ -151,7 +151,7 @@ func (m *Manager) syncTriggersForSource(
 	desiredByID := make(map[string]Trigger, len(desired))
 	synced := 0
 	for _, trigger := range desired {
-		if err := m.validateTriggerLoopTarget(ctx, trigger); err != nil && !errors.Is(err, ErrLoopTargetNotFound) {
+		if err := m.validateTriggerLoopTarget(ctx, trigger); err != nil && !isUnavailableSavedLoopTarget(err) {
 			return 0, 0, err
 		}
 		desiredByID[trigger.ID] = trigger

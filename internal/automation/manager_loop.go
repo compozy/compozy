@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var ErrLoopTargetUnavailable = errors.New("automation: loop target dependency removed")
+
 var ErrLoopTargetNotFound = errors.New("automation: loop target not found")
 
 // WithLoopStarter injects the loop start boundary used for loop-target automations.
@@ -63,7 +65,7 @@ func (m *Manager) defaultSchedulerCatchUpPolicy(
 		LoopName:    strings.TrimSpace(job.LoopTarget.LoopName),
 		Kind:        loopStartKindForAutomation(&job, nil),
 	})
-	if errors.Is(err, ErrLoopTargetNotFound) {
+	if isUnavailableSavedLoopTarget(err) {
 		return SchedulerCatchUpPolicySkipMissed, nil
 	}
 	return policy, err
@@ -114,4 +116,8 @@ func sameJSONMap(left map[string]any, right map[string]any) bool {
 		}
 	}
 	return true
+}
+
+func isUnavailableSavedLoopTarget(err error) bool {
+	return errors.Is(err, ErrLoopTargetNotFound) || errors.Is(err, ErrLoopTargetUnavailable)
 }

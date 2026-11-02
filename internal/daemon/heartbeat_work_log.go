@@ -40,7 +40,17 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 		logger.Warn("work_log: unavailable regular file", "error", err)
 		return nil, false
 	}
-	file, err := os.Open(path)
+	workspace, err := os.OpenRoot(resolvedRoot)
+	if err != nil {
+		logger.Warn("work_log: open workspace", "error", err)
+		return nil, false
+	}
+	defer func() {
+		if err := workspace.Close(); err != nil {
+			logger.Warn("work_log: close workspace", "error", err)
+		}
+	}()
+	file, err := workspace.Open(".compozy/work-log.md")
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false
 	}

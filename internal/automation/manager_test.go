@@ -2846,3 +2846,75 @@ func TestManagerStartPreservesArchivedWorkspaceDefinitions(t *testing.T) {
 		t.Fatalf("reloaded trigger = %#v", gotTrigger)
 	}
 }
+
+func TestManagerSyncRetiredLoopTargets(t *testing.T) {
+	t.Parallel()
+	for _, useResources := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should retain saved unavailable targets with resource storage %t", useResources),
+			func(t *testing.T) {
+				t.Parallel()
+				starter := &recordingLoopStarter{validateErr: ErrLoopTargetUnavailable}
+				var manager *Manager
+				var workspaceID string
+				if useResources {
+					h := newManagerResourceHarness(t)
+					workspaceID = h.workspace.ID
+					manager = h.newResourceManager(
+						t,
+						WithLoopStarter(starter),
+						WithResourceDefinitions(h.jobStore, h.triggerStore, h.actor, nil),
+					)
+				} else {
+					h := newManagerHarness(t)
+					workspaceID = h.workspace.ID
+					manager = h.newManager(t, compozyconfig.AutomationConfig{}, WithLoopStarter(starter))
+				}
+				job := testJob(AutomationScopeGlobal, "saved-loop", "")
+				job.AgentName, job.Prompt = "", ""
+				job.TargetKind, job.LoopTarget = TargetKindLoop, &LoopTarget{
+					WorkspaceID: workspaceID,
+					LoopName:    "retained",
+				}
+				trigger := testTrigger(AutomationScopeGlobal, "saved-loop-trigger", "")
+				trigger.AgentName, trigger.Prompt = "", ""
+				trigger.Event, trigger.WebhookID, trigger.EndpointSlug, trigger.WebhookSecretRef = "session.stopped", "", "", ""
+				trigger.TargetKind, trigger.LoopTarget = TargetKindLoop, job.LoopTarget
+				stats, err := manager.SyncManagedDefinitions(
+					t.Context(),
+					JobSourceConfig,
+					[]Job{job},
+					[]Trigger{trigger},
+				)
+				if err != nil || stats.JobsSynced != 1 || stats.TriggersSynced != 1 {
+					t.Fatalf("sync = %+v, %v", stats, err)
+				}
+				if _, err := manager.CreateJob(t.Context(), job); !errors.Is(err, ErrLoopTargetUnavailable) {
+					t.Fatalf("dynamic job = %v", err)
+				}
+				if _, err := manager.CreateTrigger(
+					t.Context(),
+					trigger,
+					WebhookSecretWrite{},
+				); !errors.Is(
+					err,
+					ErrLoopTargetUnavailable,
+				) {
+					t.Fatalf("dynamic trigger = %v", err)
+				}
+				starter.validateErr = errors.New("unrelated malformed loop")
+				if _, err := manager.SyncManagedDefinitions(t.Context(), JobSourceConfig, []Job{job}, nil); err == nil {
+					t.Fatal("accepted malformed job target")
+				}
+				if _, err := manager.SyncManagedDefinitions(
+					t.Context(),
+					JobSourceConfig,
+					nil,
+					[]Trigger{trigger},
+				); err == nil {
+					t.Fatal("accepted malformed trigger target")
+				}
+			},
+		)
+	}
+}

@@ -11038,3 +11038,67 @@ func TestReadWorkspaceWorkLog(t *testing.T) {
 		})
 	}
 }
+
+func TestReadWorkspaceWorkLogReplacement(t *testing.T) {
+	t.Parallel()
+	for _, parent := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should contain reads during parent replacement %t", parent), func(t *testing.T) {
+			t.Parallel()
+			root, outside := t.TempDir(), t.TempDir()
+			dir := filepath.Join(root, ".compozy")
+			if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(outside, "work-log.md"),
+				[]byte("- [ ] wl-20261102-99 | 2026-11-02T14:00:00Z | Outside\n"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			path, target := filepath.Join(dir, "work-log.md"), filepath.Join(outside, "work-log.md")
+			if err := os.WriteFile(path, []byte("# Work log\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if parent {
+				path, target = dir, outside
+			}
+			done := make(chan error, 1)
+			go func() {
+				for range 200 {
+					if err := os.Rename(path, path+".saved"); err != nil {
+						done <- err
+						return
+					}
+					if err := os.Symlink(target, path); err != nil {
+						done <- err
+						return
+					}
+					if err := os.Remove(path); err != nil {
+						done <- err
+						return
+					}
+					if err := os.Rename(path+".saved", path); err != nil {
+						done <- err
+						return
+					}
+				}
+				done <- nil
+			}()
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			leaked := false
+			for range 200 {
+				facts, _ := readWorkspaceWorkLog(root, logger)
+				if len(facts) != 0 {
+					leaked = true
+				}
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			if leaked {
+				t.Fatal("read work log outside workspace during replacement")
+			}
+		})
+	}
+}

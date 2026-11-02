@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +118,72 @@ func TestAutomationLoopStarterDefaultCatchUpPolicyShouldCoalesceWatchLoops(t *te
 		}
 		if policy != automationpkg.SchedulerCatchUpPolicyCoalesce {
 			t.Fatalf("DefaultLoopCatchUpPolicy() = %q, want coalesce", policy)
+		}
+	})
+}
+
+func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"ext__spec_cycle__import_tasks", "ext__spec_cycle__write_review_artifacts", "ext__spec_cycle__finalize_review_round", "ext__other__missing"} {
+		t.Run("Should classify only retired dependency "+kind, func(t *testing.T) {
+			t.Parallel()
+			definition, err := loopdsl.Parse(
+				[]byte(strings.ReplaceAll(testLoopYAML("custom", "Custom loop"), "kind: transform", "kind: "+kind)),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, compileErr := looppkg.NewCompiler().Compile(definition)
+			if compileErr == nil {
+				t.Fatal("expected unavailable action")
+			}
+			starter := &automationLoopStarter{
+				resolver: looppkg.DefinitionResolverFunc(
+					func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+						return nil, compileErr
+					},
+				),
+			}
+			err = starter.ValidateLoopTarget(
+				t.Context(),
+				automationpkg.LoopTargetValidationRequest{
+					ProfileID:   "default",
+					WorkspaceID: "ws",
+					LoopName:    "custom",
+					Kind:        automationpkg.LoopStartKindSchedule,
+				},
+			)
+			want := kind != "ext__other__missing"
+			if errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
+				t.Fatalf("validation error = %v", err)
+			}
+			_, err = starter.DefaultLoopCatchUpPolicy(
+				t.Context(),
+				automationpkg.LoopCatchUpPolicyRequest{
+					ProfileID:   "default",
+					WorkspaceID: "ws",
+					LoopName:    "custom",
+					Kind:        automationpkg.LoopStartKindSchedule,
+				},
+			)
+			if errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
+				t.Fatalf("policy error = %v", err)
+			}
+		})
+	}
+	t.Run("Should keep unrelated malformed definitions strict", func(t *testing.T) {
+		t.Parallel()
+		err := &looppkg.LintFailedError{
+			Errors: []looppkg.LintError{
+				{
+					Code:    looppkg.CodeUnknownActionKind,
+					Message: `action ToolID "ext__spec_cycle__import_tasks" is not resolvable`,
+				},
+				{Code: looppkg.CodeCycle},
+			},
+		}
+		if errors.Is(classifyRetiredLoopTarget(err), automationpkg.ErrLoopTargetUnavailable) {
+			t.Fatal("malformed definition accepted")
 		}
 	})
 }
