@@ -219,29 +219,6 @@ describe("runtime docs truth", () => {
     expect(fileLocations).toContain("<workspace>/.compozy/workspace.toml");
   });
 
-  it("ships the exact loop.yaml files inside the Loop example pages", () => {
-    // Examples promise "copy it as-is — it runs against a current release", so the fenced artifact
-    // is a claim about the repository, not an illustration. Drift here is a broken example.
-    const loopExamples = [
-      { page: "docs/examples/review-and-fix-loop.mdx", loop: "review-and-fix" },
-      { page: "docs/examples/implement-tasks-loop.mdx", loop: "implement-tasks" },
-    ];
-
-    for (const { page, loop } of loopExamples) {
-      const relativePath = `extensions/spec-cycle/loops/${loop}/loop.yaml`;
-      const shipped = readRepoFile(relativePath);
-      const pageContent = readFileSync(resolve(contentRoot, page), "utf8");
-      const fence = pageContent.match(
-        new RegExp(
-          `\`\`\`yaml title="${relativePath.replaceAll("/", "\\/").replaceAll(".", "\\.")}"\\n([\\s\\S]*?)\\n\`\`\``
-        )
-      );
-
-      expect(fence, `${page} must fence ${relativePath}`).not.toBeNull();
-      expect(`${fence?.[1] ?? ""}\n`).toBe(shipped);
-    }
-  });
-
   it("keeps prod-ready hard-cut surfaces out of current runtime docs", () => {
     const content = activeRuntimeContent();
     const forbiddenSnippets = [

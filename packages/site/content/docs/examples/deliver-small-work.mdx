@@ -1,0 +1,123 @@
+---
+title: Deliver small work with the orchestrator
+description: Keep a stays-on orchestrator in your workspace, hand it a small change in plain words, and let it log, dispatch, and verify the work.
+maturity: shipped
+---
+
+## What you build
+
+One agent that stays on in your project and takes small requests. You describe a change, and the
+`orchestrator` writes it down, starts a `code_implementer` session in its own worktree, checks the
+result, and reports back. A worktree is a separate copy of your project on its own branch, so your
+main checkout stays clean.
+
+Use it for a bug fix or a small feature. For larger work, write a spec and follow
+[Deliver a spec](/docs/examples/deliver-a-spec).
+
+## Before you start
+
+- CompozyOS is installed and the daemon is running.
+- Your project is registered as a workspace. This page calls it `acme`.
+- The bundled `spec-cycle` extension is enabled. It is on by default. Check it with:
+
+```bash
+compozy extension status spec-cycle
+```
+
+## The artifact
+
+The orchestrator keeps one file per workspace, `.compozy/work-log.md`, so accepted work is never
+just a line in a chat. You don't write this file yourself:
+
+```markdown title=".compozy/work-log.md"
+# Work log
+
+- [ ] wl-20261102-02 | 2026-11-02T14:00:00Z | Add CSV export | source: chat
+- [~] wl-20261102-01 | 2026-11-02T13:10:00Z | Fix login redirect | session: sess-1f2e | worktree: fix-login-redirect
+- [x] wl-20261101-07 | 2026-11-01T09:00:00Z | Bump parser | evidence: commit 91ab3f2
+```
+
+`[ ]` means accepted, `[~]` means handed to an executor, and `[x]` means closed with evidence.
+
+## Run it
+
+### Step 1: Ignore the work log in Git
+
+The work log is local state. Add it to your project's `.gitignore`:
+
+```text title=".gitignore"
+.compozy/work-log.md
+```
+
+### Step 2: Create the orchestrator
+
+```bash
+compozy agent instance create orchestrator --workspace acme
+```
+
+```text
+created orchestrator (Stays on) in acme, main session sess-77ab
+```
+
+Copy the session ID from the output. Yours will differ. The next steps call it `sess-77ab`.
+
+### Step 3: Ask for the change
+
+```bash
+compozy session prompt sess-77ab "Fix the login redirect on expired sessions"
+```
+
+```text
+Accepted wl-20261102-01. Worktree fix-login-redirect, session sess-1f2e. I'll report when it is verified.
+```
+
+### Step 4: Check that the work was logged
+
+```bash
+cat .compozy/work-log.md
+```
+
+The entry now reads `[~]` and names the session and worktree. When the orchestrator has verified the
+result, the entry reads `[x]` and names the evidence.
+
+## How it works
+
+- **One writer.** Only the orchestrator edits the work log. Run one per workspace. User and global
+  instances don't use a work log.
+- **Nothing gets forgotten.** If an entry stays `[ ]` for more than 30 minutes, the orchestrator's
+  next check-in picks it up and reports it or proposes dispatching or closing it. A check-in only
+  reads and reports, so you decide what happens next. This source appears as **Work that never got
+  started** in the agent's Check-ins page and as `work_log` in
+  [`HEARTBEAT.md`](/docs/agents/heartbeat).
+- **Repeats stay quiet.** The same stale entry doesn't trigger another model call while nothing has
+  changed, until `max_interval` passes.
+- **Clean-up.** Closed entries older than 7 days are pruned. Only the first 64 KiB of the file is
+  read, so a very long log is flagged in the check-in.
+
+## Common problems
+
+| What you see                                | What it means                         | What to do                                             |
+| ------------------------------------------- | ------------------------------------- | ------------------------------------------------------ |
+| `work:log-truncated` in a check-in          | The log is larger than 64 KiB         | Close finished work so the open entries fit            |
+| `work:more` in a check-in                   | More than 9 stale entries are waiting | Ask the orchestrator to go through them                |
+| Daemon warning `work_log: ignored line <n>` | A line doesn't match the format       | Fix that line; the valid lines still count             |
+| The orchestrator recommends writing a spec  | The request is too big for small work | Follow [Deliver a spec](/docs/examples/deliver-a-spec) |
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/examples/deliver-a-spec"
+    label="Example"
+    title="Deliver a spec"
+    description="Run larger work through one conductor, isolated slices, and an integration branch."
+    meta="spec_conductor"
+  />
+  <GuideCard
+    href="/docs/agents/heartbeat"
+    label="Concept"
+    title="HEARTBEAT.md"
+    description="Choose what an agent looks at between turns, and how often."
+    meta="Check-ins"
+  />
+</GuideGrid>

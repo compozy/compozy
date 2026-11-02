@@ -1,6 +1,6 @@
 ---
 title: Examples
-description: Runnable CompozyOS artifacts — Loops, jobs, webhooks, and triggers you can copy as shipped, run against a current release, and adapt.
+description: Runnable CompozyOS artifacts — agent delivery, jobs, webhooks, and triggers you can copy as shipped, run against a current release, and adapt.
 ---
 
 Every example on this page is a complete artifact plus a walkthrough of what it does. Guides explain
@@ -8,26 +8,25 @@ how to approach a job; examples hand you the definition and the commands to run 
 
 <OperatorNote label="What makes something an example">
   Each page carries the whole artifact — no fragments, no pseudo-config — and a maturity label. The
-  two Loop examples ship inside the runtime as `extensions/spec-cycle`, so the definition you copy
-  is the one CompozyOS runs.
+  delivery examples use the agents that ship inside the runtime as `extensions/spec-cycle`.
 </OperatorNote>
 
-## Loops
+## Delivery
 
 <GuideGrid>
   <GuideCard
-    href="/docs/examples/review-and-fix-loop"
+    href="/docs/examples/deliver-small-work"
     label="Ships with the runtime"
-    title="Review-and-fix loop"
-    description="Review a named task with an agent, write inspectable findings, and remediate them until a round comes back clean."
-    meta="compozy.loop/v1"
+    title="Deliver small work"
+    description="Keep a stays-on orchestrator that logs each request, dispatches it to a worktree, and verifies the result."
+    meta="orchestrator"
   />
   <GuideCard
-    href="/docs/examples/implement-tasks-loop"
+    href="/docs/examples/deliver-a-spec"
     label="Ships with the runtime"
-    title="Implement-tasks loop"
-    description="Implement every authored task in dependency order, directly or through bounded worker sessions."
-    meta="compozy.loop/v1"
+    title="Deliver a spec"
+    description="Write a spec with slices, then let one conductor build, integrate, and review them."
+    meta="spec_conductor"
   />
 </GuideGrid>
 

@@ -78,8 +78,14 @@ If nothing is claimable, return a concise no-op summary.
 | `context.include`           | string array | optional | Hints about what context the agent should re-read on wake.                               |
 | Body                        | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
 
-Omitting `context` enables all five proactive collectors. An explicit `context: {include: []}`
+Omitting `context` enables all six proactive collectors. An explicit `context: {include: []}`
 disables them and survives save, reload and rollback.
+
+The `work_log` collector reads the workspace's `.compozy/work-log.md` and reports `[ ]` entries older
+than 30 minutes, oldest first: up to 9 items, then `work:more` if there are others, and
+`work:log-truncated` when the file is larger than 64 KiB. A missing file reports nothing. User and
+global instances have no work log. See
+[Deliver small work](/docs/examples/deliver-small-work).
 
 The parser is strict. Forbidden operational fields are explicit. Time-window predicates use IANA
 timezone names; fixed offsets fail validation with `heartbeat_invalid_timezone`. If file

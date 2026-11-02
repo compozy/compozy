@@ -1,0 +1,139 @@
+---
+title: Deliver a spec with the conductor
+description: Write a spec with slices, start one spec_conductor session, and let it build each slice in its own worktree, integrate them, and get them reviewed.
+maturity: shipped
+---
+
+## What you build
+
+One delivery from a written spec to a verified branch. A `spec_conductor` session reads your spec,
+starts a `code_implementer` session for each slice, squashes finished slices into one integration
+branch, and sends the result to `reviewer` sessions. A slice is one piece of the spec that a single
+session can build on its own.
+
+Use it when work is too large for one session. For a small fix, use
+[Deliver small work](/docs/examples/deliver-small-work).
+
+## Before you start
+
+- CompozyOS is installed and the daemon is running.
+- Your project is registered as a workspace. This page calls it `acme`.
+- The bundled `spec-cycle` extension is enabled. It is on by default. Check it with:
+
+```bash
+compozy extension status spec-cycle
+```
+
+## The artifact
+
+The conductor reads one spec directory. This example uses `.compozy/tasks/billing-export`.
+`_slices.md` is the file that matters most. It lists each slice and what it waits for:
+
+```markdown title=".compozy/tasks/billing-export/_slices.md"
+| Slice | Layer    | Depends on | Scope           | Spec refs |
+| ----- | -------- | ---------- | --------------- | --------- |
+| S1    | backend  | none       | Export contract | US-001    |
+| S2    | frontend | S1         | Export dialog   | US-002    |
+```
+
+## Run it
+
+### Step 1: Write the spec
+
+Start a session and ask it to use the `cy-create-spec` skill:
+
+```bash
+compozy session new --agent general --workspace acme --name "Spec billing-export"
+```
+
+```text
+sess-3a10
+```
+
+```bash
+compozy session prompt sess-3a10 "Use cy-create-spec to write a spec for billing export"
+```
+
+The skill saves the spec under `.compozy/tasks/billing-export/`, adds `_slices.md`, and offers an
+optional peer review once you approve the spec.
+
+### Step 2: Start the conductor
+
+```bash
+compozy session new --agent spec_conductor --workspace acme --name "Deliver billing-export"
+```
+
+```text
+sess-9c4d
+```
+
+Copy the session ID. Yours will differ.
+
+### Step 3: Hand it the spec
+
+```bash
+compozy session prompt sess-9c4d "Deliver .compozy/tasks/billing-export"
+```
+
+```text
+Read 2 slices. Created integration worktree spec-billing-export. Dispatching S1.
+```
+
+### Step 4: Follow the run
+
+The conductor keeps a short checkpoint beside your spec:
+
+```bash
+cat .compozy/tasks/billing-export/_run.md
+```
+
+```markdown
+- Owner: sess-9c4d
+- Integration: worktree spec-billing-export, branch feat/billing-export
+- S1 | sess-a1 | worktree s1 | source 44d01bc | integrated 91ab3f2
+- S2 | sess-b2 | worktree s2 | source 8e22f70 | integrating
+```
+
+### Step 5: Read the final report
+
+When the run ends, the conductor reports the integration head, how each slice ended, what was
+verified, and anything that still blocks delivery. Your project's own instructions decide what
+happens after that, such as opening a pull request. Without them, you get a verified branch.
+
+## How it works
+
+- **Order.** A slice starts only after every slice it depends on is integrated. Independent slices
+  run in parallel.
+- **Restarts.** Each squash commit carries a `Spec-Slice: S1` trailer. After a restart, Git history
+  wins over `_run.md`, so no slice is applied twice.
+- **One owner.** Only one conductor owns a spec. A second one reports the active owner and stops.
+- **Review.** `reviewer` sessions are read-only and each writes one findings file. Defects go back
+  to a `code_implementer`, and the conductor verifies the repair.
+- **Your files stay.** Existing files under `.compozy/tasks` are never deleted.
+
+## Common problems
+
+| What you see                              | What it means                            | What to do                                                  |
+| ----------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| The conductor proposes a `_slices.md`     | The spec had no slices file              | Review the proposal and accept it so dispatch can start     |
+| It reports another active owner and stops | A conductor is already running this spec | Keep that session, or stop it before starting a replacement |
+| `agent_not_found` for `spec_conductor`    | `spec-cycle` is disabled                 | Enable the extension, then start the session again          |
+
+## Next steps
+
+<GuideGrid>
+  <GuideCard
+    href="/docs/examples/deliver-small-work"
+    label="Example"
+    title="Deliver small work"
+    description="Keep a stays-on orchestrator that logs, dispatches, and verifies small requests."
+    meta="orchestrator"
+  />
+  <GuideCard
+    href="/docs/worktrees"
+    label="Concept"
+    title="Worktrees"
+    description="How isolated checkouts keep parallel work apart."
+    meta="Git"
+  />
+</GuideGrid>

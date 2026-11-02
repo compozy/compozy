@@ -41,6 +41,16 @@ const config = {
         permanent: true,
       },
       {
+        source: "/docs/examples/implement-tasks-loop/",
+        destination: "/docs/examples/deliver-a-spec/",
+        permanent: true,
+      },
+      {
+        source: "/docs/examples/review-and-fix-loop/",
+        destination: "/docs/examples/deliver-a-spec/",
+        permanent: true,
+      },
+      {
         source: "/docs/automation/jobs/",
         destination: "/docs/automation/schedules/",
         permanent: true,
@@ -60,7 +70,6 @@ const config = {
     "/api/search": [
       "../../extensions/spec-cycle/extension.json",
       "../../extensions/spec-cycle/agents/*/AGENT.md",
-      "../../extensions/spec-cycle/loops/*/loop.yaml",
       "../../extensions/spec-cycle/skills/*/SKILL.md",
       "../../extensions/open-design/extension.json",
       "../../extensions/open-design/loops/*/loop.yaml",

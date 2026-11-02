@@ -24,7 +24,7 @@ const repositoryInstalled = installedListing(storyCatalog.repositoryOrientation)
 /** Today's catalog with two installed rows, one of them updatable. */
 export const defaultCatalog = [
   storyCatalog.repositoryOrientation,
-  storyCatalog.batuta,
+  storyCatalog.grafana,
   herdrInstalled,
   context7Installed,
   storyCatalog.github,
@@ -91,7 +91,7 @@ export const installedUpdateExtensions: ExtensionEntry[] = [
     contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 2 },
   }),
   installedExtension(
-    installedListing(storyCatalog.batuta, {
+    installedListing(storyCatalog.grafana, {
       installedVersion: "0.4.0",
       updateAvailable: true,
     }),
@@ -113,7 +113,7 @@ export const installedLocalExtensions: ExtensionEntry[] = [
 export const installedPartialUpdateExtensions: ExtensionEntry[] = [
   installedExtension(herdrInstalled),
   installedExtension(
-    installedListing(storyCatalog.batuta, {
+    installedListing(storyCatalog.grafana, {
       installedVersion: "0.4.0",
       updateAvailable: true,
     }),
@@ -139,11 +139,11 @@ export const multiSourceSources = [
 
 export const conflictingCatalog: MarketplaceCatalogListing[] = [
   {
-    ...storyCatalog.batuta,
+    ...storyCatalog.grafana,
     name_conflict: {
       source: "team-plugins",
       source_ref: "github:acme/team-plugins",
-      entry_id: "batuta",
+      entry_id: "grafana",
     },
   },
 ];
@@ -164,12 +164,12 @@ export const zeroPluginSources: MarketplaceSource[] = [
 export const logoLadderCatalog = [
   storyCatalog.context7,
   storyCatalog.github,
-  storyCatalog.batuta,
+  storyCatalog.grafana,
   storyCatalog.postgres,
 ];
 
 export const trailStatesCatalog = [
-  storyCatalog.batuta,
+  storyCatalog.grafana,
   herdrInstalled,
   context7Installed,
   storyCatalog.slackNotify,

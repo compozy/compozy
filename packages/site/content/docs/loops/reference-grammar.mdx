@@ -78,7 +78,7 @@ rule lists stay arrays when the child receives its per-run configuration.
 
 ```yaml
 params:
-  loop: implement-tasks
+  loop: build-feature
   config_overrides:
     budget_tokens: "{{ .nodes.routing.output.remaining_tokens }}"
     runtime_rules: "{{ .nodes.routing.output.runtime_rules }}"
@@ -184,7 +184,7 @@ graph:
     - {
         id: load_tasks,
         class: action,
-        kind: ext__spec_cycle__import_tasks,
+        kind: ext__notes__list,
         params: { pattern: "tasks/*.md" },
       }
     - {

@@ -2,6 +2,7 @@
 import {
   Clock3,
   Coffee,
+  Hourglass,
   ListChecks,
   MessagesSquare,
   Radar,
@@ -38,6 +39,7 @@ const LOOKS_AT: readonly { id: string; label: string; icon: LucideIcon }[] = [
   { id: "sessions_idle", label: "Sessions that went quiet", icon: Clock3 },
   { id: "automations_failed", label: "Automations that failed", icon: Workflow },
   { id: "monitors_fired", label: "Things it was asked to watch", icon: Radar },
+  { id: "work_log", label: "Work that never got started", icon: Hourglass },
 ];
 
 function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disabled: boolean }) {

@@ -229,16 +229,18 @@ export default async function BundledExtensionPage({ params }: PageProps) {
               <span className="text-subtle">First-party, from the CompozyOS repository.</span>
             </MetadataListValue>
           </MetadataListRow>
-          <MetadataListRow>
-            <MetadataListTerm>Provides</MetadataListTerm>
-            <MetadataListValue className="flex flex-wrap gap-1.5">
-              {extension.provides.map(capability => (
-                <Pill key={capability} size="sm" mono>
-                  {capability}
-                </Pill>
-              ))}
-            </MetadataListValue>
-          </MetadataListRow>
+          {extension.provides.length > 0 ? (
+            <MetadataListRow>
+              <MetadataListTerm>Provides</MetadataListTerm>
+              <MetadataListValue className="flex flex-wrap gap-1.5">
+                {extension.provides.map(capability => (
+                  <Pill key={capability} size="sm" mono>
+                    {capability}
+                  </Pill>
+                ))}
+              </MetadataListValue>
+            </MetadataListRow>
+          ) : null}
           <MetadataListRow>
             <MetadataListTerm>Repository</MetadataListTerm>
             <MetadataListValue className="font-mono">

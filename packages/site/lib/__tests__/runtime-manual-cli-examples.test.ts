@@ -200,23 +200,13 @@ describe("manual site CLI examples", () => {
     expect(shell).not.toContain("compozy automation jobs trigger morning-briefing");
   });
 
-  it("uses the flag-only Loop command contract in the review-and-fix example", () => {
-    const shell = normalizedShellBlocks(manualDoc("docs/examples/review-and-fix-loop.mdx"));
-
-    expect(shell).toMatch(
-      /compozy loop validate\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--file loop\.yaml/
+  it("starts each delivery agent the way the CLI expects", () => {
+    expect(manualDoc("docs/examples/deliver-small-work.mdx").content).toContain(
+      "compozy agent instance create orchestrator --workspace acme"
     );
-    expect(shell).toMatch(
-      /compozy loop create\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--file loop\.yaml/
+    expect(manualDoc("docs/examples/deliver-a-spec.mdx").content).toContain(
+      'compozy session new --agent spec_conductor --workspace acme --name "Deliver billing-export"'
     );
-    expect(shell).toMatch(
-      /compozy loop run\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--name review-and-fix\s+--input task_name=<task-name>\s+--dry-run/
-    );
-    expect(shell).toMatch(
-      /compozy loop run\s+--workspace\s+\/Users\/you\/src\/checkout-api\s+--name review-and-fix\s+--input task_name=<task-name>/
-    );
-    expect(shell).not.toMatch(/compozy loop (?:validate|create) loop\.yaml/);
-    expect(shell).not.toMatch(/compozy loop run review-and-fix/);
   });
 
   it("uses the write-only webhook secret and generated delivery route fields", () => {
