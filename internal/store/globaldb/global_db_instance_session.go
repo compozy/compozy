@@ -12,10 +12,12 @@ import (
 
 func (g *SessionRepo) RegisterInstanceSession(
 	ctx context.Context,
-	info store.SessionInfo,
+	infoInput *store.SessionInfo,
 	instanceID string,
 	identity *store.SessionCreationIdentity,
 ) (store.SessionCreationRegistration, error) {
+	info := *infoInput
+
 	if err := g.checkReady(ctx, "register instance session"); err != nil {
 		return store.SessionCreationRegistration{}, err
 	}
@@ -38,19 +40,8 @@ func (g *SessionRepo) RegisterInstanceSession(
 	}
 	result := store.SessionCreationRegistration{SessionID: info.ID}
 	err := g.withImmediateTransaction(ctx, "register instance session", func(exec globalSQLExecutor) error {
-		existing, lookupErr := sqlcgen.New(exec).
-			GetInstanceMainAttempt(ctx, sql.NullString{String: instanceID, Valid: true})
-		if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
-			return lookupErr
-		}
-		if lookupErr == nil && existing != info.ID {
-			allowed, err := sqlcgen.New(exec).CanRegisterRotationCandidate(ctx, instanceID)
-			if err != nil {
-				return err
-			}
-			if !allowed {
-				return agentinstance.ErrStarting
-			}
+		if err := checkInstanceMainRegistration(ctx, exec, instanceID, info.ID); err != nil {
+			return err
 		}
 		if identity == nil {
 			_, lookupErr := sqlcgen.New(exec).GetSessionWorkspaceID(ctx, info.ID)
@@ -58,11 +49,11 @@ func (g *SessionRepo) RegisterInstanceSession(
 				return lookupErr
 			}
 			result.Created = errors.Is(lookupErr, sql.ErrNoRows)
-			if err := g.admitSessionRegistration(ctx, exec, info); err != nil {
+			if err := g.admitSessionRegistration(ctx, exec, &(info)); err != nil {
 				return err
 			}
 		} else {
-			created, err := g.registerSessionCreationTx(ctx, exec, info, *identity)
+			created, err := g.registerSessionCreationTx(ctx, exec, &(info), *identity)
 			if err != nil {
 				return err
 			}
@@ -83,4 +74,26 @@ func (g *SessionRepo) RegisterInstanceSession(
 		return store.SessionCreationRegistration{}, err
 	}
 	return result, nil
+}
+
+func checkInstanceMainRegistration(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	instanceID, sessionID string,
+) error {
+	existing, lookupErr := sqlcgen.New(exec).
+		GetInstanceMainAttempt(ctx, sql.NullString{String: instanceID, Valid: true})
+	if lookupErr != nil && !errors.Is(lookupErr, sql.ErrNoRows) {
+		return lookupErr
+	}
+	if lookupErr == nil && existing != sessionID {
+		allowed, err := sqlcgen.New(exec).CanRegisterRotationCandidate(ctx, instanceID)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			return agentinstance.ErrStarting
+		}
+	}
+	return nil
 }

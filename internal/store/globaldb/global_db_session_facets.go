@@ -82,14 +82,7 @@ func (g *SessionRepo) SessionCatalogFacets(
 	if err := rows.Err(); err != nil {
 		return result, fmt.Errorf("store: iterate session catalog facets: %w", err)
 	}
-	result.ByProfile = make([]store.ProfileSessionCatalogFacets, 0, len(profiles))
-	for id, facets := range profiles {
-		result.ByProfile = append(result.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
-	}
-	slices.SortFunc(
-		result.ByProfile,
-		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
-	)
+	result.ByProfile = sortedProfileCatalogFacets(profiles)
 	if err := g.addTerminalApprovalFacets(ctx, query, &result); err != nil {
 		return result, err
 	}
@@ -119,7 +112,7 @@ func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.
 func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, count int) {
 	facets.All += count
 	switch badge {
-	case "waiting-for-auth", "waiting-for-input", "failed", "needs-attention":
+	case "waiting-for-auth", "waiting-for-input", loopNodeOutputFailed, "needs-attention":
 		facets.NeedsYou += count
 	case "running":
 		facets.Working += count
@@ -141,4 +134,16 @@ func sessionCatalogBoardCount(excludedIDs []string) (string, []any, error) {
 		return "", nil, err
 	}
 	return "SUM(CASE WHEN id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END)", []any{string(encoded)}, nil
+}
+
+func sortedProfileCatalogFacets(profiles map[string]store.SessionCatalogFacets) []store.ProfileSessionCatalogFacets {
+	result := make([]store.ProfileSessionCatalogFacets, 0, len(profiles))
+	for id, facets := range profiles {
+		result = append(result, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
+	}
+	slices.SortFunc(
+		result,
+		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
+	)
+	return result
 }

@@ -15,7 +15,7 @@ func (r *InstanceRepo) RotationAdmissionCount(ctx context.Context, sessionID str
 	return r.queries.InstanceRotationAdmissionCount(ctx, sessionID)
 }
 
-// PublishRotation checks persisted dependencies; the caller must also hold runtime admission against monitors and turns.
+// PublishRotation checks persisted dependencies while the caller holds admission against monitors and turns.
 func (r *InstanceRepo) PublishRotation(ctx context.Context, req agentinstance.RotationPublication) error {
 	if req.PredecessorID == "" || req.SuccessorID == "" || req.PredecessorID == req.SuccessorID {
 		return agentinstance.ErrRotationChanged

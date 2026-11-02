@@ -44,7 +44,8 @@ const sessionLaterPendingMessagesExpression = `(CASE WHEN parked_at IS NULL THEN
  AND later_input.origin_class = 'agent'
  AND later_input.session_generation = sessions.input_generation) END)`
 
-const sessionInfoSelectQuery = `SELECT COALESCE(instance_id, ''), initiator_kind, initiator_id, effective_workspace_access,
+const sessionInfoSelectQuery = `SELECT COALESCE(instance_id, ''), initiator_kind, initiator_id,
+ effective_workspace_access,
  id, profile_id, name, agent_name, provider, model,
 	reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,

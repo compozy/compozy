@@ -21,10 +21,12 @@ var _ store.SessionDerivationStore = (*SessionRepo)(nil)
 // back with store.ErrSessionDerivationExists.
 func (g *SessionRepo) RegisterDerivedSession(
 	ctx context.Context,
-	info store.SessionInfo,
+	infoInput *store.SessionInfo,
 	identity store.SessionCreationIdentity,
 	receipt store.SessionDerivationReceipt,
 ) error {
+	info := *infoInput
+
 	if err := g.checkReady(ctx, "register derived session"); err != nil {
 		return err
 	}
@@ -34,7 +36,7 @@ func (g *SessionRepo) RegisterDerivedSession(
 	if err := identity.Validate(); err != nil {
 		return err
 	}
-	params, err := sessionDerivationInsertParams(info, receipt, g.now())
+	params, err := sessionDerivationInsertParams(&(info), receipt, g.now())
 	if err != nil {
 		return err
 	}
@@ -58,7 +60,7 @@ func (g *SessionRepo) RegisterDerivedSession(
 				params.IdempotencyKey,
 			)
 		}
-		if _, err := g.registerSessionCreationTx(ctx, exec, normalized, identity); err != nil {
+		if _, err := g.registerSessionCreationTx(ctx, exec, &(normalized), identity); err != nil {
 			return err
 		}
 		return nil
@@ -134,10 +136,12 @@ func markDerivationChildDeleted(
 }
 
 func sessionDerivationInsertParams(
-	info store.SessionInfo,
+	infoInput *store.SessionInfo,
 	receipt store.SessionDerivationReceipt,
 	now time.Time,
 ) (sqlcgen.InsertSessionDerivationParams, error) {
+	info := *infoInput
+
 	if err := receipt.Validate(); err != nil {
 		return sqlcgen.InsertSessionDerivationParams{}, err
 	}

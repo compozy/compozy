@@ -145,7 +145,8 @@ func assertMigratedLineageKinds(t *testing.T, db *GlobalDB, want map[string]stor
 	if len(sessions) != len(want) {
 		t.Fatalf("ListSessions(after migration) count = %d, want %d", len(sessions), len(want))
 	}
-	for _, info := range sessions {
+	for i := range sessions {
+		info := &sessions[i]
 		if info.Lineage == nil || info.Lineage.Kind != want[info.ID] {
 			t.Fatalf("session %q lineage = %#v, want kind %q", info.ID, info.Lineage, want[info.ID])
 		}

@@ -22,7 +22,9 @@ func (r *InstanceRepo) CollectorFacts(
 	if err != nil {
 		return scope, facts, err
 	}
-	scope.ProfileID, scope.WorkspaceID, scope.MainSessionID = instance.ProfileID, instance.WorkspaceID, instance.MainSessionID
+	scope.ProfileID = instance.ProfileID
+	scope.WorkspaceID = instance.WorkspaceID
+	scope.MainSessionID = instance.MainSessionID
 	scope.Unrestricted = scope.Unrestricted && instance.GrantCeiling == "unrestricted"
 	workspaces := []string{instance.WorkspaceID}
 	if instance.WorkspaceID == "" && scope.Unrestricted {
@@ -48,20 +50,7 @@ func (r *InstanceRepo) CollectorFacts(
 	if err != nil {
 		return scope, facts, fmt.Errorf("collect tasks: %w", err)
 	}
-	for _, row := range tasks {
-		facts.Tasks = append(
-			facts.Tasks,
-			heartbeat.TaskFact{
-				ID:             row.ID,
-				RunID:          row.RunID,
-				ProfileID:      row.ProfileID,
-				WorkspaceID:    row.WorkspaceID,
-				OwnerKind:      "agent_session",
-				OwnerSessionID: row.OwnerRef.String,
-				Status:         row.Status,
-			},
-		)
-	}
+	facts.Tasks = collectorTaskFacts(tasks)
 	sessions, err := r.queries.ListInstanceCollectorSessions(
 		ctx,
 		sqlcgen.ListInstanceCollectorSessionsParams{
@@ -73,17 +62,7 @@ func (r *InstanceRepo) CollectorFacts(
 	if err != nil {
 		return scope, facts, fmt.Errorf("collect sessions: %w", err)
 	}
-	for _, row := range sessions {
-		facts.Sessions = append(
-			facts.Sessions,
-			heartbeat.SessionFact{
-				ID:          row.ID,
-				ProfileID:   row.ProfileID,
-				WorkspaceID: row.WorkspaceID,
-				Health:      row.Health,
-			},
-		)
-	}
+	facts.Sessions = collectorSessionFacts(sessions)
 	runs, err := r.queries.ListInstanceCollectorAutomations(
 		ctx,
 		sqlcgen.ListInstanceCollectorAutomationsParams{
@@ -111,4 +90,39 @@ func (r *InstanceRepo) CollectorFacts(
 		)
 	}
 	return scope, facts, nil
+}
+
+func collectorTaskFacts(tasks []sqlcgen.ListInstanceCollectorTasksRow) []heartbeat.TaskFact {
+	var facts []heartbeat.TaskFact
+	for _, row := range tasks {
+		facts = append(
+			facts,
+			heartbeat.TaskFact{
+				ID:             row.ID,
+				RunID:          row.RunID,
+				ProfileID:      row.ProfileID,
+				WorkspaceID:    row.WorkspaceID,
+				OwnerKind:      "agent_session",
+				OwnerSessionID: row.OwnerRef.String,
+				Status:         row.Status,
+			},
+		)
+	}
+	return facts
+}
+
+func collectorSessionFacts(sessions []sqlcgen.ListInstanceCollectorSessionsRow) []heartbeat.SessionFact {
+	var facts []heartbeat.SessionFact
+	for _, row := range sessions {
+		facts = append(
+			facts,
+			heartbeat.SessionFact{
+				ID:          row.ID,
+				ProfileID:   row.ProfileID,
+				WorkspaceID: row.WorkspaceID,
+				Health:      row.Health,
+			},
+		)
+	}
+	return facts
 }

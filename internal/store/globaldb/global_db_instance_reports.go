@@ -196,14 +196,12 @@ func instanceReport(row sqlcgen.AgentInstanceReport) (agentinstance.Report, erro
 		delivered = &value
 	}
 	return agentinstance.Report{
-		ID:         row.ID,
-		InstanceID: row.InstanceID,
-		ReportInput: agentinstance.ReportInput{
-			SourceKey:   row.SourceKey,
-			Kind:        row.Kind,
-			Payload:     []byte(row.Payload),
-			Fingerprint: row.Fingerprint,
-		},
+		ID:                row.ID,
+		InstanceID:        row.InstanceID,
+		SourceKey:         row.SourceKey,
+		Kind:              row.Kind,
+		Payload:           []byte(row.Payload),
+		Fingerprint:       row.Fingerprint,
 		State:             row.State,
 		PromptAdmissionID: row.PromptAdmissionID,
 		EventSessionID:    row.EventSessionID,

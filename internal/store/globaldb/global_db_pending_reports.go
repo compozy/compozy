@@ -20,7 +20,8 @@ func appendPendingInteractionReport(
 	var input agentinstance.ReportInput
 	var payload any
 	switch {
-	case transition.Status == store.PendingInteractionStatusTimedOut && interaction.Kind == store.PendingInteractionKindPermission:
+	case transition.Status == store.PendingInteractionStatusTimedOut &&
+		interaction.Kind == store.PendingInteractionKindPermission:
 		tool := interaction.Payload.ToolID
 		if tool == "" {
 			tool = strings.TrimSpace(interaction.Title)
