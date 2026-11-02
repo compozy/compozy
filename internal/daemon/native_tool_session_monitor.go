@@ -62,10 +62,8 @@ func (n *daemonNativeTools) monitorCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	for _, target := range input.TargetSessionIDs {
-		if _, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, target, true); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
+	if err := n.authorizeMonitorTargets(ctx, scope, req.ToolID, sessionID, input.TargetSessionIDs); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	created, err := service.Create(ctx, monitorpkg.Spec{
 		WorkspaceID: workspaceID, ProfileID: strings.TrimSpace(scope.ProfileID), SessionID: sessionID,
@@ -92,6 +90,35 @@ func (n *daemonNativeTools) monitorCreate(
 		created.ID, created.DeadlineAt.Format(time.RFC3339),
 	)
 	return structuredResult(map[string]any{monitorResultField: created}, preview)
+}
+
+// authorizeMonitorTargets admits only other sessions of the owner's workspace and profile. A monitor
+// reports each target's name and state to anyone who can read the owner, so a target from another
+// profile would expose a session its profile reads cannot see.
+func (n *daemonNativeTools) authorizeMonitorTargets(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+	ownerID string,
+	targets []string,
+) error {
+	if len(targets) == 0 {
+		return nil
+	}
+	_, owner, err := n.nativeOrchestrationTarget(ctx, scope, id, ownerID, false)
+	if err != nil {
+		return err
+	}
+	for _, target := range targets {
+		_, info, err := n.nativeOrchestrationTarget(ctx, scope, id, target, true)
+		if err != nil {
+			return err
+		}
+		if info.ProfileID != owner.ProfileID {
+			return nativeWorkspaceAccessDeniedError(id)
+		}
+	}
+	return nil
 }
 
 func (n *daemonNativeTools) monitorList(

@@ -20,10 +20,12 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"for every wait on external work, inside or outside your turn: CI, deploys, builds, polling remote state, "+
 			"or a delay. kind=terminal watches a terminal_id from compozy__terminal_exec (still_running) or "+
 			"compozy__terminal_open until it exits or its output matches a pattern; kind=timer fires once after "+
-			"delay_seconds; kind=session watches other same-workspace sessions in target_session_ids until any or "+
+			"delay_seconds; kind=session watches other sessions of this workspace and profile in "+
+			"target_session_ids until any or "+
 			"all of them reach states (one wake with each session's state; failed, stopped, or deleted sessions "+
-			"always count). Sessions with queued input are still working. A target is read as it is now, and a "+
-			"condition that already holds fires at once. Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
+			"always count). Sessions with queued input are still working. A target is read as it is now, and "+
+			"a condition that already holds fires at once. "+
+			"Use it instead of shell watches such as gh pr checks --watch, sleep loops, polling, or "+
 			"provider-internal background tasks, Monitor, and ScheduleWakeup — those cannot wake a CompozyOS session. "+
 			"After registering, keep working on steps that do not depend on it; end your turn only when every "+
 			"remaining step waits on a registered monitor or subagent. The wake arrives as a "+
@@ -107,7 +109,7 @@ const monitorCreateInputSchema = `{
 		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."},
 		"target_session_ids":{"type":"array","minItems":1,"maxItems":32,
 			"items":{"type":"string","minLength":1},
-			"description":"Session monitors only: other same-workspace sessions to watch."},
+			"description":"Session monitors only: other sessions of this workspace and profile to watch."},
 		"states":{"type":"array","minItems":1,"uniqueItems":true,
 			"items":{"type":"string","enum":["idle","waiting-for-input","waiting-for-auth","needs-attention",
 				"hung","stopped","failed"]},

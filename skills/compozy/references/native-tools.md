@@ -166,7 +166,7 @@ cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `
 `still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
 regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
 still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400).
-`kind="session"` watches 1 to 32 other same-workspace sessions in `target_session_ids` until `until="all"`
+`kind="session"` watches 1 to 32 other sessions of the same workspace and profile in `target_session_ids` until `until="all"`
 (default) or `until="any"` of them reach `states`, then wakes you once with each target's state. `states`
 defaults to `idle`, `waiting-for-input`, `waiting-for-auth`, `needs-attention`, `stopped`, and `failed`,
 and also accepts `hung`. `done` counts as `idle`. Targets are read as they are now, not as a history: one

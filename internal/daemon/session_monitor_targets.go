@@ -53,6 +53,13 @@ func readMonitorTarget(
 ) monitorpkg.TargetStatus {
 	status := monitorpkg.TargetStatus{SessionID: target, State: monitorpkg.TargetStateUnknown}
 	info, err := manager.Status(ctx, target)
+	if err == nil && info != nil && settledBadgeState(monitorTargetState(info)) {
+		var queued string
+		if queued, info, err = rereadSettledTarget(ctx, manager, target); queued != "" {
+			status.State = queued
+			return status
+		}
+	}
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
@@ -61,9 +68,6 @@ func readMonitorTarget(
 	case err == nil && info != nil:
 		status.Name = info.Name
 		status.State = monitorTargetState(info)
-		if settledBadgeState(status.State) {
-			status.State = queuedTargetState(ctx, manager, target, status.State)
-		}
 	}
 	return status
 }
@@ -72,22 +76,24 @@ func settledBadgeState(state string) bool {
 	return state == monitorpkg.TargetStateIdle || state == monitorpkg.TargetStateDone
 }
 
-// queuedTargetState keeps a target with queued input from reading as settled: between two turns its
-// badge is idle or done for a moment, but its next turn is already committed.
-func queuedTargetState(
+// rereadSettledTarget keeps a target with queued input from reading as settled: between two turns its
+// badge is idle or done for a moment, but its next turn is already committed. An empty queue is not
+// proof either, because that turn may have started after the first read, so the state is read again.
+// A nonempty result is the state to report; otherwise the fresh read decides.
+func rereadSettledTarget(
 	ctx context.Context,
 	manager monitorTargetManager,
-	target, state string,
-) string {
+	target string,
+) (string, *session.Info, error) {
 	queue, err := manager.InputQueueSummary(ctx, target)
 	switch {
 	case err != nil:
-		return monitorpkg.TargetStateUnknown
+		return monitorpkg.TargetStateUnknown, nil, nil
 	case queue.PendingInputs > 0:
-		return string(session.BadgeRunning)
-	default:
-		return state
+		return string(session.BadgeRunning), nil, nil
 	}
+	info, err := manager.Status(ctx, target)
+	return "", info, err
 }
 
 // monitorTargetState folds a stopped session to a final state: its badge can still describe why it

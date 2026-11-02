@@ -1362,6 +1362,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			if err == nil && id == "sess-other" {
 				info.WorkspaceID = "ws-2"
 			}
+			if err == nil && id == "sess-foreign" {
+				info.ProfileID = "profile-other"
+			}
 			if err == nil {
 				info.State = session.StateStarting
 			}
@@ -1376,14 +1379,17 @@ func TestDaemonNativeTools(t *testing.T) {
 			return registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
 				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(input)})
 		}
-		for _, tc := range []struct{ name, input string }{
-			{"Should refuse a target in another workspace", `{"kind":"session","description":"wait","target_session_ids":["sess-other"]}`},
-			{"Should refuse the calling session", `{"kind":"session","description":"wait","target_session_ids":["sess-1"]}`},
+		for _, tc := range []struct {
+			name, target string
+			code         toolspkg.ErrorCode
+		}{
+			{"Should refuse a target in another workspace", "sess-other", toolspkg.ErrorCodeDenied},
+			{"Should refuse a target in another profile", "sess-foreign", toolspkg.ErrorCodeDenied},
+			{"Should refuse the calling session", "sess-1", toolspkg.ErrorCodeDenied},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				if _, err := call(tc.input); err == nil {
-					t.Fatal("Call() error = nil, want the target refused")
-				}
+				_, err := call(`{"kind":"session","description":"wait","target_session_ids":["` + tc.target + `"]}`)
+				requireToolCode(t, err, tc.code)
 				if len(service.List("sess-1")) != 0 {
 					t.Fatal("refused target created a monitor")
 				}

@@ -292,6 +292,8 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 }
 
 type monitorTargetManagerStub struct {
+	later    map[string]*session.Info
+	reads    map[string]int
 	infos    map[string]*session.Info
 	errs     map[string]error
 	queues   map[string]int
@@ -301,6 +303,10 @@ type monitorTargetManagerStub struct {
 }
 
 func (stub *monitorTargetManagerStub) Status(_ context.Context, id string) (*session.Info, error) {
+	stub.reads[id]++
+	if later := stub.later[id]; later != nil && stub.reads[id] > 1 {
+		return later, nil
+	}
 	return stub.infos[id], stub.errs[id]
 }
 
@@ -326,6 +332,7 @@ func TestMonitorSessionTargets(t *testing.T) {
 		t.Parallel()
 
 		stub := &monitorTargetManagerStub{
+			reads: map[string]int{},
 			infos: map[string]*session.Info{
 				"sess-idle": {ID: "sess-idle", Name: "Idle", State: session.StateActive},
 				"sess-busy": {ID: "sess-busy", State: session.StateStarting},
@@ -368,10 +375,26 @@ func TestMonitorSessionTargets(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read again when a queued turn starts between the first read and the queue read", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &monitorTargetManagerStub{
+			reads: map[string]int{},
+			infos: map[string]*session.Info{"sess-a": {ID: "sess-a", State: session.StateActive}},
+			later: map[string]*session.Info{"sess-a": {ID: "sess-a", State: session.StateStarting}},
+		}
+		targets := monitorSessionTargets{sessions: func() any { return stub }}
+		got := targets.ReadTargets(testutil.Context(t), monitorpkg.Spec{Targets: []string{"sess-a"}})
+		if got[0].State != string(session.BadgeRunning) {
+			t.Fatalf("state = %q, want running from the second read", got[0].State)
+		}
+	})
+
 	t.Run("Should not report a settled state when the input queue cannot be read", func(t *testing.T) {
 		t.Parallel()
 
 		stub := &monitorTargetManagerStub{
+			reads:    map[string]int{},
 			infos:    map[string]*session.Info{"sess-a": {ID: "sess-a", State: session.StateActive}},
 			queueErr: errors.New("database is busy"),
 		}

@@ -49,16 +49,17 @@ func (n Notification) Message() string {
 	return strings.Join(lines, "\n")
 }
 
-// targetLines renders one block per watched session. Names are agent-controlled, so they are sanitized.
+// targetLines renders one block per watched session. Names are agent-controlled, so the block is marked
+// untrusted and encoded like terminal output: a name can neither forge fields nor pass as an instruction.
 func targetLines(targets []TargetStatus) []string {
 	if len(targets) == 0 {
 		return nil
 	}
-	lines := []string{"<targets>"}
+	lines := []string{"<targets untrusted=\"true\" encoding=\"entities\">"}
 	for _, target := range targets {
 		line := "<target><session-id>" + sanitizeLine(target.SessionID) + "</session-id>"
 		if target.Name != "" {
-			line += "<name>" + sanitizeLine(target.Name) + "</name>"
+			line += "<name>" + escapeOutput.Replace(strings.Join(strings.Fields(target.Name), " ")) + "</name>"
 		}
 		lines = append(lines, line+fmt.Sprintf("<state>%s</state><matched>%t</matched></target>",
 			sanitizeLine(target.State), target.Matched))

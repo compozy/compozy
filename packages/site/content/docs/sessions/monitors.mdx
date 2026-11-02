@@ -66,7 +66,7 @@ active, so a retried call never adds a second wake. The same applies to a sessio
 A `session` monitor lets an agent hand work to several sessions, end its turn, and get one wake when
 they are done. The wake lists each session and its state.
 
-- Sessions must be in the same project.
+- Sessions must be in the same project and profile.
 - By default a session counts once it is idle, needs input or approval, needs attention, stopped, or
   failed. Use `states` to narrow or widen that list.
 - A stopped, failed, archived, or deleted session always counts, so it can't leave the agent waiting.

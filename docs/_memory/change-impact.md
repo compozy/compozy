@@ -592,8 +592,8 @@ and `until` values `any` and `all`; monitor results gain optional `target_sessio
 `targets`. HTTP/UDS `SessionMonitorPayload` gains the same optional fields (OpenAPI, TS and Go SDKs
 regenerated). Persisted state: migration `00174` rebuilds `session_monitors` to widen the `kind` check and
 add three JSON columns; every existing row is preserved. Extensibility: hooks, extension SDKs, and config
-keys are unchanged. Workspace isolation: every target must belong to the caller's workspace, checked at
-creation through the orchestration target path. Official skill (`references/native-tools.md`) and site docs
+keys are unchanged. Workspace isolation: every target must share the caller's workspace and profile,
+checked at creation, because monitor reads report target names and states. Official skill (`references/native-tools.md`) and site docs
 (`sessions/monitors.mdx`) updated. Web labels the kind in the composer popover and shows "Sessions settled"
 on the wake divider. QA scenario `RT-session-monitor-wake` gains step 13.
 
