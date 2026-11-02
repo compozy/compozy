@@ -77,6 +77,7 @@ func failedMarketplaceUpdateResult(
 	return item
 }
 
+// marketplaceUpdateFailureDiagnostic exposes a redacted failure without discarding committed batch outcomes.
 func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcontract.DiagnosticItem {
 	message := fmt.Sprintf("Extension %q could not be updated.", strings.TrimSpace(name))
 	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
@@ -96,6 +97,7 @@ func marketplaceUpdateFailureDiagnostic(name string, cause error) *diagnosticcon
 	return &item
 }
 
+// The candidate reload closure keeps the same target identity during commit and compensation.
 func updateMarketplaceExtension(
 	ctx context.Context,
 	homePaths compozyconfig.HomePaths,
@@ -105,6 +107,10 @@ func updateMarketplaceExtension(
 	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) (_ MarketplaceUpdateResult, err error) {
+	if req.ReloadCandidate != nil {
+		reload = func(ctx context.Context) error { return req.ReloadCandidate(ctx, info.Name) }
+	}
+
 	slug, registryName, err := marketplaceUpdateMetadata(info)
 	if err != nil {
 		return MarketplaceUpdateResult{}, err

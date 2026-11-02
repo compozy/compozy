@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +18,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/httpapi"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
+	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
@@ -29,6 +34,7 @@ import (
 )
 
 func TestExtensionSecrets(t *testing.T) {
+	t.Run("Should serialize generic Vault mutations with package retirement", testExtensionVaultMutationIsolation)
 	t.Run("Should remove all installation state after the second input secret write fails [IT-020]",
 		testExtensionInputInstallRollback)
 	t.Run("Should inject a global binding only after enable", testExtensionSecretBindingEnableInjection)
@@ -38,6 +44,10 @@ func TestExtensionSecrets(t *testing.T) {
 	)
 	t.Run("Should roll back a failed transport batch", testExtensionSecretTransportRollback)
 	t.Run("Should retire global and development bindings by instance", testExtensionSecretBindingRetirement)
+	t.Run(
+		"Should retire orphan bindings across workspaces and restore them on removal failure",
+		testOrphanExtensionSecretRetirement,
+	)
 	t.Run("Should preserve remote header binding parity across HTTP and UDS", testExtensionRemoteHeaderBindingParity)
 }
 
@@ -1284,5 +1294,394 @@ secret_env = { FIRST_KEY = "first", SECOND_KEY = "second" }
 	items, err := harness.service.List(t.Context())
 	if err != nil || len(items) != 0 {
 		t.Fatalf("failed install remained in public inventory: %#v %v", items, err)
+	}
+}
+
+func testOrphanExtensionSecretRetirement(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	const name = "orphan-binding-retirement"
+	harness := newExtensionSecretIntegrationHarness(
+		t,
+		extensionSecretIntegrationHarnessOptions{actorReason: "orphan recovery", allowUnverified: true},
+	)
+	fixture := writeBoundSecretExtensionFixtureWithEnv(t, t.TempDir(), name, []string{"BOUND_SECRET"})
+	request := contract.InstallExtensionRequest{
+		Source:          contract.InstallExtensionSourceLocalPath,
+		Ref:             fixture,
+		AllowUnverified: true,
+	}
+	if _, err := harness.service.Install(t.Context(), request, harness.actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = ?`, name); err != nil {
+		t.Fatal(err)
+	}
+	scopes := []string{"", "ws-orphan-a", "ws-orphan-b"}
+	when := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	for _, workspace := range scopes {
+		ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "BOUND_SECRET")
+		if _, err := harness.vault.PutSecret(
+			t.Context(),
+			ref,
+			extensionpkg.ExtensionEnvBindingKind,
+			"orphan-owned-secret",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.db.ExtensionEnvRepo.PutEnvBinding(t.Context(), extensionpkg.EnvBinding{
+			ExtensionName: name,
+			ProfileID:     store.DefaultProfileID,
+			WorkspaceID:   workspace,
+			EnvName:       "BOUND_SECRET",
+			SecretRef:     ref,
+			Kind:          extensionpkg.ExtensionEnvBindingKind,
+			CreatedAt:     when,
+			UpdatedAt:     when,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := harness.db.ExtensionMCP.Reserve(
+			t.Context(),
+			extensionmcp.Target{
+				Extension:   name,
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: workspace,
+				ServerName:  "orphan-server",
+			},
+			"orphan-server",
+			nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Invariant: orphan recovery also retires Vault writes interrupted before binding persistence.
+	// Owner: real daemon removal transaction; canonical suite: TestExtensionSecrets.
+	var unboundRefs []string
+	for _, workspace := range scopes {
+		ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "UNBOUND_SECRET")
+		if _, err := harness.vault.PutSecret(
+			t.Context(),
+			ref,
+			extensionpkg.ExtensionEnvBindingKind,
+			"unbound-owned-secret",
+		); err != nil {
+			t.Fatal(err)
+		}
+		unboundRefs = append(unboundRefs, ref)
+	}
+	preserved := []string{
+		vault.ExtensionProfileSecretRef(name+"-neighbor", store.DefaultProfileID, "", "TOKEN"),
+		vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, "", "OPERATOR_SECRET"),
+	}
+	for i, ref := range preserved {
+		kind := extensionpkg.ExtensionEnvBindingKind
+		if i == 1 {
+			kind = "operator-managed"
+		}
+		if _, err := harness.vault.PutSecret(t.Context(), ref, kind, "preserved-secret"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := harness.db.DB().
+		ExecContext(t.Context(), `CREATE TRIGGER fail_orphan_removal BEFORE DELETE ON extension_mcp_overrides BEGIN SELECT RAISE(ABORT, 'orphan retirement failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Remove(
+		t.Context(),
+		name,
+		harness.actor,
+	); err == nil ||
+		!strings.Contains(err.Error(), "orphan retirement failure") {
+		t.Fatalf("remove failure = %v", err)
+	}
+	for _, ref := range unboundRefs {
+		if value, err := harness.vault.ResolveRef(t.Context(), ref); err != nil || value != "unbound-owned-secret" {
+			t.Fatalf("unbound secret not restored: %v", err)
+		}
+	}
+
+	for _, workspace := range scopes {
+		bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(
+			t.Context(),
+			name,
+			store.DefaultProfileID,
+			workspace,
+		)
+		if err != nil || len(bindings) != 1 {
+			t.Fatalf("restored bindings in %s: %v, %v", workspace, bindings, err)
+		}
+		value, err := harness.vault.ResolveRef(
+			t.Context(),
+			vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "BOUND_SECRET"),
+		)
+		if err != nil || value != "orphan-owned-secret" {
+			t.Fatalf("secret not restored in %s: %v", workspace, err)
+		}
+	}
+	if _, err := harness.db.DB().ExecContext(t.Context(), `DROP TRIGGER fail_orphan_removal`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Remove(t.Context(), name, harness.actor); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.service.Install(t.Context(), request, harness.actor); err != nil {
+		t.Fatal(err)
+	}
+	for _, workspace := range scopes {
+		bindings, err := harness.db.ExtensionEnvRepo.ListEnvBindings(
+			t.Context(),
+			name,
+			store.DefaultProfileID,
+			workspace,
+		)
+		if err != nil || len(bindings) != 0 {
+			t.Fatalf("reinstall inherited bindings in %s: %v, %v", workspace, bindings, err)
+		}
+		if _, err := harness.vault.ResolveRef(
+			t.Context(),
+			vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, workspace, "BOUND_SECRET"),
+		); !errors.Is(
+			err,
+			vault.ErrSecretNotFound,
+		) {
+			t.Fatalf("removed orphan credential in %s: %v", workspace, err)
+		}
+	}
+	for _, ref := range unboundRefs {
+		if _, err := harness.vault.ResolveRef(t.Context(), ref); !errors.Is(err, vault.ErrSecretNotFound) {
+			t.Fatalf("unbound orphan secret survived: %v", err)
+		}
+	}
+	for _, ref := range preserved {
+		if value, err := harness.vault.ResolveRef(t.Context(), ref); err != nil || value != "preserved-secret" {
+			t.Fatalf("unowned secret changed: %v", err)
+		}
+	}
+
+	records, err := harness.db.ExtensionMCP.ListAll(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if record.Extension == name {
+			t.Fatalf("orphan MCP allocation survived: %s", record.WorkspaceID)
+		}
+	}
+}
+
+// Invariant: production HTTP and UDS Vault mutations wait for retirement before changing owned refs.
+// Owner: daemon API composition and lifecycle coordinator; canonical suite: TestExtensionSecrets.
+func testExtensionVaultMutationIsolation(t *testing.T) {
+	t.Helper()
+	for _, scenario := range []struct{ transport, method string }{
+		{"HTTP", http.MethodPut}, {"HTTP", http.MethodDelete}, {"UDS", http.MethodPut}, {"UDS", http.MethodDelete},
+	} {
+		method := scenario.method
+		t.Run("Should block "+method+" through "+scenario.transport+" until retirement completes", func(t *testing.T) {
+			t.Parallel()
+			const name = "encoded-owner"
+			harness := newExtensionSecretIntegrationHarness(
+				t,
+				extensionSecretIntegrationHarnessOptions{
+					actorReason:     "generic vault retirement isolation",
+					allowUnverified: true,
+				},
+			)
+			fixture := writeBoundSecretExtensionFixtureWithEnv(t, t.TempDir(), name, []string{"TOKEN"})
+			if _, err := harness.service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceLocalPath, Ref: fixture, AllowUnverified: true,
+			}, harness.actor); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.db.DB().ExecContext(t.Context(),
+				`DELETE FROM extension_installations WHERE extension_name = ?`, name); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.db.ExtensionMCP.Reserve(t.Context(), extensionmcp.Target{
+				Extension: name, ProfileID: store.DefaultProfileID, ServerName: "retirement-fixture",
+			}, "retirement-fixture", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := harness.db.DB().ExecContext(t.Context(),
+				`CREATE TRIGGER fail_vault_isolation BEFORE DELETE ON extension_mcp_overrides
+                 BEGIN SELECT RAISE(ABORT, 'vault-isolation-removal-failure'); END`); err != nil {
+				t.Fatal(err)
+			}
+
+			ref := vault.ExtensionProfileSecretRef(name, store.DefaultProfileID, "ws-guard", "TOKEN")
+			if _, err := harness.vault.PutSecret(
+				t.Context(),
+				ref,
+				extensionpkg.ExtensionEnvBindingKind,
+				"old-value",
+			); err != nil {
+				t.Fatal(err)
+			}
+			engine := newExtensionVaultProductionEngine(t, harness, scenario.transport)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			entered, release := make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			defer releaseOnce.Do(func() { close(release) })
+			harness.service.secretVault = &extensionRetirementBarrierVault{
+				extensionSecretVault: harness.vault, entered: entered, release: release,
+			}
+			retired := make(chan error, 1)
+			go func() {
+				_, err := harness.service.Remove(ctx, name, harness.actor)
+				retired <- err
+			}()
+
+			select {
+			case <-entered:
+			case err := <-retired:
+				t.Fatalf("production removal returned before the retirement barrier: %v", err)
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			body, err := json.Marshal(
+				contract.PutVaultSecretRequest{
+					Ref:         ref,
+					Kind:        extensionpkg.ExtensionEnvBindingKind,
+					SecretValue: "new-value",
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(method, "/api/vault/secrets?ref="+url.QueryEscape(ref), bytes.NewReader(body)).
+				WithContext(ctx)
+			request.Header.Set("Content-Type", "application/json")
+			request.RemoteAddr = "127.0.0.1:12345"
+			request.Host = "127.0.0.1:2123"
+			response := httptest.NewRecorder()
+			completed := make(chan struct{})
+			go func() { defer close(completed); engine.ServeHTTP(response, request) }()
+			waitForExtensionPackageRefs(t, harness.service.lifecycle, name, 2)
+			if value, err := harness.vault.ResolveRef(ctx, ref); err != nil || value != "old-value" {
+				t.Fatalf("generic mutation escaped retirement lock: %v", err)
+			}
+			releaseOnce.Do(func() { close(release) })
+			select {
+			case err := <-retired:
+				if err == nil || !strings.Contains(err.Error(), "vault-isolation-removal-failure") {
+					t.Fatalf("production removal compensation = %v", err)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+
+			if _, err := harness.service.registry.Get(name); err != nil {
+				t.Fatalf("package not restored after failed removal: %v", err)
+			}
+
+			select {
+			case <-completed:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			wantStatus := http.StatusOK
+			if method == http.MethodDelete {
+				wantStatus = http.StatusNoContent
+			}
+			if response.Code != wantStatus {
+				t.Fatalf("Vault mutation status = %d", response.Code)
+			}
+			value, err := harness.vault.ResolveRef(ctx, ref)
+			if method == http.MethodPut && (err != nil || value != "new-value") {
+				t.Fatalf("later write lost: %v", err)
+			}
+			if method == http.MethodDelete && !errors.Is(err, vault.ErrSecretNotFound) {
+				t.Fatalf("later deletion lost: %v", err)
+			}
+		})
+	}
+}
+
+// waitForExtensionPackageRefs observes the coordinator signal rather than timing a blocked writer.
+func waitForExtensionPackageRefs(t *testing.T, c *extensionLifecycleCoordinator, name string, want int) {
+	t.Helper()
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	for {
+		c.mu.Lock()
+		got := 0
+		if entry := c.packages[name]; entry != nil {
+			got = entry.refs
+		}
+		changed := c.changed
+		c.mu.Unlock()
+		if got == want {
+			return
+		}
+		select {
+		case <-changed:
+		case <-timer.C:
+			t.Fatalf("package refs for %q did not reach %d", name, want)
+		}
+	}
+}
+
+// newExtensionVaultProductionEngine exercises the production HTTP/UDS options without opening listeners.
+func newExtensionVaultProductionEngine(
+	t *testing.T, harness *extensionSecretIntegrationHarness, transport string,
+) *gin.Engine {
+	t.Helper()
+	engine := gin.New()
+	paths := harness.service.homePaths
+	deps := RuntimeDeps{HomePaths: paths, Config: compozyconfig.DefaultWithHome(paths),
+		Logger: discardLogger(), Vault: harness.vault, Extensions: harness.service}
+	if transport == "HTTP" {
+		options := httpServerOptions(&deps)
+		options = append(options, httpapi.WithEngine(engine), httpapi.WithTerminalProvider(nil),
+			httpapi.WithSessionManager(authoredContextSessionManager()),
+			httpapi.WithTaskService(&apitest.StubTaskManager{}), httpapi.WithObserver(apitest.StubObserver{}),
+			httpapi.WithWorkspaceResolver(apitest.StubWorkspaceService{}))
+		if _, err := httpapi.New(options...); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		options := udsServerOptions(&deps)
+		options = append(
+			options,
+			udsapi.WithEngine(engine),
+			udsapi.WithTerminalProvider(nil),
+			udsapi.WithSocketPath(shortSocketPath(t)),
+			udsapi.WithSessionManager(authoredContextSessionManager()),
+			udsapi.WithTaskService(&apitest.StubTaskManager{}),
+			udsapi.WithObserver(apitest.StubObserver{}),
+			udsapi.WithWorkspaceResolver(apitest.StubWorkspaceService{}),
+		)
+		if _, err := udsapi.New(options...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return engine
+}
+
+// extensionRetirementBarrierVault pauses only the Vault I/O boundary while production removal owns its lock.
+type extensionRetirementBarrierVault struct {
+	extensionSecretVault
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (v *extensionRetirementBarrierVault) ListExtensionMetadata(
+	ctx context.Context,
+	name string,
+) ([]vault.Metadata, error) {
+	rows, err := v.extensionSecretVault.ListExtensionMetadata(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	close(v.entered)
+	select {
+	case <-v.release:
+		return rows, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }

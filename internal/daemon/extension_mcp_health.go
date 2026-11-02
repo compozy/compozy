@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 )
 
+// extensionMCPHealthKey binds server health to the resolved package lifecycle before runtime lookup.
 func extensionMCPHealthKey(
 	ctx context.Context,
 	state *bootState,
@@ -28,6 +29,9 @@ func extensionMCPHealthKey(
 		return mcppkg.RuntimeHealthKey{}
 	}
 	key := extensionpkg.InstanceKey{Name: owner.ID, ProfileID: profileID, WorkspaceID: workspaceID}.Normalize()
+	healthKey := state.mcpRuntimeHealth.ResolveKey(mcppkg.RuntimeHealthKey{
+		ResourceID: record.ID, InstanceName: key.Name, WorkspaceID: key.WorkspaceID, ServerName: record.Spec.Name,
+	})
 	var ext *extensionpkg.Extension
 	if runtime, ok := state.extensions.(extensionDevRuntime); ok {
 		ext, err = runtime.GetForInstance(key)
@@ -37,13 +41,8 @@ func extensionMCPHealthKey(
 	if err != nil || ext == nil {
 		return mcppkg.RuntimeHealthKey{}
 	}
-	return mcppkg.RuntimeHealthKey{
-		ResourceID:       record.ID,
-		InstanceName:     key.Name,
-		WorkspaceID:      key.WorkspaceID,
-		BundleGeneration: extensionMCPHealthGeneration(ext),
-		ServerName:       record.Spec.Name,
-	}
+	healthKey.BundleGeneration = extensionMCPHealthGeneration(ext)
+	return healthKey
 }
 
 func extensionMCPHealthKeyForTarget(

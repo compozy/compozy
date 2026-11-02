@@ -251,8 +251,9 @@ func TestReconcileManagedExtensionArtifacts(t *testing.T) {
 		registered := filepath.Join(root, "registered")
 		backup := registered + managedInstallBackupMarker + "1755280000000000000"
 		orphan := filepath.Join(root, "orphan")
+		retired := filepath.Join(root, "dev-cycle")
 		staging := filepath.Join(root, managedInstallStagingPrefix+"interrupted")
-		for _, path := range []string{registered, backup, orphan, staging, homePaths.ExtensionDataRoot} {
+		for _, path := range []string{registered, backup, orphan, retired, staging, homePaths.ExtensionDataRoot} {
 			if err := os.MkdirAll(path, 0o755); err != nil {
 				t.Fatalf("MkdirAll(%q) error = %v", path, err)
 			}
@@ -260,6 +261,7 @@ func TestReconcileManagedExtensionArtifacts(t *testing.T) {
 		writeFile(t, filepath.Join(registered, manifestTOMLFileName), "candidate")
 		writeFile(t, filepath.Join(backup, manifestTOMLFileName), "committed")
 		writeFile(t, filepath.Join(orphan, manifestTOMLFileName), "orphan")
+		writeFile(t, filepath.Join(retired, "state"), "preserved-retired-package")
 		writeFile(t, filepath.Join(staging, "partial"), "staged")
 		dataSentinel := filepath.Join(homePaths.ExtensionDataRoot, "registered", "state")
 		if err := os.MkdirAll(filepath.Dir(dataSentinel), 0o755); err != nil {
@@ -284,6 +286,11 @@ func TestReconcileManagedExtensionArtifacts(t *testing.T) {
 		if err := ReconcileManagedExtensionArtifacts(homePaths, registry); err != nil {
 			t.Fatalf("ReconcileManagedExtensionArtifacts() error = %v", err)
 		}
+		retiredData, err := os.ReadFile(filepath.Join(retired, "state"))
+		if err != nil || string(retiredData) != "preserved-retired-package" {
+			t.Fatalf("retired package lost on next boot: %q, %v", retiredData, err)
+		}
+
 		content, err := os.ReadFile(filepath.Join(registered, manifestTOMLFileName))
 		if err != nil || string(content) != "committed" {
 			t.Fatalf("registered artifact = %q, %v; want restored committed bytes", content, err)

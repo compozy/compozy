@@ -84,6 +84,40 @@ func (q *Queries) DeleteExtensionEnvBindingsByWorkspace(ctx context.Context, wor
 	return result.RowsAffected()
 }
 
+const listExtensionEnvBindingScopes = `-- name: ListExtensionEnvBindingScopes :many
+SELECT DISTINCT profile_id, workspace_id FROM extension_env_bindings
+WHERE extension_name = ?1
+ORDER BY profile_id, workspace_id
+`
+
+type ListExtensionEnvBindingScopesRow struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) ListExtensionEnvBindingScopes(ctx context.Context, extensionName string) ([]ListExtensionEnvBindingScopesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listExtensionEnvBindingScopes, extensionName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExtensionEnvBindingScopesRow{}
+	for rows.Next() {
+		var i ListExtensionEnvBindingScopesRow
+		if err := rows.Scan(&i.ProfileID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExtensionEnvBindings = `-- name: ListExtensionEnvBindings :many
 SELECT extension_name, profile_id, workspace_id, env_name, secret_ref, input_id, active, mcp_server, header_name, kind, created_at, updated_at
 FROM extension_env_bindings

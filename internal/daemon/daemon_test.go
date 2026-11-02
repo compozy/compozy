@@ -3671,9 +3671,16 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 		homePaths := testHomePaths(t)
 		db := openDaemonTestGlobalDB(t)
 		registry := extensionpkg.NewRegistry(db.DB())
+		installDaemonTestExtension(
+			t,
+			db,
+			"unrelated-broken",
+			daemonTestExtensionOptions{runtimeCommand: filepath.Join(t.TempDir(), "missing-provider")},
+			true,
+		)
 		manager := extensionpkg.NewManager(registry, extensionpkg.WithLogger(discardLogger()))
-		if err := manager.Start(testutil.Context(t)); err != nil {
-			t.Fatalf("manager.Start() error = %v", err)
+		if err := manager.Start(testutil.Context(t)); err == nil || !strings.Contains(err.Error(), "missing-provider") {
+			t.Fatalf("expected missing-provider startup failure: %v", err)
 		}
 		t.Cleanup(func() {
 			if err := manager.Stop(testutil.Context(t)); err != nil {
@@ -3701,6 +3708,62 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "compozy extension install")
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+
+		healthyDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(healthyDir, "extension.toml"), []byte(`[extension]
+name = "recoverable"
+version = "0.1.0"
+min_compozy_version = "0.0.1"
+`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: healthyDir, AllowUnverified: true,
+		}, actor); err != nil {
+			t.Fatalf("unrelated failure blocked healthy install: %v", err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = 'recoverable'`); err != nil {
+			t.Fatal(err)
+		}
+		agent, err := taskpkg.DeriveAgentSessionActorContext("agent-orphan", "ws-orphan")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.Remove(
+			t.Context(),
+			"recoverable",
+			agent,
+		); !errors.Is(
+			err,
+			extensionpkg.ErrExtensionNotFound,
+		) {
+			t.Fatalf("workspace agent orphan removal = %v", err)
+		}
+
+		if _, err := service.Remove(t.Context(), "recoverable", actor); err != nil {
+			t.Fatalf("remove orphan: %v", err)
+		}
+		if _, err := registry.Get("recoverable"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("orphan retained: %v", err)
+		}
+		if _, err := os.Stat(
+			extensionpkg.ManagedInstallPath(homePaths, "recoverable"),
+		); !errors.Is(
+			err,
+			os.ErrNotExist,
+		) {
+			t.Fatalf("orphan directory retained: %v", err)
+		}
+
+		if _, err := service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: healthyDir, AllowUnverified: true,
+		}, actor); err != nil {
+			t.Fatalf("reinstall recovered name: %v", err)
+		}
+		if _, err := service.Remove(t.Context(), "recoverable", actor); err != nil {
+			t.Fatalf("remove reinstalled package: %v", err)
 		}
 
 		fixtureDir := filepath.Join(t.TempDir(), "rollback-ext")

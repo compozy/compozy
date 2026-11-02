@@ -71,7 +71,13 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 		return s.commitExistingExtensionInputs(ctx, installed, prepared.manifest, update, complete)
 	}
 	warnings, err := prepared.published.Reinstall(
-		ctx, installed, update.PreflightCandidate, update.CommitCandidate, update.RollbackCandidate, s.reload, complete,
+		ctx,
+		installed,
+		update.PreflightCandidate,
+		update.CommitCandidate,
+		update.RollbackCandidate,
+		func(ctx context.Context) error { return s.reloadExtensions(ctx, installed.Name) },
+		complete,
 	)
 	if err != nil {
 		return err
@@ -82,6 +88,7 @@ func (s *daemonExtensionService) reinstallPreparedExtension(
 	return nil
 }
 
+// configureReinstallAttachment coordinates attachment enrollment and compensation with package replacement.
 func (s *daemonExtensionService) configureReinstallAttachment(
 	ctx context.Context, update *extensionpkg.MarketplaceUpdateRequest, scope extensionpkg.InstallationScope,
 ) {
@@ -109,13 +116,14 @@ func (s *daemonExtensionService) configureReinstallAttachment(
 	}
 }
 
+// A failed selected-package reload restores candidate inputs before compensating publication.
 func (s *daemonExtensionService) commitExistingExtensionInputs(
 	ctx context.Context, installed *extensionpkg.ExtensionInfo, manifest *extensionpkg.Manifest,
 	update extensionpkg.MarketplaceUpdateRequest, complete extensionpkg.MutationReload,
 ) error {
 	err := update.CommitCandidate(*installed, manifest)
 	if err == nil {
-		err = s.reload(ctx)
+		err = s.reloadExtensions(ctx, installed.Name)
 	}
 	if err == nil {
 		err = complete(ctx)
@@ -126,5 +134,5 @@ func (s *daemonExtensionService) commitExistingExtensionInputs(
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), extensionLifecycleRollbackTimeout)
 	defer cancel()
 	rollbackErr := update.RollbackCandidate(rollbackCtx, *installed)
-	return errors.Join(err, rollbackErr, s.reload(rollbackCtx))
+	return errors.Join(err, rollbackErr, s.reloadExtensions(rollbackCtx, installed.Name))
 }

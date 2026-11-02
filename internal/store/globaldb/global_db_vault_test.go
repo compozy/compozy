@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -316,6 +317,46 @@ func TestGlobalDBVaultSecretPrefixFiltering(t *testing.T) {
 		}
 		if len(listed) != 1 || listed[0].Ref != "vault:sessions/sess-1/github-token" {
 			t.Fatalf("ListVaultSecrets() = %#v, want only sess-1 child", listed)
+		}
+	})
+	// Invariant: orphan metadata lookup returns every instance of one exact encoded owner and no neighbors.
+	// Owner: global Vault repository filtering; canonical suite: TestGlobalDBVaultSecretPrefixFiltering.
+	t.Run("Should filter extension ownership before returning metadata", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		const name = "encoded-owner"
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		owned := []string{
+			vault.ExtensionSecretRef(name, "", "TOKEN"),
+			vault.ExtensionProfileSecretRef(name, "profile", "ws-a", "TOKEN"),
+			vault.ExtensionSecretRef(name, "Workspace B", "TOKEN"),
+		}
+		refs := append([]string{}, owned...)
+		refs = append(refs, vault.ExtensionSecretRef(name+"-neighbor", "", "TOKEN"),
+			vault.ExtensionSecretRef("other", name, "TOKEN"))
+		for _, ref := range refs {
+			if err := db.PutVaultSecret(
+				t.Context(),
+				vault.Record{Ref: ref, Kind: "token", EncryptedValue: "aes-gcm-v1:fixture",
+					CreatedAt: now, UpdatedAt: now},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows, err := db.ListExtensionVaultMetadata(t.Context(), name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := make([]string, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, row.Ref)
+			if !row.Present || !row.CreatedAt.Equal(now) || !row.UpdatedAt.Equal(now) {
+				t.Fatal("metadata projection changed")
+			}
+		}
+		slices.Sort(owned)
+		if !slices.Equal(got, owned) {
+			t.Fatalf("owned metadata refs = %v, want %v", got, owned)
 		}
 	})
 }

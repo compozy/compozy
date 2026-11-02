@@ -86,6 +86,7 @@ func (s *daemonExtensionService) Status(ctx context.Context, name string) (contr
 	return s.payloadFromExtension(ctx, ext, extensionDefaultProfileLens())
 }
 
+// reload publishes a manager-wide refresh for operations without a selected package.
 func (s *daemonExtensionService) reload(ctx context.Context) error {
 	if s.runtime == nil {
 		return nil
@@ -93,6 +94,16 @@ func (s *daemonExtensionService) reload(ctx context.Context) error {
 
 	reloadErr := s.runtime.Reload(ctx)
 	return errors.Join(reloadErr, s.syncExtensionConsumers(ctx))
+}
+
+// Target failures and consumer synchronization failures abort mutations; unrelated activation failures do not.
+func (s *daemonExtensionService) reloadExtensions(ctx context.Context, names ...string) error {
+	if runtime, ok := s.runtime.(interface {
+		ReloadForExtensions(context.Context, []string) error
+	}); ok {
+		return errors.Join(runtime.ReloadForExtensions(ctx, names), s.syncExtensionConsumers(ctx))
+	}
+	return s.reload(ctx)
 }
 
 func (s *daemonExtensionService) syncExtensionConsumers(ctx context.Context) error {

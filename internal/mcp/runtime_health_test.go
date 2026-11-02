@@ -88,6 +88,74 @@ func TestRuntimeHealthRegistry(t *testing.T) {
 		}
 	})
 
+	// Invariant: package retirement fences calls resolved before removal, even if Begin follows reinstall.
+	// Owner: runtime health registry. Canonical suite: TestRuntimeHealthRegistry.
+	t.Run("Should fence resolved workspace calls across package retirement and reinstall", func(t *testing.T) {
+		t.Parallel()
+		registry := NewRuntimeHealthRegistry()
+		key := RuntimeHealthKey{
+			InstanceName:     "kit",
+			WorkspaceID:      "ws-old",
+			BundleGeneration: "same-bundle",
+			ServerName:       "remote",
+		}
+		staleResolved := registry.ResolveKey(key)
+		inflight := registry.Begin(staleResolved)
+		foreign := key
+		foreign.InstanceName = "kit-other"
+		registry.RecordFailure(registry.Begin(registry.ResolveKey(foreign)), errors.New("foreign failure"))
+		otherWorkspace := key
+		otherWorkspace.WorkspaceID = "ws-other"
+		otherResolved := registry.ResolveKey(otherWorkspace)
+		registry.RecordFailure(
+			registry.Begin(otherResolved),
+			errors.New("other workspace failure"),
+		)
+
+		if entries := registry.Entries(
+			"kit",
+			"ws-other",
+			"same-bundle",
+		); len(entries) != 1 ||
+			entries[0].Message != "other workspace failure" {
+			t.Fatalf("other workspace health before eviction = %v", entries)
+		}
+
+		registry.EvictPackage("kit")
+		registry.RecordFailure(inflight, errors.New("late in-flight failure"))
+		registry.RecordFailure(registry.Begin(staleResolved), errors.New("late resolved failure"))
+		registry.RecordFailure(registry.Begin(otherResolved), errors.New("late other workspace failure"))
+		if entries := registry.Entries("kit", "ws-old", "same-bundle"); len(entries) != 0 {
+			t.Fatalf("retired package health = %v", entries)
+		}
+		if entries := registry.Entries("kit", "ws-other", "same-bundle"); len(entries) != 0 {
+			t.Fatalf("other workspace health after package retirement = %v", entries)
+		}
+
+		fresh := registry.ResolveKey(key)
+		registry.RecordFailure(registry.Begin(fresh), errors.New("new install failure"))
+		registry.RecordFailure(
+			registry.Begin(otherResolved),
+			errors.New("late other workspace failure after reinstall"),
+		)
+		registry.RecordFailure(registry.Begin(staleResolved), errors.New("late resolved failure after reinstall"))
+		if entries := registry.Entries("kit", "ws-other", "same-bundle"); len(entries) != 0 {
+			t.Fatalf("other workspace health after reinstall = %v", entries)
+		}
+
+		if entries := registry.Entries(
+			"kit",
+			"ws-old",
+			"same-bundle",
+		); len(entries) != 1 ||
+			entries[0].Message != "new install failure" {
+			t.Fatalf("new package health = %v", entries)
+		}
+		if entries := registry.Entries("kit-other", "ws-old", "same-bundle"); len(entries) != 1 {
+			t.Fatalf("foreign package health = %v", entries)
+		}
+	})
+
 	t.Run("Should start empty on a new registry", func(t *testing.T) {
 		t.Parallel()
 
