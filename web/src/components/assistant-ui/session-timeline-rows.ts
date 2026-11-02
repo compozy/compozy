@@ -67,12 +67,17 @@ export interface SessionWorkingRow extends SessionBaseRow {
 
 export type SessionWorkEntry = SessionTimelineToolPart | SessionTimelineReasoningPart;
 
+/** Allowed permission parts by the tool call they approved, in arrival order. */
+export type SessionWorkApprovals = ReadonlyMap<string, readonly SessionTimelineDataPart[]>;
+
 /** Ordered activity with an optional compact disclosure; terminal calls stay inline. */
 export interface SessionWorkRow extends SessionBaseRow {
   kind: "work";
   groupId: string;
   /** Original reasoning and tool parts in chronological order. */
   entries: SessionWorkEntry[];
+  /** Receipts of this row's calls; persisted parts stay as they are. */
+  approvals?: SessionWorkApprovals;
   /** Non-null when the run rests as a collapsed semantic summary line. */
   summary: SessionToolGroupSummary | null;
   expanded: boolean;

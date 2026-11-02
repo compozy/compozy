@@ -4,6 +4,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { storybookMswParameters } from "@/storybook/msw";
 
 import {
+  allowedReceiptTranscript,
   completedGroupTranscript,
   giantPayloadTranscript,
   partialFailureTranscript,
@@ -78,6 +79,19 @@ export const CompletedGroupExpanded: Story = {
   ),
   play: async ({ canvasElement }) => {
     await openWorkGroup(canvasElement);
+  },
+};
+
+/** #1155 — an allowed receipt stays with its call inside the open group; a rejected ask stands alone. */
+export const AllowedReceiptInGroup: Story = {
+  parameters: storybookMswParameters({ session: stabilityHandlers(allowedReceiptTranscript) }),
+  play: async ({ canvasElement }) => {
+    await openWorkGroup(canvasElement);
+    const canvas = within(canvasElement);
+    await waitFor(() => {
+      expect(canvas.getByTestId("permission-allowed-receipt")).toBeVisible();
+      expect(canvas.getByTestId("permission-rejected-notice")).toBeVisible();
+    });
   },
 };
 
