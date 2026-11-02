@@ -14679,6 +14679,7 @@ export interface components {
     };
     SessionInputPayload: {
       attachments?: components["schemas"]["PromptAttachmentRef"][];
+      coalesced_wakes?: number;
       delivery: string;
       /** Format: date-time */
       enqueued_at: string;

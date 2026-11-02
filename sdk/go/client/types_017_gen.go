@@ -303,6 +303,7 @@ type SessionInputPayload struct {
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
 	Mentions         []SessionInputMentionPayload    `json:"mentions,omitempty"`
 	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
+	CoalescedWakes   int                             `json:"coalesced_wakes,omitempty"`
 }
 
 // SessionInputResponse is a daemon API value.

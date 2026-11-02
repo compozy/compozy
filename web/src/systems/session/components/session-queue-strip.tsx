@@ -5,7 +5,11 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button, Spinner, toast } from "@compozy/ui";
 
-import type { QueuedPrompt, QueuedPromptEditOutcome } from "../lib/queued-prompt";
+import {
+  operatorQueuedCount,
+  type QueuedPrompt,
+  type QueuedPromptEditOutcome,
+} from "../lib/queued-prompt";
 import { splitQuotedPrompt } from "../lib/session-terminal-quote-prompt";
 import type { UnconfirmedSend } from "../lib/session-unconfirmed-send";
 import { SessionQueueEditingRow } from "./session-queue-strip-editor";
@@ -201,7 +205,7 @@ function queueStripState({
     mode.kind === "confirming-clear" || mode.kind === "clearing" ? mode.kind : null;
   const idle = editing === null && clearPhase === null;
   const clearable = idle && prompts.length > 0 && onClear !== undefined;
-  const full = queueCap !== null && prompts.length >= queueCap;
+  const full = queueCap !== null && operatorQueuedCount(prompts) >= queueCap;
   const rowsSuspended = disabled || !idle;
 
   return { editing, clearPhase, idle, clearable, full, rowsSuspended };

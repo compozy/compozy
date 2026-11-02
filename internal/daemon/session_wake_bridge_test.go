@@ -323,6 +323,12 @@ func TestMonitorSessionWaker(t *testing.T) {
 		if !strings.Contains(manager.opts.Message, "NOT USER INPUT") {
 			t.Fatalf("wake message = %q, want automated-wake header", manager.opts.Message)
 		}
+		coalesce := manager.opts.Coalesce
+		if manager.opts.CoalesceKey == "" || coalesce == nil || coalesce.MaxMembers <= 0 ||
+			!strings.Contains(coalesce.CompactText, "exited") || strings.Contains(coalesce.CompactText, "done") {
+			t.Fatalf("coalesce = %q %#v, want a bounded wake whose compact form keeps the outcome only",
+				manager.opts.CoalesceKey, coalesce)
+		}
 	})
 
 	t.Run("Should not admit a wake again when its queue entry was already admitted", func(t *testing.T) {

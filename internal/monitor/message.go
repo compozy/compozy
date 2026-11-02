@@ -19,6 +19,16 @@ type Notification struct {
 // provider conventions agents already follow for background-task wakes: an
 // explicit not-user-input header, a structured block, then the next action.
 func (n Notification) Message() string {
+	return n.render(true)
+}
+
+// CompactMessage renders the same outcome without its output tail, for a coalesced wake that has spent
+// its size budget. The agent still learns the outcome and can read the terminal.
+func (n Notification) CompactMessage() string {
+	return n.render(false)
+}
+
+func (n Notification) render(withOutput bool) string {
 	mon := n.Monitor
 	lines := []string{
 		"[COMPOZY MONITOR - NOT USER INPUT]",
@@ -33,7 +43,9 @@ func (n Notification) Message() string {
 	if mon.TerminalID != "" {
 		lines = append(lines, "<terminal-id>"+mon.TerminalID+"</terminal-id>")
 	}
-	if output := tail(n.Outcome.Output); output != "" {
+	if output := tail(n.Outcome.Output); output != "" && !withOutput {
+		lines = append(lines, "<note>Output omitted from this batched wake; read it from the terminal.</note>")
+	} else if output != "" {
 		lines = append(lines,
 			"<output untrusted=\"true\" encoding=\"entities\">",
 			output,

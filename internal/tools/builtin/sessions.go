@@ -440,7 +440,16 @@ const sessionInputsListOutputSchema = `{
 	"type":"object",
 	"required":["inputs"],
 	"properties":{
-		"inputs":{"type":"array","items":` + sessionInputPayloadSchema + `}
+		"inputs":{"type":"array","items":` + sessionInputPayloadSchema + `},
+		"queue":{
+			"type":"object",
+			"required":["entries","cap"],
+			"properties":{
+				"entries":{"type":"integer","minimum":0},
+				"cap":{"type":"integer","minimum":0}
+			},
+			"additionalProperties":false
+		}
 	},
 	"additionalProperties":false
 }`
@@ -470,9 +479,62 @@ const sessionInputPayloadSchema = `{
 		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
 		"delivery":{"type":"string","enum":["none","direct","after_turn","interrupt_then_prompt"]},
 		"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
-		"text":{"type":"string","minLength":1},
+		"text":{"type":"string"},
 		"queue_generation":{"type":"integer"},
 		"enqueued_at":{"type":"string","format":"date-time"},
+		"coalesced_wakes":{"type":"integer","minimum":0},
+		"skill_invocations":{"type":"array","items":{
+			"type":"object",
+			"required":["command_id","token","name","source","start","end"],
+			"properties":{
+				"command_id":{"type":"string"},
+				"token":{"type":"string"},
+				"name":{"type":"string"},
+				"source":{
+					"type":"object",
+					"required":["kind","scope"],
+					"properties":{
+						"kind":{"type":"string"},
+						"id":{"type":"string"},
+						"key":{"type":"string"},
+						"scope":{"type":"string"},
+						"origin":{"type":"string"}
+					},
+					"additionalProperties":false
+				},
+				"start":{"type":"integer"},
+				"end":{"type":"integer"}
+			},
+			"additionalProperties":false
+		}},
+		"mentions":{"type":"array","items":{
+			"type":"object",
+			"required":["kind","token","target","label","start","end"],
+			"properties":{
+				"kind":{"type":"string","enum":["file","folder","session"]},
+				"token":{"type":"string"},
+				"target":{"type":"string"},
+				"label":{"type":"string"},
+				"start":{"type":"integer"},
+				"end":{"type":"integer"}
+			},
+			"additionalProperties":false
+		}},
+		"attachments":{"type":"array","items":{
+			"type":"object",
+			"required":["id","name","mime_type","bytes","sha256","kind","width","height"],
+			"properties":{
+				"id":{"type":"string"},
+				"name":{"type":"string"},
+				"mime_type":{"type":"string"},
+				"bytes":{"type":"integer"},
+				"sha256":{"type":"string"},
+				"kind":{"type":"string"},
+				"width":{"type":"integer"},
+				"height":{"type":"integer"}
+			},
+			"additionalProperties":false
+		}},
 		"runtime":{
 			"type":"object",
 			"required":["provider"],
@@ -480,7 +542,17 @@ const sessionInputPayloadSchema = `{
 				"provider":{"type":"string","minLength":1},
 				"model":{"type":"string"},
 				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
-				"speed":{"type":"string","enum":["normal","fast"]}
+				"speed":{"type":"string","enum":["normal","fast"]},
+				"acp_options":{"type":"array","items":{
+					"type":"object",
+					"required":["id"],
+					"properties":{
+						"id":{"type":"string"},
+						"value_id":{"type":"string"},
+						"bool_value":{"type":"boolean"}
+					},
+					"additionalProperties":false
+				}}
 			},
 			"additionalProperties":false
 		}

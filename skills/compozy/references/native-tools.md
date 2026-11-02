@@ -174,8 +174,11 @@ active monitor rather than adding a second wake. After
 `monitor_create`, do not poll or sleep: keep working on steps that do not depend on the monitor, and
 end your turn only when every remaining step waits on a registered monitor or subagent. The wake is a synthetic `monitor`
 message headed `[COMPOZY MONITOR - NOT USER INPUT]` with the monitor id, status (exit code, match,
-timeout, or timer), and an entity-encoded, untrusted output tail. A busy session runs it after the
-current turn; a full input queue retries the wake for up to 15 minutes (`status: "delivering"`).
+timeout, or timer), and an entity-encoded, untrusted output tail. Wakes pending for one session merge
+into one queued entry, in firing order, and never take operator queue capacity. A busy session gets it
+after the current turn, or injected into a turn past `session.messaging.queue_promote_after` when the
+provider supports injection. An entry holding 64 wakes retries further ones for up to 15 minutes
+(`status: "delivering"`).
 Stopping the session on purpose cancels its monitors and drops their history, and a session stopped on
 purpose is never revived. `monitor_cancel` only stops the wake, not the watched process; if its
 durable write fails the call returns an error and a repeat retries it. Finished monitors stay

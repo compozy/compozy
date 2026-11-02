@@ -6992,6 +6992,7 @@ export type SessionInputMentionPayload = {
 
 export type SessionInputPayload = {
   attachments?: Array<PromptAttachmentRef>;
+  coalesced_wakes?: number;
   delivery: string;
   enqueued_at: string;
   id: string;

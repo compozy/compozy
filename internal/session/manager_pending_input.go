@@ -207,5 +207,6 @@ func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 		SkillInvocations: append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
 		Mentions:         storedMentions(entry.MentionsJSON),
 		Attachments:      attachmentMetaFromStore(entry.Attachments),
+		CoalescedWakes:   entry.SyntheticPrompt.CoalescedWakes(),
 	}
 }

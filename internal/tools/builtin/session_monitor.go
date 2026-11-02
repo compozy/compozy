@@ -52,7 +52,7 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 		toolspkg.ToolIDMonitorList,
 		"monitor_list",
 		"Monitor List",
-		"List this session's monitors: active ones first, then delivering (wake retrying a full input queue), "+
+		"List this session's monitors: active ones first, then delivering (wake retrying a full wake entry), "+
 			"fired, canceled, undelivered, or interrupted (a daemon restart ended the watch and its owner could not "+
 			"be resumed) ones from the last hour.",
 		emptyInputSchema,

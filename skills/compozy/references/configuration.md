@@ -397,8 +397,8 @@ and enforce nothing: no session ends when they elapse. They stay readable and wr
   is refused.
 - `reply_watch_ttl` (default `24h`, 1m–720h; `0s` never expires): an unanswered `notify_on_complete`
   watch wakes its sender once with the `expired` outcome and stops keeping the sender awake.
-- `queue_promote_after` (default `2m`, 10s–24h; `0s` disables): a queued agent message waiting on a
-  target in one turn this long is injected as steer when the provider supports injection and no
+- `queue_promote_after` (default `2m`, 10s–24h; `0s` disables): a queued agent message or coalesced
+  monitor wake waiting on a target in one turn this long is injected as steer when the provider supports injection and no
   operator input waits. A failed injection returns to after-turn queue delivery; it never interrupts.
 
 ## Retired Memory And Compaction Settings

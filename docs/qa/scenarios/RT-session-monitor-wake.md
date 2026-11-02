@@ -40,6 +40,20 @@ story: As an operator I ask an agent to run something slow and report back, and 
     `monitor_list` and over HTTP, and no wake or resume ever happens. Saved evidence:
     `docs/qa/reports/artifacts/2026-11-01-issue-1128/`.
 
+13. **Wake burst during one long turn (#1154).** On a provider-free mock with `queue_cap = 2`, fire more monitors than
+    the cap during one turn. Expect `compozy__session_inputs_list` to succeed with one synthetic row reporting
+    `coalesced_wakes`, Web to show one "N monitors fired" row without `full`, and operator `queue` input to be accepted.
+    Past `queue_promote_after` a provider with injection receives the row in the live turn; a provider without it
+    receives it at the next boundary. The agent sees every outcome once, each monitor ends `fired`, and a restart
+    between firing and delivery adds no duplicate turn and loses no outcome.
+
+Step 13 evidence 2026-11-02 (branch fix/monitor-wake-queue, acpmock, `queue_cap = 2`, `queue_promote_after = "10s"`): six
+timers fired during one held turn and produced one row with `coalesced_wakes: 6`; two operator `queue` inputs were
+accepted and the third hit `queue_full` on the operator pool. Without injection, a daemon restart kept all rows and the
+next boundaries ran operator, operator, then one wake carrying six outcomes. With injection, the row ended
+`steer_delivery: injected` while the turn stayed running. All six monitors ended `fired`. Web showed "2 queued" without
+`full` and a "6 monitors fired" row.
+
 Sessions Kanban regression (pending integrated re-walk): open a monitor immediately before the turn
 settles, without waiting for a supervision sweep. Read the session over CLI and HTTP: expect
 `badge=waiting`, `waiting_on=monitor`, and an `active_monitor` work signal. No finished delivery may

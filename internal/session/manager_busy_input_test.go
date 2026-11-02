@@ -5644,6 +5644,113 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		}
 	})
 
+	monitorWake := func(id string) SyntheticPromptOpts {
+		return SyntheticPromptOpts{
+			MessageID: "monitor:" + id, Priority: 1, Message: "wake " + id,
+			Metadata: acp.PromptSyntheticMeta{
+				Kind: acp.PromptSyntheticKindMonitor, Reason: "monitor_exit", Summary: id, WakeEventID: id,
+			},
+			CoalesceKey: "monitor",
+			Coalesce:    &store.SessionInputCoalesce{MaxFullBytes: 1 << 10, MaxMembers: 64},
+		}
+	}
+
+	t.Run("Should inject a coalesced monitor wake into a long turn as a daemon wake", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		turnID := f.sess.CurrentTurnID()
+		first, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake("mon-a"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake("mon-b")); err != nil {
+			t.Fatal(err)
+		}
+		f.advance(2 * time.Minute)
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			if !strings.Contains(text, "wake mon-a") || !strings.Contains(text, "wake mon-b") {
+				t.Fatalf("injected text = %q, want both outcomes", text)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("coalesced wake was not injected")
+		}
+		waitForCondition(t, "wake injected", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, first.ID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent &&
+				entry.SteerDelivery == store.SteerDeliveryInjected
+		})
+		if f.sess.CurrentTurnID() != turnID {
+			t.Fatalf("turn = %s, want the live turn %s uninterrupted", f.sess.CurrentTurnID(), turnID)
+		}
+		for _, event := range managerUserPromptEvents(t, f.h, f.sess.ID) {
+			if event.MessageIDValue() == "monitor:mon-a" {
+				t.Fatal("promoted wake was recorded as a user message")
+			}
+		}
+		for _, id := range []string{"monitor:mon-a", "monitor:mon-b"} {
+			if admitted, err := f.db.SyntheticSessionInputAdmitted(t.Context(), f.sess.ID, id); err != nil || !admitted {
+				t.Fatalf("%s admitted = %v, %v; want the ledger to hold it after injection", id, admitted, err)
+			}
+		}
+		drain(t, f)
+	})
+
+	t.Run("Should deliver a coalesced wake at the next boundary when injection is refused", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(
+			t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute}, errors.New("injection refused"),
+		)
+		turnID := f.sess.CurrentTurnID()
+		wake, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake("mon-a"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.advance(2 * time.Minute)
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case <-f.steered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("wake was not offered for injection")
+		}
+		waitForCondition(t, "wake returned to the queue", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, wake.ID)
+			return err == nil && entry.Mode == store.SessionInputQueueModeQueue && entry.Dispatchable
+		})
+		drain(t, f)
+		waitForCondition(t, "wake dispatched after the turn", func() bool {
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, wake.ID)
+			return err == nil && entry.Status == store.SessionInputQueueStatusSent && entry.TurnID != turnID
+		})
+	})
+
+	t.Run("Should keep a coalesced wake behind waiting operator input", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})
+		if _, err := f.h.manager.SendPrompt(
+			t.Context(), f.sess.ID, SendPromptOpts{Message: "operator first", Mode: BusyInputModeQueue},
+		); err != nil {
+			t.Fatal(err)
+		}
+		wake, err := f.h.manager.EnqueueSyntheticWake(t.Context(), f.sess.ID, monitorWake("mon-a"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.advance(2 * time.Minute)
+		f.h.manager.promoteLongTurnQueuedInputs(t.Context(), f.sess)
+		select {
+		case text := <-f.steered:
+			t.Fatalf("wake overtook operator input: %q", text)
+		default:
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, wake.ID)
+		if err != nil || entry.Mode != store.SessionInputQueueModeQueue {
+			t.Fatalf("entry = %#v, %v; want it queued behind the operator", entry, err)
+		}
+		drain(t, f)
+	})
+
 	t.Run("Should leave a message that asked for another runtime queued", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Minute})

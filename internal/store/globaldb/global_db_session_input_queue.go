@@ -55,7 +55,13 @@ func (g *SessionRepo) EnqueueSessionInput(
 				return lookupErr
 			}
 		}
-		if capErr := checkSessionInputQueueCap(ctx, exec, normalized); capErr != nil {
+		if normalized.Coalesce != nil {
+			merged, ok, mergeErr := coalesceSessionInput(ctx, exec, normalized)
+			if mergeErr != nil || ok {
+				entry = merged
+				return mergeErr
+			}
+		} else if capErr := checkSessionInputQueueCap(ctx, exec, normalized); capErr != nil {
 			return capErr
 		}
 		inserted, insertErr := insertSessionInputQueueEntry(ctx, exec, normalized)

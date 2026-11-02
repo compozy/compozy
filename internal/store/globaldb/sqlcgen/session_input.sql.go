@@ -28,6 +28,34 @@ func (q *Queries) AdvanceSessionInputGeneration(ctx context.Context, arg Advance
 	return result.RowsAffected()
 }
 
+const appendCoalescedSessionInput = `-- name: AppendCoalescedSessionInput :execrows
+UPDATE session_input_queue
+SET text = ?1, synthetic_prompt_json = ?2, updated_at = ?3
+WHERE id = ?4 AND session_id = ?5 AND status = 'queued' AND mode = 'queue'
+`
+
+type AppendCoalescedSessionInputParams struct {
+	Text                string         `json:"text"`
+	SyntheticPromptJson sql.NullString `json:"synthetic_prompt_json"`
+	Now                 string         `json:"now"`
+	ID                  string         `json:"id"`
+	SessionID           string         `json:"session_id"`
+}
+
+func (q *Queries) AppendCoalescedSessionInput(ctx context.Context, arg AppendCoalescedSessionInputParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, appendCoalescedSessionInput,
+		arg.Text,
+		arg.SyntheticPromptJson,
+		arg.Now,
+		arg.ID,
+		arg.SessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const cancelPendingSessionInputs = `-- name: CancelPendingSessionInputs :execrows
 UPDATE session_input_queue
 SET status = ?1, canceled_at = ?2, updated_at = ?3
@@ -67,7 +95,7 @@ UPDATE session_input_queue
 SET status = 'canceled', dispatchable = 0, canceled_at = ?1, updated_at = ?1
 WHERE session_id = ?2 AND id = ?3
   AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
-  AND owner_kind IS NULL
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
 `
 
 type CancelPendingSessionSteerParams struct {
@@ -240,6 +268,7 @@ SELECT COUNT(*) FROM session_input_queue
 WHERE session_id = ?1
   AND (owner_kind IS NULL OR owner_kind != 'goal')
   AND status IN (?2, ?3)
+  AND json_extract(synthetic_prompt_json, '$.coalesce_key') IS NULL
   AND (origin_class = 'human') = (CAST(?4 AS TEXT) = 'human')
 `
 
@@ -250,7 +279,8 @@ type CountPendingSessionInputsParams struct {
 	PoolClass         string `json:"pool_class"`
 }
 
-// Human input and agent/synthetic input hold separate capacity pools.
+// Human input and agent/synthetic input hold separate capacity pools. A coalesced wake row is in neither:
+// it holds one row per session, bounded by its member limit.
 func (q *Queries) CountPendingSessionInputs(ctx context.Context, arg CountPendingSessionInputsParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countPendingSessionInputs,
 		arg.SessionID,
@@ -291,6 +321,93 @@ type FreezePreparedGoalInputBatchParams struct {
 func (q *Queries) FreezePreparedGoalInputBatch(ctx context.Context, arg FreezePreparedGoalInputBatchParams) error {
 	_, err := q.db.ExecContext(ctx, freezePreparedGoalInputBatch, arg.SessionID, arg.QueuedStatus)
 	return err
+}
+
+const getCoalescibleSessionInput = `-- name: GetCoalescibleSessionInput :one
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress FROM session_input_queue
+WHERE session_id = ?1 AND owner_kind = 'synthetic'
+  AND status = 'queued' AND mode = 'queue' AND dispatchable = 1
+  AND json_extract(synthetic_prompt_json, '$.coalesce_key') = CAST(?2 AS TEXT)
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)
+ORDER BY rowid DESC LIMIT 1
+`
+
+type GetCoalescibleSessionInputParams struct {
+	SessionID   string `json:"session_id"`
+	CoalesceKey string `json:"coalesce_key"`
+}
+
+// The open wake row of a coalesce key. A claimed or promoted row no longer accepts members, so what it
+// carries is exactly what the agent receives.
+func (q *Queries) GetCoalescibleSessionInput(ctx context.Context, arg GetCoalescibleSessionInputParams) (SessionInputQueue, error) {
+	row := q.db.QueryRowContext(ctx, getCoalescibleSessionInput, arg.SessionID, arg.CoalesceKey)
+	var i SessionInputQueue
+	err := row.Scan(
+		&i.GoalInputBatchMaxRowid,
+		&i.ID,
+		&i.SessionID,
+		&i.PromptAdmissionID,
+		&i.MessageID,
+		&i.IdempotencyKey,
+		&i.TurnID,
+		&i.TargetTurnID,
+		&i.EventID,
+		&i.Status,
+		&i.Mode,
+		&i.Delivery,
+		&i.SteerDelivery,
+		&i.Text,
+		&i.SyntheticPromptJson,
+		&i.SkillInvocationsJson,
+		&i.AttachmentsJson,
+		&i.OriginJson,
+		&i.RuntimeProvider,
+		&i.RuntimeModel,
+		&i.RuntimeReasoningEffort,
+		&i.RuntimeSpeed,
+		&i.RuntimeAcpOptionsJson,
+		&i.SessionGeneration,
+		&i.TaskRunID,
+		&i.RunGeneration,
+		&i.AttemptCount,
+		&i.EnqueuedAt,
+		&i.DispatchStartedAt,
+		&i.SentAt,
+		&i.FailedAt,
+		&i.FailureSummary,
+		&i.CanceledAt,
+		&i.UpdatedAt,
+		&i.LoopRunID,
+		&i.OwnerKind,
+		&i.OwnerEpoch,
+		&i.BindingEpoch,
+		&i.PromptID,
+		&i.PromptKind,
+		&i.OperationUsageBaseTokens,
+		&i.PromptAttempt,
+		&i.Dispatchable,
+		&i.ActivatedAt,
+		&i.DispatchTokenHash,
+		&i.FenceKind,
+		&i.FenceDisposition,
+		&i.FenceReasonCode,
+		&i.FencedAt,
+		&i.TerminalEventStartSeq,
+		&i.TerminalEventEndSeq,
+		&i.TerminalKind,
+		&i.TerminalStopReason,
+		&i.TerminalDisposition,
+		&i.TerminalReasonCode,
+		&i.TerminalTokensReported,
+		&i.TerminalTokensUsed,
+		&i.TerminalAt,
+		&i.Priority,
+		&i.OriginClass,
+		&i.OriginSessionID,
+		&i.MentionsJson,
+		&i.HumanIngress,
+	)
+	return i, err
 }
 
 const getNextDispatchableSessionInput = `-- name: GetNextDispatchableSessionInput :one
@@ -567,8 +684,14 @@ func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) 
 }
 
 const getSyntheticSessionInputByMessage = `-- name: GetSyntheticSessionInputByMessage :one
-SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress FROM session_input_queue WHERE session_id = ? AND message_id = ?
- AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching')
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress FROM session_input_queue
+WHERE session_id = ?1 AND owner_kind = 'synthetic' AND status IN ('queued','dispatching')
+  AND CAST(?2 AS TEXT) <> ''
+  AND (message_id = ?2 OR EXISTS (
+    SELECT 1 FROM json_each(synthetic_prompt_json, '$.coalesced_message_ids') AS member
+    WHERE member.value = ?2
+  ))
+LIMIT 1
 `
 
 type GetSyntheticSessionInputByMessageParams struct {
@@ -1038,6 +1161,7 @@ func (q *Queries) ListSessionInputQueueSummary(ctx context.Context, arg ListSess
 const listStaleDispatchingSessionInputs = `-- name: ListStaleDispatchingSessionInputs :many
 SELECT session_id, id FROM session_input_queue
 WHERE status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND NOT (owner_kind = 'synthetic' AND mode = 'steer')
 ORDER BY session_id, enqueued_at, id
 `
 
@@ -1046,7 +1170,8 @@ type ListStaleDispatchingSessionInputsRow struct {
 	ID        string `json:"id"`
 }
 
-// Boot recovery: no live turn can own a non-Goal lease left by a previous daemon process.
+// Boot recovery: no live turn can own a non-Goal lease left by a previous daemon process. A promoted wake
+// whose injection was unconfirmed is excluded: RecoverUnconfirmedWakeSteers returns it to the queue.
 func (q *Queries) ListStaleDispatchingSessionInputs(ctx context.Context) ([]ListStaleDispatchingSessionInputsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listStaleDispatchingSessionInputs)
 	if err != nil {
@@ -1241,7 +1366,9 @@ SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, d
     target_turn_id = ?1, updated_at = ?2
 WHERE session_input_queue.session_id = ?3 AND session_input_queue.id = ?4
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
-  AND session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL
+  AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
+    OR (session_input_queue.owner_kind = 'synthetic'
+      AND json_extract(session_input_queue.synthetic_prompt_json, '$.coalesce_key') IS NOT NULL))
   AND session_input_queue.dispatchable = 1
   AND session_input_queue.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?3)
   AND NOT EXISTS (
@@ -1265,6 +1392,7 @@ type PromoteQueuedAgentSessionInputToSteerParams struct {
 
 // Long-turn promotion keeps the row identity (message, event, admission, origin) so reply watches
 // follow it. It never runs while operator input waits, and it respects the per-sender steer slot.
+// Coalesced wakes promote too; they share the empty sender, so one wake row is staged at a time.
 func (q *Queries) PromoteQueuedAgentSessionInputToSteer(ctx context.Context, arg PromoteQueuedAgentSessionInputToSteerParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, promoteQueuedAgentSessionInputToSteer,
 		arg.TargetTurnID,
@@ -1285,7 +1413,7 @@ SET mode = CASE WHEN origin_class = 'human' THEN mode ELSE 'queue' END,
     target_turn_id = CASE WHEN origin_class = 'human' THEN target_turn_id ELSE '' END,
     dispatchable = 1, updated_at = ?1
 WHERE status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
-  AND owner_kind IS NULL
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id)
 `
 
@@ -1294,6 +1422,25 @@ WHERE status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispat
 // dispatchable again so the ordinary claim delivers them.
 func (q *Queries) RecoverStagedSessionSteers(ctx context.Context, now string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, recoverStagedSessionSteers, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const recoverUnconfirmedWakeSteers = `-- name: RecoverUnconfirmedWakeSteers :execrows
+UPDATE session_input_queue
+SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, status = 'queued', dispatchable = 1,
+    target_turn_id = '', dispatch_started_at = NULL, updated_at = ?1
+WHERE status = 'dispatching' AND owner_kind = 'synthetic' AND mode = 'steer'
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id)
+`
+
+// Boot recovery: a promoted wake still dispatching never had its injection confirmed. Its monitors are
+// settled and will not fire again, so it returns to after-turn delivery; repeating an outcome is safe,
+// losing one is not.
+func (q *Queries) RecoverUnconfirmedWakeSteers(ctx context.Context, now string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recoverUnconfirmedWakeSteers, now)
 	if err != nil {
 		return 0, err
 	}
@@ -1334,7 +1481,7 @@ UPDATE session_input_queue
 SET status = 'dispatching', dispatch_started_at = ?1,
     attempt_count = attempt_count + 1, updated_at = ?1
 WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
-  AND mode = 'steer' AND status = 'queued' AND owner_kind IS NULL
+  AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?2)
 `
 
@@ -1360,7 +1507,7 @@ SET status = ?1, steer_delivery = ?2,
     turn_id = CASE WHEN ?1 = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = ?3, dispatch_started_at = NULL, updated_at = ?4
 WHERE session_id = ?5 AND id = ?6
-  AND mode = 'steer' AND status = 'dispatching' AND owner_kind IS NULL
+  AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
 `
 
 type ResolveSessionSteerParams struct {
@@ -1392,7 +1539,7 @@ UPDATE session_input_queue
 SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, dispatchable = 1, target_turn_id = '',
     status = 'queued', dispatch_started_at = NULL, updated_at = ?1
 WHERE session_id = ?2 AND id = ?3
-  AND origin_class = 'agent' AND owner_kind IS NULL AND mode = 'steer'
+  AND ((origin_class = 'agent' AND owner_kind IS NULL) OR owner_kind = 'synthetic') AND mode = 'steer'
   AND (
     (status IN ('queued', 'dispatching') AND steer_delivery IS NULL)
     OR (status = 'queued' AND steer_delivery = 'interrupt_fallback')
@@ -1426,7 +1573,7 @@ SET steer_delivery = ?1, updated_at = ?2,
     turn_id = CASE WHEN ?1 = 'interrupt_fallback' THEN ?3 ELSE turn_id END
 WHERE session_input_queue.session_id = ?4 AND session_input_queue.id = ?5
   AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
-  AND owner_kind IS NULL
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?4)
 `
 
@@ -1454,8 +1601,13 @@ func (q *Queries) SettlePendingSessionSteer(ctx context.Context, arg SettlePendi
 
 const syntheticSessionInputAdmitted = `-- name: SyntheticSessionInputAdmitted :one
 SELECT EXISTS(
-  SELECT 1 FROM session_input_queue WHERE session_id = ? AND message_id = ?
-   AND owner_kind = 'synthetic' AND message_id <> '' AND status IN ('queued','dispatching','sent')
+  SELECT 1 FROM session_input_queue
+  WHERE session_id = ?1 AND owner_kind = 'synthetic'
+    AND status IN ('queued','dispatching','sent') AND CAST(?2 AS TEXT) <> ''
+    AND (message_id = ?2 OR EXISTS (
+      SELECT 1 FROM json_each(synthetic_prompt_json, '$.coalesced_message_ids') AS member
+      WHERE member.value = ?2
+    ))
 )
 `
 
@@ -1465,7 +1617,8 @@ type SyntheticSessionInputAdmittedParams struct {
 }
 
 // A synthetic input counts as admitted once it was queued, is dispatching, or was sent; a failed or
-// canceled one was never delivered and may be admitted again.
+// canceled one was never delivered and may be admitted again. A wake coalesced into another row is
+// admitted with that row.
 func (q *Queries) SyntheticSessionInputAdmitted(ctx context.Context, arg SyntheticSessionInputAdmittedParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, syntheticSessionInputAdmitted, arg.SessionID, arg.MessageID)
 	var exists bool
