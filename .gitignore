@@ -49,6 +49,7 @@ ai-docs/
 .impeccable
 .coderabbit/reviews/
 .agents/skills/compozy
+.agents/skills/cy-create-spec
 
 # Python
 __pycache__/

@@ -55,6 +55,16 @@ if [ -d "$BUNDLED_DIR" ]; then
   echo "Linked $bundled_skills bundled skills from skills/ → .agents/skills"
 fi
 
+# Expose the retained extension authoring skill to agents running in this checkout.
+authoring_source="$ROOT_DIR/extensions/spec-cycle/skills/cy-create-spec"
+authoring_link="$SOURCE_DIR/cy-create-spec"
+if [ -f "$authoring_source/SKILL.md" ]; then
+  mkdir -p "$SOURCE_DIR"
+  if [ ! -e "$authoring_link" ] || [ -L "$authoring_link" ]; then
+    ln -sfn "../../extensions/spec-cycle/skills/cy-create-spec" "$authoring_link"
+  fi
+fi
+
 if [ -d "$SOURCE_DIR" ]; then
   mkdir -p "$TARGET_DIR"
 

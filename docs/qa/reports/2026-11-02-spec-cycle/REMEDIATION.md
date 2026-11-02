@@ -50,3 +50,14 @@ Codegen initially failed because local JS dependencies lacked the locked stream 
 Bun 1.4.4 changed a minified local variable in the unrelated OpenDesign artifact; regenerating and
 checking it with the repository-pinned Bun 1.4.0 preserved the committed bytes. No generated contract
 drift remains. The final CI/reviewer result is recorded on PR #1152.
+
+## PR review follow-up
+
+Greptile identified that checkout-local agents could no longer discover the retained `cy-create-spec`.
+Postinstall now links the extension source into `.agents/skills`; the existing mirror exposes it to
+Claude Code as well. The generated local link is ignored. The deleted workspace skill is not restored.
+Validation runs the real installer twice and checks both links resolve to the retained source.
+
+The first post-rebase CI lint job failed while downloading `github.com/nishanths/exhaustive` from the
+Go module proxy (HTTP/2 INTERNAL_ERROR), before lint executed. GitHub refuses retry until that
+workflow run finishes. The current-head workflow will provide the final lint result.
