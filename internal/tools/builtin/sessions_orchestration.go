@@ -13,7 +13,8 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 			sessionTargetInputSchema, sessionCompactOutputSchema, toolspkg.RiskMutating, false, false),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionWait, "session_wait", "Session Wait",
-			"Wait for one bounded badge transition on a same-workspace session.",
+			"Wait for one bounded badge transition on a same-workspace session. To end your turn and be woken when "+
+				"one or more sessions settle, use compozy__monitor_create with kind=session.",
 			sessionWaitInputSchema, sessionWaitOutputSchema, toolspkg.RiskRead, true, false,
 		),
 		orchestrationDescriptor(

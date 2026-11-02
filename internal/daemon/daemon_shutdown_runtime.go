@@ -103,6 +103,11 @@ func (d *Daemon) shutdownRuntimeSessions(ctx context.Context, targets *shutdownT
 			*errs = append(*errs, fmt.Errorf("daemon: quiesce reply watches: %w", err))
 		}
 	}
+	// A target stopped by this shutdown says nothing about its work, so session monitors stop
+	// evaluating first; they stay active and the next boot re-evaluates them.
+	if targets.sessionMonitors != nil {
+		targets.sessionMonitors.QuiesceSessionWatches()
+	}
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
 	}

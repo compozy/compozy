@@ -55,10 +55,31 @@ If the check itself fails, the command runs.
 | ---------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `terminal` | the terminal's process exits (`until: exit`) or its output matches a pattern (`until: match`) | `timeout_seconds` defaults to 30 minutes, up to 6 hours. A timeout still wakes the agent. |
 | `timer`    | `delay_seconds` have passed                                                                   | 5 seconds to 24 hours                                                                     |
+| `session`  | any or all of `target_session_ids` reach `states` (`until: any` or `until: all`)              | 1 to 32 sessions. `timeout_seconds` defaults to 2 hours, up to 6 hours.                   |
 
 Each session can hold up to 8 active monitors, and each terminal up to 4. Registering the same
 terminal condition again (same terminal, `until`, pattern, normalized timeout, and description) returns the monitor that is already
-active, so a retried call never adds a second wake.
+active, so a retried call never adds a second wake. The same applies to a session condition.
+
+### Waiting for other sessions
+
+A `session` monitor lets an agent hand work to several sessions, end its turn, and get one wake when
+they are done. The wake lists each session and its state.
+
+- Sessions must be in the same project and profile.
+- By default a session counts once it is idle, needs input or approval, needs attention, stopped, or
+  failed. Use `states` to narrow or widen that list.
+- A stopped, failed, archived, or deleted session always counts, so it can't leave the agent waiting.
+- A session waiting on its own background work, or with queued messages, doesn't count as idle yet.
+- A session that a daemon restart stopped and didn't resume reads `interrupted`. It ends an `all` wait, and
+  it ends an `any` wait only if `stopped` is in `states`.
+- The monitor checks each session as it is now. A session that needed input and got an answer before
+  the check doesn't count.
+- If the condition already holds, the monitor fires right away.
+- At the timeout, the monitor checks the sessions one last time, so the wake can arrive up to 8 seconds
+  late.
+- A session monitor survives a daemon restart and is checked again afterward. Restarting the daemon
+  doesn't fire it.
 
 There is no polling kind for remote state such as CI. The agent runs the bounded watch command
 (for example `gh pr checks <n> --watch`) in a terminal and monitors that terminal, setting

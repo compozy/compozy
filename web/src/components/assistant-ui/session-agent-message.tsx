@@ -142,6 +142,7 @@ const MONITOR_WAKE_OUTCOME: Record<SessionMonitorWakeReason, string> = {
   stalled: "Output ended",
   timer_elapsed: "Timer elapsed",
   terminal_unavailable: "Terminal unavailable",
+  condition_met: "Sessions settled",
   unknown: "Fired",
 };
 

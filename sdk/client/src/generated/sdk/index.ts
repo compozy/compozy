@@ -3062,6 +3062,7 @@ export type {
   SessionMonitorResponse,
   SessionMonitorsResponse,
   SessionMonitorSummaryPayload,
+  SessionMonitorTargetPayload,
   SessionOwner,
   SessionPayload,
   SessionPresenceRequest,
