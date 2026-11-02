@@ -4403,6 +4403,43 @@ func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope
 
 func TestManagerBoardCatalog(t *testing.T) {
 	t.Parallel()
+	t.Run("Should search derived own work consistently across runtime and durable rows", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			manager := newWorkspaceSessionReadFixture(t, 1, 1)
+			catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+			const repo = "example.com/a/b"
+			if err := catalog.SaveSessionBranch(t.Context(), "ws-read-00", "sess-read-000", "own-find"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := catalog.DB().ExecContext(t.Context(), "INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state,pr_number) VALUES ('ws-read-00',?,'own-find','open',42)", repo); err != nil {
+				t.Fatal(err)
+			}
+			manager.ConfigurePullRequests(&pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{"ws-read-00": repo}}, catalog)
+			if active {
+				manager.sessions["sess-read-000"] = &Session{ID: "sess-read-000", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID, AgentName: "coder", State: StateActive, CreatedAt: benchmarkSessionTime, UpdatedAt: benchmarkSessionTime}
+			}
+			for _, search := range []string{"own-find", "#42", "42"} {
+				q := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00", Search: search}
+				page, err := manager.ListPage(t.Context(), q)
+				if err != nil || page.Total != 1 {
+					t.Fatalf("active=%v search=%s page=%+v err=%v", active, search, page, err)
+				}
+			}
+			link := store.SessionWorkLink{SessionID: "sess-read-000", WorkspaceID: "ws-read-00", Repository: repo, Branch: "own-find", Provenance: "user"}
+			if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := catalog.UnlinkSessionWork(t.Context(), link); err != nil {
+				t.Fatal(err)
+			}
+			page, err := manager.ListPage(t.Context(), ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00", Search: "#42"})
+			if err != nil || page.Total != 0 {
+				t.Fatalf("unlinked active=%v page=%+v err=%v", active, page, err)
+			}
+		}
+	})
+
 	t.Run("Should search direct linked identities before paging active and durable rows", func(t *testing.T) {
 		t.Parallel()
 		for _, active := range []bool{false, true} {
