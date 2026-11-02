@@ -11,6 +11,7 @@ import (
 type LinkedWorkProjection struct {
 	Items               []LinkedWorkItem
 	Summary             LinkedWorkSummary
+	Own                 PullRequestState
 	DirectOpen, Pending bool
 }
 
@@ -114,6 +115,11 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 		}
 		projection := out[root.ID]
 		projection.Pending = pending[root.ID]
+		if direct && !defaults[BranchKey{member.WorkspaceID, branch}] {
+			if pr := views[BranchKey{member.WorkspaceID, branch}].PullRequest; pr != nil {
+				projection.Own = pr.State
+			}
+		}
 		for _, link := range items {
 			if link.Unlinked {
 				continue

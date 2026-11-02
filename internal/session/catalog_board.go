@@ -29,17 +29,23 @@ func (m *Manager) activeBoardSessionCatalogRows(
 			visible = append(visible, info)
 		}
 	}
-	views, err := m.SessionPullRequests(ctx, visible)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("session: active catalog pull requests: %w", err)
-	}
 	linked, err := m.SessionLinkedWork(ctx, visible)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	m.mu.RLock()
+	_, hasLinks := m.branchSnapshots.(WorkLinkStore)
+	m.mu.RUnlock()
+	var views map[string]PullRequestProjection
+	if !hasLinks {
+		views, err = m.SessionPullRequests(ctx, visible)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("session: active catalog pull requests: %w", err)
+		}
+	}
 	for _, info := range visible {
 		info.linkedWork = linked[info.ID].Items
-		var state PullRequestState
+		state := linked[info.ID].Own
 		if pr := views[info.ID].PullRequest; pr != nil {
 			state = pr.State
 		}
