@@ -99,9 +99,9 @@ func (m *Manager) promoteQueuedInput(
 		session,
 		turnID,
 		turnSource,
-		entry.Text,
-		attachmentMetaFromStore(entry.Attachments),
-		storedMentions(entry.MentionsJSON),
+		staged.Text,
+		attachmentMetaFromStore(staged.Attachments),
+		storedMentions(staged.MentionsJSON),
 	)
 	if err != nil {
 		session.promotionDeclined.Store(entryID, turnID)
@@ -111,7 +111,7 @@ func (m *Manager) promoteQueuedInput(
 		return "", false
 	}
 	providerText := ""
-	if message != entry.Text {
+	if message != staged.Text {
 		providerText = message
 	}
 	session.promotedSteers.Store(entryID, struct{}{})

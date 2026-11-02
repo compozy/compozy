@@ -5591,6 +5591,45 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 		drain(t, f)
 	})
 
+	t.Run("Should review the staged text when the listed entry went stale", func(t *testing.T) {
+		t.Parallel()
+		reviewed := make(chan string, 1)
+		dispatcher := &spyHookDispatcher{}
+		dispatcher.dispatchInputPreSubmitFn = func(
+			_ context.Context, payload hookspkg.InputPreSubmitPayload,
+		) (hookspkg.InputPreSubmitPayload, error) {
+			reviewed <- payload.Message
+			return payload, nil
+		}
+		f := newFixtureWith(t, compozyconfig.SessionMessagingConfig{QueuePromoteAfter: time.Hour},
+			[]Option{WithHookSet(fullHookSet(dispatcher))})
+		queued, err := f.h.manager.SendPrompt(t.Context(), f.sess.ID, agentOpts("merged", "sess-a", false))
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err := f.db.GetSessionInputQueueEntry(t.Context(), f.sess.ID, queued.QueueEntryID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored := entry.Text
+		stale := entry
+		stale.Text = "listed before a wake merged"
+		if _, promoted := f.h.manager.promoteQueuedInput(
+			t.Context(), f.sess, &stale, f.sess.CurrentTurnID(),
+		); !promoted {
+			t.Fatal("promoteQueuedInput() did not promote the entry")
+		}
+		select {
+		case message := <-reviewed:
+			if message != stored {
+				t.Fatalf("hook reviewed %q, want the staged text %q", message, stored)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the input hook was not called")
+		}
+		drain(t, f)
+	})
+
 	t.Run("Should dispatch a message whose promotion hook refused after the turn ended", func(t *testing.T) {
 		t.Parallel()
 		hookEntered := make(chan struct{})

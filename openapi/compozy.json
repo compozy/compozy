@@ -25676,6 +25676,9 @@
       },
       "SessionMonitorPayload": {
         "properties": {
+          "branch": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -25691,12 +25694,20 @@
             "nullable": true,
             "type": "integer"
           },
+          "fire_count": {
+            "type": "integer"
+          },
           "fired_at": {
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "kind": {
+            "type": "string"
+          },
+          "last_fired_at": {
+            "format": "date-time",
+            "nullable": true,
             "type": "string"
           },
           "monitor_id": {
@@ -25711,8 +25722,26 @@
           "session_id": {
             "type": "string"
           },
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "status": {
             "type": "string"
+          },
+          "target_session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/SessionMonitorTargetPayload"
+            },
+            "type": "array"
           },
           "terminal_id": {
             "type": "string"
@@ -25751,6 +25780,28 @@
         },
         "required": [
           "active"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorTargetPayload": {
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "matched",
+          "session_id",
+          "state"
         ],
         "type": "object"
       },

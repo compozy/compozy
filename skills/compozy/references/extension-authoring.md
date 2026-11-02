@@ -188,7 +188,10 @@ default branch, compare URL template, and PR template paths. Register `forge/cap
 in TypeScript. Served capabilities name the provider/remote, request noun, open/view labels,
 `supports_draft`, optional `{base}`/`{head}` compare template, ordered template paths, and a
 credential source of `binding` or `gh` when available. Status returns pull-request identity/state,
-merged evidence, and fetch time. Create accepts head/base/title plus optional body/draft and returns
+merged evidence, and fetch time, and may add `checks` (at most 64 `failed_names`) and optional `reviews`
+(submitted reviews without their text, unresolved `threads` with the `commit` each was opened on,
+`unresolved_threads`, `truncated`), which pull request monitors read. Omitting `reviews` leaves them not
+observable; `reviews_unavailable` reports a read that failed this time. Create accepts head/base/title plus optional body/draft and returns
 `created` or `opened_existing` with a positive number and absolute URL. Use only
 `credential_absent`, `credential_expired`, `rate_limited`, or `unsupported_remote` as safe causes;
 never return credential values.

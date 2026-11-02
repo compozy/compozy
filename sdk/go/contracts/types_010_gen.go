@@ -4,6 +4,29 @@ package contracts
 
 import "time"
 
+type HeartbeatTimeWindowPayload struct {
+	Timezone string `json:"timezone"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+}
+
+type HeartbeatValidateRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Body        string `json:"body"`
+}
+
+type HeartbeatWakeDecisionPayload struct {
+	WakeEventID       string                             `json:"wake_event_id,omitempty"`
+	Result            HeartbeatWakeResult                `json:"result"`
+	Reason            HeartbeatWakeReason                `json:"reason"`
+	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
+	PolicyDigest      string                             `json:"policy_digest,omitempty"`
+	ConfigDigest      string                             `json:"config_digest,omitempty"`
+	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
+	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
 type HeartbeatWakeEventPayload struct {
 	ID                string              `json:"id"`
 	WorkspaceID       string              `json:"workspace_id,omitempty"`
@@ -142,27 +165,4 @@ type InitializeRequest struct {
 	Capabilities             InitializeCapabilities `json:"capabilities"`
 	Methods                  InitializeMethods      `json:"methods"`
 	Runtime                  InitializeRuntime      `json:"runtime"`
-}
-
-type InitializeResponse struct {
-	ProtocolVersion      string                  `json:"protocol_version"`
-	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
-	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
-	ImplementedMethods   []string                `json:"implemented_methods"`
-	SupportedHookEvents  []string                `json:"supported_hook_events"`
-	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
-	Supports             InitializeSupports      `json:"supports"`
-}
-
-type InitializeRuntime struct {
-	HealthCheckIntervalMS int64 `json:"health_check_interval_ms"`
-	HealthCheckTimeoutMS  int64 `json:"health_check_timeout_ms"`
-	ShutdownTimeoutMS     int64 `json:"shutdown_timeout_ms"`
-	DefaultHookTimeoutMS  int64 `json:"default_hook_timeout_ms"`
-	DefaultViewTimeoutMS  int64 `json:"default_view_timeout_ms,omitempty"`
-}
-
-type InitializeSupports struct {
-	HealthCheck bool `json:"health_check"`
 }

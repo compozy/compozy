@@ -7054,17 +7054,23 @@ export type SessionLineagePayload = {
 };
 
 export type SessionMonitorPayload = {
+  branch?: string;
   created_at: string;
   deadline_at: string;
   description: string;
   exit_code?: number | null;
+  fire_count?: number;
   fired_at?: string | null;
   kind: string;
+  last_fired_at?: string | null;
   monitor_id: string;
   pattern?: string;
   reason?: string;
   session_id: string;
+  states?: Array<string>;
   status: string;
+  target_session_ids?: Array<string>;
+  targets?: Array<SessionMonitorTargetPayload>;
   terminal_id?: string;
   until?: string;
 };
@@ -7075,6 +7081,13 @@ export type SessionMonitorResponse = {
 
 export type SessionMonitorSummaryPayload = {
   active: number;
+};
+
+export type SessionMonitorTargetPayload = {
+  matched: boolean;
+  name?: string;
+  session_id: string;
+  state: string;
 };
 
 export type SessionMonitorsResponse = {

@@ -4,6 +4,26 @@ package contracts
 
 import "time"
 
+type ViewPatch struct {
+	ViewID string    `json:"view_id"`
+	From   string    `json:"from"`
+	To     string    `json:"to"`
+	Ops    []PatchOp `json:"ops"`
+}
+
+type ViewPayload struct {
+	View     string      `json:"view"`
+	Chrome   *ViewChrome `json:"chrome,omitempty"`
+	Sections []Section   `json:"sections,omitempty"`
+	Chips    []Chip      `json:"chips,omitempty"`
+	Empty    *EmptyState `json:"empty,omitempty"`
+	Detail   *DetailBody `json:"detail,omitempty"`
+	Form     *FormBody   `json:"form,omitempty"`
+	Grid     *GridBody   `json:"grid,omitempty"`
+}
+
+type Visibility string
+
 type WindowManagerActor struct {
 	Kind string `json:"kind,omitempty"`
 	ID   string `json:"id,omitempty"`

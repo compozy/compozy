@@ -13,6 +13,8 @@ const maxOutputBytes = 4 << 10
 type Notification struct {
 	Monitor Monitor
 	Outcome Outcome
+	// PullRequest is what a pull_request wake reports; nil for other kinds.
+	PullRequest *PullRequestChanges
 }
 
 // Message renders the wake prompt the woken agent receives. It mirrors the
@@ -30,6 +32,10 @@ func (n Notification) CompactMessage() string {
 
 func (n Notification) render(withOutput bool) string {
 	mon := n.Monitor
+	status, action := statusLine(mon, n.Outcome), nextAction(mon, n.Outcome)
+	if n.PullRequest != nil {
+		status, action = pullRequestStatusLine(n.PullRequest), pullRequestNextAction(n.PullRequest)
+	}
 	lines := []string{
 		"[COMPOZY MONITOR - NOT USER INPUT]",
 		"A monitor you registered fired. This is an automated daemon wake, not a message from the user.",
@@ -38,10 +44,14 @@ func (n Notification) render(withOutput bool) string {
 		"<monitor-id>" + mon.ID + "</monitor-id>",
 		"<kind>" + string(mon.Kind) + "</kind>",
 		"<description>" + sanitizeLine(mon.Description) + "</description>",
-		"<status>" + statusLine(n.Outcome) + "</status>",
+		"<status>" + status + "</status>",
 	}
+	lines = append(lines, targetLines(n.Outcome.Targets)...)
 	if mon.TerminalID != "" {
 		lines = append(lines, "<terminal-id>"+mon.TerminalID+"</terminal-id>")
+	}
+	if n.PullRequest != nil {
+		lines = append(lines, pullRequestLines(mon, n.PullRequest)...)
 	}
 	if output := tail(n.Outcome.Output); output != "" && !withOutput {
 		lines = append(lines, "<note>Output omitted from this batched wake; read it from the terminal.</note>")
@@ -56,12 +66,35 @@ func (n Notification) render(withOutput bool) string {
 		lines = append(lines,
 			"<note>The daemon restarted after this monitor fired; its terminal output was not retained.</note>")
 	}
-	lines = append(lines, "</monitor-notification>", "", nextAction(mon, n.Outcome))
+	lines = append(lines, "</monitor-notification>", "", action)
 	return strings.Join(lines, "\n")
 }
 
-func statusLine(outcome Outcome) string {
+// targetLines renders one block per watched session. Names are agent-controlled, so the block is marked
+// untrusted and encoded like terminal output: a name can neither forge fields nor pass as an instruction.
+func targetLines(targets []TargetStatus) []string {
+	if len(targets) == 0 {
+		return nil
+	}
+	lines := []string{"<targets untrusted=\"true\" encoding=\"entities\">"}
+	for _, target := range targets {
+		line := "<target><session-id>" + sanitizeLine(target.SessionID) + "</session-id>"
+		if target.Name != "" {
+			line += "<name>" + escapeOutput.Replace(strings.Join(strings.Fields(target.Name), " ")) + "</name>"
+		}
+		lines = append(lines, line+fmt.Sprintf("<state>%s</state><matched>%t</matched></target>",
+			sanitizeLine(target.State), target.Matched))
+	}
+	return append(lines, "</targets>")
+}
+
+func statusLine(mon Monitor, outcome Outcome) string {
+	if mon.Kind == KindSession && outcome.Reason == ReasonTimeout {
+		return "timed out before the condition was met; unmatched sessions may still be working"
+	}
 	switch outcome.Reason {
+	case ReasonConditionMet:
+		return fmt.Sprintf("%s of the watched sessions reached the condition", mon.Until)
 	case ReasonExit:
 		if outcome.ExitCode != nil {
 			return fmt.Sprintf("exited with code %d", *outcome.ExitCode)
@@ -84,6 +117,9 @@ func statusLine(outcome Outcome) string {
 
 func nextAction(mon Monitor, outcome Outcome) string {
 	switch {
+	case mon.Kind == KindSession:
+		return "Read the sessions you need with compozy__session_history, then continue the task that registered " +
+			"this monitor. Register another monitor if sessions are still working."
 	case mon.Kind == KindTimer:
 		return "Resume the work you scheduled this wake for. Treat the description as your own earlier note."
 	case outcome.Reason == ReasonTimeout && mon.TerminalID != "":

@@ -12,6 +12,7 @@ import (
 )
 
 const graphFactsNone = "none"
+const graphChecksUnknown = "unknown"
 const graphCheckCancelled = "CANCELLED" //nolint:misspell // GitHub's GraphQL enum spelling.
 
 const pullQuery = `query($owner:String!,$name:String!,$branch:String!,$states:[PullRequestState!]!,$after:String){
@@ -21,7 +22,10 @@ const pullQuery = `query($owner:String!,$name:String!,$branch:String!,$states:[P
  reviewDecision mergeable headRepository{nameWithOwner}}
  pageInfo{hasNextPage endCursor}}}}`
 
-const checksQuery = `query($owner:String!,$name:String!,$oid:GitObjectID!){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid statusCheckRollup{contexts(first:20){totalCount checkRunCountsByState{state count} statusContextCountsByState{state count} nodes{... on CheckRun{name conclusion status} ... on StatusContext{context state}}}}}}}}`
+const checksQuery = `query($owner:String!,$name:String!,$oid:GitObjectID!,$after:String){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid statusCheckRollup{contexts(first:100,after:$after){totalCount checkRunCountsByState{state count} statusContextCountsByState{state count} nodes{... on CheckRun{name conclusion status} ... on StatusContext{context state}} pageInfo{hasNextPage endCursor}}}}}}}`
+
+// maxCheckPages bounds how far naming failures may page through a head's check contexts.
+const maxCheckPages = 5
 
 type graphPull struct {
 	Number         int
@@ -36,6 +40,8 @@ type graphPull struct {
 	Mergeable      string
 	HeadRepository *struct{ NameWithOwner string }
 }
+
+func (p *graphPull) isOpen() bool { return strings.EqualFold(p.State, "OPEN") }
 
 type graphPage struct {
 	Nodes    []graphPull
@@ -54,6 +60,10 @@ type graphContexts struct {
 	CheckRunCountsByState      []graphCount
 	StatusContextCountsByState []graphCount
 	Nodes                      []struct{ Name, Conclusion, Status, Context, State string }
+	PageInfo                   struct {
+		HasNextPage bool
+		EndCursor   string
+	}
 }
 
 type graphResponse struct {
@@ -64,9 +74,36 @@ type graphResponse struct {
 				OID               string
 				StatusCheckRollup *struct{ Contexts graphContexts }
 			}
+			PullRequest *graphReviewActivity
 		}
 	}
-	Errors []struct{ Type string }
+	Errors []graphError
+}
+
+type graphError struct {
+	Type       string
+	Extensions struct{ Code string }
+}
+
+// errGraphUnsupported reports a query GitHub refused for good: the token or server cannot serve it, so
+// retrying would change nothing. Every other GraphQL error may be transient.
+var errGraphUnsupported = errors.New("github forge: GraphQL query unsupported")
+
+// A validation error, such as a field an older server lacks, carries no type but names its code in
+// extensions. With neither, the error is an execution failure, which GitHub also leaves untyped.
+func graphErrorMeansUnsupported(failure *graphError) bool {
+	switch failure.Type {
+	case "":
+		return failure.Extensions.Code != ""
+	case "FORBIDDEN", "NOT_FOUND", "INSUFFICIENT_SCOPES":
+		return true
+	default:
+		return false
+	}
+}
+
+func graphPageVariables(repo repository, cursor *string) map[string]any {
+	return map[string]any{"owner": repo.owner, "name": repo.name, "after": cursor}
 }
 
 func (p *Provider) graphRequest(
@@ -87,7 +124,9 @@ func (p *Provider) graphRequest(
 		return result, err
 	}
 	if len(result.Errors) > 0 {
-		for _, e := range result.Errors {
+		unsupported := true
+		for i := range result.Errors {
+			e := &result.Errors[i]
 			if e.Type == "RATE_LIMITED" {
 				failure := &githubAPIError{
 					cause:  extensioncontract.ForgeCauseRateLimited,
@@ -98,6 +137,10 @@ func (p *Provider) graphRequest(
 				}
 				return result, failure
 			}
+			unsupported = unsupported && graphErrorMeansUnsupported(e)
+		}
+		if unsupported {
+			return result, errGraphUnsupported
 		}
 		return result, errors.New("github forge: GraphQL observation failed")
 	}
@@ -142,24 +185,69 @@ func (p *Provider) graphStatus(
 	if response.Mergeable == "" {
 		response.Mergeable = "unknown"
 	}
-	result, err := p.graphRequest(
-		ctx,
-		token,
-		checksQuery,
-		map[string]any{"owner": repo.owner, "name": repo.name, "oid": pull.HeadRefOID},
-	)
-	if err != nil {
+	if response.Checks, err = p.readGraphChecks(ctx, repo, pull.HeadRefOID, token); err != nil {
 		return response, err
 	}
-	object := result.Data.Repository.Object
-	if object == nil || object.OID != pull.HeadRefOID {
-		return response, errors.New("github forge: checks head mismatch")
+	if !pull.isOpen() {
+		return response, nil
 	}
-	response.Checks = &extensioncontract.ForgeChecks{State: graphFactsNone, FailedNames: []string{}}
-	if object.StatusCheckRollup != nil {
-		response.Checks = aggregateGraphChecks(object.StatusCheckRollup.Contexts)
+	reviews, err := p.readGraphReviews(ctx, repo, pull.Number, token)
+	switch {
+	case err == nil:
+		response.Reviews = reviews
+	case githubErrorCause(err) != "":
+		// Reviews are optional, but a limit or credential failure applies to the whole read.
+		return response, err
+	case !graphReviewsUnsupported(err):
+		// Checks stay good, and a transient failure must not read as a forge without reviews.
+		response.ReviewsUnavailable = true
 	}
 	return response, nil
+}
+
+func graphReviewsUnsupported(err error) bool {
+	if errors.Is(err, errGraphUnsupported) {
+		return true
+	}
+	apiErr, ok := errors.AsType[*githubAPIError](err)
+	return ok && (apiErr.status == http.StatusNotFound || apiErr.status == http.StatusNotImplemented)
+}
+
+// readGraphChecks pages the head's check contexts only as far as naming its failures needs.
+func (p *Provider) readGraphChecks(
+	ctx context.Context,
+	repo repository,
+	head, token string,
+) (*extensioncontract.ForgeChecks, error) {
+	var checks *extensioncontract.ForgeChecks
+	var cursor *string
+	for range maxCheckPages {
+		variables := graphPageVariables(repo, cursor)
+		variables["oid"] = head
+		result, err := p.graphRequest(ctx, token, checksQuery, variables)
+		if err != nil {
+			return nil, err
+		}
+		object := result.Data.Repository.Object
+		if object == nil || object.OID != head {
+			return nil, errors.New("github forge: checks head mismatch")
+		}
+		if object.StatusCheckRollup == nil {
+			return &extensioncontract.ForgeChecks{State: graphFactsNone, FailedNames: []string{}}, nil
+		}
+		contexts := object.StatusCheckRollup.Contexts
+		if checks == nil {
+			checks = aggregateGraphChecks(contexts)
+		}
+		appendFailedNames(checks, contexts)
+		wanted := min(checks.Failed, extensioncontract.MaxForgeFailedNames)
+		if checks.State == graphChecksUnknown || len(checks.FailedNames) >= wanted ||
+			!contexts.PageInfo.HasNextPage || contexts.PageInfo.EndCursor == "" {
+			break
+		}
+		cursor = &contexts.PageInfo.EndCursor
+	}
+	return checks, nil
 }
 
 func (p *Provider) selectGraphPull(
@@ -171,9 +259,9 @@ func (p *Provider) selectGraphPull(
 	for _, states := range [][]string{{"OPEN"}, {"MERGED", "CLOSED"}} {
 		var cursor *string
 		for range 2 {
-			result, err := p.graphRequest(ctx, token, pullQuery, map[string]any{
-				"owner": repo.owner, "name": repo.name, "branch": branch, "states": states, "after": cursor,
-			})
+			variables := graphPageVariables(repo, cursor)
+			variables["branch"], variables["states"] = branch, states
+			result, err := p.graphRequest(ctx, token, pullQuery, variables)
 			if err != nil {
 				return nil, false, err
 			}
@@ -206,7 +294,7 @@ func (p *Provider) selectGraphPull(
 }
 
 func aggregateGraphChecks(contexts graphContexts) *extensioncontract.ForgeChecks {
-	result := &extensioncontract.ForgeChecks{State: "unknown", FailedNames: []string{}}
+	result := &extensioncontract.ForgeChecks{State: graphChecksUnknown, FailedNames: []string{}}
 	if contexts.CheckRunCountsByState == nil || contexts.StatusContextCountsByState == nil {
 		return result
 	}
@@ -235,6 +323,13 @@ func aggregateGraphChecks(contexts graphContexts) *extensioncontract.ForgeChecks
 	default:
 		result.State = graphFactsNone
 	}
+	return result
+}
+
+func appendFailedNames(checks *extensioncontract.ForgeChecks, contexts graphContexts) {
+	if checks.State == graphChecksUnknown {
+		return
+	}
 	for _, node := range contexts.Nodes {
 		state, name := node.Conclusion, node.Name
 		if node.Context != "" {
@@ -242,12 +337,11 @@ func aggregateGraphChecks(contexts graphContexts) *extensioncontract.ForgeChecks
 		}
 		switch state {
 		case "FAILURE", "ERROR", graphCheckCancelled, "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE":
-			if name != "" && len(result.FailedNames) < 5 {
-				result.FailedNames = append(result.FailedNames, name)
+			if name != "" && len(checks.FailedNames) < extensioncontract.MaxForgeFailedNames {
+				checks.FailedNames = append(checks.FailedNames, name)
 			}
 		}
 	}
-	return result
 }
 
 func (p *Provider) tryGraphStatus(

@@ -12,10 +12,14 @@ const storeTimeout = 5 * time.Second
 // recordLocked snapshots the entry for persistence and advances its write version.
 func (e *entry) recordLocked() Record {
 	e.version++
-	return Record{
+	record := Record{
 		Monitor: e.state, WorkspaceID: e.workspaceID, ProfileID: e.profileID,
 		Timeout: e.timeout, OwnerBinding: e.binding, OwnerCheckFailedAt: e.ownerCheckFailedAt, Version: e.version,
 	}
+	if e.pullRequest != nil {
+		record.RepoKey, record.Cursor = e.pullRequest.repoKey, e.pullRequest.encode()
+	}
+	return record
 }
 
 // saveNow persists a record and reports failure to the caller.

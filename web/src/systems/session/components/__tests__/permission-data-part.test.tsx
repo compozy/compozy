@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { SessionToolGroupRow } from "@/components/assistant-ui/session-tool-group-row";
+import {
+  deriveSessionRows,
+  type SessionTimelinePart,
+} from "@/components/assistant-ui/session-timeline.logic";
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import type { CompozyPermissionData, SessionInteractionRecord } from "../../types";
 import { PermissionDataPart } from "../permission-data-part";
@@ -298,5 +303,49 @@ describe("PermissionDataPart", () => {
     expect(screen.getByTestId("permission-allowed-receipt")).toHaveTextContent(
       "Allowed Bash once — /workspace/notes.md"
     );
+  });
+});
+
+// Invariant: a grouped allowed receipt renders with its tool once the group opens (#1155).
+describe("allowed receipt inside a work group", () => {
+  const tool = (index: number): SessionTimelinePart => ({
+    kind: "tool",
+    id: `tool-${index}`,
+    toolCallId: `call-${index}`,
+    toolName: "Read",
+    args: { file_path: `/tmp/${index}.ts` },
+    result: { content: "ok" },
+    status: "settled",
+    turnId: "turn-001",
+  });
+  const allowed: SessionTimelinePart = {
+    kind: "data",
+    id: "permission",
+    partIndex: 7,
+    name: "data-compozy-permission",
+    data: { ...basePermissionData, tool_call_id: "call-1", decision: "allow-once" },
+    turnId: "turn-001",
+  };
+
+  function renderGroup(expanded: boolean) {
+    const [row] = deriveSessionRows([allowed, tool(1), tool(2)], {
+      expandedWorkGroupIds: expanded ? new Set(["work:turn-001:call-1"]) : undefined,
+    });
+    if (row?.kind !== "work") throw new Error("expected a work row");
+    render(<SessionToolGroupRow row={row} turnFailed={false} onToggle={() => undefined} />);
+  }
+
+  it("Should stay out of the collapsed summary", () => {
+    renderGroup(false);
+
+    expect(screen.queryByTestId("permission-allowed-receipt")).toBeNull();
+  });
+
+  it("Should render under its tool once the group opens", () => {
+    renderGroup(true);
+
+    const receipt = screen.getByTestId("permission-allowed-receipt");
+    expect(receipt.closest("[data-part-index]")).toHaveAttribute("data-part-index", "7");
+    expect(screen.getAllByTestId("permission-allowed-receipt")).toHaveLength(1);
   });
 });

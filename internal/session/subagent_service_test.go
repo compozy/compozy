@@ -93,6 +93,10 @@ func TestSubagentRequest(t *testing.T) {
 
 // TestSubagentTargetAndPermissions covers delegated target inheritance and the
 // permission boundary between the parent and its requested child runtime.
+func callerSubagentLimit(info *Info) SubagentPermissionLimit {
+	return SubagentPermissionLimit{Mode: permissionMode(info)}
+}
+
 func TestSubagentTargetAndPermissions(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep inherited reasoning scoped to the selected model", func(t *testing.T) {
@@ -144,16 +148,36 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 		info := &Info{EffectivePermissions: "approve-reads"}
 		req := subagentTestRequest()
 		req.PermissionMode = compozyconfig.PermissionModeApproveAll
-		if _, _, err := subagentPermissions(info, req); !errors.Is(err, ErrSpawnPermissionDenied) {
+		if _, _, err := subagentPermissions(info, req, callerSubagentLimit(info)); !errors.Is(err, ErrSpawnPermissionDenied) {
 			t.Fatal(err)
 		}
 		req.PermissionMode = "inherit"
-		mode, _, err := subagentPermissions(info, req)
+		mode, _, err := subagentPermissions(info, req, callerSubagentLimit(info))
 		if err != nil || mode != "approve-reads" {
 			t.Fatal(mode, err)
 		}
 		req.PermissionMode = "deny-all"
-		if _, _, err := subagentPermissions(info, req); err != nil {
+		if _, _, err := subagentPermissions(info, req, callerSubagentLimit(info)); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should bound an instance child by its own level and leave an unset mode to it", func(t *testing.T) {
+		t.Parallel()
+		info := &Info{EffectivePermissions: "approve-reads"}
+		limit := SubagentPermissionLimit{Mode: compozyconfig.PermissionModeApproveAll, ChildOwnsLevel: true}
+		req := subagentTestRequest()
+		req.PermissionMode = "inherit"
+		mode, _, err := subagentPermissions(info, req, limit)
+		if err != nil || mode != "" {
+			t.Fatal(mode, err)
+		}
+		req.PermissionMode = compozyconfig.PermissionModeApproveAll
+		mode, _, err = subagentPermissions(info, req, limit)
+		if err != nil || mode != compozyconfig.PermissionModeApproveAll {
+			t.Fatal(mode, err)
+		}
+		limit.Mode = compozyconfig.PermissionModeApproveReads
+		if _, _, err := subagentPermissions(info, req, limit); !errors.Is(err, ErrSpawnPermissionDenied) {
 			t.Fatal(err)
 		}
 	})
@@ -171,7 +195,7 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 			},
 		}
 		req := subagentTestRequest()
-		_, policy, err := subagentPermissions(info, req)
+		_, policy, err := subagentPermissions(info, req, callerSubagentLimit(info))
 		if err != nil || len(policy.Tools) != 2 {
 			t.Fatal(policy, err)
 		}
@@ -181,14 +205,15 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 			MCPServers:     []string{},
 			WorkspacePaths: []string{},
 		}
-		_, policy, err = subagentPermissions(info, req)
+		_, policy, err = subagentPermissions(info, req, callerSubagentLimit(info))
 		if err != nil || len(policy.Tools) != 0 || len(policy.Skills) != 0 || len(policy.MCPServers) != 0 ||
 			len(policy.WorkspacePaths) != 0 {
 			t.Fatal(policy, err)
 		}
 		for _, n := range []*SubagentPermissionNarrowing{{Tools: []string{"C"}}, {Skills: []string{"C"}}, {MCPServers: []string{"C"}}, {WorkspacePaths: []string{"C"}}} {
 			req.Narrowing = n
-			if _, _, err := subagentPermissions(info, req); err == nil || !strings.Contains(err.Error(), "C") {
+			_, _, err := subagentPermissions(info, req, callerSubagentLimit(info))
+			if err == nil || !strings.Contains(err.Error(), "C") {
 				t.Fatal(err)
 			}
 		}

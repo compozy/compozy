@@ -28,8 +28,16 @@ func (n *daemonNativeTools) validateSubagentPermissions(ctx context.Context, req
 			Err:     session.ErrSpawnPermissionDenied,
 		}
 	}
-	if req.PermissionMode != "" &&
-		req.PermissionMode.Rank() > config.PermissionMode(parent.EffectivePermissions).Rank() {
+	limit := session.SubagentPermissionLimit{Mode: config.PermissionMode(parent.EffectivePermissions)}
+	if svc := n.subagentService(); svc != nil {
+		if limit, err = svc.PermissionLimit(ctx, parent, req.Target); err != nil {
+			return err
+		}
+	}
+	if req.PermissionMode != "" && req.PermissionMode.Rank() > limit.Mode.Rank() {
+		if limit.ChildOwnsLevel {
+			return denied("permission_mode is broader than the level configured for the child agent.")
+		}
 		return denied("permission_mode is broader than the caller's mode.")
 	}
 	if req.Narrowing == nil {

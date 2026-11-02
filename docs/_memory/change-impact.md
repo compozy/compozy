@@ -584,6 +584,19 @@ Evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`.
   `config-toml` `[shell.sessions]`, generated CLI pages; glossary entries All projects and topbar;
   release note `.release-notes/all-projects-*.md`; migration guide section.
 
+## Session monitor kind — 2026-11-02
+
+Owner: branch `feat/session-monitor-kind`. Additive across every public surface (SD-013); no delete
+targets. Native tools: `compozy__monitor_create` gains `kind="session"`, `target_session_ids`, `states`,
+and `until` values `any` and `all`; monitor results gain optional `target_session_ids`, `states`, and
+`targets`. HTTP/UDS `SessionMonitorPayload` gains the same optional fields (OpenAPI, TS and Go SDKs
+regenerated). Persisted state: migration `00174` rebuilds `session_monitors` to widen the `kind` check and
+add three JSON columns; every existing row is preserved. Extensibility: hooks, extension SDKs, and config
+keys are unchanged. Workspace isolation: every target must share the caller's workspace and profile,
+checked at creation, because monitor reads report target names and states. Official skill (`references/native-tools.md`) and site docs
+(`sessions/monitors.mdx`) updated. Web labels the kind in the composer popover and shows "Sessions settled"
+on the wake divider. QA scenario `RT-session-monitor-wake` gains step 13.
+
 ## Session monitor visibility — 2026-10-21
 
 Owner: branch `feat/session-monitor-visibility`. Additive across every public surface (SD-013); no
@@ -5034,6 +5047,28 @@ commands: they reach neither the permission callback nor ACP terminal/create. Wo
 unchanged. Official skill and Web
 docs: `skills/compozy/references/{terminal,native-tools}.md` and `sessions/monitors.mdx`. QA:
 RT-session-monitor-wake step 10.
+
+## Pull request monitor — 2026-11-02
+
+Owner: `docs/prompts/20261102-1426_pull-request-monitor.md`, branch `feat/pull-request-monitor`.
+Native tools: `compozy__monitor_create` gains `kind: "pull_request"` and `branch`, and `timeout_seconds`
+widens to 86,400 (terminal monitors still refuse more than 21,600 at runtime); `monitor_list` and
+`monitor_cancel` items gain `branch`, `fire_count` and `last_fired_at`. IDs are unchanged. There is no monitor CLI.
+HTTP/UDS: the monitor payload gains the same three optional fields, additively; routes are unchanged.
+Extensibility: the forge contract gains optional `reviews` on `ForgeStatusResponse`, including unresolved `threads`
+with the commit each was opened on, and `reviews_unavailable` for a read that failed, in both SDKs. A provider that
+omits `reviews` still serves checks. The provider-side `failed_names` limit rises from 5 to 64; the display cache and the
+session payload still carry 5. Hooks and config keys are unchanged.
+Persisted data: migration `00175` rebuilds `session_monitors` to admit the kind and adds `branch`, `repo_key`,
+`pr_cursor`, `fire_count` and `last_fired_at`, keeping every row; review activity is not stored in
+`forge_pull_requests`, which keeps its display semantics. Provider behavior: every open pull request refresh, display
+refreshes included, makes one more forge read for reviews.
+Workspace isolation: a monitor reads only its own workspace's origin, with the forge extension's credential, and runs
+no agent-supplied command or URL. Stays-on: a `pull_request` wake never counts as `monitors_fired`, so it buys no check,
+and instance rotation is deferred while one is active. Goals: an active monitor stays a work signal until its deadline.
+Official skill and Web docs: `skills/compozy/references/{native-tools,terminal}.md`, `sessions/monitors.mdx`, runtime
+envelope, shell-wait redirect. Web: composer popover and transcript divider labels only. QA: RT-session-monitor-wake
+step 13.
 
 ## Stays-on agents and agent identity
 

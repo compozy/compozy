@@ -187,15 +187,57 @@ func TestDenyReason(t *testing.T) {
 
 	t.Run("Should name the exact unwrapped argv for a watch", func(t *testing.T) {
 		t.Parallel()
-		finding, _ := Detect(`timeout 570 gh pr checks 123 --watch --interval 30`)
+		finding, _ := Detect(`timeout 570 gh run watch 123 --exit-status`)
 		reason := DenyReason(finding)
 		for _, want := range []string{
-			`compozy__terminal_exec {"args":["pr","checks","123","--watch","--interval","30"],"command":"gh"}`,
+			`compozy__terminal_exec {"args":["run","watch","123","--exit-status"],"command":"gh"}`,
 			`compozy__monitor_create {"kind":"terminal"`,
 			"still_running",
 		} {
 			if !strings.Contains(reason, want) {
 				t.Fatalf("reason = %q, want %q", reason, want)
+			}
+		}
+	})
+
+	t.Run("Should point a pull request watch at the pull_request monitor", func(t *testing.T) {
+		t.Parallel()
+		for _, command := range []string{
+			`gh pr checks --watch`,
+			`timeout 570 gh pr checks --watch --interval 30`,
+			`gh pr checks -i 30 --watch`,
+			`bash -lc 'gh pr checks --watch'`,
+		} {
+			finding, found := Detect(command)
+			if !found {
+				t.Fatalf("Detect(%q) allowed", command)
+			}
+			reason := DenyReason(finding)
+			if !strings.Contains(reason, `compozy__monitor_create {"kind":"pull_request"`) ||
+				strings.Contains(reason, "compozy__terminal_exec") {
+				t.Fatalf("DenyReason(%q) = %q", command, reason)
+			}
+		}
+	})
+
+	t.Run("Should keep the terminal redirect for a watch a monitor cannot select", func(t *testing.T) {
+		t.Parallel()
+		for _, command := range []string{
+			`gh pr checks 123 --watch`,
+			`gh pr checks other-feature --watch`,
+			`gh pr checks --interval 30 123 --watch`,
+			`gh pr checks -R other/repo --watch`,
+			`gh pr checks -Rother/repo --watch`,
+			`gh pr checks --repo=other/repo --watch`,
+			`gh pr checks https://github.com/other/repo/pull/123 --watch`,
+			`gh pr checks --interval 30 https://github.com/other/repo/pull/123 --watch`,
+		} {
+			finding, found := Detect(command)
+			if !found {
+				t.Fatalf("Detect(%q) allowed", command)
+			}
+			if reason := DenyReason(finding); !strings.Contains(reason, "compozy__terminal_exec") {
+				t.Fatalf("DenyReason(%q) = %q", command, reason)
 			}
 		}
 	})
@@ -323,8 +365,8 @@ func TestRunHook(t *testing.T) {
 		}
 		got := decision.HookSpecificOutput
 		if got.HookEventName != "PreToolUse" || got.PermissionDecision != "deny" ||
-			!strings.Contains(got.PermissionDecisionReason, "compozy__terminal_exec") {
-			t.Fatalf("decision = %+v, want a deny naming compozy__terminal_exec", got)
+			!strings.Contains(got.PermissionDecisionReason, "compozy__monitor_create") {
+			t.Fatalf("decision = %+v, want a deny naming compozy__monitor_create", got)
 		}
 	})
 

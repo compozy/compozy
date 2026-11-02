@@ -274,7 +274,7 @@ SELECT EXISTS(
 -- whose injection was unconfirmed is excluded: RecoverUnconfirmedWakeSteers returns it to the queue.
 SELECT session_id, id FROM session_input_queue
 WHERE status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
-  AND NOT (owner_kind = 'synthetic' AND mode = 'steer')
+  AND NOT (COALESCE(owner_kind, '') = 'synthetic' AND mode = 'steer')
 ORDER BY session_id, enqueued_at, id;
 
 -- name: RecoverStagedSessionSteers :execrows
@@ -291,13 +291,14 @@ WHERE status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispat
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
 
 -- name: RecoverUnconfirmedWakeSteers :execrows
--- Boot recovery: a promoted wake still dispatching never had its injection confirmed. Its monitors are
--- settled and will not fire again, so it returns to after-turn delivery; repeating an outcome is safe,
--- losing one is not.
+-- Boot recovery: a promoted wake still dispatching, or sent while its injection was pending, never had its
+-- injection confirmed, and its completion watch died with the previous daemon. Its monitors are settled and
+-- will not fire again, so it returns to after-turn delivery; repeating an outcome is safe, losing one is not.
 UPDATE session_input_queue
 SET mode = 'queue', delivery = 'after_turn', steer_delivery = NULL, status = 'queued', dispatchable = 1,
-    target_turn_id = '', dispatch_started_at = NULL, updated_at = sqlc.arg(now)
-WHERE status = 'dispatching' AND owner_kind = 'synthetic' AND mode = 'steer'
+    turn_id = '', target_turn_id = '', sent_at = NULL, dispatch_started_at = NULL, updated_at = sqlc.arg(now)
+WHERE owner_kind = 'synthetic' AND mode = 'steer'
+  AND (status = 'dispatching' OR (status = 'sent' AND steer_delivery = 'pending_injection'))
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
 
 -- name: CancelSupersededAgentSessionInputs :many

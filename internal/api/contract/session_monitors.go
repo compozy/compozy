@@ -21,12 +21,28 @@ type SessionMonitorPayload struct {
 	TerminalID  string     `json:"terminal_id,omitempty"`
 	Until       string     `json:"until,omitempty"`
 	Pattern     string     `json:"pattern,omitempty"`
+	Branch      string     `json:"branch,omitempty"`
 	Status      string     `json:"status"`
 	CreatedAt   time.Time  `json:"created_at"`
 	DeadlineAt  time.Time  `json:"deadline_at"`
 	FiredAt     *time.Time `json:"fired_at,omitempty"`
 	Reason      string     `json:"reason,omitempty"`
 	ExitCode    *int       `json:"exit_code,omitempty"`
+	FireCount   int        `json:"fire_count,omitempty"`
+	LastFiredAt *time.Time `json:"last_fired_at,omitempty"`
+	// TargetSessionIDs and States define a session monitor.
+	TargetSessionIDs []string `json:"target_session_ids,omitempty"`
+	States           []string `json:"states,omitempty"`
+	// Targets is each target's state when a session monitor fired.
+	Targets []SessionMonitorTargetPayload `json:"targets,omitempty"`
+}
+
+// SessionMonitorTargetPayload is one watched session's state when its monitor fired.
+type SessionMonitorTargetPayload struct {
+	SessionID string `json:"session_id"`
+	Name      string `json:"name,omitempty"`
+	State     string `json:"state"`
+	Matched   bool   `json:"matched"`
 }
 
 // SessionMonitorsResponse lists a session's monitors, active first, newest first.
@@ -52,11 +68,20 @@ func SessionMonitorFromDomain(item monitorpkg.Monitor) SessionMonitorPayload {
 	payload := SessionMonitorPayload{
 		MonitorID: item.ID, SessionID: item.SessionID, Kind: string(item.Kind),
 		Description: item.Description, TerminalID: item.TerminalID, Until: item.Until,
-		Pattern: item.Pattern, Status: string(item.Status), CreatedAt: item.CreatedAt,
-		DeadlineAt: item.DeadlineAt, Reason: item.Reason, ExitCode: item.ExitCode,
+		Pattern: item.Pattern, Branch: item.Branch, Status: string(item.Status), CreatedAt: item.CreatedAt,
+		DeadlineAt: item.DeadlineAt, Reason: item.Reason, ExitCode: item.ExitCode, FireCount: item.FireCount,
+		TargetSessionIDs: item.TargetSessionIDs, States: item.States,
+	}
+	for _, target := range item.Targets {
+		payload.Targets = append(payload.Targets, SessionMonitorTargetPayload{
+			SessionID: target.SessionID, Name: target.Name, State: target.State, Matched: target.Matched,
+		})
 	}
 	if !item.FiredAt.IsZero() {
 		payload.FiredAt = new(item.FiredAt)
+	}
+	if !item.LastFiredAt.IsZero() {
+		payload.LastFiredAt = new(item.LastFiredAt)
 	}
 	return payload
 }

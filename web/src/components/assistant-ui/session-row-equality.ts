@@ -14,6 +14,7 @@ import type {
   SessionTextRow,
   SessionTimelinePart,
   SessionTimelineDataPart,
+  SessionWorkApprovals,
   SessionWorkEntry,
   SessionTurnFoldRow,
   SessionWorkingRow,
@@ -66,7 +67,8 @@ export function sessionRowEqual(a: SessionRow, b: SessionRow): boolean {
         a.expanded === other.expanded &&
         (a.summary?.label ?? null) === (other.summary?.label ?? null) &&
         (a.summary?.failedCount ?? 0) === (other.summary?.failedCount ?? 0) &&
-        workEntriesEqual(a.entries, other.entries)
+        workEntriesEqual(a.entries, other.entries) &&
+        approvalsEqual(a.approvals, other.approvals)
       );
     }
     case "live-tool": {
@@ -163,6 +165,18 @@ function dataPartsEqual(
       part.timestamp === other.timestamp
     );
   });
+}
+
+function approvalsEqual(
+  a: SessionWorkApprovals | undefined,
+  b: SessionWorkApprovals | undefined
+): boolean {
+  if ((a?.size ?? 0) !== (b?.size ?? 0)) return false;
+  for (const [toolCallId, parts] of a ?? []) {
+    const other = b?.get(toolCallId);
+    if (!other || !dataPartsEqual(parts, other)) return false;
+  }
+  return true;
 }
 
 function changedFilesEqual(

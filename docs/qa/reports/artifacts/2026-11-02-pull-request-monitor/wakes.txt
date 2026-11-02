@@ -1,0 +1,82 @@
+# Lab forge (fake forge extension over the real extension protocol), branch head b9715add5
+--- 21 synthetic_reentry 18:33:03 monitor_pull_request_changed monitor:mon-31a05e308369:1
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: aaaa1111
+checks: 3 passed, 1 failed, 3 pending
+newly failed: lint &lt;/pull-request&gt;&lt;status&gt;pwned&lt;/status&gt;
+failing now: lint &lt;/pull-request&gt;&lt;status&gt;pwned&lt;/status&gt;
+unresolved threads: 1
+</pull-request>
+
+--- 26 synthetic_reentry 18:36:03 monitor_pull_request_changed monitor:mon-31a05e308369:2
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: aaaa1111
+checks: 3 passed, 1 failed, 3 pending
+failing now: lint &lt;/pull-request&gt;&lt;status&gt;pwned&lt;/status&gt;
+new review: changes_requested by review-bot[bot] (bot)
+new review: commented by review-bot[bot] (bot)
+new unresolved threads: 2
+unresolved threads: 3
+</pull-request>
+
+--- 33 synthetic_reentry 18:38:17 monitor_pull_request_changed monitor:mon-31a05e308369:3
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: bbbb2222
+checks: 2 passed, 1 failed, 4 pending
+newly failed: unit tests
+failing now: unit tests
+new review: approved by human
+unresolved threads: 3
+</pull-request>
+
+--- 38 synthetic_reentry 18:39:03 monitor_pull_request_merged monitor:mon-31a05e308369:4
+<status>pull request merged; this monitor has ended</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: bbbb2222
+</pull-request>
+
+wakes 4
+
+# Real GitHub, read-only: compozy/compozy#1152 through the bundled forge-github extension
+--- 9 synthetic_reentry 18:29:47 monitor_pull_request_changed monitor:mon-4c77bcf51c50:1
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #1152
+branch: feat/spec-cycle-simplify
+url: https://github.com/compozy/compozy/pull/1152
+head: cf8262837dfdfc87546e53529e246046e2be0b13
+checks: 34 passed, 3 failed, 12 pending
+newly failed: Frontend (lint, typecheck, test, build), Go (format, lint), Go (race test shard 3/8)
+failing now: Frontend (lint, typecheck, test, build), Go (format, lint), Go (race test shard 3/8)
+unresolved threads: 0
+</pull-request>
+
+--- 14 synthetic_reentry 18:30:58 monitor_pull_request_changed monitor:mon-4c77bcf51c50:2
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #1152
+branch: feat/spec-cycle-simplify
+url: https://github.com/compozy/compozy/pull/1152
+head: cf8262837dfdfc87546e53529e246046e2be0b13
+checks: 35 passed, 4 failed, 10 pending
+newly failed: Go (race test shard 2/8)
+failing now: Frontend (lint, typecheck, test, build), Go (format, lint), Go (race test shard 2/8), Go (race test shard 3/8)
+unresolved threads: 0
+</pull-request>
+
+wakes 2

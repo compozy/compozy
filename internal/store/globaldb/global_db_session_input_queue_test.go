@@ -3986,6 +3986,58 @@ func TestGlobalDBSessionInputCoalescedWakes(t *testing.T) {
 			t.Fatalf("recovered = %+v, %v; want plain queued delivery", recovered, err)
 		}
 	})
+
+	t.Run("Should requeue a promoted wake left pending injection on boot recovery", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		entry := mustWake(t, db, wake(sessionID, "a", "outcome a", bound))
+		_, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(t.Context(), sessionID, entry.ID, "turn-live", now)
+		if err != nil || !promoted {
+			t.Fatalf("promote = %v, %v; want promoted", promoted, err)
+		}
+		if _, reserved, err := db.ReserveSessionSteer(t.Context(), sessionID, entry.ID, now); err != nil || !reserved {
+			t.Fatalf("reserve = %v, %v; want reserved", reserved, err)
+		}
+		sent, err := db.ResolveSessionSteer(t.Context(), sessionID, entry.ID, store.SteerDeliveryPendingInjection, now)
+		if err != nil || sent.Status != store.SessionInputQueueStatusSent {
+			t.Fatalf("resolve = %+v, %v; want sent pending injection", sent, err)
+		}
+		if _, err := db.FailStaleDispatchingSessionInputs(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		recovered, err := db.GetSessionInputQueueEntry(t.Context(), sessionID, entry.ID)
+		if err != nil || recovered.Status != store.SessionInputQueueStatusQueued ||
+			recovered.Mode != store.SessionInputQueueModeQueue || !recovered.Dispatchable ||
+			recovered.SteerDelivery != "" || recovered.TurnID != "" || recovered.SentAt != nil {
+			t.Fatalf("recovered = %+v, %v; want plain queued delivery", recovered, err)
+		}
+	})
+
+	t.Run("Should fail an ordinary steer stranded by a restart", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		entry, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "ordinary-steer", SessionID: sessionID, Text: "steer", TargetTurnID: "turn-live",
+			Mode: store.SessionInputQueueModeSteer, Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			QueueCap: 3, Now: now,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, reserved, err := db.ReserveSessionSteer(t.Context(), sessionID, entry.ID, now); err != nil || !reserved {
+			t.Fatalf("reserve = %v, %v; want reserved", reserved, err)
+		}
+		failed, err := db.FailStaleDispatchingSessionInputs(t.Context(), now)
+		if err != nil || failed != 1 {
+			t.Fatalf("FailStaleDispatchingSessionInputs() = %d, %v; want 1", failed, err)
+		}
+		stranded, err := db.GetSessionInputQueueEntry(t.Context(), sessionID, entry.ID)
+		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed {
+			t.Fatalf("stranded = %+v, %v; want failed by restart recovery", stranded, err)
+		}
+	})
 }
 
 func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
