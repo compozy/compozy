@@ -4659,7 +4659,7 @@ func TestManagerBoardCatalog(t *testing.T) {
 			manager.ConfigurePullRequests(reader, catalog)
 			for _, link := range []store.SessionWorkLink{
 				{SessionID: "sess-read-000", Repository: repo, Branch: "FÉATURE", PRNumber: 7},
-				{SessionID: "sess-read-001", Repository: "example.com/old/repo", Branch: "moved"},
+				{SessionID: "sess-read-001", Repository: "example.com/old/repo", Branch: "moved", PRNumber: 88},
 			} {
 				link.WorkspaceID, link.Provenance = "ws-read-00", "user"
 				if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
@@ -4679,7 +4679,7 @@ func TestManagerBoardCatalog(t *testing.T) {
 					}
 				}
 			}
-			for search, want := range map[string]int{"féature": 1, "moved": 0, "#": 0} {
+			for search, want := range map[string]int{"féature": 1, "moved": 0, "#": 0, "#88": 1} {
 				page, err := manager.ListPage(t.Context(), ListQuery{
 					ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
 					WorkspaceID: "ws-read-00",

@@ -89,6 +89,7 @@ function openDialog() {
   sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
   return render(
     <SessionLinkDialogHost
+      focused
       profile={session.profile_name}
       sessionId={session.id}
       workspaceId={WORKSPACE}
@@ -181,16 +182,16 @@ describe("useSessionLinkedWork", () => {
     );
   });
 
-  it("Should ask the forge about the item and show the list it answers with", async () => {
-    vi.mocked(refreshSessionWorkLink).mockResolvedValue({ items: items.slice(0, 2) });
-    const { client, wrapper } = harness();
+  it("Should ask the forge about the item and settle the spinner", async () => {
+    vi.mocked(refreshSessionWorkLink).mockResolvedValue({ items });
+    const { wrapper } = harness();
     const { result } = renderHook(
       () => useSessionLinkedWork({ session, workspaceId: WORKSPACE, enabled: true }),
       { wrapper }
     );
     await waitFor(() => expect(result.current.items).toHaveLength(4));
     act(() => result.current.refresh(second!));
-    await waitFor(() => expect(list(client)?.items).toHaveLength(2));
+    await waitFor(() => expect(result.current.refreshing).toBe(false));
     expect(refreshSessionWorkLink).toHaveBeenCalledWith(
       WORKSPACE,
       session.id,
@@ -208,10 +209,11 @@ describe("useSessionLinkedWork", () => {
     await waitFor(() => expect(result.current.items).toHaveLength(4));
   });
 
-  it("Should open one dialog when two windows host the session", async () => {
+  it("Should open the dialog only in the focused window of two showing the session", async () => {
     const { wrapper } = harness();
-    const host = (
+    const host = (focused: boolean) => (
       <SessionLinkDialogHost
+        focused={focused}
         profile={session.profile_name}
         sessionId={session.id}
         workspaceId={WORKSPACE}
@@ -220,8 +222,8 @@ describe("useSessionLinkedWork", () => {
     );
     render(
       <>
-        {host}
-        {host}
+        {host(false)}
+        {host(true)}
       </>,
       { wrapper }
     );
@@ -347,7 +349,6 @@ describe("useSessionLinkDialogModel", () => {
       expect(searchSessionLinkCandidates).toHaveBeenCalledWith(
         WORKSPACE,
         session.id,
-        session.profile_name,
         expect.objectContaining({ q: "nothing in these titles", kind: "pull_requests", page: 1 }),
         expect.anything()
       )
@@ -377,7 +378,6 @@ describe("useSessionLinkDialogModel", () => {
     expect(searchSessionLinkCandidates).toHaveBeenCalledWith(
       WORKSPACE,
       session.id,
-      session.profile_name,
       expect.objectContaining({ kind: "pull_requests", page: 2 }),
       expect.anything()
     );

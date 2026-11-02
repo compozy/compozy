@@ -23,6 +23,7 @@ describe("palette selection values", () => {
     expect(values).toEqual([
       "window.close",
       "ask:general",
+      "session-link",
       "session:s1",
       "tab:w1",
       "worktree:wt1",

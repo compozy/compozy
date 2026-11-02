@@ -26,6 +26,7 @@ export function SessionWindowView({
   id,
   workspaceId,
   session,
+  focused = false,
   liveTailEnabled,
   isLoading,
   error,
@@ -35,6 +36,7 @@ export function SessionWindowView({
   id: string;
   workspaceId: string;
   session: SessionPayload | undefined;
+  focused?: boolean;
   liveTailEnabled: boolean;
   isLoading: boolean;
   error: Error | null;
@@ -109,6 +111,7 @@ export function SessionWindowView({
             liveTailEnabled={liveTailEnabled}
           >
             <SessionWindowContent
+              focused={focused}
               liveDataEnabled={liveTailEnabled}
               windowId={windowId}
               agentName={resolvedAgentName}

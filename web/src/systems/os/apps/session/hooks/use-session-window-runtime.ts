@@ -6,6 +6,8 @@ import { useDocumentActive } from "@/hooks/use-document-active";
 const SESSION_AGENT_PATTERN = /^\/agents\/([^/]+)\/sessions\//;
 
 export interface SessionWindowRuntime {
+  /** This window has the desktop's focus, so what the operator just did happened here. */
+  focused: boolean;
   liveTailEnabled: boolean;
   presenceEnabled: boolean;
   sessionId: string | null;
@@ -40,6 +42,7 @@ export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime 
   const sessionId = matchSessionInstance(pathname);
   const agentMatch = SESSION_AGENT_PATTERN.exec(pathname);
   return {
+    focused,
     liveTailEnabled,
     presenceEnabled: focused && liveTailEnabled && documentActive,
     sessionId,

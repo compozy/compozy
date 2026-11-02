@@ -193,6 +193,7 @@ export function SessionWindowContent({
   session,
   workspaceId,
   liveDataEnabled,
+  focused = false,
 }: {
   windowId: string;
   agentName: string;
@@ -200,6 +201,7 @@ export function SessionWindowContent({
   session: SessionPayload;
   workspaceId: string;
   liveDataEnabled: boolean;
+  focused?: boolean;
 }) {
   const worktreeDialogs = use(WorktreeDialogActionsContext);
   const derive = useSessionWindowDerive({ session, workspaceId });
@@ -400,6 +402,7 @@ export function SessionWindowContent({
               ) : null}
               <SessionPullRequestExitSurface model={pullRequestExitSurface} />
               <SessionLinkDialogHost
+                focused={focused}
                 profile={session.profile_name}
                 sessionId={sessionId}
                 workspaceId={workspaceId}

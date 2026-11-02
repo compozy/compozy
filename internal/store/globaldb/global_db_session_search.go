@@ -24,10 +24,12 @@ func appendSessionCatalogSearch(
 		linked := ` OR EXISTS (SELECT 1 FROM session_work_links AS search_link
  LEFT JOIN forge_pull_requests AS search_pr ON search_pr.workspace_id = search_link.workspace_id
  AND search_pr.repo_key = search_link.repo_key AND search_pr.branch = search_link.branch
+ AND search_pr.repo_key = json_extract(?, '$.' || json_quote(search_link.workspace_id))
  WHERE search_link.session_id = sessions.id AND search_link.workspace_id = sessions.workspace_id
- AND search_link.repo_key = json_extract(?, '$.' || json_quote(search_link.workspace_id))
- AND search_link.unlinked = 0 AND (instr(compozy_unicode_lower(search_link.branch), ?) > 0` + number + `))`
-		linkedArgs := append([]any{string(repos), branchTerm}, numberArgs...)
+ AND search_link.unlinked = 0 AND ((instr(compozy_unicode_lower(search_link.branch), ?) > 0
+ AND search_link.repo_key = json_extract(?, '$.' || json_quote(search_link.workspace_id)))` + number + `))`
+		// A number the link stored still names that PR after a move; a branch name no longer does.
+		linkedArgs := append([]any{string(repos), branchTerm, string(repos)}, numberArgs...)
 		own, ownArgs, err := sessionCatalogOwnWorkSearch(query)
 		if err != nil {
 			return nil, nil, err

@@ -4,16 +4,19 @@ import { useSessionLinkDialogOpen } from "../../hooks/use-session-link-dialog";
 import { SessionLinkDialog } from "./session-link-dialog";
 
 interface SessionLinkDialogHostProps {
+  /** Two windows can show one session, and every entry acts on the focused one. */
+  focused: boolean;
   sessionId: string;
   workspaceId: string;
   workspaceName: string;
   profile: string;
 }
 
-export function SessionLinkDialogHost(props: SessionLinkDialogHostProps) {
-  return useSessionLinkDialogOpen(props.sessionId) ? <OpenSessionLinkDialog {...props} /> : null;
+export function SessionLinkDialogHost({ focused, ...props }: SessionLinkDialogHostProps) {
+  const open = useSessionLinkDialogOpen(props.sessionId);
+  return open && focused ? <OpenSessionLinkDialog {...props} /> : null;
 }
 
-function OpenSessionLinkDialog(props: SessionLinkDialogHostProps) {
+function OpenSessionLinkDialog(props: Omit<SessionLinkDialogHostProps, "focused">) {
   return <SessionLinkDialog {...useSessionLinkDialogModel(props)} />;
 }

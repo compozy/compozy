@@ -839,6 +839,10 @@ func (*nativeLinkedWorkFailure) UnlinkSessionWork(context.Context, string, strin
 	return nil
 }
 
+func (*nativeLinkedWorkFailure) RefreshSessionWorkLink(context.Context, string, string, string) error {
+	return nil
+}
+
 func (*nativeLinkedWorkFailure) SessionLinkedWork(
 	context.Context,
 	[]*session.Info,
