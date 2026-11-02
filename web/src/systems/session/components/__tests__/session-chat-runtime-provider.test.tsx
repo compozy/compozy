@@ -11,7 +11,7 @@ import {
   type ThreadMessage,
 } from "@assistant-ui/react";
 import { StrictMode, Suspense, use, useEffect, useLayoutEffect, useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
@@ -2119,7 +2119,7 @@ describe("SessionChatRuntimeProvider", () => {
   // Invariant (#1142): a missing attachment returns the complete draft, re-uploads
   // its retained file, and renders recovery copy instead of the HTTP JSON envelope.
   // Owner: chat runtime; canonical suite: this provider integration suite.
-  it.each(["retry", "remove", "clear", "reopen"])(
+  it.each(["retry", "remove", "clear", "reopen", "remove-pending"])(
     "Should recover a missing image with persistent feedback until %s",
     async outcome => {
       promptResponsePromise = Promise.resolve(
@@ -2132,14 +2132,19 @@ describe("SessionChatRuntimeProvider", () => {
       );
       // Distinct boundary responses prove retry consumes the fresh upload result.
       // A real content-addressed store normally returns the same ID for unchanged bytes.
+      // Node Request cannot encode JSDOM Files; observe the actual multipart file boundary.
+      const multipartAppend = vi.spyOn(FormData.prototype, "append");
+      onTestFinished(() => multipartAppend.mockRestore());
       let uploadCount = 0;
+      const delayedUpload = createDeferred<Response>();
+      let recoveredResponse: Response | undefined;
       attachmentUploadResponse = async () => {
         uploadCount += 1;
         const response = await uploadedAttachmentResponse(
           "image.png",
           uploadCount === 1 ? "a" : "b"
         ).json();
-        return jsonResponse(
+        const reply = jsonResponse(
           {
             attachment: {
               ...response.attachment,
@@ -2151,6 +2156,11 @@ describe("SessionChatRuntimeProvider", () => {
           },
           { status: 201 }
         );
+        if (uploadCount === 2 && outcome === "remove-pending") {
+          recoveredResponse = reply;
+          return delayedUpload.promise;
+        }
+        return reply;
       };
       const user = userEvent.setup();
       const view = renderSessionThread({ includeToaster: true });
@@ -2164,6 +2174,33 @@ describe("SessionChatRuntimeProvider", () => {
       await user.click(screen.getByTestId("composer-send-button"));
       await waitFor(() => expect(composerText()).toBe("Describe this image"));
       expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+      await waitFor(() => expect(uploadCount).toBe(2));
+      const uploads = fetchMock.mock.calls.filter(([input]) =>
+        getPathname(input).endsWith("/attachments")
+      );
+      expect(uploads).toHaveLength(2);
+      const fileParts = multipartAppend.mock.calls.filter(([field]) => field === "file");
+      const retryFile = fileParts[1]![1] as File;
+      expect(retryFile.name).toBe("image.png");
+      const retryBytes = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(retryFile);
+      });
+      expect(retryBytes).toBe("image bytes");
+      if (outcome === "remove-pending") {
+        await waitFor(() => expect(uploadCount).toBe(2));
+        await act(async () => {
+          const attachment = requireComposerAui().composer.getState().attachments[0]!;
+          await requireComposerAui().composer.attachment({ id: attachment.id }).remove();
+        });
+        await act(async () => {
+          delayedUpload.resolve(recoveredResponse!);
+        });
+        expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+        return;
+      }
       const feedback = await screen.findByTestId("composer-feedback-note");
       expect(feedback).toHaveTextContent(
         "An attachment is no longer available. Send again to upload the retained file"
@@ -2179,10 +2216,6 @@ describe("SessionChatRuntimeProvider", () => {
           .queryAllByTestId("user-message-bubble")
           .filter(bubble => bubble.textContent?.includes("Describe this image"));
       await waitFor(() => expect(sentImageBubbles()).toHaveLength(0));
-      const uploads = fetchMock.mock.calls.filter(([input]) =>
-        getPathname(input).endsWith("/attachments")
-      );
-      expect(uploads).toHaveLength(2);
       if (outcome === "reopen") {
         view.unmount();
         renderSessionThread({ includeToaster: true });

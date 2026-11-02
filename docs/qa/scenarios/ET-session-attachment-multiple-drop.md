@@ -87,3 +87,11 @@ copy at narrow widths. It survives toast dismissal and session reopening, and
 clears on acceptance, attachment removal or draft discard. Final S2/S3/S4 remain
 pending rendered re-verification on the new head; the integration suite covers
 all four notice lifecycle paths without relying on the toast timer.
+
+Feedback follow-up: the refusal is published before re-uploading the recovered
+files. Removing a recovered tile while that upload is pending clears the notice
+once, and late upload completion cannot publish it again. New Queue/Steer/Interrupt
+results replace the old prompt notice; acceptance clears it even if the operator
+rewrote the draft while waiting. Existing provider and composer suites reproduce
+these races and cover the fixes. The multipart-file boundary also verifies that
+recovery uploads the retained image name and bytes, rather than only counting POSTs.
