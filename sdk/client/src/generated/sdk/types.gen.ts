@@ -7053,12 +7053,15 @@ export type SessionLineagePayload = {
 };
 
 export type SessionMonitorPayload = {
+  branch?: string;
   created_at: string;
   deadline_at: string;
   description: string;
   exit_code?: number | null;
+  fire_count?: number;
   fired_at?: string | null;
   kind: string;
+  last_fired_at?: string | null;
   monitor_id: string;
   pattern?: string;
   reason?: string;

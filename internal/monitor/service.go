@@ -49,7 +49,10 @@ type Service struct {
 	logs      *logQueue
 	store     Store
 	owners    Owners
-	targets   SessionTargets
+	// pullRequests reads the forge for pull_request monitors; prReads shares those reads.
+	pullRequests PullRequestSource
+	prReads      pullRequestReads
+	targets      SessionTargets
 
 	// quiesced closes before a shutdown stops sessions, and ends every session watch without an outcome.
 	quiesced    chan struct{}
@@ -83,6 +86,7 @@ type entry struct {
 	workspaceID string
 	profileID   string
 	binding     string
+	pullRequest *pullRequestWatch
 	version     int64
 	// decided is the version of the latest terminal decision (cancel, fired, undelivered) and saved is
 	// the highest version known durable; the decision is unconfirmed while saved < decided.
@@ -178,6 +182,13 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 		}
 	case KindTimer:
 	}
+	var target PullRequestTarget
+	if normalized.Kind == KindPullRequest {
+		if target, err = s.resolvePullRequest(ctx, normalized); err != nil {
+			return Monitor{}, err
+		}
+		normalized.Branch = target.Branch
+	}
 	id, err := newID()
 	if err != nil {
 		return Monitor{}, err
@@ -191,9 +202,10 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 		state: Monitor{
 			ID: id, SessionID: normalized.SessionID, Kind: normalized.Kind, Description: normalized.Description,
 			TerminalID: normalized.TerminalID, Until: normalized.Until, Pattern: normalized.Pattern,
-			Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
+			Branch: normalized.Branch, Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
 			TargetSessionIDs: normalized.Targets, States: normalized.States,
 		},
+		pullRequest: newPullRequestWatch(normalized, target),
 		terminalKey: terminalKey(normalized),
 		sessionKey:  sessionKey(normalized),
 		timeout:     normalized.Timeout,
@@ -340,17 +352,12 @@ func (s *Service) admitLocked(item *entry) error {
 	return nil
 }
 
-// identicalLocked finds an occupying terminal or session monitor of the same
-// session with the same condition. Agents retry creation after ambiguous results;
-// without this, each retry would add another wake for one condition.
+// identicalLocked finds an occupying monitor of the same session that already
+// covers this watch. Agents retry creation after ambiguous results; without
+// this, each retry would add another wake for one condition.
 func (s *Service) identicalLocked(item *entry) *entry {
-	if item.terminalKey == "" && item.sessionKey == "" {
-		return nil
-	}
 	for _, existing := range s.sessions[item.state.SessionID] {
-		if existing.occupies() && existing.terminalKey == item.terminalKey && existing.sessionKey == item.sessionKey &&
-			existing.state.Until == item.state.Until && existing.state.Pattern == item.state.Pattern &&
-			existing.timeout == item.timeout && existing.state.Description == item.state.Description {
+		if existing.occupies() && existing.sameWatch(item) {
 			return existing
 		}
 	}

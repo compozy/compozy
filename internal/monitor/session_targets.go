@@ -92,7 +92,7 @@ func selectableTargetState(state string) bool {
 }
 
 func normalizeSessionSpec(spec Spec) (Spec, error) {
-	if spec.TerminalID != "" || spec.Pattern != "" || spec.Delay != 0 {
+	if spec.TerminalID != "" || spec.Pattern != "" || spec.Delay != 0 || spec.Branch != "" {
 		return Spec{}, invalid("session monitors accept only target_session_ids, until, states and timeout_seconds")
 	}
 	spec.Targets = sortedUnique(spec.Targets)

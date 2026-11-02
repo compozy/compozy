@@ -85,9 +85,24 @@ func forgeStatusSDKResponse(response extensioncontract.ForgeStatusResponse) comp
 		Draft: response.Draft, Merged: response.Merged, FetchedAt: response.FetchedAt, Cause: response.Cause,
 		ReviewDecision: response.ReviewDecision, Mergeable: response.Mergeable,
 		UpdatedAt: response.UpdatedAt, Selection: response.Selection, RetryAfter: response.RetryAfter,
+		ReviewsUnavailable: response.ReviewsUnavailable,
 	}
 	if response.Checks != nil {
 		result.Checks = (*compozysdk.ForgeChecks)(response.Checks)
+	}
+	if response.Reviews != nil {
+		items := make([]compozysdk.ForgeReview, 0, len(response.Reviews.Items))
+		for i := range response.Reviews.Items {
+			items = append(items, compozysdk.ForgeReview(response.Reviews.Items[i]))
+		}
+		threads := make([]compozysdk.ForgeReviewThread, 0, len(response.Reviews.Threads))
+		for i := range response.Reviews.Threads {
+			threads = append(threads, compozysdk.ForgeReviewThread(response.Reviews.Threads[i]))
+		}
+		result.Reviews = &compozysdk.ForgeReviews{
+			Items: items, Threads: threads, UnresolvedThreads: response.Reviews.UnresolvedThreads,
+			Truncated: response.Reviews.Truncated,
+		}
 	}
 	return result
 }

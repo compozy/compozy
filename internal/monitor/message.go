@@ -13,6 +13,8 @@ const maxOutputBytes = 4 << 10
 type Notification struct {
 	Monitor Monitor
 	Outcome Outcome
+	// PullRequest is what a pull_request wake reports; nil for other kinds.
+	PullRequest *PullRequestChanges
 }
 
 // Message renders the wake prompt the woken agent receives. It mirrors the
@@ -20,6 +22,10 @@ type Notification struct {
 // explicit not-user-input header, a structured block, then the next action.
 func (n Notification) Message() string {
 	mon := n.Monitor
+	status, action := statusLine(mon, n.Outcome), nextAction(mon, n.Outcome)
+	if n.PullRequest != nil {
+		status, action = pullRequestStatusLine(n.PullRequest), pullRequestNextAction(n.PullRequest)
+	}
 	lines := []string{
 		"[COMPOZY MONITOR - NOT USER INPUT]",
 		"A monitor you registered fired. This is an automated daemon wake, not a message from the user.",
@@ -28,11 +34,14 @@ func (n Notification) Message() string {
 		"<monitor-id>" + mon.ID + "</monitor-id>",
 		"<kind>" + string(mon.Kind) + "</kind>",
 		"<description>" + sanitizeLine(mon.Description) + "</description>",
-		"<status>" + statusLine(mon, n.Outcome) + "</status>",
+		"<status>" + status + "</status>",
 	}
 	lines = append(lines, targetLines(n.Outcome.Targets)...)
 	if mon.TerminalID != "" {
 		lines = append(lines, "<terminal-id>"+mon.TerminalID+"</terminal-id>")
+	}
+	if n.PullRequest != nil {
+		lines = append(lines, pullRequestLines(mon, n.PullRequest)...)
 	}
 	if output := tail(n.Outcome.Output); output != "" {
 		lines = append(lines,
@@ -45,7 +54,7 @@ func (n Notification) Message() string {
 		lines = append(lines,
 			"<note>The daemon restarted after this monitor fired; its terminal output was not retained.</note>")
 	}
-	lines = append(lines, "</monitor-notification>", "", nextAction(mon, n.Outcome))
+	lines = append(lines, "</monitor-notification>", "", action)
 	return strings.Join(lines, "\n")
 }
 

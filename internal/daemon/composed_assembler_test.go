@@ -808,6 +808,7 @@ func TestComposedAssemblerRuntimeEnvelopeEndTurnGuidance(t *testing.T) {
 		for _, want := range []string{
 			"call `compozy__monitor_create` with `kind: \"terminal\"` on the returned `terminal_id`",
 			"call `compozy__monitor_create` with `kind: \"timer\"`",
+			"call `compozy__monitor_create` with `kind: \"pull_request\"`",
 			"End your turn only when every remaining step is blocked on a registered monitor or subagent",
 			"otherwise keep working until the requested outcome is delivered",
 		} {

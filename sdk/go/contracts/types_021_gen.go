@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+type TaskDashboardFreshnessPayload struct {
+	ObservedAt       time.Time `json:"observed_at"`
+	LatestActivityAt time.Time `json:"latest_activity_at"`
+	AgeMilli         int64     `json:"age_ms"`
+	StaleAfterMilli  int64     `json:"stale_after_ms"`
+	HasLiveWork      bool      `json:"has_live_work"`
+	Status           string    `json:"status"`
+	Stale            bool      `json:"stale"`
+}
+
+type TaskDashboardHealthPayload struct {
+	Status           string `json:"status"`
+	StuckRuns        int    `json:"stuck_runs"`
+	ActiveOrphanRuns int    `json:"active_orphan_runs"`
+	QueueBacklog     bool   `json:"queue_backlog"`
+}
+
+type TaskDashboardInProgressCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	ActiveRuns   int    `json:"active_runs"`
+	RunningRuns  int    `json:"running_runs"`
+	StartingRuns int    `json:"starting_runs"`
+	ClaimedRuns  int    `json:"claimed_runs"`
+	QueuedRuns   int    `json:"queued_runs"`
+	HealthStatus string `json:"health_status"`
+}
+
 type TaskDashboardLatencyCardPayload struct {
 	ClaimLatencyMillis TaskLatencyMetricPayload `json:"claim_latency_ms"`
 	StartLatencyMillis TaskLatencyMetricPayload `json:"start_latency_ms"`
@@ -196,36 +223,4 @@ type TaskInboxTaskPayload struct {
 	Scope          TaskScope  `json:"scope"`
 	WorkspaceID    string     `json:"workspace_id,omitempty"`
 	LatestEventSeq int64      `json:"latest_event_seq"`
-}
-
-type TaskLatencyMetricPayload struct {
-	Samples       int   `json:"samples"`
-	AverageMillis int64 `json:"average_ms"`
-	MaximumMillis int64 `json:"maximum_ms"`
-}
-
-type TaskNeedsAttentionPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	ParentTaskID   string    `json:"parent_task_id,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	WorkflowID     string    `json:"workflow_id,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	ActorKind      string    `json:"actor_kind,omitempty"`
-	ActorID        string    `json:"actor_id,omitempty"`
-	OriginKind     string    `json:"origin_kind,omitempty"`
-	OriginRef      string    `json:"origin_ref,omitempty"`
-	TaskStatus     string    `json:"task_status,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	ReleaseReason  string    `json:"release_reason,omitempty"`
-	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
-	Reason         string    `json:"reason,omitempty"`
-	Note           string    `json:"note,omitempty"`
-	At             time.Time `json:"at,omitzero"`
-}
-
-type TaskObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
 }

@@ -21,12 +21,15 @@ type SessionMonitorPayload struct {
 	TerminalID  string     `json:"terminal_id,omitempty"`
 	Until       string     `json:"until,omitempty"`
 	Pattern     string     `json:"pattern,omitempty"`
+	Branch      string     `json:"branch,omitempty"`
 	Status      string     `json:"status"`
 	CreatedAt   time.Time  `json:"created_at"`
 	DeadlineAt  time.Time  `json:"deadline_at"`
 	FiredAt     *time.Time `json:"fired_at,omitempty"`
 	Reason      string     `json:"reason,omitempty"`
 	ExitCode    *int       `json:"exit_code,omitempty"`
+	FireCount   int        `json:"fire_count,omitempty"`
+	LastFiredAt *time.Time `json:"last_fired_at,omitempty"`
 	// TargetSessionIDs and States define a session monitor.
 	TargetSessionIDs []string `json:"target_session_ids,omitempty"`
 	States           []string `json:"states,omitempty"`
@@ -65,8 +68,8 @@ func SessionMonitorFromDomain(item monitorpkg.Monitor) SessionMonitorPayload {
 	payload := SessionMonitorPayload{
 		MonitorID: item.ID, SessionID: item.SessionID, Kind: string(item.Kind),
 		Description: item.Description, TerminalID: item.TerminalID, Until: item.Until,
-		Pattern: item.Pattern, Status: string(item.Status), CreatedAt: item.CreatedAt,
-		DeadlineAt: item.DeadlineAt, Reason: item.Reason, ExitCode: item.ExitCode,
+		Pattern: item.Pattern, Branch: item.Branch, Status: string(item.Status), CreatedAt: item.CreatedAt,
+		DeadlineAt: item.DeadlineAt, Reason: item.Reason, ExitCode: item.ExitCode, FireCount: item.FireCount,
 		TargetSessionIDs: item.TargetSessionIDs, States: item.States,
 	}
 	for _, target := range item.Targets {
@@ -76,6 +79,9 @@ func SessionMonitorFromDomain(item monitorpkg.Monitor) SessionMonitorPayload {
 	}
 	if !item.FiredAt.IsZero() {
 		payload.FiredAt = new(item.FiredAt)
+	}
+	if !item.LastFiredAt.IsZero() {
+		payload.LastFiredAt = new(item.LastFiredAt)
 	}
 	return payload
 }

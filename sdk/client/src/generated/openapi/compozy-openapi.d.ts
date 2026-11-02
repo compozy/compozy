@@ -14742,15 +14742,19 @@ export interface components {
       ttl_expires_at?: string | null;
     };
     SessionMonitorPayload: {
+      branch?: string;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       deadline_at: string;
       description: string;
       exit_code?: number | null;
+      fire_count?: number;
       /** Format: date-time */
       fired_at?: string | null;
       kind: string;
+      /** Format: date-time */
+      last_fired_at?: string | null;
       monitor_id: string;
       pattern?: string;
       reason?: string;

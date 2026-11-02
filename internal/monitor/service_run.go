@@ -9,6 +9,10 @@ import (
 // run owns one monitor from watch to admitted wake. Every exit path is ctx
 // cancellation (cancel, session stop, shutdown) or a recorded terminal status.
 func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Spec, watch Watch) {
+	if spec.Kind == KindPullRequest {
+		s.runPullRequest(ctx, item)
+		return
+	}
 	defer func() {
 		if ctx.Err() != nil {
 			s.logInterrupted(item)
@@ -166,7 +170,7 @@ func (s *Service) settle(item *entry, status Status, cause string) {
 	}
 	event := "monitor.wake_queued"
 	if status == StatusUndelivered {
-		event = "monitor.wake_failed"
+		event = eventWakeFailed
 	}
 	s.logLifecycleCause(event, item.state, item.state.Reason, cause)
 	record := s.decideLocked(item)

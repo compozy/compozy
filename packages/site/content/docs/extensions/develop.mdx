@@ -391,10 +391,18 @@ credential values in a result or error. Pull-request creation must be idempotent
 return `opened_existing` instead of creating a duplicate.
 
 A `forge/status` response may also report `checks` (state, passed/failed/pending counts and at most
-five `failed_names`), `review_decision`, `mergeable`, `updated_at`, and `selection`
+64 `failed_names`), `reviews`, `review_decision`, `mergeable`, `updated_at`, and `selection`
 (`complete` or `incomplete`). Omitted facts remain unknown. Checks describe the reported `head_sha`.
-A failed response with `cause` may include `retry_after` as an RFC 3339 timestamp; it is invalid
-without a cause. Existing providers may omit all six fields.
+`reviews` holds `items` (at most 100, each with `id`, `state`, and optional `author`, `is_bot`,
+`submitted_at`, and `commit`), `threads` (at most 100 unresolved threads, newest last, each with `id` and
+the optional `commit` it was opened on, which must not follow the head), `unresolved_threads`, and
+`truncated` when the provider stopped early. `unresolved_threads` may exceed the `threads` it lists only
+with `truncated`. `state` is `approved`, `changes_requested`, `commented`, or `dismissed`, and review
+text is never carried. A provider that omits `reviews` still works: pull request monitors report reviews
+as not observable. A provider that serves reviews but failed to read them this time sets
+`reviews_unavailable` instead, which monitors treat as a passing failure rather than a missing capability.
+A failed response with `cause` may include `retry_after` as an RFC 3339 timestamp; it is invalid without
+a cause. Existing providers may omit all eight fields.
 
 Managed delivery supplies `base` and `head_sha` to reconcile the exact reviewed candidate.
 For that request, return the observed `head`, `base`, `head_sha`, and `draft`; missing evidence

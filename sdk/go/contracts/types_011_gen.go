@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+type InitializeResponse struct {
+	ProtocolVersion      string                  `json:"protocol_version"`
+	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
+	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
+	ImplementedMethods   []string                `json:"implemented_methods"`
+	SupportedHookEvents  []string                `json:"supported_hook_events"`
+	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
+	Supports             InitializeSupports      `json:"supports"`
+}
+
+type InitializeRuntime struct {
+	HealthCheckIntervalMS int64 `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64 `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64 `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64 `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64 `json:"default_view_timeout_ms,omitempty"`
+}
+
+type InitializeSupports struct {
+	HealthCheck bool `json:"health_check"`
+}
+
 type InputAttachmentMetadata struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -323,47 +346,4 @@ type LoopLifecyclePayload struct {
 	Cause           string          `json:"cause,omitempty"`
 	ReasonCode      string          `json:"reason_code,omitempty"`
 	Details         json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopNodeTerminalPayload struct {
-	Event           HookEvent       `json:"event"`
-	Timestamp       time.Time       `json:"timestamp"`
-	ProfileID       string          `json:"profile_id,omitempty"`
-	LoopRunID       string          `json:"loop_run_id,omitempty"`
-	ParentLoopRunID string          `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	LoopName        string          `json:"loop_name,omitempty"`
-	Generation      int             `json:"generation,omitempty"`
-	TaskID          string          `json:"task_id,omitempty"`
-	RunID           string          `json:"run_id,omitempty"`
-	RunKind         string          `json:"run_kind,omitempty"`
-	NodeID          string          `json:"node_id,omitempty"`
-	WorkflowID      string          `json:"workflow_id,omitempty"`
-	AgentName       string          `json:"agent_name,omitempty"`
-	SessionID       string          `json:"session_id,omitempty"`
-	ActorKind       string          `json:"actor_kind,omitempty"`
-	ActorID         string          `json:"actor_id,omitempty"`
-	OriginKind      string          `json:"origin_kind,omitempty"`
-	OriginRef       string          `json:"origin_ref,omitempty"`
-	TaskStatus      string          `json:"task_status,omitempty"`
-	RunStatus       string          `json:"run_status,omitempty"`
-	FailureClass    string          `json:"failure_class,omitempty"`
-	Disposition     string          `json:"disposition,omitempty"`
-	Attempt         int             `json:"attempt,omitempty"`
-	Target          string          `json:"target,omitempty"`
-	Error           string          `json:"error,omitempty"`
-	Details         json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type LoopProvenance struct {
-	RunID      string             `json:"run_id"`
-	LoopName   string             `json:"loop_name,omitempty"`
-	Role       LoopProvenanceRole `json:"role"`
-	Generation *int               `json:"generation,omitempty"`
-	NodeID     string             `json:"node_id,omitempty"`
-	ItemIndex  *int               `json:"item_index,omitempty"`
 }

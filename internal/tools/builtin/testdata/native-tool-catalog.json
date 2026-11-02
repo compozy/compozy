@@ -1848,7 +1848,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "15d96ad35622688826df2db7f9d8e0615515908754dfaa2efe37f0fe72ec7561",
-    "output_schema_digest": "cc5077a0804ea77a3690d5f9ed6175497cd3bec7978bad6ee8b7738e2454d762"
+    "output_schema_digest": "825cafcef0434cf150e3b6cfb9c10b05db1c1f542dbec8abbabfec184d95cabd"
   },
   {
     "tool_id": "compozy__monitor_create",
@@ -1860,8 +1860,8 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "41c5576204d060108adc0ac6209febdb7e5943472aa60366af706d455c5c1183",
-    "output_schema_digest": "cc5077a0804ea77a3690d5f9ed6175497cd3bec7978bad6ee8b7738e2454d762"
+    "input_schema_digest": "d3d70f5bd0f2f0a77e0da64757e410749fa0ee3417a11d92fcc26f482997df94",
+    "output_schema_digest": "825cafcef0434cf150e3b6cfb9c10b05db1c1f542dbec8abbabfec184d95cabd"
   },
   {
     "tool_id": "compozy__monitor_list",
@@ -1874,7 +1874,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "9efcef03a92f24b4502d9471fd9d8ff515c98a43a3d991ec2f6a1a85601c9ec6"
+    "output_schema_digest": "57dd9a326cc5904df7f15c518543dfa3cba60e8a22aade8bea6c2996e60c2fe6"
   },
   {
     "tool_id": "compozy__notify",

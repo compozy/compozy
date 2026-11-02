@@ -7,6 +7,57 @@ import (
 	"time"
 )
 
+type TaskRunLeaseRecoveredPayload struct {
+	Event             HookEvent `json:"event"`
+	Timestamp         time.Time `json:"timestamp"`
+	ProfileID         string    `json:"profile_id,omitempty"`
+	TaskID            string    `json:"task_id,omitempty"`
+	RunID             string    `json:"run_id,omitempty"`
+	RunKind           *string   `json:"run_kind,omitempty"`
+	WakeID            string    `json:"wake_id,omitempty"`
+	OwnerKey          string    `json:"owner_key,omitempty"`
+	TargetSessionID   string    `json:"target_session_id,omitempty"`
+	LoopRunID         string    `json:"loop_run_id,omitempty"`
+	WorkspaceID       string    `json:"workspace_id,omitempty"`
+	WorkflowID        string    `json:"workflow_id,omitempty"`
+	AgentName         string    `json:"agent_name,omitempty"`
+	SessionID         string    `json:"session_id,omitempty"`
+	ActorKind         string    `json:"actor_kind,omitempty"`
+	ActorID           string    `json:"actor_id,omitempty"`
+	OriginKind        string    `json:"origin_kind,omitempty"`
+	OriginRef         string    `json:"origin_ref,omitempty"`
+	TaskStatus        string    `json:"task_status,omitempty"`
+	RunStatus         string    `json:"run_status,omitempty"`
+	SoulSnapshotID    string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest        string    `json:"soul_digest,omitempty"`
+	Attempt           int       `json:"attempt,omitempty"`
+	LeaseUntil        time.Time `json:"lease_until"`
+	ReleaseReason     string    `json:"release_reason,omitempty"`
+	Error             string    `json:"error,omitempty"`
+	PreviousRunStatus string    `json:"previous_run_status,omitempty"`
+	PreviousSessionID string    `json:"previous_session_id,omitempty"`
+	RecoveryAction    string    `json:"recovery_action,omitempty"`
+	RecoveryReason    string    `json:"recovery_reason,omitempty"`
+}
+
+type TaskRunObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type TaskRunOperationalSummaryPayload struct {
+	LastActivityAt time.Time  `json:"last_activity_at"`
+	LastEventType  string     `json:"last_event_type,omitempty"`
+	ToolCallCount  *int64     `json:"tool_call_count,omitempty"`
+	TurnCount      *int64     `json:"turn_count,omitempty"`
+	InputTokens    *int64     `json:"input_tokens,omitempty"`
+	OutputTokens   *int64     `json:"output_tokens,omitempty"`
+	TotalTokens    *int64     `json:"total_tokens,omitempty"`
+	TotalCost      *float64   `json:"total_cost,omitempty"`
+	CostCurrency   *string    `json:"cost_currency,omitempty"`
+	CostStatus     CostStatus `json:"cost_status,omitempty"`
+	CostSource     CostSource `json:"cost_source,omitempty"`
+}
+
 type TaskRunPostClaimPayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -291,43 +342,4 @@ type TaskTreeNodePayload struct {
 	ChildCount     int                    `json:"child_count,omitempty"`
 	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
 	LastActivityAt time.Time              `json:"last_activity_at"`
-}
-
-type TaskTreeParams struct {
-	ID string `json:"id"`
-}
-
-type TaskTriageStatePayload struct {
-	TaskID             string        `json:"task_id"`
-	Actor              ActorIdentity `json:"actor"`
-	Read               bool          `json:"read"`
-	Archived           bool          `json:"archived"`
-	Dismissed          bool          `json:"dismissed"`
-	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
-	UpdatedAt          time.Time     `json:"updated_at"`
-}
-
-type TaskUnblockedPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	TaskID         string          `json:"task_id,omitempty"`
-	ParentTaskID   string          `json:"parent_task_id,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	WorkflowID     string          `json:"workflow_id,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	ActorKind      string          `json:"actor_kind,omitempty"`
-	ActorID        string          `json:"actor_id,omitempty"`
-	OriginKind     string          `json:"origin_kind,omitempty"`
-	OriginRef      string          `json:"origin_ref,omitempty"`
-	TaskStatus     string          `json:"task_status,omitempty"`
-	RunID          string          `json:"run_id,omitempty"`
-	ReleaseReason  string          `json:"release_reason,omitempty"`
-	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
-	BlockID        string          `json:"block_id,omitempty"`
-	Kind           string          `json:"kind,omitempty"`
-	Reason         string          `json:"reason,omitempty"`
-	Details        json.RawMessage `json:"details,omitempty"`
-	ClearedAt      time.Time       `json:"cleared_at,omitzero"`
-	ClearNote      string          `json:"clear_note,omitempty"`
 }

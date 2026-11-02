@@ -43,15 +43,17 @@ func (c instanceDigestCollector) Collect(
 	}
 	if (include == nil || slices.Contains(include, "monitors_fired")) && scope.MainSessionID != "" {
 		for _, item := range c.monitors.List(scope.MainSessionID) {
-			facts.Monitors = append(
-				facts.Monitors,
-				heartbeat.MonitorFact{
-					ID:        item.ID,
-					SessionID: item.SessionID,
-					Fired:     item.Status == monitor.StatusFired,
-				},
-			)
+			facts.Monitors = append(facts.Monitors, monitorDigestFact(item))
 		}
 	}
 	return heartbeat.CollectDigest(scope, facts, include, policy, instructions)
+}
+
+// monitorDigestFact keeps pull_request monitors out of the fired bucket: their wakes already reached
+// the session, so none of them may buy a check on top.
+func monitorDigestFact(item monitor.Monitor) heartbeat.MonitorFact {
+	return heartbeat.MonitorFact{
+		ID: item.ID, SessionID: item.SessionID,
+		Fired: item.Status == monitor.StatusFired && item.Kind != monitor.KindPullRequest,
+	}
 }

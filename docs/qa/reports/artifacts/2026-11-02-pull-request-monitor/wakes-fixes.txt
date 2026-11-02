@@ -1,0 +1,38 @@
+# Lab forge extension over the real extension protocol, branch head 7b97c2ce1
+--- 19:20:45 monitor_pull_request_changed
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: aaaa1111
+checks: 3 passed, 1 failed, 3 pending
+newly failed: lint
+failing now: lint
+new review: changes_requested by bot[bot] (bot)
+new unresolved threads: 1
+unresolved threads: 1
+</pull-request>
+
+--- 19:21:45 monitor_pull_request_changed
+<status>pull request changed; this monitor stays armed</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: bbbb2222
+checks: 1 passed, 1 failed, 5 pending
+newly failed: unit
+failing now: unit
+unresolved threads: 2
+</pull-request>
+
+--- 19:22:45 monitor_pull_request_merged
+<status>pull request merged; this monitor has ended</status>
+<pull-request untrusted="true" encoding="entities">
+pull request: #41
+branch: feat/lab
+url: https://forge.test/acme/repo/pull/41
+head: bbbb2222
+</pull-request>
+
