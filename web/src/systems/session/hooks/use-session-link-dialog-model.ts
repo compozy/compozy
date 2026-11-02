@@ -16,15 +16,21 @@ import {
 import {
   candidateKey,
   linkedCandidateKeys,
+  linkFailureMessage,
   linkRequest,
+  type SessionLinkFailure,
   type SessionWorkCandidate,
 } from "../lib/session-linked-work";
 import {
   sessionLinkCandidatesOptions,
   sessionLinkedWorkOptions,
 } from "../lib/session-linked-work-options";
+import { settleBounded } from "../lib/settle-bounded";
 import { closeSessionLinkDialog } from "./use-session-link-dialog";
 import { useSessionLinkMutations } from "./use-session-linked-work";
+
+/** Order doesn't matter to the daemon, so a selection links in parallel, gently. */
+const LINK_CONCURRENCY = 3;
 
 /** The picker's two server searches for the settled query. */
 function useSessionLinkCandidates(workspaceId: string, sessionId: string, query: string) {
@@ -60,7 +66,11 @@ function useSessionLinkSelection(exact: SessionWorkCandidate | null) {
   const selected = exact && exactKey !== declined && !pickedExact ? [...picked, exact] : picked;
   return {
     selected,
-    keep: setPicked,
+    /** Narrows the selection to what is left; a pasted match that went through stays unticked. */
+    keep: (remaining: readonly SessionWorkCandidate[]) => {
+      setPicked(remaining);
+      if (!remaining.some(item => candidateKey(item) === exactKey)) setDeclined(exactKey);
+    },
     toggle: (candidate: SessionWorkCandidate) => {
       const key = candidateKey(candidate);
       if (key === exactKey) setDeclined(current => (current === key ? null : key));
@@ -103,19 +113,25 @@ export function useSessionLinkDialogModel({
   const confirm = async () => {
     setPending(true);
     setError(null);
-    const remaining: SessionWorkCandidate[] = [];
-    for (const candidate of selection.selected) {
-      try {
-        await add.mutateAsync(linkRequest(candidate));
-      } catch (cause) {
-        remaining.push(candidate);
-        if (isRepositoryMismatch(cause)) setRefused(true);
-        else setError(cause instanceof Error ? cause.message : "Couldn't link this to the session");
-      }
-    }
+    const { selected } = selection;
+    const outcomes = await settleBounded(selected, LINK_CONCURRENCY, candidate =>
+      add.mutateAsync(linkRequest(candidate))
+    );
+    const failures = selected.flatMap((candidate, index): SessionLinkFailure[] => {
+      const outcome = outcomes[index];
+      return outcome?.status === "rejected" ? [{ candidate, cause: outcome.reason }] : [];
+    });
+    // A pasted link has its own "another project" state; anything else must say so in words.
+    const pastedLink = parseSessionLinkInput(query).kind === "link";
+    setRefused(failures.some(({ cause }) => isRepositoryMismatch(cause)));
+    setError(
+      linkFailureMessage(
+        pastedLink ? failures.filter(({ cause }) => !isRepositoryMismatch(cause)) : failures
+      )
+    );
     setPending(false);
-    selection.keep(remaining);
-    if (remaining.length === 0) closeSessionLinkDialog();
+    selection.keep(failures.map(({ candidate }) => candidate));
+    if (failures.length === 0) closeSessionLinkDialog();
   };
 
   return {

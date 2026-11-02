@@ -1,7 +1,8 @@
 // Suite: session linked work data flow
 // Invariant: unlinking is immediate and undone through the add path, a failed write restores the
-// API envelope, and the picker searches and pages on the server, naming a refused repository, an
-// unknown number and an unavailable forge as their own states.
+// API envelope, the picker searches and pages on the server, naming a refused repository, an
+// unknown number and an unavailable forge as their own states, and a multi-link confirm runs at
+// bounded concurrency, keeping and naming only what failed.
 // Boundary IN: useSessionLinkedWork, useSessionLinkDialogModel and TanStack Query.
 // Boundary OUT: the adapters, mocked at the network seam.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -255,6 +256,89 @@ describe("useSessionLinkDialogModel", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("Should link a selection at bounded concurrency and name what failed", async () => {
+    candidates(SESSION_LINK_PULL_REQUESTS.slice(0, 6));
+    sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
+    const finish = new Map<number, () => void>();
+    vi.mocked(addSessionWorkLink).mockImplementation(
+      (_workspace, _session, request) =>
+        new Promise((resolve, reject) => {
+          finish.set(request.pr_number!, () =>
+            request.pr_number === 962 || request.pr_number === 951
+              ? reject(new SessionApiError("not found", 400))
+              : resolve({ items })
+          );
+        })
+    );
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const picks = SESSION_LINK_PULL_REQUESTS.slice(0, 5);
+    for (const pick of picks) act(() => result.current.onToggle(pick));
+    act(() => result.current.onConfirm());
+    await waitFor(() => expect(finish.size).toBe(3));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(addSessionWorkLink).toHaveBeenCalledTimes(3);
+    await waitFor(async () => {
+      const running = [...finish.values()];
+      finish.clear();
+      await act(async () => running.forEach(settle => settle()));
+      expect(result.current.pending).toBe(false);
+    });
+    expect(addSessionWorkLink).toHaveBeenCalledTimes(picks.length);
+    expect(result.current.selected.map(candidate => candidate.pr_number).sort()).toEqual([
+      951, 962,
+    ]);
+    expect(result.current.error).toBe("Couldn't link #962, #951: not found");
+    expect(sessionLinkDialogStore.getSnapshot().context.sessionId).toBe(session.id);
+  });
+
+  it("Should not leave a pasted pull request selected once it is linked", async () => {
+    candidates();
+    sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
+    vi.mocked(addSessionWorkLink).mockImplementation(async (_workspace, _session, request) => {
+      if (request.pr_number === 962) throw new SessionApiError("not found", 400);
+      return { items };
+    });
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[1]!));
+    act(() => result.current.onQueryChange("#963"));
+    await waitFor(() => expect(result.current.selected).toHaveLength(2));
+    await act(async () => result.current.onConfirm());
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.selected.map(candidate => candidate.pr_number)).toEqual([962]);
+  });
+
+  it("Should settle on the daemon's list when a batch's answers land out of order", async () => {
+    candidates();
+    sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
+    // Every write answers with a list older than the batch; only the reread is complete.
+    vi.mocked(addSessionWorkLink).mockResolvedValue({ items: [] });
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.linked.size).toBeGreaterThan(0));
+    const complete = result.current.linked;
+    act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[0]!));
+    act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[1]!));
+    await act(async () => result.current.onConfirm());
+    await waitFor(() => expect(addSessionWorkLink).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.linked).toEqual(complete));
+  });
+
+  it("Should report a refused pick when no pasted link can say so", async () => {
+    candidates();
+    vi.mocked(addSessionWorkLink).mockRejectedValue(
+      new SessionApiError("refused", 400, session.id, { code: "session_link_repository_mismatch" })
+    );
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[0]!));
+    await act(async () => result.current.onConfirm());
+    await waitFor(() => expect(result.current.error).toBe("Couldn't link #963: refused"));
+    expect(result.current.search.kind).toBe("results");
+  });
+
   it("Should keep what failed selected and close once everything is linked", async () => {
     candidates();
     sessionLinkDialogStore.trigger.opened({ sessionId: session.id });
@@ -265,7 +349,7 @@ describe("useSessionLinkDialogModel", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     act(() => result.current.onToggle(SESSION_LINK_PULL_REQUESTS[0]!));
     await act(async () => result.current.onConfirm());
-    await waitFor(() => expect(result.current.error).toBe("not found"));
+    await waitFor(() => expect(result.current.error).toBe("Couldn't link #963: not found"));
     expect(result.current.selected).toHaveLength(1);
     expect(sessionLinkDialogStore.getSnapshot().context.sessionId).toBe(session.id);
     await act(async () => result.current.onConfirm());

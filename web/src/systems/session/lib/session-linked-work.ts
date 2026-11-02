@@ -254,6 +254,24 @@ export function candidateKey(candidate: SessionWorkCandidate): string {
     : `${candidate.repository}:${candidate.branch}`;
 }
 
+export interface SessionLinkFailure {
+  candidate: SessionWorkCandidate;
+  cause: unknown;
+}
+
+/** Names what is still unlinked, because the rest of the selection went through. */
+export function linkFailureMessage(failures: readonly SessionLinkFailure[]): string | null {
+  if (failures.length === 0) return null;
+  const names = failures.map(({ candidate }) =>
+    candidate.pr_number ? `#${candidate.pr_number}` : candidate.branch
+  );
+  const causes = failures.flatMap(({ cause }) =>
+    cause instanceof Error && cause.message ? [cause.message] : []
+  );
+  const reason = [...new Set(causes)].join("; ");
+  return `Couldn't link ${names.join(", ")}${reason ? `: ${reason}` : "."}`;
+}
+
 /**
  * What the picker marks as already linked: both identities of the session's direct items. A
  * rolled-up item stays pickable, because a direct link is a different statement about the session.
