@@ -100,7 +100,15 @@ export function useSessionLinkedWork({
       onSuccess: () => {
         toast.message(`Unlinked ${linkShortName(item)}`, {
           description: linkUnlinkedNote(item),
-          action: { label: "Undo", onClick: () => add.mutate(linkRequest(item)) },
+          action: {
+            label: "Undo",
+            onClick: () =>
+              add.mutate(linkRequest(item), {
+                onError: () => {
+                  toast.error(`Couldn't link ${linkShortName(item)} again.`);
+                },
+              }),
+          },
         });
       },
       onError: () => {

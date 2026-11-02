@@ -229,7 +229,7 @@ export function useOsPaletteEntities({
     ? keepServerSessions(rankedRows, sessionRows, signals?.weights.entity_section_visible_cap)
     : rankedRows;
   const linkCommand = rankEntityRows(
-    !destination && focusedSession ? [focusedSession] : [],
+    !destination && focusedSession && query.trim() !== "" ? [focusedSession] : [],
     id => ({ id, label: LINK_COMMAND_LABEL, keywords: ["pull request", "branch", "link"] }),
     "Session",
     query,

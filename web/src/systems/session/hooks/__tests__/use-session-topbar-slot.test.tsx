@@ -54,8 +54,10 @@ function SessionPublisher({
   onRefresh,
   hasLiveGoal = false,
   linkedWork = NO_LINKED_WORK,
+  onOpenSession,
 }: {
   linkedWork?: SessionLinkedWorkModel;
+  onOpenSession?: (sessionId: string) => void;
   onSendPrompt?: (text: string) => void;
   onRefresh?: () => void;
   hasLiveGoal?: boolean;
@@ -70,6 +72,7 @@ function SessionPublisher({
   useSessionTopbarSlot({
     ...LINKED_WORK,
     linkedWork,
+    onOpenSession,
     session,
     transportChip,
     hasLiveGoal,
@@ -619,10 +622,23 @@ describe("useSessionTopbarSlot", () => {
     });
 
     it("Should leave Unlink off a rolled-up row, whose target is the child session", async () => {
-      renderLinks(model(SESSION_LINK_SETS.rolledUp));
+      const onOpenSession = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={model(SESSION_LINK_SETS.rolledUp)}
+          onOpenSession={onOpenSession}
+          onStop={vi.fn()}
+        />
+      );
       fireEvent.click(screen.getByTestId("session-links-more"));
       const list = await screen.findByRole("dialog");
       expect(list).toHaveTextContent("From Login redirect fix");
+      fireEvent.click(
+        within(list).getByRole("button", {
+          name: "Open Fix the login redirect loop in its session",
+        })
+      );
+      expect(onOpenSession).toHaveBeenCalledWith("s2");
       fireEvent.click(
         within(list).getByRole("button", { name: "Actions for Fix the login redirect loop" })
       );
