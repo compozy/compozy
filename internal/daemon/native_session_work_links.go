@@ -40,5 +40,9 @@ func (n *daemonNativeTools) sessionWorkLink(ctx context.Context, scope toolspkg.
 	if err != nil {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCode(core.LinkedWorkErrorCode(err)), req.ToolID, err.Error(), err)
 	}
-	return structuredResult(map[string]any{"session_id": scope.SessionID, "branch": input.Branch, "unlinked": unlink}, scope.SessionID)
+	result := map[string]any{"session_id": scope.SessionID, "branch": input.Branch, "unlinked": unlink}
+	if input.PRNumber > 0 {
+		result["pr_number"] = input.PRNumber
+	}
+	return structuredResult(result, scope.SessionID)
 }

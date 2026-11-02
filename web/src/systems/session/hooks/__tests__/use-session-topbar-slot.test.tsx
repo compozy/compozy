@@ -8,7 +8,7 @@
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -577,6 +577,13 @@ describe("useSessionTopbarSlot", () => {
         `This session runs in ${primarySessionFixture.workspace_path}. Linking never moves it.`
       );
       expect(list.querySelectorAll('[data-slot="session-link-row"]')).toHaveLength(4);
+    });
+
+    it("Should close the list when the link dialog takes over", async () => {
+      renderLinks(model(SESSION_LINK_SETS.mixed));
+      fireEvent.click(screen.getByTestId("session-links-more"));
+      fireEvent.click(await screen.findByRole("button", { name: "Link…" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     });
 
     it("Should say +N more when the rest are not all pull requests", () => {

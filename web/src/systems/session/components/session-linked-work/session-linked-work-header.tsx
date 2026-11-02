@@ -3,7 +3,7 @@
  * list. Nothing new at rest, nothing stays open.
  */
 import { FolderGit2, GitPullRequest, Link2, Unlink } from "@compozy/ui/icons";
-import type { ReactElement, ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 
 import {
   Button,
@@ -54,8 +54,17 @@ function SessionLinkedWorkPopover({
   list: SessionLinkedWorkListProps;
   testId: string;
 }) {
+  const [open, setOpen] = useState(list.listOpen ?? false);
+  const actions = {
+    ...list.actions,
+    // The link dialog takes over: left open, this popover would sit on top of it.
+    onLink: () => {
+      setOpen(false);
+      list.actions.onLink();
+    },
+  };
   return (
-    <Popover defaultOpen={list.listOpen}>
+    <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger data-testid={testId} render={trigger}>
         {children}
       </PopoverTrigger>
@@ -64,7 +73,7 @@ function SessionLinkedWorkPopover({
         className="w-120 max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0"
       >
         <SessionLinkedWorkPanel
-          actions={list.actions}
+          actions={actions}
           agentLabel={list.agentLabel}
           items={list.items}
           openDetailFor={list.openDetailFor}
